@@ -20,6 +20,9 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
+import com.google.protobuf.timestamp
+import com.google.type.Interval
+import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
@@ -33,6 +36,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
@@ -350,6 +354,99 @@ class EventGroupsServiceTest {
   }
 
   @Test
+  fun `createEventGroup returns event group when data_availability_interval start_time set`() {
+    val dataAvailabilityInterval = interval { startTime = timestamp { seconds = 300 } }
+
+    runBlocking {
+      whenever(internalEventGroupsMock.createEventGroup(any()))
+        .thenReturn(
+          INTERNAL_EVENT_GROUP.copy {
+            details =
+              INTERNAL_EVENT_GROUP.details.copy {
+                this.dataAvailabilityInterval = dataAvailabilityInterval
+              }
+          }
+        )
+    }
+
+    val request = createEventGroupRequest {
+      parent = DATA_PROVIDER_NAME
+      eventGroup = EVENT_GROUP.copy { this.dataAvailabilityInterval = dataAvailabilityInterval }
+    }
+
+    val response: EventGroup =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.createEventGroup(request) }
+      }
+
+    verifyProtoArgument(internalEventGroupsMock, EventGroupsCoroutineImplBase::createEventGroup)
+      .isEqualTo(
+        internalCreateEventGroupRequest {
+          eventGroup =
+            INTERNAL_EVENT_GROUP.copy {
+              clearCreateTime()
+              clearExternalEventGroupId()
+              clearState()
+              details =
+                INTERNAL_EVENT_GROUP.details.copy {
+                  this.dataAvailabilityInterval = dataAvailabilityInterval
+                }
+            }
+        }
+      )
+    assertThat(response)
+      .isEqualTo(EVENT_GROUP.copy { this.dataAvailabilityInterval = dataAvailabilityInterval })
+  }
+
+  @Test
+  fun `createEventGroup returns event group when data_availability_interval end_time set`() {
+    val dataAvailabilityInterval = interval {
+      startTime = timestamp { seconds = 300 }
+      endTime = timestamp { seconds = 400 }
+    }
+
+    runBlocking {
+      whenever(internalEventGroupsMock.createEventGroup(any()))
+        .thenReturn(
+          INTERNAL_EVENT_GROUP.copy {
+            details =
+              INTERNAL_EVENT_GROUP.details.copy {
+                this.dataAvailabilityInterval = dataAvailabilityInterval
+              }
+          }
+        )
+    }
+
+    val request = createEventGroupRequest {
+      parent = DATA_PROVIDER_NAME
+      eventGroup = EVENT_GROUP.copy { this.dataAvailabilityInterval = dataAvailabilityInterval }
+    }
+
+    val response: EventGroup =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.createEventGroup(request) }
+      }
+
+    verifyProtoArgument(internalEventGroupsMock, EventGroupsCoroutineImplBase::createEventGroup)
+      .isEqualTo(
+        internalCreateEventGroupRequest {
+          eventGroup =
+            INTERNAL_EVENT_GROUP.copy {
+              clearCreateTime()
+              clearExternalEventGroupId()
+              clearState()
+              details =
+                INTERNAL_EVENT_GROUP.details.copy {
+                  this.dataAvailabilityInterval = dataAvailabilityInterval
+                }
+            }
+        }
+      )
+    assertThat(response)
+      .isEqualTo(EVENT_GROUP.copy { this.dataAvailabilityInterval = dataAvailabilityInterval })
+  }
+
+  @Test
   fun `createEventGroup throws UNAUTHENTICATED when no principal is found`() {
     val request = createEventGroupRequest {
       parent = DATA_PROVIDER_NAME
@@ -443,6 +540,51 @@ class EventGroupsServiceTest {
   }
 
   @Test
+  fun `createEventGroup throws INVALID_ARGUMENT if data_availability_interval has no start_time`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.createEventGroup(
+              createEventGroupRequest {
+                parent = DATA_PROVIDER_NAME
+                eventGroup =
+                  EVENT_GROUP.copy { dataAvailabilityInterval = Interval.getDefaultInstance() }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("start_time required")
+  }
+
+  @Test
+  fun `createEventGroup throws INVALID_ARGUMENT if data_availability_interval end_time bad`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.createEventGroup(
+              createEventGroupRequest {
+                parent = DATA_PROVIDER_NAME
+                eventGroup =
+                  EVENT_GROUP.copy {
+                    dataAvailabilityInterval = interval {
+                      startTime = timestamp { seconds = 500 }
+                      endTime = timestamp { seconds = 300 }
+                    }
+                  }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("before")
+  }
+
+  @Test
   fun `createEventGroup throws INVALID_ARGUMENT if public key is set without certificate`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -483,6 +625,95 @@ class EventGroupsServiceTest {
       )
 
     assertThat(result).isEqualTo(expected)
+  }
+
+  @Test
+  fun `updateEventGroup returns event group when data_availability_interval start_time set`() {
+    val dataAvailabilityInterval = interval { startTime = timestamp { seconds = 300 } }
+
+    runBlocking {
+      whenever(internalEventGroupsMock.updateEventGroup(any()))
+        .thenReturn(
+          INTERNAL_EVENT_GROUP.copy {
+            details =
+              INTERNAL_EVENT_GROUP.details.copy {
+                this.dataAvailabilityInterval = dataAvailabilityInterval
+              }
+          }
+        )
+    }
+
+    val request = updateEventGroupRequest {
+      eventGroup = EVENT_GROUP.copy { this.dataAvailabilityInterval = dataAvailabilityInterval }
+    }
+
+    val response: EventGroup =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.updateEventGroup(request) }
+      }
+
+    verifyProtoArgument(internalEventGroupsMock, EventGroupsCoroutineImplBase::updateEventGroup)
+      .isEqualTo(
+        internalUpdateEventGroupRequest {
+          eventGroup =
+            INTERNAL_EVENT_GROUP.copy {
+              clearCreateTime()
+              clearState()
+              details =
+                INTERNAL_EVENT_GROUP.details.copy {
+                  this.dataAvailabilityInterval = dataAvailabilityInterval
+                }
+            }
+        }
+      )
+    assertThat(response)
+      .isEqualTo(EVENT_GROUP.copy { this.dataAvailabilityInterval = dataAvailabilityInterval })
+  }
+
+  @Test
+  fun `updateEventGroup returns event group when data_availability_interval end_time set`() {
+    val dataAvailabilityInterval = interval {
+      startTime = timestamp { seconds = 300 }
+      endTime = timestamp { seconds = 400 }
+    }
+
+    runBlocking {
+      whenever(internalEventGroupsMock.updateEventGroup(any()))
+        .thenReturn(
+          INTERNAL_EVENT_GROUP.copy {
+            details =
+              INTERNAL_EVENT_GROUP.details.copy {
+                this.dataAvailabilityInterval = dataAvailabilityInterval
+              }
+          }
+        )
+    }
+
+    val request = updateEventGroupRequest {
+      eventGroup = EVENT_GROUP.copy { this.dataAvailabilityInterval = dataAvailabilityInterval }
+    }
+
+    val response: EventGroup =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.updateEventGroup(request) }
+      }
+
+    verifyProtoArgument(internalEventGroupsMock, EventGroupsCoroutineImplBase::updateEventGroup)
+      .isEqualTo(
+        internalUpdateEventGroupRequest {
+          eventGroup =
+            INTERNAL_EVENT_GROUP.copy {
+              clearCreateTime()
+              clearState()
+              details =
+                INTERNAL_EVENT_GROUP.details.copy {
+                  this.dataAvailabilityInterval = dataAvailabilityInterval
+                }
+            }
+        }
+      )
+    assertThat(response)
+      .isEqualTo(EVENT_GROUP.copy { this.dataAvailabilityInterval = dataAvailabilityInterval })
   }
 
   @Test
@@ -556,6 +787,49 @@ class EventGroupsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `updateEventGroup throws INVALID_ARGUMENT if data_availability_interval has no start_time`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.updateEventGroup(
+              updateEventGroupRequest {
+                eventGroup =
+                  EVENT_GROUP.copy { dataAvailabilityInterval = Interval.getDefaultInstance() }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("start_time required")
+  }
+
+  @Test
+  fun `updateEventGroup throws INVALID_ARGUMENT if data_availability_interval end_time bad`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.updateEventGroup(
+              updateEventGroupRequest {
+                eventGroup =
+                  EVENT_GROUP.copy {
+                    dataAvailabilityInterval = interval {
+                      startTime = timestamp { seconds = 500 }
+                      endTime = timestamp { seconds = 300 }
+                    }
+                  }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("before")
   }
 
   @Test
