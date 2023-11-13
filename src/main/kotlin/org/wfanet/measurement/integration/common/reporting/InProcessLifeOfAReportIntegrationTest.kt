@@ -419,9 +419,8 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     private val EVENT_GROUP: EventGroup = eventGroup {
       name = EVENT_GROUP_NAME
       measurementConsumer = MEASUREMENT_CONSUMER_NAME
-      measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
       eventGroupReferenceId = "aaa"
-      measurementConsumerPublicKey = MEASUREMENT_CONSUMER.publicKey
+      measurementConsumerPublicKey = MEASUREMENT_CONSUMER.publicKey.message
       vidModelLines.addAll(VID_MODEL_LINES)
       eventTemplates.addAll(EVENT_TEMPLATES)
       encryptedMetadata =
