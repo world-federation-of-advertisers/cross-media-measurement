@@ -14,26 +14,16 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.reporting.deploy.v2.common.server
+package org.wfanet.measurement.reporting.deploy.v2.common.job
 
-import com.google.protobuf.ByteString
 import io.grpc.Channel
-import io.grpc.ServerServiceDefinition
-import io.grpc.Status
-import io.grpc.StatusException
 import java.security.SecureRandom
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as KingdomCertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub as KingdomDataProvidersCoroutineStub
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub as KingdomEventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as KingdomEventGroupsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as KingdomMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as KingdomMeasurementsCoroutineStub
-import org.wfanet.measurement.api.withAuthenticationKey
-import org.wfanet.measurement.common.api.PrincipalLookup
-import org.wfanet.measurement.common.api.memoizing
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
@@ -42,40 +32,32 @@ import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
-import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineStub as InternalMetricsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpcKt.ReportScheduleIterationsCoroutineStub as InternalReportScheduleIterationsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub as InternalReportSchedulesCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.reporting.deploy.v2.common.EncryptionKeyPairMap
 import org.wfanet.measurement.reporting.deploy.v2.common.InProcessServersMethods.startInProcessServerWithService
 import org.wfanet.measurement.reporting.deploy.v2.common.KingdomApiFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.ReportingApiServerFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.V2AlphaFlags
-import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
+import org.wfanet.measurement.reporting.job.ReportSchedulingJob
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
-import org.wfanet.measurement.reporting.service.api.v2alpha.AkidPrincipalLookup
-import org.wfanet.measurement.reporting.service.api.v2alpha.DataProvidersService
-import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupMetadataDescriptorsService
-import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withMetadataPrincipalIdentities
-import org.wfanet.measurement.reporting.service.api.v2alpha.MetricCalculationSpecsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricsService
-import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingPrincipal
-import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetsService
+import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleNameServerInterceptor.Companion.withReportScheduleNameInterceptor
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
-import org.wfanet.measurement.reporting.service.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import picocli.CommandLine
 
-private const val SERVER_NAME = "V2AlphaPublicApiServer"
-
 @CommandLine.Command(
-  name = SERVER_NAME,
-  description = ["Server daemon for Reporting v2alpha public API services."],
+  name = "ReportSchedulingJobExecutor",
+  description = ["Process for Reporting V2Alpha Report Scheduling."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
@@ -108,51 +90,14 @@ private fun run(
       )
       .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
 
-  val principalLookup: PrincipalLookup<ReportingPrincipal, ByteString> =
-    AkidPrincipalLookup(
-        v2AlphaFlags.authorityKeyIdentifierToPrincipalMapFile,
-        v2AlphaFlags.measurementConsumerConfigFile
-      )
-      .memoizing()
-
   val measurementConsumerConfigs =
     parseTextProto(
       v2AlphaFlags.measurementConsumerConfigFile,
       MeasurementConsumerConfigs.getDefaultInstance()
     )
 
-  val internalMeasurementConsumersCoroutineStub = InternalMeasurementConsumersCoroutineStub(channel)
-  runBlocking {
-    measurementConsumerConfigs.configsMap.keys.forEach {
-      val measurementConsumerKey =
-        MeasurementConsumerKey.fromName(it)
-          ?: throw IllegalArgumentException("measurement_consumer_config is invalid")
-      try {
-        internalMeasurementConsumersCoroutineStub.createMeasurementConsumer(
-          measurementConsumer {
-            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-          }
-        )
-      } catch (e: StatusException) {
-        when (e.status.code) {
-          Status.Code.ALREADY_EXISTS -> {}
-          else -> throw e
-        }
-      }
-    }
-  }
-
   val metricSpecConfig =
     parseTextProto(v2AlphaFlags.metricSpecConfigFile, MetricSpecConfig.getDefaultInstance())
-
-  val apiKey = measurementConsumerConfigs.configsMap.values.first().apiKey
-  val celEnvCacheProvider =
-    CelEnvCacheProvider(
-      KingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomChannel)
-        .withAuthenticationKey(apiKey),
-      reportingApiServerFlags.eventGroupMetadataDescriptorCacheDuration,
-      Dispatchers.Default,
-    )
 
   val metricsService =
     MetricsService(
@@ -172,43 +117,39 @@ private fun run(
       Dispatchers.IO
     )
 
-  val inProcessChannel =
+  val inProcessMetricsChannel =
     startInProcessServerWithService(
       commonServerFlags,
       metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs)
     )
 
-  val services: List<ServerServiceDefinition> =
-    listOf(
-      DataProvidersService(KingdomDataProvidersCoroutineStub(kingdomChannel))
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-      EventGroupMetadataDescriptorsService(
-          KingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomChannel)
-        )
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-      EventGroupsService(
-          KingdomEventGroupsCoroutineStub(kingdomChannel),
-          InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
-          celEnvCacheProvider,
-        )
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-      metricsService.withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-      ReportingSetsService(InternalReportingSetsCoroutineStub(channel))
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-      ReportsService(
-          InternalReportsCoroutineStub(channel),
-          InternalMetricCalculationSpecsCoroutineStub(channel),
-          MetricsCoroutineStub(inProcessChannel),
-          metricSpecConfig
-        )
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-      MetricCalculationSpecsService(
-          InternalMetricCalculationSpecsCoroutineStub(channel),
-          metricSpecConfig,
-        )
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
+  val reportsService =
+    ReportsService(
+      InternalReportsCoroutineStub(channel),
+      InternalMetricCalculationSpecsCoroutineStub(channel),
+      MetricsCoroutineStub(inProcessMetricsChannel),
+      metricSpecConfig
     )
-  CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
+
+  val inProcessReportsChannel =
+    startInProcessServerWithService(
+      commonServerFlags,
+      reportsService
+        .withMetadataPrincipalIdentities(measurementConsumerConfigs)
+        .withReportScheduleNameInterceptor()
+    )
+
+  val reportSchedulingJob =
+    ReportSchedulingJob(
+      KingdomDataProvidersCoroutineStub(kingdomChannel),
+      KingdomEventGroupsCoroutineStub(kingdomChannel),
+      InternalReportingSetsCoroutineStub(channel),
+      InternalReportScheduleIterationsCoroutineStub(channel),
+      InternalReportSchedulesCoroutineStub(channel),
+      ReportsCoroutineStub(inProcessReportsChannel),
+    )
+
+  reportSchedulingJob.execute()
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)

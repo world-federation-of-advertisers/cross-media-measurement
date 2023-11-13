@@ -1,0 +1,51 @@
+load("@wfa_common_jvm//build/rules_kotlin:defs.bzl", "kt_jvm_library")
+load("@rules_java//java:defs.bzl", "java_binary")
+load("//src/main/docker:macros.bzl", "java_image")
+
+kt_jvm_library(
+    name = "report_scheduling_job_executor",
+    srcs = ["ReportSchedulingJobExecutor.kt"],
+    runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:variances",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:encryption_key_pair_map",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:in_process_servers_methods",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:kingdom_flags",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:reporting_api_server_flags",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:v2alpha_flags",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/job:report_scheduling_job",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:encryption_key_pair_store",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:metrics_service",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:report_schedule_name_server_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:reports_service",
+        "//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_consumers_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:measurements_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:metric_calculation_specs_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:metrics_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_schedule_iterations_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_schedules_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_sets_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:reports_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
+
+java_binary(
+    name = "ReportSchedulingJobExecutor",
+    main_class = "org.wfanet.measurement.reporting.deploy.v2.common.job.ReportSchedulingJobExecutorKt",
+    runtime_deps = [":report_scheduling_job_executor"],
+)
+
+java_image(
+    name = "report_scheduling_job_executor_image",
+    binary = ":ReportSchedulingJobExecutor",
+    main_class = "org.wfanet.measurement.reporting.deploy.v2.common.job.ReportSchedulingJobExecutorKt",
+    visibility = ["//src:docker_image_deployment"],
+)
