@@ -289,6 +289,13 @@ private fun InternalRequisition.toRequisition(): Requisition {
       }
   }
   val measurementSpec: MeasurementSpec = packedMeasurementSpec.unpack()
+  val dataProviderPublicKey = any {
+    value = details.dataProviderPublicKey
+    typeUrl =
+      when (measurementApiVersion) {
+        Version.V2_ALPHA -> ProtoReflection.getTypeUrl(EncryptionPublicKey.getDescriptor())
+      }
+  }
 
   return requisition {
     name = requisitionKey.toName()
@@ -331,20 +338,15 @@ private fun InternalRequisition.toRequisition(): Requisition {
           externalIdToApiId(this@toRequisition.dataProviderCertificate.externalCertificateId)
         )
         .toName()
-    dataProviderPublicKey = signedMessage {
-      setMessage(
-        any {
-          value = details.dataProviderPublicKey
-          typeUrl =
-            when (measurementApiVersion) {
-              Version.V2_ALPHA -> ProtoReflection.getTypeUrl(EncryptionPublicKey.getDescriptor())
-            }
-        }
-      )
+    this.dataProviderPublicKey = dataProviderPublicKey
+    nonce = details.nonce
+
+    // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this field.
+    signedDataProviderPublicKey = signedMessage {
+      setMessage(dataProviderPublicKey)
       signature = details.dataProviderPublicKeySignature
       signatureAlgorithmOid = details.dataProviderPublicKeySignatureAlgorithmOid
     }
-    nonce = details.nonce
 
     duchies += duchiesMap.entries.map { it.toDuchyEntry(measurementApiVersion) }
 

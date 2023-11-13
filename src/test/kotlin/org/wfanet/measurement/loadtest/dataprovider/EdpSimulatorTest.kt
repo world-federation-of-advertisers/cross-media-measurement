@@ -114,8 +114,6 @@ import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
-import org.wfanet.measurement.api.v2alpha.setMessage
-import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Companion.assertThat
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.HexString
@@ -2287,7 +2285,7 @@ class EdpSimulatorTest {
           }
       }
       dataProviderCertificate = DATA_PROVIDER_CERTIFICATE.name
-      dataProviderPublicKey = signedMessage { setMessage(DATA_PROVIDER_PUBLIC_KEY.pack()) }
+      dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()
       duchies += duchyEntry {
         key = DUCHY_NAME
         value = value {

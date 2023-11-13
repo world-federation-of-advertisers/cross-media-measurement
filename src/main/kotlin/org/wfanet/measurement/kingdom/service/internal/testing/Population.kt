@@ -485,10 +485,12 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
 fun DataProvider.toDataProviderValue(nonce: Long = Random.Default.nextLong()) = dataProviderValue {
   externalDataProviderCertificateId = certificate.externalCertificateId
   dataProviderPublicKey = details.publicKey
-  dataProviderPublicKeySignature = details.publicKeySignature
-  dataProviderPublicKeySignatureAlgorithmOid = details.publicKeySignatureAlgorithmOid
   encryptedRequisitionSpec = "Encrypted RequisitionSpec $nonce".toByteStringUtf8()
   nonceHash = Hashing.hashSha256(nonce)
+
+  // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting these fields.
+  dataProviderPublicKeySignature = details.publicKeySignature
+  dataProviderPublicKeySignatureAlgorithmOid = details.publicKeySignatureAlgorithmOid
 }
 
 /**

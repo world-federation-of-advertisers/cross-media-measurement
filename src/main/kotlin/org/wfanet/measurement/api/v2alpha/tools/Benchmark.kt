@@ -203,7 +203,7 @@ private fun getPopulationDataProviderEntry(
       }
     value = dataProviderEntryValue {
       dataProviderCertificate = dataProvider.certificate
-      dataProviderPublicKey = dataProvider.publicKey
+      dataProviderPublicKey = dataProvider.publicKey.message
       encryptedRequisitionSpec =
         encryptRequisitionSpec(
           signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
@@ -255,7 +255,7 @@ private fun getEventDataProviderEntry(
       }
     value = dataProviderEntryValue {
       dataProviderCertificate = dataProvider.certificate
-      dataProviderPublicKey = dataProvider.publicKey
+      dataProviderPublicKey = dataProvider.publicKey.message
       encryptedRequisitionSpec =
         encryptRequisitionSpec(
           signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
