@@ -25,8 +25,7 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 
 /**
- * Used when an EDP wishes to use a separate consent signaling certificate than what was used when
- * the data provider was registered.
+ * Used when a party wishes to use a manage a consent signaling certificate.
  */
 class CertificateRegistrar(
   private val parentResourceName: String,

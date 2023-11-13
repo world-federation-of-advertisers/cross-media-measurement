@@ -7,6 +7,24 @@ package(
 )
 
 kt_jvm_library(
+    name = "data_providers",
+    srcs = ["EncryptionPublicKeys.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha:crypto_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_key_storage",
+    ],
+)
+
+java_binary(
+    name = "DataProviders",
+    main_class = "org.wfanet.measurement.api.v2alpha.tools.DataProviders",
+    visibility = ["//visibility:public"],
+    runtime_deps = [":data_providers"],
+)
+
+kt_jvm_library(
     name = "encryption_public_keys",
     srcs = ["EncryptionPublicKeys.kt"],
     deps = [
