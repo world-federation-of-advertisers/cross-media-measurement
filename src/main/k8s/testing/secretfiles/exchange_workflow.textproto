@@ -38,6 +38,10 @@ steps {
     }
   }
   input_labels { key: "hkdf-pepper" value: "edp-hkdf-pepper" }
+  input_labels {
+    key: "certificate-resource-name"
+    value: "edp-certificate-resource-name"
+  }
   output_labels { key: "hkdf-pepper" value: "hkdf-pepper" }
 }
 

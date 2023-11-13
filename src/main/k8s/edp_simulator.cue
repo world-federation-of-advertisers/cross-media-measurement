@@ -70,4 +70,8 @@ package k8s
 			}
 		}
 	}
+
+	serviceAccounts: [Name=string]: #ServiceAccount & {
+		metadata: name: Name
+	}
 }

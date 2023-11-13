@@ -55,4 +55,16 @@ resource "google_container_cluster" "cluster" {
   # See https://registry.terraform.io/providers/hashicorp/google/4.63.0/docs/resources/container_cluster#example-usage---with-a-separately-managed-node-pool-recommended
   remove_default_node_pool = true
   initial_node_count       = 1
+  node_config {
+    shielded_instance_config {
+      enable_secure_boot = true
+    }
+  }
+
+  lifecycle {
+    ignore_changes = [
+      # This only affects the default node pool, which is immediately deleted.
+      node_config,
+    ]
+  }
 }
