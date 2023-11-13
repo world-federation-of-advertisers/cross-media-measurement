@@ -12,6 +12,7 @@ kt_jvm_library(
     deps = [
         "//src/main/proto/wfa/measurement/internal/reporting/v2:measurement_consumers_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:measurements_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:metric_calculation_specs_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:metrics_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_sets_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:reports_service_kt_jvm_grpc_proto",
@@ -21,30 +22,24 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "reporting_api_server_flags",
-    srcs = ["ReportingApiServerFlags.kt"],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:flags",
-        "@wfa_common_jvm//imports/java/picocli",
-    ],
-)
-
-kt_jvm_library(
     name = "v2alpha_public_api_server",
     srcs = ["V2AlphaPublicApiServer.kt"],
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
-        ":reporting_api_server_flags",
         "//src/main/kotlin/org/wfanet/measurement/common/api:memoizing_principal_lookup",
         "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:variances",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/common:encryption_key_pair_map",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/common:kingdom_flags",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:encryption_key_pair_map",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:in_process_servers_methods",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:kingdom_flags",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:reporting_api_server_flags",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:v2alpha_flags",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:cel_env_provider",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:encryption_key_pair_store",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:akid_principal_lookup",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:data_providers_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:event_group_metadata_descriptors_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:event_groups_service",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:metric_calculation_specs_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:metrics_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:reporting_sets_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:reports_service",

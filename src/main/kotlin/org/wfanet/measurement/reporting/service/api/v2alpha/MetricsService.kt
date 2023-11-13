@@ -1022,7 +1022,7 @@ class MetricsService(
     val principal: ReportingPrincipal = principalFromCurrentContext
     when (principal) {
       is MeasurementConsumerPrincipal -> {
-        if (metricKey.cmmsMeasurementConsumerId != principal.resourceKey.measurementConsumerId) {
+        if (metricKey.parentKey != principal.resourceKey) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot get a Metric for another MeasurementConsumer."
           }
@@ -1770,7 +1770,7 @@ fun buildWeightedWatchDurationMeasurementVarianceParamsPerResult(
     val methodology: Methodology =
       try {
         buildStatsMethodology(watchDurationResult)
-      } catch (e: MethodologyNotSetException) {
+      } catch (e: MeasurementVarianceNotComputableException) {
         return@map null
       }
 
@@ -1802,18 +1802,23 @@ fun buildStatsMethodology(
   return when (watchDurationResult.methodologyCase) {
     InternalMeasurement.Result.WatchDuration.MethodologyCase.CUSTOM_DIRECT_METHODOLOGY -> {
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-      when (watchDurationResult.customDirectMethodology.varianceCase) {
-        CustomDirectMethodology.VarianceCase.SCALAR -> {
-          CustomDirectScalarMethodology(watchDurationResult.customDirectMethodology.scalar)
+      when (watchDurationResult.customDirectMethodology.variance.typeCase) {
+        CustomDirectMethodology.Variance.TypeCase.SCALAR -> {
+          CustomDirectScalarMethodology(watchDurationResult.customDirectMethodology.variance.scalar)
         }
-        CustomDirectMethodology.VarianceCase.FREQUENCY -> {
+        CustomDirectMethodology.Variance.TypeCase.FREQUENCY -> {
           failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
             "Custom direct methodology for frequency is not supported for watch duration."
           }
         }
-        CustomDirectMethodology.VarianceCase.VARIANCE_NOT_SET -> {
+        CustomDirectMethodology.Variance.TypeCase.UNAVAILABLE -> {
+          throw MeasurementVarianceNotComputableException(
+            "Watch duration computed from a custom methodology doesn't have variance."
+          )
+        }
+        CustomDirectMethodology.Variance.TypeCase.TYPE_NOT_SET -> {
           failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
-            "Variance case in CustomDirectMethodology should've been set."
+            "Variance in CustomDirectMethodology should've been set."
           }
         }
       }
@@ -1822,7 +1827,7 @@ fun buildStatsMethodology(
       DeterministicMethodology
     }
     InternalMeasurement.Result.WatchDuration.MethodologyCase.METHODOLOGY_NOT_SET -> {
-      throw MethodologyNotSetException("Watch duration methodology is not set.")
+      throw MeasurementVarianceNotComputableException("Watch duration methodology is not set.")
     }
   }
 }
@@ -1926,7 +1931,7 @@ fun buildWeightedImpressionMeasurementVarianceParamsPerResult(
     val methodology: Methodology =
       try {
         buildStatsMethodology(impressionResult)
-      } catch (e: MethodologyNotSetException) {
+      } catch (e: MeasurementVarianceNotComputableException) {
         return@map null
       }
 
@@ -1955,16 +1960,21 @@ fun buildStatsMethodology(impressionResult: InternalMeasurement.Result.Impressio
   return when (impressionResult.methodologyCase) {
     InternalMeasurement.Result.Impression.MethodologyCase.CUSTOM_DIRECT_METHODOLOGY -> {
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-      when (impressionResult.customDirectMethodology.varianceCase) {
-        CustomDirectMethodology.VarianceCase.SCALAR -> {
-          CustomDirectScalarMethodology(impressionResult.customDirectMethodology.scalar)
+      when (impressionResult.customDirectMethodology.variance.typeCase) {
+        CustomDirectMethodology.Variance.TypeCase.SCALAR -> {
+          CustomDirectScalarMethodology(impressionResult.customDirectMethodology.variance.scalar)
         }
-        CustomDirectMethodology.VarianceCase.FREQUENCY -> {
+        CustomDirectMethodology.Variance.TypeCase.FREQUENCY -> {
           failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
             "Custom direct methodology for frequency is not supported for impression."
           }
         }
-        CustomDirectMethodology.VarianceCase.VARIANCE_NOT_SET -> {
+        CustomDirectMethodology.Variance.TypeCase.UNAVAILABLE -> {
+          throw MeasurementVarianceNotComputableException(
+            "Impression computed from a custom methodology doesn't have variance."
+          )
+        }
+        CustomDirectMethodology.Variance.TypeCase.TYPE_NOT_SET -> {
           failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
             "Variance case in CustomDirectMethodology should've been set."
           }
@@ -1975,7 +1985,7 @@ fun buildStatsMethodology(impressionResult: InternalMeasurement.Result.Impressio
       DeterministicMethodology
     }
     InternalMeasurement.Result.Impression.MethodologyCase.METHODOLOGY_NOT_SET -> {
-      throw MethodologyNotSetException("Impression methodology is not set.")
+      throw MeasurementVarianceNotComputableException("Impression methodology is not set.")
     }
   }
 }
@@ -2136,7 +2146,7 @@ fun buildWeightedFrequencyMeasurementVarianceParams(
   val frequencyMethodology: Methodology =
     try {
       buildStatsMethodology(frequencyResult)
-    } catch (e: MethodologyNotSetException) {
+    } catch (e: MeasurementVarianceNotComputableException) {
       return null
     }
 
@@ -2167,23 +2177,28 @@ fun buildStatsMethodology(frequencyResult: InternalMeasurement.Result.Frequency)
   return when (frequencyResult.methodologyCase) {
     InternalMeasurement.Result.Frequency.MethodologyCase.CUSTOM_DIRECT_METHODOLOGY -> {
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-      when (frequencyResult.customDirectMethodology.varianceCase) {
-        CustomDirectMethodology.VarianceCase.SCALAR -> {
+      when (frequencyResult.customDirectMethodology.variance.typeCase) {
+        CustomDirectMethodology.Variance.TypeCase.SCALAR -> {
           failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
             "Custom direct methodology for scalar is not supported for frequency."
           }
         }
-        CustomDirectMethodology.VarianceCase.FREQUENCY -> {
+        CustomDirectMethodology.Variance.TypeCase.FREQUENCY -> {
           CustomDirectFrequencyMethodology(
-            frequencyResult.customDirectMethodology.frequency.variancesMap.mapKeys {
+            frequencyResult.customDirectMethodology.variance.frequency.variancesMap.mapKeys {
               it.key.toInt()
             },
-            frequencyResult.customDirectMethodology.frequency.kPlusVariancesMap.mapKeys {
+            frequencyResult.customDirectMethodology.variance.frequency.kPlusVariancesMap.mapKeys {
               it.key.toInt()
             },
           )
         }
-        CustomDirectMethodology.VarianceCase.VARIANCE_NOT_SET -> {
+        CustomDirectMethodology.Variance.TypeCase.UNAVAILABLE -> {
+          throw MeasurementVarianceNotComputableException(
+            "Frequency computed from a custom methodology doesn't have variance."
+          )
+        }
+        CustomDirectMethodology.Variance.TypeCase.TYPE_NOT_SET -> {
           failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
             "Variance case in CustomDirectMethodology should've been set."
           }
@@ -2207,7 +2222,7 @@ fun buildStatsMethodology(frequencyResult: InternalMeasurement.Result.Frequency)
       )
     }
     InternalMeasurement.Result.Frequency.MethodologyCase.METHODOLOGY_NOT_SET -> {
-      throw MethodologyNotSetException("Frequency methodology is not set.")
+      throw MeasurementVarianceNotComputableException("Frequency methodology is not set.")
     }
   }
 }
@@ -2312,7 +2327,7 @@ private fun buildWeightedReachMeasurementVarianceParams(
   val methodology: Methodology =
     try {
       buildStatsMethodology(reachResult)
-    } catch (e: MethodologyNotSetException) {
+    } catch (e: MeasurementVarianceNotComputableException) {
       return null
     }
 
@@ -2339,16 +2354,21 @@ fun buildStatsMethodology(reachResult: InternalMeasurement.Result.Reach): Method
   return when (reachResult.methodologyCase) {
     InternalMeasurement.Result.Reach.MethodologyCase.CUSTOM_DIRECT_METHODOLOGY -> {
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-      when (reachResult.customDirectMethodology.varianceCase) {
-        CustomDirectMethodology.VarianceCase.SCALAR -> {
-          CustomDirectScalarMethodology(reachResult.customDirectMethodology.scalar)
+      when (reachResult.customDirectMethodology.variance.typeCase) {
+        CustomDirectMethodology.Variance.TypeCase.SCALAR -> {
+          CustomDirectScalarMethodology(reachResult.customDirectMethodology.variance.scalar)
         }
-        CustomDirectMethodology.VarianceCase.FREQUENCY -> {
+        CustomDirectMethodology.Variance.TypeCase.FREQUENCY -> {
           failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
             "Custom direct methodology for frequency is not supported for reach."
           }
         }
-        CustomDirectMethodology.VarianceCase.VARIANCE_NOT_SET -> {
+        CustomDirectMethodology.Variance.TypeCase.UNAVAILABLE -> {
+          throw MeasurementVarianceNotComputableException(
+            "Reach computed from a custom methodology doesn't have variance."
+          )
+        }
+        CustomDirectMethodology.Variance.TypeCase.TYPE_NOT_SET -> {
           failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
             "Variance case in CustomDirectMethodology should've been set."
           }
@@ -2379,7 +2399,7 @@ fun buildStatsMethodology(reachResult: InternalMeasurement.Result.Reach): Method
       )
     }
     InternalMeasurement.Result.Reach.MethodologyCase.METHODOLOGY_NOT_SET -> {
-      throw MethodologyNotSetException("Reach methodology is not set.")
+      throw MeasurementVarianceNotComputableException("Reach methodology is not set.")
     }
   }
 }

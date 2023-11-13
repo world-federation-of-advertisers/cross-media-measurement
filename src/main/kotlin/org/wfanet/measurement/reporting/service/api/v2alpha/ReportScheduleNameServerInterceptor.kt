@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
-import io.grpc.BindableService
 import io.grpc.Context
 import io.grpc.Contexts
 import io.grpc.Metadata
@@ -74,7 +73,7 @@ class ReportScheduleNameServerInterceptor() : ServerInterceptor {
     }
 
     /** Installs [ReportScheduleNameServerInterceptor] on the service. */
-    fun BindableService.withReportScheduleNameInterceptor(): ServerServiceDefinition =
+    fun ServerServiceDefinition.withReportScheduleNameInterceptor(): ServerServiceDefinition =
       ServerInterceptors.interceptForward(this, ReportScheduleNameServerInterceptor())
 
     /**

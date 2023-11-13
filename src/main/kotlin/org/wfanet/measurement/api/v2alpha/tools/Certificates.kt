@@ -16,22 +16,21 @@
 
 package org.wfanet.measurement.api.v2alpha.tools
 
-import com.google.protobuf.ByteString
+import io.grpc.ManagedChannel
 import java.io.File
-import java.security.PrivateKey
 import java.security.cert.X509Certificate
-import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
-import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
+import java.time.Duration
+import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.Certificate
-import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.common.crypto.SignatureAlgorithm
-import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
-import org.wfanet.measurement.common.crypto.readPrivateKey
-import org.wfanet.measurement.common.readByteString
 import picocli.CommandLine
-import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withShutdownTimeout
+import org.wfanet.measurement.common.grpc.TlsFlags
+
+private val CHANNEL_SHUTDOWN_TIMEOUT = Duration.ofSeconds(30)
 
 /**
  * Command-line utility for [Certificate] messages.
@@ -40,7 +39,7 @@ import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
  */
 @CommandLine.Command(
   description = ["Utility for Certificate messages."],
-  subcommands = [CommandLine.HelpCommand::class, Serialize::class, Deserialize::class, Sign::class]
+  subcommands = [CommandLine.HelpCommand::class, Create::class]
 )
 class Certificates private constructor() : Runnable {
   override fun run() {
@@ -52,15 +51,36 @@ class Certificates private constructor() : Runnable {
   }
 }
 
-@CommandLine.Command(name = "serialize", showDefaultValues = true)
+@CommandLine.Command(name = "create", showDefaultValues = true)
 private class Create : Runnable {
 
+  @CommandLine.Mixin
+  private lateinit var tlsFlags: TlsFlags
+
   @CommandLine.Option(
-    names = ["--x509-der"],
+    names = ["--kingdom-public-api-target"],
+    description = ["gRPC target (authority) of the Kingdom public API server"],
+    required = true,
+  )
+  private lateinit var target: String
+
+  @CommandLine.Option(
+    names = ["--certificate-der-file"],
     description = ["File containing format-specific key data"],
     required = true
   )
-  private lateinit var x509DerFile: File
+  private lateinit var certificateDerFile: File
+
+  @CommandLine.Option(
+    names = ["--kingdom-public-api-cert-host"],
+    description =
+    [
+      "Expected hostname (DNS-ID) in the Kingdom public API server's TLS certificate.",
+      "This overrides derivation of the TLS DNS-ID from --kingdom-public-api-target.",
+    ],
+    required = false,
+  )
+  private var certHost: String? = null
 
   @CommandLine.Option(
     names = ["--parent-resource"],
@@ -68,28 +88,22 @@ private class Create : Runnable {
     required = true
   )
   lateinit var parentResource: String
+
+  val kingdomChannel: ManagedChannel by lazy {
+    buildMutualTlsChannel(target, tlsFlags.signingCerts, certHost)
+      .withShutdownTimeout(CHANNEL_SHUTDOWN_TIMEOUT)
+  }
+
+  private val certificatesClient: CertificatesCoroutineStub by lazy {
+    CertificatesCoroutineStub(kingdomChannel)
+  }
+
   override fun run() {
-    val derBytes = x509DerFile.readByteString()
-    val certificate = certificate {
-      subjectKeyIdentifier = this@Serialize.format
-      x509Der = derBytes
-    }
+    val x509Certificate: X509Certificate = readCertificate(certificateDerFile)
+    val certificateRegistrar = CertificateRegistrar(certificatesStub = certificatesClient, parentResourceName = parentResource)
+    val certificateResource = runBlocking { certificateRegistrar.registerCertificate(x509Certificate) }
 
+    println("Certificate Resource: ${certificateResource.name}")
 
-
-
-    // Validate that input is an EncryptionPublicKey message.
-    EncryptionPublicKey.parseFrom(serialized)
-
-    val certificate: X509Certificate = certificateFile.inputStream().use { readCertificate(it) }
-    val privateKey: PrivateKey =
-      readPrivateKey(signingKeyFile.readByteString(), certificate.publicKey.algorithm)
-    val keyHandle = SigningKeyHandle(certificate, privateKey)
-    val algorithm = algorithm ?: keyHandle.defaultAlgorithm
-    val signature: ByteString = keyHandle.sign(algorithm, serialized)
-
-    println("Signature algorithm: $algorithm (${algorithm.oid})")
-
-    outFile.outputStream().use { signature.writeTo(it) }
   }
 }

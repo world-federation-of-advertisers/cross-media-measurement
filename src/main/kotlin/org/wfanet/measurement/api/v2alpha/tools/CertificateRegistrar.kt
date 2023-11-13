@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.loadtest.dataprovider
+package org.wfanet.measurement.api.v2alpha.tools
 
 import com.google.protobuf.kotlin.toByteString
 import io.grpc.StatusException
+import java.security.cert.X509Certificate
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.certificate
@@ -49,11 +50,11 @@ class CertificateRegistrar(
   }
 
   /** Registers a [Certificate] for the [DataProvider]. */
-  suspend fun registerCertificate(signingKeyHandle: SigningKeyHandle): Certificate {
+  suspend fun registerCertificate(x509Certificate: X509Certificate): Certificate {
     return try {
       val certificate = certificate {
-        x509Der = signingKeyHandle.certificate.encoded.toByteString()
-        subjectKeyIdentifier = signingKeyHandle.certificate.subjectKeyIdentifier!!
+        x509Der = x509Certificate.encoded.toByteString()
+        subjectKeyIdentifier = x509Certificate.subjectKeyIdentifier!!
       }
       createCertificate(parentResourceName, certificate)
     } catch (e: StatusException) {

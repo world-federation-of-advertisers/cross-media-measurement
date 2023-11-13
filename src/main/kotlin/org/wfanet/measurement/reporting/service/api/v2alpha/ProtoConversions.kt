@@ -34,7 +34,7 @@ import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams as NoiserDpParams
 import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodology as InternalCustomDirectMethodology
-import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodologyKt
+import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodologyKt as InternalCustomDirectMethodologyKt
 import org.wfanet.measurement.internal.reporting.v2.DeterministicCount
 import org.wfanet.measurement.internal.reporting.v2.DeterministicCountDistinct
 import org.wfanet.measurement.internal.reporting.v2.DeterministicDistribution
@@ -44,6 +44,7 @@ import org.wfanet.measurement.internal.reporting.v2.LiquidLegionsDistribution as
 import org.wfanet.measurement.internal.reporting.v2.LiquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec as InternalMetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec as InternalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt as InternalMetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.NoiseMechanism as InternalNoiseMechanism
@@ -78,6 +79,8 @@ import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageToken
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsPageToken
 import org.wfanet.measurement.reporting.v2alpha.ListReportsPageToken
+import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
+import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.PeriodicTimeInterval
@@ -88,6 +91,7 @@ import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.TimeIntervals
 import org.wfanet.measurement.reporting.v2alpha.createMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.metric
+import org.wfanet.measurement.reporting.v2alpha.metricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.metricSpec
 import org.wfanet.measurement.reporting.v2alpha.periodicTimeInterval
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
@@ -690,16 +694,16 @@ fun ListReportingSetsPageToken.toStreamReportingSetsRequest(): StreamReportingSe
   }
 }
 
-/** Converts an [InternalReport.MetricCalculationSpec] to a [Report.MetricCalculationSpec]. */
-fun InternalReport.MetricCalculationSpec.toMetricCalculationSpec(): Report.MetricCalculationSpec {
+/** Converts an [InternalMetricCalculationSpec] to a [MetricCalculationSpec]. */
+fun InternalMetricCalculationSpec.toMetricCalculationSpec(): MetricCalculationSpec {
   val source = this
 
-  return ReportKt.metricCalculationSpec {
+  return metricCalculationSpec {
     displayName = source.details.displayName
     metricSpecs += source.details.metricSpecsList.map(InternalMetricSpec::toMetricSpec)
     groupings +=
       source.details.groupingsList.map { grouping ->
-        ReportKt.grouping { predicates += grouping.predicatesList }
+        MetricCalculationSpecKt.grouping { predicates += grouping.predicatesList }
       }
     filter = source.details.filter
     cumulative = source.details.cumulative
@@ -741,6 +745,7 @@ fun PeriodicTimeInterval.toInternal(): InternalPeriodicTimeInterval {
 /** Converts an [InternalReport.ReportingMetric] to a public [CreateMetricRequest]. */
 fun InternalReport.ReportingMetric.toCreateMetricRequest(
   measurementConsumerKey: MeasurementConsumerKey,
+  externalReportingSetId: String,
   filter: String,
 ): CreateMetricRequest {
   val source = this
@@ -748,10 +753,7 @@ fun InternalReport.ReportingMetric.toCreateMetricRequest(
     this.parent = measurementConsumerKey.toName()
     metric = metric {
       reportingSet =
-        ReportingSetKey(
-            measurementConsumerKey.measurementConsumerId,
-            source.details.externalReportingSetId
-          )
+        ReportingSetKey(measurementConsumerKey.measurementConsumerId, externalReportingSetId)
           .toName()
       timeInterval = source.details.timeInterval
       metricSpec = source.details.metricSpec.toMetricSpec()
@@ -777,7 +779,13 @@ fun Map.Entry<String, InternalReport.ReportingMetricCalculationSpec>.toReporting
     value =
       ReportKt.reportingMetricCalculationSpec {
         metricCalculationSpecs +=
-          source.value.metricCalculationSpecsList.map { it.toMetricCalculationSpec() }
+          source.value.metricCalculationSpecReportingMetricsList.map {
+            MetricCalculationSpecKey(
+                cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
+                metricCalculationSpecId = it.externalMetricCalculationSpecId
+              )
+              .toName()
+          }
       }
   }
 }
@@ -821,22 +829,56 @@ fun ProtocolConfig.NoiseMechanism.toInternal(): InternalNoiseMechanism {
 /** Converts a CMMS [CustomDirectMethodology] to an internal [InternalCustomDirectMethodology]. */
 fun CustomDirectMethodology.toInternal(): InternalCustomDirectMethodology {
   val source = this
+  require(source.hasVariance()) { "Variance in CustomDirectMethodology is not set." }
   return customDirectMethodology {
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-    when (source.varianceCase) {
-      CustomDirectMethodology.VarianceCase.SCALAR -> {
-        scalar = source.scalar
-      }
-      CustomDirectMethodology.VarianceCase.FREQUENCY -> {
-        frequency =
-          CustomDirectMethodologyKt.frequencyVariances {
-            variances.putAll(source.frequency.variancesMap)
-            kPlusVariances.putAll(source.frequency.kPlusVariancesMap)
+    variance =
+      InternalCustomDirectMethodologyKt.variance {
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+        when (source.variance.typeCase) {
+          CustomDirectMethodology.Variance.TypeCase.SCALAR -> {
+            scalar = source.variance.scalar
           }
+          CustomDirectMethodology.Variance.TypeCase.FREQUENCY -> {
+            frequency =
+              InternalCustomDirectMethodologyKt.VarianceKt.frequencyVariances {
+                variances.putAll(source.variance.frequency.variancesMap)
+                kPlusVariances.putAll(source.variance.frequency.kPlusVariancesMap)
+              }
+          }
+          CustomDirectMethodology.Variance.TypeCase.UNAVAILABLE -> {
+            unavailable =
+              InternalCustomDirectMethodologyKt.VarianceKt.unavailable {
+                reason = source.variance.unavailable.reason.toInternal()
+              }
+          }
+          CustomDirectMethodology.Variance.TypeCase.TYPE_NOT_SET -> {
+            error("Variance in CustomDirectMethodology is not set.")
+          }
+        }
       }
-      CustomDirectMethodology.VarianceCase.VARIANCE_NOT_SET -> {
-        error("Variance in CustomDirectMethodology is not set.")
-      }
+  }
+}
+
+/**
+ * Converts a CMMS [CustomDirectMethodology.Variance.Unavailable.Reason] to an internal
+ * [InternalCustomDirectMethodology.Variance.Unavailable.Reason].
+ */
+private fun CustomDirectMethodology.Variance.Unavailable.Reason.toInternal():
+  InternalCustomDirectMethodology.Variance.Unavailable.Reason {
+  return when (this) {
+    CustomDirectMethodology.Variance.Unavailable.Reason.REASON_UNSPECIFIED -> {
+      error(
+        "There is no reason specified about the unavailable variance in CustomDirectMethodology."
+      )
+    }
+    CustomDirectMethodology.Variance.Unavailable.Reason.UNDERIVABLE -> {
+      InternalCustomDirectMethodology.Variance.Unavailable.Reason.UNDERIVABLE
+    }
+    CustomDirectMethodology.Variance.Unavailable.Reason.INACCESSIBLE -> {
+      InternalCustomDirectMethodology.Variance.Unavailable.Reason.INACCESSIBLE
+    }
+    CustomDirectMethodology.Variance.Unavailable.Reason.UNRECOGNIZED -> {
+      error("Unrecognized reason of unavailable variance in CustomDirectMethodology.")
     }
   }
 }
