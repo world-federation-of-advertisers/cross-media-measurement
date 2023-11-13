@@ -80,7 +80,7 @@ class CertificateRegistrarTest {
   fun `registerCertificate registers Certificate`() {
     val dataProviderCertificateRegistrar =
         CertificateRegistrar(
-            EDP_DISPLAY_NAME,
+            EDP_NAME,
             certificatesStub,
         )
 
