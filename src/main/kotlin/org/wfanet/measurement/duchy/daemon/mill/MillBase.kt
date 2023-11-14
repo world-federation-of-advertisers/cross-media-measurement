@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
+import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.flatten
@@ -303,13 +304,15 @@ abstract class MillBase(
     globalId: String,
     certificate: Certificate,
     resultPublicKey: ByteString,
-    encryptedResult: ByteString
+    encryptedResult: ByteString,
+    publicApiVersion: Version,
   ) {
     val request = setComputationResultRequest {
       name = ComputationKey(globalId).toName()
       aggregatorCertificate = certificate.name
       this.resultPublicKey = resultPublicKey
       this.encryptedResult = encryptedResult
+      this.publicApiVersion = publicApiVersion.string
     }
     try {
       systemComputationsClient.setComputationResult(request)
@@ -457,6 +460,34 @@ abstract class MillBase(
       JNI_WALL_CLOCK_DURATION,
       jniWallClockDurationHistogram
     )
+    return EncryptedComputationResult(
+      flowOf(result),
+      dataClients.writeSingleOutputBlob(token, result)
+    )
+  }
+
+  /**
+   * Always execute the block [block]. However, if the token contains a cached result (from previous
+   * run), return the cached result instead of the result of the current run.
+   */
+  protected suspend fun existingOutputAnd(
+    token: ComputationToken,
+    block: suspend () -> ByteString
+  ): EncryptedComputationResult {
+    val wallDurationLogger = wallDurationLogger()
+    val result = block()
+    wallDurationLogger.logStageDurationMetric(
+      token,
+      JNI_WALL_CLOCK_DURATION,
+      jniWallClockDurationHistogram
+    )
+    // Reuse cached result if it exists even though the block has been rerun.
+    if (token.singleOutputBlobMetadata().path.isNotEmpty()) {
+      return EncryptedComputationResult(
+        checkNotNull(dataClients.readSingleOutputBlob(token)),
+        token
+      )
+    }
     return EncryptedComputationResult(
       flowOf(result),
       dataClients.writeSingleOutputBlob(token, result)

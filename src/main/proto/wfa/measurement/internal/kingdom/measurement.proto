@@ -104,8 +104,9 @@ message Measurement {
 
     // Serialized `EncryptionPublicKey` message from the public API.
     bytes data_provider_public_key = 2;
-    bytes data_provider_public_key_signature = 3;
-    string data_provider_public_key_signature_algorithm_oid = 6;
+    bytes data_provider_public_key_signature = 3 [deprecated = true];
+    string data_provider_public_key_signature_algorithm_oid = 6
+        [deprecated = true];
 
     bytes encrypted_requisition_spec = 4;
     bytes nonce_hash = 5;
@@ -140,6 +141,9 @@ message Measurement {
     }
     fixed64 external_certificate_id = 3;
     bytes encrypted_result = 4;
+
+    // Version of the public API for serialized message definitions.
+    string api_version = 5;
   }
   repeated ResultInfo results = 11;
 
@@ -250,8 +254,9 @@ message Requisition {
   message Details {
     // Serialized `EncryptionPublicKey` message from the public API.
     bytes data_provider_public_key = 1;
-    bytes data_provider_public_key_signature = 2;
-    string data_provider_public_key_signature_algorithm_oid = 8;
+    bytes data_provider_public_key_signature = 2 [deprecated = true];
+    string data_provider_public_key_signature_algorithm_oid = 8
+        [deprecated = true];
 
     bytes encrypted_requisition_spec = 3;
     bytes nonce_hash = 4;
@@ -266,6 +271,11 @@ message Requisition {
     // Requisition. Set when Requisition state is FULFILLED and the protocol is
     // Direct.
     bytes encrypted_data = 7;
+
+    // Version of the public API for `encrypted_data`.
+    //
+    // If not specified, assume "v2alpha".
+    string encrypted_data_api_version = 9;
   }
   Details details = 10;
 

@@ -58,15 +58,14 @@ class DeleteEventGroup(private val request: DeleteEventGroupRequest) :
       set("EventGroupId" to result.internalEventGroupId.value)
       set("MeasurementConsumerCertificateId" to null as Long?)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-      set("EventGroupDetails" to EventGroup.Details.getDefaultInstance())
-      setJson("EventGroupDetailsJson" to EventGroup.Details.getDefaultInstance())
+      set("EventGroupDetails" to null as EventGroup.Details?)
+      setJson("EventGroupDetailsJson" to null as EventGroup.Details?)
       set("State" to EventGroup.State.DELETED)
     }
 
     return result.eventGroup.copy {
-      this.externalMeasurementConsumerCertificateId = 0L
-      this.details = EventGroup.Details.getDefaultInstance()
       this.state = EventGroup.State.DELETED
+      clearDetails()
     }
   }
 

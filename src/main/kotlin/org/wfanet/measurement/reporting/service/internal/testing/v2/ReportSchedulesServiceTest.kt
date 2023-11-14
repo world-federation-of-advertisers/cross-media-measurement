@@ -19,6 +19,7 @@ package org.wfanet.measurement.reporting.service.internal.testing.v2
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.timestamp
+import com.google.protobuf.util.Timestamps
 import com.google.type.date
 import com.google.type.dateTime
 import com.google.type.timeZone
@@ -36,7 +37,8 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.reporting.v2.ListReportSchedulesRequestKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
-import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportKt
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedule
 import org.wfanet.measurement.internal.reporting.v2.ReportScheduleKt
@@ -47,9 +49,9 @@ import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createReportScheduleRequest
 import org.wfanet.measurement.internal.reporting.v2.getReportScheduleRequest
 import org.wfanet.measurement.internal.reporting.v2.listReportSchedulesRequest
-import org.wfanet.measurement.internal.reporting.v2.metricSpec
 import org.wfanet.measurement.internal.reporting.v2.report
 import org.wfanet.measurement.internal.reporting.v2.reportSchedule
+import org.wfanet.measurement.internal.reporting.v2.stopReportScheduleRequest
 
 @RunWith(JUnit4::class)
 abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> {
@@ -59,6 +61,7 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
     val reportSchedulesService: T,
     val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
     val reportingSetsService: ReportingSetsCoroutineImplBase,
+    val metricCalculationSpecsService: MetricCalculationSpecsCoroutineImplBase
   )
 
   /** Instance of the service under test. */
@@ -66,6 +69,7 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
 
   private lateinit var measurementConsumersService: MeasurementConsumersCoroutineImplBase
   private lateinit var reportingSetsService: ReportingSetsCoroutineImplBase
+  private lateinit var metricCalculationSpecsService: MetricCalculationSpecsCoroutineImplBase
 
   /** Constructs the services being tested. */
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
@@ -76,13 +80,16 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
     service = services.reportSchedulesService
     measurementConsumersService = services.measurementConsumersService
     reportingSetsService = services.reportingSetsService
+    metricCalculationSpecsService = services.metricCalculationSpecsService
   }
 
   @Test
   fun `createReportSchedule succeeds`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-    val reportSchedule = createReportScheduleForRequest(reportingSet)
+    val metricCalculationSpec =
+      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
+    val reportSchedule = createReportScheduleForRequest(reportingSet, metricCalculationSpec)
 
     val request = createReportScheduleRequest {
       this.reportSchedule = reportSchedule
@@ -102,7 +109,9 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
   fun `createReportSchedule returns the same report schedule when request id used`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-    val reportSchedule = createReportScheduleForRequest(reportingSet)
+    val metricCalculationSpec =
+      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
+    val reportSchedule = createReportScheduleForRequest(reportingSet, metricCalculationSpec)
 
     val request = createReportScheduleRequest {
       this.requestId = "1234"
@@ -126,7 +135,9 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
   fun `createReportSchedule throws ALREADY_EXISTS when same external ID used 2x`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-    val reportSchedule = createReportScheduleForRequest(reportingSet)
+    val metricCalculationSpec =
+      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
+    val reportSchedule = createReportScheduleForRequest(reportingSet, metricCalculationSpec)
 
     val request = createReportScheduleRequest {
       this.reportSchedule = reportSchedule
@@ -151,7 +162,9 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
   fun `createReportSchedule throws INVALID_ARGUMENT when missing external ID`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-    val reportSchedule = createReportScheduleForRequest(reportingSet)
+    val metricCalculationSpec =
+      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
+    val reportSchedule = createReportScheduleForRequest(reportingSet, metricCalculationSpec)
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -166,6 +179,8 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
   @Test
   fun `createReportSchedule throws NOT_FOUND when ReportingSet not found`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val metricCalculationSpec =
+      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
 
     val reportSchedule = reportSchedule {
       this.cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -177,32 +192,10 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
           reportTemplate = report {
             reportingMetricEntries["1234"] =
               ReportKt.reportingMetricCalculationSpec {
-                metricCalculationSpecs +=
-                  ReportKt.metricCalculationSpec {
-                    details =
-                      ReportKt.MetricCalculationSpecKt.details {
-                        this.displayName = "displayName"
-                        metricSpecs += metricSpec {
-                          reach =
-                            MetricSpecKt.reachParams {
-                              privacyParams =
-                                MetricSpecKt.differentialPrivacyParams {
-                                  epsilon = 1.0
-                                  delta = 2.0
-                                }
-                            }
-                          vidSamplingInterval =
-                            MetricSpecKt.vidSamplingInterval {
-                              start = 0.1f
-                              width = 0.5f
-                            }
-                        }
-                        groupings +=
-                          ReportKt.MetricCalculationSpecKt.grouping {
-                            predicates += "gender.value == MALE"
-                          }
-                        cumulative = false
-                      }
+                metricCalculationSpecReportingMetrics +=
+                  ReportKt.metricCalculationSpecReportingMetrics {
+                    externalMetricCalculationSpecId =
+                      metricCalculationSpec.externalMetricCalculationSpecId
                   }
               }
           }
@@ -252,6 +245,8 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
   fun `createReportSchedule throws NOT_FOUND when not all ReportingSets found`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val metricCalculationSpec =
+      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
 
     val reportSchedule = reportSchedule {
       this.cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -263,63 +258,19 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
           reportTemplate = report {
             reportingMetricEntries[reportingSet.externalReportingSetId] =
               ReportKt.reportingMetricCalculationSpec {
-                metricCalculationSpecs +=
-                  ReportKt.metricCalculationSpec {
-                    details =
-                      ReportKt.MetricCalculationSpecKt.details {
-                        this.displayName = "displayName"
-                        metricSpecs += metricSpec {
-                          reach =
-                            MetricSpecKt.reachParams {
-                              privacyParams =
-                                MetricSpecKt.differentialPrivacyParams {
-                                  epsilon = 1.0
-                                  delta = 2.0
-                                }
-                            }
-                          vidSamplingInterval =
-                            MetricSpecKt.vidSamplingInterval {
-                              start = 0.1f
-                              width = 0.5f
-                            }
-                        }
-                        groupings +=
-                          ReportKt.MetricCalculationSpecKt.grouping {
-                            predicates += "gender.value == MALE"
-                          }
-                        cumulative = false
-                      }
+                metricCalculationSpecReportingMetrics +=
+                  ReportKt.metricCalculationSpecReportingMetrics {
+                    externalMetricCalculationSpecId =
+                      metricCalculationSpec.externalMetricCalculationSpecId
                   }
               }
 
             reportingMetricEntries[reportingSet.externalReportingSetId + "1"] =
               ReportKt.reportingMetricCalculationSpec {
-                metricCalculationSpecs +=
-                  ReportKt.metricCalculationSpec {
-                    details =
-                      ReportKt.MetricCalculationSpecKt.details {
-                        this.displayName = "displayName"
-                        metricSpecs += metricSpec {
-                          reach =
-                            MetricSpecKt.reachParams {
-                              privacyParams =
-                                MetricSpecKt.differentialPrivacyParams {
-                                  epsilon = 1.0
-                                  delta = 2.0
-                                }
-                            }
-                          vidSamplingInterval =
-                            MetricSpecKt.vidSamplingInterval {
-                              start = 0.1f
-                              width = 0.5f
-                            }
-                        }
-                        groupings +=
-                          ReportKt.MetricCalculationSpecKt.grouping {
-                            predicates += "gender.value == MALE"
-                          }
-                        cumulative = false
-                      }
+                metricCalculationSpecReportingMetrics +=
+                  ReportKt.metricCalculationSpecReportingMetrics {
+                    externalMetricCalculationSpecId =
+                      metricCalculationSpec.externalMetricCalculationSpecId
                   }
               }
           }
@@ -363,6 +314,69 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception.message).contains("Reporting Set")
+  }
+
+  @Test
+  fun `createReportSchedule throws NOT_FOUND when MetricCalculationSpec found`() = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+
+    val reportSchedule = reportSchedule {
+      this.cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      state = ReportSchedule.State.ACTIVE
+      details =
+        ReportScheduleKt.details {
+          displayName = "display"
+          description = "description"
+          reportTemplate = report {
+            reportingMetricEntries[reportingSet.externalReportingSetId] =
+              ReportKt.reportingMetricCalculationSpec {
+                metricCalculationSpecReportingMetrics +=
+                  ReportKt.metricCalculationSpecReportingMetrics {
+                    externalMetricCalculationSpecId = "1234"
+                  }
+              }
+          }
+          eventStart = dateTime {
+            year = 2023
+            month = 10
+            day = 1
+            hours = 6
+            timeZone = timeZone { id = "America/New_York" }
+          }
+          eventEnd = date {
+            year = 2024
+            month = 12
+            day = 1
+          }
+          frequency =
+            ReportScheduleKt.frequency {
+              daily = ReportSchedule.Frequency.Daily.getDefaultInstance()
+            }
+          reportWindow =
+            ReportScheduleKt.reportWindow {
+              trailingWindow =
+                ReportScheduleKt.ReportWindowKt.trailingWindow {
+                  count = 1
+                  increment = ReportSchedule.ReportWindow.TrailingWindow.Increment.DAY
+                }
+            }
+        }
+      nextReportCreationTime = timestamp { seconds = 200 }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.createReportSchedule(
+          createReportScheduleRequest {
+            this.reportSchedule = reportSchedule
+            this.externalReportScheduleId = "external-report-schedule-id"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.message).contains("Metric Calculation Spec")
   }
 
   @Test
@@ -424,8 +438,12 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
   fun `createReportSchedule throws FAILED_PRECONDITION when MC not found`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val metricCalculationSpec =
+      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
     val reportSchedule =
-      createReportScheduleForRequest(reportingSet).copy { cmmsMeasurementConsumerId += "123" }
+      createReportScheduleForRequest(reportingSet, metricCalculationSpec).copy {
+        cmmsMeasurementConsumerId += "123"
+      }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -445,7 +463,9 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
   fun `getReportSchedule succeeds`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-    val reportSchedule = createReportScheduleForRequest(reportingSet)
+    val metricCalculationSpec =
+      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
+    val reportSchedule = createReportScheduleForRequest(reportingSet, metricCalculationSpec)
     val createRequest = createReportScheduleRequest {
       this.reportSchedule = reportSchedule
       externalReportScheduleId = "external-report-schedule-id"
@@ -524,7 +544,9 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
   fun `listReportSchedules lists 2 schedules in asc order by external id`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-    val reportSchedule = createReportScheduleForRequest(reportingSet)
+    val metricCalculationSpec =
+      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
+    val reportSchedule = createReportScheduleForRequest(reportingSet, metricCalculationSpec)
 
     val request = createReportScheduleRequest {
       this.reportSchedule = reportSchedule
@@ -558,7 +580,9 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
   fun `listReportSchedules lists 1 schedule when limit is specified`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-    val reportSchedule = createReportScheduleForRequest(reportingSet)
+    val metricCalculationSpec =
+      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
+    val reportSchedule = createReportScheduleForRequest(reportingSet, metricCalculationSpec)
 
     val request = createReportScheduleRequest {
       this.reportSchedule = reportSchedule
@@ -591,7 +615,9 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
   fun `listReportSchedules lists 1 schedule when after id is specified`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-    val reportSchedule = createReportScheduleForRequest(reportingSet)
+    val metricCalculationSpec =
+      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
+    val reportSchedule = createReportScheduleForRequest(reportingSet, metricCalculationSpec)
 
     val request = createReportScheduleRequest {
       this.reportSchedule = reportSchedule
@@ -632,11 +658,124 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
     assertThat(exception.message).contains("cmms_measurement_consumer_id")
   }
 
+  @Test
+  fun `stopReportSchedule sets state to STOPPED`() = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val metricCalculationSpec =
+      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
+    val reportSchedule = createReportScheduleForRequest(reportingSet, metricCalculationSpec)
+    val createRequest = createReportScheduleRequest {
+      this.reportSchedule = reportSchedule
+      externalReportScheduleId = "external-report-schedule-id"
+    }
+    val createdReportSchedule = service.createReportSchedule(createRequest)
+
+    val stopRequest = stopReportScheduleRequest {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalReportScheduleId = createdReportSchedule.externalReportScheduleId
+    }
+    val stoppedReportSchedule = service.stopReportSchedule(stopRequest)
+
+    assertThat(stoppedReportSchedule.externalReportScheduleId)
+      .isEqualTo(createdReportSchedule.externalReportScheduleId)
+    assertThat(stoppedReportSchedule.state).isEqualTo(ReportSchedule.State.STOPPED)
+    assertThat(
+        Timestamps.compare(stoppedReportSchedule.updateTime, createdReportSchedule.createTime)
+      )
+      .isGreaterThan(0)
+
+    val retrievedReportSchedule =
+      service.getReportSchedule(
+        getReportScheduleRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportScheduleId = createdReportSchedule.externalReportScheduleId
+        }
+      )
+
+    assertThat(retrievedReportSchedule.state).isEqualTo(ReportSchedule.State.STOPPED)
+    assertThat(
+        Timestamps.compare(retrievedReportSchedule.updateTime, createdReportSchedule.createTime)
+      )
+      .isGreaterThan(0)
+  }
+
+  @Test
+  fun `stopReportSchedule throws NOT_FOUND when report schedule not found`() = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.stopReportSchedule(
+          stopReportScheduleRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalReportScheduleId = "external-report-schedule-id"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.message).contains("not found")
+  }
+
+  @Test
+  fun `stopReportSchedule throws FAILED_PRECONDITION when state not active`() = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val metricCalculationSpec =
+      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
+    val reportSchedule = createReportScheduleForRequest(reportingSet, metricCalculationSpec)
+    val createRequest = createReportScheduleRequest {
+      this.reportSchedule = reportSchedule
+      externalReportScheduleId = "external-report-schedule-id"
+    }
+    val createdReportSchedule = service.createReportSchedule(createRequest)
+
+    val stopRequest = stopReportScheduleRequest {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalReportScheduleId = createdReportSchedule.externalReportScheduleId
+    }
+    service.stopReportSchedule(stopRequest)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.stopReportSchedule(stopRequest) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.message).contains("not ACTIVE")
+  }
+
+  @Test
+  fun `stopReportSchedule throws INVALID_ARGUMENT when cmms mc id missing`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.stopReportSchedule(
+          stopReportScheduleRequest { externalReportScheduleId = "external-report-schedule-id" }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("cmms_measurement_consumer_i")
+  }
+
+  @Test
+  fun `stopReportSchedule throws INVALID_ARGUMENT when schedule id missing`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.stopReportSchedule(
+          stopReportScheduleRequest { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("external_report_schedule_id")
+  }
+
   companion object {
     private const val CMMS_MEASUREMENT_CONSUMER_ID = "1234"
 
     private fun createReportScheduleForRequest(
       reportingSet: ReportingSet,
+      metricCalculationSpec: MetricCalculationSpec
     ): ReportSchedule {
       return reportSchedule {
         this.cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -647,32 +786,10 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
             reportTemplate = report {
               reportingMetricEntries[reportingSet.externalReportingSetId] =
                 ReportKt.reportingMetricCalculationSpec {
-                  metricCalculationSpecs +=
-                    ReportKt.metricCalculationSpec {
-                      details =
-                        ReportKt.MetricCalculationSpecKt.details {
-                          this.displayName = "displayName"
-                          metricSpecs += metricSpec {
-                            reach =
-                              MetricSpecKt.reachParams {
-                                privacyParams =
-                                  MetricSpecKt.differentialPrivacyParams {
-                                    epsilon = 1.0
-                                    delta = 2.0
-                                  }
-                              }
-                            vidSamplingInterval =
-                              MetricSpecKt.vidSamplingInterval {
-                                start = 0.1f
-                                width = 0.5f
-                              }
-                          }
-                          groupings +=
-                            ReportKt.MetricCalculationSpecKt.grouping {
-                              predicates += "gender.value == MALE"
-                            }
-                          cumulative = false
-                        }
+                  metricCalculationSpecReportingMetrics +=
+                    ReportKt.metricCalculationSpecReportingMetrics {
+                      externalMetricCalculationSpecId =
+                        metricCalculationSpec.externalMetricCalculationSpecId
                     }
                 }
             }

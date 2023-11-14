@@ -8,7 +8,3 @@ The following resources are assumed to already exist:
 
 *   A GKE cluster.
 *   A BigQuery table containing labeled test events.
-
-## Provider Configuration
-
-*   `kubernetes` - Configured for the Kubernetes cluster.

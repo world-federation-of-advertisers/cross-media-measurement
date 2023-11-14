@@ -31,13 +31,13 @@
 --       │   └── MetricMeasurements
 --       ├── Measurements
 --       │   └── MeasurementPrimitiveReportingSetBases
+--       ├── MetricCalculationSpecs
 --       ├── Reports
---       │    ├── ReportTimeIntervals
---       │    └── MetricCalculationSpecs
---       │        └── MetricCalculationSpecMetrics
+--       │   ├── ReportTimeIntervals
+--       │   └── MetricCalculationSpecReportingMetrics
 --       └── ReportSchedules
 --           ├── ReportScheduleIterations
---           └── ReportSchedulesReports
+--           └── ReportsReportSchedules
 
 -- changeset tristanvuong2021:create-report-schedules-table dbms:postgresql
 CREATE TABLE ReportSchedules (
@@ -60,6 +60,7 @@ CREATE TABLE ReportSchedules (
   ReportScheduleDetailsJson text NOT NULL,
 
   Primary Key(MeasurementConsumerId, ReportScheduleId),
+  UNIQUE(MeasurementConsumerId, ExternalReportScheduleId),
   UNIQUE(MeasurementConsumerId, CreateReportScheduleRequestId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId)
@@ -71,7 +72,7 @@ CREATE TABLE ReportScheduleIterations (
   MeasurementConsumerId bigint NOT NULL,
   ReportScheduleId bigint NOT NULL,
   ReportScheduleIterationId bigint NOT NULL,
-  ExternalReportScheduleIterationId bigint NOT NULL,
+  ExternalReportScheduleIterationId text NOT NULL,
 
   ReportEventTime timestamp with time zone NOT NULL,
   CreateReportRequestId text NOT NULL,
@@ -84,6 +85,7 @@ CREATE TABLE ReportScheduleIterations (
   UpdateTime timestamp with time zone NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, ReportScheduleId, ReportScheduleIterationId),
+  UNIQUE(MeasurementConsumerId, ReportScheduleId, ExternalReportScheduleIterationId),
   UNIQUE(MeasurementConsumerId, ReportScheduleId, ReportEventTime),
   FOREIGN KEY(MeasurementConsumerId, ReportScheduleId)
     REFERENCES ReportSchedules(MeasurementConsumerId, ReportScheduleId)

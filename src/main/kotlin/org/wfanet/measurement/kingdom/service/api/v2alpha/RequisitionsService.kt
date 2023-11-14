@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.protobuf.any
+import com.google.protobuf.kotlin.unpack
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.math.min
@@ -25,6 +27,8 @@ import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
+import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsPageToken
@@ -46,12 +50,16 @@ import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionParentKey
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.SignedMessage
+import org.wfanet.measurement.api.v2alpha.encryptedMessage
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.listRequisitionsPageToken
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.requisition
-import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.api.v2alpha.setMessage
+import org.wfanet.measurement.api.v2alpha.signedMessage
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -60,6 +68,7 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.Requisition.DuchyValue
@@ -211,7 +220,23 @@ class RequisitionsService(
         "Resource name unspecified or invalid."
       }
     grpcRequire(request.nonce != 0L) { "nonce unspecified" }
-    grpcRequire(!request.encryptedData.isEmpty) { "encrypted_data must be provided" }
+    val encryptedResultCiphertext =
+      if (request.hasEncryptedResult()) {
+        grpcRequire(
+          request.encryptedResult.typeUrl ==
+            ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
+        ) {
+          "encrypted_result must contain an encrypted SignedMessage"
+        }
+        request.encryptedResult.ciphertext
+      } else {
+        // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop reading this
+        // field.
+        grpcRequire(!request.encryptedResultCiphertext.isEmpty) {
+          "Neither encrypted_result nor encrypted_result_ciphertext specified"
+        }
+        request.encryptedResultCiphertext
+      }
 
     val authenticatedPrincipal = principalFromCurrentContext
     if (key.parentKey != authenticatedPrincipal.resourceKey) {
@@ -223,7 +248,8 @@ class RequisitionsService(
       nonce = request.nonce
       directParams = directRequisitionParams {
         externalDataProviderId = apiIdToExternalId(key.dataProviderId)
-        encryptedData = request.encryptedData
+        encryptedData = encryptedResultCiphertext
+        apiVersion = Version.V2_ALPHA.string
       }
     }
     try {
@@ -249,17 +275,30 @@ class RequisitionsService(
 
 /** Converts an internal [Requisition] to a public [Requisition]. */
 private fun InternalRequisition.toRequisition(): Requisition {
-  check(Version.fromString(parentMeasurement.apiVersion) == Version.V2_ALPHA) {
-    "Incompatible API version ${parentMeasurement.apiVersion}"
+  val requisitionKey =
+    CanonicalRequisitionKey(
+      externalIdToApiId(externalDataProviderId),
+      externalIdToApiId(externalRequisitionId)
+    )
+  val measurementApiVersion = Version.fromString(parentMeasurement.apiVersion)
+  val packedMeasurementSpec = any {
+    value = parentMeasurement.measurementSpec
+    typeUrl =
+      when (measurementApiVersion) {
+        Version.V2_ALPHA -> ProtoReflection.getTypeUrl(MeasurementSpec.getDescriptor())
+      }
+  }
+  val measurementSpec: MeasurementSpec = packedMeasurementSpec.unpack()
+  val dataProviderPublicKey = any {
+    value = details.dataProviderPublicKey
+    typeUrl =
+      when (measurementApiVersion) {
+        Version.V2_ALPHA -> ProtoReflection.getTypeUrl(EncryptionPublicKey.getDescriptor())
+      }
   }
 
   return requisition {
-    name =
-      CanonicalRequisitionKey(
-          externalIdToApiId(externalDataProviderId),
-          externalIdToApiId(externalRequisitionId)
-        )
-        .toName()
+    name = requisitionKey.toName()
 
     measurement =
       MeasurementKey(
@@ -273,25 +312,25 @@ private fun InternalRequisition.toRequisition(): Requisition {
           externalIdToApiId(parentMeasurement.externalMeasurementConsumerCertificateId)
         )
         .toName()
-    measurementSpec = signedData {
-      data = parentMeasurement.measurementSpec
+    this.measurementSpec = signedMessage {
+      setMessage(packedMeasurementSpec)
       signature = parentMeasurement.measurementSpecSignature
       signatureAlgorithmOid = parentMeasurement.measurementSpecSignatureAlgorithmOid
     }
 
-    val measurementTypeCase =
-      MeasurementSpec.parseFrom(parentMeasurement.measurementSpec).measurementTypeCase
     protocolConfig =
-      try {
-        parentMeasurement.protocolConfig.toProtocolConfig(
-          measurementTypeCase,
-          parentMeasurement.dataProvidersCount,
-        )
-      } catch (e: Throwable) {
-        failGrpc(Status.INVALID_ARGUMENT) { e.message ?: "Failed to convert ProtocolConfig" }
-      }
+      parentMeasurement.protocolConfig.toProtocolConfig(
+        measurementSpec.measurementTypeCase,
+        parentMeasurement.dataProvidersCount,
+      )
 
-    encryptedRequisitionSpec = details.encryptedRequisitionSpec
+    encryptedRequisitionSpec = encryptedMessage {
+      ciphertext = details.encryptedRequisitionSpec
+      typeUrl =
+        when (measurementApiVersion) {
+          Version.V2_ALPHA -> ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
+        }
+    }
 
     dataProviderCertificate =
       DataProviderCertificateKey(
@@ -299,14 +338,17 @@ private fun InternalRequisition.toRequisition(): Requisition {
           externalIdToApiId(this@toRequisition.dataProviderCertificate.externalCertificateId)
         )
         .toName()
-    dataProviderPublicKey = signedData {
-      data = details.dataProviderPublicKey
+    this.dataProviderPublicKey = dataProviderPublicKey
+    nonce = details.nonce
+
+    // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this field.
+    signedDataProviderPublicKey = signedMessage {
+      setMessage(dataProviderPublicKey)
       signature = details.dataProviderPublicKeySignature
       signatureAlgorithmOid = details.dataProviderPublicKeySignatureAlgorithmOid
     }
-    nonce = details.nonce
 
-    duchies += duchiesMap.entries.map(Map.Entry<String, DuchyValue>::toDuchyEntry)
+    duchies += duchiesMap.entries.map { it.toDuchyEntry(measurementApiVersion) }
 
     state = this@toRequisition.state.toRequisitionState()
     if (state == State.REFUSED) {
@@ -369,40 +411,56 @@ private fun State.toInternal(): InternalState =
   }
 
 /** Converts an internal [DuchyValue] to a public [DuchyEntry.Value]. */
-private fun DuchyValue.toDuchyEntryValue(externalDuchyId: String): DuchyEntry.Value {
-  val value = this
+private fun DuchyValue.toDuchyEntryValue(
+  externalDuchyId: String,
+  apiVersion: Version
+): DuchyEntry.Value {
+  val duchyCertificateKey =
+    DuchyCertificateKey(externalDuchyId, externalIdToApiId(externalDuchyCertificateId))
+
+  val source = this
   return value {
-    duchyCertificate =
-      DuchyCertificateKey(externalDuchyId, externalIdToApiId(externalDuchyCertificateId)).toName()
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-    when (value.protocolCase) {
-      DuchyValue.ProtocolCase.LIQUID_LEGIONS_V2 -> liquidLegionsV2 = liquidLegionsV2 {
-          elGamalPublicKey = signedData {
-            data = value.liquidLegionsV2.elGamalPublicKey
-            signature = value.liquidLegionsV2.elGamalPublicKeySignature
-            signatureAlgorithmOid = value.liquidLegionsV2.elGamalPublicKeySignatureAlgorithmOid
-          }
-        }
-      DuchyValue.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> reachOnlyLiquidLegionsV2 =
-          liquidLegionsV2 {
-            elGamalPublicKey = signedData {
-              data = value.reachOnlyLiquidLegionsV2.elGamalPublicKey
-              signature = value.reachOnlyLiquidLegionsV2.elGamalPublicKeySignature
-              signatureAlgorithmOid =
-                value.reachOnlyLiquidLegionsV2.elGamalPublicKeySignatureAlgorithmOid
+    duchyCertificate = duchyCertificateKey.toName()
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Annotated with @NotNull.
+    when (source.protocolCase) {
+      DuchyValue.ProtocolCase.LIQUID_LEGIONS_V2 -> {
+        liquidLegionsV2 = source.liquidLegionsV2.toDuchyEntryLlV2(apiVersion)
+      }
+      DuchyValue.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
+        reachOnlyLiquidLegionsV2 = source.reachOnlyLiquidLegionsV2.toDuchyEntryLlV2(apiVersion)
+      }
+      DuchyValue.ProtocolCase.PROTOCOL_NOT_SET -> error("protocol not set")
+    }
+  }
+}
+
+private fun ComputationParticipant.LiquidLegionsV2Details.toDuchyEntryLlV2(
+  apiVersion: Version
+): DuchyEntry.LiquidLegionsV2 {
+  val source = this
+  return liquidLegionsV2 {
+    elGamalPublicKey = signedMessage {
+      setMessage(
+        any {
+          value = source.elGamalPublicKey
+          typeUrl =
+            when (apiVersion) {
+              Version.V2_ALPHA -> ProtoReflection.getTypeUrl(ElGamalPublicKey.getDescriptor())
             }
-          }
-      DuchyValue.ProtocolCase.PROTOCOL_NOT_SET -> {}
+        }
+      )
+      signature = source.elGamalPublicKeySignature
+      signatureAlgorithmOid = source.elGamalPublicKeySignatureAlgorithmOid
     }
   }
 }
 
 /** Converts an internal duchy map entry to a public [DuchyEntry]. */
-private fun Map.Entry<String, DuchyValue>.toDuchyEntry(): DuchyEntry {
+private fun Map.Entry<String, DuchyValue>.toDuchyEntry(apiVersion: Version): DuchyEntry {
   val mapEntry = this
   return duchyEntry {
     key = mapEntry.key
-    value = mapEntry.value.toDuchyEntryValue(mapEntry.key)
+    value = mapEntry.value.toDuchyEntryValue(mapEntry.key, apiVersion)
   }
 }
 

@@ -20,16 +20,17 @@ import org.wfanet.measurement.common.api.ResourceKey
 /** [ResourceKey] of a Measurement Consumer. */
 data class MeasurementConsumerKey(
   val measurementConsumerId: String,
-) : ResourceKey, CertificateParentKey {
+) : ResourceKey, CertificateParentKey, PublicKeyParentKey {
   override fun toName(): String {
     return parser.assembleName(mapOf(IdVariable.MEASUREMENT_CONSUMER to measurementConsumerId))
   }
 
   companion object FACTORY : ResourceKey.Factory<MeasurementConsumerKey> {
     const val COLLECTION_NAME = "measurementConsumers"
+    const val PATTERN = "$COLLECTION_NAME/{measurement_consumer}"
     val defaultValue = MeasurementConsumerKey("")
 
-    private val parser = ResourceNameParser("$COLLECTION_NAME/{measurement_consumer}")
+    private val parser = ResourceNameParser(PATTERN)
 
     override fun fromName(resourceName: String): MeasurementConsumerKey? {
       return parser.parseIdVars(resourceName)?.let {

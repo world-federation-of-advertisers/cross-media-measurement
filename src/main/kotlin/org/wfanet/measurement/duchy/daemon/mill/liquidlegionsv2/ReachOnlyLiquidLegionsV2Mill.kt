@@ -190,7 +190,6 @@ class ReachOnlyLiquidLegionsV2Mill(
             rollv2ComputationDetails.localElgamalKey.publicKey.toV2AlphaElGamalPublicKey(),
             signingKey
           )
-        Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
       }
 
     val request = setParticipantRequisitionParamsRequest {
@@ -200,7 +199,7 @@ class ReachOnlyLiquidLegionsV2Mill(
           duchyCertificate = consentSignalCert.name
           reachOnlyLiquidLegionsV2 =
             ComputationParticipantKt.RequisitionParamsKt.liquidLegionsV2 {
-              elGamalPublicKey = signedElgamalPublicKey.data
+              elGamalPublicKey = signedElgamalPublicKey.message.value
               elGamalPublicKeySignature = signedElgamalPublicKey.signature
               elGamalPublicKeySignatureAlgorithmOid = signedElgamalPublicKey.signatureAlgorithmOid
             }
@@ -479,7 +478,6 @@ class ReachOnlyLiquidLegionsV2Mill(
       "Invalid input blob size. Input blob ${inputBlob.toStringUtf8()} has size " +
         "${inputBlob.size()} which is less than ($BYTES_PER_CIPHERTEXT)."
     }
-    var reach = 0L
     val (_, nextToken) =
       existingOutputOr(token) {
         val request = completeReachOnlyExecutionPhaseAtAggregatorRequest {
@@ -523,11 +521,10 @@ class ReachOnlyLiquidLegionsV2Mill(
           cryptoResult.elapsedCpuTimeMillis,
           executionPhaseCryptoCpuTimeDurationHistogram
         )
-        reach = cryptoResult.reach
-        cryptoResult.toByteString()
+        sendResultToKingdom(token, ReachResult(cryptoResult.reach))
+        ByteString.EMPTY
       }
 
-    sendResultToKingdom(token, ReachResult(reach))
     return completeComputation(nextToken, CompletedReason.SUCCEEDED)
   }
 

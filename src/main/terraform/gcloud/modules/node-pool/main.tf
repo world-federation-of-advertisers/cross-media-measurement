@@ -17,7 +17,7 @@ data "google_project" "project" {}
 
 resource "google_container_node_pool" "node_pool" {
   name    = var.name
-  cluster = var.cluster.name
+  cluster = var.cluster.id
 
   node_config {
     service_account = var.service_account.email
@@ -25,6 +25,9 @@ resource "google_container_node_pool" "node_pool" {
     machine_type    = var.machine_type
     disk_type       = "pd-balanced"
     spot            = var.spot
+    shielded_instance_config {
+      enable_secure_boot = true
+    }
 
     dynamic "taint" {
       for_each = var.spot ? [{

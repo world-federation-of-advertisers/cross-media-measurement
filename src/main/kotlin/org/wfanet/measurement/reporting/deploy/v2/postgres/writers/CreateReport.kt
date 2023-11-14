@@ -32,10 +32,14 @@ import org.wfanet.measurement.internal.reporting.v2.CreateReportRequest
 import org.wfanet.measurement.internal.reporting.v2.Report
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MeasurementConsumerReader
+import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MetricCalculationSpecReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportReader
+import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportScheduleReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.reporting.service.internal.MetricCalculationSpecNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportAlreadyExistsException
+import org.wfanet.measurement.reporting.service.internal.ReportScheduleNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 
 /**
@@ -44,11 +48,12 @@ import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundExc
  * Throws the following on [execute]:
  * * [ReportingSetNotFoundException] ReportingSet not found
  * * [MeasurementConsumerNotFoundException] MeasurementConsumer not found
+ * * [MetricCalculationSpecNotFoundException] MetricCalculationSpec not found
+ * * [ReportScheduleNotFoundException] ReportSchedule not found
  * * [ReportAlreadyExistsException] Report already exists
  */
 class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Report>() {
   private data class ReportingMetricEntriesAndBinders(
-    val metricCalculationSpecsBinders: List<BoundStatement.Binder.() -> Unit>,
     val metricCalculationSpecReportingMetricsBinders: List<BoundStatement.Binder.() -> Unit>,
     val updatedReportingMetricEntries: Map<String, Report.ReportingMetricCalculationSpec>,
   )
@@ -64,12 +69,14 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
     val report = request.report
 
     // Request IDs take precedence
-    val existingReportResult: ReportReader.Result? =
-      ReportReader(transactionContext)
-        .readReportByRequestId(measurementConsumerId, createReportRequestId)
+    if (createReportRequestId.isNotBlank()) {
+      val existingReportResult: ReportReader.Result? =
+        ReportReader(transactionContext)
+          .readReportByRequestId(measurementConsumerId, createReportRequestId)
 
-    if (existingReportResult != null) {
-      return existingReportResult.report
+      if (existingReportResult != null) {
+        return existingReportResult.report
+      }
     }
 
     // If we can't find a report given the request ID but found a report given the external ID,
@@ -81,8 +88,9 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
       throw ReportAlreadyExistsException()
     }
 
-    val externalReportingSetIds = mutableListOf<String>()
-    report.reportingMetricEntriesMap.entries.forEach { externalReportingSetIds += it.key }
+    val externalReportingSetIds: Set<String> = buildSet {
+      report.reportingMetricEntriesMap.entries.forEach { add(it.key) }
+    }
 
     val reportingSetMap: Map<String, InternalId> =
       ReportingSetReader(transactionContext)
@@ -92,6 +100,36 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
 
     if (reportingSetMap.size < externalReportingSetIds.size) {
       throw ReportingSetNotFoundException()
+    }
+
+    val externalMetricCalculationSpecIds: Set<String> = buildSet {
+      for (reportingMetricCalculationSpec in report.reportingMetricEntriesMap.values) {
+        reportingMetricCalculationSpec.metricCalculationSpecReportingMetricsList.forEach {
+          add(it.externalMetricCalculationSpecId)
+        }
+      }
+    }
+
+    val metricCalculationSpecMap: Map<String, InternalId> =
+      MetricCalculationSpecReader(transactionContext)
+        .batchReadByExternalIds(
+          request.report.cmmsMeasurementConsumerId,
+          externalMetricCalculationSpecIds
+        )
+        .associateBy(
+          { it.metricCalculationSpec.externalMetricCalculationSpecId },
+          { it.metricCalculationSpecId }
+        )
+
+    if (metricCalculationSpecMap.size < externalMetricCalculationSpecIds.size) {
+      externalMetricCalculationSpecIds.forEach {
+        if (!metricCalculationSpecMap.containsKey(it)) {
+          throw MetricCalculationSpecNotFoundException(
+            cmmsMeasurementConsumerId = report.cmmsMeasurementConsumerId,
+            externalMetricCalculationSpecId = it
+          )
+        }
+      }
     }
 
     val reportId = idGenerator.generateInternalId()
@@ -148,25 +186,13 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
       }
 
     val reportingMetricEntriesAndBinders =
-      createMetricCalculationSpecBindings(measurementConsumerId, reportId, report, reportingSetMap)
-
-    val metricCalculationSpecsStatement =
-      boundStatement(
-        """
-      INSERT INTO MetricCalculationSpecs
-        (
-          MeasurementConsumerId,
-          ReportId,
-          MetricCalculationSpecId,
-          ReportingSetId,
-          MetricCalculationSpecDetails,
-          MetricCalculationSpecDetailsJson
-        )
-        VALUES ($1, $2, $3, $4, $5, $6)
-      """
-      ) {
-        reportingMetricEntriesAndBinders.metricCalculationSpecsBinders.forEach { addBinding(it) }
-      }
+      createMetricCalculationSpecBindings(
+        measurementConsumerId,
+        reportId,
+        report,
+        reportingSetMap,
+        metricCalculationSpecMap
+      )
 
     val metricCalculationSpecReportingMetricsStatement =
       boundStatement(
@@ -175,12 +201,13 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
         (
           MeasurementConsumerId,
           ReportId,
+          ReportingSetId,
           MetricCalculationSpecId,
           CreateMetricRequestId,
           ReportingMetricDetails,
           ReportingMetricDetailsJson
         )
-        VALUES ($1, $2, $3, $4, $5, $6)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
       """
       ) {
         reportingMetricEntriesAndBinders.metricCalculationSpecReportingMetricsBinders.forEach {
@@ -191,13 +218,45 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
     transactionContext.run {
       executeStatement(statement)
       executeStatement(reportTimeIntervalsStatement)
-      executeStatement(metricCalculationSpecsStatement)
       executeStatement(metricCalculationSpecReportingMetricsStatement)
+
+      if (request.externalReportScheduleId.isNotEmpty()) {
+        val reportScheduleId =
+          (ReportScheduleReader(transactionContext)
+              .readReportScheduleByExternalId(
+                request.report.cmmsMeasurementConsumerId,
+                request.externalReportScheduleId
+              )
+              ?: throw ReportScheduleNotFoundException(
+                cmmsMeasurementConsumerId = request.report.cmmsMeasurementConsumerId,
+                externalReportScheduleId = request.externalReportScheduleId
+              ))
+            .reportScheduleId
+
+        val reportsReportSchedulesStatement =
+          boundStatement(
+            """
+            INSERT INTO ReportsReportSchedules
+            (
+              MeasurementConsumerId,
+              ReportId,
+              ReportScheduleId
+            )
+            VALUES ($1, $2, $3)
+          """
+          ) {
+            bind("$1", measurementConsumerId)
+            bind("$2", reportId)
+            bind("$3", reportScheduleId)
+          }
+        executeStatement(reportsReportSchedulesStatement)
+      }
     }
 
     return request.report.copy {
       this.createTime = createTime.toInstant().toProtoTime()
       this.externalReportId = externalReportId
+      externalReportScheduleId = request.externalReportScheduleId
       reportingMetricEntries.clear()
       reportingMetricEntries.putAll(reportingMetricEntriesAndBinders.updatedReportingMetricEntries)
     }
@@ -244,45 +303,44 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
     measurementConsumerId: InternalId,
     reportId: InternalId,
     report: Report,
+    // Map of external id to internal id.
     reportingSetMap: Map<String, InternalId>,
+    // Map of external id to internal id.
+    metricCalculationSpecMap: Map<String, InternalId>,
   ): ReportingMetricEntriesAndBinders {
-    val metricCalculationSpecsBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
     val metricCalculationSpecReportingMetricsBinders =
       mutableListOf<BoundStatement.Binder.() -> Unit>()
     val updatedReportingMetricEntries =
       mutableMapOf<String, Report.ReportingMetricCalculationSpec>()
 
-    report.reportingMetricEntriesMap.entries.forEach { entry ->
-      val updatedMetricCalculationSpecs = mutableListOf<Report.MetricCalculationSpec>()
-      entry.value.metricCalculationSpecsList.forEach { metricCalculationSpec ->
-        val metricCalculationSpecId = idGenerator.generateInternalId()
-        metricCalculationSpecsBinders.add {
-          bind("$1", measurementConsumerId)
-          bind("$2", reportId)
-          bind("$3", metricCalculationSpecId)
-          bind("$4", reportingSetMap[entry.key])
-          bind("$5", metricCalculationSpec.details)
-          bind("$6", metricCalculationSpec.details.toJson())
-        }
+    for (entry in report.reportingMetricEntriesMap.entries) {
+      val updatedMetricCalculationSpecReportingMetricsList =
+        mutableListOf<Report.MetricCalculationSpecReportingMetrics>()
 
+      for (metricCalculationSpecReportingMetrics in
+        entry.value.metricCalculationSpecReportingMetricsList) {
+        val metricCalculationSpecId =
+          metricCalculationSpecMap[
+            metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId]
         val updatedReportingMetricsList = mutableListOf<Report.ReportingMetric>()
-        metricCalculationSpec.reportingMetricsList.forEach {
+        metricCalculationSpecReportingMetrics.reportingMetricsList.forEach {
           val createMetricRequestId = UUID.randomUUID()
           metricCalculationSpecReportingMetricsBinders.add {
             bind("$1", measurementConsumerId)
             bind("$2", reportId)
-            bind("$3", metricCalculationSpecId)
-            bind("$4", createMetricRequestId)
-            bind("$5", it.details)
-            bind("$6", it.details.toJson())
+            bind("$3", reportingSetMap[entry.key])
+            bind("$4", metricCalculationSpecId)
+            bind("$5", createMetricRequestId)
+            bind("$6", it.details)
+            bind("$7", it.details.toJson())
           }
           updatedReportingMetricsList.add(
             it.copy { this.createMetricRequestId = createMetricRequestId.toString() }
           )
         }
 
-        updatedMetricCalculationSpecs.add(
-          metricCalculationSpec.copy {
+        updatedMetricCalculationSpecReportingMetricsList.add(
+          metricCalculationSpecReportingMetrics.copy {
             reportingMetrics.clear()
             reportingMetrics.addAll(updatedReportingMetricsList)
           }
@@ -291,13 +349,14 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
 
       updatedReportingMetricEntries[entry.key] =
         entry.value.copy {
-          metricCalculationSpecs.clear()
-          metricCalculationSpecs.addAll(updatedMetricCalculationSpecs)
+          metricCalculationSpecReportingMetrics.clear()
+          metricCalculationSpecReportingMetrics.addAll(
+            updatedMetricCalculationSpecReportingMetricsList
+          )
         }
     }
 
     return ReportingMetricEntriesAndBinders(
-      metricCalculationSpecsBinders = metricCalculationSpecsBinders,
       metricCalculationSpecReportingMetricsBinders = metricCalculationSpecReportingMetricsBinders,
       updatedReportingMetricEntries = updatedReportingMetricEntries,
     )

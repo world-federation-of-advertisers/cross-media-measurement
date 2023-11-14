@@ -52,6 +52,16 @@ message ListMetricsPageToken {
   PreviousPageEnd last_metric = 3;
 }
 
+message ListMetricCalculationSpecsPageToken {
+  int32 page_size = 1;
+  string cmms_measurement_consumer_id = 2;
+  message PreviousPageEnd {
+    string cmms_measurement_consumer_id = 1;
+    string external_metric_calculation_spec_id = 2;
+  }
+  PreviousPageEnd last_metric_calculation_spec = 3;
+}
+
 message ListReportSchedulesPageToken {
   int32 page_size = 1;
   string cmms_measurement_consumer_id = 2;

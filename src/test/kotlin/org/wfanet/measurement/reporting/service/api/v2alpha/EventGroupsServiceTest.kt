@@ -53,7 +53,6 @@ import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsRespo
 import org.wfanet.measurement.api.v2alpha.listEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
-import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.base64UrlEncode
@@ -62,6 +61,7 @@ import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
@@ -593,9 +593,7 @@ class EventGroupsServiceTest {
       name = CMMS_EVENT_GROUP_NAME
       measurementConsumer = MEASUREMENT_CONSUMER_NAME
       eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
-      measurementConsumerPublicKey = signedData {
-        data = ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey().toByteString()
-      }
+      measurementConsumerPublicKey = ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey().pack()
       eventTemplates += CmmsEventGroupKt.eventTemplate { type = TestEvent.getDescriptor().fullName }
       encryptedMetadata =
         encryptMetadata(
@@ -616,9 +614,7 @@ class EventGroupsServiceTest {
       name = CMMS_EVENT_GROUP_NAME_2
       measurementConsumer = MEASUREMENT_CONSUMER_NAME
       eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID_2
-      measurementConsumerPublicKey = signedData {
-        data = ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey().toByteString()
-      }
+      measurementConsumerPublicKey = ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey().pack()
       eventTemplates += CmmsEventGroupKt.eventTemplate { type = TestEvent.getDescriptor().fullName }
       encryptedMetadata =
         encryptMetadata(

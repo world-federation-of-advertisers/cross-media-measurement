@@ -32,7 +32,6 @@ import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import picocli.CommandLine
 
 private val EXCHANGE_DATE = LocalDate.now()
-private const val API_VERSION = "v2alpha"
 private const val SCHEDULE = "@daily"
 
 @CommandLine.Command(

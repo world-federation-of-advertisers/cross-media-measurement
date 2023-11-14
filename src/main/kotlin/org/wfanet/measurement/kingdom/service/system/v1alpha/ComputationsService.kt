@@ -16,7 +16,6 @@ package org.wfanet.measurement.kingdom.service.system.v1alpha
 
 import io.grpc.Status
 import io.grpc.StatusException
-import java.util.logging.Logger
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -32,6 +31,7 @@ import kotlinx.coroutines.isActive
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -60,7 +60,8 @@ class ComputationsService(
   private val measurementsClient: MeasurementsCoroutineStub,
   private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext,
   private val streamingTimeout: Duration = 10.minutes,
-  private val streamingThrottle: Duration = 1.seconds
+  private val streamingThrottle: Duration = 1.seconds,
+  private val streamingLimit: Int = DEFAULT_STREAMING_LIMIT,
 ) : ComputationsCoroutineImplBase() {
   override suspend fun getComputation(request: GetComputationRequest): Computation {
     val computationKey =
@@ -135,6 +136,7 @@ class ComputationsService(
       grpcRequireNotNull(ComputationKey.fromName(request.name)) {
         "Resource name unspecified or invalid."
       }
+    grpcRequire(request.publicApiVersion.isNotEmpty()) { "public_api_version unspecified" }
 
     // This assumes that the Certificate resource name is compatible with public API version
     // v2alpha.
@@ -156,6 +158,7 @@ class ComputationsService(
       externalAggregatorDuchyId = aggregatorCertificateKey.duchyId
       externalAggregatorCertificateId = apiIdToExternalId(aggregatorCertificateKey.certificateId)
       encryptedResult = request.encryptedResult
+      publicApiVersion = request.publicApiVersion
     }
     try {
       return measurementsClient.setMeasurementResult(internalRequest).toSystemComputation()
@@ -189,6 +192,7 @@ class ComputationsService(
         externalDuchyId = duchyIdentityProvider().id
       }
       measurementView = Measurement.View.COMPUTATION
+      limit = streamingLimit
     }
     try {
       return measurementsClient.streamMeasurements(request)
@@ -204,19 +208,23 @@ class ComputationsService(
   }
 
   companion object {
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
+    /**
+     * Default limit for [org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest]
+     * messages.
+     */
+    const val DEFAULT_STREAMING_LIMIT = 50
+
+    private val STATES_SUBSCRIBED =
+      listOf(
+        Measurement.State.PENDING_REQUISITION_PARAMS,
+        Measurement.State.PENDING_PARTICIPANT_CONFIRMATION,
+        Measurement.State.PENDING_COMPUTATION,
+        Measurement.State.FAILED,
+        Measurement.State.CANCELLED,
+        Measurement.State.SUCCEEDED
+      )
   }
 }
-
-private val STATES_SUBSCRIBED =
-  listOf(
-    Measurement.State.PENDING_REQUISITION_PARAMS,
-    Measurement.State.PENDING_PARTICIPANT_CONFIRMATION,
-    Measurement.State.PENDING_COMPUTATION,
-    Measurement.State.FAILED,
-    Measurement.State.CANCELLED,
-    Measurement.State.SUCCEEDED
-  )
 
 private object ContinuationTokenConverter {
   fun encode(token: StreamActiveComputationsContinuationToken): String =

@@ -33,7 +33,9 @@ import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequest
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateReport
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.reporting.service.internal.MetricCalculationSpecNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportAlreadyExistsException
+import org.wfanet.measurement.reporting.service.internal.ReportScheduleNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 
 class PostgresReportsService(
@@ -50,20 +52,14 @@ class PostgresReportsService(
       "Report is missing reporting metric entries."
     }
 
-    request.report.reportingMetricEntriesMap.entries.forEach { entry ->
-      entry.value.metricCalculationSpecsList.forEach { metricCalculationSpec ->
-        metricCalculationSpec.reportingMetricsList.forEach {
-          grpcRequire(entry.key == it.details.externalReportingSetId) {
-            "All metrics in a reporting metric entry must have the same external reporting set id as the key"
-          }
-        }
-      }
-    }
-
     return try {
       CreateReport(request).execute(client, idGenerator)
     } catch (e: ReportingSetNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Reporting Set not found.")
+    } catch (e: MetricCalculationSpecNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Metric Calculation Spec not found.")
+    } catch (e: ReportScheduleNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Report Schedule not found.")
     } catch (e: MeasurementConsumerNotFoundException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,

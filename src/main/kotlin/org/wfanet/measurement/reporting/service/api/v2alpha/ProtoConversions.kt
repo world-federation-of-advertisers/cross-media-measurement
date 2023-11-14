@@ -32,8 +32,9 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
+import org.wfanet.measurement.eventdataprovider.noiser.DpParams as NoiserDpParams
 import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodology as InternalCustomDirectMethodology
-import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodologyKt
+import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodologyKt as InternalCustomDirectMethodologyKt
 import org.wfanet.measurement.internal.reporting.v2.DeterministicCount
 import org.wfanet.measurement.internal.reporting.v2.DeterministicCountDistinct
 import org.wfanet.measurement.internal.reporting.v2.DeterministicDistribution
@@ -43,8 +44,10 @@ import org.wfanet.measurement.internal.reporting.v2.LiquidLegionsDistribution as
 import org.wfanet.measurement.internal.reporting.v2.LiquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec as InternalMetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec as InternalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt as InternalMetricSpecKt
+import org.wfanet.measurement.internal.reporting.v2.NoiseMechanism as InternalNoiseMechanism
 import org.wfanet.measurement.internal.reporting.v2.NoiseMechanism
 import org.wfanet.measurement.internal.reporting.v2.PeriodicTimeInterval as InternalPeriodicTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.ReachOnlyLiquidLegionsV2
@@ -70,10 +73,14 @@ import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals as internalTimeIntervals
+import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
+import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval as StatsVidSamplingInterval
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageToken
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsPageToken
 import org.wfanet.measurement.reporting.v2alpha.ListReportsPageToken
+import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
+import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.PeriodicTimeInterval
@@ -84,6 +91,7 @@ import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.TimeIntervals
 import org.wfanet.measurement.reporting.v2alpha.createMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.metric
+import org.wfanet.measurement.reporting.v2alpha.metricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.metricSpec
 import org.wfanet.measurement.reporting.v2alpha.periodicTimeInterval
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
@@ -686,16 +694,16 @@ fun ListReportingSetsPageToken.toStreamReportingSetsRequest(): StreamReportingSe
   }
 }
 
-/** Converts an [InternalReport.MetricCalculationSpec] to a [Report.MetricCalculationSpec]. */
-fun InternalReport.MetricCalculationSpec.toMetricCalculationSpec(): Report.MetricCalculationSpec {
+/** Converts an [InternalMetricCalculationSpec] to a [MetricCalculationSpec]. */
+fun InternalMetricCalculationSpec.toMetricCalculationSpec(): MetricCalculationSpec {
   val source = this
 
-  return ReportKt.metricCalculationSpec {
+  return metricCalculationSpec {
     displayName = source.details.displayName
     metricSpecs += source.details.metricSpecsList.map(InternalMetricSpec::toMetricSpec)
     groupings +=
       source.details.groupingsList.map { grouping ->
-        ReportKt.grouping { predicates += grouping.predicatesList }
+        MetricCalculationSpecKt.grouping { predicates += grouping.predicatesList }
       }
     filter = source.details.filter
     cumulative = source.details.cumulative
@@ -737,6 +745,7 @@ fun PeriodicTimeInterval.toInternal(): InternalPeriodicTimeInterval {
 /** Converts an [InternalReport.ReportingMetric] to a public [CreateMetricRequest]. */
 fun InternalReport.ReportingMetric.toCreateMetricRequest(
   measurementConsumerKey: MeasurementConsumerKey,
+  externalReportingSetId: String,
   filter: String,
 ): CreateMetricRequest {
   val source = this
@@ -744,10 +753,7 @@ fun InternalReport.ReportingMetric.toCreateMetricRequest(
     this.parent = measurementConsumerKey.toName()
     metric = metric {
       reportingSet =
-        ReportingSetKey(
-            measurementConsumerKey.measurementConsumerId,
-            source.details.externalReportingSetId
-          )
+        ReportingSetKey(measurementConsumerKey.measurementConsumerId, externalReportingSetId)
           .toName()
       timeInterval = source.details.timeInterval
       metricSpec = source.details.metricSpec.toMetricSpec()
@@ -773,7 +779,13 @@ fun Map.Entry<String, InternalReport.ReportingMetricCalculationSpec>.toReporting
     value =
       ReportKt.reportingMetricCalculationSpec {
         metricCalculationSpecs +=
-          source.value.metricCalculationSpecsList.map { it.toMetricCalculationSpec() }
+          source.value.metricCalculationSpecReportingMetricsList.map {
+            MetricCalculationSpecKey(
+                cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
+                metricCalculationSpecId = it.externalMetricCalculationSpecId
+              )
+              .toName()
+          }
       }
   }
 }
@@ -798,18 +810,18 @@ fun ListReportsPageToken.toStreamReportsRequest(): StreamReportsRequest {
   }
 }
 
-/** Converts a CMMS [ProtocolConfig.NoiseMechanism] to an internal [NoiseMechanism]. */
-fun ProtocolConfig.NoiseMechanism.toInternal(): NoiseMechanism {
+/** Converts a CMMS [ProtocolConfig.NoiseMechanism] to an internal [InternalNoiseMechanism]. */
+fun ProtocolConfig.NoiseMechanism.toInternal(): InternalNoiseMechanism {
   return when (this) {
-    ProtocolConfig.NoiseMechanism.NONE -> NoiseMechanism.NONE
-    ProtocolConfig.NoiseMechanism.GEOMETRIC -> NoiseMechanism.GEOMETRIC
-    ProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN -> NoiseMechanism.DISCRETE_GAUSSIAN
+    ProtocolConfig.NoiseMechanism.NONE -> InternalNoiseMechanism.NONE
+    ProtocolConfig.NoiseMechanism.GEOMETRIC -> InternalNoiseMechanism.GEOMETRIC
+    ProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN -> InternalNoiseMechanism.DISCRETE_GAUSSIAN
     ProtocolConfig.NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED ->
-      NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED
-    ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE -> NoiseMechanism.CONTINUOUS_LAPLACE
-    ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN -> NoiseMechanism.CONTINUOUS_GAUSSIAN
+      InternalNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED
+    ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE -> InternalNoiseMechanism.CONTINUOUS_LAPLACE
+    ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN -> InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
     ProtocolConfig.NoiseMechanism.UNRECOGNIZED -> {
-      error { "Noise mechanism $this is not recognized." }
+      throw NoiseMechanismUnrecognizedException("Noise mechanism $this is not recognized.")
     }
   }
 }
@@ -817,22 +829,56 @@ fun ProtocolConfig.NoiseMechanism.toInternal(): NoiseMechanism {
 /** Converts a CMMS [CustomDirectMethodology] to an internal [InternalCustomDirectMethodology]. */
 fun CustomDirectMethodology.toInternal(): InternalCustomDirectMethodology {
   val source = this
+  require(source.hasVariance()) { "Variance in CustomDirectMethodology is not set." }
   return customDirectMethodology {
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-    when (source.varianceCase) {
-      CustomDirectMethodology.VarianceCase.SCALAR -> {
-        scalar = source.scalar
-      }
-      CustomDirectMethodology.VarianceCase.FREQUENCY -> {
-        frequency =
-          CustomDirectMethodologyKt.frequencyVariances {
-            variances.putAll(source.frequency.variancesMap)
-            kPlusVariances.putAll(source.frequency.kPlusVariancesMap)
+    variance =
+      InternalCustomDirectMethodologyKt.variance {
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+        when (source.variance.typeCase) {
+          CustomDirectMethodology.Variance.TypeCase.SCALAR -> {
+            scalar = source.variance.scalar
           }
+          CustomDirectMethodology.Variance.TypeCase.FREQUENCY -> {
+            frequency =
+              InternalCustomDirectMethodologyKt.VarianceKt.frequencyVariances {
+                variances.putAll(source.variance.frequency.variancesMap)
+                kPlusVariances.putAll(source.variance.frequency.kPlusVariancesMap)
+              }
+          }
+          CustomDirectMethodology.Variance.TypeCase.UNAVAILABLE -> {
+            unavailable =
+              InternalCustomDirectMethodologyKt.VarianceKt.unavailable {
+                reason = source.variance.unavailable.reason.toInternal()
+              }
+          }
+          CustomDirectMethodology.Variance.TypeCase.TYPE_NOT_SET -> {
+            error("Variance in CustomDirectMethodology is not set.")
+          }
+        }
       }
-      CustomDirectMethodology.VarianceCase.VARIANCE_NOT_SET -> {
-        error("Variance in CustomDirectMethodology is not set.")
-      }
+  }
+}
+
+/**
+ * Converts a CMMS [CustomDirectMethodology.Variance.Unavailable.Reason] to an internal
+ * [InternalCustomDirectMethodology.Variance.Unavailable.Reason].
+ */
+private fun CustomDirectMethodology.Variance.Unavailable.Reason.toInternal():
+  InternalCustomDirectMethodology.Variance.Unavailable.Reason {
+  return when (this) {
+    CustomDirectMethodology.Variance.Unavailable.Reason.REASON_UNSPECIFIED -> {
+      error(
+        "There is no reason specified about the unavailable variance in CustomDirectMethodology."
+      )
+    }
+    CustomDirectMethodology.Variance.Unavailable.Reason.UNDERIVABLE -> {
+      InternalCustomDirectMethodology.Variance.Unavailable.Reason.UNDERIVABLE
+    }
+    CustomDirectMethodology.Variance.Unavailable.Reason.INACCESSIBLE -> {
+      InternalCustomDirectMethodology.Variance.Unavailable.Reason.INACCESSIBLE
+    }
+    CustomDirectMethodology.Variance.Unavailable.Reason.UNRECOGNIZED -> {
+      error("Unrecognized reason of unavailable variance in CustomDirectMethodology.")
     }
   }
 }
@@ -883,4 +929,33 @@ fun LiquidLegionsDistribution.toInternal(): InternalLiquidLegionsDistribution {
     decayRate = source.decayRate
     maxSize = source.maxSize
   }
+}
+
+/** Converts an internal [InternalNoiseMechanism] to a [StatsNoiseMechanism]. */
+fun InternalNoiseMechanism.toStatsNoiseMechanism(): StatsNoiseMechanism {
+  return when (this) {
+    NoiseMechanism.NONE -> StatsNoiseMechanism.NONE
+    NoiseMechanism.GEOMETRIC,
+    NoiseMechanism.CONTINUOUS_LAPLACE -> StatsNoiseMechanism.LAPLACE
+    NoiseMechanism.DISCRETE_GAUSSIAN,
+    NoiseMechanism.CONTINUOUS_GAUSSIAN -> StatsNoiseMechanism.GAUSSIAN
+    NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED -> {
+      throw NoiseMechanismUnspecifiedException("Internal noise mechanism should've been specified.")
+    }
+    NoiseMechanism.UNRECOGNIZED -> {
+      throw NoiseMechanismUnrecognizedException("Internal noise mechanism $this is unrecognized.")
+    }
+  }
+}
+
+/** Converts an [InternalMetricSpec.VidSamplingInterval] to [StatsVidSamplingInterval]. */
+fun InternalMetricSpec.VidSamplingInterval.toStatsVidSamplingInterval(): StatsVidSamplingInterval {
+  val source = this
+  return StatsVidSamplingInterval(source.start.toDouble(), source.width.toDouble())
+}
+
+/** Converts an [InternalMetricSpec.DifferentialPrivacyParams] to [NoiserDpParams]. */
+fun InternalMetricSpec.DifferentialPrivacyParams.toNoiserDpParams(): NoiserDpParams {
+  val source = this
+  return NoiserDpParams(source.epsilon, source.delta)
 }

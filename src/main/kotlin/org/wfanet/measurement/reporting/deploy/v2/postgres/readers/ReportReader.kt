@@ -40,8 +40,6 @@ import org.wfanet.measurement.internal.reporting.v2.periodicTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.report
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals
 
-const val STREAM_DEFAULT_LIMIT = 50
-
 class ReportReader(private val readContext: ReadContext) {
   data class Result(
     val measurementConsumerId: InternalId,
@@ -62,12 +60,13 @@ class ReportReader(private val readContext: ReadContext) {
     /** Map of external reporting set ID to [ReportingMetricCalculationSpecInfo]. */
     val reportingSetReportingMetricCalculationSpecInfoMap:
       MutableMap<String, ReportingMetricCalculationSpecInfo>,
-    val details: Report.Details
+    val details: Report.Details,
+    val externalReportScheduleId: String?
   )
 
   private data class ReportingMetricCalculationSpecInfo(
-    val metricCalculationSpecInfoMap:
-      MutableMap<Report.MetricCalculationSpec.Details, MetricCalculationSpecInfo>,
+    /** Map of external metric calculation spec ID to [MetricCalculationSpecInfo]. */
+    val metricCalculationSpecInfoMap: MutableMap<String, MetricCalculationSpecInfo>,
   )
 
   private data class MetricCalculationSpecInfo(
@@ -88,20 +87,23 @@ class ReportReader(private val readContext: ReadContext) {
       Reports.ReportDetails,
       ReportTimeIntervals.TimeIntervalStart,
       ReportTimeIntervals.TimeIntervalEndExclusive,
-      MetricCalculationSpecs.MetricCalculationSpecDetails,
+      MetricCalculationSpecs.ExternalMetricCalculationSpecId,
       ReportingSets.ExternalReportingSetId,
       MetricCalculationSpecReportingMetrics.CreateMetricRequestId,
       MetricCalculationSpecReportingMetrics.ReportingMetricDetails,
-      Metrics.ExternalMetricId
+      Metrics.ExternalMetricId,
+      ReportSchedules.ExternalReportScheduleId
     """
       .trimIndent()
 
   private val baseSqlJoins: String =
     """
+    LEFT JOIN ReportsReportSchedules USING(MeasurementConsumerId, ReportId)
+    LEFT JOIN ReportSchedules USING(MeasurementConsumerId, ReportScheduleId)
     JOIN ReportTimeIntervals USING(MeasurementConsumerId, ReportId)
-    JOIN MetricCalculationSpecs USING(MeasurementConsumerId, ReportId)
+    JOIN MetricCalculationSpecReportingMetrics USING(MeasurementConsumerId, ReportId)
     JOIN ReportingSets USING(MeasurementConsumerId, ReportingSetId)
-    JOIN MetricCalculationSpecReportingMetrics USING(MeasurementConsumerId, ReportId, MetricCalculationSpecId)
+    JOIN MetricCalculationSpecs USING(MeasurementConsumerId, MetricCalculationSpecId)
     LEFT JOIN Metrics USING(MeasurementConsumerId, MetricId)
     """
       .trimIndent()
@@ -111,26 +113,18 @@ class ReportReader(private val readContext: ReadContext) {
     createReportRequestId: String,
   ): Result? {
     val sql =
-      StringBuilder(
-        baseSqlSelect +
-          "\n" +
-          """
+      """
+        $baseSqlSelect
         FROM MeasurementConsumers
-          JOIN Reports USING(MeasurementConsumerId)
-        """
-            .trimIndent() +
-          "\n" +
-          baseSqlJoins +
-          "\n" +
-          """
+            JOIN Reports USING(MeasurementConsumerId)
+        $baseSqlJoins
         WHERE Reports.MeasurementConsumerId = $1
-          AND CreateReportRequestId = $2
-        """
-            .trimIndent()
-      )
+            AND CreateReportRequestId = $2
+      """
+        .trimIndent()
 
     val statement =
-      boundStatement(sql.toString()) {
+      boundStatement(sql) {
         bind("$1", measurementConsumerId)
         bind("$2", createReportRequestId)
       }
@@ -143,26 +137,18 @@ class ReportReader(private val readContext: ReadContext) {
     externalReportId: String,
   ): Result? {
     val sql =
-      StringBuilder(
-        baseSqlSelect +
-          "\n" +
-          """
+      """
+        $baseSqlSelect
         FROM MeasurementConsumers
-          JOIN Reports USING(MeasurementConsumerId)
-        """
-            .trimIndent() +
-          "\n" +
-          baseSqlJoins +
-          "\n" +
-          """
+            JOIN Reports USING(MeasurementConsumerId)
+        $baseSqlJoins
         WHERE CmmsMeasurementConsumerId = $1
-          AND ExternalReportId = $2
-        """
-            .trimIndent()
-      )
+            AND ExternalReportId = $2
+      """
+        .trimIndent()
 
     val statement =
-      boundStatement(sql.toString()) {
+      boundStatement(sql) {
         bind("$1", cmmsMeasurementConsumerId)
         bind("$2", externalReportId)
       }
@@ -174,43 +160,43 @@ class ReportReader(private val readContext: ReadContext) {
     request: StreamReportsRequest,
   ): Flow<Result> {
     val fromClause =
-      """
+      StringBuilder(
+          """
         FROM (
           SELECT *
           FROM MeasurementConsumers
             JOIN Reports USING (MeasurementConsumerId)
-      """ +
-        if (request.filter.hasAfter()) {
-          """
-              WHERE CmmsMeasurementConsumerId = $1
-                AND ((CreateTime < $3) OR
-                (CreateTime = $3
-                AND ExternalReportId > $4))
-          """
-        } else {
-          """
-              WHERE CmmsMeasurementConsumerId = $1
-          """
-        } +
         """
-            ORDER BY CreateTime DESC, CmmsMeasurementConsumerId ASC, ExternalReportId ASC
+        )
+        .append(
+          if (request.filter.hasAfter()) {
+            """
+                WHERE CmmsMeasurementConsumerId = $1
+                  AND ((CreateTime < $3) OR
+                  (CreateTime = $3
+                  AND ExternalReportId > $4))
+            """
+          } else {
+            """
+                WHERE CmmsMeasurementConsumerId = $1
+            """
+          }
+        )
+        .append(
+          """
+            ORDER BY MeasurementConsumerId ASC, CreateTime DESC, ExternalReportId ASC
             LIMIT $2
-          ) AS Reports
-        """
+            ) AS Reports
+          """
+        )
 
     val sql =
-      StringBuilder(
-        baseSqlSelect +
-          "\n" +
-          fromClause.trimIndent() +
-          "\n" +
-          baseSqlJoins +
-          "\n" +
-          """
-          ORDER BY CreateTime DESC, CmmsMeasurementConsumerId ASC, ExternalReportId ASC
-          """
-            .trimIndent()
-      )
+      StringBuilder("")
+        .appendLine(baseSqlSelect)
+        .appendLine(fromClause)
+        .appendLine(baseSqlJoins)
+        .append("ORDER BY MeasurementConsumerId ASC, CreateTime DESC, ExternalReportId ASC")
+
     val statement =
       boundStatement(sql.toString()) {
         bind("$1", request.filter.cmmsMeasurementConsumerId)
@@ -241,6 +227,7 @@ class ReportReader(private val readContext: ReadContext) {
       val periodic: Boolean = row["Periodic"]
       val reportDetails: Report.Details =
         row.getProtoMessage("ReportDetails", Report.Details.parser())
+      val externalReportScheduleId: String? = row["ExternalReportScheduleId"]
 
       var result: Result? = null
       if (accumulator == null) {
@@ -255,7 +242,8 @@ class ReportReader(private val readContext: ReadContext) {
             timeIntervals = mutableSetOf(),
             periodic = periodic,
             reportingSetReportingMetricCalculationSpecInfoMap = mutableMapOf(),
-            reportDetails
+            details = reportDetails,
+            externalReportScheduleId = externalReportScheduleId
           )
       } else if (
         accumulator!!.externalReportId != externalReportId ||
@@ -273,7 +261,8 @@ class ReportReader(private val readContext: ReadContext) {
             timeIntervals = mutableSetOf(),
             periodic = periodic,
             reportingSetReportingMetricCalculationSpecInfoMap = mutableMapOf(),
-            reportDetails
+            details = reportDetails,
+            externalReportScheduleId = externalReportScheduleId
           )
       }
 
@@ -298,12 +287,8 @@ class ReportReader(private val readContext: ReadContext) {
   private fun ReportInfo.update(row: ResultRow) {
     val timeIntervalStart: Instant = row["TimeIntervalStart"]
     val timeIntervalEnd: Instant = row["TimeIntervalEndExclusive"]
-    val metricCalculationSpecDetails: Report.MetricCalculationSpec.Details =
-      row.getProtoMessage(
-        "MetricCalculationSpecDetails",
-        Report.MetricCalculationSpec.Details.parser()
-      )
     val externalReportingSetId: String = row["ExternalReportingSetId"]
+    val externalMetricCalculationSpecId: String = row["ExternalMetricCalculationSpecId"]
     val createMetricRequestId: String = row["CreateMetricRequestId"]
     val reportingMetricDetails: Report.ReportingMetric.Details =
       row.getProtoMessage("ReportingMetricDetails", Report.ReportingMetric.Details.parser())
@@ -325,7 +310,7 @@ class ReportReader(private val readContext: ReadContext) {
 
     val metricCalculationSpecInfo =
       reportingMetricCalculationSpecInfo.metricCalculationSpecInfoMap.computeIfAbsent(
-        metricCalculationSpecDetails
+        externalMetricCalculationSpecId
       ) {
         MetricCalculationSpecInfo(
           reportingMetricMap = mutableMapOf(),
@@ -359,10 +344,10 @@ class ReportReader(private val readContext: ReadContext) {
           ReportKt.reportingMetricCalculationSpec {
             reportingMetricEntry.value.metricCalculationSpecInfoMap.entries.forEach {
               metricCalculationSpecEntry ->
-              metricCalculationSpecs +=
-                ReportKt.metricCalculationSpec {
+              metricCalculationSpecReportingMetrics +=
+                ReportKt.metricCalculationSpecReportingMetrics {
+                  externalMetricCalculationSpecId = metricCalculationSpecEntry.key
                   reportingMetrics += metricCalculationSpecEntry.value.reportingMetricMap.values
-                  details = metricCalculationSpecEntry.key
                 }
             }
           }
@@ -390,6 +375,10 @@ class ReportReader(private val readContext: ReadContext) {
           }
         }
       }
+
+      if (source.externalReportScheduleId != null) {
+        externalReportScheduleId = source.externalReportScheduleId
+      }
     }
 
     val createReportRequestId = source.createReportRequestId ?: ""
@@ -399,5 +388,9 @@ class ReportReader(private val readContext: ReadContext) {
       createReportRequestId = createReportRequestId,
       report = report,
     )
+  }
+
+  companion object {
+    private const val STREAM_DEFAULT_LIMIT = 50
   }
 }

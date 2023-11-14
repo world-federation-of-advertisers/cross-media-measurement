@@ -55,8 +55,6 @@ import org.wfanet.measurement.loadtest.panelmatch.resourcesetup.ResourcesKt
 import org.wfanet.measurement.loadtest.panelmatch.resourcesetup.ResourcesKt.resource
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 
-private val API_VERSION = Version.V2_ALPHA
-
 class PanelMatchResourceSetup(
   private val internalDataProvidersClient: DataProvidersGrpcKt.DataProvidersCoroutineStub,
   private val internalModelProvidersClient: ModelProvidersGrpcKt.ModelProvidersCoroutineStub,
@@ -94,7 +92,6 @@ class PanelMatchResourceSetup(
   suspend fun process(
     exchangeDate: Date,
     exchangeSchedule: String,
-    publicApiVersion: String,
     dataProviderContent: EntityContent,
     modelProviderContent: EntityContent? = null,
     exchangeWorkflow: ExchangeWorkflow? = null,
@@ -103,7 +100,8 @@ class PanelMatchResourceSetup(
     val resources = mutableListOf<Resources.Resource>()
 
     val externalDataProviderId = createDataProvider(dataProviderContent)
-    logger.info("Successfully created data provider: ${externalDataProviderId}")
+
+    logger.info("Successfully created data provider: $externalDataProviderId")
 
     val dataProviderKey = DataProviderKey(externalIdToApiId(externalDataProviderId))
     resources.add(
@@ -143,7 +141,6 @@ class PanelMatchResourceSetup(
         externalModelProviderId,
         exchangeDate,
         exchangeSchedule,
-        publicApiVersion,
         exchangeWorkflow
       )
     }
@@ -155,7 +152,6 @@ class PanelMatchResourceSetup(
   /** Process to create resources. */
   suspend fun createResourcesForWorkflow(
     exchangeSchedule: String,
-    apiVersion: String,
     exchangeWorkflow: ExchangeWorkflow,
     exchangeDate: Date,
     dataProviderContent: EntityContent,
@@ -177,7 +173,6 @@ class PanelMatchResourceSetup(
         externalModelProvider = externalModelProviderId,
         exchangeDate = exchangeDate,
         exchangeSchedule = exchangeSchedule,
-        publicApiVersion = apiVersion,
         exchangeWorkflow = exchangeWorkflow
       )
     val recurringExchangeKey =
@@ -200,7 +195,7 @@ class PanelMatchResourceSetup(
             details =
               DataProviderKt.details {
                 apiVersion = API_VERSION.string
-                publicKey = signedPublicKey.data
+                publicKey = signedPublicKey.message.value
                 publicKeySignature = signedPublicKey.signature
               }
           }
@@ -229,7 +224,6 @@ class PanelMatchResourceSetup(
     externalModelProvider: Long,
     exchangeDate: Date,
     exchangeSchedule: String,
-    publicApiVersion: String,
     exchangeWorkflow: ExchangeWorkflow
   ): Long {
     val recurringExchangeId =
@@ -244,14 +238,14 @@ class PanelMatchResourceSetup(
                 this.exchangeWorkflow = exchangeWorkflow.toInternal()
                 cronSchedule = exchangeSchedule
                 externalExchangeWorkflow = exchangeWorkflow.toByteString()
-                apiVersion = publicApiVersion
+                apiVersion = Version.V2_ALPHA.string
               }
               nextExchangeDate = exchangeDate
             }
           }
         )
         .externalRecurringExchangeId
-    logger.info("recurringExchangeId: ${recurringExchangeId}")
+    logger.info("recurringExchangeId: $recurringExchangeId")
     return recurringExchangeId
   }
 
@@ -295,7 +289,6 @@ class PanelMatchResourceSetup(
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
         when (resource.resourceCase) {
           Resources.Resource.ResourceCase.DATA_PROVIDER -> {
-            val displayName = resource.dataProvider.displayName
             writer.appendLine("build:$configName --define=edp_name=${resource.name}")
           }
           Resources.Resource.ResourceCase.MODEL_PROVIDER -> {
@@ -313,6 +306,7 @@ class PanelMatchResourceSetup(
     const val RESOURCES_OUTPUT_FILE = "resources.textproto"
     const val AKID_PRINCIPAL_MAP_FILE = "authority_key_identifier_to_principal_map.textproto"
     const val BAZEL_RC_FILE = "resource-setup.bazelrc"
+    private val API_VERSION = Version.V2_ALPHA
   }
 }
 

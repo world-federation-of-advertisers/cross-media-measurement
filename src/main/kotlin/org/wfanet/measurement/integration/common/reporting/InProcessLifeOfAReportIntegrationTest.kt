@@ -59,6 +59,7 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfig
@@ -66,6 +67,7 @@ import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.keyPair
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.principalKeyPairs
 import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
+import org.wfanet.measurement.consent.client.common.encryptMessage
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.common.toPublicKeyHandle
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
@@ -417,14 +419,13 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     private val EVENT_GROUP: EventGroup = eventGroup {
       name = EVENT_GROUP_NAME
       measurementConsumer = MEASUREMENT_CONSUMER_NAME
-      measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
       eventGroupReferenceId = "aaa"
-      measurementConsumerPublicKey = MEASUREMENT_CONSUMER.publicKey
+      measurementConsumerPublicKey = MEASUREMENT_CONSUMER.publicKey.message
       vidModelLines.addAll(VID_MODEL_LINES)
       eventTemplates.addAll(EVENT_TEMPLATES)
       encryptedMetadata =
         MC_ENCRYPTION_PUBLIC_KEY.toPublicKeyHandle()
-          .hybridEncrypt(EventGroup.Metadata.getDefaultInstance().toByteString())
+          .encryptMessage(EventGroup.Metadata.getDefaultInstance().pack())
     }
 
     private const val EVENT_GROUP_METADATA_DESCRIPTOR_NAME =

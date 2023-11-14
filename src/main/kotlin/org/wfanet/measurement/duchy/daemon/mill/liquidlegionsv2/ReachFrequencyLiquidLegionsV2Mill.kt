@@ -219,7 +219,6 @@ class ReachFrequencyLiquidLegionsV2Mill(
             llv2ComputationDetails.localElgamalKey.publicKey.toV2AlphaElGamalPublicKey(),
             signingKey
           )
-        Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
       }
 
     val request =
@@ -229,7 +228,7 @@ class ReachFrequencyLiquidLegionsV2Mill(
           requisitionParamsBuilder.apply {
             duchyCertificate = consentSignalCert.name
             liquidLegionsV2Builder.apply {
-              elGamalPublicKey = signedElgamalPublicKey.data
+              elGamalPublicKey = signedElgamalPublicKey.message.value
               elGamalPublicKeySignature = signedElgamalPublicKey.signature
               elGamalPublicKeySignatureAlgorithmOid = signedElgamalPublicKey.signatureAlgorithmOid
             }
@@ -590,15 +589,11 @@ class ReachFrequencyLiquidLegionsV2Mill(
     }
     var reach = 0L
     val maximumRequestedFrequency = llv2Parameters.maximumFrequency.coerceAtLeast(1)
-    val measurementSpec =
-      MeasurementSpec.parseFrom(token.computationDetails.kingdomComputation.measurementSpec)
+    val publicApiVersion =
+      Version.fromString(token.computationDetails.kingdomComputation.publicApiVersion)
 
     val (bytes, tempToken) =
-      existingOutputOr(token) {
-        when (Version.fromString(token.computationDetails.kingdomComputation.publicApiVersion)) {
-          Version.V2_ALPHA -> {}
-          Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
-        }
+      existingOutputAnd(token) {
         val request = completeExecutionPhaseTwoAtAggregatorRequest {
           localElGamalKeyPair = llv2Details.localElgamalKey
           compositeElGamalPublicKey = llv2Details.combinedPublicKey
@@ -609,7 +604,15 @@ class ReachFrequencyLiquidLegionsV2Mill(
             decayRate = llv2Parameters.sketchParameters.decayRate
             size = llv2Parameters.sketchParameters.size
           }
-          vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width
+          when (publicApiVersion) {
+            Version.V2_ALPHA -> {
+              val measurementSpec =
+                MeasurementSpec.parseFrom(
+                  token.computationDetails.kingdomComputation.measurementSpec
+                )
+              vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width
+            }
+          }
           if (llv2Parameters.noise.hasReachNoiseConfig()) {
             reachDpNoiseBaseline = globalReachDpNoiseBaseline {
               contributorsCount = token.participantCount

@@ -17,19 +17,29 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
+import org.wfanet.measurement.common.api.ChildResourceKey
 import org.wfanet.measurement.common.api.ResourceKey
-
-private val parser =
-  ResourceNameParser(
-    "measurementConsumers/{measurement_consumer}/reportSchedules/{report_schedule}/iterations/{report_schedule_iteration}"
-  )
 
 /** [ResourceKey] of a ReportScheduleIteration. */
 data class ReportScheduleIterationKey(
-  val cmmsMeasurementConsumerId: String,
-  val reportScheduleId: String,
+  override val parentKey: ReportScheduleKey,
   val reportScheduleIterationId: String,
-) : ResourceKey {
+) : ChildResourceKey {
+  constructor(
+    cmmsMeasurementConsumerId: String,
+    reportScheduleId: String,
+    reportScheduleIterationId: String
+  ) : this(
+    ReportScheduleKey(cmmsMeasurementConsumerId, reportScheduleId),
+    reportScheduleIterationId
+  )
+
+  val cmmsMeasurementConsumerId: String
+    get() = parentKey.cmmsMeasurementConsumerId
+
+  val reportScheduleId: String
+    get() = parentKey.reportScheduleId
+
   override fun toName(): String {
     return parser.assembleName(
       mapOf(
@@ -41,16 +51,16 @@ data class ReportScheduleIterationKey(
   }
 
   companion object FACTORY : ResourceKey.Factory<ReportScheduleIterationKey> {
-    val defaultValue = ReportScheduleIterationKey("", "", "")
+    const val PATTERN = "${ReportScheduleKey.PATTERN}/iterations/{report_schedule_iteration}"
+    private val parser = ResourceNameParser(PATTERN)
 
     override fun fromName(resourceName: String): ReportScheduleIterationKey? {
-      return parser.parseIdVars(resourceName)?.let {
-        ReportScheduleIterationKey(
-          it.getValue(IdVariable.MEASUREMENT_CONSUMER),
-          it.getValue(IdVariable.REPORT_SCHEDULE),
-          it.getValue(IdVariable.REPORT_SCHEDULE_ITERATION)
-        )
-      }
+      val idVars: Map<IdVariable, String> = parser.parseIdVars(resourceName) ?: return null
+      return ReportScheduleIterationKey(
+        idVars.getValue(IdVariable.MEASUREMENT_CONSUMER),
+        idVars.getValue(IdVariable.REPORT_SCHEDULE),
+        idVars.getValue(IdVariable.REPORT_SCHEDULE_ITERATION)
+      )
     }
   }
 }

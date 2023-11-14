@@ -21,14 +21,7 @@ import io.grpc.Channel
 import io.grpc.ServerServiceDefinition
 import io.grpc.Status
 import io.grpc.StatusException
-import io.grpc.inprocess.InProcessChannelBuilder
-import io.grpc.inprocess.InProcessServerBuilder
-import java.io.File
 import java.security.SecureRandom
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.LinkedBlockingQueue
-import java.util.concurrent.ThreadPoolExecutor
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as KingdomCertificatesCoroutineStub
@@ -44,8 +37,6 @@ import org.wfanet.measurement.common.api.memoizing
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.common.grpc.ErrorLoggingServerInterceptor
-import org.wfanet.measurement.common.grpc.LoggingServerInterceptor
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.parseTextProto
@@ -53,12 +44,17 @@ import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineStub as InternalMetricsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
-import org.wfanet.measurement.reporting.deploy.common.EncryptionKeyPairMap
-import org.wfanet.measurement.reporting.deploy.common.KingdomApiFlags
+import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
+import org.wfanet.measurement.reporting.deploy.v2.common.EncryptionKeyPairMap
+import org.wfanet.measurement.reporting.deploy.v2.common.InProcessServersMethods.startInProcessServerWithService
+import org.wfanet.measurement.reporting.deploy.v2.common.KingdomApiFlags
+import org.wfanet.measurement.reporting.deploy.v2.common.ReportingApiServerFlags
+import org.wfanet.measurement.reporting.deploy.v2.common.V2AlphaFlags
 import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v2alpha.AkidPrincipalLookup
@@ -66,6 +62,7 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.DataProvidersService
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupMetadataDescriptorsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withMetadataPrincipalIdentities
+import org.wfanet.measurement.reporting.service.api.v2alpha.MetricCalculationSpecsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingPrincipal
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetsService
@@ -162,6 +159,7 @@ private fun run(
       metricSpecConfig,
       InternalReportingSetsCoroutineStub(channel),
       InternalMetricsCoroutineStub(channel),
+      VariancesImpl,
       InternalMeasurementsCoroutineStub(channel),
       KingdomDataProvidersCoroutineStub(kingdomChannel),
       KingdomMeasurementsCoroutineStub(kingdomChannel),
@@ -174,32 +172,11 @@ private fun run(
       Dispatchers.IO
     )
 
-  val inProcessServerName = InProcessServerBuilder.generateName()
-
-  val executor: ExecutorService =
-    ThreadPoolExecutor(
-      1,
-      commonServerFlags.threadPoolSize,
-      60L,
-      TimeUnit.SECONDS,
-      LinkedBlockingQueue()
-    )
-
-  InProcessServerBuilder.forName(inProcessServerName)
-    .apply {
-      executor(executor)
-      addService(metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs))
-      if (commonServerFlags.debugVerboseGrpcLogging) {
-        intercept(LoggingServerInterceptor)
-      } else {
-        intercept(ErrorLoggingServerInterceptor)
-      }
-    }
-    .build()
-    .start()
-
   val inProcessChannel =
-    InProcessChannelBuilder.forName(inProcessServerName).directExecutor().build()
+    startInProcessServerWithService(
+      commonServerFlags,
+      metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs)
+    )
 
   val services: List<ServerServiceDefinition> =
     listOf(
@@ -220,8 +197,14 @@ private fun run(
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ReportsService(
           InternalReportsCoroutineStub(channel),
+          InternalMetricCalculationSpecsCoroutineStub(channel),
           MetricsCoroutineStub(inProcessChannel),
           metricSpecConfig
+        )
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
+      MetricCalculationSpecsService(
+          InternalMetricCalculationSpecsCoroutineStub(channel),
+          metricSpecConfig,
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
     )
@@ -229,38 +212,3 @@ private fun run(
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)
-
-/** Flags specific to the V2Alpha API version. */
-private class V2AlphaFlags {
-  @CommandLine.Option(
-    names = ["--authority-key-identifier-to-principal-map-file"],
-    description = ["File path to a AuthorityKeyToPrincipalMap textproto"],
-    required = true,
-  )
-  lateinit var authorityKeyIdentifierToPrincipalMapFile: File
-    private set
-
-  @CommandLine.Option(
-    names = ["--measurement-consumer-config-file"],
-    description = ["File path to a MeasurementConsumerConfig textproto"],
-    required = true,
-  )
-  lateinit var measurementConsumerConfigFile: File
-    private set
-
-  @CommandLine.Option(
-    names = ["--signing-private-key-store-dir"],
-    description = ["File path to the signing private key store directory"],
-    required = true,
-  )
-  lateinit var signingPrivateKeyStoreDir: File
-    private set
-
-  @CommandLine.Option(
-    names = ["--metric-spec-config-file"],
-    description = ["File path to a MetricSpecConfig textproto"],
-    required = true,
-  )
-  lateinit var metricSpecConfigFile: File
-    private set
-}

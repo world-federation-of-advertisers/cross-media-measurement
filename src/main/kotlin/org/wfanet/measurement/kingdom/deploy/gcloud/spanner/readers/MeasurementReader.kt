@@ -22,6 +22,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.security.MessageDigest
 import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
@@ -239,7 +240,8 @@ class MeasurementReader(private val view: Measurement.View) :
         SELECT AS STRUCT
           DuchyMeasurementResults.DuchyId,
           ExternalDuchyCertificateId,
-          EncryptedResult
+          EncryptedResult,
+          PublicApiVersion
         FROM
           DuchyMeasurementResults
           JOIN DuchyCertificates USING (DuchyId, CertificateId)
@@ -333,7 +335,8 @@ class MeasurementReader(private val view: Measurement.View) :
         SELECT AS STRUCT
           DuchyMeasurementResults.DuchyId,
           ExternalDuchyCertificateId,
-          EncryptedResult
+          EncryptedResult,
+          PublicApiVersion
         FROM
           DuchyMeasurementResults
           JOIN DuchyCertificates USING (CertificateId)
@@ -375,6 +378,7 @@ private fun MeasurementKt.Dsl.fillMeasurementCommon(struct: Struct) {
           }
         externalCertificateId = duchyResultStruct.getLong("ExternalDuchyCertificateId")
         encryptedResult = duchyResultStruct.getBytesAsByteString("EncryptedResult")
+        apiVersion = duchyResultStruct.getString("PublicApiVersion")
       }
     }
   }
@@ -394,10 +398,13 @@ private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {
     dataProviders[externalDataProviderId] = dataProviderValue {
       this.externalDataProviderCertificateId = externalDataProviderCertificateId
       dataProviderPublicKey = requisitionDetails.dataProviderPublicKey
+      encryptedRequisitionSpec = requisitionDetails.encryptedRequisitionSpec
+
+      // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting these
+      // fields.
       dataProviderPublicKeySignature = requisitionDetails.dataProviderPublicKeySignature
       dataProviderPublicKeySignatureAlgorithmOid =
         requisitionDetails.dataProviderPublicKeySignatureAlgorithmOid
-      encryptedRequisitionSpec = requisitionDetails.encryptedRequisitionSpec
     }
 
     if (measurementSucceeded && !requisitionDetails.encryptedData.isEmpty) {
@@ -405,6 +412,7 @@ private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {
         this.externalDataProviderId = externalDataProviderId
         externalCertificateId = externalDataProviderCertificateId
         encryptedResult = requisitionDetails.encryptedData
+        apiVersion = requisitionDetails.encryptedDataApiVersion.ifEmpty { Version.V2_ALPHA.string }
       }
     }
   }

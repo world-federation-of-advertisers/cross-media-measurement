@@ -15,13 +15,14 @@
 package org.wfanet.measurement.reporting.service.api.v1alpha
 
 import com.google.protobuf.DynamicMessage
+import com.google.protobuf.kotlin.unpack
 import io.grpc.Status
 import io.grpc.StatusException
 import java.security.GeneralSecurityException
 import org.projectnessie.cel.common.types.Err
 import org.projectnessie.cel.common.types.ref.Val
 import org.wfanet.measurement.api.v2alpha.DataProviderKey as CmmsDataProviderKey
-import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey as CmmsEncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
@@ -106,10 +107,10 @@ class EventGroupsService(
     val eventGroups =
       cmmsEventGroups.map {
         val cmmsMetadata: CmmsEventGroup.Metadata? =
-          if (it.encryptedMetadata.isEmpty) {
-            null
-          } else {
+          if (it.hasEncryptedMetadata()) {
             decryptMetadata(it, principalName)
+          } else {
+            null
           }
 
         it.toEventGroup(cmmsMetadata)
@@ -193,8 +194,8 @@ class EventGroupsService(
         "EventGroup ${cmmsEventGroup.name} has encrypted metadata but no encryption public key"
       }
     }
-    val encryptionKey =
-      EncryptionPublicKey.parseFrom(cmmsEventGroup.measurementConsumerPublicKey.data)
+    val encryptionKey: CmmsEncryptionPublicKey =
+      cmmsEventGroup.measurementConsumerPublicKey.unpack()
     val decryptionKeyHandle: PrivateKeyHandle =
       encryptionKeyPairStore.getPrivateKeyHandle(principalName, encryptionKey.data)
         ?: failGrpc(Status.FAILED_PRECONDITION) {
