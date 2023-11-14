@@ -239,8 +239,7 @@ class EdpSimulator(
           this.measurementConsumer = measurementConsumerName
           this.eventGroupReferenceId = eventGroupReferenceId
           eventTemplates += EVENT_TEMPLATES
-          measurementConsumerCertificate = measurementConsumer.certificate
-          measurementConsumerPublicKey = measurementConsumer.publicKey
+          measurementConsumerPublicKey = measurementConsumer.publicKey.message
           this.encryptedMetadata = encryptedMetadata
         }
       }
@@ -259,8 +258,7 @@ class EdpSimulator(
         existingEventGroup.copy {
           eventTemplates.clear()
           eventTemplates += EVENT_TEMPLATES
-          measurementConsumerCertificate = measurementConsumer.certificate
-          measurementConsumerPublicKey = measurementConsumer.publicKey
+          measurementConsumerPublicKey = measurementConsumer.publicKey.message
           this.encryptedMetadata = encryptedMetadata
         }
     }

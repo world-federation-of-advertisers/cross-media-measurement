@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.kotlin.unpack
 import io.grpc.Status
@@ -356,10 +357,9 @@ private fun DataProviderEntry.validateAndMap(): Map.Entry<Long, DataProviderValu
       "Data Provider certificate resource name is either unspecified or invalid"
     }
 
-  val publicKey = value.dataProviderPublicKey
-  grpcRequire(!publicKey.signature.isEmpty) { "data_provider_public_key.signature is unspecified" }
+  val publicKey: ProtoAny = value.dataProviderPublicKey
   try {
-    publicKey.message.unpack<EncryptionPublicKey>()
+    publicKey.unpack<EncryptionPublicKey>()
   } catch (e: InvalidProtocolBufferException) {
     throw Status.INVALID_ARGUMENT.withCause(e)
       .withDescription(
@@ -376,9 +376,7 @@ private fun DataProviderEntry.validateAndMap(): Map.Entry<Long, DataProviderValu
 
   val dataProviderValue = dataProviderValue {
     externalDataProviderCertificateId = apiIdToExternalId(dataProviderCertificateKey.certificateId)
-    dataProviderPublicKey = publicKey.message.value
-    dataProviderPublicKeySignature = publicKey.signature
-    dataProviderPublicKeySignatureAlgorithmOid = publicKey.signatureAlgorithmOid
+    dataProviderPublicKey = publicKey.value
     encryptedRequisitionSpec = value.encryptedRequisitionSpec.ciphertext
     nonceHash = value.nonceHash
   }
