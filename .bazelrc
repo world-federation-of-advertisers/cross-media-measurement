@@ -3,6 +3,8 @@ build --repo_env='CC=clang'
 
 # Use C++17 language features.
 build --cxxopt='-std=c++17'
+# See https://github.com/bazelbuild/bazel/issues/16371.
+build --host_cxxopt='-std=c++17'
 
 # Use JDK 11. See https://github.com/bazelbuild/bazel/issues/6245.
 build --java_runtime_version=remotejdk_11
