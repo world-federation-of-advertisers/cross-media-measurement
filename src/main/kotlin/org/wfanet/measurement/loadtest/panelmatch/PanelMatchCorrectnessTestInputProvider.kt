@@ -31,6 +31,7 @@ import org.wfanet.panelmatch.common.toDelimitedByteString
 object PanelMatchCorrectnessTestInputProvider {
 
   const val HKDF_PEPPER = "some-hkdf-pepper"
+
   enum class TestType {
     DOUBLE_BLIND,
     MINI_EXCHANGE,

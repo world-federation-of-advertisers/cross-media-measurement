@@ -168,7 +168,6 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
       delay(20000)
 
       return entitiesData
-
     }
 
     protected suspend fun runResourceSetup(
@@ -306,8 +305,11 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
           akidPrincipalMap
         )
 
-        entitiesData = EntitiesData(apiIdToExternalId(panelMatchResourceKey.dataProviderKey.dataProviderId),
-          apiIdToExternalId(panelMatchResourceKey.modelProviderKey.modelProviderId))
+        entitiesData =
+          EntitiesData(
+            apiIdToExternalId(panelMatchResourceKey.dataProviderKey.dataProviderId),
+            apiIdToExternalId(panelMatchResourceKey.modelProviderKey.modelProviderId)
+          )
       }
       return entitiesData
     }

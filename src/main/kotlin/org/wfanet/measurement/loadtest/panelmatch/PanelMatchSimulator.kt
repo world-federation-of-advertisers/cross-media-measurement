@@ -35,8 +35,6 @@ import org.wfanet.measurement.api.v2alpha.ExchangesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepsRequestKt
 import org.wfanet.measurement.api.v2alpha.getExchangeRequest
 import org.wfanet.measurement.api.v2alpha.listExchangeStepsRequest
-import org.wfanet.measurement.common.crypto.PrivateKeyHandle
-import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
@@ -46,7 +44,6 @@ import org.wfanet.measurement.internal.kingdom.recurringExchange
 import org.wfanet.measurement.internal.kingdom.recurringExchangeDetails
 import org.wfanet.measurement.kingdom.service.api.v2alpha.toInternal
 import org.wfanet.measurement.loadtest.panelmatch.PanelMatchCorrectnessTestInputProvider.HKDF_PEPPER
-import org.wfanet.measurement.loadtest.panelmatchresourcesetup.PanelMatchResourceSetup
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
 import org.wfanet.panelmatch.client.exchangetasks.JoinKeyAndIdCollection
@@ -150,7 +147,8 @@ class PanelMatchSimulator(
     setupWorkflow(workflow, initialDataProviderInputs, initialModelProviderInputs)
     waitForExchangeToComplete()
 
-    Truth.assertThat(mpForwardedStorage.getBlob("mp-hkdf-pepper")?.toByteString()).isEqualTo(HKDF_PEPPER.toByteStringUtf8())
+    Truth.assertThat(mpForwardedStorage.getBlob("mp-hkdf-pepper")?.toByteString())
+      .isEqualTo(HKDF_PEPPER.toByteStringUtf8())
   }
 
   /** Block flow execution until the [Exchange] reaches a [TERMINAL_EXCHANGE_STATES] */
