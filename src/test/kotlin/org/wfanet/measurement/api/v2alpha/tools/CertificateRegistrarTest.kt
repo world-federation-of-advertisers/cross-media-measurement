@@ -39,59 +39,55 @@ private const val EDP_NAME = "dataProviders/$EDP_ID"
 class CertificateRegistrarTest {
 
   private val edpResultCertificate =
-      readCertificate(
-          SECRET_FILES_PATH.resolve("${EDP_DISPLAY_NAME}_result_cs_cert.der").toFile()
-      )
+    readCertificate(SECRET_FILES_PATH.resolve("${EDP_DISPLAY_NAME}_result_cs_cert.der").toFile())
   private val dataProviderResultCsCertificateKey =
-      DataProviderCertificateKey(EDP_ID, externalIdToApiId(8L))
+    DataProviderCertificateKey(EDP_ID, externalIdToApiId(8L))
   private val dataProviderResultCsCertificate = certificate {
-      name = dataProviderResultCsCertificateKey.toName()
-      x509Der = edpResultCertificate.encoded.toByteString()
-      subjectKeyIdentifier = edpResultCertificate.subjectKeyIdentifier!!
+    name = dataProviderResultCsCertificateKey.toName()
+    x509Der = edpResultCertificate.encoded.toByteString()
+    subjectKeyIdentifier = edpResultCertificate.subjectKeyIdentifier!!
   }
 
   private val certificatesServiceMock: CertificatesGrpcKt.CertificatesCoroutineImplBase =
-      mockService {
-          onBlocking {
-              listCertificates(
-                  eq(
-                      listCertificatesRequest {
-                          parent = EDP_NAME
-                          filter =
-                              ListCertificatesRequestKt.filter {
-                                  subjectKeyIdentifiers +=
-                                      edpResultCertificate.subjectKeyIdentifier!!
-                              }
-                      }
-                  )
-              )
-          }
-              .thenReturn(listCertificatesResponse { certificates += dataProviderResultCsCertificate })
-      }
+    mockService {
+      onBlocking {
+          listCertificates(
+            eq(
+              listCertificatesRequest {
+                parent = EDP_NAME
+                filter =
+                  ListCertificatesRequestKt.filter {
+                    subjectKeyIdentifiers += edpResultCertificate.subjectKeyIdentifier!!
+                  }
+              }
+            )
+          )
+        }
+        .thenReturn(listCertificatesResponse { certificates += dataProviderResultCsCertificate })
+    }
 
-  @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule { addService(certificatesServiceMock) }
+  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(certificatesServiceMock) }
 
   private val certificatesStub: CertificatesGrpcKt.CertificatesCoroutineStub by lazy {
-      CertificatesGrpcKt.CertificatesCoroutineStub(grpcTestServerRule.channel)
+    CertificatesGrpcKt.CertificatesCoroutineStub(grpcTestServerRule.channel)
   }
 
   @Test
   fun `registerCertificate registers Certificate`() {
     val dataProviderCertificateRegistrar =
-        CertificateRegistrar(
-            EDP_NAME,
-            certificatesStub,
-        )
+      CertificateRegistrar(
+        EDP_NAME,
+        certificatesStub,
+      )
 
-      runBlocking { dataProviderCertificateRegistrar.registerCertificate(edpResultCertificate) }
+    runBlocking { dataProviderCertificateRegistrar.registerCertificate(edpResultCertificate) }
 
     // Verify certificate request contains information from EDP_DATA.
     val createCertificateRequest: CreateCertificateRequest =
-        verifyAndCapture(
-            certificatesServiceMock,
-            CertificatesGrpcKt.CertificatesCoroutineImplBase::createCertificate
-        )
+      verifyAndCapture(
+        certificatesServiceMock,
+        CertificatesGrpcKt.CertificatesCoroutineImplBase::createCertificate
+      )
     Truth.assertThat(createCertificateRequest.parent).isEqualTo(EDP_NAME)
     Truth.assertThat(createCertificateRequest.certificate.subjectKeyIdentifier)
       .isEqualTo(edpResultCertificate.subjectKeyIdentifier)

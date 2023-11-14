@@ -21,12 +21,9 @@ import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.createCertificateRequest
-import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 
-/**
- * Used when a party wishes to use a manage a consent signaling certificate.
- */
+/** Used when a party wishes to use a manage a consent signaling certificate. */
 class CertificateRegistrar(
   private val parentResourceName: String,
   private val certificatesStub: CertificatesCoroutineStub
