@@ -325,7 +325,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
                     config
                       .replace("{${displayName}_name}", resourceNames.resourceName)
                       .replace(
-                        "{${displayName}_name_cert_name}",
+                        "{${displayName}_cert_name}",
                         resourceNames.certificateResourceName
                       )
                 }
