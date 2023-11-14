@@ -16,26 +16,23 @@
 
 package org.wfanet.measurement.api.v2alpha.tools
 
-import kotlinx.coroutines.delay
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import io.grpc.Server
 import io.grpc.ServerServiceDefinition
 import io.grpc.netty.NettyServerBuilder
-import java.io.BufferedReader
 import java.io.File
-import java.io.FileReader
 import java.nio.file.Paths
 import kotlin.io.path.absolutePathString
 import kotlin.io.path.createTempFile
 import kotlinx.coroutines.runBlocking
 import org.junit.After
-import org.mockito.kotlin.stub
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.stub
 import org.mockito.kotlin.verify
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
@@ -49,14 +46,12 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.grpc.toServerTlsContext
 import org.wfanet.measurement.common.pack
-import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.CommandLineTesting
 import org.wfanet.measurement.common.testing.CommandLineTesting.assertThat
 import org.wfanet.measurement.common.testing.ExitInterceptingSecurityManager
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
-
 
 private val SECRETS_DIR: File =
   getRuntimePath(

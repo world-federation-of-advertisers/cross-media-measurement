@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 The Cross-Media Measurement Authors
+ * Copyright 2023 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,13 +22,13 @@ import java.security.cert.X509Certificate
 import java.time.Duration
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.Certificate
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.readCertificate
-import picocli.CommandLine
-import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
-import org.wfanet.measurement.common.grpc.TlsFlags
+import picocli.CommandLine
 
 private val CHANNEL_SHUTDOWN_TIMEOUT = Duration.ofSeconds(30)
 
@@ -54,8 +54,7 @@ class Certificates private constructor() : Runnable {
 @CommandLine.Command(name = "create", showDefaultValues = true)
 private class Create : Runnable {
 
-  @CommandLine.Mixin
-  private lateinit var tlsFlags: TlsFlags
+  @CommandLine.Mixin private lateinit var tlsFlags: TlsFlags
 
   @CommandLine.Option(
     names = ["--kingdom-public-api-target"],
@@ -74,10 +73,10 @@ private class Create : Runnable {
   @CommandLine.Option(
     names = ["--kingdom-public-api-cert-host"],
     description =
-    [
-      "Expected hostname (DNS-ID) in the Kingdom public API server's TLS certificate.",
-      "This overrides derivation of the TLS DNS-ID from --kingdom-public-api-target.",
-    ],
+      [
+        "Expected hostname (DNS-ID) in the Kingdom public API server's TLS certificate.",
+        "This overrides derivation of the TLS DNS-ID from --kingdom-public-api-target.",
+      ],
     required = false,
   )
   private var certHost: String? = null
@@ -100,10 +99,15 @@ private class Create : Runnable {
 
   override fun run() {
     val x509Certificate: X509Certificate = readCertificate(certificateDerFile)
-    val certificateRegistrar = CertificateRegistrar(certificatesStub = certificatesClient, parentResourceName = parentResource)
-    val certificateResource = runBlocking { certificateRegistrar.registerCertificate(x509Certificate) }
+    val certificateRegistrar =
+      CertificateRegistrar(
+        certificatesStub = certificatesClient,
+        parentResourceName = parentResource
+      )
+    val certificateResource = runBlocking {
+      certificateRegistrar.registerCertificate(x509Certificate)
+    }
 
     println("Certificate Resource: ${certificateResource.name}")
-
   }
 }

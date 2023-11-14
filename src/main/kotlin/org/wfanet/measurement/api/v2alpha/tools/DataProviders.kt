@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 The Cross-Media Measurement Authors
+ * Copyright 2023 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.api.v2alpha.tools
 
-import com.google.protobuf.TextFormat
 import io.grpc.ManagedChannel
 import java.io.File
 import java.time.Duration
