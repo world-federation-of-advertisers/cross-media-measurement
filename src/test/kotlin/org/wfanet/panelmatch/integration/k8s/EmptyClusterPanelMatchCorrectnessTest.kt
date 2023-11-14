@@ -205,7 +205,6 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
               modelProviderContent = modelProviderContent,
               exchangeDate = EXCHANGE_DATE.toProtoDate(),
               exchangeSchedule = SCHEDULE,
-              publicApiVersion = API_VERSION
             )
           }
 
