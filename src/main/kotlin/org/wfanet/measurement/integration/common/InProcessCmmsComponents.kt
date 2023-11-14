@@ -80,7 +80,7 @@ class InProcessCmmsComponents(
       InProcessEdpSimulator(
         displayName = displayName,
         resourceName = resourceNames.resourceName,
-        certResourceName = resourceNames.resourceName,
+        certResourceName = resourceNames.certificateResourceName,
         mcResourceName = mcResourceName,
         kingdomPublicApiChannel = kingdom.publicApiChannel,
         duchyPublicApiChannel = duchies[1].publicApiChannel,
@@ -114,7 +114,6 @@ class InProcessCmmsComponents(
   private lateinit var edpDisplayNameToResourceNameMap: Map<String, DataProviderResources>
   private lateinit var duchyCertMap: Map<String, String>
   private lateinit var eventGroups: List<EventGroup>
-  private lateinit var certificates: List<Certificate?>
 
   private suspend fun createAllResources() {
     val resourceSetup =

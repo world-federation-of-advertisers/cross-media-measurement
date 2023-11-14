@@ -46,6 +46,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.tools.CertificateRegistrar
+import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -82,6 +83,49 @@ class InProcessEdpSimulator(
 
   private val certificatesStub =
     CertificatesCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName)
+
+  private val SECRET_FILES_PATH: Path =
+    checkNotNull(
+      getRuntimePath(
+        Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+      )
+    )
+
+  private val edpPublicKeySigningKey =
+    loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der")
+  private val separateResultSigningKey =
+    if (Files.exists(SECRET_FILES_PATH.resolve("${displayName}_result_cs_cert.der"))) {
+      loadSigningKey("${displayName}_result_cs_cert.der", "${displayName}_result_cs_private.der")
+    } else {
+      null
+    }
+
+  private val separateResultCertificateKey =
+    if (separateResultSigningKey != null) {
+      runBlocking {
+        DataProviderCertificateKey.fromName(
+          CertificateRegistrar(
+              parentResourceName = resourceName,
+              certificatesStub = certificatesStub,
+            )
+            .registerCertificate(separateResultSigningKey.certificate)
+            .name
+        )!!
+      }
+    } else {
+      null
+    }
+
+  private val dataProviderCertificateKey = DataProviderCertificateKey.fromName(certResourceName)!!
+
+  private val registeredCertificates: Map<DataProviderCertificateKey, SigningKeyHandle> by lazy {
+    val certificateMap = mutableMapOf<DataProviderCertificateKey, SigningKeyHandle>()
+    certificateMap[dataProviderCertificateKey] = edpPublicKeySigningKey
+    if (separateResultSigningKey != null && separateResultCertificateKey != null) {
+      certificateMap[separateResultCertificateKey] = separateResultSigningKey
+    }
+    certificateMap
+  }
 
   private val delegate =
     EdpSimulator(
@@ -131,47 +175,6 @@ class InProcessEdpSimulator(
   }
 
   suspend fun ensureEventGroup() = delegate.ensureEventGroup(syntheticDataSpec)
-
-  private val SECRET_FILES_PATH: Path =
-    checkNotNull(
-      getRuntimePath(
-        Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
-      )
-    )
-
-  private val edpPublicKeySigningKey =
-    loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der")
-  private val separateResultSigningKey =
-    if (Files.exists(SECRET_FILES_PATH.resolve("${displayName}_result_cs_cert.der"))) {
-      loadSigningKey("${displayName}_result_cs_cert.der", "${displayName}_result_cs_private.der")
-    } else {
-      null
-    }
-  private val separateResultCertificateKey =
-    if (separateResultSigningKey != null) {
-      runBlocking {
-        DataProviderCertificateKey.fromName(
-          CertificateRegistrar(
-              parentResourceName = resourceName,
-              certificatesStub = certificatesStub,
-            )
-            .registerCertificate(separateResultSigningKey.certificate)
-            .name
-        )!!
-      }
-    } else {
-      null
-    }
-
-  private val dataProviderCertificateKey = DataProviderCertificateKey.fromName(certResourceName)!!
-
-  private val registeredCertificates by lazy {
-    val certificateMap = mutableMapOf(dataProviderCertificateKey to edpPublicKeySigningKey)
-    if (separateResultSigningKey != null && separateResultCertificateKey != null) {
-      certificateMap.put(separateResultCertificateKey, separateResultSigningKey)
-    }
-    certificateMap
-  }
 
   /** Builds a [EdpData] object for the Edp with a certain [displayName] and [resourceName]. */
   @Blocking
