@@ -18,9 +18,12 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.duration
 import com.google.protobuf.timestamp
+import com.google.type.copy
 import com.google.type.date
 import com.google.type.dateTime
+import com.google.type.interval
 import com.google.type.timeZone
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -35,18 +38,28 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.dataProvider
+import org.wfanet.measurement.api.v2alpha.eventGroup
+import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
+import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
+import org.wfanet.measurement.internal.reporting.v2.BatchGetMetricCalculationSpecsRequest
+import org.wfanet.measurement.internal.reporting.v2.BatchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.ListReportSchedulesRequestKt as InternalListReportSchedulesRequestKt
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec as InternalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt as InternalMetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.ReportKt as InternalReportKt
@@ -54,38 +67,25 @@ import org.wfanet.measurement.internal.reporting.v2.ReportSchedule as InternalRe
 import org.wfanet.measurement.internal.reporting.v2.ReportScheduleKt as InternalReportScheduleKt
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
-import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.ReportingSet
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.batchGetMetricCalculationSpecsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchGetMetricCalculationSpecsResponse
+import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsResponse
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createReportScheduleRequest as internalCreateReportScheduleRequest
 import org.wfanet.measurement.internal.reporting.v2.getReportScheduleRequest as internalGetReportScheduleRequest
 import org.wfanet.measurement.internal.reporting.v2.listReportSchedulesRequest as internalListReportSchedulesRequest
 import org.wfanet.measurement.internal.reporting.v2.listReportSchedulesResponse as internalListReportSchedulesResponse
+import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.internal.reporting.v2.reportSchedule as internalReportSchedule
-import org.wfanet.measurement.internal.reporting.v2.stopReportScheduleRequest as internalStopReportScheduleRequest
-import com.google.protobuf.duration
-import com.google.type.copy
-import com.google.type.interval
-import org.wfanet.measurement.api.v2alpha.copy
-import org.wfanet.measurement.api.v2alpha.dataProvider
-import org.wfanet.measurement.api.v2alpha.eventGroup
-import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
-import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
-import org.wfanet.measurement.internal.reporting.v2.BatchGetMetricCalculationSpecsRequest
-import org.wfanet.measurement.internal.reporting.v2.BatchGetReportingSetsRequest
-import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
-import org.wfanet.measurement.internal.reporting.v2.ReportingSet
-import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
-import org.wfanet.measurement.internal.reporting.v2.batchGetMetricCalculationSpecsRequest
-import org.wfanet.measurement.internal.reporting.v2.batchGetMetricCalculationSpecsResponse
-import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
-import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsResponse
-import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
+import org.wfanet.measurement.internal.reporting.v2.stopReportScheduleRequest as internalStopReportScheduleRequest
 import org.wfanet.measurement.reporting.v2alpha.ListReportSchedulesPageTokenKt
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportKt
@@ -132,46 +132,42 @@ class ReportSchedulesServiceTest {
           )
         batchGetReportingSetsResponse {
           reportingSets +=
-            request.externalReportingSetIdsList.map { id ->
-              reportingSetsMap.getValue(id)
-            }
+            request.externalReportingSetIdsList.map { id -> reportingSetsMap.getValue(id) }
         }
       }
   }
 
-  private val internalMetricCalculationSpecsMock: MetricCalculationSpecsCoroutineImplBase = mockService {
-    onBlocking { batchGetMetricCalculationSpecs(any()) }
-      .thenAnswer {
-        val request = it.arguments[0] as BatchGetMetricCalculationSpecsRequest
-        val metricCalculationSpecsMap =
-          mapOf(
-            INTERNAL_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId to
-              INTERNAL_METRIC_CALCULATION_SPEC,
-          )
-        batchGetMetricCalculationSpecsResponse {
-          metricCalculationSpecs +=
-            request.externalMetricCalculationSpecIdsList.map { id ->
-              metricCalculationSpecsMap.getValue(id)
-            }
+  private val internalMetricCalculationSpecsMock: MetricCalculationSpecsCoroutineImplBase =
+    mockService {
+      onBlocking { batchGetMetricCalculationSpecs(any()) }
+        .thenAnswer {
+          val request = it.arguments[0] as BatchGetMetricCalculationSpecsRequest
+          val metricCalculationSpecsMap =
+            mapOf(
+              INTERNAL_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId to
+                INTERNAL_METRIC_CALCULATION_SPEC,
+            )
+          batchGetMetricCalculationSpecsResponse {
+            metricCalculationSpecs +=
+              request.externalMetricCalculationSpecIdsList.map { id ->
+                metricCalculationSpecsMap.getValue(id)
+              }
+          }
         }
-      }
-  }
+    }
 
   private val dataProvidersMock: DataProvidersCoroutineImplBase = mockService {
-    onBlocking { getDataProvider(eq(getDataProviderRequest {
-      name = DATA_PROVIDER_NAME
-    })) }
+    onBlocking { getDataProvider(eq(getDataProviderRequest { name = DATA_PROVIDER_NAME })) }
       .thenReturn(DATA_PROVIDER)
   }
 
   private val eventGroupsMock: EventGroupsCoroutineImplBase = mockService {
-    onBlocking { getEventGroup(eq(getEventGroupRequest {
-      name = EVENT_GROUP_NAME
-    }))}
+    onBlocking { getEventGroup(eq(getEventGroupRequest { name = EVENT_GROUP_NAME })) }
       .thenReturn(EVENT_GROUP)
   }
 
-  @get:Rule val grpcTestServerRule = GrpcTestServerRule {
+  @get:Rule
+  val grpcTestServerRule = GrpcTestServerRule {
     addService(internalReportSchedulesMock)
     addService(internalReportingSetsMock)
     addService(internalMetricCalculationSpecsMock)
@@ -195,58 +191,57 @@ class ReportSchedulesServiceTest {
 
   @Test
   fun `createReportSchedules returns report schedule`() = runBlocking {
-    val internalReportSchedule =
-      internalReportSchedule {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        externalReportScheduleId = REPORT_SCHEDULE_ID
-        state = InternalReportSchedule.State.ACTIVE
-        details =
-          InternalReportScheduleKt.details {
-            displayName = "display"
-            description = "description"
-            reportTemplate = internalReport {
-              reportingMetricEntries[INTERNAL_PRIMITIVE_REPORTING_SET.externalReportingSetId] =
-                InternalReportKt.reportingMetricCalculationSpec {
-                  metricCalculationSpecReportingMetrics +=
-                    InternalReportKt.metricCalculationSpecReportingMetrics {
-                      externalMetricCalculationSpecId = INTERNAL_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId
-                    }
-                }
-              details = InternalReportKt.details {}
-            }
-            eventStart = dateTime {
-              year = 3000
-              month = 10
-              day = 1
-              hours = 6
-              timeZone = timeZone { id = "America/New_York" }
-            }
-            eventEnd = date {
-              year = 3001
-              month = 12
-              day = 1
-            }
-            frequency =
-              InternalReportScheduleKt.frequency {
-                daily = InternalReportSchedule.Frequency.Daily.getDefaultInstance()
-              }
-            reportWindow =
-              InternalReportScheduleKt.reportWindow {
-                trailingWindow =
-                  InternalReportScheduleKt.ReportWindowKt.trailingWindow {
-                    count = 1
-                    increment = InternalReportSchedule.ReportWindow.TrailingWindow.Increment.DAY
+    val internalReportSchedule = internalReportSchedule {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalReportScheduleId = REPORT_SCHEDULE_ID
+      state = InternalReportSchedule.State.ACTIVE
+      details =
+        InternalReportScheduleKt.details {
+          displayName = "display"
+          description = "description"
+          reportTemplate = internalReport {
+            reportingMetricEntries[INTERNAL_PRIMITIVE_REPORTING_SET.externalReportingSetId] =
+              InternalReportKt.reportingMetricCalculationSpec {
+                metricCalculationSpecReportingMetrics +=
+                  InternalReportKt.metricCalculationSpecReportingMetrics {
+                    externalMetricCalculationSpecId =
+                      INTERNAL_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId
                   }
               }
+            details = InternalReportKt.details {}
           }
-        nextReportCreationTime = details.eventStart.toTimestamp()
-        createTime = timestamp { seconds = 50 }
-        updateTime = timestamp { seconds = 150 }
-      }
+          eventStart = dateTime {
+            year = 3000
+            month = 10
+            day = 1
+            hours = 6
+            timeZone = timeZone { id = "America/New_York" }
+          }
+          eventEnd = date {
+            year = 3001
+            month = 12
+            day = 1
+          }
+          frequency =
+            InternalReportScheduleKt.frequency {
+              daily = InternalReportSchedule.Frequency.Daily.getDefaultInstance()
+            }
+          reportWindow =
+            InternalReportScheduleKt.reportWindow {
+              trailingWindow =
+                InternalReportScheduleKt.ReportWindowKt.trailingWindow {
+                  count = 1
+                  increment = InternalReportSchedule.ReportWindow.TrailingWindow.Increment.DAY
+                }
+            }
+        }
+      nextReportCreationTime = details.eventStart.toTimestamp()
+      createTime = timestamp { seconds = 50 }
+      updateTime = timestamp { seconds = 150 }
+    }
 
-    whenever(
-      internalReportSchedulesMock.createReportSchedule(any())
-    ).thenReturn(internalReportSchedule)
+    whenever(internalReportSchedulesMock.createReportSchedule(any()))
+      .thenReturn(internalReportSchedule)
 
     val reportSchedule = reportSchedule {
       displayName = internalReportSchedule.details.displayName
@@ -289,41 +284,45 @@ class ReportSchedulesServiceTest {
         runBlocking { service.createReportSchedule(request) }
       }
 
-    assertThat(createdReportSchedule).isEqualTo(reportSchedule.copy {
-      name = REPORT_SCHEDULE_NAME
-      state = ReportSchedule.State.forNumber(internalReportSchedule.state.number)
-      nextReportCreationTime = internalReportSchedule.nextReportCreationTime
-      createTime = internalReportSchedule.createTime
-      updateTime = internalReportSchedule.updateTime
-    })
+    assertThat(createdReportSchedule)
+      .isEqualTo(
+        reportSchedule.copy {
+          name = REPORT_SCHEDULE_NAME
+          state = ReportSchedule.State.forNumber(internalReportSchedule.state.number)
+          nextReportCreationTime = internalReportSchedule.nextReportCreationTime
+          createTime = internalReportSchedule.createTime
+          updateTime = internalReportSchedule.updateTime
+        }
+      )
 
     verifyProtoArgument(
-      internalReportSchedulesMock,
-      ReportSchedulesCoroutineImplBase::createReportSchedule
-    )
+        internalReportSchedulesMock,
+        ReportSchedulesCoroutineImplBase::createReportSchedule
+      )
       .isEqualTo(
         internalCreateReportScheduleRequest {
           this.reportSchedule = internalReportSchedule {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             nextReportCreationTime = internalReportSchedule.nextReportCreationTime
-            details = InternalReportScheduleKt.details {
-              displayName = internalReportSchedule.details.displayName
-              description = internalReportSchedule.details.description
-              reportTemplate = internalReportSchedule.details.reportTemplate
-              eventStart = internalReportSchedule.details.eventStart
-              eventEnd = internalReportSchedule.details.eventEnd
-              frequency = internalReportSchedule.details.frequency
-              reportWindow = internalReportSchedule.details.reportWindow
-            }
+            details =
+              InternalReportScheduleKt.details {
+                displayName = internalReportSchedule.details.displayName
+                description = internalReportSchedule.details.description
+                reportTemplate = internalReportSchedule.details.reportTemplate
+                eventStart = internalReportSchedule.details.eventStart
+                eventEnd = internalReportSchedule.details.eventEnd
+                frequency = internalReportSchedule.details.frequency
+                reportWindow = internalReportSchedule.details.reportWindow
+              }
           }
           externalReportScheduleId = REPORT_SCHEDULE_ID
         }
       )
 
     verifyProtoArgument(
-      internalReportingSetsMock,
-      ReportingSetsCoroutineImplBase::batchGetReportingSets
-    )
+        internalReportingSetsMock,
+        ReportingSetsCoroutineImplBase::batchGetReportingSets
+      )
       .isEqualTo(
         batchGetReportingSetsRequest {
           cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -332,9 +331,9 @@ class ReportSchedulesServiceTest {
       )
 
     verifyProtoArgument(
-      internalMetricCalculationSpecsMock,
-      MetricCalculationSpecsCoroutineImplBase::batchGetMetricCalculationSpecs
-    )
+        internalMetricCalculationSpecsMock,
+        MetricCalculationSpecsCoroutineImplBase::batchGetMetricCalculationSpecs
+      )
       .isEqualTo(
         batchGetMetricCalculationSpecsRequest {
           cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -342,102 +341,91 @@ class ReportSchedulesServiceTest {
         }
       )
 
-    verifyProtoArgument(
-      dataProvidersMock,
-      DataProvidersCoroutineImplBase::getDataProvider
-    )
-      .isEqualTo(
-        getDataProviderRequest {
-          name = DATA_PROVIDER_NAME
-        }
-      )
+    verifyProtoArgument(dataProvidersMock, DataProvidersCoroutineImplBase::getDataProvider)
+      .isEqualTo(getDataProviderRequest { name = DATA_PROVIDER_NAME })
 
-    verifyProtoArgument(
-      eventGroupsMock,
-      EventGroupsCoroutineImplBase::getEventGroup
-    )
-      .isEqualTo(
-        getEventGroupRequest {
-          name = EVENT_GROUP_NAME
-        }
-      )
+    verifyProtoArgument(eventGroupsMock, EventGroupsCoroutineImplBase::getEventGroup)
+      .isEqualTo(getEventGroupRequest { name = EVENT_GROUP_NAME })
   }
 
   @Test
   fun `createReportSchedule returns report schedule when composite reporting set used`() {
     val compositeReportingSetId = "a123"
-    val compositeReportingSetName = "$MEASUREMENT_CONSUMER_NAME/reportingSets/$compositeReportingSetId"
+    val compositeReportingSetName =
+      "$MEASUREMENT_CONSUMER_NAME/reportingSets/$compositeReportingSetId"
     val compositeReportingSet = reportingSet {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalReportingSetId = compositeReportingSetId
       composite =
         ReportingSetKt.setExpression {
           operation = ReportingSet.SetExpression.Operation.UNION
-          lhs = ReportingSetKt.SetExpressionKt.operand {
-            externalReportingSetId = INTERNAL_PRIMITIVE_REPORTING_SET.externalReportingSetId
-          }
+          lhs =
+            ReportingSetKt.SetExpressionKt.operand {
+              externalReportingSetId = INTERNAL_PRIMITIVE_REPORTING_SET.externalReportingSetId
+            }
         }
       displayName = "composite"
-      weightedSubsetUnions += ReportingSetKt.weightedSubsetUnion {
-        primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-          externalReportingSetId = PRIMITIVE_REPORTING_SET_ID
+      weightedSubsetUnions +=
+        ReportingSetKt.weightedSubsetUnion {
+          primitiveReportingSetBases +=
+            ReportingSetKt.primitiveReportingSetBasis {
+              externalReportingSetId = PRIMITIVE_REPORTING_SET_ID
+            }
+          weight = 1
+          binaryRepresentation = 1
         }
-        weight = 1
-        binaryRepresentation = 1
-      }
     }
 
-    val internalReportSchedule = INTERNAL_REPORT_SCHEDULE.copy {
-      details = INTERNAL_REPORT_SCHEDULE.details.copy {
-        reportTemplate = internalReport {
-          reportingMetricEntries[compositeReportingSetId] =
-            InternalReportKt.reportingMetricCalculationSpec {
-              metricCalculationSpecReportingMetrics +=
-                InternalReportKt.metricCalculationSpecReportingMetrics {
-                  externalMetricCalculationSpecId =
-                    INTERNAL_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId
+    val internalReportSchedule =
+      INTERNAL_REPORT_SCHEDULE.copy {
+        details =
+          INTERNAL_REPORT_SCHEDULE.details.copy {
+            reportTemplate = internalReport {
+              reportingMetricEntries[compositeReportingSetId] =
+                InternalReportKt.reportingMetricCalculationSpec {
+                  metricCalculationSpecReportingMetrics +=
+                    InternalReportKt.metricCalculationSpecReportingMetrics {
+                      externalMetricCalculationSpecId =
+                        INTERNAL_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId
+                    }
                 }
+              details = InternalReportKt.details {}
             }
-          details = InternalReportKt.details {}
-        }
+          }
       }
-    }
 
     runBlocking {
-      whenever(internalReportingSetsMock.batchGetReportingSets(any()))
-        .thenAnswer {
-          val request = it.arguments[0] as BatchGetReportingSetsRequest
-          val reportingSetsMap =
-            mapOf(
-              compositeReportingSet.externalReportingSetId to
-                compositeReportingSet,
-              INTERNAL_PRIMITIVE_REPORTING_SET.externalReportingSetId to
-                INTERNAL_PRIMITIVE_REPORTING_SET
-            )
-          batchGetReportingSetsResponse {
-            reportingSets +=
-              request.externalReportingSetIdsList.map { id ->
-                reportingSetsMap.getValue(id)
-              }
-          }
+      whenever(internalReportingSetsMock.batchGetReportingSets(any())).thenAnswer {
+        val request = it.arguments[0] as BatchGetReportingSetsRequest
+        val reportingSetsMap =
+          mapOf(
+            compositeReportingSet.externalReportingSetId to compositeReportingSet,
+            INTERNAL_PRIMITIVE_REPORTING_SET.externalReportingSetId to
+              INTERNAL_PRIMITIVE_REPORTING_SET
+          )
+        batchGetReportingSetsResponse {
+          reportingSets +=
+            request.externalReportingSetIdsList.map { id -> reportingSetsMap.getValue(id) }
         }
+      }
 
       whenever(internalReportSchedulesMock.createReportSchedule(any()))
         .thenReturn(internalReportSchedule)
     }
 
-    val reportSchedule = REPORT_SCHEDULE.copy {
-      reportTemplate = report {
-        reportingMetricEntries +=
-          ReportKt.reportingMetricEntry {
-            key = compositeReportingSetName
-            value =
-              ReportKt.reportingMetricCalculationSpec {
-                metricCalculationSpecs += METRIC_CALCULATION_SPEC_NAME
-              }
-          }
+    val reportSchedule =
+      REPORT_SCHEDULE.copy {
+        reportTemplate = report {
+          reportingMetricEntries +=
+            ReportKt.reportingMetricEntry {
+              key = compositeReportingSetName
+              value =
+                ReportKt.reportingMetricCalculationSpec {
+                  metricCalculationSpecs += METRIC_CALCULATION_SPEC_NAME
+                }
+            }
+        }
       }
-    }
 
     val request = createReportScheduleRequest {
       parent = MEASUREMENT_CONSUMER_NAME
@@ -450,13 +438,16 @@ class ReportSchedulesServiceTest {
         runBlocking { service.createReportSchedule(request) }
       }
 
-    assertThat(createdReportSchedule).isEqualTo(reportSchedule.copy {
-      name = REPORT_SCHEDULE_NAME
-      state = ReportSchedule.State.forNumber(internalReportSchedule.state.number)
-      nextReportCreationTime = internalReportSchedule.nextReportCreationTime
-      createTime = internalReportSchedule.createTime
-      updateTime = internalReportSchedule.updateTime
-    })
+    assertThat(createdReportSchedule)
+      .isEqualTo(
+        reportSchedule.copy {
+          name = REPORT_SCHEDULE_NAME
+          state = ReportSchedule.State.forNumber(internalReportSchedule.state.number)
+          nextReportCreationTime = internalReportSchedule.nextReportCreationTime
+          createTime = internalReportSchedule.createTime
+          updateTime = internalReportSchedule.updateTime
+        }
+      )
   }
 
   @Test
@@ -699,9 +690,7 @@ class ReportSchedulesServiceTest {
   @Test
   fun `createReportSchedule throws ALREADY_EXISTS when report schedule id already used`() =
     runBlocking {
-      whenever(
-        internalReportSchedulesMock.createReportSchedule(any())
-      )
+      whenever(internalReportSchedulesMock.createReportSchedule(any()))
         .thenThrow(StatusRuntimeException(Status.ALREADY_EXISTS))
 
       val request = createReportScheduleRequest {
@@ -727,9 +716,7 @@ class ReportSchedulesServiceTest {
     val request = createReportScheduleRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       reportScheduleId = "a123"
-      reportSchedule = REPORT_SCHEDULE.copy {
-        clearReportTemplate()
-      }
+      reportSchedule = REPORT_SCHEDULE.copy { clearReportTemplate() }
       requestId = "a123"
     }
 
@@ -749,11 +736,10 @@ class ReportSchedulesServiceTest {
     val request = createReportScheduleRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       reportScheduleId = "a123"
-      reportSchedule = REPORT_SCHEDULE.copy {
-        reportTemplate = REPORT_SCHEDULE.reportTemplate.copy {
-          reportingMetricEntries.clear()
+      reportSchedule =
+        REPORT_SCHEDULE.copy {
+          reportTemplate = REPORT_SCHEDULE.reportTemplate.copy { reportingMetricEntries.clear() }
         }
-      }
       requestId = "a123"
     }
 
@@ -773,13 +759,14 @@ class ReportSchedulesServiceTest {
     val request = createReportScheduleRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       reportScheduleId = "a123"
-      reportSchedule = REPORT_SCHEDULE.copy {
-        reportTemplate = REPORT_SCHEDULE.reportTemplate.copy {
-          reportingMetricEntries += REPORT_SCHEDULE.reportTemplate.reportingMetricEntriesList[0].copy {
-            clearKey()
-          }
+      reportSchedule =
+        REPORT_SCHEDULE.copy {
+          reportTemplate =
+            REPORT_SCHEDULE.reportTemplate.copy {
+              reportingMetricEntries +=
+                REPORT_SCHEDULE.reportTemplate.reportingMetricEntriesList[0].copy { clearKey() }
+            }
         }
-      }
       requestId = "a123"
     }
 
@@ -799,13 +786,14 @@ class ReportSchedulesServiceTest {
     val request = createReportScheduleRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       reportScheduleId = "a123"
-      reportSchedule = REPORT_SCHEDULE.copy {
-        reportTemplate = REPORT_SCHEDULE.reportTemplate.copy {
-          reportingMetricEntries += REPORT_SCHEDULE.reportTemplate.reportingMetricEntriesList[0].copy {
-            key = "bad"
-          }
+      reportSchedule =
+        REPORT_SCHEDULE.copy {
+          reportTemplate =
+            REPORT_SCHEDULE.reportTemplate.copy {
+              reportingMetricEntries +=
+                REPORT_SCHEDULE.reportTemplate.reportingMetricEntriesList[0].copy { key = "bad" }
+            }
         }
-      }
       requestId = "a123"
     }
 
@@ -825,13 +813,14 @@ class ReportSchedulesServiceTest {
     val request = createReportScheduleRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       reportScheduleId = "a123"
-      reportSchedule = REPORT_SCHEDULE.copy {
-        reportTemplate = REPORT_SCHEDULE.reportTemplate.copy {
-          reportingMetricEntries += REPORT_SCHEDULE.reportTemplate.reportingMetricEntriesList[0].copy {
-            clearValue()
-          }
+      reportSchedule =
+        REPORT_SCHEDULE.copy {
+          reportTemplate =
+            REPORT_SCHEDULE.reportTemplate.copy {
+              reportingMetricEntries +=
+                REPORT_SCHEDULE.reportTemplate.reportingMetricEntriesList[0].copy { clearValue() }
+            }
         }
-      }
       requestId = "a123"
     }
 
@@ -851,13 +840,16 @@ class ReportSchedulesServiceTest {
     val request = createReportScheduleRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       reportScheduleId = "a123"
-      reportSchedule = REPORT_SCHEDULE.copy {
-        reportTemplate = REPORT_SCHEDULE.reportTemplate.copy {
-          reportingMetricEntries += REPORT_SCHEDULE.reportTemplate.reportingMetricEntriesList[0].copy {
-            value = Report.ReportingMetricCalculationSpec.getDefaultInstance()
-          }
+      reportSchedule =
+        REPORT_SCHEDULE.copy {
+          reportTemplate =
+            REPORT_SCHEDULE.reportTemplate.copy {
+              reportingMetricEntries +=
+                REPORT_SCHEDULE.reportTemplate.reportingMetricEntriesList[0].copy {
+                  value = Report.ReportingMetricCalculationSpec.getDefaultInstance()
+                }
+            }
         }
-      }
       requestId = "a123"
     }
 
@@ -874,11 +866,10 @@ class ReportSchedulesServiceTest {
 
   @Test
   fun `createReportSchedule throws INVALID_ARGUMENT when spec in report_template is cumulative`() {
-    val cumulativeMetricCalculationSpec = INTERNAL_METRIC_CALCULATION_SPEC.copy {
-      details = INTERNAL_METRIC_CALCULATION_SPEC.details.copy {
-        cumulative = true
+    val cumulativeMetricCalculationSpec =
+      INTERNAL_METRIC_CALCULATION_SPEC.copy {
+        details = INTERNAL_METRIC_CALCULATION_SPEC.details.copy { cumulative = true }
       }
-    }
 
     runBlocking {
       whenever(internalMetricCalculationSpecsMock.batchGetMetricCalculationSpecs(any()))
@@ -921,9 +912,7 @@ class ReportSchedulesServiceTest {
     val request = createReportScheduleRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       reportScheduleId = "a123"
-      reportSchedule = REPORT_SCHEDULE.copy {
-        clearEventStart()
-      }
+      reportSchedule = REPORT_SCHEDULE.copy { clearEventStart() }
       requestId = "a123"
     }
 
@@ -943,13 +932,14 @@ class ReportSchedulesServiceTest {
     val request = createReportScheduleRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       reportScheduleId = "a123"
-      reportSchedule = REPORT_SCHEDULE.copy {
-        eventStart = dateTime {
-          year = 3000
-          month = 1
-          timeZone = timeZone { id = "America/New_York" }
+      reportSchedule =
+        REPORT_SCHEDULE.copy {
+          eventStart = dateTime {
+            year = 3000
+            month = 1
+            timeZone = timeZone { id = "America/New_York" }
+          }
         }
-      }
       requestId = "a123"
     }
 
@@ -969,11 +959,11 @@ class ReportSchedulesServiceTest {
     val request = createReportScheduleRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       reportScheduleId = "a123"
-      reportSchedule = REPORT_SCHEDULE.copy {
-        eventStart = REPORT_SCHEDULE.eventStart.copy {
-          timeZone = timeZone { id = "America/New_New_York" }
+      reportSchedule =
+        REPORT_SCHEDULE.copy {
+          eventStart =
+            REPORT_SCHEDULE.eventStart.copy { timeZone = timeZone { id = "America/New_New_York" } }
         }
-      }
       requestId = "a123"
     }
 
@@ -993,13 +983,10 @@ class ReportSchedulesServiceTest {
     val request = createReportScheduleRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       reportScheduleId = "a123"
-      reportSchedule = REPORT_SCHEDULE.copy {
-        eventStart = REPORT_SCHEDULE.eventStart.copy {
-          utcOffset = duration {
-            seconds = 999999
-          }
+      reportSchedule =
+        REPORT_SCHEDULE.copy {
+          eventStart = REPORT_SCHEDULE.eventStart.copy { utcOffset = duration { seconds = 999999 } }
         }
-      }
       requestId = "a123"
     }
 
@@ -1019,19 +1006,20 @@ class ReportSchedulesServiceTest {
     val request = createReportScheduleRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       reportScheduleId = "a123"
-      reportSchedule = REPORT_SCHEDULE.copy {
-        eventStart = dateTime {
-          year = 2024
-          month = 1
-          day = 1
-          timeZone = timeZone { id = "America/New_York" }
+      reportSchedule =
+        REPORT_SCHEDULE.copy {
+          eventStart = dateTime {
+            year = 2024
+            month = 1
+            day = 1
+            timeZone = timeZone { id = "America/New_York" }
+          }
+          eventEnd = date {
+            year = 2023
+            month = 1
+            day = 1
+          }
         }
-        eventEnd = date {
-          year = 2023
-          month = 1
-          day = 1
-        }
-      }
       requestId = "a123"
     }
 
@@ -1051,12 +1039,13 @@ class ReportSchedulesServiceTest {
     val request = createReportScheduleRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       reportScheduleId = "a123"
-      reportSchedule = REPORT_SCHEDULE.copy {
-        eventEnd = date {
-          year = 4000
-          month = 1
+      reportSchedule =
+        REPORT_SCHEDULE.copy {
+          eventEnd = date {
+            year = 4000
+            month = 1
+          }
         }
-      }
       requestId = "a123"
     }
 
@@ -1076,9 +1065,7 @@ class ReportSchedulesServiceTest {
     val request = createReportScheduleRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       reportScheduleId = "a123"
-      reportSchedule = REPORT_SCHEDULE.copy {
-        clearFrequency()
-      }
+      reportSchedule = REPORT_SCHEDULE.copy { clearFrequency() }
       requestId = "a123"
     }
 
@@ -1098,9 +1085,8 @@ class ReportSchedulesServiceTest {
     val request = createReportScheduleRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       reportScheduleId = "a123"
-      reportSchedule = REPORT_SCHEDULE.copy {
-        frequency = ReportSchedule.Frequency.getDefaultInstance()
-      }
+      reportSchedule =
+        REPORT_SCHEDULE.copy { frequency = ReportSchedule.Frequency.getDefaultInstance() }
       requestId = "a123"
     }
 
@@ -1120,11 +1106,13 @@ class ReportSchedulesServiceTest {
     val request = createReportScheduleRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       reportScheduleId = "a123"
-      reportSchedule = REPORT_SCHEDULE.copy {
-        frequency = ReportScheduleKt.frequency {
-          weekly = ReportSchedule.Frequency.Weekly.getDefaultInstance()
+      reportSchedule =
+        REPORT_SCHEDULE.copy {
+          frequency =
+            ReportScheduleKt.frequency {
+              weekly = ReportSchedule.Frequency.Weekly.getDefaultInstance()
+            }
         }
-      }
       requestId = "a123"
     }
 
@@ -1144,11 +1132,13 @@ class ReportSchedulesServiceTest {
     val request = createReportScheduleRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       reportScheduleId = "a123"
-      reportSchedule = REPORT_SCHEDULE.copy {
-        frequency = ReportScheduleKt.frequency {
-          monthly = ReportSchedule.Frequency.Monthly.getDefaultInstance()
+      reportSchedule =
+        REPORT_SCHEDULE.copy {
+          frequency =
+            ReportScheduleKt.frequency {
+              monthly = ReportSchedule.Frequency.Monthly.getDefaultInstance()
+            }
         }
-      }
       requestId = "a123"
     }
 
@@ -1168,9 +1158,7 @@ class ReportSchedulesServiceTest {
     val request = createReportScheduleRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       reportScheduleId = "a123"
-      reportSchedule = REPORT_SCHEDULE.copy {
-        clearReportWindow()
-      }
+      reportSchedule = REPORT_SCHEDULE.copy { clearReportWindow() }
       requestId = "a123"
     }
 
@@ -1190,9 +1178,7 @@ class ReportSchedulesServiceTest {
     val request = createReportScheduleRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       reportScheduleId = "a123"
-      reportSchedule = REPORT_SCHEDULE.copy {
-        reportWindow = ReportWindow.getDefaultInstance()
-      }
+      reportSchedule = REPORT_SCHEDULE.copy { reportWindow = ReportWindow.getDefaultInstance() }
       requestId = "a123"
     }
 
@@ -1212,13 +1198,16 @@ class ReportSchedulesServiceTest {
     val request = createReportScheduleRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       reportScheduleId = "a123"
-      reportSchedule = REPORT_SCHEDULE.copy {
-        reportWindow = ReportScheduleKt.reportWindow {
-          trailingWindow = ReportScheduleKt.ReportWindowKt.trailingWindow {
-            increment = ReportWindow.TrailingWindow.Increment.DAY
-          }
+      reportSchedule =
+        REPORT_SCHEDULE.copy {
+          reportWindow =
+            ReportScheduleKt.reportWindow {
+              trailingWindow =
+                ReportScheduleKt.ReportWindowKt.trailingWindow {
+                  increment = ReportWindow.TrailingWindow.Increment.DAY
+                }
+            }
         }
-      }
       requestId = "a123"
     }
 
@@ -1238,13 +1227,13 @@ class ReportSchedulesServiceTest {
     val request = createReportScheduleRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       reportScheduleId = "a123"
-      reportSchedule = REPORT_SCHEDULE.copy {
-        reportWindow = ReportScheduleKt.reportWindow {
-          trailingWindow = ReportScheduleKt.ReportWindowKt.trailingWindow {
-            count = 1
-          }
+      reportSchedule =
+        REPORT_SCHEDULE.copy {
+          reportWindow =
+            ReportScheduleKt.reportWindow {
+              trailingWindow = ReportScheduleKt.ReportWindowKt.trailingWindow { count = 1 }
+            }
         }
-      }
       requestId = "a123"
     }
 
@@ -1264,13 +1253,10 @@ class ReportSchedulesServiceTest {
     val request = createReportScheduleRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       reportScheduleId = "a123"
-      reportSchedule = REPORT_SCHEDULE.copy {
-        reportWindow = ReportScheduleKt.reportWindow {
-          fixedWindow = date {
-            year = 2000
-          }
+      reportSchedule =
+        REPORT_SCHEDULE.copy {
+          reportWindow = ReportScheduleKt.reportWindow { fixedWindow = date { year = 2000 } }
         }
-      }
       requestId = "a123"
     }
 
@@ -1290,15 +1276,17 @@ class ReportSchedulesServiceTest {
     val request = createReportScheduleRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       reportScheduleId = "a123"
-      reportSchedule = REPORT_SCHEDULE.copy {
-        reportWindow = ReportScheduleKt.reportWindow {
-          fixedWindow = date {
-            year = REPORT_SCHEDULE.eventStart.year
-            month = REPORT_SCHEDULE.eventStart.month
-            day = REPORT_SCHEDULE.eventStart.day
-          }
+      reportSchedule =
+        REPORT_SCHEDULE.copy {
+          reportWindow =
+            ReportScheduleKt.reportWindow {
+              fixedWindow = date {
+                year = REPORT_SCHEDULE.eventStart.year
+                month = REPORT_SCHEDULE.eventStart.month
+                day = REPORT_SCHEDULE.eventStart.day
+              }
+            }
         }
-      }
       requestId = "a123"
     }
 
@@ -1317,65 +1305,78 @@ class ReportSchedulesServiceTest {
   fun `createReportSchedule throws error when first report interval before eg data interval`() {
     runBlocking {
       whenever(dataProvidersMock.getDataProvider(any()))
-        .thenReturn(DATA_PROVIDER.copy {
-          dataAvailabilityInterval = interval {
-            startTime = dateTime {
-              year = 1
-              month = 1
-              day = 1
-              hours = 6
-              timeZone = timeZone { id = "America/New_York" }
-            }.toTimestamp()
+        .thenReturn(
+          DATA_PROVIDER.copy {
+            dataAvailabilityInterval = interval {
+              startTime =
+                dateTime {
+                    year = 1
+                    month = 1
+                    day = 1
+                    hours = 6
+                    timeZone = timeZone { id = "America/New_York" }
+                  }
+                  .toTimestamp()
 
-            endTime = dateTime {
-              year = 9100
-              month = 1
-              day = 1
-              hours = 6
-              timeZone = timeZone { id = "America/New_York" }
-            }.toTimestamp()
+              endTime =
+                dateTime {
+                    year = 9100
+                    month = 1
+                    day = 1
+                    hours = 6
+                    timeZone = timeZone { id = "America/New_York" }
+                  }
+                  .toTimestamp()
+            }
           }
-        })
+        )
 
       whenever(eventGroupsMock.getEventGroup(any()))
-        .thenReturn(EVENT_GROUP.copy {
-          dataAvailabilityInterval = interval {
-            startTime = dateTime {
-              year = 9000
-              month = 1
-              day = 1
-              hours = 6
-              timeZone = timeZone { id = "America/New_York" }
-            }.toTimestamp()
+        .thenReturn(
+          EVENT_GROUP.copy {
+            dataAvailabilityInterval = interval {
+              startTime =
+                dateTime {
+                    year = 9000
+                    month = 1
+                    day = 1
+                    hours = 6
+                    timeZone = timeZone { id = "America/New_York" }
+                  }
+                  .toTimestamp()
 
-            endTime = dateTime {
-              year = 9100
-              month = 1
-              day = 1
-              hours = 6
-              timeZone = timeZone { id = "America/New_York" }
-            }.toTimestamp()
+              endTime =
+                dateTime {
+                    year = 9100
+                    month = 1
+                    day = 1
+                    hours = 6
+                    timeZone = timeZone { id = "America/New_York" }
+                  }
+                  .toTimestamp()
+            }
           }
-        })
+        )
     }
 
     val request = createReportScheduleRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       reportScheduleId = "a123"
-      reportSchedule = REPORT_SCHEDULE.copy {
-        eventStart = dateTime {
-          year = 3000
-          month = 10
-          day = 1
-          hours = 6
-          timeZone = timeZone { id = "America/New_York" }
+      reportSchedule =
+        REPORT_SCHEDULE.copy {
+          eventStart = dateTime {
+            year = 3000
+            month = 10
+            day = 1
+            hours = 6
+            timeZone = timeZone { id = "America/New_York" }
+          }
+          eventEnd = date {
+            year = 3001
+            month = 12
+            day = 1
+          }
         }
-        eventEnd = date {
-          year = 3001
-          month = 12
-          day = 1
-        }
-      }
       requestId = "a123"
     }
 
@@ -1394,65 +1395,78 @@ class ReportSchedulesServiceTest {
   fun `createReportSchedule throws error when first report interval before edp data interval`() {
     runBlocking {
       whenever(dataProvidersMock.getDataProvider(any()))
-        .thenReturn(DATA_PROVIDER.copy {
-          dataAvailabilityInterval = interval {
-            startTime = dateTime {
-              year = 9000
-              month = 1
-              day = 1
-              hours = 6
-              timeZone = timeZone { id = "America/New_York" }
-            }.toTimestamp()
+        .thenReturn(
+          DATA_PROVIDER.copy {
+            dataAvailabilityInterval = interval {
+              startTime =
+                dateTime {
+                    year = 9000
+                    month = 1
+                    day = 1
+                    hours = 6
+                    timeZone = timeZone { id = "America/New_York" }
+                  }
+                  .toTimestamp()
 
-            endTime = dateTime {
-              year = 9100
-              month = 1
-              day = 1
-              hours = 6
-              timeZone = timeZone { id = "America/New_York" }
-            }.toTimestamp()
+              endTime =
+                dateTime {
+                    year = 9100
+                    month = 1
+                    day = 1
+                    hours = 6
+                    timeZone = timeZone { id = "America/New_York" }
+                  }
+                  .toTimestamp()
+            }
           }
-        })
+        )
 
       whenever(eventGroupsMock.getEventGroup(any()))
-        .thenReturn(EVENT_GROUP.copy {
-          dataAvailabilityInterval = interval {
-            startTime = dateTime {
-              year = 1
-              month = 1
-              day = 1
-              hours = 6
-              timeZone = timeZone { id = "America/New_York" }
-            }.toTimestamp()
+        .thenReturn(
+          EVENT_GROUP.copy {
+            dataAvailabilityInterval = interval {
+              startTime =
+                dateTime {
+                    year = 1
+                    month = 1
+                    day = 1
+                    hours = 6
+                    timeZone = timeZone { id = "America/New_York" }
+                  }
+                  .toTimestamp()
 
-            endTime = dateTime {
-              year = 9100
-              month = 1
-              day = 1
-              hours = 6
-              timeZone = timeZone { id = "America/New_York" }
-            }.toTimestamp()
+              endTime =
+                dateTime {
+                    year = 9100
+                    month = 1
+                    day = 1
+                    hours = 6
+                    timeZone = timeZone { id = "America/New_York" }
+                  }
+                  .toTimestamp()
+            }
           }
-        })
+        )
     }
 
     val request = createReportScheduleRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       reportScheduleId = "a123"
-      reportSchedule = REPORT_SCHEDULE.copy {
-        eventStart = dateTime {
-          year = 3000
-          month = 10
-          day = 1
-          hours = 6
-          timeZone = timeZone { id = "America/New_York" }
+      reportSchedule =
+        REPORT_SCHEDULE.copy {
+          eventStart = dateTime {
+            year = 3000
+            month = 10
+            day = 1
+            hours = 6
+            timeZone = timeZone { id = "America/New_York" }
+          }
+          eventEnd = date {
+            year = 3001
+            month = 12
+            day = 1
+          }
         }
-        eventEnd = date {
-          year = 3001
-          month = 12
-          day = 1
-        }
-      }
       requestId = "a123"
     }
 
@@ -2159,12 +2173,10 @@ class ReportSchedulesServiceTest {
       "$MEASUREMENT_CONSUMER_NAME/metricCalculationSpecs/$METRIC_CALCULATION_SPEC_ID"
 
     private const val DATA_PROVIDER_ID = "D123"
-    private const val DATA_PROVIDER_NAME =
-      "dataProviders/$DATA_PROVIDER_ID"
+    private const val DATA_PROVIDER_NAME = "dataProviders/$DATA_PROVIDER_ID"
 
     private const val EVENT_GROUP_ID = "E123"
-    private const val EVENT_GROUP_NAME =
-      "$DATA_PROVIDER_NAME/eventGroups/$EVENT_GROUP_ID"
+    private const val EVENT_GROUP_NAME = "$DATA_PROVIDER_NAME/eventGroups/$EVENT_GROUP_ID"
 
     private const val EPSILON = 0.0033
     private const val DELTA = 1e-12
@@ -2203,19 +2215,22 @@ class ReportSchedulesServiceTest {
       externalReportingSetId = PRIMITIVE_REPORTING_SET_ID
       primitive =
         ReportingSetKt.primitive {
-          eventGroupKeys += ReportingSetKt.PrimitiveKt.eventGroupKey {
-            cmmsDataProviderId = DATA_PROVIDER_ID
-            cmmsEventGroupId = EVENT_GROUP_ID
-          }
+          eventGroupKeys +=
+            ReportingSetKt.PrimitiveKt.eventGroupKey {
+              cmmsDataProviderId = DATA_PROVIDER_ID
+              cmmsEventGroupId = EVENT_GROUP_ID
+            }
         }
       displayName = "primitive"
-      weightedSubsetUnions += ReportingSetKt.weightedSubsetUnion {
-        primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-          externalReportingSetId = PRIMITIVE_REPORTING_SET_ID
+      weightedSubsetUnions +=
+        ReportingSetKt.weightedSubsetUnion {
+          primitiveReportingSetBases +=
+            ReportingSetKt.primitiveReportingSetBasis {
+              externalReportingSetId = PRIMITIVE_REPORTING_SET_ID
+            }
+          weight = 1
+          binaryRepresentation = 1
         }
-        weight = 1
-        binaryRepresentation = 1
-      }
     }
 
     private val INTERNAL_REPORT_SCHEDULE = internalReportSchedule {
@@ -2231,7 +2246,8 @@ class ReportSchedulesServiceTest {
               InternalReportKt.reportingMetricCalculationSpec {
                 metricCalculationSpecReportingMetrics +=
                   InternalReportKt.metricCalculationSpecReportingMetrics {
-                    externalMetricCalculationSpecId = INTERNAL_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId
+                    externalMetricCalculationSpecId =
+                      INTERNAL_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId
                   }
               }
           }
@@ -2307,41 +2323,49 @@ class ReportSchedulesServiceTest {
 
     private val DATA_PROVIDER = dataProvider {
       dataAvailabilityInterval = interval {
-        startTime = dateTime {
-          year = 2000
-          month = 1
-          day = 1
-          hours = 6
-          timeZone = timeZone { id = "America/New_York" }
-        }.toTimestamp()
+        startTime =
+          dateTime {
+              year = 2000
+              month = 1
+              day = 1
+              hours = 6
+              timeZone = timeZone { id = "America/New_York" }
+            }
+            .toTimestamp()
 
-        endTime = dateTime {
-          year = 4000
-          month = 1
-          day = 1
-          hours = 6
-          timeZone = timeZone { id = "America/New_York" }
-        }.toTimestamp()
+        endTime =
+          dateTime {
+              year = 4000
+              month = 1
+              day = 1
+              hours = 6
+              timeZone = timeZone { id = "America/New_York" }
+            }
+            .toTimestamp()
       }
     }
 
     private val EVENT_GROUP = eventGroup {
       dataAvailabilityInterval = interval {
-        startTime = dateTime {
-          year = 2000
-          month = 1
-          day = 1
-          hours = 6
-          timeZone = timeZone { id = "America/New_York" }
-        }.toTimestamp()
+        startTime =
+          dateTime {
+              year = 2000
+              month = 1
+              day = 1
+              hours = 6
+              timeZone = timeZone { id = "America/New_York" }
+            }
+            .toTimestamp()
 
-        endTime = dateTime {
-          year = 4000
-          month = 1
-          day = 1
-          hours = 6
-          timeZone = timeZone { id = "America/New_York" }
-        }.toTimestamp()
+        endTime =
+          dateTime {
+              year = 4000
+              month = 1
+              day = 1
+              hours = 6
+              timeZone = timeZone { id = "America/New_York" }
+            }
+            .toTimestamp()
       }
     }
   }

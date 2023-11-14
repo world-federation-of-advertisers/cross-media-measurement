@@ -16,9 +16,18 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import com.google.protobuf.Timestamp
 import com.google.protobuf.util.Timestamps
+import com.google.type.DateTime
 import com.google.type.Interval
 import com.google.type.interval
+import java.time.DateTimeException
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
+import java.time.zone.ZoneRulesException
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodology
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
@@ -31,6 +40,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec.VidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams as NoiserDpParams
 import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodology as InternalCustomDirectMethodology
@@ -75,16 +86,6 @@ import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals as internalTimeIntervals
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
 import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval as StatsVidSamplingInterval
-import com.google.protobuf.Timestamp
-import com.google.type.DateTime
-import java.time.OffsetDateTime
-import java.time.ZoneOffset
-import java.time.DateTimeException
-import java.time.LocalDateTime
-import java.time.ZoneId
-import java.time.ZonedDateTime
-import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageToken
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsPageToken
@@ -108,7 +109,6 @@ import org.wfanet.measurement.reporting.v2alpha.metricSpec
 import org.wfanet.measurement.reporting.v2alpha.periodicTimeInterval
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
 import org.wfanet.measurement.reporting.v2alpha.timeIntervals
-import java.time.zone.ZoneRulesException
 
 /**
  * Converts an [MetricSpecConfig.VidSamplingInterval] to an
@@ -993,46 +993,77 @@ fun DateTime.toTimestamp(): Timestamp {
 }
 
 /**
- * Given a [ReportSchedule] and a [Timestamp], create a [Timestamp] that represents the
- * start of the window.
+ * Given a [ReportSchedule] and a [Timestamp], create a [Timestamp] that represents the start of the
+ * window.
  */
-fun buildReportWindowStartTimestamp(reportSchedule: ReportSchedule, timestamp: Timestamp): Timestamp {
+fun buildReportWindowStartTimestamp(
+  reportSchedule: ReportSchedule,
+  timestamp: Timestamp
+): Timestamp {
   val eventStart = reportSchedule.eventStart
 
   return if (eventStart.hasUtcOffset()) {
     val offset = ZoneOffset.ofTotalSeconds(eventStart.utcOffset.seconds.toInt())
     if (reportSchedule.reportWindow.hasFixedWindow()) {
       val fixedWindow = reportSchedule.reportWindow.fixedWindow
-      val offsetDateTime = OffsetDateTime.of(fixedWindow.year, fixedWindow.month, fixedWindow.day, eventStart.hours, eventStart.minutes, eventStart.seconds, eventStart.nanos, offset)
+      val offsetDateTime =
+        OffsetDateTime.of(
+          fixedWindow.year,
+          fixedWindow.month,
+          fixedWindow.day,
+          eventStart.hours,
+          eventStart.minutes,
+          eventStart.seconds,
+          eventStart.nanos,
+          offset
+        )
       offsetDateTime.toInstant().toProtoTime()
     } else {
       val trailingWindow = reportSchedule.reportWindow.trailingWindow
       val windowEnd = OffsetDateTime.of(LocalDateTime.from(timestamp.toInstant()), offset)
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf case fields cannot be null.
       when (trailingWindow.increment) {
-        ReportWindow.TrailingWindow.Increment.DAY -> windowEnd.minusDays(trailingWindow.count.toLong()).toInstant().toProtoTime()
-        ReportWindow.TrailingWindow.Increment.WEEK -> windowEnd.minusWeeks(trailingWindow.count.toLong()).toInstant().toProtoTime()
-        ReportWindow.TrailingWindow.Increment.MONTH -> windowEnd.minusMonths(trailingWindow.count.toLong()).toInstant().toProtoTime()
+        ReportWindow.TrailingWindow.Increment.DAY ->
+          windowEnd.minusDays(trailingWindow.count.toLong()).toInstant().toProtoTime()
+        ReportWindow.TrailingWindow.Increment.WEEK ->
+          windowEnd.minusWeeks(trailingWindow.count.toLong()).toInstant().toProtoTime()
+        ReportWindow.TrailingWindow.Increment.MONTH ->
+          windowEnd.minusMonths(trailingWindow.count.toLong()).toInstant().toProtoTime()
         ReportWindow.TrailingWindow.Increment.INCREMENT_UNSPECIFIED,
-        ReportWindow.TrailingWindow.Increment.UNRECOGNIZED -> error("trailing_window missing increment")
+        ReportWindow.TrailingWindow.Increment.UNRECOGNIZED ->
+          error("trailing_window missing increment")
       }
     }
   } else {
     val id = ZoneId.of(eventStart.timeZone.id)
     if (reportSchedule.reportWindow.hasFixedWindow()) {
       val fixedWindow = reportSchedule.reportWindow.fixedWindow
-      val zonedDateTime = ZonedDateTime.of(fixedWindow.year, fixedWindow.month, fixedWindow.day, eventStart.hours, eventStart.minutes, eventStart.seconds, eventStart.nanos, id)
+      val zonedDateTime =
+        ZonedDateTime.of(
+          fixedWindow.year,
+          fixedWindow.month,
+          fixedWindow.day,
+          eventStart.hours,
+          eventStart.minutes,
+          eventStart.seconds,
+          eventStart.nanos,
+          id
+        )
       zonedDateTime.toInstant().toProtoTime()
     } else {
       val trailingWindow = reportSchedule.reportWindow.trailingWindow
       val windowEnd = ZonedDateTime.ofInstant(timestamp.toInstant(), id)
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf case fields cannot be null.
       when (trailingWindow.increment) {
-        ReportWindow.TrailingWindow.Increment.DAY -> windowEnd.minusDays(trailingWindow.count.toLong()).toInstant().toProtoTime()
-        ReportWindow.TrailingWindow.Increment.WEEK -> windowEnd.minusWeeks(trailingWindow.count.toLong()).toInstant().toProtoTime()
-        ReportWindow.TrailingWindow.Increment.MONTH -> windowEnd.minusMonths(trailingWindow.count.toLong()).toInstant().toProtoTime()
+        ReportWindow.TrailingWindow.Increment.DAY ->
+          windowEnd.minusDays(trailingWindow.count.toLong()).toInstant().toProtoTime()
+        ReportWindow.TrailingWindow.Increment.WEEK ->
+          windowEnd.minusWeeks(trailingWindow.count.toLong()).toInstant().toProtoTime()
+        ReportWindow.TrailingWindow.Increment.MONTH ->
+          windowEnd.minusMonths(trailingWindow.count.toLong()).toInstant().toProtoTime()
         ReportWindow.TrailingWindow.Increment.INCREMENT_UNSPECIFIED,
-        ReportWindow.TrailingWindow.Increment.UNRECOGNIZED -> error("trailing_window missing increment")
+        ReportWindow.TrailingWindow.Increment.UNRECOGNIZED ->
+          error("trailing_window missing increment")
       }
     }
   }
