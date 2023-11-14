@@ -32,7 +32,10 @@ kt_jvm_library(
 java_binary(
     name = "PanelMatchResourceSetupRunner",
     main_class = "org.wfanet.measurement.loadtest.panelmatchresourcesetup.PanelMatchResourceSetupRunnerKt",
-    runtime_deps = [":panelmatchresourcesetup"],
+    runtime_deps = [
+        ":panelmatchresourcesetup",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/logging",
+    ],
 )
 
 java_image(
