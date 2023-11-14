@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.api.v2alpha.tools
 
+import com.google.protobuf.TextFormat
 import io.grpc.ManagedChannel
 import java.io.File
 import java.time.Duration
@@ -63,13 +64,6 @@ private class Get : Runnable {
   private lateinit var target: String
 
   @CommandLine.Option(
-    names = ["--certificate-der-file"],
-    description = ["File containing format-specific key data"],
-    required = true
-  )
-  private lateinit var certificateDerFile: File
-
-  @CommandLine.Option(
     names = ["--kingdom-public-api-cert-host"],
     description =
       [
@@ -105,7 +99,7 @@ private class Get : Runnable {
     }
 
     println("Data Provider Resource: ${dataProvider.name}")
-
-    outFile.outputStream().use { signature.writeTo(it) }
+    outFile.createNewFile()
+    outFile.outputStream().use { dataProvider.writeTo(it) }
   }
 }
