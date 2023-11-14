@@ -73,7 +73,6 @@ private fun run(@CommandLine.Mixin flags: PanelMatchResourceSetupFlags) {
       .process(
         dataProviderContent = dataProviderContent,
         exchangeSchedule = SCHEDULE,
-        publicApiVersion = API_VERSION,
         exchangeWorkflow = exchangeWorkflow,
         exchangeDate = EXCHANGE_DATE.toProtoDate(),
       )
