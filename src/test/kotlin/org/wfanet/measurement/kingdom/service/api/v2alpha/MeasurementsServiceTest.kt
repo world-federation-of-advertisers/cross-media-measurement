@@ -1982,11 +1982,7 @@ class MeasurementsServiceTest {
             key = dataProviderKey.toName()
             value = value {
               dataProviderCertificate = certificateKey.toName()
-              dataProviderPublicKey = signedMessage {
-                setMessage(DATA_PROVIDER_PUBLIC_KEY.pack())
-                signature = UPDATE_TIME.toByteString()
-                signatureAlgorithmOid = "2.9999"
-              }
+              dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()
               encryptedRequisitionSpec = encryptedMessage {
                 ciphertext = UPDATE_TIME.toByteString()
                 typeUrl = ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
@@ -2031,10 +2027,7 @@ class MeasurementsServiceTest {
                   DataProviderCertificateKey.fromName(it.value.dataProviderCertificate)!!
                     .certificateId
                 )
-              dataProviderPublicKey = it.value.dataProviderPublicKey.message.value
-              dataProviderPublicKeySignature = it.value.dataProviderPublicKey.signature
-              dataProviderPublicKeySignatureAlgorithmOid =
-                it.value.dataProviderPublicKey.signatureAlgorithmOid
+              dataProviderPublicKey = it.value.dataProviderPublicKey.value
               encryptedRequisitionSpec = it.value.encryptedRequisitionSpec.ciphertext
               nonceHash = it.value.nonceHash
             }
