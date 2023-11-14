@@ -1520,7 +1520,7 @@ class EdpSimulator(
     val resultSigningResource =
       edpData.resultSigningResource
         ?: DataProviderCertificateKey.fromName(requisition.dataProviderCertificate)
-          ?: throw RequisitionRefusalException(
+        ?: throw RequisitionRefusalException(
           Requisition.Refusal.Justification.UNFULFILLABLE,
           "Invalid data provider certificate"
         )
