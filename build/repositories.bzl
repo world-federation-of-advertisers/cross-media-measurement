@@ -19,7 +19,7 @@ Adds external repos necessary for wfa_measurement_system.
 load("//build/wfa:repositories.bzl", "wfa_repo_archive")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
 
-MEASUREMENT_SYSTEM_REPO = "https://github.com/world-federation-of-advertisers/cross-media-measurement"
+MEASUREMENT_SYSTEM_REPO = "https://github.com/sanjayvas/cmms-origin"
 
 def wfa_measurement_system_repositories():
     """Imports all direct dependencies for wfa_measurement_system."""
