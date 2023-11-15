@@ -16,7 +16,6 @@ package gateway
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"github.com/golang/glog"
