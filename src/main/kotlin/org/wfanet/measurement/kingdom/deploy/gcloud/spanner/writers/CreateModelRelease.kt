@@ -52,6 +52,8 @@ class CreateModelRelease(private val modelRelease: ModelRelease) :
       set("ModelSuiteId" to modelSuiteData.getLong("ModelSuiteId"))
       set("ModelReleaseId" to internalModelReleaseId)
       set("ExternalModelReleaseId" to externalModelReleaseId)
+      set("PopulationDataProviderId" to modelRelease.externalDataProviderId)
+      set("PopulationId" to modelRelease.externalPopulationId)
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
     }
 

@@ -16,7 +16,9 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.gson.JsonParser
 import com.google.protobuf.Any
+import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
+import com.google.protobuf.timestamp
 import com.google.rpc.ErrorInfo
 import io.grpc.StatusRuntimeException
 import io.grpc.protobuf.StatusProto
@@ -57,6 +59,9 @@ import org.wfanet.measurement.internal.kingdom.ModelRelease
 import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelSuite
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.Population
+import org.wfanet.measurement.internal.kingdom.PopulationKt
+import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.account
@@ -67,6 +72,7 @@ import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.createMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
+import org.wfanet.measurement.internal.kingdom.eventTemplate
 import org.wfanet.measurement.internal.kingdom.generateOpenIdRequestParamsRequest
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.measurementConsumer
@@ -74,6 +80,7 @@ import org.wfanet.measurement.internal.kingdom.modelLine
 import org.wfanet.measurement.internal.kingdom.modelProvider
 import org.wfanet.measurement.internal.kingdom.modelRelease
 import org.wfanet.measurement.internal.kingdom.modelSuite
+import org.wfanet.measurement.internal.kingdom.population
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 
@@ -210,6 +217,36 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
       externalModelSuiteId = modelSuite.externalModelSuiteId
     }
     return modelReleasesService.createModelRelease(modelRelease)
+  }
+
+  suspend fun createPopulation(
+    dataProvidersService: DataProvidersCoroutineImplBase,
+    populationsService: PopulationsGrpcKt.PopulationsCoroutineImplBase
+  ): Population {
+    val DATA_PROVIDER = dataProvider {
+      certificate {
+        notValidBefore = timestamp { seconds = 12345 }
+        notValidAfter = timestamp { seconds = 23456 }
+        details =
+          CertificateKt.details { x509Der = ByteString.copyFromUtf8("This is a certificate der.") }
+      }
+      details =
+        DataProviderKt.details {
+          apiVersion = "v2alpha"
+          publicKey = ByteString.copyFromUtf8("This is a  public key.")
+          publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
+        }
+    }
+    val dataProvider = dataProvidersService.createDataProvider(DATA_PROVIDER)
+    val population = populationsService.createPopulation(
+      population {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        description = "DESCRIPTION"
+        populationBlob = PopulationKt.populationBlob { modelBlobUri = "BLOB_URI" }
+        eventTemplate = eventTemplate { fullyQualifiedType = "TYPE" }
+      }
+    )
+    return population
   }
 
   suspend fun createModelLine(
