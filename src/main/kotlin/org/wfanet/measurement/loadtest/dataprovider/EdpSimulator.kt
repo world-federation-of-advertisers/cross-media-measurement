@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import org.apache.commons.math3.distribution.ConstantRealDistribution
+import org.halo_cmm.uk.pilot.Event
 import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
 import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
@@ -86,7 +87,6 @@ import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.customDirectMethodology
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
@@ -1520,7 +1520,7 @@ class EdpSimulator(
     private const val RPC_CHUNK_SIZE_BYTES = 32 * 1024 // 32 KiB
 
     private val EVENT_TEMPLATE_TYPES: List<Descriptors.Descriptor> =
-      TestEvent.getDescriptor()
+      Event.getDescriptor()
         .fields
         .filter { it.type == Descriptors.FieldDescriptor.Type.MESSAGE }
         .map { it.messageType }
