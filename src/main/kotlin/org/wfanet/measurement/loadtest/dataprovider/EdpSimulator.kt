@@ -738,7 +738,7 @@ class EdpSimulator(
         }
 
       if (!eventGroup.eventGroupReferenceId.startsWith(SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX)) {
-        throw InvalidSpecException("EventGroup ${it.key} not supported by this simulator")
+        logger.warning { "EventGroup ${it.key} may not be supported by this simulator" }
       }
 
       EventQuery.EventGroupSpec(eventGroup, it.value)
