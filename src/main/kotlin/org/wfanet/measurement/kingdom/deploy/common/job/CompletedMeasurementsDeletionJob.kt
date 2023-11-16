@@ -23,7 +23,7 @@ import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
 import io.opentelemetry.sdk.resources.Resource
-import io.opentelemetry.semconv.resource.attributes.ResourceAttributes
+import io.opentelemetry.semconv.ResourceAttributes
 import java.time.Clock
 import java.time.Duration
 import kotlin.properties.Delegates
