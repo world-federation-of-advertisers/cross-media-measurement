@@ -7,6 +7,7 @@ java_binary(
     main_class = "org.wfanet.measurement.gcloud.spanner.tools.UpdateSchema",
     resources = ["//src/main/resources/duchy/spanner"],
     runtime_deps = [
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/logging",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/tools:update_schema",
     ],
 )

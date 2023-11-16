@@ -21,7 +21,10 @@ kt_jvm_library(
 java_binary(
     name = "GCloudPostgresReportingDataServer",
     main_class = "org.wfanet.measurement.reporting.deploy.gcloud.postgres.server.GCloudPostgresReportingDataServerKt",
-    runtime_deps = [":gcloud_postgres_reporting_data_server"],
+    runtime_deps = [
+        ":gcloud_postgres_reporting_data_server",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/logging",
+    ],
 )
 
 java_image(

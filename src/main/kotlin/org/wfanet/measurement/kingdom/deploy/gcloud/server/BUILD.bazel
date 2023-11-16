@@ -17,7 +17,10 @@ kt_jvm_library(
 java_binary(
     name = "SpannerKingdomDataServer",
     main_class = "org.wfanet.measurement.kingdom.deploy.gcloud.server.SpannerKingdomDataServerKt",
-    runtime_deps = [":spanner_kingdom_data_server"],
+    runtime_deps = [
+        ":spanner_kingdom_data_server",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/logging",
+    ],
 )
 
 java_image(

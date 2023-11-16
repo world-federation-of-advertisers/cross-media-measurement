@@ -1,6 +1,6 @@
 load("@rules_java//java:defs.bzl", "java_binary")
 load("@wfa_common_jvm//build/rules_kotlin:defs.bzl", "kt_jvm_library")
-load("@io_bazel_rules_docker//java:image.bzl", "java_image")
+load("//src/main/docker:macros.bzl", "java_image")
 
 kt_jvm_library(
     name = "completed_measurements_deletion_job",
@@ -26,14 +26,17 @@ kt_jvm_library(
 java_binary(
     name = "CompletedMeasurementsDeletionJob",
     main_class = "org.wfanet.measurement.kingdom.deploy.common.job.CompletedMeasurementsDeletionJob",
-    runtime_deps = [":completed_measurements_deletion_job"],
+    runtime_deps = [
+        ":completed_measurements_deletion_job",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/logging",
+    ],
 )
 
 java_image(
     name = "completed_measurements_deletion_image",
+    binary = ":CompletedMeasurementsDeletionJob",
     main_class = "org.wfanet.measurement.kingdom.deploy.common.job.CompletedMeasurementsDeletionJob",
     visibility = ["//src:docker_image_deployment"],
-    runtime_deps = [":completed_measurements_deletion_job"],
 )
 
 kt_jvm_library(
@@ -60,14 +63,17 @@ kt_jvm_library(
 java_binary(
     name = "PendingMeasurementsCancellationJob",
     main_class = "org.wfanet.measurement.kingdom.deploy.common.job.PendingMeasurementsCancellationJobKt",
-    runtime_deps = [":pending_measurements_cancellation_job"],
+    runtime_deps = [
+        ":pending_measurements_cancellation_job",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/logging",
+    ],
 )
 
 java_image(
     name = "pending_measurements_cancellation_image",
+    binary = ":PendingMeasurementsCancellationJob",
     main_class = "org.wfanet.measurement.kingdom.deploy.common.job.PendingMeasurementsCancellationJobKt",
     visibility = ["//src:docker_image_deployment"],
-    runtime_deps = [":pending_measurements_cancellation_job"],
 )
 
 kt_jvm_library(
@@ -94,12 +100,15 @@ kt_jvm_library(
 java_binary(
     name = "ExchangesDeletionJob",
     main_class = "org.wfanet.measurement.kingdom.deploy.common.job.ExchangesDeletionJobKt",
-    runtime_deps = [":exchanges_deletion_job"],
+    runtime_deps = [
+        ":exchanges_deletion_job",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/logging",
+    ],
 )
 
 java_image(
     name = "exchanges_deletion_image",
+    binary = ":ExchangesDeletionJob",
     main_class = "org.wfanet.measurement.kingdom.deploy.common.job.ExchangesDeletionJobKt",
     visibility = ["//src:docker_image_deployment"],
-    runtime_deps = [":exchanges_deletion_job"],
 )

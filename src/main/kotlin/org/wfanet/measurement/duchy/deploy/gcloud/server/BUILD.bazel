@@ -18,7 +18,10 @@ kt_jvm_library(
 java_binary(
     name = "GcsComputationControlServer",
     main_class = "org.wfanet.measurement.duchy.deploy.gcloud.server.GcsComputationControlServerKt",
-    runtime_deps = [":gcs_computation_control_server"],
+    runtime_deps = [
+        ":gcs_computation_control_server",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/logging",
+    ],
 )
 
 java_image(
@@ -74,7 +77,10 @@ kt_jvm_library(
 java_binary(
     name = "GcsSpannerComputationServer",
     main_class = "org.wfanet.measurement.duchy.deploy.gcloud.server.GcsSpannerComputationsServerKt",
-    runtime_deps = [":gcs_spanner_computations_server"],
+    runtime_deps = [
+        ":gcs_spanner_computations_server",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/logging",
+    ],
 )
 
 java_image(
@@ -98,7 +104,10 @@ kt_jvm_library(
 java_binary(
     name = "GcsRequisitionFulfillmentServer",
     main_class = "org.wfanet.measurement.duchy.deploy.gcloud.server.GcsRequisitionFulfillmentServerKt",
-    runtime_deps = [":gcs_requisition_fulfillment_server"],
+    runtime_deps = [
+        ":gcs_requisition_fulfillment_server",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/logging",
+    ],
 )
 
 java_image(
@@ -128,7 +137,10 @@ kt_jvm_library(
 java_binary(
     name = "GcsPostgresDuchyDataServer",
     main_class = "org.wfanet.measurement.duchy.deploy.gcloud.server.GcsPostgresDuchyDataServerKt",
-    runtime_deps = [":gcs_postgres_duchy_data_server"],
+    runtime_deps = [
+        ":gcs_postgres_duchy_data_server",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/logging",
+    ],
 )
 
 java_image(

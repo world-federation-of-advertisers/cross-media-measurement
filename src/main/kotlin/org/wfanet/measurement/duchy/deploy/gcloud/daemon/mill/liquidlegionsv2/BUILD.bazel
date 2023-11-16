@@ -28,7 +28,10 @@ kt_jvm_library(
 java_binary(
     name = "GcsLiquidLegionsV2MillDaemon",
     main_class = "org.wfanet.measurement.duchy.deploy.gcloud.daemon.mill.liquidlegionsv2.GcsLiquidLegionsV2MillDaemonKt",
-    runtime_deps = [":gcs_liquid_legions_v2_mill_daemon"],
+    runtime_deps = [
+        ":gcs_liquid_legions_v2_mill_daemon",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/logging",
+    ],
 )
 
 java_image(

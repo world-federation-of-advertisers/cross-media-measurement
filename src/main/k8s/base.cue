@@ -203,6 +203,16 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	]
 }
 
+// K8s ConfigMap.
+#ConfigMap: {
+	apiVersion: "v1"
+	kind:       "ConfigMap"
+	metadata:   #ObjectMeta
+
+	data: [string]: string
+	immutable?: bool
+}
+
 // K8s KeyToPath
 #KeyToPath: {
 	key:  string
@@ -362,6 +372,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		name: Name
 	}
 	_initContainers: [Name=string]: #Container & {
+		_volumeMounts: {for name, mount in _mounts {"\(name)": mount.volumeMount}}
 		name: Name
 	}
 	_tolerations: [Key=string]: #Toleration & {

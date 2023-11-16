@@ -64,7 +64,10 @@ kt_jvm_library(
 java_binary(
     name = "V2AlphaPublicApiServer",
     main_class = "org.wfanet.measurement.reporting.deploy.v2.common.server.V2AlphaPublicApiServerKt",
-    runtime_deps = [":v2alpha_public_api_server"],
+    runtime_deps = [
+        ":v2alpha_public_api_server",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/logging",
+    ],
 )
 
 java_image(
