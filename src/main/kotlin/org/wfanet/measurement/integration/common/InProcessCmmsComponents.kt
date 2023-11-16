@@ -88,15 +88,13 @@ class InProcessCmmsComponents(
       val dataProviderCertificateKey =
         DataProviderCertificateKey.fromName(resource.dataProvider.certificate)!!
       validCertificates[dataProviderCertificateKey] = edpContent.signingKey
+      println("*****")
+      println("ac:" + resource.dataProvider.resultCertificate)
       val resultSigningCertificateKey =
-        if (resource.dataProvider.resultCertificate.isNotEmpty()) {
-          val separateResultSigningCertificateKey =
-            DataProviderCertificateKey.fromName(resource.dataProvider.resultCertificate)!!
-          validCertificates[separateResultSigningCertificateKey] = edpContent.resultSigningKey!!
-          separateResultSigningCertificateKey
-        } else {
-          null
-        }
+        DataProviderCertificateKey.fromName(resource.dataProvider.resultCertificate)!!
+      if (dataProviderCertificateKey != resultSigningCertificateKey) {
+        validCertificates[resultSigningCertificateKey] = edpContent.resultSigningKey!!
+      }
       InProcessEdpSimulator(
         displayName = displayName,
         resourceName = resource.name,
@@ -175,21 +173,24 @@ class InProcessCmmsComponents(
           dataProvider =
             ResourceKt.dataProvider {
               certificate = externalDataProviderCertificateKeyName
-              if (edp.resultSigningKey != null) {
-                val externalResultCertificateId =
-                  resourceSetup.createDataProviderCertificate(
-                    externalDataProviderId = internalDataProvider.externalDataProviderId,
-                    consentSignalCertificateDer =
-                      edp.resultSigningKey!!.certificate.encoded.toByteString(),
-                  )
-                val externalResultCertificateKeyName =
-                  DataProviderCertificateKey(
-                      externalDataProviderId,
-                      externalIdToApiId(externalResultCertificateId)
+              resultCertificate =
+                if (edp.resultSigningKey != null) {
+                  val externalResultCertificateId =
+                    resourceSetup.createDataProviderCertificate(
+                      externalDataProviderId = internalDataProvider.externalDataProviderId,
+                      consentSignalCertificateDer =
+                        edp.resultSigningKey!!.certificate.encoded.toByteString(),
                     )
-                    .toName()
-                resultCertificate = externalResultCertificateKeyName
-              }
+                  val externalResultCertificateKeyName =
+                    DataProviderCertificateKey(
+                        externalDataProviderId,
+                        externalIdToApiId(externalResultCertificateId)
+                      )
+                      .toName()
+                  externalResultCertificateKeyName
+                } else {
+                  externalDataProviderCertificateKeyName
+                }
             }
         }
       }

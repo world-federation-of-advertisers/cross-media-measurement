@@ -59,7 +59,7 @@ class InProcessEdpSimulator(
   val displayName: String,
   resourceName: String,
   private val validCertificates: Map<DataProviderCertificateKey, SigningKeyHandle>,
-  private val resultSigningCertificateKey: DataProviderCertificateKey?,
+  private val resultSigningCertificateKey: DataProviderCertificateKey,
   private val encryptionKey: PrivateKeyHandle,
   mcResourceName: String,
   kingdomPublicApiChannel: Channel,

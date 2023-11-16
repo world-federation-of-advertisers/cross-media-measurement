@@ -27,6 +27,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.Measurement
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
@@ -73,14 +74,22 @@ abstract class EdpSimulatorRunner : Runnable {
       loadSigningKey(flags.edpCsCertificateDerFile, flags.edpCsPrivateKeyDerFile)
     val dataProviderCertificateKey =
       DataProviderCertificateKey.fromName(flags.dataProviderCertificateResourceName)!!
-    val signingCertMap = mapOf(dataProviderCertificateKey to signingKeyHandle)
+    val validCertificates = mutableMapOf<DataProviderCertificateKey, SigningKeyHandle>()
+    validCertificates[dataProviderCertificateKey] = signingKeyHandle
+    val resultCertificateKey =
+      DataProviderCertificateKey.fromName(flags.dataProviderResultCertificateResourceName)!!
+    if (dataProviderCertificateKey != resultCertificateKey) {
+      val resultSigningKeyHandle =
+        loadSigningKey(flags.edpResultCertificateDerFile, flags.edpResultPrivateKeyDerFile)
+      validCertificates[resultCertificateKey] = resultSigningKeyHandle
+    }
     val edpData =
       EdpData(
         flags.dataProviderResourceName,
         flags.dataProviderDisplayName,
         loadPrivateKey(flags.edpEncryptionPrivateKeyset),
-        signingCertMap,
-        dataProviderCertificateKey
+        validCertificates,
+        resultCertificateKey,
       )
 
     val randomSeed = flags.randomSeed

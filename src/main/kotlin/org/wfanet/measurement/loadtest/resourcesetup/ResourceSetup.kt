@@ -160,7 +160,7 @@ class ResourceSetup(
             ResourcesKt.ResourceKt.dataProvider {
               displayName = it.displayName
               certificate = externalDataProviderCertificateKeyName
-              if (it.resultSigningKey != null) {
+              resultCertificate = if (it.resultSigningKey != null) {
                 val externalResultCertificateId =
                   externalIdToApiId(
                     createDataProviderCertificate(
@@ -173,7 +173,9 @@ class ResourceSetup(
                   DataProviderCertificateKey(externalDataProviderId, externalResultCertificateId)
                     .toName()
                 logger.info("Successfully created certificate: $externalResultCertificateKeyName")
-                resultCertificate = externalResultCertificateKeyName
+                externalResultCertificateKeyName
+              } else {
+                externalDataProviderCertificateKeyName
               }
               // Assume signing cert uses same issuer as TLS client cert.
               authorityKeyIdentifier =
@@ -239,7 +241,10 @@ class ResourceSetup(
             val displayName = resource.dataProvider.displayName
             writer.appendLine("build:$configName --define=${displayName}_name=${resource.name}")
             writer.appendLine(
-              "build:$configName --define=${displayName}_cert_name=${resource.dataProvider.resultCertificate?:resource.dataProvider.certificate}"
+              "build:$configName --define=${displayName}_cert_name=${resource.dataProvider.certificate}"
+            )
+            writer.appendLine(
+              "build:$configName --define=${displayName}_result_cert_name=${resource.dataProvider.resultCertificate}"
             )
           }
           Resources.Resource.ResourceCase.MEASUREMENT_CONSUMER -> {

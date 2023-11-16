@@ -1628,7 +1628,7 @@ class EdpSimulatorTest {
     }
     val simulator =
       EdpSimulator(
-        EDP_DATA.copy(resultSigningCertificateKey = null),
+        EDP_DATA,
         MC_NAME,
         measurementConsumersStub,
         certificatesStub,

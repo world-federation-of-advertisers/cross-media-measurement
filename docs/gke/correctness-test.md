@@ -193,16 +193,22 @@ Run the following, substituting your own values:
     --define=mc_name=measurementConsumers/TGWOaWehLQ8 \
     --define=edp1_name=dataProviders/HRL1wWehTSM \
     --define=edp1_cert_name=dataProviders/HRL1wWehTSM/certificates/HRL1wWehTSM \
+    --define=edp1_result_cert_name= dataProviders/HRL1wWehTSM/certificates/HRL1wWehTSM \
     --define=edp2_name=dataProviders/djQdz2ehSSE \
     --define=edp2_cert_name=dataProviders/djQdz2ehSSE/certificates/djQdz2ehSSE \
+    --define=edp2_result_cert_name=dataProviders/djQdz2ehSSE/certificates/djQdz2ehSSE \
     --define=edp3_name=dataProviders/SQ99TmehSA8 \
     --define=edp3_cert_name=dataProviders/SQ99TmehSA8/certificates/SQ99TmehSA8 \
+    --define=edp3_result_cert_name=dataProviders/SQ99TmehSA8/certificates/SQ99TmehSA8 \
     --define=edp4_name=dataProviders/TBZkB5heuL0 \
     --define=edp4_cert_name=dataProviders/TBZkB5heuL0/certificates/TBZkB5heuL0 \
+    --define=edp4_result_cert_name=dataProviders/TBZkB5heuL0/certificates/TBZkB5heuL0 \
     --define=edp5_name=dataProviders/HOCBxZheuS8 \
     --define=edp5_cert_name=dataProviders/HOCBxZheuS8/certificates/HOCBxZheuS8 \
+    --define=edp5_result_cert_name=dataProviders/HOCBxZheuS8/certificates/HOCBxZheuS8 \
     --define=edp6_name=dataProviders/VGExFmehRhY \
     --define=edp6_cert_name=dataProviders/VGExFmehRhY/certificates/VGExFmehRhY \
+    --define=edp6_result_cert_name=dataProviders/VGExFmehRhY/certificates/VGExFmehRhY \
     --define container_registry=gcr.io \
     --define image_repo_prefix=halo-cmm-demo --define image_tag=build-0001
     ```
@@ -220,16 +226,22 @@ Run the following, substituting your own values:
       --define=mc_name=measurementConsumers/TGWOaWehLQ8 \
       --define=edp1_name=dataProviders/HRL1wWehTSM \
       --define=edp1_cert_name=dataProviders/HRL1wWehTSM/certificates/HRL1wWehTSM \
+      --define=edp1_result_cert_name= \
       --define=edp2_name=dataProviders/djQdz2ehSSE \
       --define=edp2_cert_name=dataProviders/djQdz2ehSSE/certificates/djQdz2ehSSE \
+      --define=edp2_result_cert_name=dataProviders/djQdz2ehSSE/certificates/djQdz2ehSSE \
       --define=edp3_name=dataProviders/SQ99TmehSA8 \
       --define=edp3_cert_name=dataProviders/SQ99TmehSA8/certificates/SQ99TmehSA8 \
+      --define=edp3_result_cert_name=dataProviders/SQ99TmehSA8/certificates/SQ99TmehSA8 \
       --define=edp4_name=dataProviders/TBZkB5heuL0 \
       --define=edp4_cert_name=dataProviders/TBZkB5heuL0/certificates/TBZkB5heuL0 \
+      --define=edp4_result_cert_name=dataProviders/TBZkB5heuL0/certificates/TBZkB5heuL0 \
       --define=edp5_name=dataProviders/HOCBxZheuS8 \
       --define=edp5_cert_name=dataProviders/HOCBxZheuS8/certificates/HOCBxZheuS8 \
+      --define=edp5_result_cert_name=dataProviders/HOCBxZheuS8/certificates/HOCBxZheuS8 \
       --define=edp6_name=dataProviders/VGExFmehRhY \
       --define=edp6_cert_name=dataProviders/VGExFmehRhY/certificates/VGExFmehRhY \
+      --define=edp6_result_cert_name=dataProviders/VGExFmehRhY/certificates/VGExFmehRhY \
       --define container_registry=gcr.io \
       --define=google_cloud_project=halo-cmm-demo \
       --define=bigquery_dataset=demo \
