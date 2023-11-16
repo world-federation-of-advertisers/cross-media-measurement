@@ -87,7 +87,8 @@ val ALL_DUCHIES =
     )
   }
 val ALL_EDP_DISPLAY_NAMES = listOf("edp1", "edp2", "edp3")
-private val EDPS_WITH_SEPARATE_RESULT_SIGNING_KEYS = listOf("edp1")
+private val EDPS_WITH_SEPARATE_RESULT_SIGNING_KEYS =
+  listOf("edp1", "edp2", "edp3", "edp4", "edp5", "edp6")
 const val DUCHY_MILL_PARALLELISM = 3
 
 const val MC_DISPLAY_NAME = "mc"
