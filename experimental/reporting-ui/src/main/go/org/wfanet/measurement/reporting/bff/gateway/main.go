@@ -27,10 +27,10 @@ import (
 )
 
 var (
-	tlsCertPath    = flag.String("tls_cert", "", "file location of the gRPC service cert")
-	tlsKeyPath    = flag.String("tls_key", "", "file location of the gRPC service key")
-	port       = flag.String("port", "8080", "port number for the gateway service")
-	endpoint   = flag.String("endpoint", "localhost:8443", "endpoint of the gRPC service")
+	tlsCertPath = flag.String("tls_cert", "", "file location of the gRPC service cert")
+	tlsKeyPath  = flag.String("tls_key", "", "file location of the gRPC service key")
+	port        = flag.String("port", "8080", "port number for the gateway service")
+	endpoint    = flag.String("endpoint", "localhost:8443", "endpoint of the gRPC service")
 )
 
 func main() {
@@ -41,10 +41,10 @@ func main() {
 	opts := gateway.Options{
 		Addr: ":" + *port,
 		GRPCServer: gateway.Endpoint{
-			Addr:    *endpoint,
+			Addr: *endpoint,
 		},
 		TlsCertPath: *tlsCertPath,
-		TlsKeyPath: *tlsKeyPath,
+		TlsKeyPath:  *tlsKeyPath,
 	}
 	if err := gateway.Run(ctx, opts); err != nil {
 		glog.Fatal(err)
