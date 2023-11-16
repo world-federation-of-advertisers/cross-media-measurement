@@ -229,7 +229,10 @@ kt_jvm_library(
 java_binary(
     name = "CsvEdpSimulatorRunner",
     main_class = "org.wfanet.measurement.loadtest.dataprovider.CsvEdpSimulatorRunnerKt",
-    runtime_deps = [":csv_edp_simulator_runner"],
+    runtime_deps = [
+        ":csv_edp_simulator_runner",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/logging",
+    ],
 )
 
 java_image(
@@ -257,7 +260,10 @@ kt_jvm_library(
 java_binary(
     name = "BigQueryEdpSimulatorRunner",
     main_class = "org.wfanet.measurement.loadtest.dataprovider.BigQueryEdpSimulatorRunnerKt",
-    runtime_deps = [":bigquery_edp_simulator_runner"],
+    runtime_deps = [
+        ":bigquery_edp_simulator_runner",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/logging",
+    ],
 )
 
 java_image(
@@ -282,7 +288,10 @@ kt_jvm_library(
 java_binary(
     name = "SyntheticGeneratorEdpSimulatorRunner",
     main_class = "org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEdpSimulatorRunnerKt",
-    runtime_deps = [":synthetic_generator_edp_simulator_runner"],
+    runtime_deps = [
+        ":synthetic_generator_edp_simulator_runner",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/logging",
+    ],
 )
 
 java_image(

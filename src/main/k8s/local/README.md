@@ -215,13 +215,13 @@ This depends on [cert-manager](https://github.com/cert-manager/cert-manager) so
 we install that first:
 
 ```shell
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.11.0/cert-manager.yaml
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.2/cert-manager.yaml
 ```
 
 Once that is installed, then install the Operator:
 
 ```shell
-kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/latest/download/opentelemetry-operator.yaml
+kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/download/v0.88.0/opentelemetry-operator.yaml
 ```
 
 ### Deploy OpenTelemetry Resources

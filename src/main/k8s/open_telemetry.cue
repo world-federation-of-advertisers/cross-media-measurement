@@ -27,7 +27,7 @@ import "encoding/yaml"
 	}
 	spec: {
 		mode:             *"deployment" | "sidecar"
-		image:            string | *"docker.io/otel/opentelemetry-collector-contrib:0.77.0"
+		image:            string | *"ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.88.0"
 		imagePullPolicy?: "IfNotPresent" | "Always" | "Never"
 		config:           string
 		nodeSelector?: {...}
@@ -121,7 +121,7 @@ import "encoding/yaml"
 						value: "30000"
 					},
 				]
-				java: image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:1.26.0"
+				java: image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:1.31.0"
 			}
 		}
 	}

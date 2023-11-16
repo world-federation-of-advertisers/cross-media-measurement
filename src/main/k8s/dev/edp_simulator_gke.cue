@@ -41,7 +41,8 @@ _kingdomPublicApiTarget: string @tag("kingdom_public_api_target")
 _duchyPublicApiTarget:   string @tag("duchy_public_api_target")
 
 objectSets: [
-	for edp in edp_simulators {edp.serviceAccounts},
+	serviceAccounts,
+	configMaps,
 	for edp in edp_simulators {[edp.deployment]},
 	for edp in edp_simulators {edp.networkPolicies},
 ]
@@ -74,3 +75,12 @@ edp_simulators: {
 		}
 	}
 }
+
+serviceAccounts: [Name=string]: #ServiceAccount & {
+	metadata: name: Name
+}
+
+configMaps: [Name=string]: #ConfigMap & {
+	metadata: name: Name
+}
+configMaps: "java": #JavaConfigMap

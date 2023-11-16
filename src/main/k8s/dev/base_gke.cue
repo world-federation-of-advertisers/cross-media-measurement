@@ -80,6 +80,29 @@ package k8s
 }
 
 #JavaOptions: {
-	initialHeapSize: _ | *"64M"
-	maxHeapSize:     _ | *"64M"
+	initialHeapSize:   _ | *"64M"
+	maxHeapSize:       _ | *"64M"
+	loggingConfigFile: "/etc/java/logging.properties"
+}
+
+#JavaConfigMap: #ConfigMap & {
+	metadata: name: "java"
+	data: "logging.properties":
+		"""
+			.level = INFO
+			
+			io.grpc.netty.level=INFO
+			sun.net.level=INFO
+			
+			handlers = java.util.logging.ConsoleHandler
+			java.util.logging.ConsoleHandler.level = INFO
+			java.util.logging.ConsoleHandler.formatter = org.wfanet.measurement.gcloud.logging.StructuredLoggingFormatter
+			"""
+}
+
+#PodSpec: {
+	_mounts: "java-config": {
+		volume: configMap: name: "\(#JavaConfigMap.metadata.name)"
+		volumeMount: mountPath: "/etc/java"
+	}
 }
