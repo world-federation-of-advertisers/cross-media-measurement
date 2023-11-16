@@ -34,6 +34,7 @@ message Resources {
       bytes authority_key_identifier = 1;
       string display_name = 2;
       string certificate = 3;
+      string result_certificate = 4;
     }
     message DuchyCertificate {
       string duchy_id = 1;

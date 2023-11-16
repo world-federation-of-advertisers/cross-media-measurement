@@ -38,10 +38,18 @@ exec $BAZEL_BIN/src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup/Re
 --edp-consent-signaling-key-der-files=edp4=src/main/k8s/testing/secretfiles/edp4_cs_private.der \
 --edp-consent-signaling-key-der-files=edp5=src/main/k8s/testing/secretfiles/edp5_cs_private.der \
 --edp-consent-signaling-key-der-files=edp6=src/main/k8s/testing/secretfiles/edp6_cs_private.der \
+--edp-result-signing-cert-der-files=edp1=src/main/k8s/testing/secretfiles/edp1_result_cs_cert.der \
+--edp-result-signing-key-der-files=edp1=src/main/k8s/testing/secretfiles/edp1_result_cs_private.der \
 --edp-encryption-public-keysets=edp1=src/main/k8s/testing/secretfiles/edp1_enc_public.tink \
 --edp-encryption-public-keysets=edp2=src/main/k8s/testing/secretfiles/edp2_enc_public.tink \
 --edp-encryption-public-keysets=edp3=src/main/k8s/testing/secretfiles/edp3_enc_public.tink \
 --edp-encryption-public-keysets=edp4=src/main/k8s/testing/secretfiles/edp4_enc_public.tink \
 --edp-encryption-public-keysets=edp5=src/main/k8s/testing/secretfiles/edp5_enc_public.tink \
 --edp-encryption-public-keysets=edp6=src/main/k8s/testing/secretfiles/edp6_enc_public.tink \
+--edp-encryption-private-keysets=edp1=src/main/k8s/testing/secretfiles/edp1_enc_private.tink \
+--edp-encryption-private-keysets=edp2=src/main/k8s/testing/secretfiles/edp2_enc_private.tink \
+--edp-encryption-private-keysets=edp3=src/main/k8s/testing/secretfiles/edp3_enc_private.tink \
+--edp-encryption-private-keysets=edp4=src/main/k8s/testing/secretfiles/edp4_enc_private.tink \
+--edp-encryption-private-keysets=edp5=src/main/k8s/testing/secretfiles/edp5_enc_private.tink \
+--edp-encryption-private-keysets=edp6=src/main/k8s/testing/secretfiles/edp6_enc_private.tink \
 "$@"

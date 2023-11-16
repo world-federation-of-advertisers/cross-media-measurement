@@ -986,6 +986,18 @@ private class DataProviders {
       "Data Provider ${outputDataProvider.name} duchy list replaced with ${outputDataProvider.requiredDuchiesList}"
     )
   }
+
+  @Command(name = "get", description = ["gets a DataProvider"])
+  fun getDataProvider(
+    @Option(names = ["--out", "-o"], description = ["Output file"], required = true) outFile: File,
+  ) {
+      val dataProvider = runBlocking {
+        dataProviderStub.getDataProvider(getDataProviderRequest { name = dataProviderName })
+      }
+      println("Data Provider Resource: ${dataProvider.name}")
+      outFile.createNewFile()
+      outFile.outputStream().use { dataProvider.writeTo(it) }
+  }
 }
 
 @Command(

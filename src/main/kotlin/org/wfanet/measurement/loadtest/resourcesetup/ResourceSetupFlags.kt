@@ -58,11 +58,37 @@ class ResourceSetupFlags {
     private set
 
   @CommandLine.Option(
+    names = ["--edp-result-signing-cert-der-files"],
+    description =
+    ["The map from EDP display name to its result signing cert (DER format) file."],
+    required = false
+  )
+  lateinit var edpResultSigningCertDerFiles: Map<String, File>
+    private set
+
+  @CommandLine.Option(
+    names = ["--edp-result-signing-key-der-files"],
+    description =
+    ["The map from EDP display name to its result signing private key (DER format) file."],
+    required = false
+  )
+  lateinit var edpResultSigningKeyDerFiles: Map<String, File>
+    private set
+
+  @CommandLine.Option(
     names = ["--edp-encryption-public-keysets"],
     description = ["The map from EDP display name to its encryption public key Tink Keyset file."],
     required = true
   )
   lateinit var edpEncryptionPublicKeysets: Map<String, File>
+    private set
+
+  @CommandLine.Option(
+    names = ["--edp-encryption-private-keysets"],
+    description = ["The map from EDP display name to its encryption private key Tink Keyset file."],
+    required = false
+  )
+  lateinit var edpEncryptionPrivateKeysets: Map<String, File>
     private set
 
   @CommandLine.Option(

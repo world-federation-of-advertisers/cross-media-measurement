@@ -7,27 +7,6 @@ package(
 )
 
 kt_jvm_library(
-    name = "data_providers",
-    srcs = ["DataProviders.kt"],
-    deps = [
-        "//src/main/proto/wfa/measurement/api/v2alpha:crypto_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_kt_jvm_grpc_proto",
-        "@wfa_common_jvm//imports/java/picocli",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_key_storage",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
-    ],
-)
-
-java_binary(
-    name = "DataProviders",
-    main_class = "org.wfanet.measurement.api.v2alpha.tools.DataProviders",
-    visibility = ["//visibility:public"],
-    runtime_deps = [":data_providers"],
-)
-
-kt_jvm_library(
     name = "encryption_public_keys",
     srcs = ["EncryptionPublicKeys.kt"],
     deps = [
@@ -43,37 +22,6 @@ java_binary(
     main_class = "org.wfanet.measurement.api.v2alpha.tools.EncryptionPublicKeys",
     visibility = ["//visibility:public"],
     runtime_deps = [":encryption_public_keys"],
-)
-
-kt_jvm_library(
-    name = "certificate_registrar",
-    srcs = ["CertificateRegistrar.kt"],
-    visibility = ["//visibility:public"],
-    deps = [
-        "//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_grpc_proto",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_key_storage",
-    ],
-)
-
-kt_jvm_library(
-    name = "certificates",
-    srcs = ["Certificates.kt"],
-    deps = [
-        ":certificate_registrar",
-        "//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:crypto_kt_jvm_proto",
-        "@wfa_common_jvm//imports/java/picocli",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
-    ],
-)
-
-java_binary(
-    name = "Certificates",
-    main_class = "org.wfanet.measurement.api.v2alpha.tools.Certificates",
-    visibility = ["//visibility:public"],
-    runtime_deps = [":certificates"],
 )
 
 kt_jvm_library(

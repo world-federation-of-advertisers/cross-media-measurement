@@ -147,12 +147,12 @@ data class EdpData(
   /** The EDP's consent signaling encryption key. */
   val encryptionKey: PrivateKeyHandle,
   /** The EDP's registered certificates. */
-  val registeredCertificates: Map<DataProviderCertificateKey, SigningKeyHandle>,
+  val validCertificates: Map<DataProviderCertificateKey, SigningKeyHandle>,
   /**
    * The CertificateKey to use for result signing. If not specified, the data provider certificate
    * name from the requisition will be used.
    */
-  val resultSigningResource: DataProviderCertificateKey?
+  val resultSigningCertificateKey: DataProviderCertificateKey?
 )
 
 /** A simulator handling EDP businesses. */
@@ -376,8 +376,9 @@ class EdpSimulator(
 
     val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
 
-    // TODO: A real EDP should verify the signed `data_provider_public_key`.
-    // TODO: A real EDP should map the `data_provider_public_key` to a known private key for
+    // A real EDP should verify the signed `data_provider_public_key`. Note: This will not be needed
+    // after PR187 is merged to the public API.
+    // A real EDP should map the `data_provider_public_key` to a known private key for
     // decryption.
     val signedRequisitionSpec: SignedMessage =
       try {
@@ -1515,19 +1516,20 @@ class EdpSimulator(
     nonce: Long,
     measurementResult: Measurement.Result
   ) {
-    val resultSigningResource =
-      edpData.resultSigningResource
-        ?: DataProviderCertificateKey.fromName(requisition.dataProviderCertificate)
+    val requisitionCertificateKey =
+      DataProviderCertificateKey.fromName(requisition.dataProviderCertificate)
         ?: throw RequisitionRefusalException(
           Requisition.Refusal.Justification.UNFULFILLABLE,
           "Invalid data provider certificate"
         )
-    val resultSigningKey =
-      edpData.registeredCertificates[resultSigningResource]
-        ?: throw RequisitionRefusalException(
-          Requisition.Refusal.Justification.UNFULFILLABLE,
-          "Invalid result certificate signing resource"
-        )
+    if (requisitionCertificateKey !in edpData.validCertificates) {
+      throw RequisitionRefusalException(
+        Requisition.Refusal.Justification.UNFULFILLABLE,
+        "Invalid data provider certificate"
+      )
+    }
+    val resultSigningResource = edpData.resultSigningCertificateKey ?: requisitionCertificateKey
+    val resultSigningKey = edpData.validCertificates.getValue(resultSigningResource)
     val measurementEncryptionPublicKey: EncryptionPublicKey =
       if (measurementSpec.hasMeasurementPublicKey()) {
         measurementSpec.measurementPublicKey.unpack()

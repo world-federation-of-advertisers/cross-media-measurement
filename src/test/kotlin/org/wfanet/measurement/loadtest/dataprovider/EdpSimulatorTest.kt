@@ -1628,7 +1628,7 @@ class EdpSimulatorTest {
     }
     val simulator =
       EdpSimulator(
-        EDP_DATA.copy(resultSigningResource = null),
+        EDP_DATA.copy(resultSigningCertificateKey = null),
         MC_NAME,
         measurementConsumersStub,
         certificatesStub,
@@ -2185,14 +2185,14 @@ class EdpSimulatorTest {
     }
     private val EDP_SIGNING_KEY =
       loadSigningKey("${EDP_DISPLAY_NAME}_cs_cert.der", "${EDP_DISPLAY_NAME}_cs_private.der")
-    private val EDP_RESULT_CS_SIGNING_KEY =
+    private val EDP_RESULT_SIGNING_KEY =
       loadSigningKey(
         "${EDP_DISPLAY_NAME}_result_cs_cert.der",
         "${EDP_DISPLAY_NAME}_result_cs_private.der"
       )
     private val DATA_PROVIDER_CERTIFICATE_KEY =
       DataProviderCertificateKey(EDP_ID, externalIdToApiId(8L))
-    private val DATA_PROVIDER_RESULT_CS_CERTIFICATE_KEY =
+    private val DATA_PROVIDER_RESULT_CERTIFICATE_KEY =
       DataProviderCertificateKey(EDP_ID, externalIdToApiId(8L))
 
     private val DATA_PROVIDER_CERTIFICATE = certificate {
@@ -2200,21 +2200,16 @@ class EdpSimulatorTest {
       x509Der = EDP_SIGNING_KEY.certificate.encoded.toByteString()
       subjectKeyIdentifier = EDP_SIGNING_KEY.certificate.subjectKeyIdentifier!!
     }
-    private val DATA_PROVIDER_RESULT_CS_CERTIFICATE = certificate {
-      name = DATA_PROVIDER_RESULT_CS_CERTIFICATE_KEY.toName()
-      x509Der = EDP_RESULT_CS_SIGNING_KEY.certificate.encoded.toByteString()
-      subjectKeyIdentifier = EDP_RESULT_CS_SIGNING_KEY.certificate.subjectKeyIdentifier!!
-    }
     private val EDP_DATA =
       EdpData(
         EDP_NAME,
         EDP_DISPLAY_NAME,
         loadEncryptionPrivateKey("${EDP_DISPLAY_NAME}_enc_private.tink"),
         mapOf(
-          DATA_PROVIDER_RESULT_CS_CERTIFICATE_KEY to EDP_RESULT_CS_SIGNING_KEY,
+          DATA_PROVIDER_RESULT_CERTIFICATE_KEY to EDP_RESULT_SIGNING_KEY,
           DATA_PROVIDER_CERTIFICATE_KEY to EDP_SIGNING_KEY
         ),
-        DATA_PROVIDER_RESULT_CS_CERTIFICATE_KEY
+        DATA_PROVIDER_RESULT_CERTIFICATE_KEY
       )
 
     private val MC_PUBLIC_KEY =

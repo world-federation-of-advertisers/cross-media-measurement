@@ -17,6 +17,7 @@
 package org.wfanet.measurement.integration.common
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteString
 import java.security.cert.X509Certificate
 import kotlinx.coroutines.runBlocking
 import org.junit.rules.TestRule
@@ -24,12 +25,16 @@ import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt
+import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.identity.DuchyInfo
+import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.DuchyCertConfig
@@ -38,10 +43,12 @@ import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
-import org.wfanet.measurement.loadtest.resourcesetup.DataProviderResources
 import org.wfanet.measurement.loadtest.resourcesetup.DuchyCert
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.loadtest.resourcesetup.ResourceSetup
+import org.wfanet.measurement.loadtest.resourcesetup.Resources
+import org.wfanet.measurement.loadtest.resourcesetup.ResourcesKt.ResourceKt
+import org.wfanet.measurement.loadtest.resourcesetup.ResourcesKt.resource
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
 class InProcessCmmsComponents(
@@ -74,17 +81,34 @@ class InProcessCmmsComponents(
   }
 
   private val edpSimulators: List<InProcessEdpSimulator> by lazy {
-    edpDisplayNameToResourceNameMap.entries.mapIndexed { index, (displayName, resourceNames) ->
+    edpDisplayNameToResourceMap.entries.mapIndexed { index, (displayName, resource) ->
       val specIndex = index % syntheticEventGroupSpecs.size
+      val edpContent = createEntityContent(displayName)
+      val validCertificates = mutableMapOf<DataProviderCertificateKey, SigningKeyHandle>()
+      val dataProviderCertificateKey =
+        DataProviderCertificateKey.fromName(resource.dataProvider.certificate)!!
+      validCertificates[dataProviderCertificateKey] = edpContent.signingKey
+      val resultSigningCertificateKey =
+        if (resource.dataProvider.resultCertificate.isNotEmpty()) {
+          val separateResultSigningCertificateKey =
+            DataProviderCertificateKey.fromName(resource.dataProvider.resultCertificate)!!
+          validCertificates[separateResultSigningCertificateKey] =
+            edpContent.resultSigningKey!!
+          separateResultSigningCertificateKey
+        } else {
+          null
+        }
       InProcessEdpSimulator(
         displayName = displayName,
-        resourceName = resourceNames.resourceName,
-        certResourceName = resourceNames.certificateResourceName,
+        resourceName = resource.name,
+        resultSigningCertificateKey = resultSigningCertificateKey,
+        validCertificates = validCertificates,
+        encryptionKey = edpContent.encryptionPrivateKey!!,
         mcResourceName = mcResourceName,
         kingdomPublicApiChannel = kingdom.publicApiChannel,
         duchyPublicApiChannel = duchies[1].publicApiChannel,
         trustedCertificates = TRUSTED_CERTIFICATES,
-        syntheticEventGroupSpecs[specIndex],
+        syntheticDataSpec = syntheticEventGroupSpecs[specIndex],
       )
     }
   }
@@ -110,9 +134,11 @@ class InProcessCmmsComponents(
 
   private lateinit var mcResourceName: String
   private lateinit var apiAuthenticationKey: String
-  private lateinit var edpDisplayNameToResourceNameMap: Map<String, DataProviderResources>
+  private lateinit var edpDisplayNameToResourceMap: Map<String, Resources.Resource>
   private lateinit var duchyCertMap: Map<String, String>
   private lateinit var eventGroups: List<EventGroup>
+
+  private val edpsWithSeparateResultSigningKeys = listOf("edp1")
 
   private suspend fun createAllResources() {
     val resourceSetup =
@@ -135,10 +161,38 @@ class InProcessCmmsComponents(
     mcResourceName = measurementConsumer.name
     apiAuthenticationKey = apiKey
     // Create all EDPs
-    edpDisplayNameToResourceNameMap =
+    edpDisplayNameToResourceMap =
       ALL_EDP_DISPLAY_NAMES.associateWith {
         val edp = createEntityContent(it)
-        resourceSetup.createInternalDataProvider(edp)
+        val internalDataProvider = resourceSetup.createInternalDataProvider(edp)
+        val externalDataProviderId = externalIdToApiId(internalDataProvider.externalDataProviderId)
+        val externalCertificateId =
+          externalIdToApiId(internalDataProvider.certificate.externalCertificateId)
+        val externalDataProviderResourceName = DataProviderKey(externalDataProviderId).toName()
+        val externalDataProviderCertificateKeyName =
+          DataProviderCertificateKey(externalDataProviderId, externalCertificateId).toName()
+        resource {
+          name = externalDataProviderResourceName
+          dataProvider =
+            ResourceKt.dataProvider {
+              certificate = externalDataProviderCertificateKeyName
+              if (edp.resultSigningKey != null) {
+                val externalResultCertificateId =
+                  resourceSetup.createDataProviderCertificate(
+                    externalDataProviderId = internalDataProvider.externalDataProviderId,
+                    consentSignalCertificateDer =
+                      edp.resultSigningKey!!.certificate.encoded.toByteString(),
+                  )
+                val externalResultCertificateKeyName =
+                  DataProviderCertificateKey(
+                      externalDataProviderId,
+                      externalIdToApiId(externalResultCertificateId)
+                    )
+                    .toName()
+                resultCertificate = externalResultCertificateKeyName
+              }
+            }
+        }
       }
     // Create all duchy certificates.
     duchyCertMap =

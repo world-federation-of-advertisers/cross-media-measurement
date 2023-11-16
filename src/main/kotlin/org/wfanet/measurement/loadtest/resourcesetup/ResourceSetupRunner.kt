@@ -30,6 +30,7 @@ import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
+import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import picocli.CommandLine
 
 @CommandLine.Command(
@@ -67,22 +68,38 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
   // Makes sure the three maps contain the same set of EDPs.
   require(
     flags.edpCsCertDerFiles.keys == flags.edpCsKeyDerFiles.keys &&
-      flags.edpCsCertDerFiles.keys == flags.edpEncryptionPublicKeysets.keys
+      flags.edpCsCertDerFiles.keys == flags.edpEncryptionPublicKeysets.keys &&
+      flags.edpResultSigningCertDerFiles.keys == flags.edpResultSigningKeyDerFiles.keys
   )
   val dataProviderContents =
     flags.edpCsCertDerFiles.map {
       EntityContent(
         displayName = it.key,
         signingKey = loadSigningKey(it.value, flags.edpCsKeyDerFiles.getValue(it.key)),
+        resultSigningKey =
+          if (
+            it.key in flags.edpResultSigningCertDerFiles &&
+              it.key in flags.edpResultSigningKeyDerFiles
+          ) {
+            loadSigningKey(
+              flags.edpResultSigningCertDerFiles.getValue(it.key),
+              flags.edpResultSigningKeyDerFiles.getValue(it.key)
+            )
+          } else {
+            null
+          },
         encryptionPublicKey =
-          loadPublicKey(flags.edpEncryptionPublicKeysets.getValue(it.key)).toEncryptionPublicKey()
+          loadPublicKey(flags.edpEncryptionPublicKeysets.getValue(it.key)).toEncryptionPublicKey(),
+        encryptionPrivateKey = loadPrivateKey(flags.edpEncryptionPrivateKeysets.getValue(it.key))
       )
     }
   val measurementConsumerContent =
     EntityContent(
       displayName = "mc_001",
       signingKey = loadSigningKey(flags.mcCsCertDerFile, flags.mcCsKeyDerFile),
-      encryptionPublicKey = loadPublicKey(flags.mcEncryptionPublicKeyset).toEncryptionPublicKey()
+      encryptionPublicKey = loadPublicKey(flags.mcEncryptionPublicKeyset).toEncryptionPublicKey(),
+      encryptionPrivateKey = null,
+      resultSigningKey = null,
     )
   val duchyCerts =
     flags.duchyCsCertDerFiles.map {

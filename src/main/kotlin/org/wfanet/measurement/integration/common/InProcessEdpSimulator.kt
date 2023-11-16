@@ -16,9 +16,6 @@ package org.wfanet.measurement.integration.common
 
 import com.google.protobuf.ByteString
 import io.grpc.Channel
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.Paths
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
@@ -33,7 +30,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import org.jetbrains.annotations.Blocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
@@ -45,9 +41,8 @@ import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.Requisiti
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.tools.CertificateRegistrar
+import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
-import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.CompositionMechanism
@@ -63,7 +58,9 @@ import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 class InProcessEdpSimulator(
   val displayName: String,
   resourceName: String,
-  certResourceName: String,
+  private val validCertificates: Map<DataProviderCertificateKey, SigningKeyHandle>,
+  private val resultSigningCertificateKey: DataProviderCertificateKey?,
+  private val encryptionKey: PrivateKeyHandle,
   mcResourceName: String,
   kingdomPublicApiChannel: Channel,
   duchyPublicApiChannel: Channel,
@@ -81,59 +78,13 @@ class InProcessEdpSimulator(
         }
     )
 
-  private val certificatesStub =
-    CertificatesCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName)
-
-  private val SECRET_FILES_PATH: Path =
-    checkNotNull(
-      getRuntimePath(
-        Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
-      )
-    )
-
-  private val edpPublicKeySigningKey =
-    loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der")
-  private val separateResultSigningKey =
-    if (Files.exists(SECRET_FILES_PATH.resolve("${displayName}_result_cs_cert.der"))) {
-      loadSigningKey("${displayName}_result_cs_cert.der", "${displayName}_result_cs_private.der")
-    } else {
-      null
-    }
-
-  private val separateResultCertificateKey =
-    if (separateResultSigningKey != null) {
-      runBlocking {
-        DataProviderCertificateKey.fromName(
-          CertificateRegistrar(
-              parentResourceName = resourceName,
-              certificatesStub = certificatesStub,
-            )
-            .registerCertificate(separateResultSigningKey.certificate)
-            .name
-        )!!
-      }
-    } else {
-      null
-    }
-
-  private val dataProviderCertificateKey = DataProviderCertificateKey.fromName(certResourceName)!!
-
-  private val registeredCertificates: Map<DataProviderCertificateKey, SigningKeyHandle> by lazy {
-    val certificateMap = mutableMapOf<DataProviderCertificateKey, SigningKeyHandle>()
-    certificateMap[dataProviderCertificateKey] = edpPublicKeySigningKey
-    if (separateResultSigningKey != null && separateResultCertificateKey != null) {
-      certificateMap[separateResultCertificateKey] = separateResultSigningKey
-    }
-    certificateMap
-  }
-
   private val delegate =
     EdpSimulator(
       edpData = createEdpData(displayName, resourceName),
       measurementConsumerName = mcResourceName,
       measurementConsumersStub =
         MeasurementConsumersCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
-      certificatesStub = certificatesStub,
+      certificatesStub = CertificatesCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
       eventGroupsStub =
         EventGroupsCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
       eventGroupMetadataDescriptorsStub =
@@ -182,9 +133,9 @@ class InProcessEdpSimulator(
     EdpData(
       name = resourceName,
       displayName = displayName,
-      encryptionKey = loadEncryptionPrivateKey("${displayName}_enc_private.tink"),
-      resultSigningResource = separateResultCertificateKey ?: dataProviderCertificateKey,
-      registeredCertificates = registeredCertificates,
+      encryptionKey = encryptionKey,
+      resultSigningCertificateKey = resultSigningCertificateKey,
+      validCertificates = validCertificates,
     )
 
   companion object {
