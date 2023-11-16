@@ -2,5 +2,5 @@ package(default_visibility = ["//visibility:public"])
 
 alias(
     name = "semconv",
-    actual = "@maven//:io_opentelemetry_opentelemetry_semconv",
+    actual = "@maven//:io_opentelemetry_semconv_opentelemetry_semconv",
 )
