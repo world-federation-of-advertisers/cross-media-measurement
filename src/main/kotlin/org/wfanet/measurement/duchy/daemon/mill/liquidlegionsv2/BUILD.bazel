@@ -20,7 +20,6 @@ kt_jvm_library(
     ],
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
-        "//imports/java/io/opentelemetry/api",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill:mill_base",
@@ -45,6 +44,7 @@ kt_jvm_library(
         "@any_sketch_java//src/main/java/org/wfanet/estimation:estimators",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/api",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/duchy",
@@ -60,7 +60,6 @@ kt_jvm_library(
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
         ":liquid_legions_v2_mill",
-        "//imports/java/io/opentelemetry/api",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/liquidlegionsv2/crypto:liquidlegionsv2encryption",
@@ -84,6 +83,7 @@ kt_jvm_library(
         "@any_sketch_java//src/main/java/org/wfanet/estimation:estimators",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/api",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/duchy",
@@ -99,7 +99,6 @@ kt_jvm_library(
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
         ":liquid_legions_v2_mill",
-        "//imports/java/io/opentelemetry/api",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/liquidlegionsv2/crypto:reachonlyliquidlegionsv2encryption",
@@ -121,6 +120,7 @@ kt_jvm_library(
         "//src/main/swig/protocol/reachonlyliquidlegionsv2:reach_only_liquid_legions_v2_encryption_utility",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/api",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/duchy",

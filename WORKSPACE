@@ -3,14 +3,21 @@ workspace(name = "wfa_measurement_system")
 load(
     "//build:versions.bzl",
     "APACHE_BEAM_VERSION",
-    "AWS_SDK_VERSION",
     "K8S_CLIENT_VERSION",
-    "OPEN_TELEMETRY_SDK_VERSION",
 )
 load("//build:repositories.bzl", "wfa_measurement_system_repositories")
 
 wfa_measurement_system_repositories()
 
+load(
+    "@wfa_common_jvm//build:versions.bzl",
+    "AWS_JAVA_SDK_VERSION",
+    "GRPC_JAVA",
+    "GRPC_KOTLIN",
+    "KOTLIN_RELEASE_VERSION",
+    "OPENTELEMETRY_JAVA_VERSION",
+    "TINK_COMMIT",
+)
 load("@aspect_rules_js//js:repositories.bzl", "rules_js_dependencies")
 
 rules_js_dependencies()
@@ -47,13 +54,6 @@ load("@npm//:repositories.bzl", "npm_repositories")
 
 npm_repositories()
 
-load(
-    "@wfa_common_jvm//build:versions.bzl",
-    "GRPC_JAVA",
-    "GRPC_KOTLIN",
-    "KOTLIN_RELEASE_VERSION",
-    "TINK_COMMIT",
-)
 load("//build/tink:repositories.bzl", "tink_cc")
 
 tink_cc(TINK_COMMIT)
@@ -102,10 +102,9 @@ load("@wfa_common_jvm//build/maven:artifacts.bzl", "artifacts")
 MAVEN_ARTIFACTS_DICT = dict(common_jvm_maven_artifacts_dict().items() + {
     "software.aws.rds:aws-postgresql-jdbc": "0.1.0",
     "org.projectnessie.cel:cel-core": "0.3.11",
-    "io.opentelemetry:opentelemetry-api": OPEN_TELEMETRY_SDK_VERSION,
-    "io.opentelemetry:opentelemetry-sdk": OPEN_TELEMETRY_SDK_VERSION,
-    "io.opentelemetry:opentelemetry-exporter-otlp": OPEN_TELEMETRY_SDK_VERSION,
-    "io.opentelemetry:opentelemetry-semconv": OPEN_TELEMETRY_SDK_VERSION + "-alpha",
+    "io.opentelemetry:opentelemetry-sdk": OPENTELEMETRY_JAVA_VERSION,
+    "io.opentelemetry:opentelemetry-exporter-otlp": OPENTELEMETRY_JAVA_VERSION,
+    "io.opentelemetry.semconv:opentelemetry-semconv": "1.22.0-alpha",
     "io.kubernetes:client-java": K8S_CLIENT_VERSION,
     "io.kubernetes:client-java-extended": K8S_CLIENT_VERSION,
     "com.google.cloud:google-cloud-security-private-ca": "2.3.1",
@@ -113,9 +112,9 @@ MAVEN_ARTIFACTS_DICT = dict(common_jvm_maven_artifacts_dict().items() + {
     "org.apache.beam:beam-runners-google-cloud-dataflow-java": APACHE_BEAM_VERSION,
     "org.apache.beam:beam-sdks-java-io-google-cloud-platform": APACHE_BEAM_VERSION,
     "org.slf4j:slf4j-simple": "1.7.32",
-    "software.amazon.awssdk:sts": AWS_SDK_VERSION,
-    "software.amazon.awssdk:auth": AWS_SDK_VERSION,
-    "software.amazon.awssdk:acmpca": AWS_SDK_VERSION,
+    "software.amazon.awssdk:sts": AWS_JAVA_SDK_VERSION,
+    "software.amazon.awssdk:auth": AWS_JAVA_SDK_VERSION,
+    "software.amazon.awssdk:acmpca": AWS_JAVA_SDK_VERSION,
 }.items())
 
 EXCLUDED_MAVEN_ARTIFACTS = [x for x in COMMON_JVM_EXCLUDED_ARTIFACTS if x != "org.slf4j:slf4j-log4j12"] + ["org.apache.beam:beam-sdks-java-io-kafka"]

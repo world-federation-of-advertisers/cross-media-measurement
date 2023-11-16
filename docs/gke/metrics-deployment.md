@@ -86,13 +86,13 @@ and the collector image specified in
 [`open_telemetry.cue`](../../src/main/k8s/open_telemetry.cue).
 
 ```shell
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.11.2/cert-manager.yaml
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.2/cert-manager.yaml
 ```
 
 ### Install OpenTelemetry Operator
 
 ```shell
-kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/download/v0.77.0/opentelemetry-operator.yaml
+kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/download/v0.88.0/opentelemetry-operator.yaml
 ```
 
 ### Apply OpenTelemetry and Prometheus Configurations

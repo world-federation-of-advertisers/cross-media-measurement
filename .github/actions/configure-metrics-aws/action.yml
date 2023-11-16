@@ -33,13 +33,13 @@ runs:
   - name: Install cert-manager
     shell: bash
     run: |
-      kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.11.2/cert-manager.yaml
+      kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.2/cert-manager.yaml
       kubectl rollout status deployment cert-manager-webhook --namespace=cert-manager --timeout=5m
 
   - name: Install OpenTelemetry operator
     shell: bash
     run: |
-      kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/download/v0.77.0/opentelemetry-operator.yaml
+      kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/download/v0.88.0/opentelemetry-operator.yaml
       kubectl rollout status deployment opentelemetry-operator-controller-manager --namespace=opentelemetry-operator-system --timeout=5m
 
   - name: Generate configurations
