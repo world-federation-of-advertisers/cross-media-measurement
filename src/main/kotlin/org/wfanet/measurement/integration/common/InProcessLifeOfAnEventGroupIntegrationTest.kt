@@ -97,14 +97,14 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
       resourceSetup
         .createMeasurementConsumer(MC_ENTITY_CONTENT, resourceSetup.createAccountWithRetries())
         .measurementConsumer
-    val internalDataProvider =
-      resourceSetup.createInternalDataProvider(createEntityContent(edpDisplayName))
-    val externalDataProviderId = externalIdToApiId(internalDataProvider.externalDataProviderId)
-    val externalDataProviderResourceName = DataProviderKey(externalDataProviderId).toName()
 
     mcResourceName = measurementConsumer.name
     // Create EDP Resource
     edpDisplayName = ALL_EDP_DISPLAY_NAMES[0]
+    val internalDataProvider =
+      resourceSetup.createInternalDataProvider(createEntityContent(edpDisplayName))
+    val externalDataProviderId = externalIdToApiId(internalDataProvider.externalDataProviderId)
+    val externalDataProviderResourceName = DataProviderKey(externalDataProviderId).toName()
     edpResourceName = externalDataProviderResourceName
   }
 

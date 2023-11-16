@@ -84,7 +84,8 @@ class InProcessEdpSimulator(
       measurementConsumerName = mcResourceName,
       measurementConsumersStub =
         MeasurementConsumersCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
-      certificatesStub = CertificatesCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
+      certificatesStub =
+        CertificatesCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
       eventGroupsStub =
         EventGroupsCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
       eventGroupMetadataDescriptorsStub =

@@ -2116,12 +2116,12 @@ class MeasurementSystemTest {
     val tmpFile = kotlin.io.path.createTempFile("GetDataProvider.textproto")
     val args =
       commonArgs +
-      arrayOf(
-        "data-providers",
-        "--name=dataProviders/777",
-        "get",
-        "--out=${tmpFile.absolutePathString()}",
-      )
+        arrayOf(
+          "data-providers",
+          "--name=dataProviders/777",
+          "get",
+          "--out=${tmpFile.absolutePathString()}",
+        )
     callCli(args)
     dataProvidersServiceMock.stub {
       onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDER)

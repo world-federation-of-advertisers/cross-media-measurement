@@ -59,8 +59,7 @@ class ResourceSetupFlags {
 
   @CommandLine.Option(
     names = ["--edp-result-signing-cert-der-files"],
-    description =
-    ["The map from EDP display name to its result signing cert (DER format) file."],
+    description = ["The map from EDP display name to its result signing cert (DER format) file."],
     required = false
   )
   lateinit var edpResultSigningCertDerFiles: Map<String, File>
@@ -69,7 +68,7 @@ class ResourceSetupFlags {
   @CommandLine.Option(
     names = ["--edp-result-signing-key-der-files"],
     description =
-    ["The map from EDP display name to its result signing private key (DER format) file."],
+      ["The map from EDP display name to its result signing private key (DER format) file."],
     required = false
   )
   lateinit var edpResultSigningKeyDerFiles: Map<String, File>

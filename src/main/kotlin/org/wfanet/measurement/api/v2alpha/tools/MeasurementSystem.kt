@@ -991,12 +991,12 @@ private class DataProviders {
   fun getDataProvider(
     @Option(names = ["--out", "-o"], description = ["Output file"], required = true) outFile: File,
   ) {
-      val dataProvider = runBlocking {
-        dataProviderStub.getDataProvider(getDataProviderRequest { name = dataProviderName })
-      }
-      println("Data Provider Resource: ${dataProvider.name}")
-      outFile.createNewFile()
-      outFile.outputStream().use { dataProvider.writeTo(it) }
+    val dataProvider = runBlocking {
+      dataProviderStub.getDataProvider(getDataProviderRequest { name = dataProviderName })
+    }
+    println("Data Provider Resource: ${dataProvider.name}")
+    outFile.createNewFile()
+    outFile.outputStream().use { dataProvider.writeTo(it) }
   }
 }
 

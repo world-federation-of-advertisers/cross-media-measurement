@@ -261,7 +261,10 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
           encryptionPublicKey =
             encryptionPublicKey { data = ByteString.copyFromUtf8("testMCPublicKey") },
           signingKey =
-            SigningKeyHandle(TestCertificateManager.CERTIFICATE, TestCertificateManager.PRIVATE_KEY),
+            SigningKeyHandle(
+              TestCertificateManager.CERTIFICATE,
+              TestCertificateManager.PRIVATE_KEY
+            ),
           resultSigningKey = null,
           encryptionPrivateKey = null,
         )

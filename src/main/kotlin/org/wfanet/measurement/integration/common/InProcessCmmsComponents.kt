@@ -92,8 +92,7 @@ class InProcessCmmsComponents(
         if (resource.dataProvider.resultCertificate.isNotEmpty()) {
           val separateResultSigningCertificateKey =
             DataProviderCertificateKey.fromName(resource.dataProvider.resultCertificate)!!
-          validCertificates[separateResultSigningCertificateKey] =
-            edpContent.resultSigningKey!!
+          validCertificates[separateResultSigningCertificateKey] = edpContent.resultSigningKey!!
           separateResultSigningCertificateKey
         } else {
           null

@@ -131,8 +131,7 @@ fun createEntityContent(displayName: String) =
     displayName = displayName,
     encryptionPublicKey =
       loadEncryptionPublicKey("${displayName}_enc_public.tink").toEncryptionPublicKey(),
-    encryptionPrivateKey =
-    loadEncryptionPrivateKey("${displayName}_enc_private.tink"),
+    encryptionPrivateKey = loadEncryptionPrivateKey("${displayName}_enc_private.tink"),
     signingKey = loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der"),
     resultSigningKey =
       if (displayName in EDPS_WITH_SEPARATE_RESULT_SIGNING_KEYS) {
