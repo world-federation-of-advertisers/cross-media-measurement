@@ -15,11 +15,11 @@
 package k8s
 
 #EdpConfig: {
-	displayName:      string
-	resourceName:     string
-	certResourceName: string
+	displayName:            string
+	resourceName:           string
+	certResourceName:       string
 	resultCertResourceName: string
-	publisherId:      int
+	publisherId:            int
 }
 
 #EdpSimulator: {

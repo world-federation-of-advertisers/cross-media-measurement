@@ -160,23 +160,24 @@ class ResourceSetup(
             ResourcesKt.ResourceKt.dataProvider {
               displayName = it.displayName
               certificate = externalDataProviderCertificateKeyName
-              resultCertificate = if (it.resultSigningKey != null) {
-                val externalResultCertificateId =
-                  externalIdToApiId(
-                    createDataProviderCertificate(
-                      externalDataProviderId = internalDataProvider.externalDataProviderId,
-                      consentSignalCertificateDer =
-                        it.resultSigningKey.certificate.encoded.toByteString(),
+              resultCertificate =
+                if (it.resultSigningKey != null) {
+                  val externalResultCertificateId =
+                    externalIdToApiId(
+                      createDataProviderCertificate(
+                        externalDataProviderId = internalDataProvider.externalDataProviderId,
+                        consentSignalCertificateDer =
+                          it.resultSigningKey.certificate.encoded.toByteString(),
+                      )
                     )
-                  )
-                val externalResultCertificateKeyName =
-                  DataProviderCertificateKey(externalDataProviderId, externalResultCertificateId)
-                    .toName()
-                logger.info("Successfully created certificate: $externalResultCertificateKeyName")
-                externalResultCertificateKeyName
-              } else {
-                externalDataProviderCertificateKeyName
-              }
+                  val externalResultCertificateKeyName =
+                    DataProviderCertificateKey(externalDataProviderId, externalResultCertificateId)
+                      .toName()
+                  logger.info("Successfully created certificate: $externalResultCertificateKeyName")
+                  externalResultCertificateKeyName
+                } else {
+                  externalDataProviderCertificateKeyName
+                }
               // Assume signing cert uses same issuer as TLS client cert.
               authorityKeyIdentifier =
                 checkNotNull(it.signingKey.certificate.authorityKeyIdentifier)
