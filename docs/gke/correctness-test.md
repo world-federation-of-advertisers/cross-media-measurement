@@ -226,7 +226,7 @@ Run the following, substituting your own values:
       --define=mc_name=measurementConsumers/TGWOaWehLQ8 \
       --define=edp1_name=dataProviders/HRL1wWehTSM \
       --define=edp1_cert_name=dataProviders/HRL1wWehTSM/certificates/HRL1wWehTSM \
-      --define=edp1_result_cert_name= \
+      --define=edp1_result_cert_name=dataProviders/HRL1wWehTSM/certificates/HRL1wWehTSM \
       --define=edp2_name=dataProviders/djQdz2ehSSE \
       --define=edp2_cert_name=dataProviders/djQdz2ehSSE/certificates/djQdz2ehSSE \
       --define=edp2_result_cert_name=dataProviders/djQdz2ehSSE/certificates/djQdz2ehSSE \

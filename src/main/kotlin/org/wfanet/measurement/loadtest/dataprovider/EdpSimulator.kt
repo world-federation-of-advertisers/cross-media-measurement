@@ -1525,8 +1525,7 @@ class EdpSimulator(
         "Invalid data provider certificate"
       )
     }
-    val resultSigningResource = edpData.resultSigningCertificateKey ?: requisitionCertificateKey
-    val resultSigningKey = edpData.validCertificates.getValue(resultSigningResource)
+    val resultSigningKey = edpData.validCertificates.getValue(edpData.resultSigningCertificateKey)
     val measurementEncryptionPublicKey: EncryptionPublicKey =
       if (measurementSpec.hasMeasurementPublicKey()) {
         measurementSpec.measurementPublicKey.unpack()
@@ -1544,7 +1543,7 @@ class EdpSimulator(
           name = requisition.name
           this.encryptedResult = encryptedResult
           this.nonce = nonce
-          this.certificate = resultSigningResource.toName()
+          this.certificate = edpData.resultSigningCertificateKey.toName()
         }
       )
     } catch (e: StatusException) {

@@ -88,8 +88,6 @@ class InProcessCmmsComponents(
       val dataProviderCertificateKey =
         DataProviderCertificateKey.fromName(resource.dataProvider.certificate)!!
       validCertificates[dataProviderCertificateKey] = edpContent.signingKey
-      println("*****")
-      println("ac:" + resource.dataProvider.resultCertificate)
       val resultSigningCertificateKey =
         DataProviderCertificateKey.fromName(resource.dataProvider.resultCertificate)!!
       if (dataProviderCertificateKey != resultSigningCertificateKey) {
