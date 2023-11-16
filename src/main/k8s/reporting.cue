@@ -166,6 +166,10 @@ package k8s
 		}
 	}
 
+	configMaps: [Name=string]: #ConfigMap & {
+		metadata: name: Name
+	}
+
 	serviceAccounts: [Name=string]: #ServiceAccount & {
 		metadata: name: Name
 	}

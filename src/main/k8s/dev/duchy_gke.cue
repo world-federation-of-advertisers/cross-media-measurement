@@ -50,6 +50,7 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 objectSets: [
 	default_deny_ingress_and_egress,
 	duchy.serviceAccounts,
+	duchy.configMaps,
 	duchy.deployments,
 	duchy.services,
 	duchy.networkPolicies,
@@ -86,6 +87,8 @@ duchy: #SpannerDuchy & {
 			_iamServiceAccountName: "\(_duchy_name)-duchy-storage"
 		}
 	}
+
+	configMaps: "java": #JavaConfigMap
 
 	deployments: {
 		"internal-api-server-deployment": {
