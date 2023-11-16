@@ -33,7 +33,7 @@ go_library(
 )
 
 go_binary(
-    name = "serve",
+    name = "server",
     embed = [":gateway-server_lib"],
     visibility = ["//visibility:public"],
 )

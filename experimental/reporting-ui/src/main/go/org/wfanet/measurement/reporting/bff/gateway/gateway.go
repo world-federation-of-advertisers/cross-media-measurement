@@ -21,10 +21,10 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"net/http"
 
-	"wfa/measurement/reporting/bff/v1alpha/reportingpb"
 	gwruntime "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	_ "google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
+	"wfa/measurement/reporting/bff/v1alpha/reportingpb"
 )
 
 // newGateway returns a new gateway server which translates HTTP into gRPC.
