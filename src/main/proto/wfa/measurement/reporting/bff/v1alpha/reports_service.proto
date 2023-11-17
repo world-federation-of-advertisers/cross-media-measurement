@@ -21,6 +21,7 @@ import "google/api/field_behavior.proto";
 import "google/api/annotations.proto";
 import "google/api/resource.proto";
 import "wfa/measurement/reporting/bff/v1alpha/report.proto";
+import "wfa/measurement/reporting/bff/v1alpha/list_report_detail.proto";
 
 option java_package = "org.wfanet.measurement.reporting.bff.v1alpha";
 option java_multiple_files = true;
@@ -86,7 +87,7 @@ message ListReportsRequest {
 // Response message for `ListReports` method.
 message ListReportsResponse {
   // The reports from the specified measurement consumer.
-  repeated Report reports = 1;
+  repeated ListReportDetail reports = 1;
 
   // A token, which can be sent as `page_token` to retrieve the next page.
   // If this field is omitted, there are no subsequent pages.
