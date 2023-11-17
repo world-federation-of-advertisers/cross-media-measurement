@@ -17,15 +17,18 @@ package org.wfanet.measurement.reporting.bff.service.api.v1alpha
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.reporting.bff.v1alpha.GetReportRequest
+import org.wfanet.measurement.reporting.bff.v1alpha.ListReportDetail
 import org.wfanet.measurement.reporting.bff.v1alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.bff.v1alpha.ListReportsResponse
 import org.wfanet.measurement.reporting.bff.v1alpha.Report
 import org.wfanet.measurement.reporting.bff.v1alpha.ReportsGrpcKt
 import org.wfanet.measurement.reporting.bff.v1alpha.listReportsResponse
+import org.wfanet.measurement.reporting.bff.v1alpha.listReportDetail
 import org.wfanet.measurement.reporting.bff.v1alpha.report
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt as HaloReportsGrpcKt
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
+import org.wfanet.measurement.reporting.v2alpha.Report as HaloReport
 
 class ReportsService(private val haloReportsStub: HaloReportsGrpcKt.ReportsCoroutineStub) :
   ReportsGrpcKt.ReportsCoroutineImplBase() {
@@ -37,15 +40,21 @@ class ReportsService(private val haloReportsStub: HaloReportsGrpcKt.ReportsCorou
 
     val resp = runBlocking(Dispatchers.IO) { haloReportsStub.listReports(haloRequest) }
 
+    // Not doing pagination right now
+    // Need some UI designs around how to handle it
     val results = listReportsResponse {
-      nextPageToken = resp.nextPageToken
-
-      resp.reportsList.forEach {
-        // TODO(@bdomen-ggl): Currently stubbed, working to do proper translations in follow up PR
-        //   after the proto definitions for the BFF have been updated.
-        val r = report { name = it.name }
-        reports += r
-      }
+      resp.reportsList
+        .filter {
+          it.tags.containsKey("ui.halo-cmm.org")
+        }
+        .forEach {
+          val r = listReportDetail {
+            id = it.name
+            name = it.name
+            state = convertHaloStateToBffState(it.state)
+          }
+          reports += r
+        }
     }
     return results
   }
@@ -59,4 +68,13 @@ class ReportsService(private val haloReportsStub: HaloReportsGrpcKt.ReportsCorou
     val result = report { name = resp.name }
     return result
   }
+
+  private fun convertHaloStateToBffState(haloReportState: HaloReport.State): ListReportDetail.State =
+    when(haloReportState) {
+      HaloReport.State.STATE_UNSPECIFIED -> ListReportDetail.State.STATE_UNSPECIFIED
+      HaloReport.State.RUNNING -> ListReportDetail.State.RUNNING
+      HaloReport.State.SUCCEEDED -> ListReportDetail.State.SUCCEEDED
+      HaloReport.State.FAILED -> ListReportDetail.State.FAILED
+      else -> ListReportDetail.State.STATE_UNSPECIFIED
+    }
 }
