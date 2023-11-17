@@ -137,25 +137,6 @@ class ReportSchedulesServiceTest {
       }
   }
 
-  private val internalMetricCalculationSpecsMock: MetricCalculationSpecsCoroutineImplBase =
-    mockService {
-      onBlocking { batchGetMetricCalculationSpecs(any()) }
-        .thenAnswer {
-          val request = it.arguments[0] as BatchGetMetricCalculationSpecsRequest
-          val metricCalculationSpecsMap =
-            mapOf(
-              INTERNAL_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId to
-                INTERNAL_METRIC_CALCULATION_SPEC,
-            )
-          batchGetMetricCalculationSpecsResponse {
-            metricCalculationSpecs +=
-              request.externalMetricCalculationSpecIdsList.map { id ->
-                metricCalculationSpecsMap.getValue(id)
-              }
-          }
-        }
-    }
-
   private val dataProvidersMock: DataProvidersCoroutineImplBase = mockService {
     onBlocking { getDataProvider(eq(getDataProviderRequest { name = DATA_PROVIDER_NAME })) }
       .thenReturn(DATA_PROVIDER)
@@ -170,7 +151,6 @@ class ReportSchedulesServiceTest {
   val grpcTestServerRule = GrpcTestServerRule {
     addService(internalReportSchedulesMock)
     addService(internalReportingSetsMock)
-    addService(internalMetricCalculationSpecsMock)
     addService(dataProvidersMock)
     addService(eventGroupsMock)
   }
@@ -183,7 +163,6 @@ class ReportSchedulesServiceTest {
       ReportSchedulesService(
         ReportSchedulesCoroutineStub(grpcTestServerRule.channel),
         ReportingSetsCoroutineStub(grpcTestServerRule.channel),
-        MetricCalculationSpecsCoroutineStub(grpcTestServerRule.channel),
         DataProvidersCoroutineStub(grpcTestServerRule.channel),
         EventGroupsCoroutineStub(grpcTestServerRule.channel)
       )
@@ -330,17 +309,6 @@ class ReportSchedulesServiceTest {
         }
       )
 
-    verifyProtoArgument(
-        internalMetricCalculationSpecsMock,
-        MetricCalculationSpecsCoroutineImplBase::batchGetMetricCalculationSpecs
-      )
-      .isEqualTo(
-        batchGetMetricCalculationSpecsRequest {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          externalMetricCalculationSpecIds += METRIC_CALCULATION_SPEC_ID
-        }
-      )
-
     verifyProtoArgument(dataProvidersMock, DataProvidersCoroutineImplBase::getDataProvider)
       .isEqualTo(getDataProviderRequest { name = DATA_PROVIDER_NAME })
 
@@ -473,31 +441,6 @@ class ReportSchedulesServiceTest {
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception.message).contains("ReportingSet")
-  }
-
-  @Test
-  fun `createReportSchedule throws NOT_FOUND when metric calculation spec not found`() {
-    runBlocking {
-      whenever(internalMetricCalculationSpecsMock.batchGetMetricCalculationSpecs(any()))
-        .thenThrow(Status.NOT_FOUND.asRuntimeException())
-    }
-
-    val request = createReportScheduleRequest {
-      parent = MEASUREMENT_CONSUMER_NAME
-      reportScheduleId = "a123"
-      reportSchedule = REPORT_SCHEDULE
-      requestId = "test"
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
-          runBlocking { service.createReportSchedule(request) }
-        }
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception.message).contains("MetricCalculationSpec")
   }
 
   @Test
@@ -862,49 +805,6 @@ class ReportSchedulesServiceTest {
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.message).contains("Entry")
-  }
-
-  @Test
-  fun `createReportSchedule throws INVALID_ARGUMENT when spec in report_template is cumulative`() {
-    val cumulativeMetricCalculationSpec =
-      INTERNAL_METRIC_CALCULATION_SPEC.copy {
-        details = INTERNAL_METRIC_CALCULATION_SPEC.details.copy { cumulative = true }
-      }
-
-    runBlocking {
-      whenever(internalMetricCalculationSpecsMock.batchGetMetricCalculationSpecs(any()))
-        .thenAnswer {
-          val request = it.arguments[0] as BatchGetMetricCalculationSpecsRequest
-          val metricCalculationSpecsMap =
-            mapOf(
-              cumulativeMetricCalculationSpec.externalMetricCalculationSpecId to
-                cumulativeMetricCalculationSpec,
-            )
-          batchGetMetricCalculationSpecsResponse {
-            metricCalculationSpecs +=
-              request.externalMetricCalculationSpecIdsList.map { id ->
-                metricCalculationSpecsMap.getValue(id)
-              }
-          }
-        }
-    }
-
-    val request = createReportScheduleRequest {
-      parent = MEASUREMENT_CONSUMER_NAME
-      reportScheduleId = "a123"
-      reportSchedule = REPORT_SCHEDULE
-      requestId = "a123"
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
-          runBlocking { service.createReportSchedule(request) }
-        }
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.message).contains("metric_calculation_spec")
   }
 
   @Test

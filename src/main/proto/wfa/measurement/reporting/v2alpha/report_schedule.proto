@@ -51,8 +51,7 @@ message ReportSchedule {
   // Description.
   string description = 3;
 
-  // Template for every `Report` that is created. `time` is ignored. The
-  // `MetricCalculationSpec` used cannot have cumulative set to true.
+  // Template for every `Report` that is created. `time` is ignored.
   Report report_template = 4 [(google.api.field_behavior) = REQUIRED];
 
   // Specifies when the scheduling will start as well as the time of day used

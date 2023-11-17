@@ -57,7 +57,6 @@ import org.wfanet.measurement.internal.reporting.v2.ReportSchedule as InternalRe
 import org.wfanet.measurement.internal.reporting.v2.ReportScheduleKt as InternalReportScheduleKt
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
-import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.batchGetMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
@@ -66,6 +65,13 @@ import org.wfanet.measurement.internal.reporting.v2.getReportScheduleRequest
 import org.wfanet.measurement.internal.reporting.v2.listReportSchedulesRequest
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.internal.reporting.v2.reportSchedule as internalReportSchedule
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
+import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.reporting.v2.stopReportScheduleRequest
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.v2alpha.CreateReportScheduleRequest
@@ -88,7 +94,6 @@ import org.wfanet.measurement.reporting.v2alpha.reportSchedule
 class ReportSchedulesService(
   private val internalReportSchedulesStub: ReportSchedulesCoroutineStub,
   private val internalReportingSetsStub: ReportingSetsCoroutineStub,
-  private val internalMetricCalculationSpecsStub: MetricCalculationSpecsCoroutineStub,
   private val dataProvidersStub: DataProvidersCoroutineStub,
   private val eventGroupsStub: EventGroupsCoroutineStub
 ) : ReportSchedulesCoroutineImplBase() {
@@ -126,10 +131,13 @@ class ReportSchedulesService(
         parentKey.measurementConsumerId,
         internalReportingSetsStub
       )
+
+    val eventGroupKeys: List<InternalReportingSet.Primitive.EventGroupKey> = internalReportingSets.filter { it.hasPrimitive() }.flatMap { it.primitive.eventGroupKeysList }
+
     checkDataAvailability(
       request.reportSchedule,
       eventStartTimestamp,
-      internalReportingSets,
+      eventGroupKeys,
       dataProvidersStub,
       eventGroupsStub
     )
@@ -433,55 +441,10 @@ class ReportSchedulesService(
           }
       }
 
-    val internalMetricCalculationSpecs: List<InternalMetricCalculationSpec> =
-      getInternalMetricCalculationSpecs(metricCalculationSpecIds, measurementConsumerKey)
-    for (internalMetricCalculationSpec in internalMetricCalculationSpecs) {
-      if (internalMetricCalculationSpec.details.cumulative) {
-        throw Status.INVALID_ARGUMENT.withDescription(
-            "metric_calculation_spec cannot have cumulative set to true."
-          )
-          .asRuntimeException()
-      }
-    }
-
     return internalReport {
       this.reportingMetricEntries.putAll(reportingMetricEntries)
       details = ReportKt.details { tags.putAll(source.tagsMap) }
     }
-  }
-
-  private suspend fun getInternalMetricCalculationSpecs(
-    externalMetricCalculationSpecIds: List<String>,
-    measurementConsumerKey: MeasurementConsumerKey
-  ): List<InternalMetricCalculationSpec> {
-    val callRpc: suspend (List<String>) -> BatchGetMetricCalculationSpecsResponse = { items ->
-      try {
-        internalMetricCalculationSpecsStub.batchGetMetricCalculationSpecs(
-          batchGetMetricCalculationSpecsRequest {
-            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-            this.externalMetricCalculationSpecIds += items
-          }
-        )
-      } catch (e: StatusException) {
-        throw when (e.status.code) {
-            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-            Status.Code.CANCELLED -> Status.CANCELLED
-            Status.Code.NOT_FOUND -> Status.NOT_FOUND
-            else -> Status.UNKNOWN
-          }
-          .withCause(e)
-          .withDescription("Unable to get MetricCalculationSpecs.")
-          .asRuntimeException()
-      }
-    }
-    return submitBatchRequests(
-        externalMetricCalculationSpecIds.distinct().asFlow(),
-        BATCH_GET_METRIC_CALCULATION_SPECS_LIMIT,
-        callRpc
-      ) { response ->
-        response.metricCalculationSpecsList
-      }
-      .toList()
   }
 
   companion object {
@@ -846,79 +809,75 @@ class ReportSchedulesService(
     private suspend fun checkDataAvailability(
       reportSchedule: ReportSchedule,
       eventTimestamp: Timestamp,
-      internalReportingSets: List<InternalReportingSet>,
+      eventGroupKeys: List<InternalReportingSet.Primitive.EventGroupKey>,
       dataProvidersStub: DataProvidersCoroutineStub,
       eventGroupsStub: EventGroupsCoroutineStub
     ) {
       val windowStart: Timestamp = buildReportWindowStartTimestamp(reportSchedule, eventTimestamp)
-      val eventGroupMap = mutableMapOf<ReportingSet.Primitive.EventGroupKey, EventGroup>()
+      val eventGroupMap = mutableMapOf<InternalReportingSet.Primitive.EventGroupKey, EventGroup>()
       val dataProviderMap = mutableMapOf<String, DataProvider>()
 
-      for (internalReportingSet in internalReportingSets) {
-        if (internalReportingSet.hasPrimitive()) {
-          for (eventGroupKey in internalReportingSet.primitive.eventGroupKeysList) {
-            if (!eventGroupMap.containsKey(eventGroupKey)) {
-              val eventGroupName =
-                EventGroupKey(
-                    dataProviderId = eventGroupKey.cmmsDataProviderId,
-                    eventGroupId = eventGroupKey.cmmsEventGroupId
-                  )
-                  .toName()
-              val eventGroup =
-                try {
-                  eventGroupsStub.getEventGroup(getEventGroupRequest { name = eventGroupName })
-                } catch (e: StatusException) {
-                  throw when (e.status.code) {
-                      Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-                      Status.Code.CANCELLED -> Status.CANCELLED
-                      Status.Code.NOT_FOUND -> Status.NOT_FOUND
-                      else -> Status.UNKNOWN
-                    }
-                    .withCause(e)
-                    .withDescription("Unable to get EventGroup with name $eventGroupName.")
-                    .asRuntimeException()
+      for (eventGroupKey in eventGroupKeys) {
+        if (!eventGroupMap.containsKey(eventGroupKey)) {
+          val eventGroupName =
+            EventGroupKey(
+                dataProviderId = eventGroupKey.cmmsDataProviderId,
+                eventGroupId = eventGroupKey.cmmsEventGroupId
+              )
+              .toName()
+          val eventGroup =
+            try {
+              eventGroupsStub.getEventGroup(getEventGroupRequest { name = eventGroupName })
+            } catch (e: StatusException) {
+              throw when (e.status.code) {
+                  Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+                  Status.Code.CANCELLED -> Status.CANCELLED
+                  Status.Code.NOT_FOUND -> Status.NOT_FOUND
+                  else -> Status.UNKNOWN
                 }
-              eventGroupMap[eventGroupKey] = eventGroup
-
-              if (
-                Timestamps.compare(windowStart, eventGroup.dataAvailabilityInterval.startTime) < 0
-              ) {
-                throw Status.FAILED_PRECONDITION.withDescription(
-                    "ReportSchedule event_start is invalid due to the data_availability_interval of the EventGroup with name ${eventGroup.name}"
-                  )
-                  .asRuntimeException()
-              }
+                .withCause(e)
+                .withDescription("Unable to get EventGroup with name $eventGroupName.")
+                .asRuntimeException()
             }
+          eventGroupMap[eventGroupKey] = eventGroup
 
-            if (!dataProviderMap.containsKey(eventGroupKey.cmmsDataProviderId)) {
-              val dataProviderName = DataProviderKey(eventGroupKey.cmmsDataProviderId).toName()
-              val dataProvider =
-                try {
-                  dataProvidersStub.getDataProvider(
-                    getDataProviderRequest { name = dataProviderName }
-                  )
-                } catch (e: StatusException) {
-                  throw when (e.status.code) {
-                      Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-                      Status.Code.CANCELLED -> Status.CANCELLED
-                      Status.Code.NOT_FOUND -> Status.NOT_FOUND
-                      else -> Status.UNKNOWN
-                    }
-                    .withCause(e)
-                    .withDescription("Unable to get DataProvider with name $dataProviderName.")
-                    .asRuntimeException()
+          if (
+            Timestamps.compare(windowStart, eventGroup.dataAvailabilityInterval.startTime) < 0
+          ) {
+            throw Status.FAILED_PRECONDITION.withDescription(
+                "ReportSchedule event_start is invalid due to the data_availability_interval of the EventGroup with name ${eventGroup.name}"
+              )
+              .asRuntimeException()
+          }
+        }
+
+        if (!dataProviderMap.containsKey(eventGroupKey.cmmsDataProviderId)) {
+          val dataProviderName = DataProviderKey(eventGroupKey.cmmsDataProviderId).toName()
+          val dataProvider =
+            try {
+              dataProvidersStub.getDataProvider(
+                getDataProviderRequest { name = dataProviderName }
+              )
+            } catch (e: StatusException) {
+              throw when (e.status.code) {
+                  Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+                  Status.Code.CANCELLED -> Status.CANCELLED
+                  Status.Code.NOT_FOUND -> Status.NOT_FOUND
+                  else -> Status.UNKNOWN
                 }
-              dataProviderMap[eventGroupKey.cmmsDataProviderId] = dataProvider
-
-              if (
-                Timestamps.compare(windowStart, dataProvider.dataAvailabilityInterval.startTime) < 0
-              ) {
-                throw Status.FAILED_PRECONDITION.withDescription(
-                    "ReportSchedule event_start is invalid due to the data_availability_interval of the DataProvider with name ${dataProvider.name}"
-                  )
-                  .asRuntimeException()
-              }
+                .withCause(e)
+                .withDescription("Unable to get DataProvider with name $dataProviderName.")
+                .asRuntimeException()
             }
+          dataProviderMap[eventGroupKey.cmmsDataProviderId] = dataProvider
+
+          if (
+            Timestamps.compare(windowStart, dataProvider.dataAvailabilityInterval.startTime) < 0
+          ) {
+            throw Status.FAILED_PRECONDITION.withDescription(
+                "ReportSchedule event_start is invalid due to the data_availability_interval of the DataProvider with name ${dataProvider.name}"
+              )
+              .asRuntimeException()
           }
         }
       }
@@ -927,6 +886,83 @@ class ReportSchedulesService(
     private fun Date.isBefore(other: Date): Boolean {
       return LocalDate.of(this.year, this.month, this.day)
         .isBefore(LocalDate.of(other.year, other.month, other.day))
+    }
+
+    /**
+     * Given a [ReportSchedule] and a [Timestamp], create a [Timestamp] that represents the start of the
+     * window.
+     */
+    private fun buildReportWindowStartTimestamp(
+      reportSchedule: ReportSchedule,
+      timestamp: Timestamp
+    ): Timestamp {
+      val eventStart = reportSchedule.eventStart
+
+      return if (eventStart.hasUtcOffset()) {
+        val offset = ZoneOffset.ofTotalSeconds(eventStart.utcOffset.seconds.toInt())
+        if (reportSchedule.reportWindow.hasFixedWindow()) {
+          val fixedWindow = reportSchedule.reportWindow.fixedWindow
+          val offsetDateTime =
+            OffsetDateTime.of(
+              fixedWindow.year,
+              fixedWindow.month,
+              fixedWindow.day,
+              eventStart.hours,
+              eventStart.minutes,
+              eventStart.seconds,
+              eventStart.nanos,
+              offset
+            )
+          offsetDateTime.toInstant().toProtoTime()
+        } else {
+          val trailingWindow = reportSchedule.reportWindow.trailingWindow
+          val windowEnd = OffsetDateTime.of(LocalDateTime.from(timestamp.toInstant()), offset)
+          @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf case fields cannot be null.
+          when (trailingWindow.increment) {
+            ReportSchedule.ReportWindow.TrailingWindow.Increment.DAY ->
+              windowEnd.minusDays(trailingWindow.count.toLong()).toInstant().toProtoTime()
+            ReportSchedule.ReportWindow.TrailingWindow.Increment.WEEK ->
+              windowEnd.minusWeeks(trailingWindow.count.toLong()).toInstant().toProtoTime()
+            ReportSchedule.ReportWindow.TrailingWindow.Increment.MONTH ->
+              windowEnd.minusMonths(trailingWindow.count.toLong()).toInstant().toProtoTime()
+            ReportSchedule.ReportWindow.TrailingWindow.Increment.INCREMENT_UNSPECIFIED,
+            ReportSchedule.ReportWindow.TrailingWindow.Increment.UNRECOGNIZED ->
+              error("trailing_window missing increment")
+          }
+        }
+      } else {
+        val id = ZoneId.of(eventStart.timeZone.id)
+        if (reportSchedule.reportWindow.hasFixedWindow()) {
+          val fixedWindow = reportSchedule.reportWindow.fixedWindow
+          val zonedDateTime =
+            ZonedDateTime.of(
+              fixedWindow.year,
+              fixedWindow.month,
+              fixedWindow.day,
+              eventStart.hours,
+              eventStart.minutes,
+              eventStart.seconds,
+              eventStart.nanos,
+              id
+            )
+          zonedDateTime.toInstant().toProtoTime()
+        } else {
+          val trailingWindow = reportSchedule.reportWindow.trailingWindow
+          val windowEnd = ZonedDateTime.ofInstant(timestamp.toInstant(), id)
+          @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf case fields cannot be null.
+          when (trailingWindow.increment) {
+            ReportSchedule.ReportWindow.TrailingWindow.Increment.DAY ->
+              windowEnd.minusDays(trailingWindow.count.toLong()).toInstant().toProtoTime()
+            ReportSchedule.ReportWindow.TrailingWindow.Increment.WEEK ->
+              windowEnd.minusWeeks(trailingWindow.count.toLong()).toInstant().toProtoTime()
+            ReportSchedule.ReportWindow.TrailingWindow.Increment.MONTH ->
+              windowEnd.minusMonths(trailingWindow.count.toLong()).toInstant().toProtoTime()
+            ReportSchedule.ReportWindow.TrailingWindow.Increment.INCREMENT_UNSPECIFIED,
+            ReportSchedule.ReportWindow.TrailingWindow.Increment.UNRECOGNIZED ->
+              error("trailing_window missing increment")
+          }
+        }
+      }
     }
   }
 }

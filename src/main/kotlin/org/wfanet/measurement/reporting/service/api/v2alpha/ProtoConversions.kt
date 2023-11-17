@@ -22,7 +22,6 @@ import com.google.type.DateTime
 import com.google.type.Interval
 import com.google.type.interval
 import java.time.DateTimeException
-import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
@@ -40,7 +39,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec.VidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
-import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams as NoiserDpParams
@@ -97,8 +95,6 @@ import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.PeriodicTimeInterval
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportKt
-import org.wfanet.measurement.reporting.v2alpha.ReportSchedule
-import org.wfanet.measurement.reporting.v2alpha.ReportSchedule.ReportWindow
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.TimeIntervals
@@ -981,90 +977,14 @@ fun InternalMetricSpec.DifferentialPrivacyParams.toNoiserDpParams(): NoiserDpPar
  * * [ZoneRulesException] when time zone id is invalid.
  */
 fun DateTime.toTimestamp(): Timestamp {
-  return if (hasUtcOffset()) {
-    val offset = ZoneOffset.ofTotalSeconds(utcOffset.seconds.toInt())
-    val offsetDateTime = OffsetDateTime.of(year, month, day, hours, minutes, seconds, nanos, offset)
+  val source = this
+  return if (source.hasUtcOffset()) {
+    val offset = ZoneOffset.ofTotalSeconds(source.utcOffset.seconds.toInt())
+    val offsetDateTime = OffsetDateTime.of(source.year, source.month, source.day, source.hours, source.minutes, source.seconds, source.nanos, offset)
     offsetDateTime.toInstant().toProtoTime()
   } else {
-    val id = ZoneId.of(timeZone.id)
-    val zonedDateTime = ZonedDateTime.of(year, month, day, hours, minutes, seconds, nanos, id)
+    val id = ZoneId.of(source.timeZone.id)
+    val zonedDateTime = ZonedDateTime.of(source.year, source.month, source.day, source.hours, source.minutes, source.seconds, source.nanos, id)
     zonedDateTime.toInstant().toProtoTime()
-  }
-}
-
-/**
- * Given a [ReportSchedule] and a [Timestamp], create a [Timestamp] that represents the start of the
- * window.
- */
-fun buildReportWindowStartTimestamp(
-  reportSchedule: ReportSchedule,
-  timestamp: Timestamp
-): Timestamp {
-  val eventStart = reportSchedule.eventStart
-
-  return if (eventStart.hasUtcOffset()) {
-    val offset = ZoneOffset.ofTotalSeconds(eventStart.utcOffset.seconds.toInt())
-    if (reportSchedule.reportWindow.hasFixedWindow()) {
-      val fixedWindow = reportSchedule.reportWindow.fixedWindow
-      val offsetDateTime =
-        OffsetDateTime.of(
-          fixedWindow.year,
-          fixedWindow.month,
-          fixedWindow.day,
-          eventStart.hours,
-          eventStart.minutes,
-          eventStart.seconds,
-          eventStart.nanos,
-          offset
-        )
-      offsetDateTime.toInstant().toProtoTime()
-    } else {
-      val trailingWindow = reportSchedule.reportWindow.trailingWindow
-      val windowEnd = OffsetDateTime.of(LocalDateTime.from(timestamp.toInstant()), offset)
-      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf case fields cannot be null.
-      when (trailingWindow.increment) {
-        ReportWindow.TrailingWindow.Increment.DAY ->
-          windowEnd.minusDays(trailingWindow.count.toLong()).toInstant().toProtoTime()
-        ReportWindow.TrailingWindow.Increment.WEEK ->
-          windowEnd.minusWeeks(trailingWindow.count.toLong()).toInstant().toProtoTime()
-        ReportWindow.TrailingWindow.Increment.MONTH ->
-          windowEnd.minusMonths(trailingWindow.count.toLong()).toInstant().toProtoTime()
-        ReportWindow.TrailingWindow.Increment.INCREMENT_UNSPECIFIED,
-        ReportWindow.TrailingWindow.Increment.UNRECOGNIZED ->
-          error("trailing_window missing increment")
-      }
-    }
-  } else {
-    val id = ZoneId.of(eventStart.timeZone.id)
-    if (reportSchedule.reportWindow.hasFixedWindow()) {
-      val fixedWindow = reportSchedule.reportWindow.fixedWindow
-      val zonedDateTime =
-        ZonedDateTime.of(
-          fixedWindow.year,
-          fixedWindow.month,
-          fixedWindow.day,
-          eventStart.hours,
-          eventStart.minutes,
-          eventStart.seconds,
-          eventStart.nanos,
-          id
-        )
-      zonedDateTime.toInstant().toProtoTime()
-    } else {
-      val trailingWindow = reportSchedule.reportWindow.trailingWindow
-      val windowEnd = ZonedDateTime.ofInstant(timestamp.toInstant(), id)
-      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf case fields cannot be null.
-      when (trailingWindow.increment) {
-        ReportWindow.TrailingWindow.Increment.DAY ->
-          windowEnd.minusDays(trailingWindow.count.toLong()).toInstant().toProtoTime()
-        ReportWindow.TrailingWindow.Increment.WEEK ->
-          windowEnd.minusWeeks(trailingWindow.count.toLong()).toInstant().toProtoTime()
-        ReportWindow.TrailingWindow.Increment.MONTH ->
-          windowEnd.minusMonths(trailingWindow.count.toLong()).toInstant().toProtoTime()
-        ReportWindow.TrailingWindow.Increment.INCREMENT_UNSPECIFIED,
-        ReportWindow.TrailingWindow.Increment.UNRECOGNIZED ->
-          error("trailing_window missing increment")
-      }
-    }
   }
 }
