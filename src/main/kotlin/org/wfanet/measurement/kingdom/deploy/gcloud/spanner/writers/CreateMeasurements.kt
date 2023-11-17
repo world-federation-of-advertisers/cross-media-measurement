@@ -56,7 +56,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementR
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWriter.TransactionScope
 
 /**
- * Creates a measurement in the database.
+ * Create measurements in the database.
  *
  * Throws a subclass of [KingdomInternalException] on [execute].
  *
@@ -68,41 +68,59 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWrite
  * @throws [DuchyNotActiveException] One or more required duchies were inactive at measurement
  *   creation time
  */
-class CreateMeasurement(private val request: CreateMeasurementRequest) :
-  SpannerWriter<Measurement, Measurement>() {
+class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
+  SpannerWriter<List<Measurement>, List<Measurement>>() {
 
-  override suspend fun TransactionScope.runTransaction(): Measurement {
-    val measurementConsumerId: InternalId =
-      readMeasurementConsumerId(ExternalId(request.measurement.externalMeasurementConsumerId))
+  override suspend fun TransactionScope.runTransaction(): List<Measurement> {
+    val measurements = mutableListOf<Measurement>()
+    val measurementConsumerMap = mutableMapOf<Long, InternalId>()
+    for (createMeasurementRequest in requests) {
+      val externalMeasurementConsumerId = createMeasurementRequest.measurement.externalMeasurementConsumerId
+      val measurementConsumerId: InternalId =
+        if (measurementConsumerMap.containsKey(externalMeasurementConsumerId)) {
+          measurementConsumerMap.getValue(externalMeasurementConsumerId)
+        } else {
+          measurementConsumerMap[externalMeasurementConsumerId] = readMeasurementConsumerId(ExternalId(externalMeasurementConsumerId))
+          measurementConsumerMap.getValue(externalMeasurementConsumerId)
+        }
 
-    if (request.requestId.isNotEmpty()) {
-      val existingMeasurement = findExistingMeasurement(measurementConsumerId)
-      if (existingMeasurement != null) {
-        return existingMeasurement
+      if (createMeasurementRequest.requestId.isNotEmpty()) {
+        val existingMeasurement = findExistingMeasurement(createMeasurementRequest, measurementConsumerId)
+        if (existingMeasurement != null) {
+          measurements.add(existingMeasurement)
+          continue
+        }
       }
+
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields are never null.
+      val measurement =
+        when (createMeasurementRequest.measurement.details.protocolConfig.protocolCase) {
+          ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2,
+          ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2
+          -> {
+            createComputedMeasurement(createMeasurementRequest, measurementConsumerId)
+          }
+
+          ProtocolConfig.ProtocolCase.DIRECT ->
+            createDirectMeasurement(createMeasurementRequest, measurementConsumerId)
+
+          ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Protocol is not set.")
+        }
+      measurements.add(measurement)
     }
 
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields are never null.
-    return when (request.measurement.details.protocolConfig.protocolCase) {
-      ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2,
-      ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
-        createComputedMeasurement(request.measurement, measurementConsumerId)
-      }
-      ProtocolConfig.ProtocolCase.DIRECT ->
-        createDirectMeasurement(request.measurement, measurementConsumerId)
-      ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Protocol is not set.")
-    }
+    return measurements
   }
 
   private suspend fun TransactionScope.createComputedMeasurement(
-    measurement: Measurement,
+    createMeasurementRequest: CreateMeasurementRequest,
     measurementConsumerId: InternalId
   ): Measurement {
     val initialMeasurementState = Measurement.State.PENDING_REQUISITION_PARAMS
 
     val requiredExternalDuchyIds =
       if (
-        request.measurement.details.protocolConfig.protocolCase ==
+        createMeasurementRequest.measurement.details.protocolConfig.protocolCase ==
           ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2
       )
         Llv2ProtocolConfig.requiredExternalDuchyIds
@@ -110,7 +128,7 @@ class CreateMeasurement(private val request: CreateMeasurementRequest) :
     val requiredDuchyIds =
       requiredExternalDuchyIds +
         readDataProviderRequiredDuchies(
-          measurement.dataProvidersMap.keys.map { ExternalId(it) }.toSet()
+          createMeasurementRequest.measurement.dataProvidersMap.keys.map { ExternalId(it) }.toSet()
         )
     val now = Clock.systemUTC().instant()
     val requiredDuchyEntries = DuchyIds.entries.filter { it.externalDuchyId in requiredDuchyIds }
@@ -121,7 +139,7 @@ class CreateMeasurement(private val request: CreateMeasurementRequest) :
     }
     val minimumNumberOfRequiredDuchies =
       if (
-        request.measurement.details.protocolConfig.protocolCase ==
+        createMeasurementRequest.measurement.details.protocolConfig.protocolCase ==
           ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2
       )
         Llv2ProtocolConfig.minimumNumberOfRequiredDuchies
@@ -145,6 +163,7 @@ class CreateMeasurement(private val request: CreateMeasurementRequest) :
     val externalMeasurementId: ExternalId = idGenerator.generateExternalId()
     val externalComputationId: ExternalId = idGenerator.generateExternalId()
     insertMeasurement(
+      createMeasurementRequest,
       measurementConsumerId,
       measurementId,
       externalMeasurementId,
@@ -156,7 +175,7 @@ class CreateMeasurement(private val request: CreateMeasurementRequest) :
     insertRequisitions(
       measurementConsumerId,
       measurementId,
-      measurement.dataProvidersMap,
+      createMeasurementRequest.measurement.dataProvidersMap,
       Requisition.State.PENDING_PARAMS
     )
 
@@ -168,7 +187,7 @@ class CreateMeasurement(private val request: CreateMeasurementRequest) :
       )
     }
 
-    return measurement.copy {
+    return createMeasurementRequest.measurement.copy {
       this.externalMeasurementId = externalMeasurementId.value
       this.externalComputationId = externalComputationId.value
       state = initialMeasurementState
@@ -176,7 +195,7 @@ class CreateMeasurement(private val request: CreateMeasurementRequest) :
   }
 
   private suspend fun TransactionScope.createDirectMeasurement(
-    measurement: Measurement,
+    createMeasurementRequest: CreateMeasurementRequest,
     measurementConsumerId: InternalId
   ): Measurement {
     val initialMeasurementState = Measurement.State.PENDING_REQUISITION_FULFILLMENT
@@ -184,6 +203,7 @@ class CreateMeasurement(private val request: CreateMeasurementRequest) :
     val measurementId: InternalId = idGenerator.generateInternalId()
     val externalMeasurementId: ExternalId = idGenerator.generateExternalId()
     insertMeasurement(
+      createMeasurementRequest,
       measurementConsumerId,
       measurementId,
       externalMeasurementId,
@@ -195,17 +215,18 @@ class CreateMeasurement(private val request: CreateMeasurementRequest) :
     insertRequisitions(
       measurementConsumerId,
       measurementId,
-      measurement.dataProvidersMap,
+      createMeasurementRequest.measurement.dataProvidersMap,
       Requisition.State.UNFULFILLED
     )
 
-    return measurement.copy {
+    return createMeasurementRequest.measurement.copy {
       this.externalMeasurementId = externalMeasurementId.value
       state = initialMeasurementState
     }
   }
 
   private suspend fun TransactionScope.insertMeasurement(
+    createMeasurementRequest: CreateMeasurementRequest,
     measurementConsumerId: InternalId,
     measurementId: InternalId,
     externalMeasurementId: ExternalId,
@@ -213,7 +234,7 @@ class CreateMeasurement(private val request: CreateMeasurementRequest) :
     initialMeasurementState: Measurement.State
   ) {
     val externalMeasurementConsumerId =
-      ExternalId(request.measurement.externalMeasurementConsumerCertificateId)
+      ExternalId(createMeasurementRequest.measurement.externalMeasurementConsumerCertificateId)
     val reader =
       CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
         .bindWhereClause(measurementConsumerId, externalMeasurementConsumerId)
@@ -231,16 +252,16 @@ class CreateMeasurement(private val request: CreateMeasurementRequest) :
       if (externalComputationId != null) {
         set("ExternalComputationId" to externalComputationId)
       }
-      if (request.requestId.isNotEmpty()) {
-        set("CreateRequestId" to request.requestId)
+      if (createMeasurementRequest.requestId.isNotEmpty()) {
+        set("CreateRequestId" to createMeasurementRequest.requestId)
       }
-      if (request.measurement.providedMeasurementId.isNotEmpty()) {
-        set("ProvidedMeasurementId" to request.measurement.providedMeasurementId)
+      if (createMeasurementRequest.measurement.providedMeasurementId.isNotEmpty()) {
+        set("ProvidedMeasurementId" to createMeasurementRequest.measurement.providedMeasurementId)
       }
       set("CertificateId" to measurementConsumerCertificateId)
       set("State" to initialMeasurementState)
-      set("MeasurementDetails" to request.measurement.details)
-      setJson("MeasurementDetailsJson" to request.measurement.details)
+      set("MeasurementDetails" to createMeasurementRequest.measurement.details)
+      setJson("MeasurementDetailsJson" to createMeasurementRequest.measurement.details)
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
     }
@@ -311,12 +332,6 @@ class CreateMeasurement(private val request: CreateMeasurementRequest) :
         dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
         encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
         nonceHash = dataProviderValue.nonceHash
-
-        // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting these
-        // fields.
-        dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
-        dataProviderPublicKeySignatureAlgorithmOid =
-          dataProviderValue.dataProviderPublicKeySignatureAlgorithmOid
       }
 
     transactionContext.bufferInsertMutation("Requisitions") {
@@ -334,6 +349,7 @@ class CreateMeasurement(private val request: CreateMeasurementRequest) :
   }
 
   private suspend fun TransactionScope.findExistingMeasurement(
+    createMeasurementRequest: CreateMeasurementRequest,
     measurementConsumerId: InternalId
   ): Measurement? {
     val params =
@@ -352,23 +368,26 @@ class CreateMeasurement(private val request: CreateMeasurementRequest) :
       .fillStatementBuilder {
         appendClause(whereClause)
         bind(params.MEASUREMENT_CONSUMER_ID to measurementConsumerId)
-        bind(params.CREATE_REQUEST_ID to request.requestId)
+        bind(params.CREATE_REQUEST_ID to createMeasurementRequest.requestId)
       }
       .execute(transactionContext)
       .map { it.measurement }
       .singleOrNull()
   }
 
-  override fun ResultScope<Measurement>.buildResult(): Measurement {
-    val measurement = checkNotNull(transactionResult)
-    if (measurement.hasCreateTime()) {
-      // Existing measurement was returned instead of inserting new one, so keep its timestamps.
-      return measurement
-    }
-    return measurement.copy {
-      createTime = commitTimestamp.toProto()
-      updateTime = commitTimestamp.toProto()
-      etag = getEtag(commitTimestamp)
+  override fun ResultScope<List<Measurement>>.buildResult(): List<Measurement> {
+    val measurements: List<Measurement> = checkNotNull(transactionResult)
+    return measurements.map {
+      if (it.hasCreateTime()) {
+        // Existing measurement was returned instead of inserting new one, so keep its timestamps.
+        it
+      } else {
+        it.copy {
+          createTime = commitTimestamp.toProto()
+          updateTime = commitTimestamp.toProto()
+          etag = getEtag(commitTimestamp)
+        }
+      }
     }
   }
 }
