@@ -146,8 +146,8 @@ fun MetricSpec.toInternal(): InternalMetricSpec {
       MetricSpec.TypeCase.REACH -> {
         reach = source.reach.toInternal()
       }
-      MetricSpec.TypeCase.FREQUENCY_HISTOGRAM -> {
-        frequencyHistogram = source.frequencyHistogram.toInternal()
+      MetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
+        reachAndFrequency = source.reachAndFrequency.toInternal()
       }
       MetricSpec.TypeCase.IMPRESSION_COUNT -> {
         impressionCount = source.impressionCount.toInternal()
@@ -205,24 +205,24 @@ fun MetricSpec.ImpressionCountParams.toInternal(): InternalMetricSpec.Impression
 }
 
 /**
- * Converts a [MetricSpec.FrequencyHistogramParams] to an
- * [InternalMetricSpec.FrequencyHistogramParams].
+ * Converts a [MetricSpec.ReachAndFrequencyParams] to an
+ * [InternalMetricSpec.ReachAndFrequencyParams].
  */
-fun MetricSpec.FrequencyHistogramParams.toInternal(): InternalMetricSpec.FrequencyHistogramParams {
+fun MetricSpec.ReachAndFrequencyParams.toInternal(): InternalMetricSpec.ReachAndFrequencyParams {
   val source = this
   if (!source.hasReachPrivacyParams()) {
     throw MetricSpecDefaultsException(
       "Invalid privacy params",
-      IllegalArgumentException("reachPrivacyParams in frequency histogram is not set.")
+      IllegalArgumentException("reachPrivacyParams in reach-and-frequency is not set.")
     )
   }
   if (!source.hasFrequencyPrivacyParams()) {
     throw MetricSpecDefaultsException(
       "Invalid privacy params",
-      IllegalArgumentException("frequencyPrivacyParams in frequency histogram is not set.")
+      IllegalArgumentException("frequencyPrivacyParams in reach-and-frequency is not set.")
     )
   }
-  return InternalMetricSpecKt.frequencyHistogramParams {
+  return InternalMetricSpecKt.reachAndFrequencyParams {
     reachPrivacyParams = source.reachPrivacyParams.toInternal()
     frequencyPrivacyParams = source.frequencyPrivacyParams.toInternal()
     maximumFrequency = source.maximumFrequency
@@ -280,13 +280,13 @@ fun InternalMetricSpec.toMetricSpec(): MetricSpec {
       InternalMetricSpec.TypeCase.REACH ->
         reach =
           MetricSpecKt.reachParams { privacyParams = source.reach.privacyParams.toPrivacyParams() }
-      InternalMetricSpec.TypeCase.FREQUENCY_HISTOGRAM ->
-        frequencyHistogram =
-          MetricSpecKt.frequencyHistogramParams {
-            maximumFrequency = source.frequencyHistogram.maximumFrequency
-            reachPrivacyParams = source.frequencyHistogram.reachPrivacyParams.toPrivacyParams()
+      InternalMetricSpec.TypeCase.REACH_AND_FREQUENCY ->
+        reachAndFrequency =
+          MetricSpecKt.reachAndFrequencyParams {
+            maximumFrequency = source.reachAndFrequency.maximumFrequency
+            reachPrivacyParams = source.reachAndFrequency.reachPrivacyParams.toPrivacyParams()
             frequencyPrivacyParams =
-              source.frequencyHistogram.frequencyPrivacyParams.toPrivacyParams()
+              source.reachAndFrequency.frequencyPrivacyParams.toPrivacyParams()
           }
       InternalMetricSpec.TypeCase.IMPRESSION_COUNT ->
         impressionCount =
@@ -338,10 +338,10 @@ fun InternalMetricSpec.ReachParams.toReach(): MeasurementSpec.Reach {
 }
 
 /**
- * Converts an [InternalMetricSpec.FrequencyHistogramParams] to a
+ * Converts an [InternalMetricSpec.ReachAndFrequencyParams] to a
  * [MeasurementSpec.ReachAndFrequency].
  */
-fun InternalMetricSpec.FrequencyHistogramParams.toReachAndFrequency():
+fun InternalMetricSpec.ReachAndFrequencyParams.toReachAndFrequency():
   MeasurementSpec.ReachAndFrequency {
   val source = this
   return MeasurementSpecKt.reachAndFrequency {
