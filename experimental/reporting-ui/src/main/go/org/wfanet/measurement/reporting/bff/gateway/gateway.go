@@ -25,6 +25,7 @@ import (
 	_ "google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"wfa/measurement/reporting/bff/v1alpha/reportingpb"
+	"wfa/measurement/reporting/bff/v1alpha/eventgroupspb"
 )
 
 // newGateway returns a new gateway server which translates HTTP into gRPC.
@@ -34,6 +35,7 @@ func newGateway(ctx context.Context, conn *grpc.ClientConn, opts []gwruntime.Ser
 
 	for _, f := range []func(context.Context, *gwruntime.ServeMux, *grpc.ClientConn) error{
 		reportingpb.RegisterReportsHandler,
+		eventgroupspb.RegisterEventGroupsHandler,
 	} {
 		if err := f(ctx, mux, conn); err != nil {
 			return nil, err
