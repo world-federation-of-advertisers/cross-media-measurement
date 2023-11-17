@@ -2282,6 +2282,20 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       )
       .isEqualTo(measurement.copy { state = Measurement.State.PENDING_REQUISITION_PARAMS })
     assertThat(createdMeasurements[0].createTime).isEqualTo(createdMeasurements[1].createTime)
+
+    val measurements =
+      measurementsService
+        .streamMeasurements(
+          streamMeasurementsRequest {
+            filter = filter {
+              externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+            }
+            measurementView = Measurement.View.DEFAULT
+          }
+        )
+        .toList()
+
+    assertThat(measurements).hasSize(2)
   }
 
   @Test
