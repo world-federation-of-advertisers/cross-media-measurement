@@ -66,8 +66,8 @@ proto_library(
     srcs = ["reports_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":report_proto",
         ":list_report_detail_proto",
+        ":report_proto",
         "@com_google_googleapis//google/api:annotations_proto",
         "@com_google_googleapis//google/api:client_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
