@@ -50,6 +50,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.SignedMessage
+import org.wfanet.measurement.api.v2alpha.batchCreateMeasurementsResponse
+import org.wfanet.measurement.api.v2alpha.batchGetMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.isA
 import org.wfanet.measurement.api.v2alpha.listMeasurementsPageToken
@@ -62,6 +64,8 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.internal.kingdom.CreateMeasurementRequest as InternalCreateMeasurementRequest
+import org.wfanet.measurement.internal.kingdom.GetMeasurementRequest as InternalGetMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
 import org.wfanet.measurement.internal.kingdom.Measurement.View as InternalMeasurementView
@@ -70,14 +74,10 @@ import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCo
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
-import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
-import org.wfanet.measurement.internal.kingdom.createMeasurementRequest as internalCreateMeasurementRequest
-import org.wfanet.measurement.internal.kingdom.CreateMeasurementRequest as InternalCreateMeasurementRequest
-import org.wfanet.measurement.internal.kingdom.GetMeasurementRequest as InternalGetMeasurementRequest
-import org.wfanet.measurement.api.v2alpha.batchCreateMeasurementsResponse
-import org.wfanet.measurement.api.v2alpha.batchGetMeasurementsResponse
 import org.wfanet.measurement.internal.kingdom.batchCreateMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.batchGetMeasurementsRequest
+import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
+import org.wfanet.measurement.internal.kingdom.createMeasurementRequest as internalCreateMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
@@ -235,7 +235,9 @@ class MeasurementsService(
     return internalMeasurement.toMeasurement()
   }
 
-  override suspend fun batchCreateMeasurements(request: BatchCreateMeasurementsRequest): BatchCreateMeasurementsResponse {
+  override suspend fun batchCreateMeasurements(
+    request: BatchCreateMeasurementsRequest
+  ): BatchCreateMeasurementsResponse {
     val authenticatedMeasurementConsumerKey = getAuthenticatedMeasurementConsumerKey()
 
     val parentKey =
@@ -272,26 +274,26 @@ class MeasurementsService(
         }
       }
 
-      val internalCreateMeasurementRequest = createMeasurementRequest.buildInternalCreateMeasurementRequest(parentKey)
+      val internalCreateMeasurementRequest =
+        createMeasurementRequest.buildInternalCreateMeasurementRequest(parentKey)
       internalCreateMeasurementRequests.add(internalCreateMeasurementRequest)
     }
 
     val internalMeasurements =
       try {
-        internalMeasurementsStub.batchCreateMeasurements(batchCreateMeasurementsRequest {
-          requests += internalCreateMeasurementRequests
-        }).measurementsList
+        internalMeasurementsStub
+          .batchCreateMeasurements(
+            batchCreateMeasurementsRequest { requests += internalCreateMeasurementRequests }
+          )
+          .measurementsList
       } catch (ex: StatusException) {
         when (ex.status.code) {
           Status.Code.INVALID_ARGUMENT ->
             failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid" }
-
           Status.Code.FAILED_PRECONDITION ->
             failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition" }
-
           Status.Code.NOT_FOUND ->
             failGrpc(Status.NOT_FOUND, ex) { "MeasurementConsumer not found." }
-
           else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
         }
       }
@@ -301,7 +303,9 @@ class MeasurementsService(
     }
   }
 
-  override suspend fun batchGetMeasurements(request: BatchGetMeasurementsRequest): BatchGetMeasurementsResponse {
+  override suspend fun batchGetMeasurements(
+    request: BatchGetMeasurementsRequest
+  ): BatchGetMeasurementsResponse {
     val authenticatedMeasurementConsumerKey = getAuthenticatedMeasurementConsumerKey()
 
     val parentKey =
@@ -326,7 +330,9 @@ class MeasurementsService(
     val internalGetMeasurementRequests = mutableListOf<InternalGetMeasurementRequest>()
     for (getMeasurementRequest in request.requestsList) {
       val key =
-        grpcRequireNotNull(MeasurementKey.fromName(getMeasurementRequest.name)) { MISSING_RESOURCE_NAME_ERROR }
+        grpcRequireNotNull(MeasurementKey.fromName(getMeasurementRequest.name)) {
+          MISSING_RESOURCE_NAME_ERROR
+        }
 
       if (authenticatedMeasurementConsumerKey.measurementConsumerId != key.measurementConsumerId) {
         failGrpc(Status.PERMISSION_DENIED) {
@@ -344,9 +350,11 @@ class MeasurementsService(
 
     val internalMeasurements =
       try {
-        internalMeasurementsStub.batchGetMeasurements(batchGetMeasurementsRequest {
-          requests += internalGetMeasurementRequests
-        }).measurementsList
+        internalMeasurementsStub
+          .batchGetMeasurements(
+            batchGetMeasurementsRequest { requests += internalGetMeasurementRequests }
+          )
+          .measurementsList
       } catch (ex: StatusException) {
         when (ex.status.code) {
           Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Measurement not found" }
@@ -359,12 +367,12 @@ class MeasurementsService(
     }
   }
 
-  private fun CreateMeasurementRequest.buildInternalCreateMeasurementRequest(parentKey: MeasurementConsumerKey): InternalCreateMeasurementRequest {
+  private fun CreateMeasurementRequest.buildInternalCreateMeasurementRequest(
+    parentKey: MeasurementConsumerKey
+  ): InternalCreateMeasurementRequest {
     val measurementConsumerCertificateKey =
       grpcRequireNotNull(
-        MeasurementConsumerCertificateKey.fromName(
-          measurement.measurementConsumerCertificate
-        )
+        MeasurementConsumerCertificateKey.fromName(measurement.measurementConsumerCertificate)
       ) {
         "measurement_consumer_certificate is either unspecified or invalid"
       }
@@ -386,9 +394,7 @@ class MeasurementsService(
       }
     measurementSpec.validate()
 
-    grpcRequire(measurement.dataProvidersList.isNotEmpty()) {
-      "Data Providers list is empty"
-    }
+    grpcRequire(measurement.dataProvidersList.isNotEmpty()) { "Data Providers list is empty" }
     val dataProvidersMap = mutableMapOf<Long, DataProviderValue>()
     measurement.dataProvidersList.forEach {
       with(it.validateAndMap()) {
@@ -403,13 +409,14 @@ class MeasurementsService(
       "nonce_hash list size is not equal to the data_providers list size."
     }
 
-    val internalMeasurement = measurement.toInternal(
-      measurementConsumerCertificateKey,
-      dataProvidersMap,
-      measurementSpec,
-      noiseMechanisms.map { it.toInternal() },
-      reachOnlyLlV2Enabled
-    )
+    val internalMeasurement =
+      measurement.toInternal(
+        measurementConsumerCertificateKey,
+        dataProvidersMap,
+        measurementSpec,
+        noiseMechanisms.map { it.toInternal() },
+        reachOnlyLlV2Enabled
+      )
 
     val requestId = this.requestId
 

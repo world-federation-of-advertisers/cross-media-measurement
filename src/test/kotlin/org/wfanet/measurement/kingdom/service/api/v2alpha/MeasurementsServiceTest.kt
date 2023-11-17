@@ -66,6 +66,10 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.reachOnlyLiquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.SignedMessage
+import org.wfanet.measurement.api.v2alpha.batchCreateMeasurementsRequest
+import org.wfanet.measurement.api.v2alpha.batchCreateMeasurementsResponse
+import org.wfanet.measurement.api.v2alpha.batchGetMeasurementsRequest
+import org.wfanet.measurement.api.v2alpha.batchGetMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.cancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
@@ -110,6 +114,10 @@ import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt as InternalProto
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt.direct
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
+import org.wfanet.measurement.internal.kingdom.batchCreateMeasurementsRequest as internalBatchCreateMeasurementsRequest
+import org.wfanet.measurement.internal.kingdom.batchCreateMeasurementsResponse as internalBatchCreateMeasurementsResponse
+import org.wfanet.measurement.internal.kingdom.batchGetMeasurementsRequest as internalBatchGetMeasurementsRequest
+import org.wfanet.measurement.internal.kingdom.batchGetMeasurementsResponse as internalBatchGetMeasurementsResponse
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest as internalCancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.createMeasurementRequest as internalCreateMeasurementRequest
@@ -120,14 +128,6 @@ import org.wfanet.measurement.internal.kingdom.liquidLegionsSketchParams as inte
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
 import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
-import org.wfanet.measurement.api.v2alpha.batchCreateMeasurementsRequest
-import org.wfanet.measurement.api.v2alpha.batchCreateMeasurementsResponse
-import org.wfanet.measurement.api.v2alpha.batchGetMeasurementsRequest
-import org.wfanet.measurement.api.v2alpha.batchGetMeasurementsResponse
-import org.wfanet.measurement.internal.kingdom.batchCreateMeasurementsRequest as internalBatchCreateMeasurementsRequest
-import org.wfanet.measurement.internal.kingdom.batchCreateMeasurementsResponse as internalBatchCreateMeasurementsResponse
-import org.wfanet.measurement.internal.kingdom.batchGetMeasurementsRequest as internalBatchGetMeasurementsRequest
-import org.wfanet.measurement.internal.kingdom.batchGetMeasurementsResponse as internalBatchGetMeasurementsResponse
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
@@ -183,14 +183,16 @@ class MeasurementsServiceTest {
         .thenReturn(
           internalBatchCreateMeasurementsResponse {
             measurements += INTERNAL_MEASUREMENT
-            measurements += INTERNAL_MEASUREMENT.copy { externalMeasurementId = EXTERNAL_MEASUREMENT_ID_2 }
+            measurements +=
+              INTERNAL_MEASUREMENT.copy { externalMeasurementId = EXTERNAL_MEASUREMENT_ID_2 }
           }
         )
       onBlocking { batchGetMeasurements(any()) }
         .thenReturn(
           internalBatchGetMeasurementsResponse {
             measurements += INTERNAL_MEASUREMENT
-            measurements += INTERNAL_MEASUREMENT.copy { externalMeasurementId = EXTERNAL_MEASUREMENT_ID_2 }
+            measurements +=
+              INTERNAL_MEASUREMENT.copy { externalMeasurementId = EXTERNAL_MEASUREMENT_ID_2 }
           }
         )
     }
@@ -1856,24 +1858,21 @@ class MeasurementsServiceTest {
       measurements += MEASUREMENT.copy { name = MEASUREMENT_NAME_2 }
     }
 
-    val internalMeasurement = INTERNAL_MEASUREMENT.copy {
-      clearExternalMeasurementId()
-      clearUpdateTime()
-      details = details.copy { clearFailure() }
-      results.clear()
-    }
+    val internalMeasurement =
+      INTERNAL_MEASUREMENT.copy {
+        clearExternalMeasurementId()
+        clearUpdateTime()
+        details = details.copy { clearFailure() }
+        results.clear()
+      }
     verifyProtoArgument(
-      internalMeasurementsMock,
-      MeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchCreateMeasurements
-    )
+        internalMeasurementsMock,
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchCreateMeasurements
+      )
       .isEqualTo(
         internalBatchCreateMeasurementsRequest {
-          requests += internalCreateMeasurementRequest {
-            measurement = internalMeasurement
-          }
-          requests += internalCreateMeasurementRequest {
-            measurement = internalMeasurement
-          }
+          requests += internalCreateMeasurementRequest { measurement = internalMeasurement }
+          requests += internalCreateMeasurementRequest { measurement = internalMeasurement }
         }
       )
 
@@ -1882,12 +1881,8 @@ class MeasurementsServiceTest {
 
   @Test
   fun `batchCreateMeasurements returns measurements when inner requests do not have parent`() {
-    val createMeasurementRequest = createMeasurementRequest {
-      measurement = MEASUREMENT
-    }
-    val createMeasurementRequest2 = createMeasurementRequest {
-      measurement = MEASUREMENT
-    }
+    val createMeasurementRequest = createMeasurementRequest { measurement = MEASUREMENT }
+    val createMeasurementRequest2 = createMeasurementRequest { measurement = MEASUREMENT }
     val request = batchCreateMeasurementsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       requests += createMeasurementRequest
@@ -1904,24 +1899,21 @@ class MeasurementsServiceTest {
       measurements += MEASUREMENT.copy { name = MEASUREMENT_NAME_2 }
     }
 
-    val internalMeasurement = INTERNAL_MEASUREMENT.copy {
-      clearExternalMeasurementId()
-      clearUpdateTime()
-      details = details.copy { clearFailure() }
-      results.clear()
-    }
+    val internalMeasurement =
+      INTERNAL_MEASUREMENT.copy {
+        clearExternalMeasurementId()
+        clearUpdateTime()
+        details = details.copy { clearFailure() }
+        results.clear()
+      }
     verifyProtoArgument(
-      internalMeasurementsMock,
-      MeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchCreateMeasurements
-    )
+        internalMeasurementsMock,
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchCreateMeasurements
+      )
       .isEqualTo(
         internalBatchCreateMeasurementsRequest {
-          requests += internalCreateMeasurementRequest {
-            measurement = internalMeasurement
-          }
-          requests += internalCreateMeasurementRequest {
-            measurement = internalMeasurement
-          }
+          requests += internalCreateMeasurementRequest { measurement = internalMeasurement }
+          requests += internalCreateMeasurementRequest { measurement = internalMeasurement }
         }
       )
 
@@ -1955,9 +1947,7 @@ class MeasurementsServiceTest {
       parent = MEASUREMENT_CONSUMER_NAME_2
       measurement = MEASUREMENT
     }
-    val createMeasurementRequest2 = createMeasurementRequest {
-      measurement = MEASUREMENT
-    }
+    val createMeasurementRequest2 = createMeasurementRequest { measurement = MEASUREMENT }
     val request = batchCreateMeasurementsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       requests += createMeasurementRequest
@@ -1979,9 +1969,7 @@ class MeasurementsServiceTest {
       parent = MEASUREMENT_CONSUMER_NAME
       measurement = MEASUREMENT
     }
-    val createMeasurementRequest2 = createMeasurementRequest {
-      measurement = MEASUREMENT
-    }
+    val createMeasurementRequest2 = createMeasurementRequest { measurement = MEASUREMENT }
     val request = batchCreateMeasurementsRequest {
       requests += createMeasurementRequest
       requests += createMeasurementRequest2
@@ -2089,7 +2077,9 @@ class MeasurementsServiceTest {
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> { runBlocking { service.batchCreateMeasurements(request) } }
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking { service.batchCreateMeasurements(request) }
+      }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
@@ -2115,9 +2105,9 @@ class MeasurementsServiceTest {
     }
 
     verifyProtoArgument(
-      internalMeasurementsMock,
-      MeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchGetMeasurements
-    )
+        internalMeasurementsMock,
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchGetMeasurements
+      )
       .isEqualTo(
         internalBatchGetMeasurementsRequest {
           requests += internalGetMeasurementRequest {
@@ -2212,7 +2202,7 @@ class MeasurementsServiceTest {
   @Test
   fun `batchGetMeasurements throws INVALID_ARGUMENT when resource name is missing`() {
     val getMeasurementRequest = getMeasurementRequest { name = MEASUREMENT_NAME }
-    val getMeasurementRequest2 = getMeasurementRequest { }
+    val getMeasurementRequest2 = getMeasurementRequest {}
     val request = batchGetMeasurementsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       requests += getMeasurementRequest
@@ -2297,7 +2287,9 @@ class MeasurementsServiceTest {
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> { runBlocking { service.batchGetMeasurements(request) } }
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking { service.batchGetMeasurements(request) }
+      }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
