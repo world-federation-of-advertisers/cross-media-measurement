@@ -272,19 +272,13 @@ class SpannerMeasurementsService(
         .readByExternalIds(
           client.singleUse(),
           ExternalId(request.requestsList.first().externalMeasurementConsumerId),
-          request.requestsList.map {
-            ExternalId(it.externalMeasurementId)
-          }
+          request.requestsList.map { ExternalId(it.externalMeasurementId) }
         )
 
     if (results.size < request.requestsList.size) {
       throw Status.NOT_FOUND.withDescription("Measurement not found").asRuntimeException()
     }
 
-    return batchGetMeasurementsResponse {
-      measurements += results.map {
-        it.measurement
-      }
-    }
+    return batchGetMeasurementsResponse { measurements += results.map { it.measurement } }
   }
 }

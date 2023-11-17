@@ -75,17 +75,20 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
     val measurements = mutableListOf<Measurement>()
     val measurementConsumerMap = mutableMapOf<Long, InternalId>()
     for (createMeasurementRequest in requests) {
-      val externalMeasurementConsumerId = createMeasurementRequest.measurement.externalMeasurementConsumerId
+      val externalMeasurementConsumerId =
+        createMeasurementRequest.measurement.externalMeasurementConsumerId
       val measurementConsumerId: InternalId =
         if (measurementConsumerMap.containsKey(externalMeasurementConsumerId)) {
           measurementConsumerMap.getValue(externalMeasurementConsumerId)
         } else {
-          measurementConsumerMap[externalMeasurementConsumerId] = readMeasurementConsumerId(ExternalId(externalMeasurementConsumerId))
+          measurementConsumerMap[externalMeasurementConsumerId] =
+            readMeasurementConsumerId(ExternalId(externalMeasurementConsumerId))
           measurementConsumerMap.getValue(externalMeasurementConsumerId)
         }
 
       if (createMeasurementRequest.requestId.isNotEmpty()) {
-        val existingMeasurement = findExistingMeasurement(createMeasurementRequest, measurementConsumerId)
+        val existingMeasurement =
+          findExistingMeasurement(createMeasurementRequest, measurementConsumerId)
         if (existingMeasurement != null) {
           measurements.add(existingMeasurement)
           continue
@@ -96,14 +99,11 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       val measurement =
         when (createMeasurementRequest.measurement.details.protocolConfig.protocolCase) {
           ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2,
-          ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2
-          -> {
+          ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
             createComputedMeasurement(createMeasurementRequest, measurementConsumerId)
           }
-
           ProtocolConfig.ProtocolCase.DIRECT ->
             createDirectMeasurement(createMeasurementRequest, measurementConsumerId)
-
           ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Protocol is not set.")
         }
       measurements.add(measurement)

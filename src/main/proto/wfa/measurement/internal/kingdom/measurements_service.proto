@@ -57,11 +57,11 @@ service Measurements {
 
   // Creates Measurements in a batch.
   rpc BatchCreateMeasurements(BatchCreateMeasurementsRequest)
-    returns (BatchCreateMeasurementsResponse);
+      returns (BatchCreateMeasurementsResponse);
 
   // Gets Measurements in a batch.
   rpc BatchGetMeasurements(BatchGetMeasurementsRequest)
-    returns (BatchGetMeasurementsResponse);
+      returns (BatchGetMeasurementsResponse);
 }
 
 message CreateMeasurementRequest {

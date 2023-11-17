@@ -98,15 +98,15 @@ class MeasurementReader(private val view: Measurement.View) :
     externalMeasurementIds: List<ExternalId>
   ): List<Result> {
     return fillStatementBuilder {
-      appendClause(
-        """
+        appendClause(
+          """
           WHERE ExternalMeasurementConsumerId = @externalMeasurementConsumerId
             AND ExternalMeasurementId IN UNNEST(@ids)
           """
-      )
-      bind("externalMeasurementConsumerId").to(externalMeasurementConsumerId.value)
-      bind("ids").toInt64Array(externalMeasurementIds.map { it.value })
-    }
+        )
+        bind("externalMeasurementConsumerId").to(externalMeasurementConsumerId.value)
+        bind("ids").toInt64Array(externalMeasurementIds.map { it.value })
+      }
       .execute(readContext)
       .toList()
   }
