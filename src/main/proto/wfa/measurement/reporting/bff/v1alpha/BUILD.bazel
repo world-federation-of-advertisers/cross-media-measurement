@@ -1,5 +1,6 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
 load("//build/grpc_gateway:defs.bzl", "go_grpc_gateway_proto_library")
+load("@wfa_common_jvm//build:macros.bzl", "kt_jvm_grpc_proto_library")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -23,9 +24,7 @@ proto_library(
 
 proto_library(
     name = "time_interval_proto",
-    srcs = [
-        "time_interval.proto",
-    ],
+    srcs = ["time_interval.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         "@com_google_googleapis//google/api:field_behavior_proto",
@@ -87,4 +86,9 @@ go_grpc_gateway_proto_library(
     embed = [":report_go_proto"],
     importpath = GO_IMPORT_PATH,
     protos = [":reports_service_proto"],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "reports_service_kt_jvm_grpc_proto",
+    srcs = [":reports_service_proto"],
 )

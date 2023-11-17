@@ -22,6 +22,10 @@ import "google/protobuf/timestamp.proto";
 import "wfa/measurement/reporting/bff/v1alpha/metric.proto";
 import "wfa/measurement/reporting/bff/v1alpha/time_interval.proto";
 
+option java_package = "org.wfanet.measurement.reporting.bff.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "ReportProto";
+
 option go_package = "wfa/measurement/reporting/bff/v1alpha/reportingpb";
 
 // Resource representing a report.
