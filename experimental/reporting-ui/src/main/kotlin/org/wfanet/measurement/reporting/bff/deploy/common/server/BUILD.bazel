@@ -22,8 +22,11 @@ kt_jvm_library(
     deps = [
         ":reporting_api_server_flags",
         "//experimental/reporting-ui/src/main/kotlin/org/wfanet/measurement/reporting/bff/service/api/v1alpha:reports_service",
+        "//experimental/reporting-ui/src/main/kotlin/org/wfanet/measurement/reporting/bff/service/api/v1alpha:event_groups_service",
         "//src/main/proto/wfa/measurement/reporting/bff/v1alpha:reports_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/reporting/bff/v1alpha:event_groups_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:reports_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:event_groups_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
