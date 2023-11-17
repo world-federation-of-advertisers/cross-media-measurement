@@ -26,7 +26,7 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.AuthorityKeyToPrincipalMap
 
 /** [PrincipalLookup] of [MeasurementPrincipal] by authority key identifier (AKID). */
-class AkidPrincipalLookup(config: AuthorityKeyToPrincipalMap) :
+class AkidPrincipalLookup(val config: AuthorityKeyToPrincipalMap) :
   PrincipalLookup<MeasurementPrincipal, ByteString> {
 
   /**
