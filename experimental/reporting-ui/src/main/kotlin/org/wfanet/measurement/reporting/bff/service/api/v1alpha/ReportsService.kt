@@ -70,7 +70,7 @@ class ReportsService(private val haloReportsStub: HaloReportsGrpcKt.ReportsCorou
   private fun convertHaloStateToBffState(
     haloReportState: HaloReport.State
   ): ListReportDetail.State =
-    when(haloReportState) {
+    when (haloReportState) {
       HaloReport.State.STATE_UNSPECIFIED -> ListReportDetail.State.STATE_UNSPECIFIED
       HaloReport.State.RUNNING -> ListReportDetail.State.RUNNING
       HaloReport.State.SUCCEEDED -> ListReportDetail.State.SUCCEEDED
