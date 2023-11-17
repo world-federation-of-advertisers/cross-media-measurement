@@ -2193,7 +2193,7 @@ class EdpSimulatorTest {
     private val DATA_PROVIDER_CERTIFICATE_KEY =
       DataProviderCertificateKey(EDP_ID, externalIdToApiId(8L))
     private val DATA_PROVIDER_RESULT_CERTIFICATE_KEY =
-      DataProviderCertificateKey(EDP_ID, externalIdToApiId(8L))
+      DataProviderCertificateKey(EDP_ID, externalIdToApiId(9L))
 
     private val DATA_PROVIDER_CERTIFICATE = certificate {
       name = DATA_PROVIDER_CERTIFICATE_KEY.toName()

@@ -68,9 +68,10 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
   // Makes sure the three maps contain the same set of EDPs.
   require(
     flags.edpCsCertDerFiles.keys == flags.edpCsKeyDerFiles.keys &&
-      flags.edpCsCertDerFiles.keys == flags.edpEncryptionPublicKeysets.keys &&
-      flags.edpResultSigningCertDerFiles.keys == flags.edpResultSigningKeyDerFiles.keys
+      flags.edpCsCertDerFiles.keys == flags.edpEncryptionPublicKeysets.keys
   )
+  // Ensure if an EDP has a separate signing cert, they also have the corresponding key.
+  require(flags.edpResultSigningCertDerFiles.keys == flags.edpResultSigningKeyDerFiles.keys)
   val dataProviderContents =
     flags.edpCsCertDerFiles.map {
       EntityContent(

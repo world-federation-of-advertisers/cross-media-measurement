@@ -24,6 +24,7 @@ import io.grpc.ServerCall
 import io.grpc.ServerCallHandler
 import io.grpc.ServerInterceptor
 import io.grpc.Status
+import java.util.logging.Logger
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.asFlow
@@ -67,6 +68,7 @@ class AkidPrincipalServerInterceptor<T : Principal>(
         .filterNotNull()
         .singleOrNull()
     if (principal == null) {
+      logger.info("No principal found: ${akidsContextKey.get(rpcContext).joinToString(",")}")
       call.close(Status.UNAUTHENTICATED.withDescription("No single principal found"), headers)
     } else {
       rpcContext = rpcContext.withValue(principalContextKey, principal)
@@ -74,4 +76,6 @@ class AkidPrincipalServerInterceptor<T : Principal>(
 
     return Contexts.interceptCall(rpcContext, call, headers, next)
   }
+
+  private val logger: Logger = Logger.getLogger(this::class.java.name)
 }

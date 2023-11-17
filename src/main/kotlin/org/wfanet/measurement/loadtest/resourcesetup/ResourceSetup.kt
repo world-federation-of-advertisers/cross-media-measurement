@@ -162,6 +162,10 @@ class ResourceSetup(
               certificate = externalDataProviderCertificateKeyName
               resultCertificate =
                 if (it.resultSigningKey != null) {
+                  check(
+                    it.signingKey.certificate.authorityKeyIdentifier ==
+                      it.resultSigningKey.certificate.authorityKeyIdentifier
+                  )
                   val externalResultCertificateId =
                     externalIdToApiId(
                       createDataProviderCertificate(
@@ -229,6 +233,7 @@ class ResourceSetup(
           }
       }
     }
+    logger.info("Successfully constructed AKID Map: $akidMap")
     output.resolve(AKID_PRINCIPAL_MAP_FILE).writer().use { writer ->
       TextFormat.printer().print(akidMap, writer)
     }
