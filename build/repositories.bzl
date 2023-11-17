@@ -27,15 +27,15 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_common_jvm",
         repo = "common-jvm",
-        sha256 = "eaf1745f7be38899f131f08cfd9e099cbcdc925664f52c380e8e9ab1a4a34c94",
-        version = "0.70.0",
+        sha256 = "dfe1a9a6cc7380dde9da1c1bc0f37471bf1421a0babdf1429581421a99adb516",
+        commit = "bdc1ae3ac8bb04907262bc48dceae0b32dedf7d0",
     )
 
     wfa_repo_archive(
         name = "wfa_common_cpp",
         repo = "common-cpp",
-        sha256 = "b500535306189d43a9ececd3889a0e2cb969619a46339007037360f2c1651323",
-        version = "0.10.1",
+        sha256 = "0fca41279ff3ee962c017af7d5f2a3ce6b7fdc17d0164ea5f5293f465c42a1c7",
+        commit = "d8b27e6ac5a304da755bba68e29affda52d99c15",
     )
 
     wfa_repo_archive(
@@ -85,6 +85,20 @@ def wfa_measurement_system_repositories():
         repo = "virtual-people-common",
         sha256 = "89f22bc07ba8d8271f58454d603028ce09c01654ac92537076e45bb726c0ca60",
         version = "0.3.0",
+    )
+
+    http_archive(
+        name = "rules_python",
+        sha256 = "0a8003b044294d7840ac7d9d73eef05d6ceb682d7516781a4ec62eeb34702578",
+        strip_prefix = "rules_python-0.24.0",
+        url = "https://github.com/bazelbuild/rules_python/releases/download/0.24.0/rules_python-0.24.0.tar.gz",
+    )
+
+    http_archive(
+        name = "com_google_protobuf",
+        sha256 = "a700a49470d301f1190a487a923b5095bf60f08f4ae4cac9f5f7c36883d17971",
+        strip_prefix = "protobuf-23.4",
+        url = "https://github.com/protocolbuffers/protobuf/archive/v23.4.tar.gz",
     )
 
     http_archive(

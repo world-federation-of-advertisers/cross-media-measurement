@@ -1,0 +1,34 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@com_github_grpc_grpc//bazel:python_rules.bzl", "py_grpc_library", "py_proto_library")
+
+package(default_visibility = ["//visibility:public"])
+
+IMPORT_PREFIX = "/src/main/proto"
+
+proto_library(
+    name = "planning_model_proto",
+    srcs = ["planning_model.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+py_proto_library(
+    name = "planning_model_py_pb2",
+    deps = [":planning_model_proto"],
+)
+
+proto_library(
+    name = "planning_models_service_proto",
+    srcs = ["planning_models_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+py_proto_library(
+    name = "planning_models_service_py_pb2",
+    deps = [":planning_models_service_proto"],
+)
+
+py_grpc_library(
+    name = "planning_models_service_py_pb2_grpc",
+    srcs = [":planning_models_service_proto"],
+    deps = [":planning_models_service_py_pb2"],
+)

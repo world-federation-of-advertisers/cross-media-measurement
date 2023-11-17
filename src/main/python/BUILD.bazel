@@ -7,3 +7,15 @@ py_binary(
         "@pypi_deps_numpy//:pkg",
     ],
 )
+
+py_binary(
+    name = "planning_models_service",
+    srcs = ["planning_models_service.py"],
+    deps = [
+        "@pypi_deps_numpy//:pkg",
+        "@pypi_deps_grpcio//:pkg",
+        "//src/main/proto/wfa/measurement/python/v1:planning_model_py_pb2",
+        "//src/main/proto/wfa/measurement/python/v1:planning_models_service_py_pb2",
+        "//src/main/proto/wfa/measurement/python/v1:planning_models_service_py_pb2_grpc",
+    ],
+)
