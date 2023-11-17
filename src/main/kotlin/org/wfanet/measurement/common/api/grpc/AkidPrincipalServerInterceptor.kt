@@ -30,8 +30,6 @@ import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
-import org.wfanet.measurement.api.v2alpha.AkidPrincipalLookup
-import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.common.api.Principal
 import org.wfanet.measurement.common.api.PrincipalLookup
 import org.wfanet.measurement.common.grpc.SuspendableServerInterceptor
@@ -61,7 +59,7 @@ class AkidPrincipalServerInterceptor<T : Principal>(
       return Contexts.interceptCall(rpcContext, call, headers, next)
     }
 
-    val principal =
+    val principal: T? =
       akidsContextKey
         .get(rpcContext)
         .asFlow()
@@ -69,18 +67,11 @@ class AkidPrincipalServerInterceptor<T : Principal>(
         .filterNotNull()
         .singleOrNull()
     if (principal == null) {
-      val akidMap = if (akidPrincipalLookup is AkidPrincipalLookup) {
-        akidPrincipalLookup.config
-      } else {
-        null
-      }
-      val message = "No single principal found: ${akidsContextKey.get(rpcContext).joinToString(",")} with $akidMap."
-      call.close(Status.UNAUTHENTICATED.withDescription(message), headers)
+      call.close(Status.UNAUTHENTICATED.withDescription("No single principal found"), headers)
     } else {
       rpcContext = rpcContext.withValue(principalContextKey, principal)
     }
 
     return Contexts.interceptCall(rpcContext, call, headers, next)
   }
-
 }
