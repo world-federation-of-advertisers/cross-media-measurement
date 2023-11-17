@@ -980,11 +980,31 @@ fun DateTime.toTimestamp(): Timestamp {
   val source = this
   return if (source.hasUtcOffset()) {
     val offset = ZoneOffset.ofTotalSeconds(source.utcOffset.seconds.toInt())
-    val offsetDateTime = OffsetDateTime.of(source.year, source.month, source.day, source.hours, source.minutes, source.seconds, source.nanos, offset)
+    val offsetDateTime =
+      OffsetDateTime.of(
+        source.year,
+        source.month,
+        source.day,
+        source.hours,
+        source.minutes,
+        source.seconds,
+        source.nanos,
+        offset
+      )
     offsetDateTime.toInstant().toProtoTime()
   } else {
     val id = ZoneId.of(source.timeZone.id)
-    val zonedDateTime = ZonedDateTime.of(source.year, source.month, source.day, source.hours, source.minutes, source.seconds, source.nanos, id)
+    val zonedDateTime =
+      ZonedDateTime.of(
+        source.year,
+        source.month,
+        source.day,
+        source.hours,
+        source.minutes,
+        source.seconds,
+        source.nanos,
+        id
+      )
     zonedDateTime.toInstant().toProtoTime()
   }
 }

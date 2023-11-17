@@ -26,10 +26,14 @@ import io.grpc.Status
 import io.grpc.StatusException
 import java.time.DateTimeException
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
 import java.time.zone.ZoneRulesException
 import kotlin.math.min
 import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.toList
 import org.projectnessie.cel.Env
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -45,12 +49,11 @@ import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
-import org.wfanet.measurement.internal.reporting.v2.BatchGetMetricCalculationSpecsResponse
+import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.reporting.v2.BatchGetReportingSetsResponse
 import org.wfanet.measurement.internal.reporting.v2.ListReportSchedulesRequest as InternalListReportSchedulesRequest
 import org.wfanet.measurement.internal.reporting.v2.ListReportSchedulesRequestKt
-import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec as InternalMetricCalculationSpec
-import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.Report as InternalReport
 import org.wfanet.measurement.internal.reporting.v2.ReportKt
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedule as InternalReportSchedule
@@ -58,20 +61,12 @@ import org.wfanet.measurement.internal.reporting.v2.ReportScheduleKt as Internal
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2.batchGetMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportScheduleRequest
 import org.wfanet.measurement.internal.reporting.v2.getReportScheduleRequest
 import org.wfanet.measurement.internal.reporting.v2.listReportSchedulesRequest
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.internal.reporting.v2.reportSchedule as internalReportSchedule
-import java.time.LocalDateTime
-import java.time.OffsetDateTime
-import java.time.ZoneId
-import java.time.ZoneOffset
-import java.time.ZonedDateTime
-import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.reporting.v2.stopReportScheduleRequest
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.v2alpha.CreateReportScheduleRequest
@@ -132,7 +127,8 @@ class ReportSchedulesService(
         internalReportingSetsStub
       )
 
-    val eventGroupKeys: List<InternalReportingSet.Primitive.EventGroupKey> = internalReportingSets.filter { it.hasPrimitive() }.flatMap { it.primitive.eventGroupKeysList }
+    val eventGroupKeys: List<InternalReportingSet.Primitive.EventGroupKey> =
+      internalReportingSets.filter { it.hasPrimitive() }.flatMap { it.primitive.eventGroupKeysList }
 
     checkDataAvailability(
       request.reportSchedule,
@@ -841,9 +837,7 @@ class ReportSchedulesService(
             }
           eventGroupMap[eventGroupKey] = eventGroup
 
-          if (
-            Timestamps.compare(windowStart, eventGroup.dataAvailabilityInterval.startTime) < 0
-          ) {
+          if (Timestamps.compare(windowStart, eventGroup.dataAvailabilityInterval.startTime) < 0) {
             throw Status.FAILED_PRECONDITION.withDescription(
                 "ReportSchedule event_start is invalid due to the data_availability_interval of the EventGroup with name ${eventGroup.name}"
               )
@@ -855,9 +849,7 @@ class ReportSchedulesService(
           val dataProviderName = DataProviderKey(eventGroupKey.cmmsDataProviderId).toName()
           val dataProvider =
             try {
-              dataProvidersStub.getDataProvider(
-                getDataProviderRequest { name = dataProviderName }
-              )
+              dataProvidersStub.getDataProvider(getDataProviderRequest { name = dataProviderName })
             } catch (e: StatusException) {
               throw when (e.status.code) {
                   Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
@@ -889,8 +881,8 @@ class ReportSchedulesService(
     }
 
     /**
-     * Given a [ReportSchedule] and a [Timestamp], create a [Timestamp] that represents the start of the
-     * window.
+     * Given a [ReportSchedule] and a [Timestamp], create a [Timestamp] that represents the start of
+     * the window.
      */
     private fun buildReportWindowStartTimestamp(
       reportSchedule: ReportSchedule,
