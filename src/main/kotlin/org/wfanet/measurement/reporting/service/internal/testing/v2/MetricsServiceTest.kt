@@ -183,7 +183,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
   }
 
   @Test
-  fun `createMetric succeeds when MetricSpec type is FrequencyHistogram`() = runBlocking {
+  fun `createMetric succeeds when MetricSpec type is reachAndFrequency`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val createdReportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
 
@@ -195,8 +195,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         endTime = timestamp { seconds = 100 }
       }
       metricSpec = metricSpec {
-        frequencyHistogram =
-          MetricSpecKt.frequencyHistogramParams {
+        reachAndFrequency =
+          MetricSpecKt.reachAndFrequencyParams {
             reachPrivacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon = 1.0
@@ -560,8 +560,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         endTime = timestamp { seconds = 100 }
       }
       metricSpec = metricSpec {
-        frequencyHistogram =
-          MetricSpecKt.frequencyHistogramParams {
+        reachAndFrequency =
+          MetricSpecKt.reachAndFrequencyParams {
             reachPrivacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon = 1.0
@@ -673,8 +673,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           endTime = timestamp { seconds = 100 }
         }
         metricSpec = metricSpec {
-          frequencyHistogram =
-            MetricSpecKt.frequencyHistogramParams {
+          reachAndFrequency =
+            MetricSpecKt.reachAndFrequencyParams {
               reachPrivacyParams =
                 MetricSpecKt.differentialPrivacyParams {
                   epsilon = 1.0
@@ -785,8 +785,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         endTime = timestamp { seconds = 100 }
       }
       metricSpec = metricSpec {
-        frequencyHistogram =
-          MetricSpecKt.frequencyHistogramParams {
+        reachAndFrequency =
+          MetricSpecKt.reachAndFrequencyParams {
             reachPrivacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon = 1.0
@@ -857,8 +857,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         endTime = timestamp { seconds = 100 }
       }
       metricSpec = metricSpec {
-        frequencyHistogram =
-          MetricSpecKt.frequencyHistogramParams {
+        reachAndFrequency =
+          MetricSpecKt.reachAndFrequencyParams {
             reachPrivacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon = 1.0
@@ -1175,8 +1175,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         endTime = timestamp { seconds = 100 }
       }
       metricSpec = metricSpec {
-        frequencyHistogram =
-          MetricSpecKt.frequencyHistogramParams {
+        reachAndFrequency =
+          MetricSpecKt.reachAndFrequencyParams {
             reachPrivacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon = 1.0
@@ -1247,8 +1247,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         endTime = timestamp { seconds = 100 }
       }
       metricSpec = metricSpec {
-        frequencyHistogram =
-          MetricSpecKt.frequencyHistogramParams {
+        reachAndFrequency =
+          MetricSpecKt.reachAndFrequencyParams {
             reachPrivacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon = 1.0
@@ -1325,8 +1325,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         endTime = timestamp { seconds = 100 }
       }
       metricSpec = metricSpec {
-        frequencyHistogram =
-          MetricSpecKt.frequencyHistogramParams {
+        reachAndFrequency =
+          MetricSpecKt.reachAndFrequencyParams {
             reachPrivacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon = 1.0
@@ -1414,8 +1414,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           endTime = timestamp { seconds = 100 }
         }
         metricSpec = metricSpec {
-          frequencyHistogram =
-            MetricSpecKt.frequencyHistogramParams {
+          reachAndFrequency =
+            MetricSpecKt.reachAndFrequencyParams {
               reachPrivacyParams =
                 MetricSpecKt.differentialPrivacyParams {
                   epsilon = 1.0
@@ -1512,8 +1512,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           endTime = timestamp { seconds = 100 }
         }
         metricSpec = metricSpec {
-          frequencyHistogram =
-            MetricSpecKt.frequencyHistogramParams {
+          reachAndFrequency =
+            MetricSpecKt.reachAndFrequencyParams {
               reachPrivacyParams =
                 MetricSpecKt.differentialPrivacyParams {
                   epsilon = 1.0
@@ -1603,8 +1603,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           endTime = timestamp { seconds = 100 }
         }
         metricSpec = metricSpec {
-          frequencyHistogram =
-            MetricSpecKt.frequencyHistogramParams {
+          reachAndFrequency =
+            MetricSpecKt.reachAndFrequencyParams {
               reachPrivacyParams =
                 MetricSpecKt.differentialPrivacyParams {
                   epsilon = 1.0
@@ -1683,8 +1683,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           endTime = timestamp { seconds = 100 }
         }
         metricSpec = metricSpec {
-          frequencyHistogram =
-            MetricSpecKt.frequencyHistogramParams {
+          reachAndFrequency =
+            MetricSpecKt.reachAndFrequencyParams {
               reachPrivacyParams =
                 MetricSpecKt.differentialPrivacyParams {
                   epsilon = 1.0
@@ -1762,8 +1762,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         endTime = timestamp { seconds = 100 }
       }
       metricSpec = metricSpec {
-        frequencyHistogram =
-          MetricSpecKt.frequencyHistogramParams {
+        reachAndFrequency =
+          MetricSpecKt.reachAndFrequencyParams {
             reachPrivacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon = 1.0
@@ -1843,8 +1843,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           endTime = timestamp { seconds = 100 }
         }
         metricSpec = metricSpec {
-          frequencyHistogram =
-            MetricSpecKt.frequencyHistogramParams {
+          reachAndFrequency =
+            MetricSpecKt.reachAndFrequencyParams {
               reachPrivacyParams =
                 MetricSpecKt.differentialPrivacyParams {
                   epsilon = 1.0
@@ -1925,8 +1925,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           endTime = timestamp { seconds = 100 }
         }
         metricSpec = metricSpec {
-          frequencyHistogram =
-            MetricSpecKt.frequencyHistogramParams {
+          reachAndFrequency =
+            MetricSpecKt.reachAndFrequencyParams {
               reachPrivacyParams =
                 MetricSpecKt.differentialPrivacyParams {
                   epsilon = 1.0
@@ -2006,8 +2006,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           endTime = timestamp { seconds = 100 }
         }
         metricSpec = metricSpec {
-          frequencyHistogram =
-            MetricSpecKt.frequencyHistogramParams {
+          reachAndFrequency =
+            MetricSpecKt.reachAndFrequencyParams {
               reachPrivacyParams =
                 MetricSpecKt.differentialPrivacyParams {
                   epsilon = 1.0
@@ -2086,8 +2086,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         endTime = timestamp { seconds = 100 }
       }
       metricSpec = metricSpec {
-        frequencyHistogram =
-          MetricSpecKt.frequencyHistogramParams {
+        reachAndFrequency =
+          MetricSpecKt.reachAndFrequencyParams {
             reachPrivacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon = 1.0
@@ -2199,8 +2199,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         metric =
           metric.copy {
             metricSpec = metricSpec {
-              frequencyHistogram =
-                MetricSpecKt.frequencyHistogramParams {
+              reachAndFrequency =
+                MetricSpecKt.reachAndFrequencyParams {
                   reachPrivacyParams =
                     MetricSpecKt.differentialPrivacyParams {
                       epsilon = 1.0

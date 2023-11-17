@@ -36,9 +36,9 @@ fun MetricSpec.withDefaults(metricSpecConfig: MetricSpecConfig): MetricSpec {
           reach = reach.withDefaults(metricSpecConfig)
           metricSpecConfig.reachVidSamplingInterval
         }
-        MetricSpec.TypeCase.FREQUENCY_HISTOGRAM -> {
-          frequencyHistogram = frequencyHistogram.withDefaults(metricSpecConfig)
-          metricSpecConfig.frequencyHistogramVidSamplingInterval
+        MetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
+          reachAndFrequency = reachAndFrequency.withDefaults(metricSpecConfig)
+          metricSpecConfig.reachAndFrequencyVidSamplingInterval
         }
         MetricSpec.TypeCase.IMPRESSION_COUNT -> {
           impressionCount = impressionCount.withDefaults(metricSpecConfig)
@@ -112,37 +112,37 @@ private fun MetricSpec.ReachParams.withDefaults(
 
 /**
  * Specifies default values using [MetricSpecConfig] when optional fields in the
- * [MetricSpec.FrequencyHistogramParams] are not set.
+ * [MetricSpec.ReachAndFrequencyParams] are not set.
  */
-private fun MetricSpec.FrequencyHistogramParams.withDefaults(
+private fun MetricSpec.ReachAndFrequencyParams.withDefaults(
   metricSpecConfig: MetricSpecConfig
-): MetricSpec.FrequencyHistogramParams {
+): MetricSpec.ReachAndFrequencyParams {
   if (!hasReachPrivacyParams()) {
     throw MetricSpecDefaultsException(
       "Invalid privacy params",
-      IllegalArgumentException("reachPrivacyParams in frequency histogram is not set.")
+      IllegalArgumentException("reachPrivacyParams in reach-and-frequency is not set.")
     )
   }
   if (!hasFrequencyPrivacyParams()) {
     throw MetricSpecDefaultsException(
       "Invalid privacy params",
-      IllegalArgumentException("frequencyPrivacyParams in frequency histogram is not set.")
+      IllegalArgumentException("frequencyPrivacyParams in reach-and-frequency  is not set.")
     )
   }
 
   return copy {
     reachPrivacyParams =
       reachPrivacyParams.withDefaults(
-        metricSpecConfig.frequencyHistogramParams.reachPrivacyParams.epsilon,
-        metricSpecConfig.frequencyHistogramParams.reachPrivacyParams.delta
+        metricSpecConfig.reachAndFrequencyParams.reachPrivacyParams.epsilon,
+        metricSpecConfig.reachAndFrequencyParams.reachPrivacyParams.delta
       )
     frequencyPrivacyParams =
       frequencyPrivacyParams.withDefaults(
-        metricSpecConfig.frequencyHistogramParams.frequencyPrivacyParams.epsilon,
-        metricSpecConfig.frequencyHistogramParams.frequencyPrivacyParams.delta
+        metricSpecConfig.reachAndFrequencyParams.frequencyPrivacyParams.epsilon,
+        metricSpecConfig.reachAndFrequencyParams.frequencyPrivacyParams.delta
       )
     if (maximumFrequency == 0) {
-      maximumFrequency = metricSpecConfig.frequencyHistogramParams.maximumFrequency
+      maximumFrequency = metricSpecConfig.reachAndFrequencyParams.maximumFrequency
     }
   }
 }

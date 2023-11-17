@@ -266,8 +266,8 @@ class InProcessReportingServer(
           width = 3.0f / NUMBER_VID_BUCKETS
         }
 
-      frequencyHistogramParams =
-        MetricSpecConfigKt.frequencyHistogramParams {
+      reachAndFrequencyParams =
+        MetricSpecConfigKt.reachAndFrequencyParams {
           reachPrivacyParams =
             MetricSpecConfigKt.differentialPrivacyParams {
               epsilon = 0.0033
@@ -280,7 +280,7 @@ class InProcessReportingServer(
             }
           maximumFrequency = 10
         }
-      frequencyHistogramVidSamplingInterval =
+      reachAndFrequencyVidSamplingInterval =
         MetricSpecConfigKt.vidSamplingInterval {
           start = 48.0f / NUMBER_VID_BUCKETS
           width = 5.0f / NUMBER_VID_BUCKETS
