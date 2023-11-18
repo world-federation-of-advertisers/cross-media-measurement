@@ -45,4 +45,11 @@ class ReportingApiServerFlags {
   )
   var debugVerboseGrpcClientLogging by Delegates.notNull<Boolean>()
     private set
+
+  @set:CommandLine.Option(
+    names = ["--measurement-consumer"],
+    description = ["measurement consumer id of the service owner"],
+    required = true,
+  )
+  lateinit var measurementConsumer: String
 }

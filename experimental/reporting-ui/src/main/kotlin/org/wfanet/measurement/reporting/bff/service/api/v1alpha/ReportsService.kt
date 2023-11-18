@@ -18,21 +18,27 @@ import io.grpc.Status
 import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.reporting.bff.v1alpha.CreateReportRequest
+import org.wfanet.measurement.reporting.bff.v1alpha.CreateReportResponse
 import org.wfanet.measurement.reporting.bff.v1alpha.GetReportRequest
 import org.wfanet.measurement.reporting.bff.v1alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.bff.v1alpha.ListReportsResponse
 import org.wfanet.measurement.reporting.bff.v1alpha.Report
 import org.wfanet.measurement.reporting.bff.v1alpha.ReportView
 import org.wfanet.measurement.reporting.bff.v1alpha.ReportsGrpcKt
+import org.wfanet.measurement.reporting.bff.v1alpha.createReportResponse
 import org.wfanet.measurement.reporting.bff.v1alpha.listReportsResponse
 import org.wfanet.measurement.reporting.bff.v1alpha.report
 import org.wfanet.measurement.reporting.v2alpha.Report as BackendReport
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt as BackendReportsGrpcKt
+import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
 
-class ReportsService(private val backendReportsStub: BackendReportsGrpcKt.ReportsCoroutineStub) :
-  ReportsGrpcKt.ReportsCoroutineImplBase() {
+class ReportsService(
+  private val backendReportsStub: BackendReportsGrpcKt.ReportsCoroutineStub,
+  private val measurementConsumer: String
+) : ReportsGrpcKt.ReportsCoroutineImplBase() {
   override suspend fun listReports(request: ListReportsRequest): ListReportsResponse {
     // TODO(@bdomen-ggl): Still working on UX for pagination, so holding off for now.
     // Will hold off on internally looping the request until it becomes an issue (eg. no reports
@@ -43,7 +49,7 @@ class ReportsService(private val backendReportsStub: BackendReportsGrpcKt.Report
     }
 
     val backendRequest = listReportsRequest {
-      parent = request.parent
+      parent = measurementConsumer
       pageSize = 1000
     }
 
@@ -65,7 +71,9 @@ class ReportsService(private val backendReportsStub: BackendReportsGrpcKt.Report
   }
 
   override suspend fun getReport(request: GetReportRequest): Report {
-    val backendRequest = getReportRequest { name = request.name }
+    val backendRequest = getReportRequest {
+      name = "measurementConsumers/${measurementConsumer}/reports/${request.reportId}"
+    }
 
     val resp = runBlocking(Dispatchers.IO) { backendReportsStub.getReport(backendRequest) }
 
@@ -74,6 +82,27 @@ class ReportsService(private val backendReportsStub: BackendReportsGrpcKt.Report
       else request.view
     val result = resp.toBffReport(view)
     return result
+  }
+
+  override suspend fun createReport(request: CreateReportRequest): CreateReportResponse {
+    // TODO(@bdomen-ggl): Currently stubbed, working to add create report template and to
+    // do proper translations of request in follow up PR.
+    val backendRequest = createReportRequest {
+      parent = measurementConsumer
+      reportId = request.reportId
+    }
+
+    try {
+      val resp = runBlocking(Dispatchers.IO) { backendReportsStub.createReport(backendRequest) }
+
+      return createReportResponse {
+        status = CreateReportResponse.Status.SUCCEEDED
+      }
+    } catch (ex: Exception) {
+      return createReportResponse {
+        status = CreateReportResponse.Status.ERRORED
+      }
+    }
   }
 
   private fun BackendReport.toBffReport(view: ReportView): Report {
