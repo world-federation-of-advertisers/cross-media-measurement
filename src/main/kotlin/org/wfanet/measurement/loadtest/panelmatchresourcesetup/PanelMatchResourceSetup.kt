@@ -91,10 +91,10 @@ class PanelMatchResourceSetup(
 
   suspend fun process(
     exchangeDate: Date,
-    exchangeWorkflow: ExchangeWorkflow,
     exchangeSchedule: String,
     dataProviderContent: EntityContent,
     modelProviderContent: EntityContent? = null,
+    exchangeWorkflow: ExchangeWorkflow? = null,
   ): PanelMatchResourceKeys {
     logger.info("Starting resource setup ...")
     val resources = mutableListOf<Resources.Resource>()
@@ -119,7 +119,6 @@ class PanelMatchResourceSetup(
 
     val externalModelProviderId = createModelProvider()
     val modelProviderKey = ModelProviderKey(externalIdToApiId(externalModelProviderId))
-
     if (modelProviderContent != null) {
       resources.add(
         resource {
@@ -136,7 +135,7 @@ class PanelMatchResourceSetup(
       )
     }
 
-    val externalRecurringExchangeId =
+    if (exchangeWorkflow !== null) {
       createRecurringExchange(
         externalDataProviderId,
         externalModelProviderId,
@@ -144,17 +143,10 @@ class PanelMatchResourceSetup(
         exchangeSchedule,
         exchangeWorkflow
       )
-
-    val recurringExchangeKey =
-      CanonicalRecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId))
+    }
     withContext(Dispatchers.IO) { writeOutput(resources) }
     logger.info("Resource setup was successful.")
-    return PanelMatchResourceKeys(
-      dataProviderKey,
-      modelProviderKey,
-      recurringExchangeKey,
-      resources
-    )
+    return PanelMatchResourceKeys(dataProviderKey, modelProviderKey, resources)
   }
 
   /** Process to create resources. */
@@ -227,7 +219,7 @@ class PanelMatchResourceSetup(
     return internalModelProvider.externalModelProviderId
   }
 
-  private suspend fun createRecurringExchange(
+  suspend fun createRecurringExchange(
     externalDataProvider: Long,
     externalModelProvider: Long,
     exchangeDate: Date,
@@ -321,7 +313,6 @@ class PanelMatchResourceSetup(
 data class PanelMatchResourceKeys(
   val dataProviderKey: DataProviderKey,
   val modelProviderKey: ModelProviderKey,
-  val recurringExchangeKey: RecurringExchangeKey,
   val resources: List<Resources.Resource>,
 )
 
