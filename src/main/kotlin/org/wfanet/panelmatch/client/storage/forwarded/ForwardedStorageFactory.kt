@@ -35,8 +35,6 @@ import org.wfanet.panelmatch.common.storage.StorageFactory
  */
 class ForwardedStorageFactory(
   private val storageDetails: StorageDetails,
-  // TODO(@MarcoPremier): add withPrefix(exchangeDateKey) to disambiguate storage path for different
-  // exchange workflows
   private val exchangeDateKey: ExchangeDateKey
 ) : StorageFactory {
 

@@ -20,6 +20,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/k8s/testing:port_forwarder",
         "//src/main/kotlin/org/wfanet/measurement/common/k8s/testing:processes",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/panelmatch:simulator",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/panelmatchresourcesetup",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup",
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy",
@@ -31,9 +32,6 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_workflow_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchanges_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchanges_service_kt_jvm_proto",
-        "//src/main/proto/wfa/panelmatch/client/loadtest:forwarded_storage_config_kt_jvm_proto",
-        "//src/main/proto/wfa/panelmatch/client/storage:storage_details_java_proto",
-        "//src/main/proto/wfa/panelmatch/client/storage:storage_details_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
@@ -50,10 +48,13 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "double_blind_workflow_test",
-    srcs = ["DoubleBlindWorkflowTest.kt"],
+    name = "empty_cluster_panel_match_correctness_test",
+    srcs = ["EmptyClusterPanelMatchCorrectnessTest.kt"],
     deps = [
         ":abstract_panel_match_correctness_test",
+        "//src/main/proto/wfa/panelmatch/client/loadtest:forwarded_storage_config_kt_jvm_proto",
+        "//src/main/proto/wfa/panelmatch/client/storage:storage_details_java_proto",
+        "//src/main/proto/wfa/panelmatch/client/storage:storage_details_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/org/jetbrains/annotations",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
@@ -62,7 +63,7 @@ kt_jvm_library(
 )
 
 java_test(
-    name = "DoubleBlindWorkflowTest",
+    name = "EmptyClusterPanelMatchCorrectnessTest",
     size = "enormous",
     timeout = "long",
     data = [
@@ -80,6 +81,6 @@ java_test(
         "cpu:8",
         "manual",
     ],
-    test_class = "org.wfanet.panelmatch.integration.k8s.DoubleBlindWorkflowTest",
-    runtime_deps = [":double_blind_workflow_test"],
+    test_class = "org.wfanet.panelmatch.integration.k8s.EmptyClusterPanelMatchCorrectnessTest",
+    runtime_deps = [":empty_cluster_panel_match_correctness_test"],
 )
