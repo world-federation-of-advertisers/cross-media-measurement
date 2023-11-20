@@ -29,9 +29,12 @@ free to use whichever you prefer.
     -   2 Kubernetes deployments
         -   `postgres-internal-reporting-server-deployment`
         -   `reporting-v2alpha-public-api-server-deployment`
-    -   3 Kubernetes network policies
+    -   1 Kubernetes cron job
+        -   `report-scheduling`
+    -   4 Kubernetes network policies
         -   `postgres-internal-reporting-server-network-policy`
         -   `reporting-v2alpha-public-api-server-network-policy`
+        -   `report-scheduling-network-policy`
         -   `default-deny-ingress-and-egress`
 
 ## Before you start
@@ -192,7 +195,9 @@ bazel build //src/main/k8s/dev:reporting_v2.tar \
   --define postgres_region=us-central1 \
   --define kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
   --define container_registry=gcr.io \
-  --define image_repo_prefix=halo-reporting-demo --define image_tag=build-0001
+  --define image_repo_prefix=halo-reporting-demo \
+  --define image_tag=build-0001 \
+  --define report_scheduling_cron_schedule="0 7 * * *"
 ```
 
 Extract the generated archive to some directory.
@@ -330,6 +335,12 @@ and
 kubectl get services
 ```
 
+and
+
+```shell
+kubectl get cronjobs
+```
+
 You should see something like the following:
 
 ```
@@ -343,6 +354,11 @@ NAME                                  TYPE           CLUSTER-IP     EXTERNAL-IP 
 kubernetes                            ClusterIP      10.16.32.1     <none>         443/TCP          260d
 postgres-internal-reporting-server    ClusterIP      10.16.39.47    <none>         8443/TCP         254d
 reporting-v2alpha-public-api-server   LoadBalancer   10.16.32.255   34.135.79.68   8443:30104/TCP   8m45s
+```
+
+```
+NAME                       SCHEDULE     SUSPEND   ACTIVE   LAST SCHEDULE   AGE
+report-scheduling-cronjob  30 6 * * *   False     0        <none>          10m
 ```
 
 ## Reserve an external IP

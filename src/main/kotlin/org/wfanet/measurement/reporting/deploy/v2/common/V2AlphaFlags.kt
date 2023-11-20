@@ -24,7 +24,7 @@ class V2AlphaFlags {
   @CommandLine.Option(
     names = ["--authority-key-identifier-to-principal-map-file"],
     description = ["File path to a AuthorityKeyToPrincipalMap textproto"],
-    required = true,
+    required = false,
   )
   lateinit var authorityKeyIdentifierToPrincipalMapFile: File
     private set
