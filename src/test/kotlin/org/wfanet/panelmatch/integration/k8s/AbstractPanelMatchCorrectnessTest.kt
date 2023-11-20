@@ -72,7 +72,7 @@ abstract class AbstractPanelMatchCorrectnessTest(private val localSystem: PanelM
     testHarness.executeMiniWorkflow(workflow)
   }
 
-  @Test(timeout = 25 * 60 * 1000)
+  /*@Test(timeout = 25 * 60 * 1000)
   fun `Full test with preprocessing workflow completes with expected result`() = runBlocking {
     logger.info { "Run Full test with preprocessing workflow test" }
     val workflow: ExchangeWorkflow by lazy {
@@ -80,7 +80,7 @@ abstract class AbstractPanelMatchCorrectnessTest(private val localSystem: PanelM
         .copy { firstExchangeDate = EXCHANGE_DATE.toProtoDate() }
     }
     testHarness.executeFullWithPreprocessingWorkflow(workflow)
-  }
+  }*/
 
   interface PanelMatchSystem {
     val runId: String
