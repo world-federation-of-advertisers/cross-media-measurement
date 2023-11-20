@@ -8,6 +8,7 @@ java_binary(
     resources = ["//src/main/resources/duchy/postgres"],
     runtime_deps = [
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/postgres/tools:update_schema",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/logging",
     ],
 )
 

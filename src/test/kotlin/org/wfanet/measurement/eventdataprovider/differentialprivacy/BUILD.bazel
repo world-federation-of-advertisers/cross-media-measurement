@@ -1,0 +1,12 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "DynamicClippingTest",
+    srcs = ["DynamicClippingTest.kt"],
+    associates = ["//src/main/kotlin/org/wfanet/measurement/eventdataprovider/differentialprivacy:dynamic_clipping"],
+    test_class = "org.wfanet.measurement.eventdataprovider.differentialprivacy.DynamicClippingTest",
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
