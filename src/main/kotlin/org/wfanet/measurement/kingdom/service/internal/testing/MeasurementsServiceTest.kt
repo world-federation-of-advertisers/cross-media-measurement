@@ -2392,43 +2392,42 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     }
 
   @Test
-  fun `batchCreateMeasurement throws NOT_FOUND if mc not found`() =
-    runBlocking {
-      val dataProvider = population.createDataProvider(dataProvidersService)
-      val externalMeasurementConsumerId = 123L
-      val externalMeasurementConsumerCertificateId = 123L
+  fun `batchCreateMeasurement throws NOT_FOUND if mc not found`() = runBlocking {
+    val dataProvider = population.createDataProvider(dataProvidersService)
+    val externalMeasurementConsumerId = 123L
+    val externalMeasurementConsumerCertificateId = 123L
 
-      val measurement =
-        REACH_ONLY_MEASUREMENT.copy {
-          this.externalMeasurementConsumerId = externalMeasurementConsumerId
-          this.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
-          dataProviders[dataProvider.externalDataProviderId] = dataProvider.toDataProviderValue()
-        }
-
-      val measurement2 =
-        REACH_ONLY_MEASUREMENT.copy {
-          this.externalMeasurementConsumerId = externalMeasurementConsumerId
-          this.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
-          dataProviders[dataProvider.externalDataProviderId] = dataProvider.toDataProviderValue()
-        }
-
-      val createMeasurementRequest = createMeasurementRequest { this.measurement = measurement }
-
-      val createMeasurementRequest2 = createMeasurementRequest { this.measurement = measurement2 }
-
-      val request = batchCreateMeasurementsRequest {
+    val measurement =
+      REACH_ONLY_MEASUREMENT.copy {
         this.externalMeasurementConsumerId = externalMeasurementConsumerId
-        requests += createMeasurementRequest
-        requests += createMeasurementRequest2
+        this.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
+        dataProviders[dataProvider.externalDataProviderId] = dataProvider.toDataProviderValue()
       }
 
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          measurementsService.batchCreateMeasurements(request)
-        }
+    val measurement2 =
+      REACH_ONLY_MEASUREMENT.copy {
+        this.externalMeasurementConsumerId = externalMeasurementConsumerId
+        this.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
+        dataProviders[dataProvider.externalDataProviderId] = dataProvider.toDataProviderValue()
+      }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    val createMeasurementRequest = createMeasurementRequest { this.measurement = measurement }
+
+    val createMeasurementRequest2 = createMeasurementRequest { this.measurement = measurement2 }
+
+    val request = batchCreateMeasurementsRequest {
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      requests += createMeasurementRequest
+      requests += createMeasurementRequest2
     }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        measurementsService.batchCreateMeasurements(request)
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
 
   @Test
   fun `batchGetMeasurements with 2 requests retrieves 2 measurements`(): Unit = runBlocking {

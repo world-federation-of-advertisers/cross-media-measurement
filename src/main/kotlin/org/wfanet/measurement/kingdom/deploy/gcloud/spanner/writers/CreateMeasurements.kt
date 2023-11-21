@@ -73,7 +73,9 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
 
   override suspend fun TransactionScope.runTransaction(): List<Measurement> {
     val measurementConsumerId: InternalId =
-      readMeasurementConsumerId(ExternalId(requests.first().measurement.externalMeasurementConsumerId))
+      readMeasurementConsumerId(
+        ExternalId(requests.first().measurement.externalMeasurementConsumerId)
+      )
 
     val measurements = mutableListOf<Measurement>()
     for (createMeasurementRequest in requests) {

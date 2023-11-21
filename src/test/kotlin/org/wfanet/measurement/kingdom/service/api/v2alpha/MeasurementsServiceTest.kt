@@ -1951,9 +1951,9 @@ class MeasurementsServiceTest {
         results.clear()
       }
     verifyProtoArgument(
-      internalMeasurementsMock,
-      MeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchCreateMeasurements
-    )
+        internalMeasurementsMock,
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchCreateMeasurements
+      )
       .isEqualTo(
         internalBatchCreateMeasurementsRequest {
           requests += internalCreateMeasurementRequest { measurement = internalMeasurement }

@@ -65,7 +65,6 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.internal.kingdom.CreateMeasurementRequest as InternalCreateMeasurementRequest
-import org.wfanet.measurement.internal.kingdom.GetMeasurementRequest as InternalGetMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
 import org.wfanet.measurement.internal.kingdom.Measurement.View as InternalMeasurementView
@@ -330,10 +329,7 @@ class MeasurementsService(
     val externalMeasurementConsumerId = apiIdToExternalId(parentKey.measurementConsumerId)
     val externalMeasurementIds = mutableListOf<Long>()
     for (name in request.namesList) {
-      val key =
-        grpcRequireNotNull(MeasurementKey.fromName(name)) {
-          "name is invalid."
-        }
+      val key = grpcRequireNotNull(MeasurementKey.fromName(name)) { "name is invalid." }
 
       if (authenticatedMeasurementConsumerKey.measurementConsumerId != key.measurementConsumerId) {
         failGrpc(Status.INVALID_ARGUMENT) {

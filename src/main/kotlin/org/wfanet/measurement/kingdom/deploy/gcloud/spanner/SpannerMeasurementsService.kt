@@ -240,7 +240,10 @@ class SpannerMeasurementsService(
     request: BatchCreateMeasurementsRequest
   ): BatchCreateMeasurementsResponse {
     for (createMeasurementRequest in request.requestsList) {
-      grpcRequire(request.externalMeasurementConsumerId == createMeasurementRequest.measurement.externalMeasurementConsumerId) {
+      grpcRequire(
+        request.externalMeasurementConsumerId ==
+          createMeasurementRequest.measurement.externalMeasurementConsumerId
+      ) {
         "Child request external_measurement_consumer_id does not match parent request external_measurement_consumer_id."
       }
       validateCreateMeasurementRequest(createMeasurementRequest)
