@@ -1921,7 +1921,7 @@ class MeasurementsServiceTest {
   }
 
   @Test
-  fun `batchCreateMeasurements returns measurements when 1 of 2 child requests has no parent`() {
+  fun `batchCreateMeasurements throws INVALID_ARGUMENT when 1 of 2 child requests has no parent`() {
     val createMeasurementRequest = createMeasurementRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       measurement = MEASUREMENT
@@ -1933,35 +1933,13 @@ class MeasurementsServiceTest {
       requests += createMeasurementRequest2
     }
 
-    val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-        runBlocking { service.batchCreateMeasurements(request) }
-      }
-
-    val expected = batchCreateMeasurementsResponse {
-      measurements += MEASUREMENT
-      measurements += MEASUREMENT.copy { name = MEASUREMENT_NAME_2 }
-    }
-
-    val internalMeasurement =
-      INTERNAL_MEASUREMENT.copy {
-        clearExternalMeasurementId()
-        clearUpdateTime()
-        details = details.copy { clearFailure() }
-        results.clear()
-      }
-    verifyProtoArgument(
-        internalMeasurementsMock,
-        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchCreateMeasurements
-      )
-      .isEqualTo(
-        internalBatchCreateMeasurementsRequest {
-          requests += internalCreateMeasurementRequest { measurement = internalMeasurement }
-          requests += internalCreateMeasurementRequest { measurement = internalMeasurement }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.batchCreateMeasurements(request) }
         }
-      )
-
-    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
@@ -2132,6 +2110,45 @@ class MeasurementsServiceTest {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `batchCreateMeasurements throws INVALID_ARGUMENT when certificate does not match parent`() {
+    val measurementConsumerCertificateKey =
+      MeasurementConsumerCertificateKey.fromName(MEASUREMENT_CONSUMER_CERTIFICATE_NAME)!!
+    val measurementConsumerCertificate =
+      MeasurementConsumerCertificateKey("bogus", measurementConsumerCertificateKey.certificateId)
+        .toName()
+
+    val createMeasurementRequest = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement = MEASUREMENT
+    }
+    val createMeasurementRequest2 = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement =
+        MEASUREMENT.copy {
+          this.measurementConsumerCertificate = measurementConsumerCertificate
+        }
+    }
+    val request = batchCreateMeasurementsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      requests += createMeasurementRequest
+      requests += createMeasurementRequest2
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.batchCreateMeasurements(request)
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("measurement_consumer_certificate")
   }
 
   @Test

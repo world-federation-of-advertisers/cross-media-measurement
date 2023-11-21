@@ -259,8 +259,24 @@ class MeasurementsService(
     }
 
     val internalCreateMeasurementRequests = mutableListOf<InternalCreateMeasurementRequest>()
+    var isParentEmpty = false
+    var isParentNotEmpty = false
     for (createMeasurementRequest in request.requestsList) {
-      if (createMeasurementRequest.parent.isNotEmpty()) {
+      if (createMeasurementRequest.parent.isEmpty()) {
+        if (isParentNotEmpty) {
+          failGrpc(Status.INVALID_ARGUMENT) {
+            "Every parent in all child requests must match all other child requests."
+          }
+        }
+        isParentEmpty = true
+      } else {
+        if (isParentEmpty) {
+          failGrpc(Status.INVALID_ARGUMENT) {
+            "Every parent in all child requests must match all other child requests."
+          }
+        }
+        isParentNotEmpty = true
+
         val childParentKey =
           grpcRequireNotNull(MeasurementConsumerKey.fromName(createMeasurementRequest.parent)) {
             "Child request parent is invalid."
