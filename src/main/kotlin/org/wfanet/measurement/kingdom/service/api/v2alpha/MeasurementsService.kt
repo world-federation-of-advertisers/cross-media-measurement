@@ -331,7 +331,7 @@ class MeasurementsService(
     for (name in request.namesList) {
       val key = grpcRequireNotNull(MeasurementKey.fromName(name)) { "name is invalid." }
 
-      if (authenticatedMeasurementConsumerKey.measurementConsumerId != key.measurementConsumerId) {
+      if (authenticatedMeasurementConsumerKey != key.parentKey) {
         failGrpc(Status.INVALID_ARGUMENT) {
           "MeasurementConsumer in name does not match parent MeasurementConsumer."
         }
