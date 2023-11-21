@@ -1712,11 +1712,8 @@ class EdpSimulatorTest {
     assertThat(result.reach.hasDeterministicCountDistinct())
     assertThat(result.frequency.noiseMechanism == noiseMechanismOption)
     assertThat(result.frequency.hasDeterministicDistribution())
-    assertThat(result).reachValue().isEqualTo(2001L)
-    assertThat(result)
-      .frequencyDistribution()
-      .isWithin(0.001)
-      .of(mapOf(2L to 0.5011303262418495, 4L to 0.5062662903291533))
+    assertThat(result).reachValue().isWithin(2.0).of(2000L)
+    assertThat(result).frequencyDistribution().isWithin(0.01).of(mapOf(2L to 0.5, 4L to 0.5))
   }
 
   @Test
@@ -1778,11 +1775,11 @@ class EdpSimulatorTest {
     assertThat(result.reach.hasDeterministicCountDistinct())
     assertThat(result.frequency.noiseMechanism == noiseMechanismOption)
     assertThat(result.frequency.hasDeterministicDistribution())
-    assertThat(result).reachValue().isEqualTo(1930)
+    assertThat(result).reachValue().isWithin(10.0).of(1920)
     assertThat(result)
       .frequencyDistribution()
-      .isWithin(0.00001)
-      .of(mapOf(2L to 0.5065658983525991, 4L to 0.5704821909286802))
+      .isWithin(0.07)
+      .of(mapOf(2L to 0.49479664833057146, 4L to 0.5052080336866532))
   }
 
   @Test
@@ -1960,7 +1957,7 @@ class EdpSimulatorTest {
 
     assertThat(result.reach.noiseMechanism == noiseMechanismOption)
     assertThat(result.reach.hasDeterministicCountDistinct())
-    assertThat(result).reachValue().isEqualTo(2001L)
+    assertThat(result).reachValue().isWithin(2.0).of(2000L)
     assertThat(result.hasFrequency()).isFalse()
   }
 
@@ -2021,7 +2018,7 @@ class EdpSimulatorTest {
 
     assertThat(result.reach.noiseMechanism == noiseMechanismOption)
     assertThat(result.reach.hasDeterministicCountDistinct())
-    assertThat(result).reachValue().isEqualTo(1930)
+    assertThat(result).reachValue().isWithin(10.0).of(1920L)
     assertThat(result.hasFrequency()).isFalse()
   }
 

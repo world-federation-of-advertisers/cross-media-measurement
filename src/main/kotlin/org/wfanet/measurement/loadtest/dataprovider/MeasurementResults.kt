@@ -28,13 +28,16 @@ object MeasurementResults {
     val eventsPerVid: Map<Long, Int> = sampledVids.groupingBy { it }.eachCount()
     val reach: Int = eventsPerVid.keys.size
 
-    val frequencyHistogram = mutableMapOf<Int, Int>()
+    // Build frequency histogram as a 0-based array.
+    val frequencyArray = IntArray(maxFrequency)
     for (count in eventsPerVid.values) {
       val bucket = count.coerceAtMost(maxFrequency)
-      frequencyHistogram[bucket] = frequencyHistogram.getOrDefault(bucket, 0) + 1
+      frequencyArray[bucket - 1]++
     }
 
-    return ReachAndFrequency(reach, frequencyHistogram.mapValues { it.value.toDouble() / reach })
+    val frequencyDistribution: Map<Int, Double> =
+      frequencyArray.withIndex().associateBy({ it.index + 1 }, { it.value.toDouble() / reach })
+    return ReachAndFrequency(reach, frequencyDistribution)
   }
 
   /** Computes reach using the "deterministic count distinct" methodology. */
