@@ -72,20 +72,11 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
   SpannerWriter<List<Measurement>, List<Measurement>>() {
 
   override suspend fun TransactionScope.runTransaction(): List<Measurement> {
-    val measurements = mutableListOf<Measurement>()
-    val measurementConsumerMap = mutableMapOf<Long, InternalId>()
-    for (createMeasurementRequest in requests) {
-      val externalMeasurementConsumerId =
-        createMeasurementRequest.measurement.externalMeasurementConsumerId
-      val measurementConsumerId: InternalId =
-        if (measurementConsumerMap.containsKey(externalMeasurementConsumerId)) {
-          measurementConsumerMap.getValue(externalMeasurementConsumerId)
-        } else {
-          measurementConsumerMap[externalMeasurementConsumerId] =
-            readMeasurementConsumerId(ExternalId(externalMeasurementConsumerId))
-          measurementConsumerMap.getValue(externalMeasurementConsumerId)
-        }
+    val measurementConsumerId: InternalId =
+      readMeasurementConsumerId(ExternalId(requests.first().measurement.externalMeasurementConsumerId))
 
+    val measurements = mutableListOf<Measurement>()
+    for (createMeasurementRequest in requests) {
       if (createMeasurementRequest.requestId.isNotEmpty()) {
         val existingMeasurement =
           findExistingMeasurement(createMeasurementRequest, measurementConsumerId)
@@ -332,6 +323,12 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
         encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
         nonceHash = dataProviderValue.nonceHash
+
+        // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting these
+        // fields.
+        dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
+        dataProviderPublicKeySignatureAlgorithmOid =
+          dataProviderValue.dataProviderPublicKeySignatureAlgorithmOid
       }
 
     transactionContext.bufferInsertMutation("Requisitions") {

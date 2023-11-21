@@ -180,9 +180,12 @@ message ComputationKey {
 }
 
 message BatchCreateMeasurementsRequest {
-  // The request message specifying the Measurements to create. A maximum of 50
-  // Measurements can be created in a batch.
-  repeated CreateMeasurementRequest requests = 1;
+  fixed64 external_measurement_consumer_id = 1;
+  // The request message specifying the Measurements to create. All child
+  // requests must have their `external_measurement_consumer_id` match the
+  // parent `external_measurement_consumer_id`. A maximum of 50 Measurements
+  // can be created in a batch.
+  repeated CreateMeasurementRequest requests = 2;
 }
 
 message BatchCreateMeasurementsResponse {
@@ -190,9 +193,9 @@ message BatchCreateMeasurementsResponse {
 }
 
 message BatchGetMeasurementsRequest {
-  // The request message specifying the Measurements to get. A maximum of 50
-  // Measurements can be retrieved in a batch.
-  repeated GetMeasurementRequest requests = 1;
+  fixed64 external_measurement_consumer_id = 1;
+  // A maximum of 50 Measurements can be retrieved in a batch.
+  repeated fixed64 external_measurement_ids = 2;
 }
 
 message BatchGetMeasurementsResponse {

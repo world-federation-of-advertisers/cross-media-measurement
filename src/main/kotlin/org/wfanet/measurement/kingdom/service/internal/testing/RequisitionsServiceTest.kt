@@ -566,6 +566,12 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
           encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
           nonceHash = dataProviderValue.nonceHash
+
+          // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting these
+          // fields.
+          dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
+          dataProviderPublicKeySignatureAlgorithmOid =
+            dataProviderValue.dataProviderPublicKeySignatureAlgorithmOid
         }
       dataProviderCertificate = dataProvider.certificate
       parentMeasurement = parentMeasurement {
@@ -644,6 +650,12 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
           encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
           nonceHash = dataProviderValue.nonceHash
+
+          // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting these
+          // fields.
+          dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
+          dataProviderPublicKeySignatureAlgorithmOid =
+            dataProviderValue.dataProviderPublicKeySignatureAlgorithmOid
         }
       dataProviderCertificate = dataProvider.certificate
       parentMeasurement = parentMeasurement {

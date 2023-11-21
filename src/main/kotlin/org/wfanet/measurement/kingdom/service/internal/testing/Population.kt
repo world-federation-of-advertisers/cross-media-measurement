@@ -487,6 +487,10 @@ fun DataProvider.toDataProviderValue(nonce: Long = Random.Default.nextLong()) = 
   dataProviderPublicKey = details.publicKey
   encryptedRequisitionSpec = "Encrypted RequisitionSpec $nonce".toByteStringUtf8()
   nonceHash = Hashing.hashSha256(nonce)
+
+  // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting these fields.
+  dataProviderPublicKeySignature = details.publicKeySignature
+  dataProviderPublicKeySignatureAlgorithmOid = details.publicKeySignatureAlgorithmOid
 }
 
 /**

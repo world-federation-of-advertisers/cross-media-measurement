@@ -240,6 +240,9 @@ class SpannerMeasurementsService(
     request: BatchCreateMeasurementsRequest
   ): BatchCreateMeasurementsResponse {
     for (createMeasurementRequest in request.requestsList) {
+      grpcRequire(request.externalMeasurementConsumerId == createMeasurementRequest.measurement.externalMeasurementConsumerId) {
+        "Child request external_measurement_consumer_id does not match parent request external_measurement_consumer_id."
+      }
       validateCreateMeasurementRequest(createMeasurementRequest)
     }
 
@@ -271,11 +274,11 @@ class SpannerMeasurementsService(
       MeasurementReader(Measurement.View.DEFAULT)
         .readByExternalIds(
           client.singleUse(),
-          ExternalId(request.requestsList.first().externalMeasurementConsumerId),
-          request.requestsList.map { ExternalId(it.externalMeasurementId) }
+          ExternalId(request.externalMeasurementConsumerId),
+          request.externalMeasurementIdsList.map { ExternalId(it) }
         )
 
-    if (results.size < request.requestsList.size) {
+    if (results.size < request.externalMeasurementIdsList.size) {
       throw Status.NOT_FOUND.withDescription("Measurement not found").asRuntimeException()
     }
 

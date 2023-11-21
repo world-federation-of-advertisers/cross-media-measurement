@@ -262,14 +262,14 @@ class MeasurementsService(
     val internalCreateMeasurementRequests = mutableListOf<InternalCreateMeasurementRequest>()
     for (createMeasurementRequest in request.requestsList) {
       if (createMeasurementRequest.parent.isNotEmpty()) {
-        val innerParentKey =
+        val childParentKey =
           grpcRequireNotNull(MeasurementConsumerKey.fromName(createMeasurementRequest.parent)) {
-            "parent is invalid"
+            "Child request parent is invalid."
           }
 
-        if (innerParentKey != parentKey) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot create a Measurement for another MeasurementConsumer"
+        if (childParentKey != parentKey) {
+          failGrpc(Status.INVALID_ARGUMENT) {
+            "Child request parent does not match parent in parent request."
           }
         }
       }
@@ -319,40 +319,39 @@ class MeasurementsService(
       }
     }
 
-    if (request.requestsList.isEmpty()) {
-      failGrpc { "requests is empty." }
+    if (request.namesList.isEmpty()) {
+      failGrpc { "names is empty." }
     }
 
-    if (request.requestsList.size > MAX_BATCH_SIZE) {
-      failGrpc { "Number of elements in requests exceeds the maximum batch size." }
+    if (request.namesList.size > MAX_BATCH_SIZE) {
+      failGrpc { "Number of elements in names exceeds the maximum batch size." }
     }
 
-    val internalGetMeasurementRequests = mutableListOf<InternalGetMeasurementRequest>()
-    for (getMeasurementRequest in request.requestsList) {
+    val externalMeasurementConsumerId = apiIdToExternalId(parentKey.measurementConsumerId)
+    val externalMeasurementIds = mutableListOf<Long>()
+    for (name in request.namesList) {
       val key =
-        grpcRequireNotNull(MeasurementKey.fromName(getMeasurementRequest.name)) {
-          MISSING_RESOURCE_NAME_ERROR
+        grpcRequireNotNull(MeasurementKey.fromName(name)) {
+          "name is invalid."
         }
 
       if (authenticatedMeasurementConsumerKey.measurementConsumerId != key.measurementConsumerId) {
-        failGrpc(Status.PERMISSION_DENIED) {
-          "Cannot get a Measurement from another MeasurementConsumer"
+        failGrpc(Status.INVALID_ARGUMENT) {
+          "MeasurementConsumer in name does not match parent MeasurementConsumer."
         }
       }
 
-      val internalGetMeasurementRequest = getMeasurementRequest {
-        externalMeasurementId = apiIdToExternalId(key.measurementId)
-        externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
-      }
-
-      internalGetMeasurementRequests.add(internalGetMeasurementRequest)
+      externalMeasurementIds.add(apiIdToExternalId(key.measurementId))
     }
 
     val internalMeasurements =
       try {
         internalMeasurementsStub
           .batchGetMeasurements(
-            batchGetMeasurementsRequest { requests += internalGetMeasurementRequests }
+            batchGetMeasurementsRequest {
+              this.externalMeasurementConsumerId = externalMeasurementConsumerId
+              this.externalMeasurementIds += externalMeasurementIds
+            }
           )
           .measurementsList
       } catch (ex: StatusException) {

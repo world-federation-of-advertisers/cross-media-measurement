@@ -1880,7 +1880,7 @@ class MeasurementsServiceTest {
   }
 
   @Test
-  fun `batchCreateMeasurements returns measurements when inner requests do not have parent`() {
+  fun `batchCreateMeasurements returns measurements when all child requests do not have parent`() {
     val createMeasurementRequest = createMeasurementRequest { measurement = MEASUREMENT }
     val createMeasurementRequest2 = createMeasurementRequest { measurement = MEASUREMENT }
     val request = batchCreateMeasurementsRequest {
@@ -1921,6 +1921,50 @@ class MeasurementsServiceTest {
   }
 
   @Test
+  fun `batchCreateMeasurements returns measurements when 1 of 2 child requests has no parent`() {
+    val createMeasurementRequest = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement = MEASUREMENT
+    }
+    val createMeasurementRequest2 = createMeasurementRequest { measurement = MEASUREMENT }
+    val request = batchCreateMeasurementsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      requests += createMeasurementRequest
+      requests += createMeasurementRequest2
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.batchCreateMeasurements(request) }
+      }
+
+    val expected = batchCreateMeasurementsResponse {
+      measurements += MEASUREMENT
+      measurements += MEASUREMENT.copy { name = MEASUREMENT_NAME_2 }
+    }
+
+    val internalMeasurement =
+      INTERNAL_MEASUREMENT.copy {
+        clearExternalMeasurementId()
+        clearUpdateTime()
+        details = details.copy { clearFailure() }
+        results.clear()
+      }
+    verifyProtoArgument(
+      internalMeasurementsMock,
+      MeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchCreateMeasurements
+    )
+      .isEqualTo(
+        internalBatchCreateMeasurementsRequest {
+          requests += internalCreateMeasurementRequest { measurement = internalMeasurement }
+          requests += internalCreateMeasurementRequest { measurement = internalMeasurement }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
   fun `batchCreateMeasurements throws INVALID_ARGUMENT when too many requests`() {
     val createMeasurementRequest = createMeasurementRequest {
       parent = MEASUREMENT_CONSUMER_NAME
@@ -1942,12 +1986,15 @@ class MeasurementsServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
-  fun `batchCreateMeasurements throws INVALID_ARGUMENT when parents don't match`() {
+  fun `batchCreateMeasurements throws INVALID_ARGUMENT when child parent doesn't match`() {
     val createMeasurementRequest = createMeasurementRequest {
       parent = MEASUREMENT_CONSUMER_NAME_2
       measurement = MEASUREMENT
     }
-    val createMeasurementRequest2 = createMeasurementRequest { measurement = MEASUREMENT }
+    val createMeasurementRequest2 = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement = MEASUREMENT
+    }
     val request = batchCreateMeasurementsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       requests += createMeasurementRequest
@@ -1969,7 +2016,10 @@ class MeasurementsServiceTest {
       parent = MEASUREMENT_CONSUMER_NAME
       measurement = MEASUREMENT
     }
-    val createMeasurementRequest2 = createMeasurementRequest { measurement = MEASUREMENT }
+    val createMeasurementRequest2 = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement = MEASUREMENT
+    }
     val request = batchCreateMeasurementsRequest {
       requests += createMeasurementRequest
       requests += createMeasurementRequest2
@@ -1985,7 +2035,7 @@ class MeasurementsServiceTest {
   }
 
   @Test
-  fun `batchCreateMeasurements throws INVALID_ARGUMENT when parent is invalid`() {
+  fun `batchCreateMeasurements throws INVALID_ARGUMENT when child parent is invalid`() {
     val createMeasurementRequest = createMeasurementRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       measurement = MEASUREMENT
@@ -2086,12 +2136,10 @@ class MeasurementsServiceTest {
 
   @Test
   fun `batchGetMeasurements returns measurements`() {
-    val getMeasurementRequest = getMeasurementRequest { name = MEASUREMENT_NAME }
-    val getMeasurementRequest2 = getMeasurementRequest { name = MEASUREMENT_NAME_2 }
     val request = batchGetMeasurementsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
-      requests += getMeasurementRequest
-      requests += getMeasurementRequest2
+      names += MEASUREMENT_NAME
+      names += MEASUREMENT_NAME_2
     }
 
     val result =
@@ -2110,14 +2158,9 @@ class MeasurementsServiceTest {
       )
       .isEqualTo(
         internalBatchGetMeasurementsRequest {
-          requests += internalGetMeasurementRequest {
-            externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
-            externalMeasurementId = EXTERNAL_MEASUREMENT_ID
-          }
-          requests += internalGetMeasurementRequest {
-            externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
-            externalMeasurementId = EXTERNAL_MEASUREMENT_ID_2
-          }
+          externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+          externalMeasurementIds += EXTERNAL_MEASUREMENT_ID
+          externalMeasurementIds += EXTERNAL_MEASUREMENT_ID_2
         }
       )
 
@@ -2126,11 +2169,10 @@ class MeasurementsServiceTest {
 
   @Test
   fun `batchGetMeasurements throws INVALID_ARGUMENT when too many requests`() {
-    val getMeasurementRequest = getMeasurementRequest { name = MEASUREMENT_NAME }
     val request = batchGetMeasurementsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       for (i in 0..BATCH_LIMIT) {
-        requests += getMeasurementRequest
+        names += MEASUREMENT_NAME
       }
     }
 
@@ -2145,11 +2187,9 @@ class MeasurementsServiceTest {
 
   @Test
   fun `batchGetMeasurements throws INVALID_ARGUMENT when parent is missing`() {
-    val getMeasurementRequest = getMeasurementRequest { name = MEASUREMENT_NAME }
-    val getMeasurementRequest2 = getMeasurementRequest { name = MEASUREMENT_NAME_2 }
     val request = batchGetMeasurementsRequest {
-      requests += getMeasurementRequest
-      requests += getMeasurementRequest2
+      names += MEASUREMENT_NAME
+      names += MEASUREMENT_NAME_2
     }
 
     val exception =
@@ -2163,12 +2203,10 @@ class MeasurementsServiceTest {
 
   @Test
   fun `batchGetMeasurements throws INVALID_ARGUMENT when parent is invalid`() {
-    val getMeasurementRequest = getMeasurementRequest { name = MEASUREMENT_NAME }
-    val getMeasurementRequest2 = getMeasurementRequest { name = MEASUREMENT_NAME_2 }
     val request = batchGetMeasurementsRequest {
       parent = "measurementConsumers"
-      requests += getMeasurementRequest
-      requests += getMeasurementRequest2
+      names += MEASUREMENT_NAME
+      names += MEASUREMENT_NAME_2
     }
 
     val exception =
@@ -2182,12 +2220,10 @@ class MeasurementsServiceTest {
 
   @Test
   fun `batchGetMeasurements throws PERMISSION_DENIED when mc caller doesn't match parent`() {
-    val getMeasurementRequest = getMeasurementRequest { name = MEASUREMENT_NAME }
-    val getMeasurementRequest2 = getMeasurementRequest { name = MEASUREMENT_NAME_2 }
     val request = batchGetMeasurementsRequest {
       parent = MEASUREMENT_CONSUMER_NAME_2
-      requests += getMeasurementRequest
-      requests += getMeasurementRequest2
+      names += MEASUREMENT_NAME
+      names += MEASUREMENT_NAME_2
     }
 
     val exception =
@@ -2200,32 +2236,11 @@ class MeasurementsServiceTest {
   }
 
   @Test
-  fun `batchGetMeasurements throws INVALID_ARGUMENT when resource name is missing`() {
-    val getMeasurementRequest = getMeasurementRequest { name = MEASUREMENT_NAME }
-    val getMeasurementRequest2 = getMeasurementRequest {}
-    val request = batchGetMeasurementsRequest {
-      parent = MEASUREMENT_CONSUMER_NAME
-      requests += getMeasurementRequest
-      requests += getMeasurementRequest2
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking { service.batchGetMeasurements(request) }
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-  }
-
-  @Test
   fun `batchGetMeasurements throws INVALID_ARGUMENT when resource name is invalid`() {
-    val getMeasurementRequest = getMeasurementRequest { name = MEASUREMENT_NAME }
-    val getMeasurementRequest2 = getMeasurementRequest { name = "measurements" }
     val request = batchGetMeasurementsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
-      requests += getMeasurementRequest
-      requests += getMeasurementRequest2
+      names += MEASUREMENT_NAME
+      names += "measurements"
     }
 
     val exception =
@@ -2238,13 +2253,11 @@ class MeasurementsServiceTest {
   }
 
   @Test
-  fun `batchGetMeasurements throws PERMISSION_DENIED when mc caller doesn't match name`() {
-    val getMeasurementRequest = getMeasurementRequest { name = MEASUREMENT_NAME }
-    val getMeasurementRequest2 = getMeasurementRequest { name = MEASUREMENT_NAME_2 }
+  fun `batchGetMeasurements throws INVALID_ARGUMENT when mc caller doesn't match name`() {
     val request = batchGetMeasurementsRequest {
       parent = MEASUREMENT_CONSUMER_NAME_2
-      requests += getMeasurementRequest
-      requests += getMeasurementRequest2
+      names += MEASUREMENT_NAME
+      names += MEASUREMENT_NAME_2
     }
 
     val exception =
@@ -2254,17 +2267,15 @@ class MeasurementsServiceTest {
         }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
   fun `batchGetMeasurements throws PERMISSION_DENIED when principal without authorization found`() {
-    val getMeasurementRequest = getMeasurementRequest { name = MEASUREMENT_NAME }
-    val getMeasurementRequest2 = getMeasurementRequest { name = MEASUREMENT_NAME_2 }
     val request = batchGetMeasurementsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
-      requests += getMeasurementRequest
-      requests += getMeasurementRequest2
+      names += MEASUREMENT_NAME
+      names += MEASUREMENT_NAME_2
     }
 
     val exception =
@@ -2278,12 +2289,10 @@ class MeasurementsServiceTest {
 
   @Test
   fun `batchGetMeasurements throws UNAUTHENTICATED when mc principal not found`() {
-    val getMeasurementRequest = getMeasurementRequest { name = MEASUREMENT_NAME }
-    val getMeasurementRequest2 = getMeasurementRequest { name = MEASUREMENT_NAME_2 }
     val request = batchGetMeasurementsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
-      requests += getMeasurementRequest
-      requests += getMeasurementRequest2
+      names += MEASUREMENT_NAME
+      names += MEASUREMENT_NAME_2
     }
 
     val exception =
