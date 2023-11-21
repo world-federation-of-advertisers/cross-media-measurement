@@ -16,9 +16,17 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import com.google.protobuf.Timestamp
 import com.google.protobuf.util.Timestamps
+import com.google.type.DateTime
 import com.google.type.Interval
 import com.google.type.interval
+import java.time.DateTimeException
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
+import java.time.zone.ZoneRulesException
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodology
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
@@ -31,6 +39,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec.VidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams as NoiserDpParams
 import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodology as InternalCustomDirectMethodology
@@ -958,4 +967,44 @@ fun InternalMetricSpec.VidSamplingInterval.toStatsVidSamplingInterval(): StatsVi
 fun InternalMetricSpec.DifferentialPrivacyParams.toNoiserDpParams(): NoiserDpParams {
   val source = this
   return NoiserDpParams(source.epsilon, source.delta)
+}
+
+/**
+ * Converts a proto [DateTime] to a proto [Timestamp].
+ *
+ * @throws
+ * * [DateTimeException] when values in DateTime are invalid.
+ * * [ZoneRulesException] when time zone id is invalid.
+ */
+fun DateTime.toTimestamp(): Timestamp {
+  val source = this
+  return if (source.hasUtcOffset()) {
+    val offset = ZoneOffset.ofTotalSeconds(source.utcOffset.seconds.toInt())
+    val offsetDateTime =
+      OffsetDateTime.of(
+        source.year,
+        source.month,
+        source.day,
+        source.hours,
+        source.minutes,
+        source.seconds,
+        source.nanos,
+        offset
+      )
+    offsetDateTime.toInstant().toProtoTime()
+  } else {
+    val id = ZoneId.of(source.timeZone.id)
+    val zonedDateTime =
+      ZonedDateTime.of(
+        source.year,
+        source.month,
+        source.day,
+        source.hours,
+        source.minutes,
+        source.seconds,
+        source.nanos,
+        id
+      )
+    zonedDateTime.toInstant().toProtoTime()
+  }
 }
