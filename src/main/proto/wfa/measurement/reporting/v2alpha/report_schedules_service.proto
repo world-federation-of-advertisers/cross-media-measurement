@@ -84,8 +84,8 @@ message CreateReportScheduleRequest {
   // The `ReportSchedule` to create.
   ReportSchedule report_schedule = 3 [(google.api.field_behavior) = REQUIRED];
 
-  // A unique identifier for this request. Restricted to 36 ASCII characters.
-  // A random UUID is recommended.
+  // A unique identifier for this request. Restricted to 36 characters in the
+  // set [a-zA-Z0-9]. A random UUID is recommended.
   // This request is only idempotent if a `request_id` is provided.
   string request_id = 4;
 }
