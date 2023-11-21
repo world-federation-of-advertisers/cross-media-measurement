@@ -332,6 +332,10 @@ import ("strings")
 		}
 	}
 
+	configMaps: [Name=string]: #ConfigMap & {
+		metadata: name: Name
+	}
+
 	serviceAccounts: [Name=string]: #ServiceAccount & {
 		metadata: name: Name
 	}
