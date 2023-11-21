@@ -2128,9 +2128,7 @@ class MeasurementsServiceTest {
       parent = MEASUREMENT_CONSUMER_NAME
       parent = MEASUREMENT_CONSUMER_NAME
       measurement =
-        MEASUREMENT.copy {
-          this.measurementConsumerCertificate = measurementConsumerCertificate
-        }
+        MEASUREMENT.copy { this.measurementConsumerCertificate = measurementConsumerCertificate }
     }
     val request = batchCreateMeasurementsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
@@ -2141,9 +2139,7 @@ class MeasurementsServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking {
-            service.batchCreateMeasurements(request)
-          }
+          runBlocking { service.batchCreateMeasurements(request) }
         }
       }
 
