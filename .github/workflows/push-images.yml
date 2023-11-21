@@ -48,10 +48,10 @@ jobs:
           IMAGE_TAG: ${{ steps.get-image-tag.outputs.image-tag }}
         run: |
           cat << EOF > ~/.bazelrc
-          build -c opt 
+          build -c opt
           build --host_platform //build/platforms:ubuntu_20_04
           build --define container_registry=$CONTAINER_REGISTRY
-          build --define image_repo_prefix=$GITHUB_REPOSITORY_OWNER
+          build --define image_repo_prefix=${GITHUB_REPOSITORY_OWNER,,}
           build --define image_tag=$IMAGE_TAG
           EOF
 
