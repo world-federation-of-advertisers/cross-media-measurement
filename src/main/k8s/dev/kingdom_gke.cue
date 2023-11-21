@@ -37,6 +37,14 @@ _secret_name: string @tag("secret_name")
 		memory: ResourceRequirements.requests.memory
 	}
 }
+#UpdateSchemaResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		memory: "192Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
 
 objectSets: [
 	default_deny_ingress_and_egress,
@@ -67,6 +75,9 @@ kingdom: #Kingdom & {
 			_container: {
 				_grpcThreadPoolSize: #InternalServerGrpcThreads
 				resources:           #InternalServerResourceRequirements
+			}
+			_updateSchemaContainer: {
+				resources: #UpdateSchemaResourceRequirements
 			}
 			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #InternalServerServiceAccount

@@ -70,7 +70,7 @@ package k8s
 	_container: {
 		resources: Resources={
 			requests: {
-				memory: _ | *"320Mi"
+				memory: _ | *"288Mi"
 			}
 			limits: {
 				memory: _ | *Resources.requests.memory

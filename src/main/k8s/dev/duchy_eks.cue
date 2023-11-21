@@ -25,14 +25,30 @@ _duchyCertName: "duchies/\(_duchyName)/certificates/\(_certificateId)"
 #KingdomSystemApiTarget:             string @tag("kingdom_system_api_target")
 #InternalServerServiceAccount:       "internal-server"
 #StorageServiceAccount:              "storage"
-#InternalServerResourceRequirements: #ResourceRequirements & {
+#InternalServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
-		cpu: "75m"
+		cpu:    "75m"
+		memory: "320Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
 	}
 }
-#HeraldResourceRequirements: #ResourceRequirements & {
+#UpdateSchemaResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
-		cpu: "25m"
+		memory: "192Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+#HeraldResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "25m"
+		memory: "224Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
 	}
 }
 #MillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
@@ -87,6 +103,9 @@ duchy: #PostgresDuchy & {
 					"service.beta.kubernetes.io/aws-load-balancer-nlb-target-type": "ip"
 					"service.beta.kubernetes.io/aws-load-balancer-eip-allocations": _computationControlServerEips
 				}
+			}
+			_updateSchemaContainer: {
+				resources: #UpdateSchemaResourceRequirements
 			}
 		}
 		"requisition-fulfillment-server": {
