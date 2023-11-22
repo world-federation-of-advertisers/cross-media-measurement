@@ -26,8 +26,8 @@ import org.wfanet.measurement.config.reporting.MetricSpecConfigKt
 import org.wfanet.measurement.config.reporting.metricSpecConfig
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
-import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt.frequencyHistogramParams
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt.impressionCountParams
+import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt.reachAndFrequencyParams
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt.reachParams
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt.watchDurationParams
 import org.wfanet.measurement.reporting.v2alpha.copy
@@ -102,51 +102,51 @@ class MetricSpecDefaultsTest {
   }
 
   @Test
-  fun `buildMetricSpec builds a frequency histogram metric spec when no field is filled`() {
-    val result = FREQUENCY_HISTOGRAM_METRIC_SPEC.withDefaults(METRIC_SPEC_CONFIG)
+  fun `buildMetricSpec builds a reach and frequency metric spec when no field is filled`() {
+    val result = REACH_AND_FREQUENCY_METRIC_SPEC.withDefaults(METRIC_SPEC_CONFIG)
     val expect = metricSpec {
-      frequencyHistogram = frequencyHistogramParams {
+      reachAndFrequency = reachAndFrequencyParams {
         reachPrivacyParams =
           MetricSpecKt.differentialPrivacyParams {
-            epsilon = METRIC_SPEC_CONFIG.frequencyHistogramParams.reachPrivacyParams.epsilon
-            delta = METRIC_SPEC_CONFIG.frequencyHistogramParams.reachPrivacyParams.delta
+            epsilon = METRIC_SPEC_CONFIG.reachAndFrequencyParams.reachPrivacyParams.epsilon
+            delta = METRIC_SPEC_CONFIG.reachAndFrequencyParams.reachPrivacyParams.delta
           }
         frequencyPrivacyParams =
           MetricSpecKt.differentialPrivacyParams {
-            epsilon = METRIC_SPEC_CONFIG.frequencyHistogramParams.frequencyPrivacyParams.epsilon
-            delta = METRIC_SPEC_CONFIG.frequencyHistogramParams.frequencyPrivacyParams.delta
+            epsilon = METRIC_SPEC_CONFIG.reachAndFrequencyParams.frequencyPrivacyParams.epsilon
+            delta = METRIC_SPEC_CONFIG.reachAndFrequencyParams.frequencyPrivacyParams.delta
           }
-        maximumFrequency = METRIC_SPEC_CONFIG.frequencyHistogramParams.maximumFrequency
+        maximumFrequency = METRIC_SPEC_CONFIG.reachAndFrequencyParams.maximumFrequency
       }
       vidSamplingInterval =
         MetricSpecKt.vidSamplingInterval {
-          start = METRIC_SPEC_CONFIG.frequencyHistogramVidSamplingInterval.start
-          width = METRIC_SPEC_CONFIG.frequencyHistogramVidSamplingInterval.width
+          start = METRIC_SPEC_CONFIG.reachAndFrequencyVidSamplingInterval.start
+          width = METRIC_SPEC_CONFIG.reachAndFrequencyVidSamplingInterval.width
         }
     }
     assertThat(result).isEqualTo(expect)
   }
 
   @Test
-  fun `buildMetricSpec builds a frequency histogram metric spec when all fields are filled`() {
+  fun `buildMetricSpec builds a reach and frequency metric spec when all fields are filled`() {
     val expect = metricSpec {
-      frequencyHistogram = frequencyHistogramParams {
+      reachAndFrequency = reachAndFrequencyParams {
         reachPrivacyParams =
           MetricSpecKt.differentialPrivacyParams {
-            epsilon = METRIC_SPEC_CONFIG.frequencyHistogramParams.reachPrivacyParams.epsilon * 2
-            delta = METRIC_SPEC_CONFIG.frequencyHistogramParams.reachPrivacyParams.delta * 2
+            epsilon = METRIC_SPEC_CONFIG.reachAndFrequencyParams.reachPrivacyParams.epsilon * 2
+            delta = METRIC_SPEC_CONFIG.reachAndFrequencyParams.reachPrivacyParams.delta * 2
           }
         frequencyPrivacyParams =
           MetricSpecKt.differentialPrivacyParams {
-            epsilon = METRIC_SPEC_CONFIG.frequencyHistogramParams.frequencyPrivacyParams.epsilon * 2
-            delta = METRIC_SPEC_CONFIG.frequencyHistogramParams.frequencyPrivacyParams.delta * 2
+            epsilon = METRIC_SPEC_CONFIG.reachAndFrequencyParams.frequencyPrivacyParams.epsilon * 2
+            delta = METRIC_SPEC_CONFIG.reachAndFrequencyParams.frequencyPrivacyParams.delta * 2
           }
-        maximumFrequency = METRIC_SPEC_CONFIG.frequencyHistogramParams.maximumFrequency * 2
+        maximumFrequency = METRIC_SPEC_CONFIG.reachAndFrequencyParams.maximumFrequency * 2
       }
       vidSamplingInterval =
         MetricSpecKt.vidSamplingInterval {
-          start = METRIC_SPEC_CONFIG.frequencyHistogramVidSamplingInterval.start + 0.001f
-          width = METRIC_SPEC_CONFIG.frequencyHistogramVidSamplingInterval.width / 2
+          start = METRIC_SPEC_CONFIG.reachAndFrequencyVidSamplingInterval.start + 0.001f
+          width = METRIC_SPEC_CONFIG.reachAndFrequencyVidSamplingInterval.width / 2
         }
     }
     val result = expect.withDefaults(METRIC_SPEC_CONFIG)
@@ -269,10 +269,10 @@ class MetricSpecDefaultsTest {
   }
 
   @Test
-  fun `buildMetricSpec throw MetricSpecBuildingException when reach privacy params in frequency histogram is not set`() {
+  fun `buildMetricSpec throw MetricSpecBuildingException when reach privacy params in reach and frequency is not set`() {
     val metricSpecWithoutPrivacyParams =
-      FREQUENCY_HISTOGRAM_METRIC_SPEC.copy {
-        frequencyHistogram = frequencyHistogram.copy { clearReachPrivacyParams() }
+      REACH_AND_FREQUENCY_METRIC_SPEC.copy {
+        reachAndFrequency = reachAndFrequency.copy { clearReachPrivacyParams() }
       }
 
     val exception =
@@ -285,10 +285,10 @@ class MetricSpecDefaultsTest {
   }
 
   @Test
-  fun `buildMetricSpec throw MetricSpecBuildingException when frequency histogram privacy params is not set`() {
+  fun `buildMetricSpec throw MetricSpecBuildingException when frequency privacy params in reach and frequency is not set`() {
     val metricSpecWithoutPrivacyParams =
-      FREQUENCY_HISTOGRAM_METRIC_SPEC.copy {
-        frequencyHistogram = frequencyHistogram.copy { clearFrequencyPrivacyParams() }
+      REACH_AND_FREQUENCY_METRIC_SPEC.copy {
+        reachAndFrequency = reachAndFrequency.copy { clearFrequencyPrivacyParams() }
       }
 
     val exception =
@@ -410,8 +410,8 @@ class MetricSpecDefaultsTest {
           width = REACH_ONLY_VID_SAMPLING_WIDTH
         }
 
-      frequencyHistogramParams =
-        MetricSpecConfigKt.frequencyHistogramParams {
+      reachAndFrequencyParams =
+        MetricSpecConfigKt.reachAndFrequencyParams {
           reachPrivacyParams =
             MetricSpecConfigKt.differentialPrivacyParams {
               epsilon = REACH_FREQUENCY_REACH_EPSILON
@@ -424,7 +424,7 @@ class MetricSpecDefaultsTest {
             }
           maximumFrequency = REACH_FREQUENCY_MAXIMUM_FREQUENCY
         }
-      frequencyHistogramVidSamplingInterval =
+      reachAndFrequencyVidSamplingInterval =
         MetricSpecConfigKt.vidSamplingInterval {
           start = REACH_FREQUENCY_VID_SAMPLING_START
           width = REACH_FREQUENCY_VID_SAMPLING_WIDTH
@@ -468,8 +468,8 @@ class MetricSpecDefaultsTest {
         privacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
       }
     }
-    private val FREQUENCY_HISTOGRAM_METRIC_SPEC: MetricSpec = metricSpec {
-      frequencyHistogram = frequencyHistogramParams {
+    private val REACH_AND_FREQUENCY_METRIC_SPEC: MetricSpec = metricSpec {
+      reachAndFrequency = reachAndFrequencyParams {
         reachPrivacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
         frequencyPrivacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
       }

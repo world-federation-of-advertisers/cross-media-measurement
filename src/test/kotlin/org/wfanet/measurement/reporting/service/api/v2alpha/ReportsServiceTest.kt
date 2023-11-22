@@ -707,9 +707,9 @@ class ReportsServiceTest {
   fun `createReport returns report with two metrics when there are two metricSpecs`() =
     runBlocking {
       val targetReportingSet = PRIMITIVE_REPORTING_SETS.first()
-      val metricSpecs = listOf(REACH_METRIC_SPEC, FREQUENCY_HISTOGRAM_METRIC_SPEC)
+      val metricSpecs = listOf(REACH_METRIC_SPEC, REACH_AND_FREQUENCY_METRIC_SPEC)
       val internalMetricSpecs =
-        listOf(INTERNAL_REACH_METRIC_SPEC, INTERNAL_FREQUENCY_HISTOGRAM_METRIC_SPEC)
+        listOf(INTERNAL_REACH_METRIC_SPEC, INTERNAL_REACH_AND_FREQUENCY_METRIC_SPEC)
       val timeInterval = interval {
         startTime = START_TIME
         endTime = END_TIME
@@ -725,7 +725,7 @@ class ReportsServiceTest {
           InternalMetricCalculationSpecKt.details {
             displayName = DISPLAY_NAME
             this.metricSpecs += INTERNAL_REACH_METRIC_SPEC
-            this.metricSpecs += INTERNAL_FREQUENCY_HISTOGRAM_METRIC_SPEC
+            this.metricSpecs += INTERNAL_REACH_AND_FREQUENCY_METRIC_SPEC
             cumulative = false
           }
       }
@@ -863,9 +863,9 @@ class ReportsServiceTest {
       val filter = "device == MOBILE"
 
       // Metric specs
-      val metricSpecs = listOf(REACH_METRIC_SPEC, FREQUENCY_HISTOGRAM_METRIC_SPEC)
+      val metricSpecs = listOf(REACH_METRIC_SPEC, REACH_AND_FREQUENCY_METRIC_SPEC)
       val internalMetricSpecs =
-        listOf(INTERNAL_REACH_METRIC_SPEC, INTERNAL_FREQUENCY_HISTOGRAM_METRIC_SPEC)
+        listOf(INTERNAL_REACH_METRIC_SPEC, INTERNAL_REACH_AND_FREQUENCY_METRIC_SPEC)
 
       // Time intervals
       val timeIntervalsList =
@@ -901,7 +901,7 @@ class ReportsServiceTest {
           InternalMetricCalculationSpecKt.details {
             displayName = DISPLAY_NAME
             this.metricSpecs +=
-              listOf(INTERNAL_REACH_METRIC_SPEC, INTERNAL_FREQUENCY_HISTOGRAM_METRIC_SPEC)
+              listOf(INTERNAL_REACH_METRIC_SPEC, INTERNAL_REACH_AND_FREQUENCY_METRIC_SPEC)
             groupings += InternalMetricCalculationSpecKt.grouping { predicates += predicates1 }
             groupings += InternalMetricCalculationSpecKt.grouping { predicates += predicates2 }
             this.filter = filter
@@ -3263,8 +3263,8 @@ class ReportsServiceTest {
           width = REACH_ONLY_VID_SAMPLING_WIDTH
         }
 
-      frequencyHistogramParams =
-        MetricSpecConfigKt.frequencyHistogramParams {
+      reachAndFrequencyParams =
+        MetricSpecConfigKt.reachAndFrequencyParams {
           reachPrivacyParams =
             MetricSpecConfigKt.differentialPrivacyParams {
               epsilon = REACH_FREQUENCY_REACH_EPSILON
@@ -3277,7 +3277,7 @@ class ReportsServiceTest {
             }
           maximumFrequency = REACH_FREQUENCY_MAXIMUM_FREQUENCY
         }
-      frequencyHistogramVidSamplingInterval =
+      reachAndFrequencyVidSamplingInterval =
         MetricSpecConfigKt.vidSamplingInterval {
           start = REACH_FREQUENCY_VID_SAMPLING_START
           width = REACH_FREQUENCY_VID_SAMPLING_WIDTH
@@ -3344,9 +3344,9 @@ class ReportsServiceTest {
           width = REACH_ONLY_VID_SAMPLING_WIDTH
         }
     }
-    private val FREQUENCY_HISTOGRAM_METRIC_SPEC: MetricSpec = metricSpec {
-      frequencyHistogram =
-        MetricSpecKt.frequencyHistogramParams {
+    private val REACH_AND_FREQUENCY_METRIC_SPEC: MetricSpec = metricSpec {
+      reachAndFrequency =
+        MetricSpecKt.reachAndFrequencyParams {
           reachPrivacyParams =
             MetricSpecKt.differentialPrivacyParams {
               epsilon = REACH_FREQUENCY_REACH_EPSILON
@@ -3365,9 +3365,9 @@ class ReportsServiceTest {
           width = REACH_FREQUENCY_VID_SAMPLING_WIDTH
         }
     }
-    private val INTERNAL_FREQUENCY_HISTOGRAM_METRIC_SPEC: InternalMetricSpec = internalMetricSpec {
-      frequencyHistogram =
-        InternalMetricSpecKt.frequencyHistogramParams {
+    private val INTERNAL_REACH_AND_FREQUENCY_METRIC_SPEC: InternalMetricSpec = internalMetricSpec {
+      reachAndFrequency =
+        InternalMetricSpecKt.reachAndFrequencyParams {
           reachPrivacyParams =
             InternalMetricSpecKt.differentialPrivacyParams {
               epsilon = REACH_FREQUENCY_REACH_EPSILON
