@@ -21,6 +21,7 @@ import com.google.type.Interval
 import com.google.type.interval
 import io.r2dbc.postgresql.codec.Interval as PostgresInterval
 import java.time.Instant
+import java.time.ZoneOffset
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -30,6 +31,7 @@ import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.reporting.v2.BatchGetMetricsRequest
@@ -50,6 +52,15 @@ class MetricReader(private val readContext: ReadContext) {
     val metricId: InternalId,
     val createMetricRequestId: String,
     val metric: Metric
+  )
+
+  data class ReportingMetric(
+    val metricId: InternalId,
+    val createMetricRequestId: String,
+    val externalMetricId: String,
+    val timeInterval: Interval,
+    val metricSpec: MetricSpec,
+    val details: Metric.Details
   )
 
   private data class MetricInfo(
@@ -159,9 +170,10 @@ class MetricReader(private val readContext: ReadContext) {
       StringBuilder(
         """
           $baseSqlSelect
-          FROM MeasurementConsumers
+          FROM
+            MeasurementConsumers
             JOIN Metrics USING(MeasurementConsumerId)
-          $baseSqlJoins
+            $baseSqlJoins
           WHERE Metrics.MeasurementConsumerId = $1
             AND CreateMetricRequestId IN
         """
@@ -204,6 +216,229 @@ class MetricReader(private val readContext: ReadContext) {
         )
       }
     }
+  }
+
+  fun readReportingMetricsByTimedReportingMetricEntry(
+    measurementConsumerId: InternalId,
+    timeIntervals: Collection<Interval>,
+    reportingSetId: InternalId,
+    metricCalculationSpecId: InternalId
+  ): Flow<ReportingMetric> {
+    if (timeIntervals.isEmpty()) {
+      return emptyFlow()
+    }
+
+    val sqlSelect: String =
+      """
+      SELECT
+        CmmsMeasurementConsumerId,
+        Metrics.MeasurementConsumerId,
+        Metrics.CreateMetricRequestId,
+        ReportingSets.ExternalReportingSetId AS MetricsExternalReportingSetId,
+        Metrics.MetricId,
+        Metrics.ExternalMetricId,
+        Metrics.TimeIntervalStart AS MetricsTimeIntervalStart,
+        Metrics.TimeIntervalEndExclusive AS MetricsTimeIntervalEndExclusive,
+        Metrics.MetricType,
+        Metrics.DifferentialPrivacyEpsilon,
+        Metrics.DifferentialPrivacyDelta,
+        Metrics.FrequencyDifferentialPrivacyEpsilon,
+        Metrics.FrequencyDifferentialPrivacyDelta,
+        Metrics.MaximumFrequency,
+        Metrics.MaximumFrequencyPerUser,
+        Metrics.MaximumWatchDurationPerUser,
+        Metrics.VidSamplingIntervalStart,
+        Metrics.VidSamplingIntervalWidth,
+        Metrics.MetricDetails
+      """
+        .trimIndent()
+
+    val sqlJoins: String =
+      """
+      JOIN Metrics USING(MeasurementConsumerId)
+      JOIN ReportingSets USING(MeasurementConsumerId, ReportingSetId)
+      LEFT JOIN MetricCalculationSpecReportingMetrics ON
+        Metrics.MeasurementConsumerId = MetricCalculationSpecReportingMetrics.MeasurementConsumerId
+        AND Metrics.MetricId = MetricCalculationSpecReportingMetrics.MetricId
+      """
+        .trimIndent()
+
+    val sql =
+      StringBuilder(
+        """
+          $sqlSelect
+          FROM
+            MeasurementConsumers
+            $sqlJoins
+          WHERE Metrics.MeasurementConsumerId = $1
+            AND Metrics.ReportingSetId = $2
+            AND MetricCalculationSpecReportingMetrics.MetricCalculationSpecId = $3
+        """
+          .trimIndent()
+      )
+
+    // The index in `sql` ends at $3.
+    val offset = 4
+    // Timestamp to binding index
+    val bindingMap = mutableMapOf<Timestamp, String>()
+    val sqlWhereConditionForTimeIntervals =
+      timeIntervals.joinToString(separator = " OR ", prefix = "\nAND (", postfix = ")") {
+        timeInterval ->
+        if (!bindingMap.containsKey(timeInterval.startTime)) {
+          bindingMap[timeInterval.startTime] = "$${bindingMap.size + offset}"
+        }
+        if (!bindingMap.containsKey(timeInterval.endTime)) {
+          bindingMap[timeInterval.endTime] = "$${bindingMap.size + offset}"
+        }
+        "(Metrics.TimeIntervalStart = ${bindingMap[timeInterval.startTime]} AND " +
+          "Metrics.TimeIntervalEndExclusive = ${bindingMap[timeInterval.endTime]})"
+      }
+
+    sql.append(sqlWhereConditionForTimeIntervals)
+
+    val statement =
+      boundStatement(sql.toString()) {
+        bind("$1", measurementConsumerId)
+        bind("$2", reportingSetId)
+        bind("$3", metricCalculationSpecId)
+        // Index is unique and starts from $4.
+        bindingMap.forEach { (timestamp, index) ->
+          bind(index, timestamp.toInstant().atOffset(ZoneOffset.UTC))
+        }
+      }
+
+    return flow {
+      val reportingMetricMap: Map<String, ReportingMetric> = buildReportingMetricMap(statement)
+      for (entry in reportingMetricMap) {
+        emit(entry.value)
+      }
+    }
+  }
+
+  /**
+   * Returns a map that maintains the order of the query result for timed reporting metric entry.
+   */
+  private suspend fun buildReportingMetricMap(
+    statement: BoundStatement
+  ): Map<String, ReportingMetric> {
+    // Key is externalMetricId.
+    val reportingMetricMap: MutableMap<String, ReportingMetric> = linkedMapOf()
+
+    val translate: (row: ResultRow) -> Unit = { row: ResultRow ->
+      val createMetricRequestId: String =
+        requireNotNull(row["CreateMetricRequestId"]) {
+          "Metric that is associated with a MetricCalculationSpec must have createMetricRequestId"
+        }
+      val metricId: InternalId = row["MetricId"]
+      val externalMetricId: String = row["ExternalMetricId"]
+      val metricTimeIntervalStart: Instant = row["MetricsTimeIntervalStart"]
+      val metricTimeIntervalEnd: Instant = row["MetricsTimeIntervalEndExclusive"]
+      val metricType: MetricSpec.TypeCase = MetricSpec.TypeCase.forNumber(row["MetricType"])
+      val differentialPrivacyEpsilon: Double = row["DifferentialPrivacyEpsilon"]
+      val differentialPrivacyDelta: Double = row["DifferentialPrivacyDelta"]
+      val frequencyDifferentialPrivacyEpsilon: Double? = row["FrequencyDifferentialPrivacyEpsilon"]
+      val frequencyDifferentialPrivacyDelta: Double? = row["FrequencyDifferentialPrivacyDelta"]
+      val maximumFrequency: Int? = row["MaximumFrequency"]
+      val maximumFrequencyPerUser: Int? = row["MaximumFrequencyPerUser"]
+      val maximumWatchDurationPerUser: PostgresInterval? = row["MaximumWatchDurationPerUser"]
+      val vidSamplingStart: Float = row["VidSamplingIntervalStart"]
+      val vidSamplingWidth: Float = row["VidSamplingIntervalWidth"]
+      val metricDetails: Metric.Details =
+        row.getProtoMessage("MetricDetails", Metric.Details.parser())
+
+      reportingMetricMap.computeIfAbsent(externalMetricId) {
+        val metricTimeInterval = interval {
+          startTime = metricTimeIntervalStart.toProtoTime()
+          endTime = metricTimeIntervalEnd.toProtoTime()
+        }
+
+        val vidSamplingInterval =
+          MetricSpecKt.vidSamplingInterval {
+            start = vidSamplingStart
+            width = vidSamplingWidth
+          }
+
+        val metricSpec = metricSpec {
+          when (metricType) {
+            MetricSpec.TypeCase.REACH ->
+              reach =
+                MetricSpecKt.reachParams {
+                  privacyParams =
+                    MetricSpecKt.differentialPrivacyParams {
+                      epsilon = differentialPrivacyEpsilon
+                      delta = differentialPrivacyDelta
+                    }
+                }
+            MetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
+              if (
+                frequencyDifferentialPrivacyDelta == null ||
+                  frequencyDifferentialPrivacyEpsilon == null ||
+                  maximumFrequency == null
+              ) {
+                throw IllegalStateException()
+              }
+
+              reachAndFrequency =
+                MetricSpecKt.reachAndFrequencyParams {
+                  reachPrivacyParams =
+                    MetricSpecKt.differentialPrivacyParams {
+                      epsilon = differentialPrivacyEpsilon
+                      delta = differentialPrivacyDelta
+                    }
+                  frequencyPrivacyParams =
+                    MetricSpecKt.differentialPrivacyParams {
+                      epsilon = frequencyDifferentialPrivacyEpsilon
+                      delta = frequencyDifferentialPrivacyDelta
+                    }
+                  this.maximumFrequency = maximumFrequency
+                }
+            }
+            MetricSpec.TypeCase.IMPRESSION_COUNT -> {
+              if (maximumFrequencyPerUser == null) {
+                throw IllegalStateException()
+              }
+
+              impressionCount =
+                MetricSpecKt.impressionCountParams {
+                  privacyParams =
+                    MetricSpecKt.differentialPrivacyParams {
+                      epsilon = differentialPrivacyEpsilon
+                      delta = differentialPrivacyDelta
+                    }
+                  this.maximumFrequencyPerUser = maximumFrequencyPerUser
+                }
+            }
+            MetricSpec.TypeCase.WATCH_DURATION -> {
+              watchDuration =
+                MetricSpecKt.watchDurationParams {
+                  privacyParams =
+                    MetricSpecKt.differentialPrivacyParams {
+                      epsilon = differentialPrivacyEpsilon
+                      delta = differentialPrivacyDelta
+                    }
+                  this.maximumWatchDurationPerUser =
+                    checkNotNull(maximumWatchDurationPerUser).duration.toProtoDuration()
+                }
+            }
+            MetricSpec.TypeCase.TYPE_NOT_SET -> throw IllegalStateException()
+          }
+          this.vidSamplingInterval = vidSamplingInterval
+        }
+
+        ReportingMetric(
+          createMetricRequestId = createMetricRequestId,
+          metricId = metricId,
+          externalMetricId = externalMetricId,
+          timeInterval = metricTimeInterval,
+          metricSpec = metricSpec,
+          details = metricDetails,
+        )
+      }
+    }
+
+    readContext.executeQuery(statement).consume(translate).collect {}
+
+    return reportingMetricMap
   }
 
   fun batchGetMetrics(
