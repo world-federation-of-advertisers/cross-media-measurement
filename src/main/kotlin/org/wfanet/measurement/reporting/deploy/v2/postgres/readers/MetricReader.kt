@@ -21,6 +21,7 @@ import com.google.type.Interval
 import com.google.type.interval
 import io.r2dbc.postgresql.codec.Interval as PostgresInterval
 import java.time.Instant
+import java.time.ZoneOffset
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -30,6 +31,7 @@ import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.reporting.v2.BatchGetMetricsRequest
@@ -159,9 +161,10 @@ class MetricReader(private val readContext: ReadContext) {
       StringBuilder(
         """
           $baseSqlSelect
-          FROM MeasurementConsumers
+          FROM
+            MeasurementConsumers
             JOIN Metrics USING(MeasurementConsumerId)
-          $baseSqlJoins
+            $baseSqlJoins
           WHERE Metrics.MeasurementConsumerId = $1
             AND CreateMetricRequestId IN
         """
@@ -194,6 +197,88 @@ class MetricReader(private val readContext: ReadContext) {
         val metric = metricInfo.buildMetric()
 
         val createMetricRequestId = metricInfo.createMetricRequestId ?: ""
+        emit(
+          Result(
+            measurementConsumerId = metricInfo.measurementConsumerId,
+            metricId = metricInfo.metricId,
+            createMetricRequestId = createMetricRequestId,
+            metric = metric
+          )
+        )
+      }
+    }
+  }
+
+  fun readMetricsByTimedReportingMetricEntry(
+    measurementConsumerId: InternalId,
+    timeIntervals: Collection<Interval>,
+    reportingSetId: InternalId,
+    metricCalculationSpecId: InternalId
+  ): Flow<Result> {
+    if (timeIntervals.isEmpty()) {
+      return emptyFlow()
+    }
+
+    val sql =
+      StringBuilder(
+        """
+          $baseSqlSelect
+          FROM
+            MeasurementConsumers
+            JOIN Metrics USING(MeasurementConsumerId)
+            $baseSqlJoins
+            LEFT JOIN MetricCalculationSpecReportingMetrics ON
+              Metrics.MeasurementConsumerId = MetricCalculationSpecReportingMetrics.MeasurementConsumerId
+              AND Metrics.MetricId = MetricCalculationSpecReportingMetrics.MetricId
+          WHERE Metrics.MeasurementConsumerId = $1
+            AND Metrics.ReportingSetId = $2
+            AND MetricCalculationSpecReportingMetrics.MetricCalculationSpecId = $3
+        """
+          .trimIndent()
+      )
+
+    // The index in `sql` ends at $3.
+    val offset = 4
+    // Timestamp to binding index
+    val bindingMap = mutableMapOf<Timestamp, String>()
+    val sqlWhereConditionForTimeIntervals =
+      timeIntervals.joinToString(separator = " OR ", prefix = "\nAND (", postfix = ")") {
+        timeInterval ->
+        if (!bindingMap.containsKey(timeInterval.startTime)) {
+          bindingMap[timeInterval.startTime] = "$${bindingMap.size + offset}"
+        }
+        if (!bindingMap.containsKey(timeInterval.endTime)) {
+          bindingMap[timeInterval.endTime] = "$${bindingMap.size + offset}"
+        }
+        "(Metrics.TimeIntervalStart = ${bindingMap[timeInterval.startTime]} AND " +
+          "Metrics.TimeIntervalEndExclusive = ${bindingMap[timeInterval.endTime]})"
+      }
+
+    sql.append(sqlWhereConditionForTimeIntervals)
+
+    val statement =
+      boundStatement(sql.toString()) {
+        bind("$1", measurementConsumerId)
+        bind("$2", reportingSetId)
+        bind("$3", metricCalculationSpecId)
+        // Index is unique and starts from $4.
+        bindingMap.forEach { (timestamp, index) ->
+          bind(index, timestamp.toInstant().atOffset(ZoneOffset.UTC))
+        }
+      }
+
+    return flow {
+      val metricInfoMap = buildResultMap(statement)
+
+      for (entry in metricInfoMap) {
+        val metricInfo = entry.value
+
+        val metric = metricInfo.buildMetric()
+
+        val createMetricRequestId =
+          requireNotNull(metricInfo.createMetricRequestId) {
+            "Metric that is associated with a MetricCalculationSpec must have createMetricRequestId"
+          }
         emit(
           Result(
             measurementConsumerId = metricInfo.measurementConsumerId,
