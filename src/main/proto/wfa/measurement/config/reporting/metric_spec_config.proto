@@ -40,13 +40,13 @@ message MetricSpecConfig {
     // Differential privacy parameters for reach.
     DifferentialPrivacyParams privacy_params = 1;
   }
-  // Parameters that are used to generate `Frequency Histogram` metric.
-  message FrequencyHistogramParams {
+  // Parameters that are used to generate `ReachAndFrequency` metric.
+  message ReachAndFrequencyParams {
     // Differential privacy parameters for reach.
     DifferentialPrivacyParams reach_privacy_params = 1;
     // Differential privacy parameters for frequency.
     DifferentialPrivacyParams frequency_privacy_params = 2;
-    // Maximum frequency cut-off value in the frequency histogram.
+    // Maximum frequency cut-off value in frequency histogram.
     //
     // Counts with frequency higher than `maximum_frequency` will be aggregated
     // together.
@@ -78,9 +78,8 @@ message MetricSpecConfig {
   // Parameters for generating the count of unique audiences reached given a set
   // of event groups.
   ReachParams reach_params = 1;
-  // Parameters for generating the reach frequency histogram given a set of
-  // event groups.
-  FrequencyHistogramParams frequency_histogram_params = 2;
+  // Parameters for generating reach-and-frequency given a set of event groups.
+  ReachAndFrequencyParams reach_and_frequency_params = 2;
   // Parameters for generating the impression count given a set of event groups.
   ImpressionCountParams impression_count_params = 3;
   // Parameters for generating the watch duration given a set of event groups.
@@ -95,8 +94,8 @@ message MetricSpecConfig {
   }
   // Range of VIDs that will be included for reach measurements.
   VidSamplingInterval reach_vid_sampling_interval = 5;
-  // Range of VIDs that will be included for frequency histogram measurements.
-  VidSamplingInterval frequency_histogram_vid_sampling_interval = 6;
+  // Range of VIDs that will be included for reach-and-frequency measurements.
+  VidSamplingInterval reach_and_frequency_vid_sampling_interval = 6;
   // Range of VIDs that will be included for impression count measurements.
   VidSamplingInterval impression_count_vid_sampling_interval = 7;
   // Range of VIDs that will be included for watch duration measurements.

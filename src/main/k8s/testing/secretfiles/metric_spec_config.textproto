@@ -6,7 +6,7 @@ reach_params {
     delta: 1.0E-12
   }
 }
-frequency_histogram_params {
+reach_and_frequency_params {
   reach_privacy_params {
     epsilon: 0.0033
     delta: 1.0E-12
@@ -36,7 +36,7 @@ watch_duration_params {
 reach_vid_sampling_interval {
   width: 0.01
 }
-frequency_histogram_vid_sampling_interval {
+reach_and_frequency_vid_sampling_interval {
   start: 0.16
   width: 0.016666668
 }

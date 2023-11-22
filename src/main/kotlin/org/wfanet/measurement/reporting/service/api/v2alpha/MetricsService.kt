@@ -173,6 +173,7 @@ import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.HistogramResultKt
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.HistogramResultKt.binResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.histogramResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.impressionCountResult
+import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.reachAndFrequencyResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.reachResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.watchDurationResult
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineImplBase
@@ -475,8 +476,8 @@ class MetricsService(
           InternalMetricSpec.TypeCase.REACH -> {
             reach = metricSpec.reach.toReach()
           }
-          InternalMetricSpec.TypeCase.FREQUENCY_HISTOGRAM -> {
-            reachAndFrequency = metricSpec.frequencyHistogram.toReachAndFrequency()
+          InternalMetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
+            reachAndFrequency = metricSpec.reachAndFrequency.toReachAndFrequency()
           }
           InternalMetricSpec.TypeCase.IMPRESSION_COUNT -> {
             impression = metricSpec.impressionCount.toImpression()
@@ -1404,11 +1405,11 @@ class MetricsService(
     // Utilizes the property of the set expression compilation result -- If the set expression
     // contains only union operators, the compilation result has to be a single component.
     if (
-      request.metric.metricSpec.hasFrequencyHistogram() &&
+      request.metric.metricSpec.hasReachAndFrequency() &&
         internalReportingSet.weightedSubsetUnionsList.size != 1
     ) {
       failGrpc(Status.INVALID_ARGUMENT) {
-        "Frequency histogram metrics can only be computed on union-only set expressions."
+        "Reach-and-frequency metrics can only be computed on union-only set expressions."
       }
     }
 
@@ -1564,23 +1565,38 @@ private fun buildMetricResult(metric: InternalMetric, variances: Variances): Met
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     when (metric.metricSpec.typeCase) {
       InternalMetricSpec.TypeCase.REACH -> {
-        reach = calculateReachResults(metric.weightedMeasurementsList, metric.metricSpec, variances)
-      }
-      InternalMetricSpec.TypeCase.FREQUENCY_HISTOGRAM -> {
-        frequencyHistogram =
-          calculateFrequencyHistogramResults(
+        reach =
+          calculateReachResult(
             metric.weightedMeasurementsList,
-            metric.metricSpec,
+            metric.metricSpec.vidSamplingInterval,
+            metric.metricSpec.reach.privacyParams,
             variances
           )
       }
+      InternalMetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
+        reachAndFrequency = reachAndFrequencyResult {
+          reach =
+            calculateReachResult(
+              metric.weightedMeasurementsList,
+              metric.metricSpec.vidSamplingInterval,
+              metric.metricSpec.reachAndFrequency.reachPrivacyParams,
+              variances
+            )
+          frequencyHistogram =
+            calculateFrequencyHistogramResults(
+              metric.weightedMeasurementsList,
+              metric.metricSpec,
+              variances
+            )
+        }
+      }
       InternalMetricSpec.TypeCase.IMPRESSION_COUNT -> {
         impressionCount =
-          calculateImpressionResults(metric.weightedMeasurementsList, metric.metricSpec, variances)
+          calculateImpressionResult(metric.weightedMeasurementsList, metric.metricSpec, variances)
       }
       InternalMetricSpec.TypeCase.WATCH_DURATION -> {
         watchDuration =
-          calculateWatchDurationResults(
+          calculateWatchDurationResult(
             metric.weightedMeasurementsList,
             metric.metricSpec,
             variances
@@ -1660,7 +1676,7 @@ private fun aggregateResults(
 }
 
 /** Calculates the watch duration result from [WeightedMeasurement]s. */
-private fun calculateWatchDurationResults(
+private fun calculateWatchDurationResult(
   weightedMeasurements: List<WeightedMeasurement>,
   metricSpec: InternalMetricSpec,
   variances: Variances
@@ -1833,7 +1849,7 @@ fun buildStatsMethodology(
 }
 
 /** Calculates the impression result from [WeightedMeasurement]s. */
-private fun calculateImpressionResults(
+private fun calculateImpressionResult(
   weightedMeasurements: List<WeightedMeasurement>,
   metricSpec: InternalMetricSpec,
   variances: Variances
@@ -2025,7 +2041,7 @@ private fun calculateFrequencyHistogramResults(
       }
 
   // Fill the buckets that don't have any count with zeros.
-  for (frequency in (1L..metricSpec.frequencyHistogram.maximumFrequency)) {
+  for (frequency in (1L..metricSpec.reachAndFrequency.maximumFrequency)) {
     if (!aggregatedFrequencyHistogramMap.containsKey(frequency)) {
       aggregatedFrequencyHistogramMap[frequency] = 0.0
     }
@@ -2102,7 +2118,7 @@ fun buildWeightedFrequencyMeasurementVarianceParams(
     buildWeightedReachMeasurementVarianceParams(
       weightedMeasurement,
       metricSpec.vidSamplingInterval,
-      metricSpec.frequencyHistogram.reachPrivacyParams
+      metricSpec.reachAndFrequency.reachPrivacyParams
     ) ?: return null
 
   val reachMeasurementVariance: Double =
@@ -2162,9 +2178,9 @@ fun buildWeightedFrequencyMeasurementVarianceParams(
         measurementParams =
           FrequencyMeasurementParams(
             vidSamplingInterval = metricSpec.vidSamplingInterval.toStatsVidSamplingInterval(),
-            dpParams = metricSpec.frequencyHistogram.frequencyPrivacyParams.toNoiserDpParams(),
+            dpParams = metricSpec.reachAndFrequency.frequencyPrivacyParams.toNoiserDpParams(),
             noiseMechanism = frequencyStatsNoiseMechanism,
-            maximumFrequency = metricSpec.frequencyHistogram.maximumFrequency
+            maximumFrequency = metricSpec.reachAndFrequency.maximumFrequency
           )
       ),
     methodology = frequencyMethodology
@@ -2228,9 +2244,10 @@ fun buildStatsMethodology(frequencyResult: InternalMeasurement.Result.Frequency)
 }
 
 /** Calculates the reach result from [WeightedMeasurement]s. */
-private fun calculateReachResults(
+private fun calculateReachResult(
   weightedMeasurements: List<WeightedMeasurement>,
-  metricSpec: InternalMetricSpec,
+  vidSamplingInterval: InternalMetricSpec.VidSamplingInterval,
+  privacyParams: InternalMetricSpec.DifferentialPrivacyParams,
   variances: Variances
 ): MetricResult.ReachResult {
   for (weightedMeasurement in weightedMeasurements) {
@@ -2252,8 +2269,8 @@ private fun calculateReachResults(
       weightedMeasurements.mapNotNull { weightedMeasurement ->
         buildWeightedReachMeasurementVarianceParams(
           weightedMeasurement,
-          metricSpec.vidSamplingInterval,
-          metricSpec.reach.privacyParams
+          vidSamplingInterval,
+          privacyParams
         )
       }
 

@@ -418,7 +418,7 @@ class MetricReader(private val readContext: ReadContext) {
                         delta = differentialPrivacyDelta
                       }
                   }
-              MetricSpec.TypeCase.FREQUENCY_HISTOGRAM -> {
+              MetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
                 if (
                   frequencyDifferentialPrivacyDelta == null ||
                     frequencyDifferentialPrivacyEpsilon == null ||
@@ -427,8 +427,8 @@ class MetricReader(private val readContext: ReadContext) {
                   throw IllegalStateException()
                 }
 
-                frequencyHistogram =
-                  MetricSpecKt.frequencyHistogramParams {
+                reachAndFrequency =
+                  MetricSpecKt.reachAndFrequencyParams {
                     reachPrivacyParams =
                       MetricSpecKt.differentialPrivacyParams {
                         epsilon = differentialPrivacyEpsilon

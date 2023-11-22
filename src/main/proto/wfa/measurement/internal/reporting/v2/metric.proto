@@ -33,7 +33,7 @@ message MetricSpec {
   message ReachParams {
     DifferentialPrivacyParams privacy_params = 1;
   }
-  message FrequencyHistogramParams {
+  message ReachAndFrequencyParams {
     DifferentialPrivacyParams reach_privacy_params = 1;
     DifferentialPrivacyParams frequency_privacy_params = 2;
     int32 maximum_frequency = 3;
@@ -49,7 +49,7 @@ message MetricSpec {
 
   oneof type {
     ReachParams reach = 1;
-    FrequencyHistogramParams frequency_histogram = 2;
+    ReachAndFrequencyParams reach_and_frequency = 2;
     ImpressionCountParams impression_count = 3;
     WatchDurationParams watch_duration = 4;
   }
