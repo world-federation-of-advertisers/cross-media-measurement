@@ -21,6 +21,7 @@ import com.google.type.Interval
 import com.google.type.interval
 import io.r2dbc.postgresql.codec.Interval as PostgresInterval
 import java.time.Instant
+import java.time.ZoneOffset
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -30,6 +31,7 @@ import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.reporting.v2.BatchGetMetricsRequest
@@ -194,6 +196,80 @@ class MetricReader(private val readContext: ReadContext) {
         val metric = metricInfo.buildMetric()
 
         val createMetricRequestId = metricInfo.createMetricRequestId ?: ""
+        emit(
+          Result(
+            measurementConsumerId = metricInfo.measurementConsumerId,
+            metricId = metricInfo.metricId,
+            createMetricRequestId = createMetricRequestId,
+            metric = metric
+          )
+        )
+      }
+    }
+  }
+
+  fun readMetricsByTimedReportingMetricEntry(
+    measurementConsumerId: InternalId,
+    timeIntervals: Collection<Interval>,
+    externalReportingSetId: String,
+    externalMetricCalculationSpecId: String
+  ): Flow<Result> {
+    if (timeIntervals.isEmpty()) {
+      return emptyFlow()
+    }
+
+    val sql =
+      StringBuilder(
+        """
+          $baseSqlSelect
+          FROM MeasurementConsumers
+            JOIN Metrics USING(MeasurementConsumerId)
+          LEFT JOIN MetricCalculationSpecReportingMetrics USING(MeasurementConsumerId, MetricId)
+          WHERE Metrics.MeasurementConsumerId = $1
+            AND Metrics.ReportingSetId = $2
+            AND MetricCalculationSpecReportingMetrics.MetricCalculationSpecId = $3
+            AND
+        """
+          .trimIndent()
+      )
+
+    var i = 4
+    val bindingMap = mutableMapOf<Timestamp, String>()
+    val sqlWhereConditionForTimeIntervals =
+      timeIntervals.joinToString(separator = " OR ", prefix = "(", postfix = ")") { timeInterval ->
+        val startIndex = i
+        val endExclusiveIndex = i + 1
+        i += 2
+        bindingMap[timeInterval.startTime] = "$$startIndex"
+        bindingMap[timeInterval.endTime] = "$$endExclusiveIndex"
+        "(Metrics.TimeIntervalStart = $startIndex AND Metrics.TimeIntervalEndExclusive = $endExclusiveIndex)"
+      }
+
+    sql.append(sqlWhereConditionForTimeIntervals)
+
+    val statement =
+      boundStatement(sql.toString()) {
+        bind("$1", measurementConsumerId)
+        bind("$2", externalReportingSetId)
+        bind("$3", externalMetricCalculationSpecId)
+        timeIntervals.forEach {
+          bind(bindingMap.getValue(it.startTime), it.startTime.toInstant().atOffset(ZoneOffset.UTC))
+          bind(bindingMap.getValue(it.endTime), it.endTime.toInstant().atOffset(ZoneOffset.UTC))
+        }
+      }
+
+    return flow {
+      val metricInfoMap = buildResultMap(statement)
+
+      for (entry in metricInfoMap) {
+        val metricInfo = entry.value
+
+        val metric = metricInfo.buildMetric()
+
+        val createMetricRequestId =
+          requireNotNull(metricInfo.createMetricRequestId) {
+            "Metric that is associated with a MetricCalculationSpec must have createMetricRequestId"
+          }
         emit(
           Result(
             measurementConsumerId = metricInfo.measurementConsumerId,
