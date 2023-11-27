@@ -40,6 +40,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:computations_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/duchy/config:protocols_setup_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/system/v1alpha:computation_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/system/v1alpha:computation_participants_service_kt_jvm_grpc_proto",

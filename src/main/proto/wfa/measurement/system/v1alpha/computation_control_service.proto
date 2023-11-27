@@ -118,7 +118,9 @@ message ReachOnlyLiquidLegionsV2 {
 message HonestMajorityShareShuffle {
   // Input for SHUFFLE_PHASE.
   message ShufflePhaseInput {
+    // Seed to expand into noise share.
     bytes noise_seed = 1;
+    // Seed to generate permutation.
     bytes shuffling_seed = 2;
   }
   // Input for AGGREGATION_PHASE.

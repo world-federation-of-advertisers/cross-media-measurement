@@ -14,17 +14,14 @@
 
 syntax = "proto3";
 
-package wfa.measurement.internal.duchy.protocol;
+package wfa.measurement.internal.duchy;
 
-option java_package = "org.wfanet.measurement.internal.duchy.protocol";
+option java_package = "org.wfanet.measurement.internal.duchy";
 option java_multiple_files = true;
 
-// Parameters used for the sketch of HonestMajorityShareShuffle protocol
-// creation and estimation.
-message ShareShuffleSketchParameters {
-  // The size of the sketch.
-  int64 sketch_size = 1;
-  // Length of each item in bytes. #_EDPs * max_frequency should be no more than
-  // 2^(bytes_per_item*8).
-  int32 bytes_per_item = 2;
+// The mechanism used to generate noise in computations.
+enum NoiseMechanism {
+  NOISE_MECHANISM_UNSPECIFIED = 0;
+  GEOMETRIC = 1;
+  DISCRETE_GAUSSIAN = 2;
 }

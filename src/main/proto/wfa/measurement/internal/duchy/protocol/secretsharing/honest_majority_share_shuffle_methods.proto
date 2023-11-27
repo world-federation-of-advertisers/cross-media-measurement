@@ -17,7 +17,8 @@ syntax = "proto3";
 package wfa.measurement.internal.duchy.protocol;
 
 import "wfa/measurement/internal/duchy/differential_privacy.proto";
-import "wfa/measurement/internal/duchy/protocol/secretsharing/share_shuffle_sketch_parameter.proto";
+import "wfa/measurement/internal/duchy/noise_mechanism.proto";
+import "wfa/measurement/internal/duchy/protocol/secretsharing/share_shuffle_sketch_params.proto";
 
 option java_package = "org.wfanet.measurement.internal.duchy.protocol.secretsharing";
 option java_multiple_files = true;

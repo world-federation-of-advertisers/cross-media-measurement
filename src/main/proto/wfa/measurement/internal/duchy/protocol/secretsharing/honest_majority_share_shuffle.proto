@@ -17,7 +17,8 @@ syntax = "proto3";
 package wfa.measurement.internal.duchy.protocol;
 
 import "wfa/measurement/internal/duchy/config/protocols_setup_config.proto";
-import "wfa/measurement/internal/duchy/protocol/secretsharing/secret_sharing_sketch_parameter.proto";
+import "wfa/measurement/internal/duchy/noise_mechanism.proto";
+import "wfa/measurement/internal/duchy/protocol/secretsharing/share_shuffle_sketch_params.proto";
 
 option java_package = "org.wfanet.measurement.internal.duchy.protocol.secretsharing";
 option java_multiple_files = true;
@@ -85,7 +86,7 @@ message HonestMajorityShareShuffle {
       // The maximum frequency to reveal in the histogram.
       int32 maximum_frequency = 1;
       // Parameters for secret sharing sketches.
-      SecretSharingSketchParams sketch_parameters = 2;
+      ShareShuffleSketchParams sketch_parameters = 2;
       // Noise mechanism used for generating noise.
       NoiseMechanism noise_mechanism = 3;
     }

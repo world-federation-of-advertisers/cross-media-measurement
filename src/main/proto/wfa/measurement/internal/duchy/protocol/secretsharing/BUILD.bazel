@@ -1,4 +1,3 @@
-load("@rules_cc//cc:defs.bzl", "cc_proto_library")
 load("@rules_java//java:defs.bzl", "java_proto_library")
 load("@wfa_common_jvm//build/kt_jvm_proto:defs.bzl", "kt_jvm_proto_library")
 load("@rules_proto//proto:defs.bzl", "proto_library")
@@ -6,3 +5,42 @@ load("@rules_proto//proto:defs.bzl", "proto_library")
 package(default_visibility = ["//:__subpackages__"])
 
 IMPORT_PREFIX = "/src/main/proto"
+
+proto_library(
+    name = "share_shuffle_sketch_parameter_proto",
+    srcs = ["share_shuffle_sketch_params.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+java_proto_library(
+    name = "share_shuffle_sketch_parameter_java_proto",
+    deps = [":share_shuffle_sketch_parameter_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "share_shuffle_sketch_parameter_kt_jvm_proto",
+    srcs = [":share_shuffle_sketch_parameter_proto"],
+    deps = [":share_shuffle_sketch_parameter_java_proto"],
+)
+
+proto_library(
+    name = "honest_majority_share_shuffle_proto",
+    srcs = ["honest_majority_share_shuffle.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":share_shuffle_sketch_parameter_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/config:protocols_setup_config_proto",
+    ],
+)
+
+java_proto_library(
+    name = "honest_majority_share_shuffle_java_proto",
+    deps = [":honest_majority_share_shuffle_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "honest_majority_share_shuffle_kt_jvm_proto",
+    srcs = [":honest_majority_share_shuffle_proto"],
+    deps = [":honest_majority_share_shuffle_java_proto"],
+)
