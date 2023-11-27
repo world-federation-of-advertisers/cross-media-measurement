@@ -243,3 +243,8 @@ kt_jvm_proto_library(
     srcs = [":noise_mechanism_proto"],
     deps = [":noise_mechanism_java_proto"],
 )
+
+cc_proto_library(
+    name = "noise_mechanism_cc_proto",
+    deps = [":noise_mechanism_proto"],
+)

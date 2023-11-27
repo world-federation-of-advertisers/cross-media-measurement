@@ -30,6 +30,7 @@
 #include "wfa/measurement/common/crypto/constants.h"
 #include "wfa/measurement/common/crypto/ec_point_util.h"
 #include "wfa/measurement/common/crypto/encryption_utility_helper.h"
+#include "wfa/measurement/internal/duchy/noise_mechanism.pb.h"
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/testing/liquid_legions_v2_encryption_utility_helper.h"
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2_encryption_methods.pb.h"
 
@@ -59,7 +60,7 @@ using ::wfa::measurement::common::crypto::kPublisherNoiseRegisterId;
 using ::wfa::measurement::internal::duchy::DifferentialPrivacyParams;
 using ::wfa::measurement::internal::duchy::ElGamalKeyPair;
 using ::wfa::measurement::internal::duchy::ElGamalPublicKey;
-using ::wfa::measurement::internal::duchy::protocol::LiquidLegionsV2NoiseConfig;
+using ::wfa::measurement::internal::duchy::NoiseMechanism;
 
 constexpr int kWorkerCount = 3;
 constexpr int kPublisherCount = 3;
@@ -294,8 +295,7 @@ class TestData {
       const std::string& encrypted_sketch,
       RegisterNoiseGenerationParameters* reach_noise_parameters,
       FlagCountTupleNoiseGenerationParameters* frequency_noise_parameters,
-      LiquidLegionsV2NoiseConfig::NoiseMechanism noise_mechanism,
-      int max_frequency) {
+      NoiseMechanism noise_mechanism, int max_frequency) {
     // Setup phase at Duchy 1.
     // We assume all test data comes from duchy 1 in the test.
     CompleteSetupPhaseRequest complete_setup_phase_request_1;
@@ -624,7 +624,7 @@ TEST(CompleteSetupPhase, GeometricNoiseSumAndMeanShouldBeCorrect) {
   // resulted p ~= 0 , offset = 4
   *noise_parameters->mutable_dp_params()->mutable_global_reach_dp_noise() =
       MakeDifferentialPrivacyParams(40, std::exp(-80));
-  request.set_noise_mechanism(LiquidLegionsV2NoiseConfig::GEOMETRIC);
+  request.set_noise_mechanism(NoiseMechanism::GEOMETRIC);
   request.set_parallelism(kParallelism);
 
   ASSERT_OK_AND_ASSIGN(CompleteSetupPhaseResponse response,
@@ -717,7 +717,7 @@ TEST(CompleteSetupPhase, GaussianNoiseSumAndMeanShouldBeCorrect) {
   // resulted sigma_distributed ~= 0.18, offset = 3
   *noise_parameters->mutable_dp_params()->mutable_global_reach_dp_noise() =
       MakeDifferentialPrivacyParams(40, std::exp(-80));
-  request.set_noise_mechanism(LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN);
+  request.set_noise_mechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
   request.set_parallelism(kParallelism);
 
   ASSERT_OK_AND_ASSIGN(CompleteSetupPhaseResponse response,
@@ -830,7 +830,7 @@ TEST(CompleteSetupPhase, FrequencyOneWorksAsExpectedWithGeometricNoise) {
 
   *request.mutable_noise_parameters() = reach_noise_parameters;
 
-  request.set_noise_mechanism(LiquidLegionsV2NoiseConfig::GEOMETRIC);
+  request.set_noise_mechanism(NoiseMechanism::GEOMETRIC);
   request.set_parallelism(kParallelism);
 
   std::string register1 = "abc";
@@ -869,7 +869,7 @@ TEST(CompleteSetupPhase, FrequencyOneWorksAsExpectedWithGaussianNoise) {
 
   *request.mutable_noise_parameters() = reach_noise_parameters;
 
-  request.set_noise_mechanism(LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN);
+  request.set_noise_mechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
   request.set_parallelism(kParallelism);
 
   std::string register1 = "abc";
@@ -962,23 +962,21 @@ TEST(EndToEnd, SumOfCountsShouldBeCorrect) {
   std::string encrypted_sketch =
       test_data.EncryptWithFlaggedKey(plain_sketch).value();
 
-  ASSERT_OK_AND_ASSIGN(
-      MpcResult result_with_geometric_noise,
-      test_data.GoThroughEntireMpcProtocol(
-          encrypted_sketch, /*reach_noise=*/nullptr,
-          /*frequency_noise=*/nullptr, LiquidLegionsV2NoiseConfig::GEOMETRIC,
-          kMaxFrequency));
+  ASSERT_OK_AND_ASSIGN(MpcResult result_with_geometric_noise,
+                       test_data.GoThroughEntireMpcProtocol(
+                           encrypted_sketch, /*reach_noise=*/nullptr,
+                           /*frequency_noise=*/nullptr,
+                           NoiseMechanism::GEOMETRIC, kMaxFrequency));
 
   ASSERT_THAT(result_with_geometric_noise.frequency_distribution, SizeIs(1));
   EXPECT_NEAR(result_with_geometric_noise.frequency_distribution[6], 1.0,
               0.001);
 
-  ASSERT_OK_AND_ASSIGN(
-      MpcResult result_with_gaussian_noise,
-      test_data.GoThroughEntireMpcProtocol(
-          encrypted_sketch, /*reach_noise=*/nullptr,
-          /*frequency_noise=*/nullptr,
-          LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN, kMaxFrequency));
+  ASSERT_OK_AND_ASSIGN(MpcResult result_with_gaussian_noise,
+                       test_data.GoThroughEntireMpcProtocol(
+                           encrypted_sketch, /*reach_noise=*/nullptr,
+                           /*frequency_noise=*/nullptr,
+                           NoiseMechanism::DISCRETE_GAUSSIAN, kMaxFrequency));
 
   ASSERT_THAT(result_with_gaussian_noise.frequency_distribution, SizeIs(1));
   EXPECT_NEAR(result_with_gaussian_noise.frequency_distribution[6], 1.0, 0.001);
@@ -994,23 +992,21 @@ TEST(EndToEnd, LocallyDestroyedRegisterShouldBeIgnored) {
   std::string encrypted_sketch =
       test_data.EncryptWithFlaggedKey(plain_sketch).value();
 
-  ASSERT_OK_AND_ASSIGN(
-      MpcResult result_with_geometric_noise,
-      test_data.GoThroughEntireMpcProtocol(
-          encrypted_sketch, /*reach_noise=*/nullptr,
-          /*frequency_noise=*/nullptr, LiquidLegionsV2NoiseConfig::GEOMETRIC,
-          kMaxFrequency));
+  ASSERT_OK_AND_ASSIGN(MpcResult result_with_geometric_noise,
+                       test_data.GoThroughEntireMpcProtocol(
+                           encrypted_sketch, /*reach_noise=*/nullptr,
+                           /*frequency_noise=*/nullptr,
+                           NoiseMechanism::GEOMETRIC, kMaxFrequency));
 
   ASSERT_THAT(result_with_geometric_noise.frequency_distribution, SizeIs(1));
   EXPECT_NEAR(result_with_geometric_noise.frequency_distribution[3], 1.0,
               0.001);
 
-  ASSERT_OK_AND_ASSIGN(
-      MpcResult result_with_gaussian_noise,
-      test_data.GoThroughEntireMpcProtocol(
-          encrypted_sketch, /*reach_noise=*/nullptr,
-          /*frequency_noise=*/nullptr,
-          LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN, kMaxFrequency));
+  ASSERT_OK_AND_ASSIGN(MpcResult result_with_gaussian_noise,
+                       test_data.GoThroughEntireMpcProtocol(
+                           encrypted_sketch, /*reach_noise=*/nullptr,
+                           /*frequency_noise=*/nullptr,
+                           NoiseMechanism::DISCRETE_GAUSSIAN, kMaxFrequency));
 
   ASSERT_THAT(result_with_gaussian_noise.frequency_distribution, SizeIs(1));
   EXPECT_NEAR(result_with_gaussian_noise.frequency_distribution[3], 1.0, 0.001);
@@ -1025,23 +1021,21 @@ TEST(EndToEnd, CrossPublisherDestroyedRegistersShouldBeIgnored) {
   std::string encrypted_sketch =
       test_data.EncryptWithFlaggedKey(plain_sketch).value();
 
-  ASSERT_OK_AND_ASSIGN(
-      MpcResult result_with_geometric_noise,
-      test_data.GoThroughEntireMpcProtocol(
-          encrypted_sketch, /*reach_noise=*/nullptr,
-          /*frequency_noise=*/nullptr, LiquidLegionsV2NoiseConfig::GEOMETRIC,
-          kMaxFrequency));
+  ASSERT_OK_AND_ASSIGN(MpcResult result_with_geometric_noise,
+                       test_data.GoThroughEntireMpcProtocol(
+                           encrypted_sketch, /*reach_noise=*/nullptr,
+                           /*frequency_noise=*/nullptr,
+                           NoiseMechanism::GEOMETRIC, kMaxFrequency));
 
   ASSERT_THAT(result_with_geometric_noise.frequency_distribution, SizeIs(1));
   EXPECT_NEAR(result_with_geometric_noise.frequency_distribution[3], 1.0,
               0.001);
 
-  ASSERT_OK_AND_ASSIGN(
-      MpcResult result_with_gaussian_noise,
-      test_data.GoThroughEntireMpcProtocol(
-          encrypted_sketch, /*reach_noise=*/nullptr,
-          /*frequency_noise=*/nullptr,
-          LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN, kMaxFrequency));
+  ASSERT_OK_AND_ASSIGN(MpcResult result_with_gaussian_noise,
+                       test_data.GoThroughEntireMpcProtocol(
+                           encrypted_sketch, /*reach_noise=*/nullptr,
+                           /*frequency_noise=*/nullptr,
+                           NoiseMechanism::DISCRETE_GAUSSIAN, kMaxFrequency));
 
   ASSERT_THAT(result_with_gaussian_noise.frequency_distribution, SizeIs(1));
   EXPECT_NEAR(result_with_gaussian_noise.frequency_distribution[3], 1.0, 0.001);
@@ -1056,12 +1050,11 @@ TEST(EndToEnd, SumOfCountsShouldBeCappedbyMaxFrequency) {
   std::string encrypted_sketch =
       test_data.EncryptWithFlaggedKey(plain_sketch).value();
 
-  ASSERT_OK_AND_ASSIGN(
-      MpcResult result_with_geometric_noise,
-      test_data.GoThroughEntireMpcProtocol(
-          encrypted_sketch, /*reach_noise=*/nullptr,
-          /*frequency_noise=*/nullptr, LiquidLegionsV2NoiseConfig::GEOMETRIC,
-          kMaxFrequency));
+  ASSERT_OK_AND_ASSIGN(MpcResult result_with_geometric_noise,
+                       test_data.GoThroughEntireMpcProtocol(
+                           encrypted_sketch, /*reach_noise=*/nullptr,
+                           /*frequency_noise=*/nullptr,
+                           NoiseMechanism::GEOMETRIC, kMaxFrequency));
 
   ASSERT_THAT(result_with_geometric_noise.frequency_distribution, SizeIs(2));
   EXPECT_NEAR(result_with_geometric_noise.frequency_distribution[3], 0.5,
@@ -1069,12 +1062,11 @@ TEST(EndToEnd, SumOfCountsShouldBeCappedbyMaxFrequency) {
   EXPECT_NEAR(result_with_geometric_noise.frequency_distribution[kMaxFrequency],
               0.5, 0.001);
 
-  ASSERT_OK_AND_ASSIGN(
-      MpcResult result_with_gaussian_noise,
-      test_data.GoThroughEntireMpcProtocol(
-          encrypted_sketch, /*reach_noise=*/nullptr,
-          /*frequency_noise=*/nullptr,
-          LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN, kMaxFrequency));
+  ASSERT_OK_AND_ASSIGN(MpcResult result_with_gaussian_noise,
+                       test_data.GoThroughEntireMpcProtocol(
+                           encrypted_sketch, /*reach_noise=*/nullptr,
+                           /*frequency_noise=*/nullptr,
+                           NoiseMechanism::DISCRETE_GAUSSIAN, kMaxFrequency));
 
   ASSERT_THAT(result_with_gaussian_noise.frequency_distribution, SizeIs(2));
   EXPECT_NEAR(result_with_gaussian_noise.frequency_distribution[3], 0.5, 0.001);
@@ -1117,20 +1109,18 @@ TEST(ReachEstimation, NonDpNoiseShouldNotImpactTheResult) {
       kDecayRate, kLiquidLegionsSize, valid_register_count,
       kVidSamplingIntervalWidth);
 
-  ASSERT_OK_AND_ASSIGN(
-      MpcResult result_with_geometric_noise,
-      test_data.GoThroughEntireMpcProtocol(
-          encrypted_sketch, &reach_noise_parameters,
-          /*frequency_noise=*/nullptr, LiquidLegionsV2NoiseConfig::GEOMETRIC,
-          kMaxFrequency));
+  ASSERT_OK_AND_ASSIGN(MpcResult result_with_geometric_noise,
+                       test_data.GoThroughEntireMpcProtocol(
+                           encrypted_sketch, &reach_noise_parameters,
+                           /*frequency_noise=*/nullptr,
+                           NoiseMechanism::GEOMETRIC, kMaxFrequency));
   EXPECT_EQ(result_with_geometric_noise.reach, expected_reach);
 
-  ASSERT_OK_AND_ASSIGN(
-      MpcResult result_with_gaussian_noise,
-      test_data.GoThroughEntireMpcProtocol(
-          encrypted_sketch, &reach_noise_parameters,
-          /*frequency_noise=*/nullptr,
-          LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN, kMaxFrequency));
+  ASSERT_OK_AND_ASSIGN(MpcResult result_with_gaussian_noise,
+                       test_data.GoThroughEntireMpcProtocol(
+                           encrypted_sketch, &reach_noise_parameters,
+                           /*frequency_noise=*/nullptr,
+                           NoiseMechanism::DISCRETE_GAUSSIAN, kMaxFrequency));
   EXPECT_EQ(result_with_gaussian_noise.reach, expected_reach);
 }
 
@@ -1173,16 +1163,16 @@ TEST(ReachEstimation, NonDpNoiseShouldNotImpactTheResultWithMaxFrequencyOne) {
       MpcResult result_with_geometric_noise,
       test_data.GoThroughEntireMpcProtocol(
           encrypted_sketch, &reach_noise_parameters,
-          /*frequency_noise=*/nullptr, LiquidLegionsV2NoiseConfig::GEOMETRIC,
+          /*frequency_noise=*/nullptr, NoiseMechanism::GEOMETRIC,
           /*max_frequency = */ 1));
   EXPECT_EQ(result_with_geometric_noise.reach, expected_reach);
 
-  ASSERT_OK_AND_ASSIGN(MpcResult result_with_gaussian_noise,
-                       test_data.GoThroughEntireMpcProtocol(
-                           encrypted_sketch, &reach_noise_parameters,
-                           /*frequency_noise=*/nullptr,
-                           LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN,
-                           /*max_frequency = */ 1));
+  ASSERT_OK_AND_ASSIGN(
+      MpcResult result_with_gaussian_noise,
+      test_data.GoThroughEntireMpcProtocol(
+          encrypted_sketch, &reach_noise_parameters,
+          /*frequency_noise=*/nullptr, NoiseMechanism::DISCRETE_GAUSSIAN,
+          /*max_frequency = */ 1));
   EXPECT_EQ(result_with_gaussian_noise.reach, expected_reach);
 }
 
@@ -1218,7 +1208,7 @@ TEST(FrequencyGeometricNoise, TotalNoiseBytesShouldBeCorrect) {
   *request.mutable_composite_el_gamal_public_key() = public_key;
   *request.mutable_partial_composite_el_gamal_public_key() = public_key;
   *request.mutable_noise_parameters() = frequency_noise_params;
-  request.set_noise_mechanism(LiquidLegionsV2NoiseConfig::GEOMETRIC);
+  request.set_noise_mechanism(NoiseMechanism::GEOMETRIC);
   request.set_parallelism(kParallelism);
 
   ASSERT_OK_AND_ASSIGN(CompleteExecutionPhaseTwoResponse Response,
@@ -1299,7 +1289,7 @@ TEST(FrequencyGaussianNoise, TotalNoiseBytesShouldBeCorrect) {
   *request.mutable_composite_el_gamal_public_key() = public_key;
   *request.mutable_partial_composite_el_gamal_public_key() = public_key;
   *request.mutable_noise_parameters() = frequency_noise_params;
-  request.set_noise_mechanism(LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN);
+  request.set_noise_mechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
   request.set_parallelism(kParallelism);
 
   ASSERT_OK_AND_ASSIGN(CompleteExecutionPhaseTwoResponse Response,
@@ -1381,7 +1371,7 @@ TEST(FrequencyGeomatricNoise, AllFrequencyBucketsShouldHaveNoise) {
   *request.mutable_composite_el_gamal_public_key() = public_key;
   *request.mutable_partial_composite_el_gamal_public_key() = public_key;
   *request.mutable_noise_parameters() = frequency_noise_params;
-  request.set_noise_mechanism(LiquidLegionsV2NoiseConfig::GEOMETRIC);
+  request.set_noise_mechanism(NoiseMechanism::GEOMETRIC);
 
   ASSERT_OK_AND_ASSIGN(CompleteExecutionPhaseTwoResponse Response,
                        CompleteExecutionPhaseTwo(request));
@@ -1456,7 +1446,7 @@ TEST(FrequencyGaussianNoise, AllFrequencyBucketsShouldHaveNoise) {
   *request.mutable_composite_el_gamal_public_key() = public_key;
   *request.mutable_partial_composite_el_gamal_public_key() = public_key;
   *request.mutable_noise_parameters() = frequency_noise_params;
-  request.set_noise_mechanism(LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN);
+  request.set_noise_mechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
 
   ASSERT_OK_AND_ASSIGN(CompleteExecutionPhaseTwoResponse Response,
                        CompleteExecutionPhaseTwo(request));
@@ -1521,7 +1511,7 @@ TEST(FrequencyNoise, DeterministicNoiseShouldHaveNoImpact) {
       MpcResult result_with_geometric_noise,
       test_data.GoThroughEntireMpcProtocol(
           encrypted_sketch, /*reach_noise=*/nullptr, &frequency_noise_params,
-          LiquidLegionsV2NoiseConfig::GEOMETRIC, kMaxFrequency));
+          NoiseMechanism::GEOMETRIC, kMaxFrequency));
 
   ASSERT_THAT(result_with_geometric_noise.frequency_distribution, SizeIs(2));
   // All noises are compensated since the p is ~=0.
@@ -1532,7 +1522,7 @@ TEST(FrequencyNoise, DeterministicNoiseShouldHaveNoImpact) {
       MpcResult result_with_gaussian_noise,
       test_data.GoThroughEntireMpcProtocol(
           encrypted_sketch, /*reach_noise=*/nullptr, &frequency_noise_params,
-          LiquidLegionsV2NoiseConfig::GEOMETRIC, kMaxFrequency));
+          NoiseMechanism::GEOMETRIC, kMaxFrequency));
 
   ASSERT_THAT(result_with_gaussian_noise.frequency_distribution, SizeIs(2));
 
@@ -1565,7 +1555,7 @@ TEST(FrequencyNoise, NonDeterministicNoiseShouldRandomizeTheResult) {
       MpcResult result_with_geometric_noise,
       test_data.GoThroughEntireMpcProtocol(
           encrypted_sketch, /*reach_noise=*/nullptr, &frequency_noise_params,
-          LiquidLegionsV2NoiseConfig::GEOMETRIC, kMaxFrequency));
+          NoiseMechanism::GEOMETRIC, kMaxFrequency));
 
   // Since there are noise, there should be other entries in the histogram.
   ASSERT_THAT(result_with_geometric_noise.frequency_distribution,
@@ -1584,7 +1574,7 @@ TEST(FrequencyNoise, NonDeterministicNoiseShouldRandomizeTheResult) {
       MpcResult result_with_gaussian_noise,
       test_data.GoThroughEntireMpcProtocol(
           encrypted_sketch, /*reach_noise=*/nullptr, &frequency_noise_params,
-          LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN, kMaxFrequency));
+          NoiseMechanism::DISCRETE_GAUSSIAN, kMaxFrequency));
   // Since there are noise, there should be other entries in the histogram.
   ASSERT_THAT(result_with_gaussian_noise.frequency_distribution,
               testing::Not(SizeIs(2)));
@@ -1663,7 +1653,7 @@ TEST(EndToEnd, CombinedCasesWithDeterministicReachAndFrequencyDpNoises) {
       MpcResult result_with_geometric_noise,
       test_data.GoThroughEntireMpcProtocol(
           encrypted_sketch, &reach_noise_parameters, &frequency_noise_params,
-          LiquidLegionsV2NoiseConfig::GEOMETRIC, kMaxFrequency));
+          NoiseMechanism::GEOMETRIC, kMaxFrequency));
 
   EXPECT_EQ(result_with_geometric_noise.reach, expected_reach);
   EXPECT_THAT(
@@ -1676,7 +1666,7 @@ TEST(EndToEnd, CombinedCasesWithDeterministicReachAndFrequencyDpNoises) {
       MpcResult result_with_gaussian_noise,
       test_data.GoThroughEntireMpcProtocol(
           encrypted_sketch, &reach_noise_parameters, &frequency_noise_params,
-          LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN, kMaxFrequency));
+          NoiseMechanism::DISCRETE_GAUSSIAN, kMaxFrequency));
 
   EXPECT_EQ(result_with_gaussian_noise.reach, expected_reach);
   EXPECT_THAT(
