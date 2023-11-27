@@ -50,7 +50,7 @@ import org.wfanet.measurement.internal.duchy.claimWorkRequest
 import org.wfanet.measurement.internal.duchy.computationDetails
 import org.wfanet.measurement.internal.duchy.computationStage
 import org.wfanet.measurement.internal.duchy.computationToken
-import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
+import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 import org.wfanet.measurement.internal.duchy.copy
 import org.wfanet.measurement.internal.duchy.createComputationRequest
 import org.wfanet.measurement.internal.duchy.deleteComputationRequest
@@ -95,7 +95,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
     private val AGGREGATOR_COMPUTATION_DETAILS = computationDetails {
       liquidLegionsV2 =
         LiquidLegionsSketchAggregationV2Kt.computationDetails {
-          role = LiquidLegionsV2SetupConfig.RoleInComputation.AGGREGATOR
+          role = RoleInComputation.AGGREGATOR
         }
     }
     private val DEFAULT_REQUISITION_ENTRY = requisitionEntry {

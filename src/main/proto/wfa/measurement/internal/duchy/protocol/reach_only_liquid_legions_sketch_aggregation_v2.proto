@@ -88,15 +88,14 @@ message ReachOnlyLiquidLegionsSketchAggregationV2 {
     EXECUTION_PHASE = 8;
 
     // The computation is done the worker can remove BLOBs that are no longer
-    // needed and zero out the excessive noise stored in the database.
+    // needed and zero out the excessive noise stored in` the database.
     COMPLETE = 9;
   }
 
   // Computation details specific to the Reach Only LiquidLegions V2 protocol.
   message ComputationDetails {
     // The duchy's role in the computation.
-    org.wfa.measurement.config.LiquidLegionsV2SetupConfig.RoleInComputation
-        role = 1;
+    org.wfa.measurement.config.RoleInComputation role = 1;
 
     // Parameters used in this computation.
     message Parameters {

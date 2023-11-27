@@ -156,7 +156,10 @@ class ComputationTokenProtoQuery(
               externalRequisitionId = it.getString("ExternalRequisitionId")
               requisitionFingerprint = it.getBytesAsByteString("RequisitionFingerprint")
             }
-            path = it.getString("PathToBlob")
+            val dataPath = it.getString("PathToBlob")
+            if (!dataPath.isNullOrBlank()) {
+              path = it.getString("PathToBlob")
+            }
             details = it.getProtoMessage("RequisitionDetails", RequisitionDetails.parser())
           }
         }

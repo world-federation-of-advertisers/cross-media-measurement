@@ -111,8 +111,7 @@ message LiquidLegionsSketchAggregationV2 {
   // Computation details specific to the LiquidLegions V2 protocol.
   message ComputationDetails {
     // The duchy's role in the computation.
-    org.wfa.measurement.config.LiquidLegionsV2SetupConfig.RoleInComputation
-        role = 1;
+    org.wfa.measurement.config.RoleInComputation role = 1;
 
     // Parameters used in this computation.
     message Parameters {

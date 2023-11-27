@@ -1,0 +1,109 @@
+// Copyright 2020 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.duchy.protocol;
+
+import "wfa/measurement/internal/duchy/differential_privacy.proto";
+import "wfa/measurement/internal/duchy/protocol/secretsharing/share_shuffle_sketch_parameter.proto";
+
+option java_package = "org.wfanet.measurement.internal.duchy.protocol.secretsharing";
+option java_multiple_files = true;
+
+// Proto messages wrapping the input arguments or output results of the honest
+// majority share shuffle protocol methods, which are to be
+// called via kotlin or JNI in the Mill.
+
+// Request of SETUP_PHASE for non-aggregator only.
+message CompleteSetupPhaseRequest {
+  // No parameters needed for generating seeds.
+}
+
+// For non-aggregator.
+//
+// The content will be stored and sent to the peer worker.
+message CompleteSetupPhaseResponse {
+  // The seed used to generate permutation for shuffling between non-aggregators
+  // Both non-aggregators will generate a shuffling seed. They combine these
+  // two seeds into a combined seed, thus generates the same permutation.
+  bytes shuffling_seed = 1;
+  // The seed to generate a noise used in ShufflePhase.
+  bytes noise_share_seed = 2;
+}
+
+// For non-aggregator.
+message CompleteShufflePhaseRequest {
+  // Size of the sketch.
+  int64 sketch_size = 1;
+  // Length of each item in the sketch.
+  int32 bit_per_item = 2;
+
+  // Noise seed from the worker itself.
+  bytes noise_share_seed = 3;
+  // Noise seed from the peer worker.
+  bytes noise_share_seed_from_peer = 4;
+  // Differential privacy parameters for the noise.
+  DifferentialPrivacyParams dp_params = 5;
+  // Noise mechanism used for generating noise.
+  NoiseMechanism noise_mechanism = 6;
+
+  // Shuffling seed from the worker itself.
+  bytes shuffling_seed = 7;
+  // Shuffling seed from the peer worker.
+  bytes shuffling_seed_from_peer = 8;
+
+  // Sketches from EDPs of either data or seed.
+  message SketchShare {
+    oneof share_type {
+      bytes data = 1;
+      bytes seed = 2;
+    }
+  }
+  // Sketch shares ordered by the external key.
+  repeated SketchShare sketch_shares = 9;
+}
+
+// For non-aggregator.
+// The content will be sent to the aggregator.
+message CompleteShufflePhaseResponse {
+  // Combination of sketches. It is combined, noisy, and shuffled.
+  bytes combined_sketch = 1;
+}
+
+// For aggregators.
+message CompleteAggregationPhaseRequest {
+  // Size of the sketch.
+  int64 sketch_size = 1;
+  // Length of each item in the sketch.
+  int32 bit_per_item = 2;
+  // The maximum frequency to reveal in the histogram.
+  int32 max_frequency = 3;
+
+  // Combined sketches from non-aggregators.
+  repeated bytes combined_sketches = 4;
+  // Differential privacy parameters used to calculate the offset of noise.
+  DifferentialPrivacyParams dp_params = 5;
+  // Noise mechanism used to calculate the offset of noise.
+  NoiseMechanism noise_mechanism = 6;
+}
+
+// For aggregators.
+// The content will be sent to the kingdom.
+message CompleteAggregationPhaseResponse {
+  // Estimated reach.
+  int64 reach = 1;
+  // Histogram of frequency.
+  map<int64, double> frequency_distribution = 2;
+}

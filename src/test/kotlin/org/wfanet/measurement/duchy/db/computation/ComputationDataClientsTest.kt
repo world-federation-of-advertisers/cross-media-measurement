@@ -46,7 +46,7 @@ import org.wfanet.measurement.internal.duchy.CreateComputationRequest
 import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
-import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
+import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 import org.wfanet.measurement.storage.StorageClient
@@ -106,7 +106,7 @@ class ComputationDataClientsTest {
           storageClient = dummyStorageClient
         ),
         ID_WHERE_ALSACE_IS_NOT_PRIMARY,
-        LiquidLegionsV2SetupConfig.RoleInComputation.NON_AGGREGATOR,
+        RoleInComputation.NON_AGGREGATOR,
         testClock
       )
     val fakeRpcService = computation.FakeRpcService()
@@ -153,7 +153,7 @@ class ComputationDataClientsTest {
           storageClient = dummyStorageClient
         ),
         ID_WHERE_ALSACE_IS_PRIMARY,
-        LiquidLegionsV2SetupConfig.RoleInComputation.AGGREGATOR,
+        RoleInComputation.AGGREGATOR,
         testClock
       )
     val fakeRpcService = computation.FakeRpcService()
@@ -220,7 +220,7 @@ data class ComputationStep(
 class SingleLiquidLegionsV2Computation(
   private val dataClients: ComputationDataClients,
   globalId: String,
-  roleInComputation: LiquidLegionsV2SetupConfig.RoleInComputation,
+  roleInComputation: RoleInComputation,
   private val testClock: TestClockWithNamedInstants
 ) {
 

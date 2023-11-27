@@ -78,7 +78,7 @@ import org.wfanet.measurement.internal.duchy.FinishComputationResponse
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.computationDetails
 import org.wfanet.measurement.internal.duchy.computationToken
-import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
+import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 import org.wfanet.measurement.internal.duchy.config.liquidLegionsV2SetupConfig
 import org.wfanet.measurement.internal.duchy.config.protocolsSetupConfig
 import org.wfanet.measurement.internal.duchy.deleteComputationRequest
