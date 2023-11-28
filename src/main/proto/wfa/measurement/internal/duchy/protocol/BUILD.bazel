@@ -13,6 +13,7 @@ proto_library(
     strip_import_prefix = "/src/main/proto",
     deps = [
         "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_proto",
     ],
 )
 
@@ -40,6 +41,7 @@ proto_library(
         ":liquid_legions_sketch_parameter_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:crypto_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_proto",
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_noise_config_proto",
     ],
 )
@@ -86,6 +88,7 @@ proto_library(
         ":liquid_legions_v2_noise_config_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:crypto_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_proto",
         "//src/main/proto/wfa/measurement/internal/duchy/config:protocols_setup_config_proto",
     ],
 )
@@ -110,6 +113,7 @@ proto_library(
         ":liquid_legions_v2_encryption_methods_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:crypto_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_proto",
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_noise_config_proto",
     ],
 )

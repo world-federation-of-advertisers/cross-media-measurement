@@ -29,13 +29,13 @@ import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt
+import org.wfanet.measurement.internal.duchy.NoiseMechanism
 import org.wfanet.measurement.internal.duchy.computationDetails
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
 import org.wfanet.measurement.internal.duchy.copy
 import org.wfanet.measurement.internal.duchy.createComputationRequest
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt
-import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfig
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfigKt
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2Kt
@@ -273,12 +273,11 @@ object ReachOnlyLiquidLegionsV2Starter {
   }
 
   private fun Computation.MpcProtocolConfig.NoiseMechanism.toInternalNoiseMechanism():
-    LiquidLegionsV2NoiseConfig.NoiseMechanism {
+    NoiseMechanism {
     return when (this) {
-      Computation.MpcProtocolConfig.NoiseMechanism.GEOMETRIC ->
-        LiquidLegionsV2NoiseConfig.NoiseMechanism.GEOMETRIC
+      Computation.MpcProtocolConfig.NoiseMechanism.GEOMETRIC -> NoiseMechanism.GEOMETRIC
       Computation.MpcProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN ->
-        LiquidLegionsV2NoiseConfig.NoiseMechanism.DISCRETE_GAUSSIAN
+        NoiseMechanism.DISCRETE_GAUSSIAN
       Computation.MpcProtocolConfig.NoiseMechanism.UNRECOGNIZED,
       Computation.MpcProtocolConfig.NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED ->
         error("Invalid system NoiseMechanism")

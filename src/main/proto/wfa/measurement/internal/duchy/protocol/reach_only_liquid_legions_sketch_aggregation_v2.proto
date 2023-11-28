@@ -95,8 +95,7 @@ message ReachOnlyLiquidLegionsSketchAggregationV2 {
   // Computation details specific to the Reach Only LiquidLegions V2 protocol.
   message ComputationDetails {
     // The duchy's role in the computation.
-    org.wfa.measurement.config.LiquidLegionsV2SetupConfig.RoleInComputation
-        role = 1;
+    wfa.measurement.internal.duchy.config.RoleInComputation role = 1;
 
     // Parameters used in this computation.
     message Parameters {
