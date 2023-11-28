@@ -91,16 +91,20 @@ class RequisitionFulfillmentService(
         val requisitionMetadata =
           verifyRequisitionFulfillment(computationToken, externalRequisitionKey, header.nonce)
 
-        // Only try writing to the blob store if it is not already marked fulfilled.
+        // Only update Computation if it is not already marked fulfilled.
         // TODO(world-federation-of-advertisers/cross-media-measurement#85): Handle the case that it
         //  is already marked fulfilled locally.
-        if (requisitionMetadata.path.isBlank()) {
-          val blob =
-            requisitionStore.write(
-              RequisitionBlobContext(computationToken.globalComputationId, key.requisitionId),
-              consumed.remaining.map { it.bodyChunk.data }
-            )
-          recordRequisitionBlobPathLocally(computationToken, externalRequisitionKey, blob.blobKey)
+        if (!requisitionMetadata.isFulfilled()) {
+          if (header.hasHonestMajorityShareShuffle()) {
+
+          } else {
+            val blob =
+              requisitionStore.write(
+                RequisitionBlobContext(computationToken.globalComputationId, key.requisitionId),
+                consumed.remaining.map { it.bodyChunk.data }
+              )
+            recordRequisitionBlobPathLocally(computationToken, externalRequisitionKey, blob.blobKey)
+          }
         }
 
         fulfillRequisitionAtKingdom(
@@ -209,3 +213,5 @@ class RequisitionFulfillmentService(
 
 private fun RequisitionMetadata.toConsentSignalingRequisition() =
   ConsentSignalingRequisition(externalKey.requisitionFingerprint, details.nonceHash)
+
+private fun RequisitionMetadata.isFulfilled(): Boolean = this.hasPath() || this.hasSeed()
