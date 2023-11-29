@@ -19,31 +19,28 @@
 
 #include "math/distributed_noiser.h"
 #include "wfa/measurement/internal/duchy/differential_privacy.pb.h"
-#include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2_noise_config.pb.h"
+#include "wfa/measurement/internal/duchy/noise_mechanism.pb.h"
 
 namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
 
-using ::wfa::measurement::internal::duchy::protocol::LiquidLegionsV2NoiseConfig;
+using ::wfa::measurement::internal::duchy::NoiseMechanism;
 
 std::unique_ptr<math::DistributedNoiser> GetBlindHistogramNoiser(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
-    int uncorrupted_party_count,
-    LiquidLegionsV2NoiseConfig::NoiseMechanism noise_mechanism);
+    int uncorrupted_party_count, NoiseMechanism noise_mechanism);
 
 std::unique_ptr<math::DistributedNoiser> GetPublisherNoiser(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
     int publisher_count, int uncorrupted_party_count,
-    LiquidLegionsV2NoiseConfig::NoiseMechanism noise_mechanism);
+    NoiseMechanism noise_mechanism);
 
 std::unique_ptr<math::DistributedNoiser> GetGlobalReachDpNoiser(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
-    int uncorrupted_party_count,
-    LiquidLegionsV2NoiseConfig::NoiseMechanism noise_mechanism);
+    int uncorrupted_party_count, NoiseMechanism noise_mechanism);
 
 std::unique_ptr<math::DistributedNoiser> GetFrequencyNoiser(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
-    int uncorrupted_party_count,
-    LiquidLegionsV2NoiseConfig::NoiseMechanism noise_mechanism);
+    int uncorrupted_party_count, NoiseMechanism noise_mechanism);
 
 }  // namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2
 

@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.duchy.protocol;
 
 import "wfa/measurement/internal/duchy/differential_privacy.proto";
+import "wfa/measurement/internal/duchy/noise_mechanism.proto";
 
 option java_package = "org.wfanet.measurement.internal.duchy.protocol";
 option java_multiple_files = true;
@@ -48,10 +49,5 @@ message LiquidLegionsV2NoiseConfig {
   DifferentialPrivacyParams frequency_noise_config = 2;
 
   // The mechanism used to generate noise in computations.
-  enum NoiseMechanism {
-    NOISE_MECHANISM_UNSPECIFIED = 0;
-    GEOMETRIC = 1;
-    DISCRETE_GAUSSIAN = 2;
-  }
   NoiseMechanism noise_mechanism = 3;
 }

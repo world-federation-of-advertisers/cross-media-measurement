@@ -49,10 +49,10 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
-import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation.AGGREGATOR
-import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation.NON_AGGREGATOR
-import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation.UNKNOWN
-import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation.UNRECOGNIZED
+import org.wfanet.measurement.internal.duchy.config.RoleInComputation.AGGREGATOR
+import org.wfanet.measurement.internal.duchy.config.RoleInComputation.NON_AGGREGATOR
+import org.wfanet.measurement.internal.duchy.config.RoleInComputation.ROLE_IN_COMPUTATION_UNSPECIFIED
+import org.wfanet.measurement.internal.duchy.config.RoleInComputation.UNRECOGNIZED
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneResponse
@@ -330,7 +330,7 @@ class ReachFrequencyLiquidLegionsV2Mill(
             )
             .map { it.publicKey }
             .toCombinedPublicKey(llv2Details.parameters.ellipticCurveId)
-        UNKNOWN,
+        ROLE_IN_COMPUTATION_UNSPECIFIED,
         UNRECOGNIZED -> error("Invalid role ${llv2Details.role}")
       }
 

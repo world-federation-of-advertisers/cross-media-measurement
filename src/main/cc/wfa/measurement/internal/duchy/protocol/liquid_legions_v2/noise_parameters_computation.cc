@@ -89,18 +89,16 @@ GetDiscreteGaussianNoiseOptions(
 
 std::unique_ptr<math::DistributedNoiser> GetBlindHistogramNoiser(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
-    int uncorrupted_party_count,
-    LiquidLegionsV2NoiseConfig::NoiseMechanism noise_mechanism) {
-  ABSL_ASSERT(noise_mechanism ==
-                  LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN ||
-              noise_mechanism == LiquidLegionsV2NoiseConfig::GEOMETRIC);
+    int uncorrupted_party_count, NoiseMechanism noise_mechanism) {
+  ABSL_ASSERT(noise_mechanism == NoiseMechanism::DISCRETE_GAUSSIAN ||
+              noise_mechanism == NoiseMechanism::GEOMETRIC);
 
-  if (noise_mechanism == LiquidLegionsV2NoiseConfig::GEOMETRIC) {
+  if (noise_mechanism == NoiseMechanism::GEOMETRIC) {
     auto noiseOptions =
         GetGeometricNoiseOptions(params, 2, uncorrupted_party_count);
     return std::make_unique<math::DistributedGeometricNoiser>(noiseOptions);
   } else {
-    // noise_mechanism == LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN
+    // noise_mechanism == NoiseMechanism::DISCRETE_GAUSSIAN
     auto noiseOptions =
         GetDiscreteGaussianNoiseOptions(params, uncorrupted_party_count);
     return std::make_unique<math::DistributedDiscreteGaussianNoiser>(
@@ -111,17 +109,16 @@ std::unique_ptr<math::DistributedNoiser> GetBlindHistogramNoiser(
 std::unique_ptr<math::DistributedNoiser> GetPublisherNoiser(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
     int publisher_count, int uncorrupted_party_count,
-    LiquidLegionsV2NoiseConfig::NoiseMechanism noise_mechanism) {
-  ABSL_ASSERT(noise_mechanism ==
-                  LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN ||
-              noise_mechanism == LiquidLegionsV2NoiseConfig::GEOMETRIC);
+    NoiseMechanism noise_mechanism) {
+  ABSL_ASSERT(noise_mechanism == NoiseMechanism::DISCRETE_GAUSSIAN ||
+              noise_mechanism == NoiseMechanism::GEOMETRIC);
 
-  if (noise_mechanism == LiquidLegionsV2NoiseConfig::GEOMETRIC) {
+  if (noise_mechanism == NoiseMechanism::GEOMETRIC) {
     auto noiseOptions = GetGeometricNoiseOptions(params, publisher_count,
                                                  uncorrupted_party_count);
     return std::make_unique<math::DistributedGeometricNoiser>(noiseOptions);
   } else {
-    // noise_mechanism == LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN
+    // noise_mechanism == NoiseMechanism::DISCRETE_GAUSSIAN
     auto noiseOptions =
         GetDiscreteGaussianNoiseOptions(params, uncorrupted_party_count);
     return std::make_unique<math::DistributedDiscreteGaussianNoiser>(
@@ -131,18 +128,16 @@ std::unique_ptr<math::DistributedNoiser> GetPublisherNoiser(
 
 std::unique_ptr<math::DistributedNoiser> GetGlobalReachDpNoiser(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
-    int uncorrupted_party_count,
-    LiquidLegionsV2NoiseConfig::NoiseMechanism noise_mechanism) {
-  ABSL_ASSERT(noise_mechanism ==
-                  LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN ||
-              noise_mechanism == LiquidLegionsV2NoiseConfig::GEOMETRIC);
+    int uncorrupted_party_count, NoiseMechanism noise_mechanism) {
+  ABSL_ASSERT(noise_mechanism == NoiseMechanism::DISCRETE_GAUSSIAN ||
+              noise_mechanism == NoiseMechanism::GEOMETRIC);
 
-  if (noise_mechanism == LiquidLegionsV2NoiseConfig::GEOMETRIC) {
+  if (noise_mechanism == NoiseMechanism::GEOMETRIC) {
     auto noiseOptions =
         GetGeometricNoiseOptions(params, 1, uncorrupted_party_count);
     return std::make_unique<math::DistributedGeometricNoiser>(noiseOptions);
   } else {
-    // noise_mechanism == LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN
+    // noise_mechanism == NoiseMechanism::DISCRETE_GAUSSIAN
     auto noiseOptions =
         GetDiscreteGaussianNoiseOptions(params, uncorrupted_party_count);
     return std::make_unique<math::DistributedDiscreteGaussianNoiser>(
@@ -152,19 +147,17 @@ std::unique_ptr<math::DistributedNoiser> GetGlobalReachDpNoiser(
 
 std::unique_ptr<math::DistributedNoiser> GetFrequencyNoiser(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
-    int uncorrupted_party_count,
-    LiquidLegionsV2NoiseConfig::NoiseMechanism noise_mechanism) {
-  ABSL_ASSERT(noise_mechanism ==
-                  LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN ||
-              noise_mechanism == LiquidLegionsV2NoiseConfig::GEOMETRIC);
+    int uncorrupted_party_count, NoiseMechanism noise_mechanism) {
+  ABSL_ASSERT(noise_mechanism == NoiseMechanism::DISCRETE_GAUSSIAN ||
+              noise_mechanism == NoiseMechanism::GEOMETRIC);
 
-  if (noise_mechanism == LiquidLegionsV2NoiseConfig::GEOMETRIC) {
+  if (noise_mechanism == NoiseMechanism::GEOMETRIC) {
     auto noiseOptions =
         GetGeometricNoiseOptions(params, 2, uncorrupted_party_count);
     return std::make_unique<math::DistributedGeometricNoiser>(noiseOptions);
   }
   {
-    // noise_mechanism == LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN
+    // noise_mechanism == NoiseMechanism::DISCRETE_GAUSSIAN
     auto noiseOptions =
         GetDiscreteGaussianNoiseOptions(params, uncorrupted_party_count);
     return std::make_unique<math::DistributedDiscreteGaussianNoiser>(

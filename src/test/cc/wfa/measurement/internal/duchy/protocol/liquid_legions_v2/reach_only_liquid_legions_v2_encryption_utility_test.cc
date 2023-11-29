@@ -30,8 +30,8 @@
 #include "wfa/measurement/common/crypto/constants.h"
 #include "wfa/measurement/common/crypto/ec_point_util.h"
 #include "wfa/measurement/common/crypto/encryption_utility_helper.h"
+#include "wfa/measurement/internal/duchy/noise_mechanism.pb.h"
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/testing/liquid_legions_v2_encryption_utility_helper.h"
-#include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2_encryption_methods.pb.h"
 
 namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
 namespace {
@@ -59,7 +59,7 @@ using ::wfa::measurement::common::crypto::kPublisherNoiseRegisterId;
 using ::wfa::measurement::internal::duchy::DifferentialPrivacyParams;
 using ::wfa::measurement::internal::duchy::ElGamalKeyPair;
 using ::wfa::measurement::internal::duchy::ElGamalPublicKey;
-using ::wfa::measurement::internal::duchy::protocol::LiquidLegionsV2NoiseConfig;
+using ::wfa::measurement::internal::duchy::NoiseMechanism;
 
 constexpr int kWorkerCount = 3;
 constexpr int kPublisherCount = 3;
@@ -164,7 +164,7 @@ class ReachOnlyTest {
   absl::StatusOr<ReachOnlyMpcResult> GoThroughEntireMpcProtocol(
       const std::string& encrypted_sketch,
       RegisterNoiseGenerationParameters* reach_noise_parameters,
-      LiquidLegionsV2NoiseConfig::NoiseMechanism noise_mechanism) {
+      NoiseMechanism noise_mechanism) {
     // Setup phase at Duchy 1.
     // We assume all test data comes from duchy 1 in the test.
     CompleteReachOnlySetupPhaseRequest
@@ -449,7 +449,7 @@ TEST(CompleteReachOnlySetupPhase, SetupPhaseWorksAsExpectedWithGeometricNoise) {
   // resulted p ~= 0 , offset = 4
   *noise_parameters->mutable_dp_params()->mutable_global_reach_dp_noise() =
       MakeDifferentialPrivacyParams(40, std::exp(-80));
-  request.set_noise_mechanism(LiquidLegionsV2NoiseConfig::GEOMETRIC);
+  request.set_noise_mechanism(NoiseMechanism::GEOMETRIC);
   request.set_parallelism(kParallelism);
 
   ASSERT_OK_AND_ASSIGN(CompleteReachOnlySetupPhaseResponse response,
@@ -499,7 +499,7 @@ TEST(CompleteReachOnlySetupPhase, SetupPhaseWorksAsExpectedWithGaussianNoise) {
   // resulted sigma_distributed ~= 0.18, offset = 3
   *noise_parameters->mutable_dp_params()->mutable_global_reach_dp_noise() =
       MakeDifferentialPrivacyParams(40, std::exp(-80));
-  request.set_noise_mechanism(LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN);
+  request.set_noise_mechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
   request.set_parallelism(kParallelism);
 
   ASSERT_OK_AND_ASSIGN(CompleteReachOnlySetupPhaseResponse response,
@@ -551,14 +551,14 @@ TEST(EndToEnd, SumOfCountsShouldBeCorrectWithoutNoise) {
   ASSERT_OK_AND_ASSIGN(ReachOnlyMpcResult result_with_geometric_noise,
                        test_data.GoThroughEntireMpcProtocol(
                            encrypted_sketch, /*reach_noise=*/nullptr,
-                           LiquidLegionsV2NoiseConfig::GEOMETRIC));
+                           NoiseMechanism::GEOMETRIC));
 
   EXPECT_EQ(result_with_geometric_noise.reach, expected_reach);
 
   ASSERT_OK_AND_ASSIGN(ReachOnlyMpcResult result_with_gaussian_noise,
                        test_data.GoThroughEntireMpcProtocol(
                            encrypted_sketch, /*reach_noise=*/nullptr,
-                           LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN));
+                           NoiseMechanism::DISCRETE_GAUSSIAN));
   EXPECT_EQ(result_with_gaussian_noise.reach, expected_reach);
 }
 
@@ -600,14 +600,14 @@ TEST(EndToEnd, CombinedCasesWithDeterministicReachDpNoises) {
   ASSERT_OK_AND_ASSIGN(ReachOnlyMpcResult result_with_geometric_noise,
                        test_data.GoThroughEntireMpcProtocol(
                            encrypted_sketch, &reach_noise_parameters,
-                           LiquidLegionsV2NoiseConfig::GEOMETRIC));
+                           NoiseMechanism::GEOMETRIC));
 
   EXPECT_EQ(result_with_geometric_noise.reach, expected_reach);
 
   ASSERT_OK_AND_ASSIGN(ReachOnlyMpcResult result_with_gaussian_noise,
                        test_data.GoThroughEntireMpcProtocol(
                            encrypted_sketch, &reach_noise_parameters,
-                           LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN));
+                           NoiseMechanism::DISCRETE_GAUSSIAN));
 
   EXPECT_EQ(result_with_gaussian_noise.reach, expected_reach);
 }
@@ -650,13 +650,13 @@ TEST(ReachEstimation, NonDpNoiseShouldNotImpactTheResult) {
   ASSERT_OK_AND_ASSIGN(ReachOnlyMpcResult result_with_geometric_noise,
                        test_data.GoThroughEntireMpcProtocol(
                            encrypted_sketch, &reach_noise_parameters,
-                           LiquidLegionsV2NoiseConfig::GEOMETRIC));
+                           NoiseMechanism::GEOMETRIC));
   EXPECT_EQ(result_with_geometric_noise.reach, expected_reach);
 
   ASSERT_OK_AND_ASSIGN(ReachOnlyMpcResult result_with_gaussian_noise,
                        test_data.GoThroughEntireMpcProtocol(
                            encrypted_sketch, &reach_noise_parameters,
-                           LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN));
+                           NoiseMechanism::DISCRETE_GAUSSIAN));
   EXPECT_EQ(result_with_gaussian_noise.reach, expected_reach);
 }
 
