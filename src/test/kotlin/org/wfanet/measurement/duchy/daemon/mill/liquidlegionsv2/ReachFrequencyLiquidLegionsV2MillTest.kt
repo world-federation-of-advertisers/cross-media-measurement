@@ -91,7 +91,7 @@ import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
 import org.wfanet.measurement.internal.duchy.computationDetails
 import org.wfanet.measurement.internal.duchy.computationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.computationToken
-import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
+import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 import org.wfanet.measurement.internal.duchy.copy
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorResponse
