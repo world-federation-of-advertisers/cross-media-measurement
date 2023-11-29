@@ -32,7 +32,7 @@ message ProtocolsSetupConfig {
 // Role in Computations assigned to Duchies.
 enum RoleInComputation {
   // Never set intentionally
-  UNKNOWN = 0;
+  ROLE_IN_COMPUTATION_UNSPECIFIED = 0;
 
   // The aggregator duchy for the computation.
   AGGREGATOR = 1;
