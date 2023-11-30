@@ -21,13 +21,13 @@ import "google/api/resource.proto";
 
 option java_package = "org.wfanet.measurement.reporting.bff.v1alpha";
 option java_multiple_files = true;
-option java_outer_classname = "ListReportDetailProto";
+option java_outer_classname = "ReportListItemProto";
 
 option go_package = "wfa/measurement/reporting/bff/v1alpha/reportingpb";
 
-message ListReportDetail {
+message ReportListItem {
   option (google.api.resource) = {
-    type: "ui.reporting.halo-cmm.org/ListReportDetail"
+    type: "ui.reporting.halo-cmm.org/ReportListItem"
     pattern: "measurementConsumers/{measurement_consumer}/reports"
   };
 

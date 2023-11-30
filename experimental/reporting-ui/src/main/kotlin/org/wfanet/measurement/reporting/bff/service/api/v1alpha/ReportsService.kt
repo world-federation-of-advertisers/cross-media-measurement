@@ -14,17 +14,18 @@
 
 package org.wfanet.measurement.reporting.bff.service.api.v1alpha
 
+import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.reporting.bff.v1alpha.GetReportRequest
-import org.wfanet.measurement.reporting.bff.v1alpha.ListReportDetail
 import org.wfanet.measurement.reporting.bff.v1alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.bff.v1alpha.ListReportsResponse
 import org.wfanet.measurement.reporting.bff.v1alpha.Report
 import org.wfanet.measurement.reporting.bff.v1alpha.ReportsGrpcKt
-import org.wfanet.measurement.reporting.bff.v1alpha.listReportDetail
+import org.wfanet.measurement.reporting.bff.v1alpha.ReportListItem
 import org.wfanet.measurement.reporting.bff.v1alpha.listReportsResponse
 import org.wfanet.measurement.reporting.bff.v1alpha.report
+import org.wfanet.measurement.reporting.bff.v1alpha.reportListItem
 import org.wfanet.measurement.reporting.v2alpha.Report as HaloReport
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt as HaloReportsGrpcKt
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
@@ -32,21 +33,30 @@ import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
 
 class ReportsService(private val haloReportsStub: HaloReportsGrpcKt.ReportsCoroutineStub) :
   ReportsGrpcKt.ReportsCoroutineImplBase() {
+  @Throws(NotImplementedError::class)
   override suspend fun listReports(request: ListReportsRequest): ListReportsResponse {
+    // TODO(@bdomen-ggl): Still working on UX for pagination, so holding off for now.
+    //  Will hold off on internally looping the request until it becomes an issue (eg. no reports returned)
+    if (request.pageSize == 0 || request.pageToken.length > 0) {
+      throw NotImplementedError("PageSize and PageToken not implemented yet");
+    }
+
     val haloRequest = listReportsRequest {
       parent = request.parent
-      pageSize = if (request.pageSize > 0) request.pageSize else 1000
+      pageSize = 1000
     }
 
     val resp = runBlocking(Dispatchers.IO) { haloReportsStub.listReports(haloRequest) }
 
-    // Not doing pagination right now
-    // Need some UI designs around how to handle it
+    if (resp.nextPageToken.length > 0) {
+      logger.warning { "Additional ListReport items. Not Loopping through additional pages." }
+    }
+
     val results = listReportsResponse {
       resp.reportsList
         .filter { it.tags.containsKey("ui.halo-cmm.org") }
         .forEach {
-          val r = listReportDetail {
+          val r = reportListItem {
             id = it.name
             name = it.name
             state = convertHaloStateToBffState(it.state)
@@ -69,12 +79,16 @@ class ReportsService(private val haloReportsStub: HaloReportsGrpcKt.ReportsCorou
 
   private fun convertHaloStateToBffState(
     haloReportState: HaloReport.State
-  ): ListReportDetail.State =
+  ): ReportListItem.State =
     when (haloReportState) {
-      HaloReport.State.STATE_UNSPECIFIED -> ListReportDetail.State.STATE_UNSPECIFIED
-      HaloReport.State.RUNNING -> ListReportDetail.State.RUNNING
-      HaloReport.State.SUCCEEDED -> ListReportDetail.State.SUCCEEDED
-      HaloReport.State.FAILED -> ListReportDetail.State.FAILED
-      else -> ListReportDetail.State.STATE_UNSPECIFIED
+      HaloReport.State.STATE_UNSPECIFIED -> ReportListItem.State.STATE_UNSPECIFIED
+      HaloReport.State.RUNNING -> ReportListItem.State.RUNNING
+      HaloReport.State.SUCCEEDED -> ReportListItem.State.SUCCEEDED
+      HaloReport.State.FAILED -> ReportListItem.State.FAILED
+      else -> ReportListItem.State.STATE_UNSPECIFIED
     }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
+  }
 }
