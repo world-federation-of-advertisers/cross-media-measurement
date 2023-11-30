@@ -298,7 +298,6 @@ class GcpSpannerComputationsDatabaseReaderTest :
           }
           addRequisitionsBuilder().apply {
             externalKey = requisition3Key
-            path = ""
             details = RequisitionDetails.getDefaultInstance()
           }
         }
