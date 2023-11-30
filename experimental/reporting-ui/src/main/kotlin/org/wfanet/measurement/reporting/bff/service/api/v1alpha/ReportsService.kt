@@ -21,8 +21,8 @@ import org.wfanet.measurement.reporting.bff.v1alpha.GetReportRequest
 import org.wfanet.measurement.reporting.bff.v1alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.bff.v1alpha.ListReportsResponse
 import org.wfanet.measurement.reporting.bff.v1alpha.Report
-import org.wfanet.measurement.reporting.bff.v1alpha.ReportsGrpcKt
 import org.wfanet.measurement.reporting.bff.v1alpha.ReportListItem
+import org.wfanet.measurement.reporting.bff.v1alpha.ReportsGrpcKt
 import org.wfanet.measurement.reporting.bff.v1alpha.listReportsResponse
 import org.wfanet.measurement.reporting.bff.v1alpha.report
 import org.wfanet.measurement.reporting.bff.v1alpha.reportListItem
@@ -36,9 +36,10 @@ class ReportsService(private val haloReportsStub: HaloReportsGrpcKt.ReportsCorou
   @Throws(NotImplementedError::class)
   override suspend fun listReports(request: ListReportsRequest): ListReportsResponse {
     // TODO(@bdomen-ggl): Still working on UX for pagination, so holding off for now.
-    //  Will hold off on internally looping the request until it becomes an issue (eg. no reports returned)
+    // Will hold off on internally looping the request until it becomes an issue (eg. no reports
+    // returned)
     if (request.pageSize == 0 || request.pageToken.length > 0) {
-      throw NotImplementedError("PageSize and PageToken not implemented yet");
+      throw NotImplementedError("PageSize and PageToken not implemented yet")
     }
 
     val haloRequest = listReportsRequest {
@@ -77,9 +78,7 @@ class ReportsService(private val haloReportsStub: HaloReportsGrpcKt.ReportsCorou
     return result
   }
 
-  private fun convertHaloStateToBffState(
-    haloReportState: HaloReport.State
-  ): ReportListItem.State =
+  private fun convertHaloStateToBffState(haloReportState: HaloReport.State): ReportListItem.State =
     when (haloReportState) {
       HaloReport.State.STATE_UNSPECIFIED -> ReportListItem.State.STATE_UNSPECIFIED
       HaloReport.State.RUNNING -> ReportListItem.State.RUNNING
