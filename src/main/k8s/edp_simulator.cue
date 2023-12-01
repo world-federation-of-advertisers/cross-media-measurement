@@ -18,7 +18,6 @@ package k8s
 	displayName:            string
 	resourceName:           string
 	certResourceName:       string
-	resultCertResourceName: string
 	publisherId:            int
 }
 
@@ -47,12 +46,9 @@ package k8s
 				"--data-provider-resource-name=\(_edpConfig.resourceName)",
 				"--data-provider-display-name=\(DisplayName)",
 				"--data-provider-certificate-resource-name=\(_edpConfig.certResourceName)",
-				"--data-provider-result-certificate-resource-name=\(_edpConfig.resultCertResourceName)",
 				"--data-provider-encryption-private-keyset=/var/run/secrets/files/\(DisplayName)_enc_private.tink",
 				"--data-provider-consent-signaling-private-key-der-file=/var/run/secrets/files/\(DisplayName)_cs_private.der",
 				"--data-provider-consent-signaling-certificate-der-file=/var/run/secrets/files/\(DisplayName)_cs_cert.der",
-				"--data-provider-result-consent-signaling-private-key-der-file=/var/run/secrets/files/\(DisplayName)_result_cs_private.der",
-				"--data-provider-result-consent-signaling-certificate-der-file=/var/run/secrets/files/\(DisplayName)_result_cs_cert.der",
 				"--mc-resource-name=\(_mc_resource_name)",
 				"--kingdom-public-api-target=\(_kingdom_public_api_target)",
 				"--kingdom-public-api-cert-host=localhost",

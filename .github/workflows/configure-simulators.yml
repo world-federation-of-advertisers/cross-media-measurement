@@ -86,22 +86,16 @@ jobs:
         MC_NAME: ${{ vars.MC_NAME }}
         EDP1_NAME: ${{ vars.EDP1_NAME }}
         EDP1_CERT_NAME: ${{ vars.EDP1_CERT_NAME }}
-        EDP1_RESULT_CERT_NAME: ${{ vars.EDP1_RESULT_CERT_NAME }}
         EDP2_NAME: ${{ vars.EDP2_NAME }}
         EDP2_CERT_NAME: ${{ vars.EDP2_CERT_NAME }}
-        EDP2_RESULT_CERT_NAME: ${{ vars.EDP2_RESULT_CERT_NAME }}
         EDP3_NAME: ${{ vars.EDP3_NAME }}
         EDP3_CERT_NAME: ${{ vars.EDP3_CERT_NAME }}
-        EDP3_RESULT_CERT_NAME: ${{ vars.EDP3_RESULT_CERT_NAME }}
         EDP4_NAME: ${{ vars.EDP4_NAME }}
         EDP4_CERT_NAME: ${{ vars.EDP4_CERT_NAME }}
-        EDP4_RESULT_CERT_NAME: ${{ vars.EDP4_RESULT_CERT_NAME }}
         EDP5_NAME: ${{ vars.EDP5_NAME }}
         EDP5_CERT_NAME: ${{ vars.EDP5_CERT_NAME }}
-        EDP5_RESULT_CERT_NAME: ${{ vars.EDP5_RESULT_CERT_NAME }}
         EDP6_NAME: ${{ vars.EDP6_NAME }}
         EDP6_CERT_NAME: ${{ vars.EDP6_CERT_NAME }}
-        EDP6_RESULT_CERT_NAME: ${{ vars.EDP6_RESULT_CERT_NAME }}
       run: >
         bazelisk build 
         //src/main/k8s/dev:synthetic_generator_edp_simulators.tar
@@ -113,22 +107,16 @@ jobs:
         --define "mc_name=$MC_NAME"
         --define "edp1_name=$EDP1_NAME"
         --define "edp1_cert_name=$EDP1_CERT_NAME"
-        --define "edp1_cert_name=$EDP1_RESULT_CERT_NAME"
         --define "edp2_name=$EDP2_NAME"
         --define "edp2_cert_name=$EDP2_CERT_NAME"
-        --define "edp2_cert_name=$EDP2_RESULT_CERT_NAME"
         --define "edp3_name=$EDP3_NAME"
         --define "edp3_cert_name=$EDP3_CERT_NAME"
-        --define "edp3_cert_name=$EDP3_RESULT_CERT_NAME"
         --define "edp4_name=$EDP4_NAME"
         --define "edp4_cert_name=$EDP4_CERT_NAME"
-        --define "edp4_cert_name=$EDP4_RESULT_CERT_NAME"
         --define "edp5_name=$EDP5_NAME"
         --define "edp5_cert_name=$EDP5_CERT_NAME"
-        --define "edp5_cert_name=$EDP5_RESULT_CERT_NAME"
         --define "edp6_name=$EDP6_NAME"
         --define "edp6_cert_name=$EDP6_CERT_NAME"
-        --define "edp6_cert_name=$EDP6_RESULT_CERT_NAME"
 
     - name: Make Kustomization dir
       run: mkdir -p "$KUSTOMIZATION_PATH"

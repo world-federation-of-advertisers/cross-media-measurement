@@ -46,14 +46,6 @@ class EdpSimulatorFlags {
     private set
 
   @CommandLine.Option(
-    names = ["--data-provider-result-certificate-resource-name"],
-    description = ["The public API resource name for data provider consent signaling."],
-    required = true
-  )
-  lateinit var dataProviderResultCertificateResourceName: String
-    private set
-
-  @CommandLine.Option(
     names = ["--data-provider-display-name"],
     description = ["The display name of this data provider."],
     required = true
@@ -83,22 +75,6 @@ class EdpSimulatorFlags {
     required = true
   )
   lateinit var edpCsCertificateDerFile: File
-    private set
-
-  @CommandLine.Option(
-    names = ["--data-provider-result-consent-signaling-private-key-der-file"],
-    description = ["The EDP's result consent signaling private key (DER format) file."],
-    required = false
-  )
-  lateinit var edpResultPrivateKeyDerFile: File
-    private set
-
-  @CommandLine.Option(
-    names = ["--data-provider-result-consent-signaling-certificate-der-file"],
-    description = ["The EDP's result consent signaling private key (DER format) file."],
-    required = false
-  )
-  lateinit var edpResultCertificateDerFile: File
     private set
 
   @CommandLine.Option(

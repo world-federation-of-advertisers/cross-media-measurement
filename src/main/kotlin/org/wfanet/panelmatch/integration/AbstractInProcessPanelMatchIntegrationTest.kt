@@ -265,7 +265,6 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
               TestCertificateManager.CERTIFICATE,
               TestCertificateManager.PRIVATE_KEY
             ),
-          resultSigningKey = null,
           encryptionPrivateKey = null,
         )
       )

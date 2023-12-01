@@ -17,25 +17,18 @@ package k8s
 _mc_name:               string @tag("mc_name")
 _edp1_name:             string @tag("edp1_name")
 _edp1_cert_name:        string @tag("edp1_cert_name")
-_edp1_result_cert_name: string @tag("edp1_result_cert_name")
 _edp2_name:             string @tag("edp2_name")
 _edp2_cert_name:        string @tag("edp2_cert_name")
-_edp2_result_cert_name: string @tag("edp2_result_cert_name")
 _edp3_name:             string @tag("edp3_name")
 _edp3_cert_name:        string @tag("edp3_cert_name")
-_edp3_result_cert_name: string @tag("edp3_result_cert_name")
 _edp4_name:             string @tag("edp4_name")
 _edp4_cert_name:        string @tag("edp4_cert_name")
-_edp4_result_cert_name: string @tag("edp4_result_cert_name")
 _edp5_name:             string @tag("edp5_name")
 _edp5_cert_name:        string @tag("edp5_cert_name")
-_edp5_result_cert_name: string @tag("edp5_result_cert_name")
 _edp6_name:             string @tag("edp6_name")
 _edp6_cert_name:        string @tag("edp6_cert_name")
-_edp6_result_cert_name: string @tag("edp6_result_cert_name")
 _edpResourceNames: [_edp1_name, _edp2_name, _edp3_name, _edp4_name, _edp5_name, _edp6_name]
 _edpCertResourceNames: [_edp1_cert_name, _edp2_cert_name, _edp3_cert_name, _edp4_cert_name, _edp5_cert_name, _edp6_cert_name]
-_edpResultCertResourceNames: [_edp1_result_cert_name, _edp2_result_cert_name, _edp3_result_cert_name, _edp4_result_cert_name, _edp5_result_cert_name, _edp6_result_cert_name]
 _secret_name:            string @tag("secret_name")
 _kingdomPublicApiTarget: string @tag("kingdom_public_api_target")
 _duchyPublicApiTarget:   string @tag("duchy_public_api_target")
@@ -54,7 +47,6 @@ _edpConfigs: [
 
 		resourceName:           name
 		certResourceName:       _edpCertResourceNames[i]
-		resultCertResourceName: _edpResultCertResourceNames[i]
 		displayName:            "edp\(Number)"
 		publisherId:            Number
 	},

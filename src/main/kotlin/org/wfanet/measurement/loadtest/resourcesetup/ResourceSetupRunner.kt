@@ -70,25 +70,11 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
     flags.edpCsCertDerFiles.keys == flags.edpCsKeyDerFiles.keys &&
       flags.edpCsCertDerFiles.keys == flags.edpEncryptionPublicKeysets.keys
   )
-  // Ensure if an EDP has a separate signing cert, they also have the corresponding key.
-  require(flags.edpResultSigningCertDerFiles.keys == flags.edpResultSigningKeyDerFiles.keys)
   val dataProviderContents =
     flags.edpCsCertDerFiles.map {
       EntityContent(
         displayName = it.key,
         signingKey = loadSigningKey(it.value, flags.edpCsKeyDerFiles.getValue(it.key)),
-        resultSigningKey =
-          if (
-            it.key in flags.edpResultSigningCertDerFiles &&
-              it.key in flags.edpResultSigningKeyDerFiles
-          ) {
-            loadSigningKey(
-              flags.edpResultSigningCertDerFiles.getValue(it.key),
-              flags.edpResultSigningKeyDerFiles.getValue(it.key)
-            )
-          } else {
-            null
-          },
         encryptionPublicKey =
           loadPublicKey(flags.edpEncryptionPublicKeysets.getValue(it.key)).toEncryptionPublicKey(),
         encryptionPrivateKey = loadPrivateKey(flags.edpEncryptionPrivateKeysets.getValue(it.key))
@@ -100,7 +86,6 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
       signingKey = loadSigningKey(flags.mcCsCertDerFile, flags.mcCsKeyDerFile),
       encryptionPublicKey = loadPublicKey(flags.mcEncryptionPublicKeyset).toEncryptionPublicKey(),
       encryptionPrivateKey = null,
-      resultSigningKey = null,
     )
   val duchyCerts =
     flags.duchyCsCertDerFiles.map {

@@ -72,24 +72,16 @@ abstract class EdpSimulatorRunner : Runnable {
       )
     val signingKeyHandle =
       loadSigningKey(flags.edpCsCertificateDerFile, flags.edpCsPrivateKeyDerFile)
-    val dataProviderCertificateKey =
+    val certificateKey =
       DataProviderCertificateKey.fromName(flags.dataProviderCertificateResourceName)!!
-    val validCertificates = mutableMapOf<DataProviderCertificateKey, SigningKeyHandle>()
-    validCertificates[dataProviderCertificateKey] = signingKeyHandle
-    val resultCertificateKey =
-      DataProviderCertificateKey.fromName(flags.dataProviderResultCertificateResourceName)!!
-    if (dataProviderCertificateKey != resultCertificateKey) {
-      val resultSigningKeyHandle =
-        loadSigningKey(flags.edpResultCertificateDerFile, flags.edpResultPrivateKeyDerFile)
-      validCertificates[resultCertificateKey] = resultSigningKeyHandle
-    }
+    val validCertificates = mapOf(certificateKey to signingKeyHandle)
     val edpData =
       EdpData(
         flags.dataProviderResourceName,
         flags.dataProviderDisplayName,
         loadPrivateKey(flags.edpEncryptionPrivateKeyset),
         validCertificates,
-        resultCertificateKey,
+        certificateKey,
       )
 
     val randomSeed = flags.randomSeed

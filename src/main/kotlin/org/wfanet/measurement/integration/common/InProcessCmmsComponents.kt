@@ -30,7 +30,6 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.identity.DuchyInfo
@@ -84,19 +83,14 @@ class InProcessCmmsComponents(
     edpDisplayNameToResourceMap.entries.mapIndexed { index, (displayName, resource) ->
       val specIndex = index % syntheticEventGroupSpecs.size
       val edpContent = createEntityContent(displayName)
-      val validCertificates = mutableMapOf<DataProviderCertificateKey, SigningKeyHandle>()
       val dataProviderCertificateKey =
         DataProviderCertificateKey.fromName(resource.dataProvider.certificate)!!
-      validCertificates[dataProviderCertificateKey] = edpContent.signingKey
-      val resultSigningCertificateKey =
-        DataProviderCertificateKey.fromName(resource.dataProvider.resultCertificate)!!
-      if (dataProviderCertificateKey != resultSigningCertificateKey) {
-        validCertificates[resultSigningCertificateKey] = edpContent.resultSigningKey!!
-      }
+      val validCertificates = mapOf(dataProviderCertificateKey to edpContent.signingKey)
+      val certificateKey = DataProviderCertificateKey.fromName(resource.dataProvider.certificate)!!
       InProcessEdpSimulator(
         displayName = displayName,
         resourceName = resource.name,
-        resultSigningCertificateKey = resultSigningCertificateKey,
+        certificateKey = certificateKey,
         validCertificates = validCertificates,
         encryptionKey = edpContent.encryptionPrivateKey!!,
         mcResourceName = mcResourceName,
@@ -132,8 +126,6 @@ class InProcessCmmsComponents(
   private lateinit var edpDisplayNameToResourceMap: Map<String, Resources.Resource>
   private lateinit var duchyCertMap: Map<String, String>
   private lateinit var eventGroups: List<EventGroup>
-
-  private val edpsWithSeparateResultSigningKeys = listOf("edp1")
 
   private suspend fun createAllResources() {
     val resourceSetup =
@@ -171,24 +163,6 @@ class InProcessCmmsComponents(
           dataProvider =
             ResourceKt.dataProvider {
               certificate = externalDataProviderCertificateKeyName
-              resultCertificate =
-                if (edp.resultSigningKey != null) {
-                  val externalResultCertificateId =
-                    resourceSetup.createDataProviderCertificate(
-                      externalDataProviderId = internalDataProvider.externalDataProviderId,
-                      consentSignalCertificateDer =
-                        edp.resultSigningKey!!.certificate.encoded.toByteString(),
-                    )
-                  val externalResultCertificateKeyName =
-                    DataProviderCertificateKey(
-                        externalDataProviderId,
-                        externalIdToApiId(externalResultCertificateId)
-                      )
-                      .toName()
-                  externalResultCertificateKeyName
-                } else {
-                  externalDataProviderCertificateKeyName
-                }
             }
         }
       }

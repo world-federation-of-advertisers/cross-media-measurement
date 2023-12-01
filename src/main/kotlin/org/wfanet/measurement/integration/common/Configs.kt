@@ -87,8 +87,6 @@ val ALL_DUCHIES =
     )
   }
 val ALL_EDP_DISPLAY_NAMES = listOf("edp1", "edp2", "edp3")
-private val EDPS_WITH_SEPARATE_RESULT_SIGNING_KEYS =
-  listOf("edp1", "edp2", "edp3", "edp4", "edp5", "edp6")
 const val DUCHY_MILL_PARALLELISM = 3
 
 const val MC_DISPLAY_NAME = "mc"
@@ -134,10 +132,4 @@ fun createEntityContent(displayName: String) =
       loadEncryptionPublicKey("${displayName}_enc_public.tink").toEncryptionPublicKey(),
     encryptionPrivateKey = loadEncryptionPrivateKey("${displayName}_enc_private.tink"),
     signingKey = loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der"),
-    resultSigningKey =
-      if (displayName in EDPS_WITH_SEPARATE_RESULT_SIGNING_KEYS) {
-        loadSigningKey("${displayName}_result_cs_cert.der", "${displayName}_result_cs_private.der")
-      } else {
-        null
-      },
   )

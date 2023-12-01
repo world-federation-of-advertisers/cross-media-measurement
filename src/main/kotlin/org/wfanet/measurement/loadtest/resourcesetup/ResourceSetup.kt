@@ -160,28 +160,6 @@ class ResourceSetup(
             ResourcesKt.ResourceKt.dataProvider {
               displayName = it.displayName
               certificate = externalDataProviderCertificateKeyName
-              resultCertificate =
-                if (it.resultSigningKey != null) {
-                  check(
-                    it.signingKey.certificate.authorityKeyIdentifier ==
-                      it.resultSigningKey.certificate.authorityKeyIdentifier
-                  )
-                  val externalResultCertificateId =
-                    externalIdToApiId(
-                      createDataProviderCertificate(
-                        externalDataProviderId = internalDataProvider.externalDataProviderId,
-                        consentSignalCertificateDer =
-                          it.resultSigningKey.certificate.encoded.toByteString(),
-                      )
-                    )
-                  val externalResultCertificateKeyName =
-                    DataProviderCertificateKey(externalDataProviderId, externalResultCertificateId)
-                      .toName()
-                  logger.info("Successfully created certificate: $externalResultCertificateKeyName")
-                  externalResultCertificateKeyName
-                } else {
-                  externalDataProviderCertificateKeyName
-                }
               // Assume signing cert uses same issuer as TLS client cert.
               authorityKeyIdentifier =
                 checkNotNull(it.signingKey.certificate.authorityKeyIdentifier)
@@ -233,7 +211,6 @@ class ResourceSetup(
           }
       }
     }
-    logger.info("Successfully constructed AKID Map: $akidMap")
     output.resolve(AKID_PRINCIPAL_MAP_FILE).writer().use { writer ->
       TextFormat.printer().print(akidMap, writer)
     }
@@ -248,9 +225,6 @@ class ResourceSetup(
             writer.appendLine("build:$configName --define=${displayName}_name=${resource.name}")
             writer.appendLine(
               "build:$configName --define=${displayName}_cert_name=${resource.dataProvider.certificate}"
-            )
-            writer.appendLine(
-              "build:$configName --define=${displayName}_result_cert_name=${resource.dataProvider.resultCertificate}"
             )
           }
           Resources.Resource.ResourceCase.MEASUREMENT_CONSUMER -> {
@@ -413,25 +387,6 @@ class ResourceSetup(
     return MeasurementConsumerAndKey(measurementConsumer, apiAuthenticationKey)
   }
 
-  suspend fun createDataProviderCertificate(
-    externalDataProviderId: Long,
-    consentSignalCertificateDer: ByteString
-  ): Long {
-    val internalCertificate =
-      try {
-        internalCertificatesClient.createCertificate(
-          internalCertificate {
-            fillCertificateFromDer(consentSignalCertificateDer)
-            this.externalDataProviderId = externalDataProviderId
-          }
-        )
-      } catch (e: StatusException) {
-        throw Exception("Error creating certificate for DataProvider $externalDataProviderId", e)
-      }
-
-    return internalCertificate.externalCertificateId
-  }
-
   suspend fun createDuchyCertificate(duchyCert: DuchyCert): Certificate {
     val internalCertificate =
       try {
@@ -476,8 +431,6 @@ data class EntityContent(
   val encryptionPrivateKey: PrivateKeyHandle?,
   /** The consent signaling signing key. */
   val signingKey: SigningKeyHandle,
-  /** The result signing certificate in DER format. */
-  val resultSigningKey: SigningKeyHandle?,
 )
 
 data class DuchyCert(

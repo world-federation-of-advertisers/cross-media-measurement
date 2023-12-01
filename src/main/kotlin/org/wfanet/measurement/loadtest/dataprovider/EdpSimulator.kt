@@ -149,7 +149,7 @@ data class EdpData(
   /** The EDP's valid certificates. */
   val validCertificates: Map<DataProviderCertificateKey, SigningKeyHandle>,
   /** The CertificateKey to use for result signing. */
-  val resultSigningCertificateKey: DataProviderCertificateKey
+  val certificateKey: DataProviderCertificateKey
 )
 
 /** A simulator handling EDP businesses. */
@@ -373,8 +373,6 @@ class EdpSimulator(
 
     val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
 
-    // A real EDP should verify the signed `data_provider_public_key`. Note: This will not be needed
-    // after PR187 is merged to the public API.
     // A real EDP should map the `data_provider_public_key` to a known private key for
     // decryption.
     val signedRequisitionSpec: SignedMessage =
@@ -1525,7 +1523,7 @@ class EdpSimulator(
         "Invalid data provider certificate"
       )
     }
-    val resultSigningKey = edpData.validCertificates.getValue(edpData.resultSigningCertificateKey)
+    val resultSigningKey = edpData.validCertificates.getValue(edpData.certificateKey)
     val measurementEncryptionPublicKey: EncryptionPublicKey =
       if (measurementSpec.hasMeasurementPublicKey()) {
         measurementSpec.measurementPublicKey.unpack()
@@ -1543,7 +1541,7 @@ class EdpSimulator(
           name = requisition.name
           this.encryptedResult = encryptedResult
           this.nonce = nonce
-          this.certificate = edpData.resultSigningCertificateKey.toName()
+          this.certificate = edpData.certificateKey.toName()
         }
       )
     } catch (e: StatusException) {
