@@ -33,13 +33,12 @@ import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
 
 class ReportsService(private val haloReportsStub: HaloReportsGrpcKt.ReportsCoroutineStub) :
   ReportsGrpcKt.ReportsCoroutineImplBase() {
-  @Throws(NotImplementedError::class)
   override suspend fun listReports(request: ListReportsRequest): ListReportsResponse {
     // TODO(@bdomen-ggl): Still working on UX for pagination, so holding off for now.
     // Will hold off on internally looping the request until it becomes an issue (eg. no reports
     // returned)
-    if (request.pageSize == 0 || request.pageToken.length > 0) {
-      throw NotImplementedError("PageSize and PageToken not implemented yet")
+    if (request.pageSize != 0 || request.pageToken.isNotEmpty()) {
+      Status.UNIMPLEMENTED.withDescription("PageSize and PageToken not implemented yet").asRuntimeException()
     }
 
     val haloRequest = listReportsRequest {
@@ -49,7 +48,7 @@ class ReportsService(private val haloReportsStub: HaloReportsGrpcKt.ReportsCorou
 
     val resp = runBlocking(Dispatchers.IO) { haloReportsStub.listReports(haloRequest) }
 
-    if (resp.nextPageToken.length > 0) {
+    if (resp.nextPageToken.isNotEmpty()) {
       logger.warning { "Additional ListReport items. Not Loopping through additional pages." }
     }
 
