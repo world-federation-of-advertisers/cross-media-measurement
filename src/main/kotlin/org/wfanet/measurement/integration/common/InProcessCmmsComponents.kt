@@ -17,7 +17,6 @@
 package org.wfanet.measurement.integration.common
 
 import com.google.protobuf.ByteString
-import com.google.protobuf.kotlin.toByteString
 import java.security.cert.X509Certificate
 import kotlinx.coroutines.runBlocking
 import org.junit.rules.TestRule
@@ -161,9 +160,7 @@ class InProcessCmmsComponents(
         resource {
           name = externalDataProviderResourceName
           dataProvider =
-            ResourceKt.dataProvider {
-              certificate = externalDataProviderCertificateKeyName
-            }
+            ResourceKt.dataProvider { certificate = externalDataProviderCertificateKeyName }
         }
       }
     // Create all duchy certificates.
