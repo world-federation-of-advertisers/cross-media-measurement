@@ -138,7 +138,7 @@ jobs:
         id: run-panelmatch-correctness-test
         run: >
           bazelisk test
-          //src/test/kotlin/org/wfanet/panelmatch/integration/k8s:DoubleBlindWorkflowTest
+          //src/test/kotlin/org/wfanet/panelmatch/integration/k8s:EmptyClusterPanelMatchCorrectnessTest
           --test_output=streamed
 
       - name: Export cluster logs

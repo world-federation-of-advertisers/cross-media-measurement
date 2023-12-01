@@ -55,14 +55,15 @@ message ReportSchedule {
   Report report_template = 4 [(google.api.field_behavior) = REQUIRED];
 
   // Specifies when the scheduling will start as well as the time of day used
-  // for every `Report`. If `utc_offset` is set, daylight savings is ignored and
-  // days will be 24 hours based on the time of day specified here. If
-  // `time_zone` is set, days will be based on the calendar and daylight savings
-  // will be considered; if 5 AM is chosen, the day will start with 5 AM
-  // year-round.
+  // for every `Report`. `year`, `month, `day`, and `time_offset` are
+  // required. If `utc_offset` is set, daylight savings is ignored and days will
+  // be 24 hours based on the time of day specified here. If `time_zone` is set,
+  // days will be based on the calendar and daylight savings will be considered;
+  // if 5 AM is chosen, the day will start with 5 AM year-round.
   google.type.DateTime event_start = 5 [(google.api.field_behavior) = REQUIRED];
 
-  // If specified, represents the last `Date` that a `Report` can be created on.
+  // If specified, represents the last `Date` that a `Report` can be created on
+  // and must be after `event_start` and must be a full date.
   // If not specified, `Report` creation does not stop.
   google.type.Date event_end = 6;
 
@@ -109,7 +110,8 @@ message ReportSchedule {
     oneof window {
       // `Report` start time is determined by how the window is defined.
       TrailingWindow trailing_window = 1;
-      // `Report` starts from this `Date`.
+      // `Report` starts from this `Date`. Must be a full date. Must be before
+      // `event_start`.
       google.type.Date fixed_window = 2;
     }
   }

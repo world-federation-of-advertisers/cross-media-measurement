@@ -73,10 +73,10 @@ private fun run(@CommandLine.Mixin flags: PanelMatchResourceSetupFlags) {
     // Runs the resource setup job.
     PanelMatchResourceSetup(kingdomInternalApiChannel)
       .process(
-        exchangeDate = EXCHANGE_DATE.toProtoDate(),
-        exchangeWorkflow = exchangeWorkflow,
+        dataProviderContent = dataProviderContent,
         exchangeSchedule = SCHEDULE,
-        dataProviderContent = dataProviderContent
+        exchangeWorkflow = exchangeWorkflow,
+        exchangeDate = EXCHANGE_DATE.toProtoDate(),
       )
   }
 }

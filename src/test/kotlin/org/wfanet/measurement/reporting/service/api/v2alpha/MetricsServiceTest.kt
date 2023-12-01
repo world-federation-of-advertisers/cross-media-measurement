@@ -213,8 +213,8 @@ import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
-import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt.frequencyHistogramParams
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt.impressionCountParams
+import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt.reachAndFrequencyParams
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt.reachParams
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt.watchDurationParams
 import org.wfanet.measurement.reporting.v2alpha.batchCreateMetricsRequest
@@ -281,8 +281,8 @@ private val METRIC_SPEC_CONFIG = metricSpecConfig {
       width = REACH_ONLY_VID_SAMPLING_WIDTH
     }
 
-  frequencyHistogramParams =
-    MetricSpecConfigKt.frequencyHistogramParams {
+  reachAndFrequencyParams =
+    MetricSpecConfigKt.reachAndFrequencyParams {
       reachPrivacyParams =
         MetricSpecConfigKt.differentialPrivacyParams {
           epsilon = REACH_FREQUENCY_REACH_EPSILON
@@ -295,7 +295,7 @@ private val METRIC_SPEC_CONFIG = metricSpecConfig {
         }
       maximumFrequency = REACH_FREQUENCY_MAXIMUM_FREQUENCY
     }
-  frequencyHistogramVidSamplingInterval =
+  reachAndFrequencyVidSamplingInterval =
     MetricSpecConfigKt.vidSamplingInterval {
       start = REACH_FREQUENCY_VID_SAMPLING_START
       width = REACH_FREQUENCY_VID_SAMPLING_WIDTH
@@ -1250,7 +1250,7 @@ private val REACH_METRIC_SPEC: MetricSpec = metricSpec {
   reach = reachParams { privacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance() }
 }
 private val REACH_FREQUENCY_METRIC_SPEC: MetricSpec = metricSpec {
-  frequencyHistogram = frequencyHistogramParams {
+  reachAndFrequency = reachAndFrequencyParams {
     reachPrivacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
     frequencyPrivacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
   }
@@ -1370,8 +1370,8 @@ private val INTERNAL_REQUESTING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC = intern
   externalReportingSetId = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId
   timeInterval = TIME_INTERVAL
   metricSpec = internalMetricSpec {
-    frequencyHistogram =
-      InternalMetricSpecKt.frequencyHistogramParams {
+    reachAndFrequency =
+      InternalMetricSpecKt.reachAndFrequencyParams {
         reachPrivacyParams =
           InternalMetricSpecKt.differentialPrivacyParams {
             epsilon = REACH_FREQUENCY_REACH_EPSILON
@@ -1649,7 +1649,7 @@ private val PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC =
         )
         .toName()
     metricSpec = metricSpec {
-      frequencyHistogram = frequencyHistogramParams {
+      reachAndFrequency = reachAndFrequencyParams {
         reachPrivacyParams =
           MetricSpecKt.differentialPrivacyParams {
             epsilon = REACH_FREQUENCY_REACH_EPSILON
@@ -1676,34 +1676,45 @@ private val SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC =
   PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
     state = Metric.State.SUCCEEDED
     result = metricResult {
-      frequencyHistogram =
-        MetricResultKt.histogramResult {
-          bins +=
-            (1..REACH_FREQUENCY_MAXIMUM_FREQUENCY).map { frequency ->
-              MetricResultKt.HistogramResultKt.bin {
-                label = frequency.toString()
-                binResult =
-                  MetricResultKt.HistogramResultKt.binResult {
-                    value =
-                      REACH_FREQUENCY_REACH_VALUE *
-                        REACH_FREQUENCY_FREQUENCY_VALUE.getOrDefault(frequency.toLong(), 0.0)
-                  }
-                resultUnivariateStatistics = univariateStatistics {
-                  standardDeviation = sqrt(FREQUENCY_VARIANCES.countVariances.getValue(frequency))
-                }
-                relativeUnivariateStatistics = univariateStatistics {
-                  standardDeviation =
-                    sqrt(FREQUENCY_VARIANCES.relativeVariances.getValue(frequency))
-                }
-                kPlusUnivariateStatistics = univariateStatistics {
-                  standardDeviation =
-                    sqrt(FREQUENCY_VARIANCES.kPlusCountVariances.getValue(frequency))
-                }
-                relativeKPlusUnivariateStatistics = univariateStatistics {
-                  standardDeviation =
-                    sqrt(FREQUENCY_VARIANCES.kPlusRelativeVariances.getValue(frequency))
-                }
+      reachAndFrequency =
+        MetricResultKt.reachAndFrequencyResult {
+          reach =
+            MetricResultKt.reachResult {
+              value = REACH_FREQUENCY_REACH_VALUE
+              univariateStatistics = univariateStatistics {
+                standardDeviation = sqrt(VARIANCE_VALUE)
               }
+            }
+          frequencyHistogram =
+            MetricResultKt.histogramResult {
+              bins +=
+                (1..REACH_FREQUENCY_MAXIMUM_FREQUENCY).map { frequency ->
+                  MetricResultKt.HistogramResultKt.bin {
+                    label = frequency.toString()
+                    binResult =
+                      MetricResultKt.HistogramResultKt.binResult {
+                        value =
+                          REACH_FREQUENCY_REACH_VALUE *
+                            REACH_FREQUENCY_FREQUENCY_VALUE.getOrDefault(frequency.toLong(), 0.0)
+                      }
+                    resultUnivariateStatistics = univariateStatistics {
+                      standardDeviation =
+                        sqrt(FREQUENCY_VARIANCES.countVariances.getValue(frequency))
+                    }
+                    relativeUnivariateStatistics = univariateStatistics {
+                      standardDeviation =
+                        sqrt(FREQUENCY_VARIANCES.relativeVariances.getValue(frequency))
+                    }
+                    kPlusUnivariateStatistics = univariateStatistics {
+                      standardDeviation =
+                        sqrt(FREQUENCY_VARIANCES.kPlusCountVariances.getValue(frequency))
+                    }
+                    relativeKPlusUnivariateStatistics = univariateStatistics {
+                      standardDeviation =
+                        sqrt(FREQUENCY_VARIANCES.kPlusRelativeVariances.getValue(frequency))
+                    }
+                  }
+                }
             }
         }
     }
@@ -5719,22 +5730,26 @@ class MetricsServiceTest {
           SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
             this.result =
               this.result.copy {
-                frequencyHistogram =
-                  MetricResultKt.histogramResult {
-                    bins +=
-                      (1..REACH_FREQUENCY_MAXIMUM_FREQUENCY).map { frequency ->
-                        MetricResultKt.HistogramResultKt.bin {
-                          label = frequency.toString()
-                          binResult =
-                            MetricResultKt.HistogramResultKt.binResult {
-                              value =
-                                REACH_FREQUENCY_REACH_VALUE *
-                                  REACH_FREQUENCY_FREQUENCY_VALUE.getOrDefault(
-                                    frequency.toLong(),
-                                    0.0
-                                  )
+                reachAndFrequency =
+                  MetricResultKt.reachAndFrequencyResult {
+                    reach = MetricResultKt.reachResult { value = REACH_FREQUENCY_REACH_VALUE }
+                    frequencyHistogram =
+                      MetricResultKt.histogramResult {
+                        bins +=
+                          (1..REACH_FREQUENCY_MAXIMUM_FREQUENCY).map { frequency ->
+                            MetricResultKt.HistogramResultKt.bin {
+                              label = frequency.toString()
+                              binResult =
+                                MetricResultKt.HistogramResultKt.binResult {
+                                  value =
+                                    REACH_FREQUENCY_REACH_VALUE *
+                                      REACH_FREQUENCY_FREQUENCY_VALUE.getOrDefault(
+                                        frequency.toLong(),
+                                        0.0
+                                      )
+                                }
                             }
-                        }
+                          }
                       }
                   }
               }
@@ -5799,22 +5814,32 @@ class MetricsServiceTest {
           SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
             this.result =
               this.result.copy {
-                frequencyHistogram =
-                  MetricResultKt.histogramResult {
-                    bins +=
-                      (1..REACH_FREQUENCY_MAXIMUM_FREQUENCY).map { frequency ->
-                        MetricResultKt.HistogramResultKt.bin {
-                          label = frequency.toString()
-                          binResult =
-                            MetricResultKt.HistogramResultKt.binResult {
-                              value =
-                                REACH_FREQUENCY_REACH_VALUE *
-                                  REACH_FREQUENCY_FREQUENCY_VALUE.getOrDefault(
-                                    frequency.toLong(),
-                                    0.0
-                                  )
-                            }
+                reachAndFrequency =
+                  MetricResultKt.reachAndFrequencyResult {
+                    reach =
+                      MetricResultKt.reachResult {
+                        value = REACH_FREQUENCY_REACH_VALUE
+                        univariateStatistics = univariateStatistics {
+                          standardDeviation = sqrt(VARIANCE_VALUE)
                         }
+                      }
+                    frequencyHistogram =
+                      MetricResultKt.histogramResult {
+                        bins +=
+                          (1..REACH_FREQUENCY_MAXIMUM_FREQUENCY).map { frequency ->
+                            MetricResultKt.HistogramResultKt.bin {
+                              label = frequency.toString()
+                              binResult =
+                                MetricResultKt.HistogramResultKt.binResult {
+                                  value =
+                                    REACH_FREQUENCY_REACH_VALUE *
+                                      REACH_FREQUENCY_FREQUENCY_VALUE.getOrDefault(
+                                        frequency.toLong(),
+                                        0.0
+                                      )
+                                }
+                            }
+                          }
                       }
                   }
               }
@@ -5876,22 +5901,32 @@ class MetricsServiceTest {
           SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
             this.result =
               this.result.copy {
-                frequencyHistogram =
-                  MetricResultKt.histogramResult {
-                    bins +=
-                      (1..REACH_FREQUENCY_MAXIMUM_FREQUENCY).map { frequency ->
-                        MetricResultKt.HistogramResultKt.bin {
-                          label = frequency.toString()
-                          binResult =
-                            MetricResultKt.HistogramResultKt.binResult {
-                              value =
-                                REACH_FREQUENCY_REACH_VALUE *
-                                  REACH_FREQUENCY_FREQUENCY_VALUE.getOrDefault(
-                                    frequency.toLong(),
-                                    0.0
-                                  )
-                            }
+                reachAndFrequency =
+                  MetricResultKt.reachAndFrequencyResult {
+                    reach =
+                      MetricResultKt.reachResult {
+                        value = REACH_FREQUENCY_REACH_VALUE
+                        univariateStatistics = univariateStatistics {
+                          standardDeviation = sqrt(VARIANCE_VALUE)
                         }
+                      }
+                    frequencyHistogram =
+                      MetricResultKt.histogramResult {
+                        bins +=
+                          (1..REACH_FREQUENCY_MAXIMUM_FREQUENCY).map { frequency ->
+                            MetricResultKt.HistogramResultKt.bin {
+                              label = frequency.toString()
+                              binResult =
+                                MetricResultKt.HistogramResultKt.binResult {
+                                  value =
+                                    REACH_FREQUENCY_REACH_VALUE *
+                                      REACH_FREQUENCY_FREQUENCY_VALUE.getOrDefault(
+                                        frequency.toLong(),
+                                        0.0
+                                      )
+                                }
+                            }
+                          }
                       }
                   }
               }
@@ -5965,22 +6000,32 @@ class MetricsServiceTest {
           SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
             this.result =
               this.result.copy {
-                frequencyHistogram =
-                  MetricResultKt.histogramResult {
-                    bins +=
-                      (1..REACH_FREQUENCY_MAXIMUM_FREQUENCY).map { frequency ->
-                        MetricResultKt.HistogramResultKt.bin {
-                          label = frequency.toString()
-                          binResult =
-                            MetricResultKt.HistogramResultKt.binResult {
-                              value =
-                                REACH_FREQUENCY_REACH_VALUE *
-                                  REACH_FREQUENCY_FREQUENCY_VALUE.getOrDefault(
-                                    frequency.toLong(),
-                                    0.0
-                                  )
-                            }
+                reachAndFrequency =
+                  MetricResultKt.reachAndFrequencyResult {
+                    reach =
+                      MetricResultKt.reachResult {
+                        value = REACH_FREQUENCY_REACH_VALUE
+                        univariateStatistics = univariateStatistics {
+                          standardDeviation = sqrt(VARIANCE_VALUE)
                         }
+                      }
+                    frequencyHistogram =
+                      MetricResultKt.histogramResult {
+                        bins +=
+                          (1..REACH_FREQUENCY_MAXIMUM_FREQUENCY).map { frequency ->
+                            MetricResultKt.HistogramResultKt.bin {
+                              label = frequency.toString()
+                              binResult =
+                                MetricResultKt.HistogramResultKt.binResult {
+                                  value =
+                                    REACH_FREQUENCY_REACH_VALUE *
+                                      REACH_FREQUENCY_FREQUENCY_VALUE.getOrDefault(
+                                        frequency.toLong(),
+                                        0.0
+                                      )
+                                }
+                            }
+                          }
                       }
                   }
               }

@@ -16,9 +16,17 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import com.google.protobuf.Timestamp
 import com.google.protobuf.util.Timestamps
+import com.google.type.DateTime
 import com.google.type.Interval
 import com.google.type.interval
+import java.time.DateTimeException
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
+import java.time.zone.ZoneRulesException
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodology
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
@@ -31,6 +39,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec.VidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams as NoiserDpParams
 import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodology as InternalCustomDirectMethodology
@@ -146,8 +155,8 @@ fun MetricSpec.toInternal(): InternalMetricSpec {
       MetricSpec.TypeCase.REACH -> {
         reach = source.reach.toInternal()
       }
-      MetricSpec.TypeCase.FREQUENCY_HISTOGRAM -> {
-        frequencyHistogram = source.frequencyHistogram.toInternal()
+      MetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
+        reachAndFrequency = source.reachAndFrequency.toInternal()
       }
       MetricSpec.TypeCase.IMPRESSION_COUNT -> {
         impressionCount = source.impressionCount.toInternal()
@@ -205,24 +214,24 @@ fun MetricSpec.ImpressionCountParams.toInternal(): InternalMetricSpec.Impression
 }
 
 /**
- * Converts a [MetricSpec.FrequencyHistogramParams] to an
- * [InternalMetricSpec.FrequencyHistogramParams].
+ * Converts a [MetricSpec.ReachAndFrequencyParams] to an
+ * [InternalMetricSpec.ReachAndFrequencyParams].
  */
-fun MetricSpec.FrequencyHistogramParams.toInternal(): InternalMetricSpec.FrequencyHistogramParams {
+fun MetricSpec.ReachAndFrequencyParams.toInternal(): InternalMetricSpec.ReachAndFrequencyParams {
   val source = this
   if (!source.hasReachPrivacyParams()) {
     throw MetricSpecDefaultsException(
       "Invalid privacy params",
-      IllegalArgumentException("reachPrivacyParams in frequency histogram is not set.")
+      IllegalArgumentException("reachPrivacyParams in reach-and-frequency is not set.")
     )
   }
   if (!source.hasFrequencyPrivacyParams()) {
     throw MetricSpecDefaultsException(
       "Invalid privacy params",
-      IllegalArgumentException("frequencyPrivacyParams in frequency histogram is not set.")
+      IllegalArgumentException("frequencyPrivacyParams in reach-and-frequency is not set.")
     )
   }
-  return InternalMetricSpecKt.frequencyHistogramParams {
+  return InternalMetricSpecKt.reachAndFrequencyParams {
     reachPrivacyParams = source.reachPrivacyParams.toInternal()
     frequencyPrivacyParams = source.frequencyPrivacyParams.toInternal()
     maximumFrequency = source.maximumFrequency
@@ -280,13 +289,13 @@ fun InternalMetricSpec.toMetricSpec(): MetricSpec {
       InternalMetricSpec.TypeCase.REACH ->
         reach =
           MetricSpecKt.reachParams { privacyParams = source.reach.privacyParams.toPrivacyParams() }
-      InternalMetricSpec.TypeCase.FREQUENCY_HISTOGRAM ->
-        frequencyHistogram =
-          MetricSpecKt.frequencyHistogramParams {
-            maximumFrequency = source.frequencyHistogram.maximumFrequency
-            reachPrivacyParams = source.frequencyHistogram.reachPrivacyParams.toPrivacyParams()
+      InternalMetricSpec.TypeCase.REACH_AND_FREQUENCY ->
+        reachAndFrequency =
+          MetricSpecKt.reachAndFrequencyParams {
+            maximumFrequency = source.reachAndFrequency.maximumFrequency
+            reachPrivacyParams = source.reachAndFrequency.reachPrivacyParams.toPrivacyParams()
             frequencyPrivacyParams =
-              source.frequencyHistogram.frequencyPrivacyParams.toPrivacyParams()
+              source.reachAndFrequency.frequencyPrivacyParams.toPrivacyParams()
           }
       InternalMetricSpec.TypeCase.IMPRESSION_COUNT ->
         impressionCount =
@@ -338,10 +347,10 @@ fun InternalMetricSpec.ReachParams.toReach(): MeasurementSpec.Reach {
 }
 
 /**
- * Converts an [InternalMetricSpec.FrequencyHistogramParams] to a
+ * Converts an [InternalMetricSpec.ReachAndFrequencyParams] to a
  * [MeasurementSpec.ReachAndFrequency].
  */
-fun InternalMetricSpec.FrequencyHistogramParams.toReachAndFrequency():
+fun InternalMetricSpec.ReachAndFrequencyParams.toReachAndFrequency():
   MeasurementSpec.ReachAndFrequency {
   val source = this
   return MeasurementSpecKt.reachAndFrequency {
@@ -958,4 +967,44 @@ fun InternalMetricSpec.VidSamplingInterval.toStatsVidSamplingInterval(): StatsVi
 fun InternalMetricSpec.DifferentialPrivacyParams.toNoiserDpParams(): NoiserDpParams {
   val source = this
   return NoiserDpParams(source.epsilon, source.delta)
+}
+
+/**
+ * Converts a proto [DateTime] to a proto [Timestamp].
+ *
+ * @throws
+ * * [DateTimeException] when values in DateTime are invalid.
+ * * [ZoneRulesException] when time zone id is invalid.
+ */
+fun DateTime.toTimestamp(): Timestamp {
+  val source = this
+  return if (source.hasUtcOffset()) {
+    val offset = ZoneOffset.ofTotalSeconds(source.utcOffset.seconds.toInt())
+    val offsetDateTime =
+      OffsetDateTime.of(
+        source.year,
+        source.month,
+        source.day,
+        source.hours,
+        source.minutes,
+        source.seconds,
+        source.nanos,
+        offset
+      )
+    offsetDateTime.toInstant().toProtoTime()
+  } else {
+    val id = ZoneId.of(source.timeZone.id)
+    val zonedDateTime =
+      ZonedDateTime.of(
+        source.year,
+        source.month,
+        source.day,
+        source.hours,
+        source.minutes,
+        source.seconds,
+        source.nanos,
+        id
+      )
+    zonedDateTime.toInstant().toProtoTime()
+  }
 }

@@ -14,6 +14,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computations",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/testing",
         "//src/main/kotlin/org/wfanet/measurement/system/v1alpha:resource_key",
+        "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:requisition_details_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/system/v1alpha:computation_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/system/v1alpha:requisition_kt_jvm_proto",

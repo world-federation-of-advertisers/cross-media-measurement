@@ -17,12 +17,14 @@
 #include "gtest/gtest.h"
 #include "math/distributed_discrete_gaussian_noiser.h"
 #include "math/distributed_geometric_noiser.h"
+#include "wfa/measurement/internal/duchy/noise_mechanism.pb.h"
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2_noise_config.pb.h"
 
 namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
 namespace {
 
 using ::wfa::measurement::internal::duchy::DifferentialPrivacyParams;
+using ::wfa::measurement::internal::duchy::NoiseMechanism;
 using ::wfa::measurement::internal::duchy::protocol::LiquidLegionsV2NoiseConfig;
 
 TEST(GetBlindHistogramNoiser, GeometricOptionsResultShouldBeCorrect) {
@@ -32,7 +34,7 @@ TEST(GetBlindHistogramNoiser, GeometricOptionsResultShouldBeCorrect) {
   int uncorrupted_party_count = 2;
 
   auto noiser = GetBlindHistogramNoiser(test_params, uncorrupted_party_count,
-                                        LiquidLegionsV2NoiseConfig::GEOMETRIC);
+                                        NoiseMechanism::GEOMETRIC);
   const auto& options = noiser->options();
 
   EXPECT_EQ(options.contributor_count, uncorrupted_party_count);
@@ -46,9 +48,8 @@ TEST(GetBlindHistogramNoiser, GaussianOptionsResultShouldBeCorrect) {
   dp_params.set_delta(0.2 / 100000);
   int uncorrupted_party_count = 2;
 
-  auto noiser =
-      GetBlindHistogramNoiser(dp_params, uncorrupted_party_count,
-                              LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN);
+  auto noiser = GetBlindHistogramNoiser(dp_params, uncorrupted_party_count,
+                                        NoiseMechanism::DISCRETE_GAUSSIAN);
   const auto& options = noiser->options();
 
   EXPECT_EQ(options.contributor_count, uncorrupted_party_count);
@@ -65,7 +66,7 @@ TEST(GetPublisherNoiser, GeometricOptionsExampleResultShouldBeCorrect) {
 
   auto noiser =
       GetPublisherNoiser(test_params, publisher_count, uncorrupted_party_count,
-                         LiquidLegionsV2NoiseConfig::GEOMETRIC);
+                         NoiseMechanism::GEOMETRIC);
   const auto& options = noiser->options();
 
   EXPECT_EQ(options.contributor_count, uncorrupted_party_count);
@@ -82,7 +83,7 @@ TEST(GetPublisherNoiser, GaussianOptionsExampleResultShouldBeCorrect) {
 
   auto noiser =
       GetPublisherNoiser(test_params, publisher_count, uncorrupted_party_count,
-                         LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN);
+                         NoiseMechanism::DISCRETE_GAUSSIAN);
   const auto& options = noiser->options();
 
   EXPECT_EQ(options.contributor_count, uncorrupted_party_count);
@@ -97,7 +98,7 @@ TEST(GetGlobalReachDpNoiser, GeometricOptionsExampleResultShouldBeCorrect) {
   int uncorrupted_party_count = 2;
 
   auto noiser = GetGlobalReachDpNoiser(test_params, uncorrupted_party_count,
-                                       LiquidLegionsV2NoiseConfig::GEOMETRIC);
+                                       NoiseMechanism::GEOMETRIC);
   const auto& options = noiser->options();
 
   EXPECT_EQ(options.contributor_count, uncorrupted_party_count);
@@ -111,9 +112,8 @@ TEST(GetGlobalReachDpNoiser, GaussianOptionsExampleResultShouldBeCorrect) {
   test_params.set_delta(0.2 / 100000);
   int uncorrupted_party_count = 2;
 
-  auto noiser =
-      GetGlobalReachDpNoiser(test_params, uncorrupted_party_count,
-                             LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN);
+  auto noiser = GetGlobalReachDpNoiser(test_params, uncorrupted_party_count,
+                                       NoiseMechanism::DISCRETE_GAUSSIAN);
   const auto& options = noiser->options();
 
   EXPECT_EQ(options.contributor_count, uncorrupted_party_count);
@@ -128,7 +128,7 @@ TEST(GetFrequencyNoiser, GeometricOptionsExampleResultShouldBeCorrect) {
   int uncorrupted_party_count = 2;
 
   auto noiser = GetFrequencyNoiser(test_params, uncorrupted_party_count,
-                                   LiquidLegionsV2NoiseConfig::GEOMETRIC);
+                                   NoiseMechanism::GEOMETRIC);
   const auto& options = noiser->options();
 
   EXPECT_EQ(options.contributor_count, uncorrupted_party_count);
@@ -142,9 +142,8 @@ TEST(GetFrequencyNoiser, GaussianOptionsExampleResultShouldBeCorrect) {
   test_params.set_delta(0.2 / 100000);
   int uncorrupted_party_count = 3;
 
-  auto noiser =
-      GetFrequencyNoiser(test_params, uncorrupted_party_count,
-                         LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN);
+  auto noiser = GetFrequencyNoiser(test_params, uncorrupted_party_count,
+                                   NoiseMechanism::DISCRETE_GAUSSIAN);
   const auto& options = noiser->options();
 
   EXPECT_EQ(options.contributor_count, uncorrupted_party_count);
