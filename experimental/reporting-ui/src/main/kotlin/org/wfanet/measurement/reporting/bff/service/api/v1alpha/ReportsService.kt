@@ -38,7 +38,8 @@ class ReportsService(private val haloReportsStub: HaloReportsGrpcKt.ReportsCorou
     // Will hold off on internally looping the request until it becomes an issue (eg. no reports
     // returned)
     if (request.pageSize != 0 || request.pageToken.isNotEmpty()) {
-      Status.UNIMPLEMENTED.withDescription("PageSize and PageToken not implemented yet").asRuntimeException()
+      Status.UNIMPLEMENTED.withDescription("PageSize and PageToken not implemented yet")
+        .asRuntimeException()
     }
 
     val haloRequest = listReportsRequest {
