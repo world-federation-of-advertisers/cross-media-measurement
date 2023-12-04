@@ -47,18 +47,24 @@ message MetricSpec {
     google.protobuf.Duration maximum_watch_duration_per_user = 2;
   }
 
+  message PopulationCountParams {
+    DifferentialPrivacyParams privacy_params = 1;
+    int32 population_count = 2;
+  }
+
   oneof type {
     ReachParams reach = 1;
     ReachAndFrequencyParams reach_and_frequency = 2;
     ImpressionCountParams impression_count = 3;
     WatchDurationParams watch_duration = 4;
+    PopulationCountParams population_count = 5;
   }
 
   message VidSamplingInterval {
     float start = 1;
     float width = 2;
   }
-  VidSamplingInterval vid_sampling_interval = 5;
+  VidSamplingInterval vid_sampling_interval = 6;
 }
 
 // Proto representation of the internal Metric entity type.

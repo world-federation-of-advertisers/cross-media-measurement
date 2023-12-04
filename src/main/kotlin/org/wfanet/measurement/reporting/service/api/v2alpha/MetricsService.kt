@@ -173,7 +173,11 @@ import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.HistogramResultKt
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.HistogramResultKt.binResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.histogramResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.impressionCountResult
+<<<<<<< Updated upstream
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.reachAndFrequencyResult
+=======
+import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.populationCountResult
+>>>>>>> Stashed changes
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.reachResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.watchDurationResult
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineImplBase
@@ -484,6 +488,9 @@ class MetricsService(
           }
           InternalMetricSpec.TypeCase.WATCH_DURATION -> {
             duration = metricSpec.watchDuration.toDuration()
+          }
+          InternalMetricSpec.TypeCase.POPULATION_COUNT -> {
+            population = metricSpec.populationCount.toPopulation()
           }
           InternalMetricSpec.TypeCase.TYPE_NOT_SET ->
             failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
@@ -1601,6 +1608,12 @@ private fun buildMetricResult(metric: InternalMetric, variances: Variances): Met
             metric.metricSpec,
             variances
           )
+      }
+      InternalMetricSpec.TypeCase.POPULATION_COUNT -> {
+        // TODO: jojijac0b to add population calculation logic
+        populationCount = populationCountResult {
+          value = 0.0
+        }
       }
       InternalMetricSpec.TypeCase.TYPE_NOT_SET -> {
         failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {

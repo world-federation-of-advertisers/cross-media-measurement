@@ -469,6 +469,26 @@ class MetricReader(private val readContext: ReadContext) {
                       checkNotNull(maximumWatchDurationPerUser).duration.toProtoDuration()
                   }
               }
+              MetricSpec.TypeCase.POPULATION_COUNT -> {
+                populationCount = MetricSpecKt.populationCountParams {
+                  privacyParams =
+                    MetricSpecKt.differentialPrivacyParams {
+                      epsilon = differentialPrivacyEpsilon
+                      delta = differentialPrivacyDelta
+                    }
+                  this.populationCount = populationCount
+                }
+                watchDuration =
+                  MetricSpecKt.watchDurationParams {
+                    privacyParams =
+                      MetricSpecKt.differentialPrivacyParams {
+                        epsilon = differentialPrivacyEpsilon
+                        delta = differentialPrivacyDelta
+                      }
+                    this.maximumWatchDurationPerUser =
+                      checkNotNull(maximumWatchDurationPerUser).duration.toProtoDuration()
+                  }
+              }
               MetricSpec.TypeCase.TYPE_NOT_SET -> throw IllegalStateException()
             }
             this.vidSamplingInterval = vidSamplingInterval

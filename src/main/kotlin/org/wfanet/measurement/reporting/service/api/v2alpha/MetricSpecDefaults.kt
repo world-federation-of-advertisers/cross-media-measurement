@@ -48,6 +48,10 @@ fun MetricSpec.withDefaults(metricSpecConfig: MetricSpecConfig): MetricSpec {
           watchDuration = watchDuration.withDefaults(metricSpecConfig)
           metricSpecConfig.watchDurationVidSamplingInterval
         }
+        MetricSpec.TypeCase.POPULATION_COUNT -> {
+          populationCount = populationCount.withDefaults(metricSpecConfig)
+          metricSpecConfig.populationCountVidSamplingInterval
+        }
         MetricSpec.TypeCase.TYPE_NOT_SET ->
           throw MetricSpecDefaultsException(
             "Invalid metric spec type",
@@ -202,6 +206,32 @@ private fun MetricSpec.ImpressionCountParams.withDefaults(
       } else {
         metricSpecConfig.impressionCountParams.maximumFrequencyPerUser
       }
+  }
+}
+
+/**
+ * Specifies default values using [MetricSpecConfig] when optional fields in the
+ * [MetricSpec.PopulationCountParams] are not set.
+ */
+private fun MetricSpec.PopulationCountParams.withDefaults(
+  metricSpecConfig: MetricSpecConfig
+): MetricSpec.PopulationCountParams {
+  if (!hasPrivacyParams()) {
+    throw MetricSpecDefaultsException(
+      "Invalid privacy params",
+      IllegalArgumentException("privacyParams in watch duration is not set.")
+    )
+  }
+
+  return copy {
+    privacyParams =
+      privacyParams.withDefaults(
+        metricSpecConfig.watchDurationParams.privacyParams.epsilon,
+        metricSpecConfig.watchDurationParams.privacyParams.delta
+      )
+    if (populationCount == 0L) {
+      populationCount = metricSpecConfig.populationCountParams.populationCount
+    }
   }
 }
 
