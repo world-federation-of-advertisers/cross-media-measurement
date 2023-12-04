@@ -39,7 +39,7 @@ message CompleteShufflePhaseRequest {
 
   // The order of the non-aggregator worker.
   enum NonAggregatorOrder {
-    NON_AGGREGATOR_ORDER_NOT_SPECIFIED = 0;
+    NON_AGGREGATOR_ORDER_UNSPECIFIED = 0;
 
     // The first worker appends its own noise share then the peer's noise share.
     FIRST = 1;
