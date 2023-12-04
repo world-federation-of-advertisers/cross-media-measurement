@@ -14,16 +14,17 @@
 
 package org.wfanet.measurement.reporting.bff.service.api.v1alpha
 
+import io.grpc.Status
 import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.reporting.bff.v1alpha.GetReportRequest
-import org.wfanet.measurement.reporting.bff.v1alpha.ListReportsRequest
-import org.wfanet.measurement.reporting.bff.v1alpha.ListReportsResponse
+import org.wfanet.measurement.reporting.bff.v1alpha.ListReportListItemsRequest
+import org.wfanet.measurement.reporting.bff.v1alpha.ListReportListItemsResponse
 import org.wfanet.measurement.reporting.bff.v1alpha.Report
 import org.wfanet.measurement.reporting.bff.v1alpha.ReportListItem
 import org.wfanet.measurement.reporting.bff.v1alpha.ReportsGrpcKt
-import org.wfanet.measurement.reporting.bff.v1alpha.listReportsResponse
+import org.wfanet.measurement.reporting.bff.v1alpha.listReportListItemsResponse
 import org.wfanet.measurement.reporting.bff.v1alpha.report
 import org.wfanet.measurement.reporting.bff.v1alpha.reportListItem
 import org.wfanet.measurement.reporting.v2alpha.Report as HaloReport
@@ -33,7 +34,7 @@ import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
 
 class ReportsService(private val haloReportsStub: HaloReportsGrpcKt.ReportsCoroutineStub) :
   ReportsGrpcKt.ReportsCoroutineImplBase() {
-  override suspend fun listReports(request: ListReportsRequest): ListReportsResponse {
+  override suspend fun listReportListItems(request: ListReportListItemsRequest): ListReportListItemsResponse {
     // TODO(@bdomen-ggl): Still working on UX for pagination, so holding off for now.
     // Will hold off on internally looping the request until it becomes an issue (eg. no reports
     // returned)
@@ -53,7 +54,7 @@ class ReportsService(private val haloReportsStub: HaloReportsGrpcKt.ReportsCorou
       logger.warning { "Additional ListReport items. Not Loopping through additional pages." }
     }
 
-    val results = listReportsResponse {
+    val results = listReportListItemsResponse {
       resp.reportsList
         .filter { it.tags.containsKey("ui.halo-cmm.org") }
         .forEach {

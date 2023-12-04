@@ -40,9 +40,9 @@ service Reports {
   }
 
   // Lists `Report`s.
-  rpc ListReports(ListReportsRequest) returns (ListReportsResponse) {
+  rpc ListReportListItems(ListReportListItemsRequest) returns (ListReportListItemsResponse) {
     option (google.api.http) = {
-      get: "/v1alpha/{parent=measurementConsumers/*}/reports"
+      get: "/v1alpha/{parent=measurementConsumers/*}/reportListItems"
     };
     option (google.api.method_signature) = "parent";
   }
@@ -61,7 +61,7 @@ message GetReportRequest {
 }
 
 // Request message for `ListReports` method.
-message ListReportsRequest {
+message ListReportListItemsRequest {
   // Format: measurementConsumers/{measurement_consumer}
   string parent = 1 [
     (google.api.field_behavior) = REQUIRED,
@@ -85,7 +85,7 @@ message ListReportsRequest {
 }
 
 // Response message for `ListReports` method.
-message ListReportsResponse {
+message ListReportListItemsResponse {
   // The reports from the specified measurement consumer.
   repeated ReportListItem reports = 1;
 
