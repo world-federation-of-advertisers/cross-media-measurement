@@ -34,7 +34,9 @@ import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
 
 class ReportsService(private val haloReportsStub: HaloReportsGrpcKt.ReportsCoroutineStub) :
   ReportsGrpcKt.ReportsCoroutineImplBase() {
-  override suspend fun listReportListItems(request: ListReportListItemsRequest): ListReportListItemsResponse {
+  override suspend fun listReportListItems(
+    request: ListReportListItemsRequest
+  ): ListReportListItemsResponse {
     // TODO(@bdomen-ggl): Still working on UX for pagination, so holding off for now.
     // Will hold off on internally looping the request until it becomes an issue (eg. no reports
     // returned)
