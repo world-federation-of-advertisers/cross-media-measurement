@@ -39,8 +39,7 @@ service Reports {
   }
 
   // Lists `Report`s.
-  rpc ListReports(ListReportsRequest)
-      returns (ListReportsResponse) {
+  rpc ListReports(ListReportsRequest) returns (ListReportsResponse) {
     option (google.api.http) = {
       get: "/v1alpha/{parent=measurementConsumers/*}/reports"
     };

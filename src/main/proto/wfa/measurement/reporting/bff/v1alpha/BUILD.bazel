@@ -82,16 +82,9 @@ go_grpc_gateway_proto_library(
 )
 
 go_grpc_gateway_proto_library(
-    name = "list_report_detail_go_proto",
-    importpath = GO_IMPORT_PATH,
-    protos = [":list_report_detail_proto"],
-)
-
-go_grpc_gateway_proto_library(
     name = "reports_service_go_proto",
     embed = [
         ":report_go_proto",
-        ":list_report_detail_go_proto",
     ],
     importpath = GO_IMPORT_PATH,
     protos = [":reports_service_proto"],

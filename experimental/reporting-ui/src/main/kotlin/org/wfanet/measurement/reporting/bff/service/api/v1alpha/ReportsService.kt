@@ -22,8 +22,8 @@ import org.wfanet.measurement.reporting.bff.v1alpha.GetReportRequest
 import org.wfanet.measurement.reporting.bff.v1alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.bff.v1alpha.ListReportsResponse
 import org.wfanet.measurement.reporting.bff.v1alpha.Report
-import org.wfanet.measurement.reporting.bff.v1alpha.ReportsGrpcKt
 import org.wfanet.measurement.reporting.bff.v1alpha.ReportView
+import org.wfanet.measurement.reporting.bff.v1alpha.ReportsGrpcKt
 import org.wfanet.measurement.reporting.bff.v1alpha.listReportsResponse
 import org.wfanet.measurement.reporting.bff.v1alpha.report
 import org.wfanet.measurement.reporting.v2alpha.Report as HaloReport
@@ -33,9 +33,7 @@ import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
 
 class ReportsService(private val haloReportsStub: HaloReportsGrpcKt.ReportsCoroutineStub) :
   ReportsGrpcKt.ReportsCoroutineImplBase() {
-  override suspend fun listReports(
-    request: ListReportsRequest
-  ): ListReportsResponse {
+  override suspend fun listReports(request: ListReportsRequest): ListReportsResponse {
     // TODO(@bdomen-ggl): Still working on UX for pagination, so holding off for now.
     // Will hold off on internally looping the request until it becomes an issue (eg. no reports
     // returned)
@@ -55,13 +53,13 @@ class ReportsService(private val haloReportsStub: HaloReportsGrpcKt.ReportsCorou
       logger.warning { "Additional ListReport items. Not Loopping through additional pages." }
     }
 
-    val view = if(request.view == ReportView.REPORT_VIEW_UNSPECIFIED) ReportView.REPORT_VIEW_BASIC else request.view
+    val view =
+      if (request.view == ReportView.REPORT_VIEW_UNSPECIFIED) ReportView.REPORT_VIEW_BASIC
+      else request.view
     val results = listReportsResponse {
       resp.reportsList
         .filter { it.tags.containsKey("ui.halo-cmm.org") }
-        .forEach {
-          reports += convertHaloReportToReport(it, view)
-        }
+        .forEach { reports += convertHaloReportToReport(it, view) }
     }
     return results
   }
@@ -71,7 +69,9 @@ class ReportsService(private val haloReportsStub: HaloReportsGrpcKt.ReportsCorou
 
     val resp = runBlocking(Dispatchers.IO) { haloReportsStub.getReport(haloRequest) }
 
-    val view = if(request.view == ReportView.REPORT_VIEW_UNSPECIFIED) ReportView.REPORT_VIEW_FULL else request.view
+    val view =
+      if (request.view == ReportView.REPORT_VIEW_UNSPECIFIED) ReportView.REPORT_VIEW_FULL
+      else request.view
     val result = convertHaloReportToReport(resp, view)
     return result
   }
@@ -80,8 +80,10 @@ class ReportsService(private val haloReportsStub: HaloReportsGrpcKt.ReportsCorou
     when (view) {
       ReportView.REPORT_VIEW_BASIC -> convertHaloReportToBasicReport(haloReport)
       ReportView.REPORT_VIEW_FULL -> convertHaloReportToFullReport(haloReport)
-      else -> throw Status.INVALID_ARGUMENT.withDescription("View type must be specified").asRuntimeException()
-    }
+      else ->
+        throw Status.INVALID_ARGUMENT.withDescription("View type must be specified")
+          .asRuntimeException()
+  }
 
   private fun convertHaloReportToBasicReport(haloReport: HaloReport): Report {
     return report {
@@ -94,9 +96,7 @@ class ReportsService(private val haloReportsStub: HaloReportsGrpcKt.ReportsCorou
   private fun convertHaloReportToFullReport(haloReport: HaloReport): Report {
     // TODO(@bdomen-ggl): Currently stubbed, working to do proper translations in follow up PR
     //   after the proto definitions for the BFF have been updated.
-    return report {
-      name = haloReport.name
-    }
+    return report { name = haloReport.name }
   }
 
   private fun convertHaloStateToBffState(haloReportState: HaloReport.State): Report.State =
