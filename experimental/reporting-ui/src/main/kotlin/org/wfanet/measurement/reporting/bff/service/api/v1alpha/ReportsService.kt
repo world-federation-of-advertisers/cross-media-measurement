@@ -83,7 +83,7 @@ class ReportsService(private val haloReportsStub: HaloReportsGrpcKt.ReportsCorou
       else ->
         throw Status.INVALID_ARGUMENT.withDescription("View type must be specified")
           .asRuntimeException()
-  }
+    }
 
   private fun convertHaloReportToBasicReport(haloReport: HaloReport): Report {
     return report {
