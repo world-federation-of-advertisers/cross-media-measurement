@@ -82,10 +82,8 @@ class InProcessCmmsComponents(
     edpDisplayNameToResourceMap.entries.mapIndexed { index, (displayName, resource) ->
       val specIndex = index % syntheticEventGroupSpecs.size
       val edpContent = createEntityContent(displayName)
-      val dataProviderCertificateKey =
-        DataProviderCertificateKey.fromName(resource.dataProvider.certificate)!!
-      val validCertificates = mapOf(dataProviderCertificateKey to edpContent.signingKey)
       val certificateKey = DataProviderCertificateKey.fromName(resource.dataProvider.certificate)!!
+      val validCertificates = mapOf(certificateKey to edpContent.signingKey)
       InProcessEdpSimulator(
         displayName = displayName,
         resourceName = resource.name,

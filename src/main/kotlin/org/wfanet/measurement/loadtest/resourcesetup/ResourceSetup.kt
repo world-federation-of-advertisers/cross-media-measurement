@@ -145,21 +145,21 @@ class ResourceSetup(
 
     // Step 2: Create the EDPs.
     dataProviderContents.forEach {
-      val internalDataProvider = createInternalDataProvider(it)
-      val externalDataProviderId = externalIdToApiId(internalDataProvider.externalDataProviderId)
-      val externalDataProviderResourceName = DataProviderKey(externalDataProviderId).toName()
-      val externalCertificateId =
+      val internalDataProvider: InternalDataProvider = createInternalDataProvider(it)
+      val dataProviderId: String = externalIdToApiId(internalDataProvider.externalDataProviderId)
+      val dataProviderResourceName: String = DataProviderKey(dataProviderId).toName()
+      val certificateId: String =
         externalIdToApiId(internalDataProvider.certificate.externalCertificateId)
-      val externalDataProviderCertificateKeyName =
-        DataProviderCertificateKey(externalDataProviderId, externalCertificateId).toName()
-      logger.info("Successfully created internal data provider: $externalDataProviderResourceName")
+      val dataProviderCertificateKeyName: String =
+        DataProviderCertificateKey(dataProviderId, certificateId).toName()
+      logger.info("Successfully created internal data provider: $dataProviderResourceName")
       resources.add(
         resource {
-          name = externalDataProviderResourceName
+          name = dataProviderResourceName 
           dataProvider =
             ResourcesKt.ResourceKt.dataProvider {
               displayName = it.displayName
-              certificate = externalDataProviderCertificateKeyName
+              certificate = dataProviderCertificateKeyName
               // Assume signing cert uses same issuer as TLS client cert.
               authorityKeyIdentifier =
                 checkNotNull(it.signingKey.certificate.authorityKeyIdentifier)

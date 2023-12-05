@@ -103,9 +103,8 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
     edpDisplayName = ALL_EDP_DISPLAY_NAMES[0]
     val internalDataProvider =
       resourceSetup.createInternalDataProvider(createEntityContent(edpDisplayName))
-    val externalDataProviderId = externalIdToApiId(internalDataProvider.externalDataProviderId)
-    val externalDataProviderResourceName = DataProviderKey(externalDataProviderId).toName()
-    edpResourceName = externalDataProviderResourceName
+    val dataProviderId = externalIdToApiId(internalDataProvider.externalDataProviderId)
+    edpResourceName = DataProviderKey(dataProviderId).toName()
   }
 
   @Test
