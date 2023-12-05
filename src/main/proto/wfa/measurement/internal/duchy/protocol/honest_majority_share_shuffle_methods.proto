@@ -1,0 +1,100 @@
+// Copyright 2023 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.duchy.protocol;
+
+import "wfa/measurement/internal/duchy/differential_privacy.proto";
+import "wfa/measurement/internal/duchy/noise_mechanism.proto";
+import "wfa/measurement/internal/duchy/protocol/share_shuffle_sketch_params.proto";
+
+option java_package = "org.wfanet.measurement.internal.duchy.protocol";
+option java_multiple_files = true;
+
+// Proto messages wrapping the input arguments or output results of the honest
+// majority share shuffle protocol methods, which are to be
+// called via kotlin or JNI in the Mill.
+
+// Request to complete shuffle phase by a non-aggregator.
+message CompleteShufflePhaseRequest {
+  // The sketch params for the Computation.
+  ShareShuffleSketchParams sketch_params = 1;
+
+  // Random seed from the worker itself.
+  bytes own_common_random_seeds = 2;
+  // Random seed from the peer worker.
+  bytes peer_common_random_seeds = 3;
+
+  // The order of the non-aggregator worker.
+  enum NonAggregatorOrder {
+    NON_AGGREGATOR_ORDER_UNSPECIFIED = 0;
+
+    // The first worker appends its own noise share then the peer's noise share.
+    FIRST = 1;
+    // The second worker appends the peer's noise share then its own noise
+    // share.
+    SECOND = 2;
+  }
+  NonAggregatorOrder order = 4;
+
+  DifferentialPrivacyParams dp_params = 5;
+  // Noise mechanism used for generating noise.
+  NoiseMechanism noise_mechanism = 6;
+
+  // Sketch shares from EDPs in format of either data or seed.
+  //
+  // Sorted by ExternalRequisitionId so that non-aggregators follow the same
+  // order.
+  message SketchShare {
+    oneof share_type {
+      bytes data = 1;
+      bytes seed = 2;
+    }
+  }
+  // Sketch shares ordered by the external key.
+  repeated SketchShare sketch_shares = 9;
+}
+
+// For non-aggregator.
+// The content will be sent to the aggregator.
+message CompleteShufflePhaseResponse {
+  // Combination of sketches. It is combined, noisy, and shuffled.
+  bytes combined_sketch = 1;
+}
+
+// For aggregators.
+message CompleteAggregationPhaseRequest {
+  // The sketch params for the Computation.
+  ShareShuffleSketchParams sketch_params = 1;
+  // The maximum frequency to reveal in the histogram.
+  int32 max_frequency = 2;
+
+  // Combined sketches from non-aggregators.
+  repeated bytes combined_sketches = 3;
+
+  // Differential privacy parameters used to calculate the offset of noise.
+  DifferentialPrivacyParams dp_params = 4;
+  // Noise mechanism used to calculate the offset of noise.
+  NoiseMechanism noise_mechanism = 5;
+}
+
+// For aggregators.
+// The content will be sent to the kingdom.
+message CompleteAggregationPhaseResponse {
+  // Estimated reach.
+  int64 reach = 1;
+  // Normalized histogram of frequency.
+  map<int64, double> frequency_distribution = 2;
+}
