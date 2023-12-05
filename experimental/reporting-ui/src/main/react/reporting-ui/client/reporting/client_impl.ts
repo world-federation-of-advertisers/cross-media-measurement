@@ -31,7 +31,7 @@ export class ReportingClientImpl {
   }
 
   async listReports(): Promise<ListReportsResponse> {
-    const res = await fetch(this.baseUrl.toString() + '/api/reportListItems');
+    const res = await fetch(this.baseUrl.toString() + '/api/reports');
     const reports = await res.json();
     const response = Object.freeze({
       reports,
