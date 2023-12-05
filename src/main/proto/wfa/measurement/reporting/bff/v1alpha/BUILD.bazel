@@ -49,24 +49,10 @@ proto_library(
 )
 
 proto_library(
-    name = "report_list_item_proto",
-    srcs = [
-        "report_list_item.proto",
-    ],
-    strip_import_prefix = IMPORT_PREFIX,
-    deps = [
-        "@com_google_googleapis//google/api:field_behavior_proto",
-        "@com_google_googleapis//google/api:resource_proto",
-        "@com_google_protobuf//:timestamp_proto",
-    ],
-)
-
-proto_library(
     name = "reports_service_proto",
     srcs = ["reports_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":report_list_item_proto",
         ":report_proto",
         "@com_google_googleapis//google/api:annotations_proto",
         "@com_google_googleapis//google/api:client_proto",
@@ -96,16 +82,16 @@ go_grpc_gateway_proto_library(
 )
 
 go_grpc_gateway_proto_library(
-    name = "report_list_item_go_proto",
+    name = "list_report_detail_go_proto",
     importpath = GO_IMPORT_PATH,
-    protos = [":report_list_item_proto"],
+    protos = [":list_report_detail_proto"],
 )
 
 go_grpc_gateway_proto_library(
     name = "reports_service_go_proto",
     embed = [
         ":report_go_proto",
-        ":report_list_item_go_proto",
+        ":list_report_detail_go_proto",
     ],
     importpath = GO_IMPORT_PATH,
     protos = [":reports_service_proto"],

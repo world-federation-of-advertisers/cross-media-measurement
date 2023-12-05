@@ -19,14 +19,13 @@ import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.reporting.bff.v1alpha.GetReportRequest
-import org.wfanet.measurement.reporting.bff.v1alpha.ListReportListItemsRequest
-import org.wfanet.measurement.reporting.bff.v1alpha.ListReportListItemsResponse
+import org.wfanet.measurement.reporting.bff.v1alpha.ListReportsRequest
+import org.wfanet.measurement.reporting.bff.v1alpha.ListReportsResponse
 import org.wfanet.measurement.reporting.bff.v1alpha.Report
-import org.wfanet.measurement.reporting.bff.v1alpha.ReportListItem
 import org.wfanet.measurement.reporting.bff.v1alpha.ReportsGrpcKt
-import org.wfanet.measurement.reporting.bff.v1alpha.listReportListItemsResponse
+import org.wfanet.measurement.reporting.bff.v1alpha.ReportView
+import org.wfanet.measurement.reporting.bff.v1alpha.listReportsResponse
 import org.wfanet.measurement.reporting.bff.v1alpha.report
-import org.wfanet.measurement.reporting.bff.v1alpha.reportListItem
 import org.wfanet.measurement.reporting.v2alpha.Report as HaloReport
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt as HaloReportsGrpcKt
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
@@ -34,14 +33,14 @@ import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
 
 class ReportsService(private val haloReportsStub: HaloReportsGrpcKt.ReportsCoroutineStub) :
   ReportsGrpcKt.ReportsCoroutineImplBase() {
-  override suspend fun listReportListItems(
-    request: ListReportListItemsRequest
-  ): ListReportListItemsResponse {
+  override suspend fun listReports(
+    request: ListReportsRequest
+  ): ListReportsResponse {
     // TODO(@bdomen-ggl): Still working on UX for pagination, so holding off for now.
     // Will hold off on internally looping the request until it becomes an issue (eg. no reports
     // returned)
     if (request.pageSize != 0 || request.pageToken.isNotEmpty()) {
-      Status.UNIMPLEMENTED.withDescription("PageSize and PageToken not implemented yet")
+      throw Status.UNIMPLEMENTED.withDescription("PageSize and PageToken not implemented yet")
         .asRuntimeException()
     }
 
@@ -56,16 +55,12 @@ class ReportsService(private val haloReportsStub: HaloReportsGrpcKt.ReportsCorou
       logger.warning { "Additional ListReport items. Not Loopping through additional pages." }
     }
 
-    val results = listReportListItemsResponse {
+    val view = if(request.view == ReportView.REPORT_VIEW_UNSPECIFIED) ReportView.REPORT_VIEW_BASIC else request.view
+    val results = listReportsResponse {
       resp.reportsList
         .filter { it.tags.containsKey("ui.halo-cmm.org") }
         .forEach {
-          val r = reportListItem {
-            id = it.name
-            name = it.name
-            state = convertHaloStateToBffState(it.state)
-          }
-          reports += r
+          reports += convertHaloReportToReport(it, view)
         }
     }
     return results
@@ -73,21 +68,44 @@ class ReportsService(private val haloReportsStub: HaloReportsGrpcKt.ReportsCorou
 
   override suspend fun getReport(request: GetReportRequest): Report {
     val haloRequest = getReportRequest { name = request.name }
-    val resp = haloReportsStub.getReport(haloRequest)
 
-    // TODO(@bdomen-ggl): Currently stubbed, working to do proper translations in follow up PR
-    //   after the proto definitions for the BFF have been updated.
-    val result = report { name = resp.name }
+    val resp = runBlocking(Dispatchers.IO) { haloReportsStub.getReport(haloRequest) }
+
+    val view = if(request.view == ReportView.REPORT_VIEW_UNSPECIFIED) ReportView.REPORT_VIEW_FULL else request.view
+    val result = convertHaloReportToReport(resp, view)
     return result
   }
 
-  private fun convertHaloStateToBffState(haloReportState: HaloReport.State): ReportListItem.State =
+  private fun convertHaloReportToReport(haloReport: HaloReport, view: ReportView): Report =
+    when (view) {
+      ReportView.REPORT_VIEW_BASIC -> convertHaloReportToBasicReport(haloReport)
+      ReportView.REPORT_VIEW_FULL -> convertHaloReportToFullReport(haloReport)
+      else -> throw Status.INVALID_ARGUMENT.withDescription("View type must be specified").asRuntimeException()
+    }
+
+  private fun convertHaloReportToBasicReport(haloReport: HaloReport): Report {
+    return report {
+      id = haloReport.name
+      name = haloReport.name
+      state = convertHaloStateToBffState(haloReport.state)
+    }
+  }
+
+  private fun convertHaloReportToFullReport(haloReport: HaloReport): Report {
+    // TODO(@bdomen-ggl): Currently stubbed, working to do proper translations in follow up PR
+    //   after the proto definitions for the BFF have been updated.
+    return report {
+      name = haloReport.name
+    }
+  }
+
+  private fun convertHaloStateToBffState(haloReportState: HaloReport.State): Report.State =
     when (haloReportState) {
-      HaloReport.State.STATE_UNSPECIFIED -> ReportListItem.State.STATE_UNSPECIFIED
-      HaloReport.State.RUNNING -> ReportListItem.State.RUNNING
-      HaloReport.State.SUCCEEDED -> ReportListItem.State.SUCCEEDED
-      HaloReport.State.FAILED -> ReportListItem.State.FAILED
-      else -> ReportListItem.State.STATE_UNSPECIFIED
+      HaloReport.State.STATE_UNSPECIFIED -> Report.State.STATE_UNSPECIFIED
+      HaloReport.State.RUNNING -> Report.State.RUNNING
+      HaloReport.State.SUCCEEDED -> Report.State.SUCCEEDED
+      HaloReport.State.FAILED -> Report.State.FAILED
+      else -> Report.State.STATE_UNSPECIFIED
     }
 
   companion object {
