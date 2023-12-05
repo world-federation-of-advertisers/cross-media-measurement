@@ -158,3 +158,69 @@ kt_jvm_proto_library(
     srcs = [":reach_only_liquid_legions_v2_proto"],
     deps = [":reach_only_liquid_legions_v2_java_proto"],
 )
+
+proto_library(
+    name = "share_shuffle_sketch_params_proto",
+    srcs = ["share_shuffle_sketch_params.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+java_proto_library(
+    name = "share_shuffle_sketch_params_java_proto",
+    deps = [":share_shuffle_sketch_params_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "share_shuffle_sketch_params_kt_jvm_proto",
+    srcs = [":share_shuffle_sketch_params_proto"],
+    deps = [":share_shuffle_sketch_params_java_proto"],
+)
+
+proto_library(
+    name = "honest_majority_share_shuffle_proto",
+    srcs = ["honest_majority_share_shuffle.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":share_shuffle_sketch_params_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/config:protocols_setup_config_proto",
+    ],
+)
+
+java_proto_library(
+    name = "honest_majority_share_shuffle_java_proto",
+    deps = [":honest_majority_share_shuffle_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "honest_majority_share_shuffle_kt_jvm_proto",
+    srcs = [":honest_majority_share_shuffle_proto"],
+    deps = [":honest_majority_share_shuffle_java_proto"],
+)
+
+proto_library(
+    name = "honest_majority_share_shuffle_methods_proto",
+    srcs = ["honest_majority_share_shuffle_methods.proto"],
+    strip_import_prefix = "/src/main/proto",
+    deps = [
+        ":share_shuffle_sketch_params_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "honest_majority_share_shuffle_methods_cc_proto",
+    deps = [":honest_majority_share_shuffle_methods_proto"],
+)
+
+java_proto_library(
+    name = "honest_majority_share_shuffle_methods_java_proto",
+    deps = [":honest_majority_share_shuffle_methods_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "honest_majority_share_shuffle_methods_kt_jvm_proto",
+    srcs = [":honest_majority_share_shuffle_methods_proto"],
+    deps = [":honest_majority_share_shuffle_methods_java_proto"],
+)
