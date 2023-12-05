@@ -173,11 +173,8 @@ import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.HistogramResultKt
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.HistogramResultKt.binResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.histogramResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.impressionCountResult
-<<<<<<< Updated upstream
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.reachAndFrequencyResult
-=======
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.populationCountResult
->>>>>>> Stashed changes
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.reachResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.watchDurationResult
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineImplBase
