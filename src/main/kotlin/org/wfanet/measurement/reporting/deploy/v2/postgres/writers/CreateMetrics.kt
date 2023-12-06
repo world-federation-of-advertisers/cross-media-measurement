@@ -245,6 +245,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                     "$14",
                     PostgresInterval.of(watchDuration.maximumWatchDurationPerUser.toDuration())
                   )
+                  bind<Long?>("$20", null)
                 }
                 MetricSpec.TypeCase.POPULATION_COUNT -> {}
                 MetricSpec.TypeCase.TYPE_NOT_SET -> {}

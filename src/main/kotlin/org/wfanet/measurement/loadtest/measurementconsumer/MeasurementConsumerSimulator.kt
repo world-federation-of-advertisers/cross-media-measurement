@@ -563,9 +563,6 @@ class MeasurementConsumerSimulator(
       ProtocolConfig.Protocol.ProtocolCase.PROTOCOL_NOT_SET -> {
         error("Protocol is not set")
       }
-      else -> {
-        error("Invalid")
-      }
     }
   }
 

@@ -109,7 +109,6 @@ message MetricSpec {
     // The watch duration given a set of event groups.
     WatchDurationParams watch_duration = 4
         [(google.api.field_behavior) = IMMUTABLE];
-    // The population given a set of event groups.
   }
 
   // Specifies a range of VIDs to be sampled.
@@ -227,9 +226,8 @@ message MetricResult {
     double value = 1;
     // Univariate statistics of the population value above.
     //
-    // Only set when all of the set operations for the result are unions and all
-    // source Measurements contain sufficient information to calculate
-    // univariate statistics.
+    // Only available if the Population Data Provider provides the population
+    // variance.
     UnivariateStatistics univariate_statistics = 2;
   }
 
