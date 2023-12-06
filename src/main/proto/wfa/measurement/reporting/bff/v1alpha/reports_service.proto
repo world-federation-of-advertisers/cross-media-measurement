@@ -51,7 +51,7 @@ enum ReportView {
   // The default / unset value.
   REPORT_VIEW_UNSPECIFIED = 0;
 
-  // Include basic metadata about the book, but not the full contents.
+  // Include basic metadata about the report, but not the full contents.
   REPORT_VIEW_BASIC = 1;
 
   // Include everything.
@@ -60,29 +60,31 @@ enum ReportView {
 
 // Request message for `GetReport` method.
 message GetReportRequest {
-  ReportView view = 1;
-
   // The name of the report to retrieve.
   // Format: measurementConsumers/{measurement_consumer}/reports/{report}
-  string name = 2 [
+  string name = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
       type: "ui.reporting.halo-cmm.org/Report"
     }
   ];
+
+  // Defaults to REPORT_VIEW_FULL
+  ReportView view = 2;
 }
 
 // Request message for `ListReports` method.
 message ListReportsRequest {
-  ReportView view = 1;
-
   // Format: measurementConsumers/{measurement_consumer}
-  string parent = 2 [
+  string parent = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
       child_type: "ui.reporting.halo-cmm.org/Report"
     }
   ];
+
+  // Defaults to REPORT_VIEW_BASIC
+  ReportView view = 2;
 
   // The maximum number of reports to return. The service may return fewer than
   // this value.

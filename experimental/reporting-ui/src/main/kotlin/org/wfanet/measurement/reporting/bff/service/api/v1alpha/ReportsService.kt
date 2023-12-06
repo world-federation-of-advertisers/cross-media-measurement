@@ -78,25 +78,29 @@ class ReportsService(private val haloReportsStub: HaloReportsGrpcKt.ReportsCorou
 
   private fun convertHaloReportToReport(haloReport: HaloReport, view: ReportView): Report =
     when (view) {
-      ReportView.REPORT_VIEW_BASIC -> convertHaloReportToBasicReport(haloReport)
-      ReportView.REPORT_VIEW_FULL -> convertHaloReportToFullReport(haloReport)
+      ReportView.REPORT_VIEW_BASIC -> haloReport.toBasicReport()
+      ReportView.REPORT_VIEW_FULL -> haloReport.toFullReport()
       else ->
         throw Status.INVALID_ARGUMENT.withDescription("View type must be specified")
           .asRuntimeException()
     }
 
-  private fun convertHaloReportToBasicReport(haloReport: HaloReport): Report {
+  private fun HaloReport.toBasicReport(): Report {
+    val source = this
+
     return report {
-      id = haloReport.name
-      name = haloReport.name
-      state = convertHaloStateToBffState(haloReport.state)
+      report_id = source.name
+      name = source.name
+      state = convertHaloStateToBffState(source.state)
     }
   }
 
-  private fun convertHaloReportToFullReport(haloReport: HaloReport): Report {
+  private fun HaloReport.toFullReport(): Report {
+    val source = this
+
     // TODO(@bdomen-ggl): Currently stubbed, working to do proper translations in follow up PR
     //   after the proto definitions for the BFF have been updated.
-    return report { name = haloReport.name }
+    return report { name = source.name }
   }
 
   private fun convertHaloStateToBffState(haloReportState: HaloReport.State): Report.State =

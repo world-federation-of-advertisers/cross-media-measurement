@@ -34,9 +34,9 @@ message Report {
     pattern: "measurementConsumers/{measurement_consumer}/reports/{report}"
   };
 
-  string id = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  string name = 1;
 
-  string name = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  string report_id = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
 
   enum State {
     STATE_UNSPECIFIED = 0;
