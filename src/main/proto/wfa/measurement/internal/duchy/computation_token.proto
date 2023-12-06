@@ -89,8 +89,17 @@ message ComputationStageBlobMetadata {
 message RequisitionMetadata {
   // Lookup key using external IDs.
   ExternalRequisitionKey external_key = 1;
-  // The path to the blob if fulfilled locally. Otherwise empty.
-  string path = 2;
+
   // Detail of the requisition.
   RequisitionDetails details = 3;
+
+  // The requisition data in format of either a path to the BLOB or a seed
+  // that can be expanded into data.
+  // The requisition is fulfilled when one of them is specified.
+  oneof data {
+    // The path to the blob.
+    string path = 2;
+    // The seed that can be expanded into the a deterministic blob.
+    bytes seed = 4;
+  }
 }
