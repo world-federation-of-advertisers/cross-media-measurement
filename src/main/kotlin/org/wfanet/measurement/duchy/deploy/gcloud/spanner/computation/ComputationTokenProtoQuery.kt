@@ -65,6 +65,7 @@ class ComputationTokenProtoQuery(
                  r2.ExternalRequisitionId,
                  r2.RequisitionFingerprint,
                  IFNULL(r2.PathToBlob, "") AS PathToBlob,
+                 r2.RandomSeed AS RandomSeed,
                  r2.RequisitionDetails
                FROM Requisitions AS r2
                WHERE c.ComputationId = r2.ComputationId
@@ -98,6 +99,7 @@ class ComputationTokenProtoQuery(
                  r2.ExternalRequisitionId,
                  r2.RequisitionFingerprint,
                  IFNULL(r2.PathToBlob, "") AS PathToBlob,
+                 r2.RandomSeed AS RandomSeed,
                  r2.RequisitionDetails
                FROM Requisitions AS r2
                WHERE c.ComputationId = r2.ComputationId
@@ -159,6 +161,9 @@ class ComputationTokenProtoQuery(
             val dataPath = it.getString("PathToBlob")
             if (dataPath.isNotEmpty()) {
               path = dataPath
+            }
+            if (!it.isNull("RandomSeed")) {
+              seed = it.getBytesAsByteString("RandomSeed")
             }
             details = it.getProtoMessage("RequisitionDetails", RequisitionDetails.parser())
           }
