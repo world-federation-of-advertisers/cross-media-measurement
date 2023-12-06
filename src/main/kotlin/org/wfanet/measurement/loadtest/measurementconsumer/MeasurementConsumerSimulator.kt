@@ -560,8 +560,11 @@ class MeasurementConsumerSimulator(
           protocol.reachOnlyLiquidLegionsV2.noiseMechanism
         )
       }
+      ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+        error("Protocol is not supported.")
+      }
       ProtocolConfig.Protocol.ProtocolCase.PROTOCOL_NOT_SET -> {
-        error("Protocol is not set")
+        error("Protocol is not set.")
       }
     }
   }
