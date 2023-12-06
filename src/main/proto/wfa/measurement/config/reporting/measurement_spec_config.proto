@@ -105,11 +105,4 @@ message MeasurementSpecConfig {
     VidSamplingInterval vid_sampling_interval = 2;
   }
   Duration duration = 6;
-
-  message Population {
-    // Differential privacy parameters.
-    DifferentialPrivacyParams privacy_params = 1;
-    VidSamplingInterval vid_sampling_interval = 2;
-  }
-  Population population = 7;
 }

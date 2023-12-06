@@ -169,7 +169,6 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
           FrequencyDifferentialPrivacyDelta,
           MaximumFrequencyPerUser,
           MaximumWatchDurationPerUser,
-          Population,
           VidSamplingIntervalStart,
           VidSamplingIntervalWidth,
           CreateTime,
@@ -247,17 +246,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                     PostgresInterval.of(watchDuration.maximumWatchDurationPerUser.toDuration())
                   )
                 }
-                MetricSpec.TypeCase.POPULATION_COUNT -> {
-                  val populationCount = it.metric.metricSpec.populationCount
-                  bind("$9", populationCount.privacyParams.epsilon)
-                  bind("$10", populationCount.privacyParams.delta)
-                  bind<Double?>("$11", null)
-                  bind<Double?>("$12", null)
-                  bind<Long?>("$13", null)
-                  bind<PostgresInterval?>("$14", null)
-                  bind<Long?>("$15", populationCount.populationCount.toLong())
-                  bind<Long?>("$20", null)
-                }
+                MetricSpec.TypeCase.POPULATION_COUNT -> {}
                 MetricSpec.TypeCase.TYPE_NOT_SET -> {}
               }
               bind("$15", it.metric.metricSpec.vidSamplingInterval.start)

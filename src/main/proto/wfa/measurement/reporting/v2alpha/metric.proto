@@ -93,16 +93,6 @@ message MetricSpec {
     google.protobuf.Duration maximum_watch_duration_per_user = 2;
   }
 
-  message PopulationCountParams {
-    // Differential privacy parameters.
-    DifferentialPrivacyParams privacy_params = 1
-        [(google.api.field_behavior) = REQUIRED];
-    // Total population that will be included in this metric.
-    //
-    // Total population used to calculate this metric
-    int64 population_count = 2;
-  }
-
   // Types of metric with parameters.
   oneof type {
     // The count of unique audiences reached given a set of event groups.
@@ -120,8 +110,6 @@ message MetricSpec {
     WatchDurationParams watch_duration = 4
         [(google.api.field_behavior) = IMMUTABLE];
     // The population given a set of event groups.
-    PopulationCountParams population_count = 5
-        [(google.api.field_behavior) = IMMUTABLE];
   }
 
   // Specifies a range of VIDs to be sampled.

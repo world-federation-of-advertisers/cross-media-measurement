@@ -164,9 +164,6 @@ fun MetricSpec.toInternal(): InternalMetricSpec {
       MetricSpec.TypeCase.WATCH_DURATION -> {
         watchDuration = source.watchDuration.toInternal()
       }
-      MetricSpec.TypeCase.POPULATION_COUNT -> {
-        populationCount = source.populationCount.toInternal()
-      }
       MetricSpec.TypeCase.TYPE_NOT_SET ->
         throw MetricSpecDefaultsException(
           "Invalid metric spec type",
@@ -193,23 +190,6 @@ fun MetricSpec.WatchDurationParams.toInternal(): InternalMetricSpec.WatchDuratio
     privacyParams = source.privacyParams.toInternal()
     if (source.hasMaximumWatchDurationPerUser()) {
       maximumWatchDurationPerUser = source.maximumWatchDurationPerUser
-    }
-  }
-}
-
-/** Converts a [MetricSpec.PopulationCountParams] to an [InternalMetricSpec.PopulationCountParams]. */
-fun MetricSpec.PopulationCountParams.toInternal(): InternalMetricSpec.PopulationCountParams {
-  val source = this
-  if (!source.hasPrivacyParams()) {
-    throw MetricSpecDefaultsException(
-      "Invalid privacy params",
-      IllegalArgumentException("privacyParams in watch duration is not set.")
-    )
-  }
-  return InternalMetricSpecKt.populationCountParams {
-    privacyParams = source.privacyParams.toInternal()
-    if (populationCount > 0L) {
-      populationCount = source.populationCount.toInt()
     }
   }
 }
@@ -329,12 +309,7 @@ fun InternalMetricSpec.toMetricSpec(): MetricSpec {
             maximumWatchDurationPerUser = source.watchDuration.maximumWatchDurationPerUser
             privacyParams = source.watchDuration.privacyParams.toPrivacyParams()
           }
-      InternalMetricSpec.TypeCase.POPULATION_COUNT ->
-        populationCount =
-          MetricSpecKt.populationCountParams {
-            populationCount = source.populationCount.populationCount.toLong()
-            privacyParams = source.watchDuration.privacyParams.toPrivacyParams()
-          }
+      InternalMetricSpec.TypeCase.POPULATION_COUNT -> {}
       InternalMetricSpec.TypeCase.TYPE_NOT_SET ->
         throw IllegalArgumentException("The metric type in Metric is not specified.")
     }
@@ -401,15 +376,6 @@ fun InternalMetricSpec.WatchDurationParams.toDuration(): MeasurementSpec.Duratio
   return MeasurementSpecKt.duration {
     privacyParams = source.privacyParams.toCmmsPrivacyParams()
     maximumWatchDurationPerUser = source.maximumWatchDurationPerUser
-  }
-}
-
-/** Builds a [MeasurementSpec.ReachAndFrequency] for population. */
-fun InternalMetricSpec.PopulationCountParams.toPopulation(): MeasurementSpec.Population {
-  val source = this
-  return MeasurementSpecKt.population {
-    privacyParams = source.privacyParams.toCmmsPrivacyParams()
-    populationCount = source.populationCount
   }
 }
 

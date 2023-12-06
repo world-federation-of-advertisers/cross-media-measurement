@@ -486,9 +486,7 @@ class MetricsService(
           InternalMetricSpec.TypeCase.WATCH_DURATION -> {
             duration = metricSpec.watchDuration.toDuration()
           }
-          InternalMetricSpec.TypeCase.POPULATION_COUNT -> {
-            population = metricSpec.populationCount.toPopulation()
-          }
+          InternalMetricSpec.TypeCase.POPULATION_COUNT -> {}
           InternalMetricSpec.TypeCase.TYPE_NOT_SET ->
             failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
               "Unset metric type should've already raised error."

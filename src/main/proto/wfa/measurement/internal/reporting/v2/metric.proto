@@ -46,11 +46,7 @@ message MetricSpec {
     DifferentialPrivacyParams privacy_params = 1;
     google.protobuf.Duration maximum_watch_duration_per_user = 2;
   }
-
-  message PopulationCountParams {
-    DifferentialPrivacyParams privacy_params = 1;
-    int32 population_count = 2;
-  }
+  message PopulationCountParams {}
 
   oneof type {
     ReachParams reach = 1;
