@@ -45,8 +45,7 @@ import org.wfanet.measurement.duchy.deploy.common.postgres.writers.EnqueueComput
 import org.wfanet.measurement.duchy.deploy.common.postgres.writers.FinishComputation
 import org.wfanet.measurement.duchy.deploy.common.postgres.writers.PurgeComputations
 import org.wfanet.measurement.duchy.deploy.common.postgres.writers.RecordOutputBlobPath
-import org.wfanet.measurement.duchy.deploy.common.postgres.writers.RecordRequisitionBlobPath
-import org.wfanet.measurement.duchy.deploy.common.postgres.writers.RecordRequisitionSeed
+import org.wfanet.measurement.duchy.deploy.common.postgres.writers.RecordRequisitionData
 import org.wfanet.measurement.duchy.deploy.common.postgres.writers.UpdateComputationDetails
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
@@ -442,7 +441,7 @@ class PostgresComputationsService(
     request: RecordRequisitionBlobPathRequest,
   ): RecordRequisitionBlobPathResponse {
     val token =
-      RecordRequisitionBlobPath(
+      RecordRequisitionData(
           clock = clock,
           localId = request.token.localComputationId,
           externalRequisitionKey = request.key,
@@ -458,7 +457,7 @@ class PostgresComputationsService(
     request: RecordRequisitionSeedRequest,
   ): RecordRequisitionSeedResponse {
     val token =
-      RecordRequisitionSeed(
+      RecordRequisitionData(
           clock = clock,
           localId = request.token.localComputationId,
           externalRequisitionKey = request.key,

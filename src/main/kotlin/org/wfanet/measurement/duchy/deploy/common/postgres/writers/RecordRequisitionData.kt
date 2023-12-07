@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.duchy.deploy.common.postgres.writers
 
+import com.google.protobuf.ByteString
 import java.time.Clock
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationReader
@@ -22,25 +23,35 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
 
 /**
- * [PostgresWriter] to record the path for a new requisition blob.
+ * [PostgresWriter] to record the data for a requisition by a path to the blob or a seed.
  *
  * @param localId local identifier of the computation.
  * @param externalRequisitionKey [ExternalRequisitionKey] of the computation.
  * @param pathToBlob requisition blob path.
+ * @param seed requisition random seed.
  * @param clock See [Clock].
  *
  * Throws following exceptions on [execute]:
  * * [IllegalStateException] when arguments does not meet requirement
  */
-class RecordRequisitionBlobPath(
+class RecordRequisitionData(
   private val localId: Long,
   private val externalRequisitionKey: ExternalRequisitionKey,
-  private val pathToBlob: String,
+  private val pathToBlob: String? = null,
+  private val seed: ByteString? = null,
   private val clock: Clock,
   private val computationReader: ComputationReader,
 ) : PostgresWriter<ComputationToken>() {
   override suspend fun TransactionScope.runTransaction(): ComputationToken {
-    require(pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $externalRequisitionKey" }
+    require((pathToBlob != null && seed == null) || (pathToBlob == null && seed != null))
+    if (pathToBlob != null) {
+      require(pathToBlob.isNotBlank()) {
+        "Cannot insert blank path to blob. $externalRequisitionKey"
+      }
+    } else if (seed != null) {
+      require(!seed.isEmpty) { "Cannot insert empty seed. $externalRequisitionKey" }
+    }
+
     val requisition: RequisitionReader.RequisitionResult =
       RequisitionReader().readRequisitionByExternalKey(transactionContext, externalRequisitionKey)
         ?: error("Requisition not found for external_key: $externalRequisitionKey")
@@ -55,6 +66,7 @@ class RecordRequisitionBlobPath(
       externalRequisitionId = externalRequisitionKey.externalRequisitionId,
       requisitionFingerprint = externalRequisitionKey.requisitionFingerprint,
       pathToBlob = pathToBlob,
+      randomSeed = seed,
       updateTime = writeTime
     )
 

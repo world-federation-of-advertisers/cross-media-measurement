@@ -653,12 +653,12 @@ class GcpSpannerComputationsDatabaseTransactor<
     }
   }
 
-  override suspend fun writeRequisitionBlobPath(
+  private suspend fun writeRequisitionData(
     token: ComputationEditToken<ProtocolT, StageT>,
     externalRequisitionKey: ExternalRequisitionKey,
-    pathToBlob: String
+    pathToBlob: String? = null,
+    seed: ByteString? = null
   ) {
-    require(pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $externalRequisitionKey" }
     databaseClient.readWriteTransaction().execute { txn ->
       val row =
         txn.readRowUsingIndex(
@@ -675,6 +675,7 @@ class GcpSpannerComputationsDatabaseTransactor<
       require(localComputationId == token.localId) {
         "The token doesn't match the computation owns the requisition."
       }
+
       txn.buffer(
         listOf(
           computationMutations.updateComputation(
@@ -686,11 +687,21 @@ class GcpSpannerComputationsDatabaseTransactor<
             requisitionId = requisitionId,
             externalRequisitionId = externalRequisitionKey.externalRequisitionId,
             requisitionFingerprint = externalRequisitionKey.requisitionFingerprint,
-            pathToBlob = pathToBlob
+            pathToBlob = pathToBlob,
+            randomSeed = seed
           )
         )
       )
     }
+  }
+
+  override suspend fun writeRequisitionBlobPath(
+    token: ComputationEditToken<ProtocolT, StageT>,
+    externalRequisitionKey: ExternalRequisitionKey,
+    pathToBlob: String
+  ) {
+    require(pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $externalRequisitionKey" }
+    writeRequisitionData(token, externalRequisitionKey, pathToBlob = pathToBlob)
   }
 
   override suspend fun writeRequisitionSeed(
@@ -699,38 +710,7 @@ class GcpSpannerComputationsDatabaseTransactor<
     seed: ByteString
   ) {
     require(!seed.isEmpty) { "Cannot insert empty seed. $externalRequisitionKey" }
-    databaseClient.readWriteTransaction().execute { txn ->
-      val row =
-        txn.readRowUsingIndex(
-          "Requisitions",
-          "RequisitionsByExternalId",
-          Key.of(
-            externalRequisitionKey.externalRequisitionId,
-            externalRequisitionKey.requisitionFingerprint.toGcloudByteArray()
-          ),
-          listOf("ComputationId", "RequisitionId")
-        ) ?: error("No Computation found row for this requisition: $externalRequisitionKey")
-      val localComputationId = row.getLong("ComputationId")
-      val requisitionId = row.getLong("RequisitionId")
-      require(localComputationId == token.localId) {
-        "The token doesn't match the computation owns the requisition."
-      }
-      txn.buffer(
-        listOf(
-          computationMutations.updateComputation(
-            localId = localComputationId,
-            updateTime = clock.gcloudTimestamp()
-          ),
-          computationMutations.updateRequisition(
-            localComputationId = localComputationId,
-            requisitionId = requisitionId,
-            externalRequisitionId = externalRequisitionKey.externalRequisitionId,
-            requisitionFingerprint = externalRequisitionKey.requisitionFingerprint,
-            randomSeed = seed
-          )
-        )
-      )
-    }
+    writeRequisitionData(token, externalRequisitionKey, seed = seed)
   }
 
   override suspend fun insertComputationStat(
