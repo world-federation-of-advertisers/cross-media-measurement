@@ -15,7 +15,7 @@ They will be summarized below assuming we are updating a cluster.
 
 In your GCS account, create a storage bucket and note the name. In the `reporting_ui.yaml` file, update this section to use your bucket name.
 
-```
+```yaml
 - name: website
   csi:
     driver: gcsfuse.csi.storage.gke.io
@@ -48,7 +48,7 @@ location / {
 
 The cluster needs to be configured with the Cloud Storage FUSE CSI driver enabled. This enables us to mount a GCS Bucket to the K8S pods using a sidecar.
 
-```
+```shell
 gcloud container clusters update CLUSTER_NAME \
     --update-addons GcsFuseCsiDriver=ENABLED \
     --region=COMPUTE_REGION
@@ -58,21 +58,21 @@ gcloud container clusters update CLUSTER_NAME \
 
 Create a K8S service account:
 
-```
+```shell
 kubectl create serviceaccount KSA_NAME \
     --namespace NAMESPACE
 ```
 
 Create an IAM service account:
 
-```
+```shell
 gcloud iam service-accounts create GSA_NAME \
     --project=GSA_PROJECT
 ```
 
 Add permissions to access the GCS bucket:
 
-```
+```shell
 gcloud storage buckets add-iam-policy-binding gs://BUCKET_NAME \
     --member "serviceAccount:GSA_NAME@GSA_PROJECT.iam.gserviceaccount.com" \
     --role "ROLE_NAME"
@@ -82,7 +82,7 @@ For the Demo UI, you can use `roles/storage.objectViewer` as the role name since
 
 Allow the K8S account to use the IAM role:
 
-```
+```shell
 gcloud iam service-accounts add-iam-policy-binding GSA_NAME@GSA_PROJECT.iam.gserviceaccount.com \
     --role roles/iam.workloadIdentityUser \
     --member "serviceAccount:PROJECT_ID.svc.id.goog[NAMESPACE/KSA_NAME]"
@@ -90,7 +90,7 @@ gcloud iam service-accounts add-iam-policy-binding GSA_NAME@GSA_PROJECT.iam.gser
 
 Annotate the K8S account:
 
-```
+```shell
 kubectl annotate serviceaccount KSA_NAME \
     --namespace NAMESPACE \
     iam.gke.io/gcp-service-account=GSA_NAME@GSA_PROJECT.iam.gserviceaccount.com
@@ -98,9 +98,9 @@ kubectl annotate serviceaccount KSA_NAME \
 
 # Apply the Config
 
-The K8S yaml config file follows the rest of the directions to setup GCS as a mount.
+The K8S yaml config file follows the rest of the directions to setup GCS as a mount. The yaml config file is an example of how the configuration may look. It is suggested to use this as a base example but copy it and modify it for your specific usage.
 
-```
+```shell
 kubectl apply experimental/reporting-ui/src/main/k8s/dev/reporting_ui
 ```
 
@@ -108,7 +108,7 @@ kubectl apply experimental/reporting-ui/src/main/k8s/dev/reporting_ui
 
 To verify the cluster, run the command:
 
-```
+```shell
 kubectl get all
 ```
 
