@@ -83,7 +83,9 @@ go_grpc_gateway_proto_library(
 
 go_grpc_gateway_proto_library(
     name = "reports_service_go_proto",
-    embed = [":report_go_proto"],
+    embed = [
+        ":report_go_proto",
+    ],
     importpath = GO_IMPORT_PATH,
     protos = [":reports_service_proto"],
 )
