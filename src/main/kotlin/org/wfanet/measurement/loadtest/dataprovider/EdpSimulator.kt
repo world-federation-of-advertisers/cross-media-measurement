@@ -146,7 +146,7 @@ data class EdpData(
   val displayName: String,
   /** The EDP's consent signaling encryption key. */
   val encryptionKey: PrivateKeyHandle,
-  /** The EDP's valid certificates. */
+  /** The EDP's consent signaling signing key. */
   val signingKeyHandle: SigningKeyHandle,
   /** The CertificateKey to use for result signing. */
   val certificateKey: DataProviderCertificateKey
