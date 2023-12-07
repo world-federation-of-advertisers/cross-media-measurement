@@ -92,7 +92,7 @@ class ReportsService(private val backendReportsStub: BackendReportsGrpcKt.Report
     val source = this
 
     return report {
-      report_id = source.name
+      reportId = source.name
       name = source.name
       state = source.state.toBffState()
     }
