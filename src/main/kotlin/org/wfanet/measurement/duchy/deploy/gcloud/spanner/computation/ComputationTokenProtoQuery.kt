@@ -55,7 +55,7 @@ class ComputationTokenProtoQuery(
              cs.NextAttempt,
              cs.Details AS StageDetails,
              ARRAY(
-               SELECT AS STRUCT b.BlobId, IFNULL(b.PathToBlob, "") AS PathToBlob, b.DependencyType
+               SELECT AS STRUCT b.BlobId, b.PathToBlob, b.DependencyType
                FROM ComputationBlobReferences AS b
                WHERE c.ComputationId = b.ComputationId
                  AND c.ComputationStage = b.ComputationStage
@@ -64,8 +64,8 @@ class ComputationTokenProtoQuery(
                SELECT AS STRUCT
                  r2.ExternalRequisitionId,
                  r2.RequisitionFingerprint,
-                 IFNULL(r2.PathToBlob, "") AS PathToBlob,
-                 r2.RandomSeed AS RandomSeed,
+                 r2.PathToBlob,
+                 r2.RandomSeed,
                  r2.RequisitionDetails
                FROM Requisitions AS r2
                WHERE c.ComputationId = r2.ComputationId
@@ -89,7 +89,7 @@ class ComputationTokenProtoQuery(
              cs.NextAttempt,
              cs.Details AS StageDetails,
              ARRAY(
-               SELECT AS STRUCT b.BlobId, IFNULL(b.PathToBlob, "") AS PathToBlob, b.DependencyType
+               SELECT AS STRUCT b.BlobId, b.PathToBlob, b.DependencyType
                FROM ComputationBlobReferences AS b
                WHERE c.ComputationId = b.ComputationId
                  AND c.ComputationStage = b.ComputationStage
@@ -98,7 +98,7 @@ class ComputationTokenProtoQuery(
                SELECT AS STRUCT
                  r2.ExternalRequisitionId,
                  r2.RequisitionFingerprint,
-                 IFNULL(r2.PathToBlob, "") AS PathToBlob,
+                 r2.PathToBlob,
                  r2.RandomSeed AS RandomSeed,
                  r2.RequisitionDetails
                FROM Requisitions AS r2
@@ -138,9 +138,8 @@ class ComputationTokenProtoQuery(
           ComputationStageBlobMetadata.newBuilder()
             .apply {
               blobId = it.getLong("BlobId")
-              val blobPath = it.getString("PathToBlob")
-              if (blobPath.isNotEmpty()) {
-                path = blobPath
+              if (!it.isNull("PathToBlob")) {
+                path = it.getString("PathToBlob")
               }
               dependencyType =
                 ComputationBlobDependency.forNumber(it.getLong("DependencyType").toInt())
@@ -158,9 +157,8 @@ class ComputationTokenProtoQuery(
               externalRequisitionId = it.getString("ExternalRequisitionId")
               requisitionFingerprint = it.getBytesAsByteString("RequisitionFingerprint")
             }
-            val dataPath = it.getString("PathToBlob")
-            if (dataPath.isNotEmpty()) {
-              path = dataPath
+            if (!it.isNull("PathToBlob")) {
+              path = it.getString("PathToBlob")
             }
             if (!it.isNull("RandomSeed")) {
               seed = it.getBytesAsByteString("RandomSeed")
