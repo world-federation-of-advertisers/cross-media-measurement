@@ -2182,11 +2182,6 @@ class EdpSimulatorTest {
     }
     private val EDP_SIGNING_KEY =
       loadSigningKey("${EDP_DISPLAY_NAME}_cs_cert.der", "${EDP_DISPLAY_NAME}_cs_private.der")
-    private val EDP_RESULT_SIGNING_KEY =
-      loadSigningKey(
-        "${EDP_DISPLAY_NAME}_result_cs_cert.der",
-        "${EDP_DISPLAY_NAME}_result_cs_private.der"
-      )
     private val DATA_PROVIDER_CERTIFICATE_KEY =
       DataProviderCertificateKey(EDP_ID, externalIdToApiId(8L))
     private val DATA_PROVIDER_RESULT_CERTIFICATE_KEY =
@@ -2202,10 +2197,7 @@ class EdpSimulatorTest {
         EDP_NAME,
         EDP_DISPLAY_NAME,
         loadEncryptionPrivateKey("${EDP_DISPLAY_NAME}_enc_private.tink"),
-        mapOf(
-          DATA_PROVIDER_RESULT_CERTIFICATE_KEY to EDP_RESULT_SIGNING_KEY,
-          DATA_PROVIDER_CERTIFICATE_KEY to EDP_SIGNING_KEY
-        ),
+        EDP_SIGNING_KEY,
         DATA_PROVIDER_RESULT_CERTIFICATE_KEY
       )
 

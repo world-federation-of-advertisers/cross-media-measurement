@@ -146,6 +146,7 @@ import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
@@ -995,8 +996,7 @@ private class DataProviders {
       dataProviderStub.getDataProvider(getDataProviderRequest { name = dataProviderName })
     }
     println("Data Provider Resource: ${dataProvider.name}")
-    outFile.createNewFile()
-    outFile.outputStream().use { dataProvider.writeTo(it) }
+    println(dataProvider.toJson())
   }
 }
 

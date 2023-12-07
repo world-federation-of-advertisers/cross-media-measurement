@@ -147,7 +147,7 @@ data class EdpData(
   /** The EDP's consent signaling encryption key. */
   val encryptionKey: PrivateKeyHandle,
   /** The EDP's valid certificates. */
-  val validCertificates: Map<DataProviderCertificateKey, SigningKeyHandle>,
+  val signingKeyHandle: SigningKeyHandle,
   /** The CertificateKey to use for result signing. */
   val certificateKey: DataProviderCertificateKey
 )
@@ -1517,13 +1517,6 @@ class EdpSimulator(
           Requisition.Refusal.Justification.UNFULFILLABLE,
           "Invalid data provider certificate"
         )
-    if (requisitionCertificateKey !in edpData.validCertificates) {
-      throw RequisitionRefusalException(
-        Requisition.Refusal.Justification.UNFULFILLABLE,
-        "Invalid data provider certificate"
-      )
-    }
-    val resultSigningKey = edpData.validCertificates.getValue(edpData.certificateKey)
     val measurementEncryptionPublicKey: EncryptionPublicKey =
       if (measurementSpec.hasMeasurementPublicKey()) {
         measurementSpec.measurementPublicKey.unpack()
@@ -1531,7 +1524,7 @@ class EdpSimulator(
         @Suppress("DEPRECATION") // Handle legacy resources.
         EncryptionPublicKey.parseFrom(measurementSpec.serializedMeasurementPublicKey)
       }
-    val signedResult: SignedMessage = signResult(measurementResult, resultSigningKey)
+    val signedResult: SignedMessage = signResult(measurementResult, edpData.signingKeyHandle)
     val encryptedResult: EncryptedMessage =
       encryptResult(signedResult, measurementEncryptionPublicKey)
 

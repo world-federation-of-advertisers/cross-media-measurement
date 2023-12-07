@@ -83,12 +83,11 @@ class InProcessCmmsComponents(
       val specIndex = index % syntheticEventGroupSpecs.size
       val edpContent = createEntityContent(displayName)
       val certificateKey = DataProviderCertificateKey.fromName(resource.dataProvider.certificate)!!
-      val validCertificates = mapOf(certificateKey to edpContent.signingKey)
       InProcessEdpSimulator(
         displayName = displayName,
         resourceName = resource.name,
         certificateKey = certificateKey,
-        validCertificates = validCertificates,
+        signingKeyHandle = edpContent.signingKey,
         encryptionKey = edpContent.encryptionPrivateKey!!,
         mcResourceName = mcResourceName,
         kingdomPublicApiChannel = kingdom.publicApiChannel,

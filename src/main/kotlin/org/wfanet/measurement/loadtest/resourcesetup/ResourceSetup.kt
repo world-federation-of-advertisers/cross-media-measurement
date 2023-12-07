@@ -155,7 +155,7 @@ class ResourceSetup(
       logger.info("Successfully created internal data provider: $dataProviderResourceName")
       resources.add(
         resource {
-          name = dataProviderResourceName 
+          name = dataProviderResourceName
           dataProvider =
             ResourcesKt.ResourceKt.dataProvider {
               displayName = it.displayName
