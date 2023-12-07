@@ -137,7 +137,7 @@ class ComputationTokenProtoQuery(
             .apply {
               blobId = it.getLong("BlobId")
               val blobPath = it.getString("PathToBlob")
-              if (!blobPath.isNullOrBlank()) {
+              if (blobPath.isNotEmpty()) {
                 path = blobPath
               }
               dependencyType =
@@ -156,7 +156,10 @@ class ComputationTokenProtoQuery(
               externalRequisitionId = it.getString("ExternalRequisitionId")
               requisitionFingerprint = it.getBytesAsByteString("RequisitionFingerprint")
             }
-            path = it.getString("PathToBlob")
+            val dataPath = it.getString("PathToBlob")
+            if (dataPath.isNotEmpty()) {
+              path = dataPath
+            }
             details = it.getProtoMessage("RequisitionDetails", RequisitionDetails.parser())
           }
         }
