@@ -36,7 +36,7 @@ message Report {
 
   string name = 1;
 
-  string report_id = 2;
+  string report_id = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
 
   enum State {
     STATE_UNSPECIFIED = 0;
