@@ -1609,9 +1609,7 @@ private fun buildMetricResult(metric: InternalMetric, variances: Variances): Met
           )
       }
       InternalMetricSpec.TypeCase.POPULATION_COUNT -> {
-        populationCount = populationCountResult {
-          value = metric.weightedMeasurementsList.first().measurement.details.resultsList.first().population.value
-        }
+        populationCount = calculatePopulationResult(metric.weightedMeasurementsList)
       }
       InternalMetricSpec.TypeCase.TYPE_NOT_SET -> {
         failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
@@ -1750,6 +1748,22 @@ private fun calculateWatchDurationResult(
         }
       }
     }
+  }
+}
+
+/** Calculates the population result from [WeightedMeasurement]s. */
+private fun calculatePopulationResult(
+  weightedMeasurements: List<WeightedMeasurement>,
+): MetricResult.PopulationCountResult {
+  for (weightedMeasurement in weightedMeasurements) {
+    if (weightedMeasurement.measurement.details.resultsList.any { !it.hasPopulation() }) {
+      failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
+        "Population measurement result is missing."
+      }
+    }
+  }
+  return populationCountResult {
+    value = weightedMeasurements.first().measurement.details.resultsList.first().population.value
   }
 }
 
