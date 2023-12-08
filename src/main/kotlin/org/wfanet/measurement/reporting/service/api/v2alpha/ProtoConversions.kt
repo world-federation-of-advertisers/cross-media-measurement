@@ -164,6 +164,9 @@ fun MetricSpec.toInternal(): InternalMetricSpec {
       MetricSpec.TypeCase.WATCH_DURATION -> {
         watchDuration = source.watchDuration.toInternal()
       }
+      MetricSpec.TypeCase.POPULATION_COUNT -> {
+        populationCount = InternalMetricSpecKt.populationCountParams { }
+      }
       MetricSpec.TypeCase.TYPE_NOT_SET ->
         throw MetricSpecDefaultsException(
           "Invalid metric spec type",

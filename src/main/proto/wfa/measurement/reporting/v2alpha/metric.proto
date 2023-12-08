@@ -93,6 +93,9 @@ message MetricSpec {
     google.protobuf.Duration maximum_watch_duration_per_user = 2;
   }
 
+  // Parameters that are used to generate `Population` metric.
+  message PopulationCountParams { }
+
   // Types of metric with parameters.
   oneof type {
     // The count of unique audiences reached given a set of event groups.
@@ -108,6 +111,9 @@ message MetricSpec {
         [(google.api.field_behavior) = IMMUTABLE];
     // The watch duration given a set of event groups.
     WatchDurationParams watch_duration = 4
+        [(google.api.field_behavior) = IMMUTABLE];
+    // The count of unique members in a population
+    PopulationCountParams population_count = 5
         [(google.api.field_behavior) = IMMUTABLE];
   }
 

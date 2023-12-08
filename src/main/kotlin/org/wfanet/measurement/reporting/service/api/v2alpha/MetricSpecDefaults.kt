@@ -17,6 +17,7 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
+import org.wfanet.measurement.config.reporting.MetricSpecConfigKt
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.copy
@@ -47,6 +48,10 @@ fun MetricSpec.withDefaults(metricSpecConfig: MetricSpecConfig): MetricSpec {
         MetricSpec.TypeCase.WATCH_DURATION -> {
           watchDuration = watchDuration.withDefaults(metricSpecConfig)
           metricSpecConfig.watchDurationVidSamplingInterval
+        }
+        MetricSpec.TypeCase.POPULATION_COUNT -> {
+          populationCount = MetricSpecKt.populationCountParams { }
+          MetricSpecConfig.VidSamplingInterval.getDefaultInstance()
         }
         MetricSpec.TypeCase.TYPE_NOT_SET ->
           throw MetricSpecDefaultsException(

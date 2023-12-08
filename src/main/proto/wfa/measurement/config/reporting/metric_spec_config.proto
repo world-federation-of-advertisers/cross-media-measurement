@@ -75,6 +75,9 @@ message MetricSpecConfig {
     google.protobuf.Duration maximum_watch_duration_per_user = 2;
   }
 
+  // Parameters that are used to generate `Population` metric.
+  message PopulationCountParams { }
+
   // Parameters for generating the count of unique audiences reached given a set
   // of event groups.
   ReachParams reach_params = 1;
@@ -84,6 +87,8 @@ message MetricSpecConfig {
   ImpressionCountParams impression_count_params = 3;
   // Parameters for generating the watch duration given a set of event groups.
   WatchDurationParams watch_duration_params = 4;
+  // Parameters for generating the population.
+  PopulationCountParams population_count_params = 5;
 
   // Specifies a range of VIDs to be sampled.
   message VidSamplingInterval {
@@ -93,11 +98,11 @@ message MetricSpecConfig {
     float width = 2;
   }
   // Range of VIDs that will be included for reach measurements.
-  VidSamplingInterval reach_vid_sampling_interval = 5;
+  VidSamplingInterval reach_vid_sampling_interval = 6;
   // Range of VIDs that will be included for reach-and-frequency measurements.
-  VidSamplingInterval reach_and_frequency_vid_sampling_interval = 6;
+  VidSamplingInterval reach_and_frequency_vid_sampling_interval = 7;
   // Range of VIDs that will be included for impression count measurements.
-  VidSamplingInterval impression_count_vid_sampling_interval = 7;
+  VidSamplingInterval impression_count_vid_sampling_interval = 8;
   // Range of VIDs that will be included for watch duration measurements.
-  VidSamplingInterval watch_duration_vid_sampling_interval = 8;
+  VidSamplingInterval watch_duration_vid_sampling_interval = 9;
 }
