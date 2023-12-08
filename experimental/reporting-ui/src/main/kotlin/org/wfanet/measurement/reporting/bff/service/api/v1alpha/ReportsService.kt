@@ -94,14 +94,9 @@ class ReportsService(
 
     try {
       val resp = runBlocking(Dispatchers.IO) { backendReportsStub.createReport(backendRequest) }
-
-      return createReportResponse {
-        status = CreateReportResponse.Status.SUCCEEDED
-      }
+      return createReportResponse { status = CreateReportResponse.Status.SUCCEEDED }
     } catch (ex: Exception) {
-      return createReportResponse {
-        status = CreateReportResponse.Status.ERRORED
-      }
+      return createReportResponse { status = CreateReportResponse.Status.ERRORED }
     }
   }
 

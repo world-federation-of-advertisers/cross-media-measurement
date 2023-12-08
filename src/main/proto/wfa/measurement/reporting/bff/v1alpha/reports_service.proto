@@ -49,9 +49,7 @@ service Reports {
   rpc CreateReport(CreateReportRequest) returns (CreateReportResponse) {
     option (google.api.http) = {
       post: "/v1alpha/reports"
-      body: "report_id"
     };
-    option (google.api.method_signature) = "report";
   }
 }
 
