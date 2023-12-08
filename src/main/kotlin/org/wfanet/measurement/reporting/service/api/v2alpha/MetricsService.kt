@@ -63,6 +63,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
@@ -486,13 +487,16 @@ class MetricsService(
           InternalMetricSpec.TypeCase.WATCH_DURATION -> {
             duration = metricSpec.watchDuration.toDuration()
           }
-          InternalMetricSpec.TypeCase.POPULATION_COUNT -> {}
+          InternalMetricSpec.TypeCase.POPULATION_COUNT -> {
+            population = MeasurementSpecKt.population { }
+          }
           InternalMetricSpec.TypeCase.TYPE_NOT_SET ->
             failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
               "Unset metric type should've already raised error."
             }
         }
         vidSamplingInterval = metricSpec.vidSamplingInterval.toCmmsVidSamplingInterval()
+        //TODO: jojijac0b add modelLine
       }
     }
 
@@ -1605,9 +1609,8 @@ private fun buildMetricResult(metric: InternalMetric, variances: Variances): Met
           )
       }
       InternalMetricSpec.TypeCase.POPULATION_COUNT -> {
-        // TODO: jojijac0b to add population calculation logic
         populationCount = populationCountResult {
-          value = 0.0
+          value = metric.weightedMeasurementsList.first().measurement.details.resultsList.first().population.value
         }
       }
       InternalMetricSpec.TypeCase.TYPE_NOT_SET -> {

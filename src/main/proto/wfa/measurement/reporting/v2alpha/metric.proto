@@ -223,7 +223,7 @@ message MetricResult {
   // Population count result format.
   message PopulationCountResult {
     // Population value.
-    double value = 1;
+    int64 value = 1;
     // Univariate statistics of the population value above.
     //
     // Only available if the Population Data Provider provides the population
