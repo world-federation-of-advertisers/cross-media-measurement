@@ -41,8 +41,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.Requisiti
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.common.crypto.PrivateKeyHandle
-import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.CompositionMechanism
@@ -135,7 +133,8 @@ class InProcessEdpSimulator(
       certificateKey = certificateKey,
       publicEncryptionKey = loadEncryptionPublicKey("${displayName}_enc_public.tink"),
       privateEncryptionKey = loadEncryptionPrivateKey("${displayName}_enc_private.tink"),
-      signingKeyHandle = loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der")
+      signingKeyHandle =
+        loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der")
     )
 
   companion object {

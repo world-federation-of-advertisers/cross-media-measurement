@@ -35,7 +35,6 @@ import java.io.File
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
 import java.time.Instant
-import kotlin.io.path.absolutePathString
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -62,7 +61,6 @@ import org.wfanet.measurement.api.v2alpha.CreateModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.CreateModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.CreateModelShardRequest
 import org.wfanet.measurement.api.v2alpha.CreateModelSuiteRequest
-import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.DeleteModelOutageRequest
 import org.wfanet.measurement.api.v2alpha.DeleteModelRolloutRequest
@@ -2113,14 +2111,12 @@ class MeasurementSystemTest {
 
   @Test
   fun `dataProviders get calls GetDataProvider with correct params`() {
-    val tmpFile = kotlin.io.path.createTempFile("GetDataProvider.textproto")
     val args =
       commonArgs +
         arrayOf(
           "data-providers",
           "--name=dataProviders/777",
           "get",
-          "--out=${tmpFile.absolutePathString()}",
         )
     callCli(args)
     dataProvidersServiceMock.stub {
@@ -2131,8 +2127,6 @@ class MeasurementSystemTest {
     }
     val dataProviderName = request.name
     assertThat(dataProviderName).isEqualTo("dataProviders/777")
-    val outputContents = DataProvider.parseFrom(tmpFile.toFile().readByteString())
-    assertThat(outputContents).comparingExpectedFieldsOnly().isEqualTo(DATA_PROVIDER)
   }
 
   companion object {

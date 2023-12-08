@@ -988,9 +988,7 @@ private class DataProviders {
   }
 
   @Command(name = "get", description = ["gets a DataProvider"])
-  fun getDataProvider(
-    @Option(names = ["--out", "-o"], description = ["Output file"], required = true) outFile: File,
-  ) {
+  fun getDataProvider() {
     val dataProvider = runBlocking {
       dataProviderStub.getDataProvider(getDataProviderRequest { name = dataProviderName })
     }

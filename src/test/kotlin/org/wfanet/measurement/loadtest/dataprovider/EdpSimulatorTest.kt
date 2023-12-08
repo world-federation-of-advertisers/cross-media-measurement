@@ -231,6 +231,10 @@ class EdpSimulatorTest {
         getCertificate(eq(getCertificateRequest { name = DATA_PROVIDER_CERTIFICATE.name }))
       }
       .thenReturn(DATA_PROVIDER_CERTIFICATE)
+    onBlocking {
+        getCertificate(eq(getCertificateRequest { name = DATA_PROVIDER_RESULT_CERTIFICATE.name }))
+      }
+      .thenReturn(DATA_PROVIDER_RESULT_CERTIFICATE)
   }
   private val measurementConsumersServiceMock:
     MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase =
@@ -2183,6 +2187,11 @@ class EdpSimulatorTest {
     }
     private val EDP_SIGNING_KEY =
       loadSigningKey("${EDP_DISPLAY_NAME}_cs_cert.der", "${EDP_DISPLAY_NAME}_cs_private.der")
+    private val EDP_RESULT_SIGNING_KEY =
+      loadSigningKey(
+        "${EDP_DISPLAY_NAME}_result_cs_cert.der",
+        "${EDP_DISPLAY_NAME}_result_cs_private.der"
+      )
     private val DATA_PROVIDER_CERTIFICATE_KEY =
       DataProviderCertificateKey(EDP_ID, externalIdToApiId(8L))
     private val DATA_PROVIDER_RESULT_CERTIFICATE_KEY =
@@ -2193,13 +2202,18 @@ class EdpSimulatorTest {
       x509Der = EDP_SIGNING_KEY.certificate.encoded.toByteString()
       subjectKeyIdentifier = EDP_SIGNING_KEY.certificate.subjectKeyIdentifier!!
     }
+    private val DATA_PROVIDER_RESULT_CERTIFICATE = certificate {
+      name = DATA_PROVIDER_RESULT_CERTIFICATE_KEY.toName()
+      x509Der = EDP_RESULT_SIGNING_KEY.certificate.encoded.toByteString()
+      subjectKeyIdentifier = EDP_RESULT_SIGNING_KEY.certificate.subjectKeyIdentifier!!
+    }
     private val EDP_DATA =
       EdpData(
         EDP_NAME,
         EDP_DISPLAY_NAME,
         loadEncryptionPublicKey("${EDP_DISPLAY_NAME}_enc_public.tink"),
         loadEncryptionPrivateKey("${EDP_DISPLAY_NAME}_enc_private.tink"),
-        EDP_SIGNING_KEY,
+        EDP_RESULT_SIGNING_KEY,
         DATA_PROVIDER_RESULT_CERTIFICATE_KEY
       )
 

@@ -769,9 +769,9 @@ class RequisitionsServiceTest {
 
       val expected = fulfillDirectRequisitionResponse { state = State.FULFILLED }
       verifyProtoArgument(
-        internalRequisitionMock,
-        RequisitionsCoroutineImplBase::fulfillRequisition
-      )
+          internalRequisitionMock,
+          RequisitionsCoroutineImplBase::fulfillRequisition
+        )
         .comparingExpectedFieldsOnly()
         .isEqualTo(
           internalFulfillRequisitionRequest {
