@@ -130,6 +130,5 @@ fun createEntityContent(displayName: String) =
     displayName = displayName,
     encryptionPublicKey =
       loadEncryptionPublicKey("${displayName}_enc_public.tink").toEncryptionPublicKey(),
-    encryptionPrivateKey = loadEncryptionPrivateKey("${displayName}_enc_private.tink"),
     signingKey = loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der"),
   )

@@ -105,6 +105,7 @@ import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
+import org.wfanet.measurement.common.crypto.PublicKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificate
@@ -113,6 +114,7 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.consent.client.common.NonceMismatchException
 import org.wfanet.measurement.consent.client.common.PublicKeyMismatchException
+import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
@@ -144,8 +146,10 @@ data class EdpData(
   val name: String,
   /** The EDP's display name. */
   val displayName: String,
-  /** The EDP's consent signaling encryption key. */
-  val encryptionKey: PrivateKeyHandle,
+  /** The EDP's encryption key. */
+  val publicEncryptionKey: PublicKeyHandle,
+  /** The EDP's decryption key. */
+  val privateEncryptionKey: PrivateKeyHandle,
   /** The EDP's consent signaling signing key. */
   val signingKeyHandle: SigningKeyHandle,
   /** The CertificateKey to use for result signing. */
@@ -373,11 +377,13 @@ class EdpSimulator(
 
     val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
 
-    // A real EDP should map the `data_provider_public_key` to a known private key for
-    // decryption.
+    val publicKey = requisition.dataProviderPublicKey.unpack(EncryptionPublicKey::class.java)!!
+    check(publicKey == edpData.publicEncryptionKey.toEncryptionPublicKey()) {
+      "Unable to decrypt for this public key"
+    }
     val signedRequisitionSpec: SignedMessage =
       try {
-        decryptRequisitionSpec(requisition.encryptedRequisitionSpec, edpData.encryptionKey)
+        decryptRequisitionSpec(requisition.encryptedRequisitionSpec, edpData.privateEncryptionKey)
       } catch (e: GeneralSecurityException) {
         throw InvalidConsentSignalException("RequisitionSpec decryption failed", e)
       }

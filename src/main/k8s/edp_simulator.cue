@@ -46,6 +46,7 @@ package k8s
 				"--data-provider-resource-name=\(_edpConfig.resourceName)",
 				"--data-provider-display-name=\(DisplayName)",
 				"--data-provider-certificate-resource-name=\(_edpConfig.certResourceName)",
+				"--data-provider-encryption-public-keyset=/var/run/secrets/files/\(DisplayName)_enc_public.tink",
 				"--data-provider-encryption-private-keyset=/var/run/secrets/files/\(DisplayName)_enc_private.tink",
 				"--data-provider-consent-signaling-private-key-der-file=/var/run/secrets/files/\(DisplayName)_cs_private.der",
 				"--data-provider-consent-signaling-certificate-der-file=/var/run/secrets/files/\(DisplayName)_cs_cert.der",

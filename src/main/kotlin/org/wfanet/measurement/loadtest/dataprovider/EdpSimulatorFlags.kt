@@ -54,6 +54,14 @@ class EdpSimulatorFlags {
     private set
 
   @CommandLine.Option(
+    names = ["--data-provider-encryption-public-keyset"],
+    description = ["The EDP's encryption public Tink Keyset."],
+    required = true
+  )
+  lateinit var edpEncryptionPublicKeyset: File
+    private set
+
+  @CommandLine.Option(
     names = ["--data-provider-encryption-private-keyset"],
     description = ["The EDP's encryption private Tink Keyset."],
     required = true

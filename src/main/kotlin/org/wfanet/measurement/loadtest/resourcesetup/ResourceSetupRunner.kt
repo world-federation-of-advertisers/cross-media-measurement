@@ -22,7 +22,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.Measurement
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
-import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
@@ -77,7 +76,6 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
         signingKey = loadSigningKey(it.value, flags.edpCsKeyDerFiles.getValue(it.key)),
         encryptionPublicKey =
           loadPublicKey(flags.edpEncryptionPublicKeysets.getValue(it.key)).toEncryptionPublicKey(),
-        encryptionPrivateKey = loadPrivateKey(flags.edpEncryptionPrivateKeysets.getValue(it.key))
       )
     }
   val measurementConsumerContent =
@@ -85,7 +83,6 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
       displayName = "mc_001",
       signingKey = loadSigningKey(flags.mcCsCertDerFile, flags.mcCsKeyDerFile),
       encryptionPublicKey = loadPublicKey(flags.mcEncryptionPublicKeyset).toEncryptionPublicKey(),
-      encryptionPrivateKey = null,
     )
   val duchyCerts =
     flags.duchyCsCertDerFiles.map {

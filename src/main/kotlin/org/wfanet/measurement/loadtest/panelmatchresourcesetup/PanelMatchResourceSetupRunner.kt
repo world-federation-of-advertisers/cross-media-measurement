@@ -58,7 +58,6 @@ private fun run(@CommandLine.Mixin flags: PanelMatchResourceSetupFlags) {
       displayName = flags.edpDisplayName,
       signingKey = loadSigningKey(flags.edpCertDerFile, flags.edpKeyDerFile),
       encryptionPublicKey = loadPublicKey(flags.edpEncryptionPublicKeyset).toEncryptionPublicKey(),
-      encryptionPrivateKey = null,
     )
 
   val exchangeWorkflow: ExchangeWorkflow by lazy {

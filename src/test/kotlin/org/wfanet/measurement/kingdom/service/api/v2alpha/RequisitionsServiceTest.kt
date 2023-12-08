@@ -746,6 +746,49 @@ class RequisitionsServiceTest {
     }
 
   @Test
+  fun `fulfillDirectRequisition fulfills the requisition when certificate is not specified`() =
+    runBlocking {
+      whenever(internalRequisitionMock.fulfillRequisition(any()))
+        .thenReturn(
+          INTERNAL_REQUISITION.copy {
+            state = InternalState.FULFILLED
+            details = details.copy { encryptedData = ENCRYPTED_RESULT.ciphertext }
+          }
+        )
+
+      val request = fulfillDirectRequisitionRequest {
+        name = REQUISITION_NAME
+        encryptedResult = ENCRYPTED_RESULT
+        nonce = NONCE
+      }
+
+      val result =
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.fulfillDirectRequisition(request) }
+        }
+
+      val expected = fulfillDirectRequisitionResponse { state = State.FULFILLED }
+      verifyProtoArgument(
+        internalRequisitionMock,
+        RequisitionsCoroutineImplBase::fulfillRequisition
+      )
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(
+          internalFulfillRequisitionRequest {
+            externalRequisitionId = EXTERNAL_REQUISITION_ID
+            nonce = NONCE
+            directParams = directRequisitionParams {
+              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+              encryptedData = ENCRYPTED_RESULT.ciphertext
+              apiVersion = Version.V2_ALPHA.string
+            }
+          }
+        )
+
+      assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+    }
+
+  @Test
   fun `fulfillDirectRequisition fulfills the requisition when direct protocol config is specified`() =
     runBlocking {
       whenever(internalRequisitionMock.fulfillRequisition(any()))

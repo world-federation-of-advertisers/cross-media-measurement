@@ -66,14 +66,6 @@ class ResourceSetupFlags {
     private set
 
   @CommandLine.Option(
-    names = ["--edp-encryption-private-keysets"],
-    description = ["The map from EDP display name to its encryption private key Tink Keyset file."],
-    required = false
-  )
-  lateinit var edpEncryptionPrivateKeysets: Map<String, File>
-    private set
-
-  @CommandLine.Option(
     names = ["--mc-consent-signaling-cert-der-file"],
     description = ["The MC's consent signaling cert (DER format) file."],
     required = true

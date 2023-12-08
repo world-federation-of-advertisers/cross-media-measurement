@@ -81,14 +81,11 @@ class InProcessCmmsComponents(
   private val edpSimulators: List<InProcessEdpSimulator> by lazy {
     edpDisplayNameToResourceMap.entries.mapIndexed { index, (displayName, resource) ->
       val specIndex = index % syntheticEventGroupSpecs.size
-      val edpContent = createEntityContent(displayName)
       val certificateKey = DataProviderCertificateKey.fromName(resource.dataProvider.certificate)!!
       InProcessEdpSimulator(
         displayName = displayName,
         resourceName = resource.name,
         certificateKey = certificateKey,
-        signingKeyHandle = edpContent.signingKey,
-        encryptionKey = edpContent.encryptionPrivateKey!!,
         mcResourceName = mcResourceName,
         kingdomPublicApiChannel = kingdom.publicApiChannel,
         duchyPublicApiChannel = duchies[1].publicApiChannel,

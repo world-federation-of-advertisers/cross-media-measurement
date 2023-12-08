@@ -427,8 +427,6 @@ data class EntityContent(
   val displayName: String,
   /** The consent signaling encryption key. */
   val encryptionPublicKey: EncryptionPublicKey,
-  /** The private encryption key. */
-  val encryptionPrivateKey: PrivateKeyHandle?,
   /** The consent signaling signing key. */
   val signingKey: SigningKeyHandle,
 )

@@ -58,9 +58,7 @@ import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 class InProcessEdpSimulator(
   val displayName: String,
   resourceName: String,
-  private val signingKeyHandle: SigningKeyHandle,
   private val certificateKey: DataProviderCertificateKey,
-  private val encryptionKey: PrivateKeyHandle,
   mcResourceName: String,
   kingdomPublicApiChannel: Channel,
   duchyPublicApiChannel: Channel,
@@ -134,9 +132,10 @@ class InProcessEdpSimulator(
     EdpData(
       name = resourceName,
       displayName = displayName,
-      encryptionKey = encryptionKey,
       certificateKey = certificateKey,
-      signingKeyHandle = signingKeyHandle,
+      publicEncryptionKey = loadEncryptionPublicKey("${displayName}_enc_public.tink"),
+      privateEncryptionKey = loadEncryptionPrivateKey("${displayName}_enc_private.tink"),
+      signingKeyHandle = loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der")
     )
 
   companion object {
