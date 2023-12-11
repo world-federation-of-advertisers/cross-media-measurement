@@ -1,7 +1,11 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
+load("@rules_java//java:defs.bzl", "java_test")
+load("@wfa_common_jvm//build/rules_kotlin:defs.bzl", "kt_jvm_library")
 
-kt_jvm_test(
-    name = "EdpSimulatorTest",
+package(default_testonly = True)
+
+kt_jvm_library(
+    name = "edp_simulator_test",
     srcs = ["EdpSimulatorTest.kt"],
     data = [
         "//src/main/k8s/testing/secretfiles:all_configs",
@@ -9,7 +13,6 @@ kt_jvm_test(
         "//src/main/k8s/testing/secretfiles:all_tink_keysets",
         "//src/main/k8s/testing/secretfiles:edp_trusted_certs.pem",
     ],
-    test_class = "org.wfanet.measurement.loadtest.dataprovider.EdpSimulatorTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
@@ -33,6 +36,13 @@ kt_jvm_test(
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/duchy",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
     ],
+)
+
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
+java_test(
+    name = "EdpSimulatorTest",
+    test_class = "org.wfanet.measurement.loadtest.dataprovider.EdpSimulatorTest",
+    runtime_deps = [":edp_simulator_test"],
 )
 
 kt_jvm_test(

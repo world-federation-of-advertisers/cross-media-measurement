@@ -462,7 +462,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     private val LOCAL_K8S_PATH = Paths.get("src", "main", "k8s", "local")
     private val LOCAL_K8S_TESTING_PATH = LOCAL_K8S_PATH.resolve("testing")
     private val CONFIG_FILES_PATH = LOCAL_K8S_TESTING_PATH.resolve("config_files")
-    private val IMAGE_PUSHER_PATH = Paths.get("src", "main", "docker", "push_all_local_images")
+    private val IMAGE_PUSHER_PATH = Paths.get("src", "main", "docker", "push_all_local_images.bash")
 
     private val tempDir = TemporaryFolder()
 

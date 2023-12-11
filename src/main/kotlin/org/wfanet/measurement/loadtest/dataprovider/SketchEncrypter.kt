@@ -17,7 +17,6 @@
 package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.protobuf.ByteString
-import java.nio.file.Paths
 import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
 import org.wfanet.anysketch.crypto.ElGamalPublicKey
@@ -26,7 +25,6 @@ import org.wfanet.anysketch.crypto.EncryptSketchResponse
 import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
 import org.wfanet.anysketch.crypto.combineElGamalPublicKeysRequest
 import org.wfanet.anysketch.crypto.encryptSketchRequest
-import org.wfanet.measurement.common.loadLibrary
 
 /** An encrypter for [Sketch] instances. */
 interface SketchEncrypter {
@@ -43,20 +41,7 @@ interface SketchEncrypter {
 
   companion object {
     init {
-      loadLibrary(
-        name = "sketch_encrypter_adapter",
-        directoryPath =
-          Paths.get(
-            "any_sketch_java",
-            "src",
-            "main",
-            "java",
-            "org",
-            "wfanet",
-            "anysketch",
-            "crypto"
-          )
-      )
+      System.loadLibrary("sketch_encrypter_adapter")
     }
 
     /** Default instance of a [SketchEncrypter]. */

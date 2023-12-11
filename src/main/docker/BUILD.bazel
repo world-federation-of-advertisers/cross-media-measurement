@@ -1,9 +1,8 @@
 load(
-    "@io_bazel_rules_docker//container:container.bzl",
-    "container_bundle",
+    "@wfa_common_jvm//build/rules_oci:defs.bzl",
     "container_push",
+    "container_push_all",
 )
-load("@io_bazel_rules_docker//contrib:push-all.bzl", "docker_push")
 load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
 load(":images.bzl", "ALL_EKS_IMAGES", "ALL_GKE_IMAGES", "ALL_IMAGES", "ALL_LOCAL_IMAGES", "ALL_REPORTING_GKE_IMAGES")
 
@@ -20,7 +19,6 @@ package(
 [
     container_push(
         name = "push_" + image_spec.name,
-        format = "Docker",
         image = image_spec.image,
         registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
         repository = image_spec.repository,
@@ -30,127 +28,72 @@ package(
     for image_spec in ALL_IMAGES
 ]
 
-container_bundle(
-    name = "all_local_images",
+container_push_all(
+    name = "push_all_local_images",
     images = {"{registry}/{name}:{tag}".format(
         name = image_spec.repository,
         registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
         tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
     ): image_spec.image for image_spec in ALL_LOCAL_IMAGES},
     tags = ["manual"],
-    visibility = ["//visibility:private"],
 )
 
-container_bundle(
-    name = "all_gke_images",
+container_push_all(
+    name = "push_all_gke_images",
     images = {"{registry}/{name}:{tag}".format(
         name = image_spec.repository,
         registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
         tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
     ): image_spec.image for image_spec in ALL_GKE_IMAGES},
     tags = ["manual"],
-    visibility = ["//visibility:private"],
 )
 
-container_bundle(
-    name = "all_eks_images",
+container_push_all(
+    name = "push_all_eks_images",
     images = {"{registry}/{name}:{tag}".format(
         name = image_spec.repository,
         registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
         tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
     ): image_spec.image for image_spec in ALL_EKS_IMAGES},
     tags = ["manual"],
-    visibility = ["//visibility:private"],
 )
 
-container_bundle(
-    name = "kingdom_gke_images",
+container_push_all(
+    name = "push_all_kingdom_gke_images",
     images = {"{registry}/{name}:{tag}".format(
         name = image_spec.repository,
         registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
         tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
     ): image_spec.image for image_spec in ALL_IMAGES if image_spec.name.startswith("kingdom_")},
     tags = ["manual"],
-    visibility = ["//visibility:private"],
 )
 
-container_bundle(
-    name = "duchy_gke_images",
+container_push_all(
+    name = "push_all_duchy_gke_images",
     images = {"{registry}/{name}:{tag}".format(
         name = image_spec.repository,
         registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
         tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
     ): image_spec.image for image_spec in ALL_IMAGES if image_spec.name.startswith("duchy_")},
     tags = ["manual"],
-    visibility = ["//visibility:private"],
 )
 
-container_bundle(
-    name = "duchy_eks_images",
+container_push_all(
+    name = "push_all_duchy_eks_images",
     images = {"{registry}/{name}:{tag}".format(
         name = image_spec.repository,
         registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
         tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
     ): image_spec.image for image_spec in ALL_EKS_IMAGES if image_spec.name.startswith("duchy_")},
     tags = ["manual"],
-    visibility = ["//visibility:private"],
 )
 
-container_bundle(
-    name = "reporting_gke_images",
+container_push_all(
+    name = "push_all_reporting_gke_images",
     images = {"{registry}/{name}:{tag}".format(
         name = image_spec.repository,
         registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
         tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
     ): image_spec.image for image_spec in ALL_REPORTING_GKE_IMAGES},
-    tags = ["manual"],
-    visibility = ["//visibility:private"],
-)
-
-docker_push(
-    name = "push_all_local_images",
-    bundle = ":all_local_images",
-    tags = ["manual"],
-)
-
-docker_push(
-    name = "push_all_gke_images",
-    bundle = ":all_gke_images",
-    sequential = True,
-    tags = ["manual"],
-)
-
-docker_push(
-    name = "push_all_eks_images",
-    bundle = ":all_eks_images",
-    sequential = True,
-    tags = ["manual"],
-)
-
-docker_push(
-    name = "push_all_kingdom_gke_images",
-    bundle = ":kingdom_gke_images",
-    sequential = True,
-    tags = ["manual"],
-)
-
-docker_push(
-    name = "push_all_duchy_gke_images",
-    bundle = ":duchy_gke_images",
-    sequential = True,
-    tags = ["manual"],
-)
-
-docker_push(
-    name = "push_all_duchy_eks_images",
-    bundle = ":duchy_eks_images",
-    sequential = True,
-    tags = ["manual"],
-)
-
-docker_push(
-    name = "push_all_reporting_gke_images",
-    bundle = ":reporting_gke_images",
-    sequential = True,
     tags = ["manual"],
 )
