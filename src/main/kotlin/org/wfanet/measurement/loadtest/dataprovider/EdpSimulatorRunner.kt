@@ -29,7 +29,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
-import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.loadtest.config.PrivacyBudgets.createNoOpPrivacyBudgetManager
@@ -78,7 +77,6 @@ abstract class EdpSimulatorRunner : Runnable {
       EdpData(
         flags.dataProviderResourceName,
         flags.dataProviderDisplayName,
-        loadPublicKey(flags.edpEncryptionPublicKeyset),
         loadPrivateKey(flags.edpEncryptionPrivateKeyset),
         signingKeyHandle,
         certificateKey,

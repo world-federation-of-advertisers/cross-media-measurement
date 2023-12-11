@@ -131,7 +131,6 @@ class InProcessEdpSimulator(
       name = resourceName,
       displayName = displayName,
       certificateKey = certificateKey,
-      publicEncryptionKey = loadEncryptionPublicKey("${displayName}_enc_public.tink"),
       privateEncryptionKey = loadEncryptionPrivateKey("${displayName}_enc_private.tink"),
       signingKeyHandle =
         loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der")

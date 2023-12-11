@@ -162,7 +162,6 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyL
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestInMemoryBackingStore
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
-import org.wfanet.measurement.integration.common.loadEncryptionPublicKey
 import org.wfanet.measurement.loadtest.config.EventGroupMetadata
 import org.wfanet.measurement.loadtest.config.TestIdentifiers
 
@@ -2211,7 +2210,6 @@ class EdpSimulatorTest {
       EdpData(
         EDP_NAME,
         EDP_DISPLAY_NAME,
-        loadEncryptionPublicKey("${EDP_DISPLAY_NAME}_enc_public.tink"),
         loadEncryptionPrivateKey("${EDP_DISPLAY_NAME}_enc_private.tink"),
         EDP_RESULT_SIGNING_KEY,
         DATA_PROVIDER_RESULT_CERTIFICATE_KEY

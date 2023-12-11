@@ -105,7 +105,6 @@ import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
-import org.wfanet.measurement.common.crypto.PublicKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificate
@@ -146,8 +145,6 @@ data class EdpData(
   val name: String,
   /** The EDP's display name. */
   val displayName: String,
-  /** The EDP's encryption key. */
-  val publicEncryptionKey: PublicKeyHandle,
   /** The EDP's decryption key. */
   val privateEncryptionKey: PrivateKeyHandle,
   /** The EDP's consent signaling signing key. */
@@ -378,7 +375,7 @@ class EdpSimulator(
     val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
 
     val publicKey = requisition.dataProviderPublicKey.unpack(EncryptionPublicKey::class.java)!!
-    check(publicKey == edpData.publicEncryptionKey.toEncryptionPublicKey()) {
+    check(publicKey == edpData.privateEncryptionKey.publicKey.toEncryptionPublicKey()) {
       "Unable to decrypt for this public key"
     }
     val signedRequisitionSpec: SignedMessage =
