@@ -276,6 +276,11 @@ message Requisition {
     //
     // If not specified, assume "v2alpha".
     string encrypted_data_api_version = 9;
+
+    // Used to verify the decrypted Measurement.Result. If not present,
+    // `data_provider_certificate` should be used. Set when Requisition
+    // state is FULFILLED and the protocol is Direct.
+    fixed64 external_certificate_id = 10;
   }
   Details details = 10;
 

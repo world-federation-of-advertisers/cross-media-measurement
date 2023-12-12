@@ -5,6 +5,7 @@ load("//src/main/proto/wfa/measurement/internal/kingdom:all_protos.bzl", "KINGDO
 package(
     default_testonly = True,
     default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
         "//src/test/kotlin/org/wfanet/panelmatch/integration:__subpackages__",

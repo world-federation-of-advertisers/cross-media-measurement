@@ -986,6 +986,15 @@ private class DataProviders {
       "Data Provider ${outputDataProvider.name} duchy list replaced with ${outputDataProvider.requiredDuchiesList}"
     )
   }
+
+  @Command(name = "get", description = ["gets a DataProvider"])
+  fun getDataProvider() {
+    val dataProvider = runBlocking {
+      dataProviderStub.getDataProvider(getDataProviderRequest { name = dataProviderName })
+    }
+    println("Data Provider Resource: ${dataProvider.name}")
+    println(dataProvider)
+  }
 }
 
 @Command(

@@ -230,6 +230,10 @@ class EdpSimulatorTest {
         getCertificate(eq(getCertificateRequest { name = DATA_PROVIDER_CERTIFICATE.name }))
       }
       .thenReturn(DATA_PROVIDER_CERTIFICATE)
+    onBlocking {
+        getCertificate(eq(getCertificateRequest { name = DATA_PROVIDER_RESULT_CERTIFICATE.name }))
+      }
+      .thenReturn(DATA_PROVIDER_RESULT_CERTIFICATE)
   }
   private val measurementConsumersServiceMock:
     MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase =
@@ -2180,21 +2184,36 @@ class EdpSimulatorTest {
       name = DuchyCertificateKey(DUCHY_ID, externalIdToApiId(6L)).toName()
       x509Der = DUCHY_SIGNING_KEY.certificate.encoded.toByteString()
     }
+    private val EDP_SIGNING_KEY =
+      loadSigningKey("${EDP_DISPLAY_NAME}_cs_cert.der", "${EDP_DISPLAY_NAME}_cs_private.der")
+    private val EDP_RESULT_SIGNING_KEY =
+      loadSigningKey(
+        "${EDP_DISPLAY_NAME}_result_cs_cert.der",
+        "${EDP_DISPLAY_NAME}_result_cs_private.der"
+      )
+    private val DATA_PROVIDER_CERTIFICATE_KEY =
+      DataProviderCertificateKey(EDP_ID, externalIdToApiId(8L))
+    private val DATA_PROVIDER_RESULT_CERTIFICATE_KEY =
+      DataProviderCertificateKey(EDP_ID, externalIdToApiId(9L))
 
+    private val DATA_PROVIDER_CERTIFICATE = certificate {
+      name = DATA_PROVIDER_CERTIFICATE_KEY.toName()
+      x509Der = EDP_SIGNING_KEY.certificate.encoded.toByteString()
+      subjectKeyIdentifier = EDP_SIGNING_KEY.certificate.subjectKeyIdentifier!!
+    }
+    private val DATA_PROVIDER_RESULT_CERTIFICATE = certificate {
+      name = DATA_PROVIDER_RESULT_CERTIFICATE_KEY.toName()
+      x509Der = EDP_RESULT_SIGNING_KEY.certificate.encoded.toByteString()
+      subjectKeyIdentifier = EDP_RESULT_SIGNING_KEY.certificate.subjectKeyIdentifier!!
+    }
     private val EDP_DATA =
       EdpData(
         EDP_NAME,
         EDP_DISPLAY_NAME,
         loadEncryptionPrivateKey("${EDP_DISPLAY_NAME}_enc_private.tink"),
-        loadSigningKey("${EDP_DISPLAY_NAME}_cs_cert.der", "${EDP_DISPLAY_NAME}_cs_private.der")
+        EDP_RESULT_SIGNING_KEY,
+        DATA_PROVIDER_RESULT_CERTIFICATE_KEY
       )
-    private val DATA_PROVIDER_CERTIFICATE_KEY =
-      DataProviderCertificateKey(EDP_ID, externalIdToApiId(7L))
-    private val DATA_PROVIDER_CERTIFICATE = certificate {
-      name = DATA_PROVIDER_CERTIFICATE_KEY.toName()
-      x509Der = EDP_DATA.signingKey.certificate.encoded.toByteString()
-      subjectKeyIdentifier = EDP_DATA.signingKey.certificate.subjectKeyIdentifier!!
-    }
 
     private val MC_PUBLIC_KEY =
       loadPublicKey(SECRET_FILES_PATH.resolve("mc_enc_public.tink").toFile())

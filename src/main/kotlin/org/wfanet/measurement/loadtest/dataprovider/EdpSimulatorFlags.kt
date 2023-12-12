@@ -38,6 +38,14 @@ class EdpSimulatorFlags {
     private set
 
   @CommandLine.Option(
+    names = ["--data-provider-certificate-resource-name"],
+    description = ["The public API resource name for data provider consent signaling."],
+    required = true
+  )
+  lateinit var dataProviderCertificateResourceName: String
+    private set
+
+  @CommandLine.Option(
     names = ["--data-provider-display-name"],
     description = ["The display name of this data provider."],
     required = true

@@ -141,11 +141,17 @@ bazel build //src/main/k8s/local:cmms.tar \
   --define mc_api_key=OzWUxyTmqwg \
   --define mc_cert_name=measurementConsumers/ZP5ZJ9sZVXE/certificates/YCIa5l_vFdo \
   --define edp1_name=dataProviders/UjUpwCTmq0o \
+  --define edp1_cert_name=dataProviders/UjUpwCTmq0o/certificates/UjUpwCTmq0o \
   --define edp2_name=dataProviders/cV4YC9sZVKQ \
+  --define edp2_cert_name=dataProviders/cV4YC9sZVKQ/certificates/cV4YC9sZVKQ \
   --define edp3_name=dataProviders/DJweaNsZVJY \
+  --define edp3_cert_name=dataProviders/DJweaNsZVJY/certificates/DJweaNsZVJY \
   --define edp4_name=dataProviders/JxgZTyTmq3k \
+  --define edp4_cert_name=dataProviders/JxgZTyTmq3k/certificates/JxgZTyTmq3k \
   --define edp5_name=dataProviders/f8NzvNsZVHk \
+  --define edp5_cert_name=dataProviders/f8NzvNsZVHk/certificates/f8NzvNsZVHk \
   --define edp6_name=dataProviders/QOgxPtsZVGk \
+  --define edp6_cert_name=dataProviders/QOgxPtsZVGk/certificates/QOgxPtsZVGk \
   --define aggregator_cert_name=duchies/aggregator/certificates/clMWAdsZVFM \
   --define worker1_cert_name=duchies/worker1/certificates/Lm30i9sZVDo \
   --define worker2_cert_name=duchies/worker2/certificates/BXNL1CTmq9M

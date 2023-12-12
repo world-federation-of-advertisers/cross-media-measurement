@@ -410,7 +410,12 @@ private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {
     if (measurementSucceeded && !requisitionDetails.encryptedData.isEmpty) {
       results += resultInfo {
         this.externalDataProviderId = externalDataProviderId
-        externalCertificateId = externalDataProviderCertificateId
+        externalCertificateId =
+          if (requisitionDetails.externalCertificateId != 0L) {
+            requisitionDetails.externalCertificateId
+          } else {
+            externalDataProviderCertificateId
+          }
         encryptedResult = requisitionDetails.encryptedData
         apiVersion = requisitionDetails.encryptedDataApiVersion.ifEmpty { Version.V2_ALPHA.string }
       }

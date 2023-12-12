@@ -81,6 +81,7 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
         nonce = request.nonce
         if (request.hasDirectParams()) {
           encryptedData = request.directParams.encryptedData
+          externalCertificateId = request.directParams.externalCertificateId
           encryptedDataApiVersion = request.directParams.apiVersion
         }
       }

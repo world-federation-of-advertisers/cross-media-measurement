@@ -43,8 +43,8 @@ filegroup(
 filegroup(
     name = "mc_trusted_certs",
     srcs = [
-        "kingdom_root.pem",
         "aggregator_root.pem",
+        "kingdom_root.pem",
     ] + glob(["edp*_root.pem"]),
 )
 
@@ -148,6 +148,8 @@ SECRET_FILES = [
     "edp1_enc_public.tink",
     "edp1_tls.key",
     "edp1_tls.pem",
+    "edp1_result_cs_cert.der",
+    "edp1_result_cs_private.der",
     "edp2_cs_cert.der",
     "edp2_cs_private.der",
     "edp2_enc_private.tink",
