@@ -82,7 +82,7 @@ func Run(ctx context.Context, opts Options) error {
 	}()
 
 	glog.Infof("Starting listening at %s", opts.Addr)
-	if err := s.ListenAndServeTLS(opts.TlsCertPath, opts.TlsKeyPath); err != http.ErrServerClosed {
+	if err := s.ListenAndServe(); err != http.ErrServerClosed {
 		glog.Errorf("Failed to listen and serve: %v", err)
 		return err
 	}

@@ -15,4 +15,5 @@
 export type InitApiProps = {
   // eslint-disable-next-line node/no-unsupported-features/node-builtins
   endpoint: URL;
+  measurementConsumer: string;
 };

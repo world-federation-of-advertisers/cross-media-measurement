@@ -23,7 +23,11 @@ import './index.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
 const configProps = {
-  reportingClient: new ReportingClientImpl({endpoint: new URL('http://localhost:3000')}),
+  reportingClient: new ReportingClientImpl(
+    {
+      endpoint: new URL('http://localhost:8080'),
+      measurementConsumer: 'VCTqwV_vFXw',
+    }),
 };
 
 AppConfig.initialize(configProps);
