@@ -77,11 +77,6 @@ message Measurement {
       google.protobuf.Duration value = 1;
     }
     WatchDuration watchDuration = 4;
-
-    message Population {
-      int64 value = 1;
-    }
-    Population population = 5;
   }
   // The result of the `Measurement` derived from the CMMS public API.
   Result result = 5;

@@ -1303,10 +1303,6 @@ private val POPULATION_PROTOCOL_CONFIG: ProtocolConfig = protocolConfig {
     ProtocolConfigKt.protocol {
       direct =
         ProtocolConfigKt.direct {
-          noiseMechanisms +=
-            listOf(
-              ProtocolConfig.NoiseMechanism.NONE
-            )
           deterministicSum = ProtocolConfig.Direct.DeterministicSum.getDefaultInstance()
         }
     }

@@ -120,7 +120,7 @@ message Measurement {
     message Population {
       int64 value = 1;
       // The mechanism used to generate noise during computation.
-      NoiseMechanism noise_mechanism = 2;
+
       oneof methodology {
         CustomDirectMethodology custom_direct_methodology = 3;
         DeterministicCount deterministic_count = 4;
