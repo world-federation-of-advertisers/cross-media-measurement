@@ -294,9 +294,11 @@ open class ProductionExchangeTaskMapper(
     val copyOptions = step.copyToSharedStorageStep.copyOptions
     val destination =
       sharedStorageSelector.getSigningStorage(workflow.exchangeIdentifiers.storage, this)
-    val sourceLabel = step.inputLabelsMap.keys.single()
-    val sourceBlobKey = step.inputLabelsMap.values.single()
-    val destinationBlobKey = step.outputLabelsMap.values.single()
+    val inputsMap = step.inputLabelsMap.toMutableMap()
+    inputsMap.remove("owning-party-signing-certificate-resource-name")
+    val sourceLabel = inputsMap.keys.single()
+    val sourceBlobKey = inputsMap.values.single()
+    val destinationBlobKey = inputsMap.values.single()
 
     return when (copyOptions.labelType) {
       BLOB -> {
