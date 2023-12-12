@@ -17,17 +17,17 @@ syntax = "proto3";
 package wfa.measurement.reporting.bff.v1alpha;
 
 import "google/api/field_behavior.proto";
-import "google/protobuf/timestamp.proto";
+import "wfa/measurement/reporting/bff/v1alpha/metric.proto";
 
 option java_package = "org.wfanet.measurement.reporting.bff.v1alpha";
 option java_multiple_files = true;
-option java_outer_classname = "MetricProto";
+option java_outer_classname = "DemoBucketProto";
 
 option go_package = "wfa/measurement/reporting/bff/v1alpha/reportingpb";
 
-message Metric {
-  string source_name = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
-  int64 impressions = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
-  int64 frequency = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
-  int64 reach = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+message DemoBucket {
+  string demo_category_name = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  repeated Metric per_publisher_source = 2
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+  Metric union_source = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
