@@ -50,8 +50,8 @@ fun MetricSpec.withDefaults(metricSpecConfig: MetricSpecConfig): MetricSpec {
           metricSpecConfig.watchDurationVidSamplingInterval
         }
         MetricSpec.TypeCase.POPULATION_COUNT -> {
-          populationCount = MetricSpecKt.populationCountParams { }
-          MetricSpecConfig.VidSamplingInterval.getDefaultInstance()
+          populationCount = MetricSpecKt.populationCountParams {}
+          MetricSpecConfigKt.vidSamplingInterval {}
         }
         MetricSpec.TypeCase.TYPE_NOT_SET ->
           throw MetricSpecDefaultsException(
@@ -60,34 +60,37 @@ fun MetricSpec.withDefaults(metricSpecConfig: MetricSpecConfig): MetricSpec {
           )
       }
 
-    vidSamplingInterval =
-      if (hasVidSamplingInterval()) {
-        vidSamplingInterval
-      } else defaultVidSamplingInterval.toVidSamplingInterval()
+    // VID sampling interval is not needed in metric spec used to create population measurement.
+    if (typeCase != MetricSpec.TypeCase.POPULATION_COUNT) {
+      vidSamplingInterval =
+        if (hasVidSamplingInterval()) {
+          vidSamplingInterval
+        } else defaultVidSamplingInterval.toVidSamplingInterval()
 
-    if (vidSamplingInterval.start < 0) {
-      throw MetricSpecDefaultsException(
-        "Invalid vidSamplingInterval",
-        IllegalArgumentException("vidSamplingInterval.start cannot be negative.")
-      )
-    }
-    if (vidSamplingInterval.start >= 1) {
-      throw MetricSpecDefaultsException(
-        "Invalid vidSamplingInterval",
-        IllegalArgumentException("vidSamplingInterval.start must be smaller than 1.")
-      )
-    }
-    if (vidSamplingInterval.width <= 0) {
-      throw MetricSpecDefaultsException(
-        "Invalid vidSamplingInterval",
-        IllegalArgumentException("vidSamplingInterval.width must be greater than 0.")
-      )
-    }
-    if (vidSamplingInterval.start + vidSamplingInterval.width > 1) {
-      throw MetricSpecDefaultsException(
-        "Invalid vidSamplingInterval",
-        IllegalArgumentException("vidSamplingInterval start + width cannot be greater than 1.")
-      )
+      if (vidSamplingInterval.start < 0) {
+        throw MetricSpecDefaultsException(
+          "Invalid vidSamplingInterval",
+          IllegalArgumentException("vidSamplingInterval.start cannot be negative.")
+        )
+      }
+      if (vidSamplingInterval.start >= 1) {
+        throw MetricSpecDefaultsException(
+          "Invalid vidSamplingInterval",
+          IllegalArgumentException("vidSamplingInterval.start must be smaller than 1.")
+        )
+      }
+      if (vidSamplingInterval.width <= 0) {
+        throw MetricSpecDefaultsException(
+          "Invalid vidSamplingInterval",
+          IllegalArgumentException("vidSamplingInterval.width must be greater than 0.")
+        )
+      }
+      if (vidSamplingInterval.start + vidSamplingInterval.width > 1) {
+        throw MetricSpecDefaultsException(
+          "Invalid vidSamplingInterval",
+          IllegalArgumentException("vidSamplingInterval start + width cannot be greater than 1.")
+        )
+      }
     }
   }
 }

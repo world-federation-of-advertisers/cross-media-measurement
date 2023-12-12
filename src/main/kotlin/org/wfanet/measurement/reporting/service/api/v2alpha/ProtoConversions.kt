@@ -165,7 +165,7 @@ fun MetricSpec.toInternal(): InternalMetricSpec {
         watchDuration = source.watchDuration.toInternal()
       }
       MetricSpec.TypeCase.POPULATION_COUNT -> {
-        populationCount = InternalMetricSpecKt.populationCountParams { }
+        populationCount = InternalMetricSpecKt.populationCountParams {}
       }
       MetricSpec.TypeCase.TYPE_NOT_SET ->
         throw MetricSpecDefaultsException(
@@ -312,7 +312,9 @@ fun InternalMetricSpec.toMetricSpec(): MetricSpec {
             maximumWatchDurationPerUser = source.watchDuration.maximumWatchDurationPerUser
             privacyParams = source.watchDuration.privacyParams.toPrivacyParams()
           }
-      InternalMetricSpec.TypeCase.POPULATION_COUNT -> {}
+      InternalMetricSpec.TypeCase.POPULATION_COUNT -> {
+        populationCount = MetricSpecKt.populationCountParams {}
+      }
       InternalMetricSpec.TypeCase.TYPE_NOT_SET ->
         throw IllegalArgumentException("The metric type in Metric is not specified.")
     }
