@@ -68,6 +68,7 @@ import org.wfanet.measurement.api.v2alpha.DeleteModelShardRequest
 import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.EncryptedMessage
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.GetModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.GetModelSuiteRequest
@@ -2106,6 +2107,26 @@ class MeasurementSystemTest {
           pageToken = ""
         }
       )
+  }
+
+  @Test
+  fun `dataProviders get calls GetDataProvider with correct params`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "data-providers",
+          "--name=dataProviders/777",
+          "get",
+        )
+    callCli(args)
+    dataProvidersServiceMock.stub {
+      onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDER)
+    }
+    val request: GetDataProviderRequest = captureFirst {
+      runBlocking { verify(dataProvidersServiceMock).getDataProvider(capture()) }
+    }
+    val dataProviderName = request.name
+    assertThat(dataProviderName).isEqualTo("dataProviders/777")
   }
 
   companion object {
