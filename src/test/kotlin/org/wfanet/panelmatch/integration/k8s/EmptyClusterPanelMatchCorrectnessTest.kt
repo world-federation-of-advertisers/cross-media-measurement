@@ -470,7 +470,7 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
     private const val SHARED_STORAGE_DEPLOYMENT_NAME = "shared-storage-server-deployment"
 
     private val DEFAULT_RPC_DEADLINE = Duration.ofSeconds(30)
-    private val IMAGE_PUSHER_PATH = Paths.get("src", "main", "docker", "push_all_local_images")
+    private val IMAGE_PUSHER_PATH = Paths.get("src", "main", "docker", "push_all_local_images.bash")
     private val IMAGE_PANEL_MATCH_PUSHER_PATH =
       Paths.get("src", "main", "docker", "panel_exchange_client", "push_all_images")
 
