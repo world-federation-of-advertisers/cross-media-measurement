@@ -1,4 +1,4 @@
-// Copyright 2021 The Cross-Media Measurement Authors
+// Copyright 2023 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,25 +14,20 @@
 
 syntax = "proto3";
 
-package wfa.measurement.config;
+package wfa.measurement.internal.duchy.protocol;
 
-option java_package = "org.wfanet.measurement.config";
+option java_package = "org.wfanet.measurement.internal.duchy.protocol";
 option java_multiple_files = true;
 
-// Duchy certificate configuration.
-message DuchyCertConfig {
-  message Duchy {
-    // The ID of the Duchy
-    string duchy_id = 1;
+// Parameters used for the sketch of HonestMajorityShareShuffle protocol
+// creation and estimation.
+message ShareShuffleSketchParams {
+  // The number of registers in the sketch.
+  int64 register_count = 1;
 
-    // The expected hostname in the duchy ComputationControlServer's TLS
-    // certificate.
-    string computation_control_service_cert_host = 2;
-
-    // The SKID of the Duchy's root certificate
-    bytes root_certificate_skid = 3;
-  }
-
-  // The list of all the Duchy certificate information in this config message.
-  repeated Duchy duchies = 1;
+  // Length of each register in bytes.
+  //
+  // The product of `maximum_frequency` and the `nonce_hashes` count from the
+  // `MeasurementSpec` should be no more than 2 ^ (`bytes_per_register` * 8).
+  int32 bytes_per_register = 2;
 }

@@ -1383,7 +1383,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   }
 
   @Test
-  fun `frequency histogram metric has the expected result`() = runBlocking {
+  fun `reach-and-frequency metric has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
     val eventGroup = eventGroups[0]
@@ -1410,8 +1410,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       timeInterval = EVENT_RANGE.toInterval()
       metricSpec =
         metricSpec {
-            frequencyHistogram =
-              MetricSpecKt.frequencyHistogramParams {
+            reachAndFrequency =
+              MetricSpecKt.reachAndFrequencyParams {
                 reachPrivacyParams = DP_PARAMS
                 frequencyPrivacyParams = DP_PARAMS
                 maximumFrequency = 5
@@ -1445,17 +1445,16 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val expectedResult =
       calculateExpectedReachAndFrequencyMeasurementResult(
         sampledVids,
-        metric.metricSpec.frequencyHistogram.maximumFrequency
+        metric.metricSpec.reachAndFrequency.maximumFrequency
       )
 
-    val reach =
-      retrievedMetric.result.frequencyHistogram.binsList.sumOf { bin -> bin.binResult.value }
+    val reach = retrievedMetric.result.reachAndFrequency.reach.value
     val actualResult =
       MeasurementKt.result {
         frequency =
           MeasurementKt.ResultKt.frequency {
             relativeFrequencyDistribution.putAll(
-              retrievedMetric.result.frequencyHistogram.binsList.associate {
+              retrievedMetric.result.reachAndFrequency.frequencyHistogram.binsList.associate {
                 Pair(it.label.toLong(), it.binResult.value / reach)
               }
             )

@@ -14,7 +14,7 @@
 
 syntax = "proto3";
 
-package org.wfa.measurement.config;
+package wfa.measurement.internal.duchy.config;
 
 option java_package = "org.wfanet.measurement.internal.duchy.config";
 option java_multiple_files = true;
@@ -29,21 +29,29 @@ message ProtocolsSetupConfig {
   LiquidLegionsV2SetupConfig reach_only_liquid_legions_v2 = 2;
 }
 
+// Role in Computations assigned to Duchies.
+enum RoleInComputation {
+  // Never set intentionally
+  ROLE_IN_COMPUTATION_UNSPECIFIED = 0;
+
+  // The aggregator duchy for the computation.
+  AGGREGATOR = 1;
+
+  // A non-aggregator duchy for the computation.
+  //
+  // For LiquidLegionsV2, this duchy has to do many crypto operations, but is
+  // not responsible for joining sketch positions together, nor computing the
+  // final results.
+  //
+  // For HonestMajorityShareShuffle, this duchy needs to exchange seeds,
+  // add noise, and shuffle.
+  NON_AGGREGATOR = 2;
+}
+
 // LiquidLegionsV2 protocols specific configuration. Also used for reach-only
 // llv2.
 message LiquidLegionsV2SetupConfig {
-  enum RoleInComputation {
-    // Never set intentionally
-    UNKNOWN = 0;
-
-    // The aggregator duchy for the computation.
-    AGGREGATOR = 1;
-
-    // A non-aggregator duchy for the computation. This duchy has to do many
-    // crypto operations, but is not responsible for joining sketch positions
-    // together, nor computing the final results.
-    NON_AGGREGATOR = 2;
-  }
+  // Role of duchy in Computations.
   RoleInComputation role = 1;
 
   // The external id of the aggregator duchy.

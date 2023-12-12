@@ -204,15 +204,15 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
               bind("$8", it.metric.metricSpec.typeCase.number)
               @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
               when (it.metric.metricSpec.typeCase) {
-                MetricSpec.TypeCase.FREQUENCY_HISTOGRAM -> {
-                  val frequencyHistogram = it.metric.metricSpec.frequencyHistogram
-                  bind("$9", frequencyHistogram.reachPrivacyParams.epsilon)
-                  bind("$10", frequencyHistogram.reachPrivacyParams.delta)
-                  bind("$11", frequencyHistogram.frequencyPrivacyParams.epsilon)
-                  bind("$12", frequencyHistogram.reachPrivacyParams.delta)
+                MetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
+                  val reachAndFrequency = it.metric.metricSpec.reachAndFrequency
+                  bind("$9", reachAndFrequency.reachPrivacyParams.epsilon)
+                  bind("$10", reachAndFrequency.reachPrivacyParams.delta)
+                  bind("$11", reachAndFrequency.frequencyPrivacyParams.epsilon)
+                  bind("$12", reachAndFrequency.reachPrivacyParams.delta)
                   bind<Long?>("$13", null)
                   bind<PostgresInterval?>("$14", null)
-                  bind("$20", frequencyHistogram.maximumFrequency)
+                  bind("$20", reachAndFrequency.maximumFrequency)
                 }
                 MetricSpec.TypeCase.REACH -> {
                   val reach = it.metric.metricSpec.reach

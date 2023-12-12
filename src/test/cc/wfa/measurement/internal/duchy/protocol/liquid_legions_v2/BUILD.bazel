@@ -10,7 +10,7 @@ cc_test(
     deps = [
         "//src/main/cc/wfa/measurement/internal/duchy/protocol/liquid_legions_v2:liquid_legions_v2_encryption_utility",
         "//src/main/cc/wfa/measurement/internal/duchy/protocol/liquid_legions_v2/testing:liquid_legions_v2_encryption_utility_helper",
-        "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_noise_config_cc_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_cc_proto",
         "@any_sketch//src/main/cc/any_sketch/crypto:sketch_encrypter",
         "@any_sketch//src/main/cc/estimation:estimators",
         "@any_sketch//src/main/proto/wfa/any_sketch:sketch_cc_proto",
@@ -30,7 +30,7 @@ cc_test(
     deps = [
         "//src/main/cc/wfa/measurement/internal/duchy/protocol/liquid_legions_v2:reach_only_liquid_legions_v2_encryption_utility",
         "//src/main/cc/wfa/measurement/internal/duchy/protocol/liquid_legions_v2/testing:liquid_legions_v2_encryption_utility_helper",
-        "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_noise_config_cc_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_cc_proto",
         "@any_sketch//src/main/cc/any_sketch/crypto:sketch_encrypter",
         "@any_sketch//src/main/cc/estimation:estimators",
         "@any_sketch//src/main/proto/wfa/any_sketch:sketch_cc_proto",
