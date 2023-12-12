@@ -249,6 +249,13 @@ class RequisitionsService(
       directParams = directRequisitionParams {
         externalDataProviderId = apiIdToExternalId(key.dataProviderId)
         encryptedData = encryptedResultCiphertext
+        if (request.certificate.isNotEmpty()) {
+          val dataProviderCertificateKey =
+            DataProviderCertificateKey.fromName(request.certificate)
+              ?: throw Status.INVALID_ARGUMENT.withDescription("Invalid result certificate")
+                .asRuntimeException()
+          externalCertificateId = apiIdToExternalId(dataProviderCertificateKey.certificateId)
+        }
         apiVersion = Version.V2_ALPHA.string
       }
     }
