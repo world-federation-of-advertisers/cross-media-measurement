@@ -887,24 +887,6 @@ val INTERNAL_PENDING_POPULATION_MEASUREMENT = internalMeasurement {
   state = InternalMeasurement.State.PENDING
 }
 
-
-private val INTERNAL_SUCCEEDED_POPULATION_MEASUREMENT =
-  INTERNAL_PENDING_POPULATION_MEASUREMENT.copy {
-    state = InternalMeasurement.State.SUCCEEDED
-    details =
-      InternalMeasurementKt.details {
-        results +=
-          InternalMeasurementKt.result {
-            population =
-              InternalMeasurementKt.ResultKt.population {
-                value = TOTAL_POPULATION_VALUE
-                noiseMechanism = NoiseMechanism.DISCRETE_GAUSSIAN
-                deterministicCount = InternalDeterministicCount.getDefaultInstance()
-              }
-          }
-      }
-  }
-
 // CMMS measurements
 
 // CMMS incremental reach measurements
@@ -1355,22 +1337,6 @@ private val PENDING_POPULATION_MEASUREMENT =
     protocolConfig = POPULATION_PROTOCOL_CONFIG
     state = Measurement.State.COMPUTING
   }
-private val SUCCEEDED_POPULATION_MEASUREMENT =
-  PENDING_POPULATION_MEASUREMENT.copy {
-    state = Measurement.State.SUCCEEDED
-
-
-    results += resultOutput {
-      val result =
-        MeasurementKt.result {
-          population = MeasurementKt.ResultKt.population { value = TOTAL_POPULATION_VALUE }
-        }
-      encryptedResult =
-        encryptResult(signResult(result, AGGREGATOR_SIGNING_KEY), MEASUREMENT_CONSUMER_PUBLIC_KEY)
-      certificate = AGGREGATOR_CERTIFICATE.name
-    }
-  }
-
 
 // Metric Specs
 
@@ -1758,16 +1724,6 @@ val INTERNAL_PENDING_POPULATION_METRIC =
     }
   }
 
-val INTERNAL_SUCCEEDED_POPULATION_METRIC =
-  INTERNAL_PENDING_POPULATION_METRIC.copy {
-    weightedMeasurements.clear()
-    weightedMeasurements += weightedMeasurement {
-      weight = 1
-      binaryRepresentation = 3
-      measurement = INTERNAL_SUCCEEDED_POPULATION_MEASUREMENT
-    }
-  }
-
 // Public Metrics
 
 // Incremental reach metrics
@@ -2031,22 +1987,6 @@ val PENDING_POPULATION_METRIC = REQUESTING_POPULATION_METRIC.copy {
   }
   createTime = INTERNAL_PENDING_POPULATION_METRIC.createTime
 }
-
-
-val SUCCEEDED_POPULATION_METRIC =
-  PENDING_POPULATION_METRIC.copy {
-    state = Metric.State.SUCCEEDED
-
-
-    result = metricResult {
-      populationCount =
-        MetricResultKt.populationCountResult {
-          value = TOTAL_POPULATION_VALUE
-          univariateStatistics = univariateStatistics { standardDeviation = sqrt(VARIANCE_VALUE) }
-        }
-    }
-  }
-
 
 @RunWith(JUnit4::class)
 class MetricsServiceTest {
