@@ -19,7 +19,6 @@ package wfa.measurement.reporting.bff.v1alpha;
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
-import "wfa/measurement/reporting/bff/v1alpha/metric.proto";
 import "wfa/measurement/reporting/bff/v1alpha/time_interval.proto";
 
 option java_package = "org.wfanet.measurement.reporting.bff.v1alpha";
@@ -46,4 +45,7 @@ message Report {
   }
 
   State state = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  repeated TimeInterval time_interval = 4
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 }

@@ -17,8 +17,8 @@ syntax = "proto3";
 package wfa.measurement.reporting.bff.v1alpha;
 
 import "google/api/field_behavior.proto";
-import "google/protobuf/duration.proto";
-import "google/protobuf/timestamp.proto";
+import "google/type/interval.proto";
+import "wfa/measurement/reporting/bff/v1alpha/demo_bucket.proto";
 
 option java_package = "org.wfanet.measurement.reporting.bff.v1alpha";
 option java_multiple_files = true;
@@ -26,38 +26,10 @@ option java_outer_classname = "TimeIntervalProto";
 
 option go_package = "wfa/measurement/reporting/bff/v1alpha/reportingpb";
 
-// A time interval.
 message TimeInterval {
-  // Start of the time interval, inclusive.
-  google.protobuf.Timestamp start_time = 1
-      [(google.api.field_behavior) = REQUIRED];
-  // End of the time interval, exclusive. This must be later than the start
-  // time.
-  google.protobuf.Timestamp end_time = 2
-      [(google.api.field_behavior) = REQUIRED];
-}
+  google.type.Interval time_interval = 1
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 
-// A list of time intervals with different start times and end times.
-message TimeIntervals {
-  // A list of time intervals.
-  repeated TimeInterval time_intervals = 1
-      [(google.api.field_behavior) = REQUIRED];
-}
-
-// A series of time intervals with the same length.
-message PeriodicTimeInterval {
-  // Start of the first time interval, inclusive.
-  google.protobuf.Timestamp start_time = 1
-      [(google.api.field_behavior) = REQUIRED];
-
-  // Increment for each time interval. The first interval will be [start_time,
-  // start_time + increment), the second [start_time + increment, start_time +
-  // increment * 2) and so forth.
-  //
-  // TODO(@SanjayVas): Consider whether we want to use civil time instead.
-  google.protobuf.Duration increment = 2
-      [(google.api.field_behavior) = REQUIRED];
-
-  // Number of intervals.
-  int32 interval_count = 3 [(google.api.field_behavior) = REQUIRED];
+  repeated DemoBucket demo_bucket = 2
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 }
