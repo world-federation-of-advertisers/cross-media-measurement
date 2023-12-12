@@ -47,15 +47,15 @@ message MetricSpec {
     DifferentialPrivacyParams privacy_params = 1
         [(google.api.field_behavior) = REQUIRED];
   }
-  // Parameters that are used to generate `Frequency Histogram` metric.
-  message FrequencyHistogramParams {
+  // Parameters that are used to generate `ReachAndFrequency` metric.
+  message ReachAndFrequencyParams {
     // Differential privacy parameters for reach.
     DifferentialPrivacyParams reach_privacy_params = 1
         [(google.api.field_behavior) = REQUIRED];
     // Differential privacy parameters for frequency distribution.
     DifferentialPrivacyParams frequency_privacy_params = 2
         [(google.api.field_behavior) = REQUIRED];
-    // Maximum frequency cut-off value in the frequency histogram.
+    // Maximum frequency cut-off value in frequency histogram.
     //
     // Counts with frequency higher than `maximum_frequency` will be aggregated
     // together. If not set, the default value will be used and outputted here.
@@ -97,11 +97,11 @@ message MetricSpec {
   oneof type {
     // The count of unique audiences reached given a set of event groups.
     ReachParams reach = 1 [(google.api.field_behavior) = IMMUTABLE];
-    // The reach frequency histogram given a set of event groups.
+    // The reach-and-frequency given a set of event groups.
     //
-    // Currently, we only support union operations for frequency histograms. Any
+    // Currently, we only support union operations for reach-and-frequency. Any
     // other types of operations won't guarantee the correctness of the result.
-    FrequencyHistogramParams frequency_histogram = 2
+    ReachAndFrequencyParams reach_and_frequency = 2
         [(google.api.field_behavior) = IMMUTABLE];
     // The impression count given a set of event groups.
     ImpressionCountParams impression_count = 3
@@ -190,6 +190,13 @@ message MetricResult {
     // The bins that form a histogram. Ordering is not guaranteed.
     repeated Bin bins = 1;
   }
+
+  // Reach-and-frequency result format.
+  message ReachAndFrequencyResult {
+    ReachResult reach = 1;
+    HistogramResult frequency_histogram = 2;
+  }
+
   // Impression count result format.
   message ImpressionCountResult {
     // Impression value.
@@ -217,8 +224,8 @@ message MetricResult {
   oneof result {
     // Reach result.
     ReachResult reach = 3;
-    // Histogram result.
-    HistogramResult frequency_histogram = 4;
+    // Reach-and-frequency result.
+    ReachAndFrequencyResult reach_and_frequency = 4;
     // Impression count result.
     ImpressionCountResult impression_count = 5;
     // Watch duration result.
