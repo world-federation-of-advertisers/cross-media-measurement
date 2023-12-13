@@ -16,19 +16,20 @@ syntax = "proto3";
 
 package wfa.measurement.reporting.bff.v1alpha;
 
-import "google/api/field_behavior.proto";
-import "wfa/measurement/reporting/bff/v1alpha/demo_bucket.proto";
-import "wfa/measurement/reporting/bff/v1alpha/interval.proto";
+import "google/protobuf/timestamp.proto";
 
 option java_package = "org.wfanet.measurement.reporting.bff.v1alpha";
 option java_multiple_files = true;
-option java_outer_classname = "TimeIntervalProto";
+option java_outer_classname = "IntervalProto";
 
 option go_package = "wfa/measurement/reporting/bff/v1alpha/reportingpb";
 
-message TimeInterval {
-  Interval time_interval = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+// Mostly copied from
+// https://github.com/googleapis/googleapis/blob/master/google/type/interval.proto
+// TODO(@bdomen-ggl): Remove when we get the GRPC Gateway protos working by
+// updating the bazel packages.
+message Interval {
+  google.protobuf.Timestamp start_time = 1;
 
-  repeated DemoBucket demo_bucket = 2
-      [(google.api.field_behavior) = OUTPUT_ONLY];
+  google.protobuf.Timestamp end_time = 2;
 }
