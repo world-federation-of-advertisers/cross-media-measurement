@@ -9,13 +9,22 @@ IMPORT_PREFIX = "/src/main/proto"
 GO_IMPORT_PATH = "wfa/measurement/reporting/bff/v1alpha/reportingpb"
 
 proto_library(
+    name = "interval_proto",
+    srcs = ["interval.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
     name = "time_interval_proto",
     srcs = ["time_interval.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":demo_bucket_proto",
+        ":interval_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
-        "@com_google_googleapis//google/type:interval_proto",
     ],
 )
 
@@ -71,6 +80,12 @@ proto_library(
 )
 
 go_grpc_gateway_proto_library(
+    name = "interval_go_proto",
+    importpath = GO_IMPORT_PATH,
+    protos = [":interval_proto"],
+)
+
+go_grpc_gateway_proto_library(
     name = "metric_go_proto",
     importpath = GO_IMPORT_PATH,
     protos = [":metric_proto"],
@@ -85,7 +100,10 @@ go_grpc_gateway_proto_library(
 
 go_grpc_gateway_proto_library(
     name = "time_interval_go_proto",
-    embed = [":demo_bucket_go_proto"],
+    embed = [
+        ":demo_bucket_go_proto",
+        ":interval_go_proto",
+    ],
     importpath = GO_IMPORT_PATH,
     protos = [":time_interval_proto"],
 )
