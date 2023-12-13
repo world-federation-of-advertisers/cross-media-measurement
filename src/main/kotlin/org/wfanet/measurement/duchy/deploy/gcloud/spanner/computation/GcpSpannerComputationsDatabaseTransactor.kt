@@ -659,6 +659,9 @@ class GcpSpannerComputationsDatabaseTransactor<
     pathToBlob: String? = null,
     seed: ByteString? = null
   ) {
+    require((pathToBlob != null && seed == null) || (pathToBlob == null && seed != null)) {
+      "There must be only one of seed or pathToBlob non-null."
+    }
     databaseClient.readWriteTransaction().execute { txn ->
       val row =
         txn.readRowUsingIndex(

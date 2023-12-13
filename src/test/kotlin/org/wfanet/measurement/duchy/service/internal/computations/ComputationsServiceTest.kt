@@ -474,7 +474,7 @@ class ComputationsServiceTest {
   }
 
   @Test
-  fun `record requisition blob path`() = runBlocking {
+  fun `RecordRequisitionBlobPath records blob path`() = runBlocking {
     val id = "1234"
     val requisitionKey = externalRequisitionKey {
       externalRequisitionId = "1234"
@@ -516,7 +516,7 @@ class ComputationsServiceTest {
   }
 
   @Test
-  fun `recordRequisitionSeed with empty seed raises error`() = runBlocking {
+  fun `recordRequisitionSeed records seed`() = runBlocking {
     val id = "1234"
     val requisitionKey = externalRequisitionKey {
       externalRequisitionId = "1234"

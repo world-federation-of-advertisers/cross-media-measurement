@@ -43,7 +43,9 @@ class RecordRequisitionData(
   private val computationReader: ComputationReader,
 ) : PostgresWriter<ComputationToken>() {
   override suspend fun TransactionScope.runTransaction(): ComputationToken {
-    require((pathToBlob != null && seed == null) || (pathToBlob == null && seed != null))
+    require((pathToBlob != null && seed == null) || (pathToBlob == null && seed != null)) {
+      "There must be only one of seed or pathToBlob non-null."
+    }
     if (pathToBlob != null) {
       require(pathToBlob.isNotBlank()) {
         "Cannot insert blank path to blob. $externalRequisitionKey"
