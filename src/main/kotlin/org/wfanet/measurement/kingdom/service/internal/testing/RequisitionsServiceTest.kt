@@ -1009,6 +1009,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           directParams = directRequisitionParams {
             externalDataProviderId = requisition.externalDataProviderId
             encryptedData = REQUISITION_ENCRYPTED_DATA
+            externalCertificateId = requisition.details.externalCertificateId
             apiVersion = PUBLIC_API_VERSION
           }
         }
@@ -1063,6 +1064,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           directParams = directRequisitionParams {
             externalDataProviderId = requisitions[0].externalDataProviderId
             encryptedData = REQUISITION_ENCRYPTED_DATA
+            externalCertificateId = requisitions[0].details.externalCertificateId
             apiVersion = PUBLIC_API_VERSION
           }
         }
@@ -1075,6 +1077,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             directParams = directRequisitionParams {
               externalDataProviderId = requisitions[1].externalDataProviderId
               encryptedData = REQUISITION_ENCRYPTED_DATA
+              externalCertificateId = requisitions[1].details.externalCertificateId
               apiVersion = PUBLIC_API_VERSION
             }
           }
@@ -1126,6 +1129,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           directParams = directRequisitionParams {
             externalDataProviderId = requisitions[0].externalDataProviderId
             encryptedData = REQUISITION_ENCRYPTED_DATA
+            externalCertificateId = requisitions[0].details.externalCertificateId
             apiVersion = PUBLIC_API_VERSION
           }
         }
@@ -1138,6 +1142,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           directParams = directRequisitionParams {
             externalDataProviderId = requisitions[1].externalDataProviderId
             encryptedData = REQUISITION_ENCRYPTED_DATA
+            externalCertificateId = requisitions[1].details.externalCertificateId
             apiVersion = PUBLIC_API_VERSION
           }
         }
@@ -1193,6 +1198,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             directParams = directRequisitionParams {
               externalDataProviderId = provider.externalDataProviderId
               encryptedData = REQUISITION_ENCRYPTED_DATA
+              externalCertificateId = idGenerator.generateExternalId().value
               apiVersion = PUBLIC_API_VERSION
             }
           }

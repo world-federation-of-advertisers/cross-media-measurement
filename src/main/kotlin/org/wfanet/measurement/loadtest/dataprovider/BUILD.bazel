@@ -194,6 +194,7 @@ kt_jvm_library(
         ":edp_simulator",
         ":edp_simulator_flags",
         ":event_query",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:privacy_budgets",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:vid_sampling",
         "//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_grpc_proto",
