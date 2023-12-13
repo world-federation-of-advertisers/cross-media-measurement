@@ -39,6 +39,7 @@ message Report {
     type: "reporting.halo-cmm.org/Report"
     pattern: "measurementConsumers/{measurement_consumer}/reports/{report}"
   };
+  reserved 3, 4;
 
   // Resource name.
   string name = 1;
@@ -82,10 +83,16 @@ message Report {
   // Types of time intervals for metric aggregation.
   // Required if not used for `report_template` in `ReportSchedule`.
   oneof time {
-    // A list of time intervals with different start times and end times.
-    TimeIntervals time_intervals = 3;
-    // A series of time intervals with the same length.
-    PeriodicTimeInterval periodic_time_interval = 4;
+    // A list of time intervals with different start times and end times. If
+    // this field is set and any MetricCalculationSpec specifies a FrequencySpec
+    // an error will be reported.
+    TimeIntervals time_intervals = 10;
+    // A single time interval specifying the start and end time of the report.
+    // If this is specified any Frequency Spec provided with any
+    // MetricCalculationSpec will be used to divide the interval as specified.
+    // If a Frequency Spec is not specified then the behavior is the same as
+    // if a single element in the time_intervals field was specified.
+    google.type.Interval time_interval = 11;
   }
 
   // Possible states of a `Report`.
@@ -107,6 +114,10 @@ message Report {
   // level of granularity of single time interval and single group of the
   // Cartesian product of groupings.
   message MetricCalculationResult {
+    reserved 3;
+
+    // TODO: Add a reference to the MetricCalculationSpec?
+
     // The name of the `MetricCalculationResult`.
     string display_name = 1;
 
@@ -114,11 +125,6 @@ message Report {
     string reporting_set = 2 [(google.api.resource_reference) = {
       type: "reporting.halo-cmm.org/ReportingSet"
     }];
-
-    // Whether the results for a given time interval is cumulative with those of
-    // previous time intervals.
-    // Only supported when using `PeriodicTimeInterval`.
-    bool cumulative = 3;
 
     // Contains the attributes of the result, including the group of predicates,
     // time interval, and metric result.

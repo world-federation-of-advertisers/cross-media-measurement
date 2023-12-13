@@ -18,6 +18,8 @@ package wfa.measurement.reporting.v2alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
+import "google/type/date.proto";
+import "google/type/dayofweek.proto";
 import "wfa/measurement/reporting/v2alpha/metric.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
@@ -32,6 +34,7 @@ message MetricCalculationSpec {
     type: "reporting.halo-cmm.org/MetricCalculationSpec"
     pattern: "measurementConsumers/{measurement_consumer}/metricCalculationSpecs/{metric_calculation_spec}"
   };
+  reserved 6;
 
   // Resource name.
   string name = 1;
@@ -72,8 +75,54 @@ message MetricCalculationSpec {
   // time interval. Predicates must be unique.
   repeated Grouping groupings = 5 [(google.api.field_behavior) = IMMUTABLE];
 
-  // Whether the results for a given time interval (time intervals are from
-  // `time` in `Report`) is cumulative with those of previous time intervals.
-  // Only supported when using `PeriodicTimeInterval` in a `Report`.
-  bool cumulative = 6 [(google.api.field_behavior) = IMMUTABLE];
+
+  // Describes the frequencies for which results are generated.
+  message FrequencySpec {
+    message Daily {}
+
+    message Weekly {
+      google.type.DayOfWeek day_of_week = 1
+          [(google.api.field_behavior) = REQUIRED];
+    }
+
+    message Monthly {
+      // If this represents a date that is greater than the end of the month,
+      // then it will be coerced to the end of the month. Cannot be less than 1.
+      int32 day_of_month = 1 [(google.api.field_behavior) = REQUIRED];
+    }
+
+    // The ferquency at which the time interval is divided.
+    oneof frequency {
+      Daily daily = 1;
+      Weekly weekly = 2;
+      Monthly monthly = 3;
+    }
+  }
+  FrequencySpec frequency_spec = 7 [(google.api.field_behavior) = REQUIRED];
+
+
+  message Window {
+    message TrailingWindow {
+      // Represents how much of the `increment` to go back.
+      int32 count = 1 [(google.api.field_behavior) = REQUIRED];
+
+      enum Increment {
+        // Default value if the increment is omitted. Must not be used.
+        INCREMENT_UNSPECIFIED = 0;
+        DAY = 1;
+        WEEK = 2;
+        MONTH = 3;
+      }
+      Increment increment = 2 [(google.api.field_behavior) = REQUIRED];
+    }
+
+    // How far back the `Report` covers. Anchored on start hour. Required.
+    oneof window {
+      // `Report` start time is determined by how the window is defined.
+      TrailingWindow trailing_window = 1;
+      // `Report` starts from the report start time as specified in the Report.
+      boolean report_start_time = 2;
+    }
+  }
+  Window window = 8 [(google.api.field_behavior) = REQUIRED];
 }
