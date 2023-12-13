@@ -119,7 +119,6 @@ message Measurement {
 
     message Population {
       int64 value = 1;
-      // The mechanism used to generate noise during computation.
 
       oneof methodology {
         CustomDirectMethodology custom_direct_methodology = 3;

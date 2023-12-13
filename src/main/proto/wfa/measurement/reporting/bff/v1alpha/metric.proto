@@ -173,14 +173,6 @@ message MetricResult {
     double value = 1;
   }
 
-  // Population result format.
-  //
-  // TODO(@riemanli): Add error bar.
-  message PopulationCountResult {
-    // Watch duration value in second.
-    double value = 1;
-  }
-
   // The metric result
   oneof result {
     // Reach result.
@@ -191,8 +183,6 @@ message MetricResult {
     ImpressionCountResult impression_count = 5;
     // Watch duration result.
     WatchDurationResult watch_duration = 6;
-    // Population count result.
-    PopulationCountResult population_count = 7;
   }
 }
 
