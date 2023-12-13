@@ -12,13 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  TimeInterval as BffTimeInterval,
-} from '.';
+export type Metric = {
+  sourceName: string,
+  impressions: number,
+  frequency: number,
+  reach: number,
+};
 
-export type Report = {
-  reportId: string;
-  name: string;
-  state: string;
-  timeInterval: BffTimeInterval[];
+export type Bucket = {
+  demoCategoryName: string,
+  perPublisherSource: Metric[],
+  unionSource: Metric,
+};
+
+export type Interval = {
+  startTime: Date,
+  endTime: Date,
+};
+
+export type TimeInterval = {
+  timeInterval: Interval;
+  demoBucket: any;
 };

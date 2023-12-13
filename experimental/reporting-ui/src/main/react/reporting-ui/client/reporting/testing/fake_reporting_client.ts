@@ -17,7 +17,6 @@ import {
   GetReportResponse,
   ListReportsResponse,
   Report,
-  ReportState,
   UniqueReach,
 } from '../../../model/reporting';
 import {ReportingClient} from '../client';

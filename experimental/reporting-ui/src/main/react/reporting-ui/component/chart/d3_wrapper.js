@@ -123,6 +123,9 @@ const setUpLinearYScale = (svg, data, dimensions, margins, isPercent = false) =>
 
 const drawMultiLines = (svg, groups, groupColors) => {
     // Draw the lines.
+    var color = d3.scaleOrdinal()
+        .range(['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628','#f781bf','#999999'])
+
     const line = d3.line().curve(d3.curveMonotoneX);;
     svg.append("g")
         .attr("fill", "none")
@@ -132,7 +135,8 @@ const drawMultiLines = (svg, groups, groupColors) => {
       .selectAll("path")
       .data(groups.values())
       .join("path")
-        .attr("stroke", function(d){ return groupColors[d.z] })
+        .attr("stroke", function(d){ return color(d.key) })
+        // .attr("stroke", function(d){ return groupColors[d.z] })
         .style("mix-blend-mode", "multiply")
         .attr("d", line);
 }
@@ -155,12 +159,12 @@ export const createMultiLineChart = (cardId, data, dimensions, margins, colorMap
     const y = setUpLinearYScale(svg, data, dimensions, margins);
 
     // Compute the points in pixel space as [x, y, z], where z is the name of the series.
-    const points = data.map((d) => [x(d.date), y(d.value), d.pub]);
+    const points = data.map((d) => [x(d.date), y(d.value), d.group]);
 
     // Group the points by series.
     const groups = d3.rollup(points, v => Object.assign(v, {z: v[0][2]}), d => d[2]);
 
-    drawMultiLines(svg, groups, colorMap);
+    drawMultiLines(svg, groups);
 }
 
 export const createPercentMultiLineChart = (cardId, data, dimensions, margins, colorMap) => { 

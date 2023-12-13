@@ -46,13 +46,10 @@ export const ReportView = () => {
               name={report.name}
               overview={report.overview}
               summaries={report.summary}
-              targetReach={report.targetReach}
+              impressions={report.impressions}
+              uniqueReach={report.uniqueReach}
               totalReach={report.totalReach}
-              xmediaReach={report.xmediaReach}
-              onTargetReach={report.onTargetReach}
-              onTargetUniqueReach={report.onTargetUniqueReach}
-              uniqueReachByPlat={report.uniqueReachByPlat}
-              demo={report.demo}
+              frequencies={report.averageFrequency}
             />
   }
 

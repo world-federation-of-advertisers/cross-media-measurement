@@ -16,8 +16,9 @@ import React from 'react';
 import { Header } from './header';
 import { ReportOverviewStats } from './overview';
 import { SummaryTable } from './summary_table';
-import { Demographic, Overview, Reach, SummaryPublisherData, TargetReach, UniqueReach } from '../../../model/reporting';
+import { Overview, SummaryPublisherData } from '../../../model/reporting';
 import { Charts } from './charts';
+import { ChartGroup } from '../../../view_model/report/report_view_model';
 
 const COLORS = Object.freeze([
   '#FFA300',
@@ -30,26 +31,20 @@ type TerminalReportProps = {
   name: string;
   overview: Overview,
   summaries: SummaryPublisherData[],
-  targetReach: Reach[],
-  totalReach: Reach[],
-  xmediaReach: TargetReach[],
-  onTargetReach: TargetReach[],
-  onTargetUniqueReach: UniqueReach[],
-  uniqueReachByPlat: UniqueReach[],
-  demo: Demographic[],
+  impressions: ChartGroup[],
+  uniqueReach: ChartGroup[],
+  totalReach: ChartGroup[],
+  frequencies: ChartGroup[],
 }
 
 export const TerminalReport = ({
   name,
   overview,
   summaries,
-  targetReach,
+  impressions,
+  uniqueReach,
   totalReach,
-  xmediaReach,
-  onTargetReach,
-  onTargetUniqueReach,
-  uniqueReachByPlat,
-  demo,
+  frequencies,
 }: TerminalReportProps) => {
   // Assign a color to each publisher
   const pubIds = summaries.map(x => x.id);
@@ -62,13 +57,10 @@ export const TerminalReport = ({
       <ReportOverviewStats reportOverview={overview} />
       <SummaryTable reportSummaries={summaries} publisherColors={pubColors} />
       <Charts
-        targetReach={targetReach}
+        impressions={impressions}
+        uniqueReach={uniqueReach}
         totalReach={totalReach}
-        xmediaReach={xmediaReach}
-        onTargetReach={onTargetReach}
-        demo={demo}
-        onTargetUniqueReach={onTargetUniqueReach}
-        uniqueReachByPlat={uniqueReachByPlat}
+        frequencies={frequencies}
         pubColors={pubColors}
       />
     </React.Fragment>

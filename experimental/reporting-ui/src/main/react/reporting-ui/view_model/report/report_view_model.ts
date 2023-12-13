@@ -14,50 +14,214 @@
 
 import {useState} from 'react';
 import {
-  Demographic,
   Overview,
-  Reach,
   Report,
-  ReportState,
   SummaryPublisherData,
-  TargetReach,
-  UniqueReach,
 } from '../../model/reporting';
 import { ReportRepository } from '../../model/report/report_repository';
 
 type UiReport = {
   id: string,
   name: string,
-  status: ReportState,
+  status: string,
   overview: Overview,
   summary: SummaryPublisherData[],
-  targetReach: Reach[],
-  totalReach: Reach[],
-  xmediaReach: TargetReach[],
-  onTargetReach: TargetReach[],
-  onTargetUniqueReach: UniqueReach[],
-  uniqueReachByPlat: UniqueReach[],
-  demo: Demographic[],
+  impressions: ChartGroup[],
+  uniqueReach: ChartGroup[],
+  totalReach: ChartGroup[],
+  averageFrequency: ChartGroup[],
 }
 
-const handleUiReport = (report: Report|undefined) => {
+export type ChartGroup = {
+  date: Date|string;
+  value: number;
+  group: string;
+}
+
+type iAndF = {
+  impressions: ChartGroup[],
+  frequencies: ChartGroup[],
+  summary: SummaryPublisherData[],
+  overview: any,
+}
+
+type Reaches = {
+  uniqueReach: ChartGroup[],
+  totalReach: ChartGroup[],
+}
+
+const getReaches = (report: Report): Reaches => {
+  const complements = {
+    'A': 'BC',
+    'B': 'AC', 
+    'C': 'AB',
+  };
+
+  const data: ChartGroup[] = [];
+
+  report.timeInterval.forEach(ti => {
+    ti.demoBucket.forEach(db => {
+      const fullUnion = db.unionSource;
+      Object.keys(complements).forEach(name => {
+        var complement = db.perPublisherSource.find(x => x.sourceName === complements[name]);
+
+        data.push({
+          value: fullUnion.reach - complement.reach,
+          group: `${name}-${db.demoCategoryName}`,
+          date: new Date(ti.timeInterval.startTime),
+        })
+      })
+    });
+  });
+
+  return {
+    uniqueReach: data,
+    totalReach: [{
+      date: '1+',
+      value: 2,
+      group: 'A',
+    },{
+      date: '2+',
+      value: 1,
+      group: 'A',
+    }],
+  };
+}
+
+const getImpressionsAndFrequencies = (report: Report): iAndF => {
+  const impressions: ChartGroup[] = [];
+  const frequencies: ChartGroup[] = [];
+  const overview: Overview = {
+    totalImpressions: 0,
+    totalReach: 0,
+    totalAverageFrequency: 0,
+    totalOnTargetReach: 0,
+    totalUniqueReach: 0,
+  }
+
+  const dict: { [id: string] : SummaryPublisherData; }= {
+    'A': {
+      id: 0,
+      publisher: 'A',
+      impressions: 0,
+      reach: 0,
+      onTargetReach: 0,
+      uniqueReach: 0,
+      averageFrequency: 0,
+    },
+    'B': {
+      id: 1,
+      publisher: 'B',
+      impressions: 0,
+      reach: 0,
+      onTargetReach: 0,
+      uniqueReach: 0,
+      averageFrequency: 0,
+    },
+    'C': {
+      id: 2,
+      publisher: 'C',
+      impressions: 0,
+      reach: 0,
+      onTargetReach: 0,
+      uniqueReach: 0,
+      averageFrequency: 0,
+    },
+    'AB': {
+      id: 3,
+      publisher: 'C',
+      impressions: 0,
+      reach: 0,
+      onTargetReach: 0,
+      uniqueReach: 0,
+      averageFrequency: 0,
+    },
+    'BC': {
+      id: 4,
+      publisher: 'C',
+      impressions: 0,
+      reach: 0,
+      onTargetReach: 0,
+      uniqueReach: 0,
+      averageFrequency: 0,
+    },
+    'AC': {
+      id: 5,
+      publisher: 'C',
+      impressions: 0,
+      reach: 0,
+      onTargetReach: 0,
+      uniqueReach: 0,
+      averageFrequency: 0,
+    },
+  };
+
+  report.timeInterval.forEach(ti => {
+    ti.demoBucket.forEach(db => {
+      db.perPublisherSource.forEach(pps => {
+        if (Object.keys(dict).includes(pps.sourceName)) {
+          dict[pps.sourceName].impressions += pps.impressions;
+          dict[pps.sourceName].averageFrequency += pps.frequency;
+          dict[pps.sourceName].reach += pps.reach;
+
+          // Just get the impressions
+          impressions.push({
+            group: `${pps.sourceName}-${db.demoCategoryName}`,
+            value: pps.impressions,
+            date: new Date(ti.timeInterval.startTime),
+          });
+
+          // Get all for now, process later??
+          frequencies.push({
+            group: `${pps.sourceName}-${db.demoCategoryName}`,
+            value: pps.frequency,
+            date: new Date(ti.timeInterval.startTime),
+          });
+        }
+      })
+      overview.totalImpressions += db.unionSource.impressions;
+      overview.totalAverageFrequency += db.unionSource.frequency;
+      overview.totalReach += db.unionSource.reach;
+    });
+  });
+
+  const individualPublishers = ['A', 'B', 'C']
+  dict['A'].uniqueReach = overview.totalReach - dict['BC'].reach
+  dict['B'].uniqueReach = overview.totalReach - dict['AC'].reach
+  dict['C'].uniqueReach = overview.totalReach - dict['AB'].reach
+
+  return {
+    impressions,
+    frequencies,
+    overview,
+    summary: individualPublishers.map(x => dict[x]),
+  }
+}
+
+// const getReachByCount = (report: Report): ChartGroup[] => {
+//   report.timeInterval.forEach(ti => {
+
+//   })
+// }
+
+const handleUiReport = (report: Report|undefined): UiReport|null => {
   if (!report) {
     return null;
   }
 
+  const {impressions, frequencies, summary, overview} = getImpressionsAndFrequencies(report)
+  const {uniqueReach, totalReach} = getReaches(report);
+
   return {
-    id: report.id,
+    id: report.reportId,
     name: report.name,
-    status: report.status,
-    overview: report.overview,
-    summary: report.summary,
-    targetReach: report.targetReach,
-    totalReach: report.totalReach,
-    xmediaReach: report.targetXmediaReachByFreq,
-    onTargetReach: report.targetXmediaReachByFreq,
-    onTargetUniqueReach: report.targetUniqueReachByPlatform,
-    uniqueReachByPlat: report.uniqueReachByPlatform,
-    demo: report.demo,
+    status: report.state,
+    overview: overview,
+    summary,
+    impressions,
+    uniqueReach,
+    totalReach,
+    averageFrequency: frequencies,
   };
 };
 

@@ -36,4 +36,9 @@ go_binary(
     name = "server",
     embed = [":gateway-server_lib"],
     visibility = ["//visibility:public"],
+    data = [
+        "//src/main/k8s/testing/secretfiles:mc_tls.key",
+        "//src/main/k8s/testing/secretfiles:mc_tls.pem",
+        "//src/main/k8s/testing/secretfiles:reporting_root.pem",
+    ],
 )

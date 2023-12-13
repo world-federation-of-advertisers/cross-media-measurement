@@ -17,23 +17,24 @@ import { Chart, ChartType } from '../chart';
 import { Reach } from '../../../model/reporting';
 import { ChartGroup } from '../../../view_model/report/report_view_model';
 
-type TotalReachProps = {
+type OnTargetReachProps = {
     id: string,
-    reach: ChartGroup[],
-    pubColors: { [Name: string]: string},
+    impressions: ChartGroup[],
+    pubColors: { [Name: string]: string}
 }
 
-export function TotalReach({id, reach, pubColors}: TotalReachProps) {
+export function Impressions({id, impressions, pubColors}: OnTargetReachProps) {
     const config = {
         pubColors,
     }
+
     return (
         <Chart
             cardId={id}
-            title='Total reach'
-            data={reach}
+            title='Impressions'
+            data={impressions}
             config={config}
-            type={ChartType.bar}
+            type={ChartType.multiLine}
         />
     )
 }

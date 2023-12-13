@@ -12,13 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  TimeInterval as BffTimeInterval,
-} from '.';
+import React from 'react';
+import { Chart, ChartType } from '../chart';
+import { ChartGroup } from '../../../view_model/report/report_view_model';
 
-export type Report = {
-  reportId: string;
-  name: string;
-  state: string;
-  timeInterval: BffTimeInterval[];
-};
+type FrequenciesProps = {
+    id: string,
+    frequencies: ChartGroup[],
+    pubColors: { [Name: string]: string},
+}
+
+export function Frequencies({id, frequencies, pubColors}: FrequenciesProps) {
+    const config = {
+        pubColors,
+    }
+    return (
+        <Chart
+            cardId={id}
+            title='Average Frequency'
+            data={frequencies}
+            config={config}
+            type={ChartType.multiLine}
+        />
+    )
+}

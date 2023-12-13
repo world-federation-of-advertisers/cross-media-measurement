@@ -32,9 +32,9 @@ export function ReportOverviewStats({reportOverview}: ReportTotalsProps) {
       <Col>
         <ReportOverviewCard id='report-overview-total-reach-card' title='Reach' value={reportOverview.totalReach}/>
       </Col>
-      <Col>
+      {/* <Col>
         <ReportOverviewCard id='report-overview-target-reach-card' title='On Target Reach' value={reportOverview.totalOnTargetReach}/>
-      </Col>
+      </Col> */}
       <Col>
         <ReportOverviewCard id='report-overview-frequency-card' title='Average Frequency' value={reportOverview.totalAverageFrequency}/>
       </Col>

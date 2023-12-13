@@ -14,7 +14,7 @@ limitations under the License. */
 
 import { useState } from 'react';
 import { ReportListRepository } from '../../model/report_list/report_list_repository';
-import { Report, ReportState } from '../../model/reporting';
+import { Report } from '../../model/reporting';
 
 type ReportListItem = {
   id: string,
@@ -22,19 +22,12 @@ type ReportListItem = {
   status: string,
 }
 
-const REPORT_STATE_TO_STRING = Object.freeze({
-  [ReportState.STATE_UNSPECIFIED]: "Unknown",
-  [ReportState.RUNNING]: "Running",
-  [ReportState.FAILED]: "Failed",
-  [ReportState.SUCCEEDED]: "Succeeded",
-})
-
 const handleLoadReports = (reports: Report[]) => {
   const uiReports = reports.map(apiReport => {
     return {
-      id: apiReport.id,
+      id: apiReport.reportId,
       name: apiReport.name,
-      status: REPORT_STATE_TO_STRING[apiReport.id],
+      status: apiReport.state,
     }
   });
 
