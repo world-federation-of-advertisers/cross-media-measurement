@@ -17,6 +17,9 @@ package org.wfanet.measurement.duchy.service.system.v1alpha
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationStage
+import org.wfanet.measurement.internal.duchy.ComputationStageInput
+import org.wfanet.measurement.internal.duchy.computationStageInput
+import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt.shufflePhaseInput
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
@@ -27,12 +30,14 @@ import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
 import org.wfanet.measurement.system.v1alpha.ReachOnlyLiquidLegionsV2
 import org.wfanet.measurement.system.v1alpha.liquidLegionsV2
 import org.wfanet.measurement.system.v1alpha.reachOnlyLiquidLegionsV2
+import org.wfanet.measurement.system.v1alpha.HonestMajorityShareShuffle
 
 /** True if the protocol specified in the header is asynchronous. */
 fun AdvanceComputationRequest.Header.isForAsyncComputation(): Boolean =
   when (protocolCase) {
     ProtocolCase.LIQUID_LEGIONS_V2,
-    ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> true
+    ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2,
+    ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE-> true
     else -> failGrpc { "Unknown protocol $protocolCase" }
   }
 
@@ -41,6 +46,36 @@ fun AdvanceComputationRequest.Header.stageExpectingInput(): ComputationStage =
   when (protocolCase) {
     ProtocolCase.LIQUID_LEGIONS_V2 -> liquidLegionsV2.stageExpectingInput()
     ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> reachOnlyLiquidLegionsV2.stageExpectingInput()
+    else -> failGrpc { "Unknown protocol $protocolCase" }
+  }
+
+fun AdvanceComputationRequest.Header.doesExpectBlobInput(): Boolean =
+  when (protocolCase) {
+    ProtocolCase.LIQUID_LEGIONS_V2,
+    ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> true
+    ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+      when (honestMajorityShareShuffle.description) {
+        HonestMajorityShareShuffle.Description.SHUFFLE_PHASE_INPUT -> false
+        HonestMajorityShareShuffle.Description.AGGREGATION_PHASE_INPUT -> true
+        HonestMajorityShareShuffle.Description.DESCRIPTION_UNSPECIFIED,
+        HonestMajorityShareShuffle.Description.UNRECOGNIZED -> failGrpc { "Invalid description." }
+      }
+    else -> failGrpc { "Unknown protocol $protocolCase" }
+  }
+
+fun AdvanceComputationRequest.Header.doesExpectProtocolSpecificInput(): Boolean =
+  when (protocolCase) {
+    ProtocolCase.LIQUID_LEGIONS_V2,
+    ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> false
+    ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+      when (honestMajorityShareShuffle.description) {
+        HonestMajorityShareShuffle.Description.SHUFFLE_PHASE_INPUT -> true
+        HonestMajorityShareShuffle.Description.AGGREGATION_PHASE_INPUT -> false
+        HonestMajorityShareShuffle.Description.DESCRIPTION_UNSPECIFIED,
+        HonestMajorityShareShuffle.Description.UNRECOGNIZED -> failGrpc { "Invalid description." }
+      }
     else -> failGrpc { "Unknown protocol $protocolCase" }
   }
 
@@ -65,6 +100,30 @@ private fun ReachOnlyLiquidLegionsV2.stageExpectingInput(): ComputationStage =
       ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_INPUTS
     else -> failGrpc { "Unknown ReachOnlyLiquidLegionsV2 payload description '$description'." }
   }.toProtocolStage()
+
+fun AdvanceComputationRequest.Header.computationStageInput(): ComputationStageInput {
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+  return when (protocolCase) {
+    ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> honestMajorityShareShuffle.computationStageInput()
+    ProtocolCase.LIQUID_LEGIONS_V2,
+    ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2,
+    ProtocolCase.PROTOCOL_NOT_SET -> failGrpc {
+      "Protocol $protocolCase does not have ComputationStageInput"
+    }
+  }
+}
+
+private fun HonestMajorityShareShuffle.computationStageInput(): ComputationStageInput =
+  when (description) {
+    HonestMajorityShareShuffle.Description.SHUFFLE_PHASE_INPUT ->
+      computationStageInput {
+        honestMajorityShareShuffleShufflePhaseInput = shufflePhaseInput {
+          commonRandomSeed = shufflePhaseInput.commonRandomSeed
+        }
+      }
+    else -> failGrpc { "Unknown ReachOnlyLiquidLegionsV2 payload description '$description'." }
+  }
+
 
 /** Creates an [AdvanceComputationRequest.Header] for a liquid legions v2 computation. */
 fun advanceComputationHeader(

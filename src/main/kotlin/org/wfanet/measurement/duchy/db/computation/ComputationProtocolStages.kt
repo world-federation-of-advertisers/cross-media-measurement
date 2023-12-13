@@ -19,6 +19,7 @@ import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType.UNRECOGNIZED
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType.UNSPECIFIED
 
@@ -33,6 +34,9 @@ object ComputationProtocolStages :
         LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
       ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+      // TODO(@renjiez): implement for honest majority share shuffle protocol.
+      ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
+        error("Stage not supported")
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
   }
@@ -56,6 +60,8 @@ object ComputationProtocolStages :
             value.reachOnlyLiquidLegionsSketchAggregationV2
           )
         )
+      // TODO(@renjiez): implement for honest majority share shuffle protocol.
+      ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE -> error("Stage not supported.")
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
   }

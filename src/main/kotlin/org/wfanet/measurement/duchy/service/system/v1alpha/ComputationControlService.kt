@@ -59,11 +59,11 @@ class ComputationControlService(
           grpcRequireNotNull(ComputationKey.fromName(header.name)?.computationId) {
             "Resource name unspecified or invalid."
           }
-        grpcRequire(consumed.hasRemaining) { "Request stream has no body" }
         if (header.isForAsyncComputation()) {
+          val remaining = if (consumed.hasRemaining) consumed.remaining.map { it.bodyChunk.partialData } else null
           handleAsyncRequest(
             header,
-            consumed.remaining.map { it.bodyChunk.partialData },
+            remaining,
             globalComputationId
           )
         } else {
@@ -76,29 +76,35 @@ class ComputationControlService(
   /** Write the payload data stream as a blob, and advance the stage via the async service. */
   private suspend fun handleAsyncRequest(
     header: AdvanceComputationRequest.Header,
-    content: Flow<ByteString>,
+    content: Flow<ByteString>?,
     globalId: String
   ) {
-    val blobMetadata =
-      asyncComputationControlClient.getOutputBlobMetadata(
-        getOutputBlobMetadataRequest {
-          globalComputationId = globalId
-          dataOrigin = duchyIdentityProvider().id
-        }
-      )
-
     val stage = header.stageExpectingInput()
-    val blob =
-      computationStore.write(ComputationBlobContext(globalId, stage, blobMetadata.blobId), content)
+
+    val request = advanceComputationRequest {
+      globalComputationId = globalId
+      computationStage = stage
+
+      if (header.doesExpectBlobInput()) {
+        grpcRequire(content != null) { "Request stream has no body" }
+        val blobMetadata =
+          asyncComputationControlClient.getOutputBlobMetadata(
+            getOutputBlobMetadataRequest {
+              globalComputationId = globalId
+              dataOrigin = duchyIdentityProvider().id
+            }
+          )
+        val blob =
+          computationStore.write(ComputationBlobContext(globalId, stage, blobMetadata.blobId), content!!)
+        blobId = blobMetadata.blobId
+        blobPath = blob.blobKey
+      }
+      if(header.doesExpectProtocolSpecificInput()) {
+        computationStageInput = header.computationStageInput()
+      }
+    }
     try {
-      asyncComputationControlClient.advanceComputation(
-        advanceComputationRequest {
-          globalComputationId = globalId
-          computationStage = stage
-          blobId = blobMetadata.blobId
-          blobPath = blob.blobKey
-        }
-      )
+      asyncComputationControlClient.advanceComputation(request)
     } catch (e: StatusException) {
       throw when (e.status.code) {
           Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED

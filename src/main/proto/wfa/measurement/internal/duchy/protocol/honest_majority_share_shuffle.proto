@@ -101,4 +101,32 @@ message HonestMajorityShareShuffle {
     }
     RandomSeeds seeds = 3;
   }
+
+  message ShufflePhaseInput {
+    bytes common_random_seed = 1;
+  }
+
+  // Details about a particular attempt of running a stage of the HonestMajorityShareShuffle
+  // Protocol.
+  message StageDetails {
+    oneof detail {
+      // Details specific to the WAIT_SETUP_PHASE_INPUTS stage.
+      WaitSetupPhaseInputsDetails wait_setup_phase_inputs_details = 1;
+    }
+  }
+
+  // The stage WAIT_ON_INPUT_PHASE of the aggregator duchy has a bootstrapping
+  // step where it requires input from all other non-aggregators before it can
+  // move forward. The bookkeeping of which duchy has provided is stored in this
+  // message.
+  message WaitSetupPhaseInputsDetails {
+    // A mapping of the name of a duchy to the BlobId corresponding to the
+    // ComputationBlobDependency.OUTPUT BLOB where it will be written.
+    //
+    // Upon receiving a sketch from a duchy the OUTPUT reference with the id
+    // found in this map is updated with the local copy of the blob. When all
+    // the output references have a path the worker can move onto the next
+    // stage.
+    map<string, int64> external_duchy_local_blob_id = 1;
+  }
 }

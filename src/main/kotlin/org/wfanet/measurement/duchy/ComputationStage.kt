@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy
 
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.computationStage
+import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
 
@@ -27,6 +28,8 @@ val ComputationStage.name: String
         liquidLegionsSketchAggregationV2.name
       ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         reachOnlyLiquidLegionsSketchAggregationV2.name
+      ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
+        honestMajorityShareShuffle.name
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
 
@@ -38,6 +41,8 @@ val ComputationStage.number: Int
         liquidLegionsSketchAggregationV2.number
       ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         reachOnlyLiquidLegionsSketchAggregationV2.number
+      ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
+        honestMajorityShareShuffle.number
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
 
@@ -49,3 +54,7 @@ fun ReachOnlyLiquidLegionsSketchAggregationV2.Stage.toProtocolStage(): Computati
   computationStage {
     reachOnlyLiquidLegionsSketchAggregationV2 = this@toProtocolStage
   }
+
+fun HonestMajorityShareShuffle.Stage.toProtocolStage(): ComputationStage = computationStage {
+  honestMajorityShareShuffle = this@toProtocolStage
+}

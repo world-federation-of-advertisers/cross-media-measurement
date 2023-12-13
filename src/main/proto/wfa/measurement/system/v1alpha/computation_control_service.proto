@@ -51,6 +51,9 @@ message AdvanceComputationRequest {
 
       // The ReachOnlyLiquidLegionsV2 (one-round) protocol.
       ReachOnlyLiquidLegionsV2 reach_only_liquid_legions_v2 = 3;
+
+      // The HonestMajorityShareShuffle protocol.
+      HonestMajorityShareShuffle honest_majority_share_shuffle = 4;
     }
   }
 
@@ -106,6 +109,32 @@ message ReachOnlyLiquidLegionsV2 {
   }
   // Payload data description
   Description description = 1;
+}
+
+// Parameters for the Honest Majority Shuffle Based Secret Sharing protocol.
+//
+// (-- api-linter: core::0123::resource-annotation=disabled
+//     aip.dev/not-precedent: This is not a resource message. --)
+message HonestMajorityShareShuffle {
+  // The description of the data in the payload.
+  enum Description {
+    // The data type is unknown. This is never set intentionally.
+    DESCRIPTION_UNSPECIFIED = 0;
+    // THe input for the shuffle phase.
+    SHUFFLE_PHASE_INPUT = 1;
+    // The input for the aggregation phase.
+    AGGREGATION_PHASE_INPUT = 2;
+  }
+  // Payload data description
+  Description description = 1;
+
+  // The input for shuffle phase.
+  // Only set for description with SHUFFLE_PHASE_INPUT.
+  message ShufflePhaseInput {
+    // The random seed to generate noise share and permutation share.
+    bytes common_random_seed = 1;
+  }
+  ShufflePhaseInput shuffle_phase_input = 2;
 }
 
 // Response message for the `AdvanceComputation` method.

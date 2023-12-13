@@ -15,13 +15,20 @@
 package org.wfanet.measurement.duchy.service.internal.computationcontrol
 
 import org.wfanet.measurement.duchy.db.computation.singleOutputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computations.outputPathList
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
+import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
+import org.wfanet.measurement.internal.duchy.ComputationStageInput
 import org.wfanet.measurement.internal.duchy.ComputationToken
+import org.wfanet.measurement.internal.duchy.config.RoleInComputation
+import org.wfanet.measurement.internal.duchy.copy
+import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
+import org.wfanet.measurement.internal.duchy.protocol.copy
 
 class IllegalStageException(val computationStage: ComputationStage, buildMessage: () -> String) :
   IllegalArgumentException(buildMessage())
@@ -42,12 +49,39 @@ sealed class ProtocolStages(val stageType: ComputationStage.StageCase) {
    */
   abstract fun nextStage(stage: ComputationStage): ComputationStage
 
+  /** Returns whether the current stage is valid to process the advance request */
+  abstract fun isValidStage(currentStage: ComputationStage, requestStage: ComputationStage): Boolean
+
+  /** Returns whether the stage expects the advance request with a blob. */
+  abstract fun expectBlob(stage: ComputationStage): Boolean
+
+  /**
+   * Returns whether the stage expects the advance request with protocol specific input.
+   *
+   * If the token has the fields set already, return false to skip.
+   */
+  abstract fun expectStageInput(stage: ComputationStage, token: ComputationToken): Boolean
+
+  /** Returns the updated [ComputationDetails] with values in [ComputationStageInput]. */
+  abstract fun updateComputationDetails(
+    details: ComputationDetails,
+    input: ComputationStageInput
+  ): ComputationDetails
+
+  /** Returns whether the token of a Computation is in the state to advance to the next stage. */
+  abstract fun readyForNextStage(token: ComputationToken): Boolean
+
   companion object {
-    fun forStageType(stageType: ComputationStage.StageCase): ProtocolStages? {
+    fun forStageType(
+      stageType: ComputationStage.StageCase,
+      role: RoleInComputation = RoleInComputation.AGGREGATOR
+    ): ProtocolStages? {
       return when (stageType) {
         ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 -> LiquidLegionsV2Stages()
         ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
           ReachOnlyLiquidLegionsV2Stages()
+        ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
+          HonestMajorityShareShuffleStages(role)
         ComputationStage.StageCase.STAGE_NOT_SET -> null
       }
     }
@@ -117,6 +151,26 @@ class LiquidLegionsV2Stages() :
         throw IllegalStageException(stage) { "Next $stageType stage unknown for $protocolStage" }
     }.toProtocolStage()
   }
+
+  override fun isValidStage(
+    currentStage: ComputationStage,
+    requestStage: ComputationStage
+  ): Boolean = currentStage == requestStage
+
+  override fun expectBlob(stage: ComputationStage): Boolean = true
+
+  override fun expectStageInput(stage: ComputationStage, token: ComputationToken): Boolean =
+    false
+
+  override fun updateComputationDetails(
+    details: ComputationDetails,
+    input: ComputationStageInput
+  ): ComputationDetails = throw IllegalStageException(LiquidLegionsSketchAggregationV2.Stage.STAGE_UNSPECIFIED.toProtocolStage()) {
+    "Invalid $stageType to update ComputationDetails."
+  }
+
+  override fun readyForNextStage(token: ComputationToken): Boolean =
+    !token.outputPathList().any(String::isEmpty)
 }
 
 /** [ProtocolStages] for the Reach-Only Liquid Legions v2 protocol. */
@@ -174,5 +228,200 @@ class ReachOnlyLiquidLegionsV2Stages() :
       ReachOnlyLiquidLegionsSketchAggregationV2.Stage.UNRECOGNIZED ->
         throw IllegalStageException(stage) { "Next $stageType stage unknown for $protocolStage" }
     }.toProtocolStage()
+  }
+
+  override fun isValidStage(
+    currentStage: ComputationStage,
+    requestStage: ComputationStage
+  ): Boolean = currentStage == requestStage
+
+  override fun expectBlob(stage: ComputationStage): Boolean = true
+
+  override fun expectStageInput(stage: ComputationStage, token: ComputationToken): Boolean =
+    false
+
+  override fun updateComputationDetails(
+    details: ComputationDetails,
+    input: ComputationStageInput
+  ): ComputationDetails = throw IllegalStageException(ReachOnlyLiquidLegionsSketchAggregationV2.Stage.STAGE_UNSPECIFIED.toProtocolStage()) {
+    "Invalid $stageType to update ComputationDetails"
+  }
+
+  override fun readyForNextStage(token: ComputationToken): Boolean =
+    !token.outputPathList().any(String::isEmpty)
+}
+
+/** [ProtocolStages] for the Honest Majority Share Shuffle protocol. */
+class HonestMajorityShareShuffleStages(val role: RoleInComputation) :
+  ProtocolStages(ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE) {
+  override fun outputBlob(
+    token: ComputationToken,
+    dataOrigin: String
+  ): ComputationStageBlobMetadata =
+    when (val protocolStage = token.computationStage.honestMajorityShareShuffle) {
+      HonestMajorityShareShuffle.Stage.WAIT_ON_INPUT -> {
+        // Get the blob id by looking up the sender in the stage specific details.
+        val stageDetails =
+          token.stageSpecificDetails.reachOnlyLiquidLegionsV2.waitSetupPhaseInputsDetails
+        val blobId = checkNotNull(stageDetails.externalDuchyLocalBlobIdMap[dataOrigin])
+        token.blobsList.single {
+          it.dependencyType == ComputationBlobDependency.OUTPUT && it.blobId == blobId
+        }
+      }
+      HonestMajorityShareShuffle.Stage.INITIALIZED,
+      HonestMajorityShareShuffle.Stage.SETUP_PHASE,
+      HonestMajorityShareShuffle.Stage.SHUFFLE_PHASE,
+      HonestMajorityShareShuffle.Stage.AGGREGATION_PHASE,
+      HonestMajorityShareShuffle.Stage.COMPLETE,
+      HonestMajorityShareShuffle.Stage.STAGE_UNSPECIFIED,
+      HonestMajorityShareShuffle.Stage.UNRECOGNIZED ->
+        throw IllegalStageException(token.computationStage) {
+          "Unexpected $stageType stage: $protocolStage"
+        }
+    }
+
+  override fun nextStage(stage: ComputationStage): ComputationStage {
+    require(stage.stageCase == ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE)
+    val protocolStage = stage.honestMajorityShareShuffle
+
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enums fields cannot be null.
+    return when (role) {
+      RoleInComputation.AGGREGATOR -> {
+        when (protocolStage) {
+          HonestMajorityShareShuffle.Stage.WAIT_ON_INPUT ->
+            HonestMajorityShareShuffle.Stage.AGGREGATION_PHASE.toProtocolStage()
+          HonestMajorityShareShuffle.Stage.INITIALIZED,
+          HonestMajorityShareShuffle.Stage.SETUP_PHASE,
+          HonestMajorityShareShuffle.Stage.SHUFFLE_PHASE,
+          HonestMajorityShareShuffle.Stage.AGGREGATION_PHASE,
+          HonestMajorityShareShuffle.Stage.COMPLETE,
+          HonestMajorityShareShuffle.Stage.STAGE_UNSPECIFIED,
+          HonestMajorityShareShuffle.Stage.UNRECOGNIZED ->
+            throw IllegalStageException(stage) {
+              "Next $stageType stage unknown for $protocolStage of role $role"
+            }
+        }
+      }
+      RoleInComputation.NON_AGGREGATOR -> {
+        when (protocolStage) {
+          HonestMajorityShareShuffle.Stage.INITIALIZED,
+          HonestMajorityShareShuffle.Stage.SETUP_PHASE,
+          HonestMajorityShareShuffle.Stage.WAIT_ON_INPUT ->
+            HonestMajorityShareShuffle.Stage.SHUFFLE_PHASE.toProtocolStage()
+          HonestMajorityShareShuffle.Stage.SHUFFLE_PHASE,
+          HonestMajorityShareShuffle.Stage.AGGREGATION_PHASE,
+          HonestMajorityShareShuffle.Stage.COMPLETE,
+          HonestMajorityShareShuffle.Stage.STAGE_UNSPECIFIED,
+          HonestMajorityShareShuffle.Stage.UNRECOGNIZED ->
+            throw IllegalStageException(stage) {
+              "Next $stageType stage unknown for $protocolStage of role $role"
+            }
+        }
+      }
+      RoleInComputation.ROLE_IN_COMPUTATION_UNSPECIFIED,
+      RoleInComputation.UNRECOGNIZED -> {
+        throw IllegalStageException(stage) {
+          "Next $stageType stage unknown for $protocolStage of role $role"
+        }
+      }
+    }
+  }
+
+  override fun isValidStage(
+    currentStage: ComputationStage,
+    requestStage: ComputationStage
+  ): Boolean {
+    require(currentStage.stageCase == ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE)
+    require(requestStage.stageCase == ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE)
+    val currentProtocolStage = currentStage.honestMajorityShareShuffle
+    val requestProtocolStage = requestStage.honestMajorityShareShuffle
+    return when (role) {
+      RoleInComputation.AGGREGATOR -> {
+        currentProtocolStage == requestProtocolStage
+      }
+      RoleInComputation.NON_AGGREGATOR -> {
+        when (currentProtocolStage) {
+          HonestMajorityShareShuffle.Stage.INITIALIZED,
+          HonestMajorityShareShuffle.Stage.SETUP_PHASE,
+          HonestMajorityShareShuffle.Stage.WAIT_ON_INPUT -> true
+          else -> false
+        }
+      }
+      RoleInComputation.ROLE_IN_COMPUTATION_UNSPECIFIED,
+      RoleInComputation.UNRECOGNIZED -> {
+        throw IllegalStageException(currentStage) {
+          "Invalid role $role"
+        }
+      }
+    }
+  }
+
+  override fun expectBlob(stage: ComputationStage): Boolean {
+    return when(role) {
+      RoleInComputation.AGGREGATOR -> true
+      RoleInComputation.NON_AGGREGATOR -> false
+      RoleInComputation.ROLE_IN_COMPUTATION_UNSPECIFIED,
+      RoleInComputation.UNRECOGNIZED -> throw IllegalStageException(stage) {
+        "Invalid role $role"
+      }
+    }
+  }
+
+  override fun expectStageInput(stage: ComputationStage, token: ComputationToken): Boolean {
+    return when(role) {
+      RoleInComputation.AGGREGATOR -> false
+      RoleInComputation.NON_AGGREGATOR -> {
+        token.computationDetails.honestMajorityShareShuffle.seeds.commonRandomSeedFromPeer.isEmpty
+      }
+      RoleInComputation.ROLE_IN_COMPUTATION_UNSPECIFIED,
+      RoleInComputation.UNRECOGNIZED -> throw IllegalStageException(stage) {
+        "Invalid role $role"
+      }
+    }
+  }
+
+  override fun updateComputationDetails(
+    details: ComputationDetails,
+    input: ComputationStageInput
+  ): ComputationDetails {
+    require(details.hasHonestMajorityShareShuffle())
+    require(input.hasHonestMajorityShareShuffleShufflePhaseInput())
+    require(!input.honestMajorityShareShuffleShufflePhaseInput.commonRandomSeed.isEmpty)
+    return details.copy {
+        honestMajorityShareShuffle = honestMajorityShareShuffle.copy {
+          seeds = seeds.copy {
+            commonRandomSeedFromPeer = input.honestMajorityShareShuffleShufflePhaseInput.commonRandomSeed
+          }
+        }
+    }
+  }
+
+  private fun ComputationToken.hasPeerSeed(): Boolean {
+    require(computationDetails.hasHonestMajorityShareShuffle())
+    require(computationDetails.honestMajorityShareShuffle.hasSeeds())
+
+    return !computationDetails.honestMajorityShareShuffle.seeds.commonRandomSeedFromPeer.isEmpty
+  }
+
+  private fun ComputationToken.requisitionsFulfilled():Boolean {
+    return !requisitionsList.any {
+      !it.hasSeed() && !it.hasPath()
+    }
+  }
+
+  override fun readyForNextStage(token: ComputationToken): Boolean {
+    require(token.computationDetails.hasHonestMajorityShareShuffle())
+    return when(role) {
+      RoleInComputation.AGGREGATOR -> {
+        !token.outputPathList().any(String::isEmpty)
+      }
+      RoleInComputation.NON_AGGREGATOR -> {
+        return token.hasPeerSeed() && token.requisitionsFulfilled()
+      }
+      RoleInComputation.ROLE_IN_COMPUTATION_UNSPECIFIED,
+      RoleInComputation.UNRECOGNIZED -> throw IllegalStageException(HonestMajorityShareShuffle.Stage.STAGE_UNSPECIFIED.toProtocolStage()) {
+        "Invalid role $role"
+      }
+    }
   }
 }
