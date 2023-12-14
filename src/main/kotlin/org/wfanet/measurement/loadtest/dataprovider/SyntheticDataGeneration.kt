@@ -19,12 +19,16 @@ package org.wfanet.measurement.loadtest.dataprovider
 import com.google.protobuf.Descriptors.FieldDescriptor
 import com.google.protobuf.Message
 import java.time.ZoneOffset
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.CartesianSyntheticEventGroupSpecRecipe
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.CartesianSyntheticEventGroupSpecRecipe.NonPopulationDimensionSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SimulatorSyntheticDataSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpecKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec.SubPopulation
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.VidRange
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.syntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.vidRange
 import org.wfanet.measurement.common.LocalDateProgression
 import org.wfanet.measurement.common.rangeTo
 import org.wfanet.measurement.common.toLocalDate
@@ -34,7 +38,7 @@ object SyntheticDataGeneration {
    * Generates a sequence of [EventQuery.LabeledEvent].
    *
    * Consumption of [Sequence] throws
-   * * [IllegalArgumentException] when [SimulatorSyntheticDataSpec] is invalid, or incompatible
+   * * [IllegalArgumentException] when [SyntheticEventGroupSpec] is invalid, or incompatible
    * * with [T].
    *
    * @param messageInstance an instance of the event message type [T]
@@ -153,4 +157,72 @@ object SyntheticDataGeneration {
 
 private fun SyntheticEventGroupSpec.DateSpec.DateRange.toProgression(): LocalDateProgression {
   return start.toLocalDate()..endExclusive.toLocalDate().minusDays(1)
+}
+
+fun CartesianSyntheticEventGroupSpecRecipe.toSyntheticEventGroupSpec(): SyntheticEventGroupSpec {
+  var vidStart = this.vidStart
+  val mappedDateSpecs =
+    this.dateSpecsList.map { dateSpec ->
+      val totalReach = dateSpec.totalReach
+      // Group NonPopulationDimensionSpecs by name.
+      val groupedNonPopulationDimensionSpecs =
+        dateSpec.nonPopulationDimensionSpecsList.groupBy { it.fieldName }
+
+      // Check if all sum up to 1.
+      groupedNonPopulationDimensionSpecs.forEach { (fieldName, group) ->
+        check(group.map { it.ratio }.sum() == 1.0f) {
+          "Non poupulation dimension : $fieldName does not sum up to 1."
+        }
+      }
+
+      // Check if FrequencyDimensionSpecs sum up to 1.
+      check(dateSpec.frequencyDimensionSpecsList.map { it.ratio }.sum() == 1.0f) {
+        "Frequency dimension does not sum up to 1."
+      }
+
+      val nonPopulationCartesianProduct: List<List<NonPopulationDimensionSpec>> =
+        groupedNonPopulationDimensionSpecs
+          .map { (_, group) -> group }
+          .fold(listOf(emptyList<NonPopulationDimensionSpec>())) { acc, inner ->
+            acc.flatMap { outer -> inner.map { element -> outer + listOf(element) } }
+          }
+
+      val mappedFrequencySpecs = mutableListOf<SyntheticEventGroupSpec.FrequencySpec>()
+      for (freqDimension in dateSpec.frequencyDimensionSpecsList) {
+        for (nonPopulationSpecs in nonPopulationCartesianProduct) {
+          // Number of vids in this region is the product of all the ratios in the dimensions.
+          val bucketWidth =
+            (totalReach *
+                freqDimension.ratio *
+                nonPopulationSpecs.map { it.ratio }.reduce { acc, element -> acc * element })
+              .toLong()
+
+          mappedFrequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = freqDimension.frequency
+
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = vidStart
+                    endExclusive = vidStart + bucketWidth
+                  }
+                  nonPopulationFieldValues.putAll(
+                    nonPopulationSpecs.associate { it.fieldName to it.fieldValue }
+                  )
+                }
+            }
+          vidStart += bucketWidth
+        }
+      }
+      SyntheticEventGroupSpecKt.dateSpec {
+        dateRange = dateSpec.dateRange
+        frequencySpecs += mappedFrequencySpecs
+      }
+    }
+  val givenDescription = this.description
+  return syntheticEventGroupSpec {
+    description = givenDescription
+    dateSpecs += mappedDateSpecs
+  }
 }

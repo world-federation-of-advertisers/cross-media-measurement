@@ -25,8 +25,10 @@ import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.CartesianSyntheticEventGroupSpecRecipeKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpecKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpecKt
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.cartesianSyntheticEventGroupSpecRecipe
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.fieldValue
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.syntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.syntheticPopulationSpec
@@ -592,5 +594,236 @@ class SyntheticDataGenerationTest {
         )
         .toList()
     }
+  }
+
+  @Test
+  fun `toSyntheticEventGroupSpec returns correct SyntheticEventGroupSpec`() {
+    val cartesianSyntheticEventGroupSpecRecipe = cartesianSyntheticEventGroupSpecRecipe {
+      description = "event group 1"
+      dateSpecs +=
+        CartesianSyntheticEventGroupSpecRecipeKt.dateSpec {
+          totalReach = 100
+          dateRange =
+            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+              start = date {
+                year = 2023
+                month = 6
+                day = 27
+              }
+              endExclusive = date {
+                year = 2023
+                month = 6
+                day = 28
+              }
+            }
+
+          frequencyDimensionSpecs +=
+            CartesianSyntheticEventGroupSpecRecipeKt.frequencyDimensionSpec {
+              frequency = 1
+              ratio = 0.5f
+            }
+
+          frequencyDimensionSpecs +=
+            CartesianSyntheticEventGroupSpecRecipeKt.frequencyDimensionSpec {
+              frequency = 2
+              ratio = 0.5f
+            }
+          nonPopulationDimensionSpecs +=
+            CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
+              fieldName = "banner_ad.viewable"
+              fieldValue = fieldValue { boolValue = true }
+              ratio = 0.5f
+            }
+          nonPopulationDimensionSpecs +=
+            CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
+              fieldName = "banner_ad.viewable"
+              fieldValue = fieldValue { boolValue = false }
+              ratio = 0.5f
+            }
+          nonPopulationDimensionSpecs +=
+            CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
+              fieldName = "video_ad.viewed_fraction"
+              fieldValue = fieldValue { doubleValue = 0.3 }
+              ratio = 0.5f
+            }
+          nonPopulationDimensionSpecs +=
+            CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
+              fieldName = "video_ad.viewed_fraction"
+              fieldValue = fieldValue { doubleValue = 0.7 }
+              ratio = 0.5f
+            }
+        }
+    }
+
+    val convertedSyntheticEventGroupSpec =
+      cartesianSyntheticEventGroupSpecRecipe.toSyntheticEventGroupSpec()
+    // print(convertedSyntheticEventGroupSpec)
+
+    val expectedSyntheticEventGroupSpec = syntheticEventGroupSpec {
+      description = "event group 1"
+
+      dateSpecs +=
+        SyntheticEventGroupSpecKt.dateSpec {
+          dateRange =
+            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+              start = date {
+                year = 2023
+                month = 6
+                day = 27
+              }
+              endExclusive = date {
+                year = 2023
+                month = 6
+                day = 28
+              }
+            }
+
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 1
+
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 0L
+                    endExclusive = 12L
+                  }
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.3
+                  }
+                }
+            }
+
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 1
+
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 12L
+                    endExclusive = 24L
+                  }
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.7
+                  }
+                }
+            }
+
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 1
+
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 24L
+                    endExclusive = 36L
+                  }
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = false }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.3
+                  }
+                }
+            }
+
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 1
+
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 36L
+                    endExclusive = 48L
+                  }
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = false }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.7
+                  }
+                }
+            }
+
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 2
+
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 48L
+                    endExclusive = 60L
+                  }
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.3
+                  }
+                }
+            }
+
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 2
+
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 60L
+                    endExclusive = 72L
+                  }
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.7
+                  }
+                }
+            }
+
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 2
+
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 72L
+                    endExclusive = 84L
+                  }
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = false }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.3
+                  }
+                }
+            }
+
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 2
+
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 84L
+                    endExclusive = 96L
+                  }
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = false }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.7
+                  }
+                }
+            }
+        }
+    }
+
+    assertThat(convertedSyntheticEventGroupSpec).isEqualTo(expectedSyntheticEventGroupSpec)
   }
 }
