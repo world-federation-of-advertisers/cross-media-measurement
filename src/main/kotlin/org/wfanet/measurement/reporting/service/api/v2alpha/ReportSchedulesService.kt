@@ -26,11 +26,11 @@ import io.grpc.Status
 import io.grpc.StatusException
 import java.time.DateTimeException
 import java.time.LocalDate
-import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
+import java.time.temporal.TemporalAdjusters
 import java.time.zone.ZoneRulesException
 import kotlin.math.min
 import kotlinx.coroutines.flow.asFlow
@@ -44,6 +44,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
+import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -67,8 +68,6 @@ import org.wfanet.measurement.internal.reporting.v2.getReportScheduleRequest
 import org.wfanet.measurement.internal.reporting.v2.listReportSchedulesRequest
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.internal.reporting.v2.reportSchedule as internalReportSchedule
-import java.time.temporal.TemporalAdjusters
-import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.internal.reporting.v2.stopReportScheduleRequest
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportSchedulesService.Companion.toOffsetDateTime
@@ -360,8 +359,8 @@ class ReportSchedulesService(
             source.eventStart.toOffsetDateTime()
           } catch (e: DateTimeException) {
             throw Status.INVALID_ARGUMENT.withDescription(
-              "event_start date portion is invalid or event_start.utc_offset is not in valid range."
-            )
+                "event_start date portion is invalid or event_start.utc_offset is not in valid range."
+              )
               .asRuntimeException()
           }
         getNextReportCreationTime(offsetDateTime, source.frequency)
@@ -373,9 +372,7 @@ class ReportSchedulesService(
             throw Status.INVALID_ARGUMENT.withDescription("event_start.time_zone.id is invalid")
               .asRuntimeException()
           } catch (e: DateTimeException) {
-            throw Status.INVALID_ARGUMENT.withDescription(
-              "event_start date portion is invalid."
-            )
+            throw Status.INVALID_ARGUMENT.withDescription("event_start date portion is invalid.")
               .asRuntimeException()
           }
         getNextReportCreationTime(zonedDateTime, source.frequency)
@@ -401,9 +398,7 @@ class ReportSchedulesService(
    * Converts a public [Report] used as a template to an internal [InternalReport] used as a
    * template.
    */
-  private fun Report.toInternal(
-    measurementConsumerKey: MeasurementConsumerKey
-  ): InternalReport {
+  private fun Report.toInternal(measurementConsumerKey: MeasurementConsumerKey): InternalReport {
     val source = this
 
     grpcRequire(source.reportingMetricEntriesList.isNotEmpty()) {
@@ -757,60 +752,92 @@ class ReportSchedulesService(
       )
     }
 
-    private fun getNextReportCreationTime(offsetDateTime: OffsetDateTime, frequency: ReportSchedule.Frequency): Timestamp {
+    private fun getNextReportCreationTime(
+      offsetDateTime: OffsetDateTime,
+      frequency: ReportSchedule.Frequency
+    ): Timestamp {
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       return when (frequency.frequencyCase) {
         ReportSchedule.Frequency.FrequencyCase.DAILY -> {
           offsetDateTime.toInstant().toProtoTime()
         }
         ReportSchedule.Frequency.FrequencyCase.WEEKLY -> {
-          offsetDateTime.with(TemporalAdjusters.nextOrSame(java.time.DayOfWeek.valueOf(frequency.weekly.dayOfWeek.name))).toInstant().toProtoTime()
+          offsetDateTime
+            .with(
+              TemporalAdjusters.nextOrSame(
+                java.time.DayOfWeek.valueOf(frequency.weekly.dayOfWeek.name)
+              )
+            )
+            .toInstant()
+            .toProtoTime()
         }
         ReportSchedule.Frequency.FrequencyCase.MONTHLY -> {
           val lastDayOfMonth = offsetDateTime.with(TemporalAdjusters.lastDayOfMonth()).dayOfMonth
-          if (frequency.monthly.dayOfMonth <= lastDayOfMonth && offsetDateTime.dayOfMonth <= frequency.monthly.dayOfMonth) {
+          if (
+            frequency.monthly.dayOfMonth <= lastDayOfMonth &&
+              offsetDateTime.dayOfMonth <= frequency.monthly.dayOfMonth
+          ) {
             offsetDateTime.withDayOfMonth(frequency.monthly.dayOfMonth).toInstant().toProtoTime()
           } else if (frequency.monthly.dayOfMonth > lastDayOfMonth) {
             offsetDateTime.withDayOfMonth(lastDayOfMonth).toInstant().toProtoTime()
           } else {
-            val offsetDateTimeNextMonthEnd = offsetDateTime.plusMonths(1).with(TemporalAdjusters.lastDayOfMonth())
-            offsetDateTimeNextMonthEnd.withDayOfMonth(
-              minOf(offsetDateTimeNextMonthEnd.dayOfMonth, frequency.monthly.dayOfMonth)
-            ).toInstant().toProtoTime()
+            val offsetDateTimeNextMonthEnd =
+              offsetDateTime.plusMonths(1).with(TemporalAdjusters.lastDayOfMonth())
+            offsetDateTimeNextMonthEnd
+              .withDayOfMonth(
+                minOf(offsetDateTimeNextMonthEnd.dayOfMonth, frequency.monthly.dayOfMonth)
+              )
+              .toInstant()
+              .toProtoTime()
           }
         }
         ReportSchedule.Frequency.FrequencyCase.FREQUENCY_NOT_SET -> {
-          throw Status.INVALID_ARGUMENT.withDescription("frequency is not set")
-            .asRuntimeException()
+          throw Status.INVALID_ARGUMENT.withDescription("frequency is not set").asRuntimeException()
         }
       }
     }
 
-    private fun getNextReportCreationTime(zonedDateTime: ZonedDateTime, frequency: ReportSchedule.Frequency): Timestamp {
+    private fun getNextReportCreationTime(
+      zonedDateTime: ZonedDateTime,
+      frequency: ReportSchedule.Frequency
+    ): Timestamp {
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       return when (frequency.frequencyCase) {
         ReportSchedule.Frequency.FrequencyCase.DAILY -> {
           zonedDateTime.toInstant().toProtoTime()
         }
         ReportSchedule.Frequency.FrequencyCase.WEEKLY -> {
-          zonedDateTime.with(TemporalAdjusters.nextOrSame(java.time.DayOfWeek.valueOf(frequency.weekly.dayOfWeek.name))).toInstant().toProtoTime()
+          zonedDateTime
+            .with(
+              TemporalAdjusters.nextOrSame(
+                java.time.DayOfWeek.valueOf(frequency.weekly.dayOfWeek.name)
+              )
+            )
+            .toInstant()
+            .toProtoTime()
         }
         ReportSchedule.Frequency.FrequencyCase.MONTHLY -> {
           val lastDayOfMonth = zonedDateTime.with(TemporalAdjusters.lastDayOfMonth()).dayOfMonth
-          if (frequency.monthly.dayOfMonth <= lastDayOfMonth && zonedDateTime.dayOfMonth <= frequency.monthly.dayOfMonth) {
+          if (
+            frequency.monthly.dayOfMonth <= lastDayOfMonth &&
+              zonedDateTime.dayOfMonth <= frequency.monthly.dayOfMonth
+          ) {
             zonedDateTime.withDayOfMonth(frequency.monthly.dayOfMonth).toInstant().toProtoTime()
           } else if (frequency.monthly.dayOfMonth > lastDayOfMonth) {
             zonedDateTime.withDayOfMonth(lastDayOfMonth).toInstant().toProtoTime()
           } else {
-            val zonedDateTimeNextMonthEnd = zonedDateTime.plusMonths(1).with(TemporalAdjusters.lastDayOfMonth())
-            zonedDateTimeNextMonthEnd.withDayOfMonth(
-              minOf(zonedDateTimeNextMonthEnd.dayOfMonth, frequency.monthly.dayOfMonth)
-            ).toInstant().toProtoTime()
+            val zonedDateTimeNextMonthEnd =
+              zonedDateTime.plusMonths(1).with(TemporalAdjusters.lastDayOfMonth())
+            zonedDateTimeNextMonthEnd
+              .withDayOfMonth(
+                minOf(zonedDateTimeNextMonthEnd.dayOfMonth, frequency.monthly.dayOfMonth)
+              )
+              .toInstant()
+              .toProtoTime()
           }
         }
         ReportSchedule.Frequency.FrequencyCase.FREQUENCY_NOT_SET -> {
-          throw Status.INVALID_ARGUMENT.withDescription("frequency is not set")
-            .asRuntimeException()
+          throw Status.INVALID_ARGUMENT.withDescription("frequency is not set").asRuntimeException()
         }
       }
     }
@@ -828,7 +855,8 @@ class ReportSchedulesService(
       eventGroupsStub: EventGroupsCoroutineStub,
       apiAuthenticationKey: String,
     ) {
-      val windowStart: Timestamp = buildReportWindowStartTimestamp(reportSchedule, nextReportCreationTime)
+      val windowStart: Timestamp =
+        buildReportWindowStartTimestamp(reportSchedule, nextReportCreationTime)
       val eventGroupMap = mutableMapOf<InternalReportingSet.Primitive.EventGroupKey, EventGroup>()
       val dataProviderMap = mutableMapOf<String, DataProvider>()
 

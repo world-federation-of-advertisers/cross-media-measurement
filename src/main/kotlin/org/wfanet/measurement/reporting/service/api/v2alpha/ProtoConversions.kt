@@ -19,6 +19,7 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 import com.google.protobuf.util.Timestamps
 import com.google.type.Interval
 import com.google.type.interval
+import io.grpc.Status
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodology
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
@@ -52,6 +53,7 @@ import org.wfanet.measurement.internal.reporting.v2.NoiseMechanism
 import org.wfanet.measurement.internal.reporting.v2.PeriodicTimeInterval as InternalPeriodicTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.ReachOnlyLiquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.Report as InternalReport
+import org.wfanet.measurement.internal.reporting.v2.ReportSchedule as InternalReportSchedule
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequestKt
@@ -75,9 +77,6 @@ import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals as internalTimeIntervals
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
 import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval as StatsVidSamplingInterval
-import org.wfanet.measurement.internal.reporting.v2.ReportSchedule as InternalReportSchedule
-import io.grpc.Status
-import org.wfanet.measurement.reporting.v2alpha.ReportSchedule
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageToken
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsPageToken
@@ -89,6 +88,7 @@ import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.PeriodicTimeInterval
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportKt
+import org.wfanet.measurement.reporting.v2alpha.ReportSchedule
 import org.wfanet.measurement.reporting.v2alpha.ReportScheduleKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
@@ -971,12 +971,10 @@ fun InternalReportSchedule.toPublic(): ReportSchedule {
   val source = this
 
   val reportScheduleName =
-    ReportScheduleKey(source.cmmsMeasurementConsumerId, source.externalReportScheduleId)
-      .toName()
+    ReportScheduleKey(source.cmmsMeasurementConsumerId, source.externalReportScheduleId).toName()
   val reportTemplate = report {
     reportingMetricEntries +=
-      source.details.reportTemplate.reportingMetricEntriesMap.map { internalReportingMetricEntry
-        ->
+      source.details.reportTemplate.reportingMetricEntriesMap.map { internalReportingMetricEntry ->
         internalReportingMetricEntry.toReportingMetricEntry(source.cmmsMeasurementConsumerId)
       }
     tags.putAll(source.details.reportTemplate.details.tagsMap)
@@ -1006,16 +1004,13 @@ private fun InternalReportSchedule.State.toPublic(): ReportSchedule.State {
     InternalReportSchedule.State.STATE_UNSPECIFIED -> ReportSchedule.State.STATE_UNSPECIFIED
     InternalReportSchedule.State.UNRECOGNIZED ->
       // State is set by the system so if this is reached, something went wrong.
-      throw Status.UNKNOWN.withDescription(
-        "There is an unknown problem with the ReportSchedule"
-      )
+      throw Status.UNKNOWN.withDescription("There is an unknown problem with the ReportSchedule")
         .asRuntimeException()
   }
 }
 
 /**
- * Converts an internal [InternalReportSchedule.Frequency] to a public
- * [ReportSchedule.Frequency].
+ * Converts an internal [InternalReportSchedule.Frequency] to a public [ReportSchedule.Frequency].
  */
 private fun InternalReportSchedule.Frequency.toPublic(): ReportSchedule.Frequency {
   val source = this
@@ -1029,8 +1024,7 @@ private fun InternalReportSchedule.Frequency.toPublic(): ReportSchedule.Frequenc
       }
     InternalReportSchedule.Frequency.FrequencyCase.MONTHLY ->
       ReportScheduleKt.frequency {
-        monthly =
-          ReportScheduleKt.FrequencyKt.monthly { dayOfMonth = source.monthly.dayOfMonth }
+        monthly = ReportScheduleKt.FrequencyKt.monthly { dayOfMonth = source.monthly.dayOfMonth }
       }
     InternalReportSchedule.Frequency.FrequencyCase.FREQUENCY_NOT_SET ->
       throw Status.FAILED_PRECONDITION.withDescription("ReportSchedule missing frequency")
@@ -1056,8 +1050,8 @@ private fun InternalReportSchedule.ReportWindow.toPublic(): ReportSchedule.Repor
                 source.trailingWindow.increment.number
               )
                 ?: throw Status.UNKNOWN.withDescription(
-                  "There is an unknown problem with the ReportSchedule"
-                )
+                    "There is an unknown problem with the ReportSchedule"
+                  )
                   .asRuntimeException()
           }
       }

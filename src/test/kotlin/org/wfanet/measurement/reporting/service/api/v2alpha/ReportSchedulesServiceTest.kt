@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.duration
 import com.google.protobuf.timestamp
+import com.google.type.DayOfWeek
 import com.google.type.copy
 import com.google.type.date
 import com.google.type.dateTime
@@ -81,7 +82,6 @@ import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.internal.reporting.v2.reportSchedule as internalReportSchedule
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.stopReportScheduleRequest as internalStopReportScheduleRequest
-import com.google.type.DayOfWeek
 import org.wfanet.measurement.reporting.v2alpha.ListReportSchedulesPageTokenKt
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportKt
@@ -322,9 +322,7 @@ class ReportSchedulesServiceTest {
         month = 1
         day = 1
         hours = 13
-        utcOffset = duration {
-          seconds = -28800
-        }
+        utcOffset = duration { seconds = -28800 }
       }
       val eventEnd = date {
         year = 3001
@@ -337,28 +335,33 @@ class ReportSchedulesServiceTest {
       }
 
       whenever(internalReportSchedulesMock.createReportSchedule(any()))
-        .thenReturn(INTERNAL_REPORT_SCHEDULE.copy {
-          details = INTERNAL_REPORT_SCHEDULE.details.copy {
-            this.eventStart = eventStart
-            this.eventEnd = eventEnd
-            frequency = InternalReportScheduleKt.frequency {
-              weekly = InternalReportScheduleKt.FrequencyKt.weekly {
-                dayOfWeek = DayOfWeek.WEDNESDAY
+        .thenReturn(
+          INTERNAL_REPORT_SCHEDULE.copy {
+            details =
+              INTERNAL_REPORT_SCHEDULE.details.copy {
+                this.eventStart = eventStart
+                this.eventEnd = eventEnd
+                frequency =
+                  InternalReportScheduleKt.frequency {
+                    weekly =
+                      InternalReportScheduleKt.FrequencyKt.weekly {
+                        dayOfWeek = DayOfWeek.WEDNESDAY
+                      }
+                  }
               }
-            }
+            this.nextReportCreationTime = nextReportCreationTime
           }
-          this.nextReportCreationTime = nextReportCreationTime
-        })
+        )
 
-      val reportSchedule = REPORT_SCHEDULE.copy {
-        this.eventStart = eventStart
-        this.eventEnd = eventEnd
-        frequency = ReportScheduleKt.frequency {
-          weekly = ReportScheduleKt.FrequencyKt.weekly {
-            dayOfWeek = DayOfWeek.WEDNESDAY
-          }
+      val reportSchedule =
+        REPORT_SCHEDULE.copy {
+          this.eventStart = eventStart
+          this.eventEnd = eventEnd
+          frequency =
+            ReportScheduleKt.frequency {
+              weekly = ReportScheduleKt.FrequencyKt.weekly { dayOfWeek = DayOfWeek.WEDNESDAY }
+            }
         }
-      }
 
       val request = createReportScheduleRequest {
         parent = MEASUREMENT_CONSUMER_NAME
@@ -383,9 +386,9 @@ class ReportSchedulesServiceTest {
         )
 
       verifyProtoArgument(
-        internalReportSchedulesMock,
-        ReportSchedulesCoroutineImplBase::createReportSchedule
-      )
+          internalReportSchedulesMock,
+          ReportSchedulesCoroutineImplBase::createReportSchedule
+        )
         .isEqualTo(
           internalCreateReportScheduleRequest {
             this.reportSchedule = internalReportSchedule {
@@ -398,11 +401,13 @@ class ReportSchedulesServiceTest {
                   reportTemplate = INTERNAL_REPORT_SCHEDULE.details.reportTemplate
                   this.eventStart = eventStart
                   this.eventEnd = eventEnd
-                  frequency = InternalReportScheduleKt.frequency {
-                    weekly = InternalReportScheduleKt.FrequencyKt.weekly {
-                      dayOfWeek = DayOfWeek.WEDNESDAY
+                  frequency =
+                    InternalReportScheduleKt.frequency {
+                      weekly =
+                        InternalReportScheduleKt.FrequencyKt.weekly {
+                          dayOfWeek = DayOfWeek.WEDNESDAY
+                        }
                     }
-                  }
                   reportWindow = INTERNAL_REPORT_SCHEDULE.details.reportWindow
                 }
             }
@@ -432,28 +437,33 @@ class ReportSchedulesServiceTest {
       }
 
       whenever(internalReportSchedulesMock.createReportSchedule(any()))
-        .thenReturn(INTERNAL_REPORT_SCHEDULE.copy {
-          details = INTERNAL_REPORT_SCHEDULE.details.copy {
-            this.eventStart = eventStart
-            this.eventEnd = eventEnd
-            frequency = InternalReportScheduleKt.frequency {
-              weekly = InternalReportScheduleKt.FrequencyKt.weekly {
-                dayOfWeek = DayOfWeek.WEDNESDAY
+        .thenReturn(
+          INTERNAL_REPORT_SCHEDULE.copy {
+            details =
+              INTERNAL_REPORT_SCHEDULE.details.copy {
+                this.eventStart = eventStart
+                this.eventEnd = eventEnd
+                frequency =
+                  InternalReportScheduleKt.frequency {
+                    weekly =
+                      InternalReportScheduleKt.FrequencyKt.weekly {
+                        dayOfWeek = DayOfWeek.WEDNESDAY
+                      }
+                  }
               }
-            }
+            this.nextReportCreationTime = nextReportCreationTime
           }
-          this.nextReportCreationTime = nextReportCreationTime
-        })
+        )
 
-      val reportSchedule = REPORT_SCHEDULE.copy {
-        this.eventStart = eventStart
-        this.eventEnd = eventEnd
-        frequency = ReportScheduleKt.frequency {
-          weekly = ReportScheduleKt.FrequencyKt.weekly {
-            dayOfWeek = DayOfWeek.WEDNESDAY
-          }
+      val reportSchedule =
+        REPORT_SCHEDULE.copy {
+          this.eventStart = eventStart
+          this.eventEnd = eventEnd
+          frequency =
+            ReportScheduleKt.frequency {
+              weekly = ReportScheduleKt.FrequencyKt.weekly { dayOfWeek = DayOfWeek.WEDNESDAY }
+            }
         }
-      }
 
       val request = createReportScheduleRequest {
         parent = MEASUREMENT_CONSUMER_NAME
@@ -478,9 +488,9 @@ class ReportSchedulesServiceTest {
         )
 
       verifyProtoArgument(
-        internalReportSchedulesMock,
-        ReportSchedulesCoroutineImplBase::createReportSchedule
-      )
+          internalReportSchedulesMock,
+          ReportSchedulesCoroutineImplBase::createReportSchedule
+        )
         .isEqualTo(
           internalCreateReportScheduleRequest {
             this.reportSchedule = internalReportSchedule {
@@ -493,11 +503,13 @@ class ReportSchedulesServiceTest {
                   reportTemplate = INTERNAL_REPORT_SCHEDULE.details.reportTemplate
                   this.eventStart = eventStart
                   this.eventEnd = eventEnd
-                  frequency = InternalReportScheduleKt.frequency {
-                    weekly = InternalReportScheduleKt.FrequencyKt.weekly {
-                      dayOfWeek = DayOfWeek.WEDNESDAY
+                  frequency =
+                    InternalReportScheduleKt.frequency {
+                      weekly =
+                        InternalReportScheduleKt.FrequencyKt.weekly {
+                          dayOfWeek = DayOfWeek.WEDNESDAY
+                        }
                     }
-                  }
                   reportWindow = INTERNAL_REPORT_SCHEDULE.details.reportWindow
                 }
             }
@@ -527,28 +539,33 @@ class ReportSchedulesServiceTest {
       }
 
       whenever(internalReportSchedulesMock.createReportSchedule(any()))
-        .thenReturn(INTERNAL_REPORT_SCHEDULE.copy {
-          details = INTERNAL_REPORT_SCHEDULE.details.copy {
-            this.eventStart = eventStart
-            this.eventEnd = eventEnd
-            frequency = InternalReportScheduleKt.frequency {
-              weekly = InternalReportScheduleKt.FrequencyKt.weekly {
-                dayOfWeek = DayOfWeek.WEDNESDAY
+        .thenReturn(
+          INTERNAL_REPORT_SCHEDULE.copy {
+            details =
+              INTERNAL_REPORT_SCHEDULE.details.copy {
+                this.eventStart = eventStart
+                this.eventEnd = eventEnd
+                frequency =
+                  InternalReportScheduleKt.frequency {
+                    weekly =
+                      InternalReportScheduleKt.FrequencyKt.weekly {
+                        dayOfWeek = DayOfWeek.WEDNESDAY
+                      }
+                  }
               }
-            }
+            this.nextReportCreationTime = nextReportCreationTime
           }
-          this.nextReportCreationTime = nextReportCreationTime
-        })
+        )
 
-      val reportSchedule = REPORT_SCHEDULE.copy {
-        this.eventStart = eventStart
-        this.eventEnd = eventEnd
-        frequency = ReportScheduleKt.frequency {
-          weekly = ReportScheduleKt.FrequencyKt.weekly {
-            dayOfWeek = DayOfWeek.WEDNESDAY
-          }
+      val reportSchedule =
+        REPORT_SCHEDULE.copy {
+          this.eventStart = eventStart
+          this.eventEnd = eventEnd
+          frequency =
+            ReportScheduleKt.frequency {
+              weekly = ReportScheduleKt.FrequencyKt.weekly { dayOfWeek = DayOfWeek.WEDNESDAY }
+            }
         }
-      }
 
       val request = createReportScheduleRequest {
         parent = MEASUREMENT_CONSUMER_NAME
@@ -573,9 +590,9 @@ class ReportSchedulesServiceTest {
         )
 
       verifyProtoArgument(
-        internalReportSchedulesMock,
-        ReportSchedulesCoroutineImplBase::createReportSchedule
-      )
+          internalReportSchedulesMock,
+          ReportSchedulesCoroutineImplBase::createReportSchedule
+        )
         .isEqualTo(
           internalCreateReportScheduleRequest {
             this.reportSchedule = internalReportSchedule {
@@ -588,11 +605,13 @@ class ReportSchedulesServiceTest {
                   reportTemplate = INTERNAL_REPORT_SCHEDULE.details.reportTemplate
                   this.eventStart = eventStart
                   this.eventEnd = eventEnd
-                  frequency = InternalReportScheduleKt.frequency {
-                    weekly = InternalReportScheduleKt.FrequencyKt.weekly {
-                      dayOfWeek = DayOfWeek.WEDNESDAY
+                  frequency =
+                    InternalReportScheduleKt.frequency {
+                      weekly =
+                        InternalReportScheduleKt.FrequencyKt.weekly {
+                          dayOfWeek = DayOfWeek.WEDNESDAY
+                        }
                     }
-                  }
                   reportWindow = INTERNAL_REPORT_SCHEDULE.details.reportWindow
                 }
             }
@@ -622,28 +641,30 @@ class ReportSchedulesServiceTest {
       }
 
       whenever(internalReportSchedulesMock.createReportSchedule(any()))
-        .thenReturn(INTERNAL_REPORT_SCHEDULE.copy {
-          details = INTERNAL_REPORT_SCHEDULE.details.copy {
-            this.eventStart = eventStart
-            this.eventEnd = eventEnd
-            frequency = InternalReportScheduleKt.frequency {
-              monthly = InternalReportScheduleKt.FrequencyKt.monthly {
-                dayOfMonth = 1
+        .thenReturn(
+          INTERNAL_REPORT_SCHEDULE.copy {
+            details =
+              INTERNAL_REPORT_SCHEDULE.details.copy {
+                this.eventStart = eventStart
+                this.eventEnd = eventEnd
+                frequency =
+                  InternalReportScheduleKt.frequency {
+                    monthly = InternalReportScheduleKt.FrequencyKt.monthly { dayOfMonth = 1 }
+                  }
               }
-            }
+            this.nextReportCreationTime = nextReportCreationTime
           }
-          this.nextReportCreationTime = nextReportCreationTime
-        })
+        )
 
-      val reportSchedule = REPORT_SCHEDULE.copy {
-        this.eventStart = eventStart
-        this.eventEnd = eventEnd
-        frequency = ReportScheduleKt.frequency {
-          monthly = ReportScheduleKt.FrequencyKt.monthly {
-            dayOfMonth = 1
-          }
+      val reportSchedule =
+        REPORT_SCHEDULE.copy {
+          this.eventStart = eventStart
+          this.eventEnd = eventEnd
+          frequency =
+            ReportScheduleKt.frequency {
+              monthly = ReportScheduleKt.FrequencyKt.monthly { dayOfMonth = 1 }
+            }
         }
-      }
 
       val request = createReportScheduleRequest {
         parent = MEASUREMENT_CONSUMER_NAME
@@ -668,9 +689,9 @@ class ReportSchedulesServiceTest {
         )
 
       verifyProtoArgument(
-        internalReportSchedulesMock,
-        ReportSchedulesCoroutineImplBase::createReportSchedule
-      )
+          internalReportSchedulesMock,
+          ReportSchedulesCoroutineImplBase::createReportSchedule
+        )
         .isEqualTo(
           internalCreateReportScheduleRequest {
             this.reportSchedule = internalReportSchedule {
@@ -683,11 +704,10 @@ class ReportSchedulesServiceTest {
                   reportTemplate = INTERNAL_REPORT_SCHEDULE.details.reportTemplate
                   this.eventStart = eventStart
                   this.eventEnd = eventEnd
-                  frequency = InternalReportScheduleKt.frequency {
-                    monthly = InternalReportScheduleKt.FrequencyKt.monthly {
-                      dayOfMonth = 1
+                  frequency =
+                    InternalReportScheduleKt.frequency {
+                      monthly = InternalReportScheduleKt.FrequencyKt.monthly { dayOfMonth = 1 }
                     }
-                  }
                   reportWindow = INTERNAL_REPORT_SCHEDULE.details.reportWindow
                 }
             }
@@ -717,28 +737,30 @@ class ReportSchedulesServiceTest {
       }
 
       whenever(internalReportSchedulesMock.createReportSchedule(any()))
-        .thenReturn(INTERNAL_REPORT_SCHEDULE.copy {
-          details = INTERNAL_REPORT_SCHEDULE.details.copy {
-            this.eventStart = eventStart
-            this.eventEnd = eventEnd
-            frequency = InternalReportScheduleKt.frequency {
-              monthly = InternalReportScheduleKt.FrequencyKt.monthly {
-                dayOfMonth = 20
+        .thenReturn(
+          INTERNAL_REPORT_SCHEDULE.copy {
+            details =
+              INTERNAL_REPORT_SCHEDULE.details.copy {
+                this.eventStart = eventStart
+                this.eventEnd = eventEnd
+                frequency =
+                  InternalReportScheduleKt.frequency {
+                    monthly = InternalReportScheduleKt.FrequencyKt.monthly { dayOfMonth = 20 }
+                  }
               }
-            }
+            this.nextReportCreationTime = nextReportCreationTime
           }
-          this.nextReportCreationTime = nextReportCreationTime
-        })
+        )
 
-      val reportSchedule = REPORT_SCHEDULE.copy {
-        this.eventStart = eventStart
-        this.eventEnd = eventEnd
-        frequency = ReportScheduleKt.frequency {
-          monthly = ReportScheduleKt.FrequencyKt.monthly {
-            dayOfMonth = 20
-          }
+      val reportSchedule =
+        REPORT_SCHEDULE.copy {
+          this.eventStart = eventStart
+          this.eventEnd = eventEnd
+          frequency =
+            ReportScheduleKt.frequency {
+              monthly = ReportScheduleKt.FrequencyKt.monthly { dayOfMonth = 20 }
+            }
         }
-      }
 
       val request = createReportScheduleRequest {
         parent = MEASUREMENT_CONSUMER_NAME
@@ -763,9 +785,9 @@ class ReportSchedulesServiceTest {
         )
 
       verifyProtoArgument(
-        internalReportSchedulesMock,
-        ReportSchedulesCoroutineImplBase::createReportSchedule
-      )
+          internalReportSchedulesMock,
+          ReportSchedulesCoroutineImplBase::createReportSchedule
+        )
         .isEqualTo(
           internalCreateReportScheduleRequest {
             this.reportSchedule = internalReportSchedule {
@@ -778,11 +800,10 @@ class ReportSchedulesServiceTest {
                   reportTemplate = INTERNAL_REPORT_SCHEDULE.details.reportTemplate
                   this.eventStart = eventStart
                   this.eventEnd = eventEnd
-                  frequency = InternalReportScheduleKt.frequency {
-                    monthly = InternalReportScheduleKt.FrequencyKt.monthly {
-                      dayOfMonth = 20
+                  frequency =
+                    InternalReportScheduleKt.frequency {
+                      monthly = InternalReportScheduleKt.FrequencyKt.monthly { dayOfMonth = 20 }
                     }
-                  }
                   reportWindow = INTERNAL_REPORT_SCHEDULE.details.reportWindow
                 }
             }
@@ -812,28 +833,30 @@ class ReportSchedulesServiceTest {
       }
 
       whenever(internalReportSchedulesMock.createReportSchedule(any()))
-        .thenReturn(INTERNAL_REPORT_SCHEDULE.copy {
-          details = INTERNAL_REPORT_SCHEDULE.details.copy {
-            this.eventStart = eventStart
-            this.eventEnd = eventEnd
-            frequency = InternalReportScheduleKt.frequency {
-              monthly = InternalReportScheduleKt.FrequencyKt.monthly {
-                dayOfMonth = 1
+        .thenReturn(
+          INTERNAL_REPORT_SCHEDULE.copy {
+            details =
+              INTERNAL_REPORT_SCHEDULE.details.copy {
+                this.eventStart = eventStart
+                this.eventEnd = eventEnd
+                frequency =
+                  InternalReportScheduleKt.frequency {
+                    monthly = InternalReportScheduleKt.FrequencyKt.monthly { dayOfMonth = 1 }
+                  }
               }
-            }
+            this.nextReportCreationTime = nextReportCreationTime
           }
-          this.nextReportCreationTime = nextReportCreationTime
-        })
+        )
 
-      val reportSchedule = REPORT_SCHEDULE.copy {
-        this.eventStart = eventStart
-        this.eventEnd = eventEnd
-        frequency = ReportScheduleKt.frequency {
-          monthly = ReportScheduleKt.FrequencyKt.monthly {
-            dayOfMonth = 1
-          }
+      val reportSchedule =
+        REPORT_SCHEDULE.copy {
+          this.eventStart = eventStart
+          this.eventEnd = eventEnd
+          frequency =
+            ReportScheduleKt.frequency {
+              monthly = ReportScheduleKt.FrequencyKt.monthly { dayOfMonth = 1 }
+            }
         }
-      }
 
       val request = createReportScheduleRequest {
         parent = MEASUREMENT_CONSUMER_NAME
@@ -858,9 +881,9 @@ class ReportSchedulesServiceTest {
         )
 
       verifyProtoArgument(
-        internalReportSchedulesMock,
-        ReportSchedulesCoroutineImplBase::createReportSchedule
-      )
+          internalReportSchedulesMock,
+          ReportSchedulesCoroutineImplBase::createReportSchedule
+        )
         .isEqualTo(
           internalCreateReportScheduleRequest {
             this.reportSchedule = internalReportSchedule {
@@ -873,11 +896,10 @@ class ReportSchedulesServiceTest {
                   reportTemplate = INTERNAL_REPORT_SCHEDULE.details.reportTemplate
                   this.eventStart = eventStart
                   this.eventEnd = eventEnd
-                  frequency = InternalReportScheduleKt.frequency {
-                    monthly = InternalReportScheduleKt.FrequencyKt.monthly {
-                      dayOfMonth = 1
+                  frequency =
+                    InternalReportScheduleKt.frequency {
+                      monthly = InternalReportScheduleKt.FrequencyKt.monthly { dayOfMonth = 1 }
                     }
-                  }
                   reportWindow = INTERNAL_REPORT_SCHEDULE.details.reportWindow
                 }
             }
@@ -907,28 +929,30 @@ class ReportSchedulesServiceTest {
       }
 
       whenever(internalReportSchedulesMock.createReportSchedule(any()))
-        .thenReturn(INTERNAL_REPORT_SCHEDULE.copy {
-          details = INTERNAL_REPORT_SCHEDULE.details.copy {
-            this.eventStart = eventStart
-            this.eventEnd = eventEnd
-            frequency = InternalReportScheduleKt.frequency {
-              monthly = InternalReportScheduleKt.FrequencyKt.monthly {
-                dayOfMonth = 32
+        .thenReturn(
+          INTERNAL_REPORT_SCHEDULE.copy {
+            details =
+              INTERNAL_REPORT_SCHEDULE.details.copy {
+                this.eventStart = eventStart
+                this.eventEnd = eventEnd
+                frequency =
+                  InternalReportScheduleKt.frequency {
+                    monthly = InternalReportScheduleKt.FrequencyKt.monthly { dayOfMonth = 32 }
+                  }
               }
-            }
+            this.nextReportCreationTime = nextReportCreationTime
           }
-          this.nextReportCreationTime = nextReportCreationTime
-        })
+        )
 
-      val reportSchedule = REPORT_SCHEDULE.copy {
-        this.eventStart = eventStart
-        this.eventEnd = eventEnd
-        frequency = ReportScheduleKt.frequency {
-          monthly = ReportScheduleKt.FrequencyKt.monthly {
-            dayOfMonth = 32
-          }
+      val reportSchedule =
+        REPORT_SCHEDULE.copy {
+          this.eventStart = eventStart
+          this.eventEnd = eventEnd
+          frequency =
+            ReportScheduleKt.frequency {
+              monthly = ReportScheduleKt.FrequencyKt.monthly { dayOfMonth = 32 }
+            }
         }
-      }
 
       val request = createReportScheduleRequest {
         parent = MEASUREMENT_CONSUMER_NAME
@@ -953,9 +977,9 @@ class ReportSchedulesServiceTest {
         )
 
       verifyProtoArgument(
-        internalReportSchedulesMock,
-        ReportSchedulesCoroutineImplBase::createReportSchedule
-      )
+          internalReportSchedulesMock,
+          ReportSchedulesCoroutineImplBase::createReportSchedule
+        )
         .isEqualTo(
           internalCreateReportScheduleRequest {
             this.reportSchedule = internalReportSchedule {
@@ -968,11 +992,10 @@ class ReportSchedulesServiceTest {
                   reportTemplate = INTERNAL_REPORT_SCHEDULE.details.reportTemplate
                   this.eventStart = eventStart
                   this.eventEnd = eventEnd
-                  frequency = InternalReportScheduleKt.frequency {
-                    monthly = InternalReportScheduleKt.FrequencyKt.monthly {
-                      dayOfMonth = 32
+                  frequency =
+                    InternalReportScheduleKt.frequency {
+                      monthly = InternalReportScheduleKt.FrequencyKt.monthly { dayOfMonth = 32 }
                     }
-                  }
                   reportWindow = INTERNAL_REPORT_SCHEDULE.details.reportWindow
                 }
             }
