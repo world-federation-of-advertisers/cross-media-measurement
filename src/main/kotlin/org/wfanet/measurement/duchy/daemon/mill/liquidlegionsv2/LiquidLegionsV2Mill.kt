@@ -16,7 +16,6 @@ package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2
 
 import com.google.protobuf.ByteString
 import io.opentelemetry.api.OpenTelemetry
-import java.nio.file.Paths
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
@@ -29,7 +28,6 @@ import org.wfanet.measurement.common.crypto.SignatureAlgorithm
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.identity.DuchyInfo
-import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.consent.client.duchy.encryptResult
 import org.wfanet.measurement.consent.client.duchy.signResult
 import org.wfanet.measurement.consent.client.duchy.verifyDataProviderParticipation
@@ -246,14 +244,8 @@ abstract class LiquidLegionsV2Mill(
 
   companion object {
     init {
-      loadLibrary(
-        name = "estimators",
-        directoryPath = Paths.get("any_sketch_java/src/main/java/org/wfanet/estimation")
-      )
-      loadLibrary(
-        name = "sketch_encrypter_adapter",
-        directoryPath = Paths.get("any_sketch_java/src/main/java/org/wfanet/anysketch/crypto")
-      )
+      System.loadLibrary("estimators")
+      System.loadLibrary("sketch_encrypter_adapter")
     }
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
