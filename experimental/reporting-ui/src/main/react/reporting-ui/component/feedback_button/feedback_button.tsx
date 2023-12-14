@@ -4,7 +4,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-   http://www.apache.org/licenses/LICENSE-2.0
+    http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,20 +12,19 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-import React from 'react';
-import { routes } from './route';
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
-import FeedbackButton from './component/feedback_button/feedback_button';
+import { Button } from 'react-bootstrap';
+import './feedback_button.css';
 
-const router = createBrowserRouter(routes);
-
-const App = () => {
+const FeedbackButton = () => {
     return (
-        <React.Fragment>
-            <RouterProvider router={router} />
-            <FeedbackButton />
-        </React.Fragment >
-    );
+        <div id="fixed-bottom">
+            <a href="https://docs.google.com/document/d/1HRUCoGLr34frH18iI_o3mNAJ-I6ylsDdJF-7usT4XZg/edit?usp=sharing" target="_blank">
+                <Button variant="primary">
+                    Feedback?
+                </Button>
+            </a>
+        </div>
+    )
 }
 
-export default App;
+export default FeedbackButton;
