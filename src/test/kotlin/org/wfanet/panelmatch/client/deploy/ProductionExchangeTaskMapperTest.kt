@@ -91,7 +91,6 @@ class ProductionExchangeTaskMapperTest {
       testPrivateStorageDetails.toByteString()
     testSharedStorageSelector.storageDetails.underlyingMap[RECURRING_EXCHANGE_ID] =
       testSharedStorageDetails.toByteString()
-    print(testPrivateStorageSelector.storageDetails.underlyingMap)
   }
 
   @Test
