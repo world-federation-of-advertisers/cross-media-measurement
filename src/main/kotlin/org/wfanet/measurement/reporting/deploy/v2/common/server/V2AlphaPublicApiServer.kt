@@ -46,8 +46,8 @@ import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.M
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineStub as InternalMetricsCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub as InternalReportSchedulesCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpcKt.ReportScheduleIterationsCoroutineStub as InternalReportScheduleIterationsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub as InternalReportSchedulesCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
@@ -207,15 +207,13 @@ private fun run(
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ReportSchedulesService(
-        InternalReportSchedulesCoroutineStub(channel),
-        InternalReportingSetsCoroutineStub(channel),
-        KingdomDataProvidersCoroutineStub(kingdomChannel),
-        KingdomEventGroupsCoroutineStub(kingdomChannel)
-      )
+          InternalReportSchedulesCoroutineStub(channel),
+          InternalReportingSetsCoroutineStub(channel),
+          KingdomDataProvidersCoroutineStub(kingdomChannel),
+          KingdomEventGroupsCoroutineStub(kingdomChannel)
+        )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-      ReportScheduleIterationsService(
-        InternalReportScheduleIterationsCoroutineStub(channel)
-      )
+      ReportScheduleIterationsService(InternalReportScheduleIterationsCoroutineStub(channel))
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       MetricCalculationSpecsService(
           InternalMetricCalculationSpecsCoroutineStub(channel),
