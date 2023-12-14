@@ -22,8 +22,14 @@ import {createBrowserRouter, RouterProvider} from 'react-router-dom';
 import './index.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
+// TODO(@bdomen-ggl): Look into making this configurable.
+// https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/4877bb901568597cf3d0ef8030e1b7e82e074803/src/test/kotlin/org/wfanet/measurement/integration/k8s/BUILD.bazel#L88C1-L88C1
 const configProps = {
-  reportingClient: new ReportingClientImpl({endpoint: new URL('http://localhost:3000')}),
+  reportingClient: new ReportingClientImpl(
+    {
+      endpoint: new URL('http://localhost:8080'),
+      measurementConsumer: 'VCTqwV_vFXw',
+    }),
 };
 
 AppConfig.initialize(configProps);
