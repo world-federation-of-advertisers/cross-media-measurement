@@ -16,17 +16,9 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
-import com.google.protobuf.Timestamp
 import com.google.protobuf.util.Timestamps
-import com.google.type.DateTime
 import com.google.type.Interval
 import com.google.type.interval
-import java.time.DateTimeException
-import java.time.OffsetDateTime
-import java.time.ZoneId
-import java.time.ZoneOffset
-import java.time.ZonedDateTime
-import java.time.zone.ZoneRulesException
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodology
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
@@ -39,7 +31,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec.VidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
-import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams as NoiserDpParams
 import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodology as InternalCustomDirectMethodology
@@ -84,6 +75,9 @@ import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals as internalTimeIntervals
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
 import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval as StatsVidSamplingInterval
+import org.wfanet.measurement.internal.reporting.v2.ReportSchedule as InternalReportSchedule
+import io.grpc.Status
+import org.wfanet.measurement.reporting.v2alpha.ReportSchedule
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageToken
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsPageToken
@@ -95,6 +89,7 @@ import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.PeriodicTimeInterval
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportKt
+import org.wfanet.measurement.reporting.v2alpha.ReportScheduleKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.TimeIntervals
@@ -103,6 +98,8 @@ import org.wfanet.measurement.reporting.v2alpha.metric
 import org.wfanet.measurement.reporting.v2alpha.metricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.metricSpec
 import org.wfanet.measurement.reporting.v2alpha.periodicTimeInterval
+import org.wfanet.measurement.reporting.v2alpha.report
+import org.wfanet.measurement.reporting.v2alpha.reportSchedule
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
 import org.wfanet.measurement.reporting.v2alpha.timeIntervals
 
@@ -969,42 +966,105 @@ fun InternalMetricSpec.DifferentialPrivacyParams.toNoiserDpParams(): NoiserDpPar
   return NoiserDpParams(source.epsilon, source.delta)
 }
 
-/**
- * Converts a proto [DateTime] to a proto [Timestamp].
- *
- * @throws
- * * [DateTimeException] when values in DateTime are invalid.
- * * [ZoneRulesException] when time zone id is invalid.
- */
-fun DateTime.toTimestamp(): Timestamp {
+/** Converts an internal [InternalReportSchedule] to a public [ReportSchedule]. */
+fun InternalReportSchedule.toPublic(): ReportSchedule {
   val source = this
-  return if (source.hasUtcOffset()) {
-    val offset = ZoneOffset.ofTotalSeconds(source.utcOffset.seconds.toInt())
-    val offsetDateTime =
-      OffsetDateTime.of(
-        source.year,
-        source.month,
-        source.day,
-        source.hours,
-        source.minutes,
-        source.seconds,
-        source.nanos,
-        offset
+
+  val reportScheduleName =
+    ReportScheduleKey(source.cmmsMeasurementConsumerId, source.externalReportScheduleId)
+      .toName()
+  val reportTemplate = report {
+    reportingMetricEntries +=
+      source.details.reportTemplate.reportingMetricEntriesMap.map { internalReportingMetricEntry
+        ->
+        internalReportingMetricEntry.toReportingMetricEntry(source.cmmsMeasurementConsumerId)
+      }
+    tags.putAll(source.details.reportTemplate.details.tagsMap)
+  }
+
+  return reportSchedule {
+    name = reportScheduleName
+    displayName = source.details.displayName
+    description = source.details.description
+    this.reportTemplate = reportTemplate
+    eventStart = source.details.eventStart
+    eventEnd = source.details.eventEnd
+    frequency = source.details.frequency.toPublic()
+    reportWindow = source.details.reportWindow.toPublic()
+    state = source.state.toPublic()
+    nextReportCreationTime = source.nextReportCreationTime
+    createTime = source.createTime
+    updateTime = source.updateTime
+  }
+}
+
+/** Converts an internal [InternalReportSchedule.State] to a public [ReportSchedule.State]. */
+private fun InternalReportSchedule.State.toPublic(): ReportSchedule.State {
+  return when (this) {
+    InternalReportSchedule.State.ACTIVE -> ReportSchedule.State.ACTIVE
+    InternalReportSchedule.State.STOPPED -> ReportSchedule.State.STOPPED
+    InternalReportSchedule.State.STATE_UNSPECIFIED -> ReportSchedule.State.STATE_UNSPECIFIED
+    InternalReportSchedule.State.UNRECOGNIZED ->
+      // State is set by the system so if this is reached, something went wrong.
+      throw Status.UNKNOWN.withDescription(
+        "There is an unknown problem with the ReportSchedule"
       )
-    offsetDateTime.toInstant().toProtoTime()
-  } else {
-    val id = ZoneId.of(source.timeZone.id)
-    val zonedDateTime =
-      ZonedDateTime.of(
-        source.year,
-        source.month,
-        source.day,
-        source.hours,
-        source.minutes,
-        source.seconds,
-        source.nanos,
-        id
-      )
-    zonedDateTime.toInstant().toProtoTime()
+        .asRuntimeException()
+  }
+}
+
+/**
+ * Converts an internal [InternalReportSchedule.Frequency] to a public
+ * [ReportSchedule.Frequency].
+ */
+private fun InternalReportSchedule.Frequency.toPublic(): ReportSchedule.Frequency {
+  val source = this
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+  return when (source.frequencyCase) {
+    InternalReportSchedule.Frequency.FrequencyCase.DAILY ->
+      ReportScheduleKt.frequency { daily = ReportSchedule.Frequency.Daily.getDefaultInstance() }
+    InternalReportSchedule.Frequency.FrequencyCase.WEEKLY ->
+      ReportScheduleKt.frequency {
+        weekly = ReportScheduleKt.FrequencyKt.weekly { dayOfWeek = source.weekly.dayOfWeek }
+      }
+    InternalReportSchedule.Frequency.FrequencyCase.MONTHLY ->
+      ReportScheduleKt.frequency {
+        monthly =
+          ReportScheduleKt.FrequencyKt.monthly { dayOfMonth = source.monthly.dayOfMonth }
+      }
+    InternalReportSchedule.Frequency.FrequencyCase.FREQUENCY_NOT_SET ->
+      throw Status.FAILED_PRECONDITION.withDescription("ReportSchedule missing frequency")
+        .asRuntimeException()
+  }
+}
+
+/**
+ * Converts an internal [InternalReportSchedule.ReportWindow] to a public
+ * [ReportSchedule.ReportWindow].
+ */
+private fun InternalReportSchedule.ReportWindow.toPublic(): ReportSchedule.ReportWindow {
+  val source = this
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+  return when (source.windowCase) {
+    InternalReportSchedule.ReportWindow.WindowCase.TRAILING_WINDOW ->
+      ReportScheduleKt.reportWindow {
+        trailingWindow =
+          ReportScheduleKt.ReportWindowKt.trailingWindow {
+            count = source.trailingWindow.count
+            increment =
+              ReportSchedule.ReportWindow.TrailingWindow.Increment.forNumber(
+                source.trailingWindow.increment.number
+              )
+                ?: throw Status.UNKNOWN.withDescription(
+                  "There is an unknown problem with the ReportSchedule"
+                )
+                  .asRuntimeException()
+          }
+      }
+    InternalReportSchedule.ReportWindow.WindowCase.FIXED_WINDOW ->
+      ReportScheduleKt.reportWindow { fixedWindow = source.fixedWindow }
+    InternalReportSchedule.ReportWindow.WindowCase.WINDOW_NOT_SET ->
+      throw Status.FAILED_PRECONDITION.withDescription("ReportSchedule missing report_window")
+        .asRuntimeException()
   }
 }

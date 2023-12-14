@@ -81,6 +81,7 @@ import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.internal.reporting.v2.reportSchedule as internalReportSchedule
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.stopReportScheduleRequest as internalStopReportScheduleRequest
+import com.google.type.DayOfWeek
 import org.wfanet.measurement.reporting.v2alpha.ListReportSchedulesPageTokenKt
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportKt
@@ -164,7 +165,7 @@ class ReportSchedulesServiceTest {
   }
 
   @Test
-  fun `createReportSchedules returns report schedule`() = runBlocking {
+  fun `createReportSchedule returns report schedule when daily frequency`() = runBlocking {
     val internalReportSchedule = internalReportSchedule {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalReportScheduleId = REPORT_SCHEDULE_ID
@@ -186,10 +187,10 @@ class ReportSchedulesServiceTest {
           }
           eventStart = dateTime {
             year = 3000
-            month = 10
+            month = 1
             day = 1
-            hours = 6
-            timeZone = timeZone { id = "America/New_York" }
+            hours = 13
+            timeZone = timeZone { id = "America/Los_Angeles" }
           }
           eventEnd = date {
             year = 3001
@@ -209,7 +210,9 @@ class ReportSchedulesServiceTest {
                 }
             }
         }
-      nextReportCreationTime = details.eventStart.toTimestamp()
+      nextReportCreationTime = timestamp {
+        seconds = 32503755600 // Wednesday, January 1, 3000 at 1 PM, America/Los_Angeles
+      }
       createTime = timestamp { seconds = 50 }
       updateTime = timestamp { seconds = 150 }
     }
@@ -262,7 +265,7 @@ class ReportSchedulesServiceTest {
       .isEqualTo(
         reportSchedule.copy {
           name = REPORT_SCHEDULE_NAME
-          state = ReportSchedule.State.forNumber(internalReportSchedule.state.number)
+          state = ReportSchedule.State.ACTIVE
           nextReportCreationTime = internalReportSchedule.nextReportCreationTime
           createTime = internalReportSchedule.createTime
           updateTime = internalReportSchedule.updateTime
@@ -310,6 +313,673 @@ class ReportSchedulesServiceTest {
     verifyProtoArgument(eventGroupsMock, EventGroupsCoroutineImplBase::getEventGroup)
       .isEqualTo(getEventGroupRequest { name = EVENT_GROUP_NAME })
   }
+
+  @Test
+  fun `createReportSchedule sets next report to start when daily frequency and offset`() =
+    runBlocking {
+      val eventStart = dateTime {
+        year = 3000
+        month = 1
+        day = 1
+        hours = 13
+        utcOffset = duration {
+          seconds = -28800
+        }
+      }
+      val eventEnd = date {
+        year = 3001
+        month = 12
+        day = 1
+      }
+
+      val nextReportCreationTime = timestamp {
+        seconds = 32503755600 // Wednesday, January 1, 3000 at 1 PM, America/Los_Angeles
+      }
+
+      whenever(internalReportSchedulesMock.createReportSchedule(any()))
+        .thenReturn(INTERNAL_REPORT_SCHEDULE.copy {
+          details = INTERNAL_REPORT_SCHEDULE.details.copy {
+            this.eventStart = eventStart
+            this.eventEnd = eventEnd
+            frequency = InternalReportScheduleKt.frequency {
+              weekly = InternalReportScheduleKt.FrequencyKt.weekly {
+                dayOfWeek = DayOfWeek.WEDNESDAY
+              }
+            }
+          }
+          this.nextReportCreationTime = nextReportCreationTime
+        })
+
+      val reportSchedule = REPORT_SCHEDULE.copy {
+        this.eventStart = eventStart
+        this.eventEnd = eventEnd
+        frequency = ReportScheduleKt.frequency {
+          weekly = ReportScheduleKt.FrequencyKt.weekly {
+            dayOfWeek = DayOfWeek.WEDNESDAY
+          }
+        }
+      }
+
+      val request = createReportScheduleRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        this.reportSchedule = reportSchedule
+        reportScheduleId = REPORT_SCHEDULE_ID
+      }
+
+      val createdReportSchedule =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking { service.createReportSchedule(request) }
+        }
+
+      assertThat(createdReportSchedule)
+        .isEqualTo(
+          reportSchedule.copy {
+            name = REPORT_SCHEDULE_NAME
+            state = ReportSchedule.State.ACTIVE
+            this.nextReportCreationTime = nextReportCreationTime
+            createTime = INTERNAL_REPORT_SCHEDULE.createTime
+            updateTime = INTERNAL_REPORT_SCHEDULE.updateTime
+          }
+        )
+
+      verifyProtoArgument(
+        internalReportSchedulesMock,
+        ReportSchedulesCoroutineImplBase::createReportSchedule
+      )
+        .isEqualTo(
+          internalCreateReportScheduleRequest {
+            this.reportSchedule = internalReportSchedule {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              this.nextReportCreationTime = nextReportCreationTime
+              details =
+                InternalReportScheduleKt.details {
+                  displayName = INTERNAL_REPORT_SCHEDULE.details.displayName
+                  description = INTERNAL_REPORT_SCHEDULE.details.description
+                  reportTemplate = INTERNAL_REPORT_SCHEDULE.details.reportTemplate
+                  this.eventStart = eventStart
+                  this.eventEnd = eventEnd
+                  frequency = InternalReportScheduleKt.frequency {
+                    weekly = InternalReportScheduleKt.FrequencyKt.weekly {
+                      dayOfWeek = DayOfWeek.WEDNESDAY
+                    }
+                  }
+                  reportWindow = INTERNAL_REPORT_SCHEDULE.details.reportWindow
+                }
+            }
+            externalReportScheduleId = REPORT_SCHEDULE_ID
+          }
+        )
+    }
+
+  @Test
+  fun `createReportSchedule sets next report time to start when day of week same as start`() =
+    runBlocking {
+      val eventStart = dateTime {
+        year = 3000
+        month = 1
+        day = 1
+        hours = 13
+        timeZone = timeZone { id = "America/Los_Angeles" }
+      }
+      val eventEnd = date {
+        year = 3001
+        month = 12
+        day = 1
+      }
+
+      val nextReportCreationTime = timestamp {
+        seconds = 32503755600 // Wednesday, January 1, 3000 at 1 PM, America/Los_Angeles
+      }
+
+      whenever(internalReportSchedulesMock.createReportSchedule(any()))
+        .thenReturn(INTERNAL_REPORT_SCHEDULE.copy {
+          details = INTERNAL_REPORT_SCHEDULE.details.copy {
+            this.eventStart = eventStart
+            this.eventEnd = eventEnd
+            frequency = InternalReportScheduleKt.frequency {
+              weekly = InternalReportScheduleKt.FrequencyKt.weekly {
+                dayOfWeek = DayOfWeek.WEDNESDAY
+              }
+            }
+          }
+          this.nextReportCreationTime = nextReportCreationTime
+        })
+
+      val reportSchedule = REPORT_SCHEDULE.copy {
+        this.eventStart = eventStart
+        this.eventEnd = eventEnd
+        frequency = ReportScheduleKt.frequency {
+          weekly = ReportScheduleKt.FrequencyKt.weekly {
+            dayOfWeek = DayOfWeek.WEDNESDAY
+          }
+        }
+      }
+
+      val request = createReportScheduleRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        this.reportSchedule = reportSchedule
+        reportScheduleId = REPORT_SCHEDULE_ID
+      }
+
+      val createdReportSchedule =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking { service.createReportSchedule(request) }
+        }
+
+      assertThat(createdReportSchedule)
+        .isEqualTo(
+          reportSchedule.copy {
+            name = REPORT_SCHEDULE_NAME
+            state = ReportSchedule.State.ACTIVE
+            this.nextReportCreationTime = nextReportCreationTime
+            createTime = INTERNAL_REPORT_SCHEDULE.createTime
+            updateTime = INTERNAL_REPORT_SCHEDULE.updateTime
+          }
+        )
+
+      verifyProtoArgument(
+        internalReportSchedulesMock,
+        ReportSchedulesCoroutineImplBase::createReportSchedule
+      )
+        .isEqualTo(
+          internalCreateReportScheduleRequest {
+            this.reportSchedule = internalReportSchedule {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              this.nextReportCreationTime = nextReportCreationTime
+              details =
+                InternalReportScheduleKt.details {
+                  displayName = INTERNAL_REPORT_SCHEDULE.details.displayName
+                  description = INTERNAL_REPORT_SCHEDULE.details.description
+                  reportTemplate = INTERNAL_REPORT_SCHEDULE.details.reportTemplate
+                  this.eventStart = eventStart
+                  this.eventEnd = eventEnd
+                  frequency = InternalReportScheduleKt.frequency {
+                    weekly = InternalReportScheduleKt.FrequencyKt.weekly {
+                      dayOfWeek = DayOfWeek.WEDNESDAY
+                    }
+                  }
+                  reportWindow = INTERNAL_REPORT_SCHEDULE.details.reportWindow
+                }
+            }
+            externalReportScheduleId = REPORT_SCHEDULE_ID
+          }
+        )
+    }
+
+  @Test
+  fun `createReportSchedule sets next report to after start when day of week not same as start`() =
+    runBlocking {
+      val eventStart = dateTime {
+        year = 2999
+        month = 12
+        day = 31
+        hours = 13
+        timeZone = timeZone { id = "America/Los_Angeles" }
+      }
+      val eventEnd = date {
+        year = 3001
+        month = 12
+        day = 1
+      }
+
+      val nextReportCreationTime = timestamp {
+        seconds = 32503755600 // Wednesday, January 1, 3000 at 1 PM, America/Los_Angeles
+      }
+
+      whenever(internalReportSchedulesMock.createReportSchedule(any()))
+        .thenReturn(INTERNAL_REPORT_SCHEDULE.copy {
+          details = INTERNAL_REPORT_SCHEDULE.details.copy {
+            this.eventStart = eventStart
+            this.eventEnd = eventEnd
+            frequency = InternalReportScheduleKt.frequency {
+              weekly = InternalReportScheduleKt.FrequencyKt.weekly {
+                dayOfWeek = DayOfWeek.WEDNESDAY
+              }
+            }
+          }
+          this.nextReportCreationTime = nextReportCreationTime
+        })
+
+      val reportSchedule = REPORT_SCHEDULE.copy {
+        this.eventStart = eventStart
+        this.eventEnd = eventEnd
+        frequency = ReportScheduleKt.frequency {
+          weekly = ReportScheduleKt.FrequencyKt.weekly {
+            dayOfWeek = DayOfWeek.WEDNESDAY
+          }
+        }
+      }
+
+      val request = createReportScheduleRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        this.reportSchedule = reportSchedule
+        reportScheduleId = REPORT_SCHEDULE_ID
+      }
+
+      val createdReportSchedule =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking { service.createReportSchedule(request) }
+        }
+
+      assertThat(createdReportSchedule)
+        .isEqualTo(
+          reportSchedule.copy {
+            name = REPORT_SCHEDULE_NAME
+            state = ReportSchedule.State.ACTIVE
+            this.nextReportCreationTime = nextReportCreationTime
+            createTime = INTERNAL_REPORT_SCHEDULE.createTime
+            updateTime = INTERNAL_REPORT_SCHEDULE.updateTime
+          }
+        )
+
+      verifyProtoArgument(
+        internalReportSchedulesMock,
+        ReportSchedulesCoroutineImplBase::createReportSchedule
+      )
+        .isEqualTo(
+          internalCreateReportScheduleRequest {
+            this.reportSchedule = internalReportSchedule {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              this.nextReportCreationTime = nextReportCreationTime
+              details =
+                InternalReportScheduleKt.details {
+                  displayName = INTERNAL_REPORT_SCHEDULE.details.displayName
+                  description = INTERNAL_REPORT_SCHEDULE.details.description
+                  reportTemplate = INTERNAL_REPORT_SCHEDULE.details.reportTemplate
+                  this.eventStart = eventStart
+                  this.eventEnd = eventEnd
+                  frequency = InternalReportScheduleKt.frequency {
+                    weekly = InternalReportScheduleKt.FrequencyKt.weekly {
+                      dayOfWeek = DayOfWeek.WEDNESDAY
+                    }
+                  }
+                  reportWindow = INTERNAL_REPORT_SCHEDULE.details.reportWindow
+                }
+            }
+            externalReportScheduleId = REPORT_SCHEDULE_ID
+          }
+        )
+    }
+
+  @Test
+  fun `createReportSchedule sets next report time to start when day of month same as start`() =
+    runBlocking {
+      val eventStart = dateTime {
+        year = 3000
+        month = 1
+        day = 1
+        hours = 13
+        timeZone = timeZone { id = "America/Los_Angeles" }
+      }
+      val eventEnd = date {
+        year = 3001
+        month = 12
+        day = 1
+      }
+
+      val nextReportCreationTime = timestamp {
+        seconds = 32503755600 // Wednesday, January 1, 3000 at 1 PM, America/Los_Angeles
+      }
+
+      whenever(internalReportSchedulesMock.createReportSchedule(any()))
+        .thenReturn(INTERNAL_REPORT_SCHEDULE.copy {
+          details = INTERNAL_REPORT_SCHEDULE.details.copy {
+            this.eventStart = eventStart
+            this.eventEnd = eventEnd
+            frequency = InternalReportScheduleKt.frequency {
+              monthly = InternalReportScheduleKt.FrequencyKt.monthly {
+                dayOfMonth = 1
+              }
+            }
+          }
+          this.nextReportCreationTime = nextReportCreationTime
+        })
+
+      val reportSchedule = REPORT_SCHEDULE.copy {
+        this.eventStart = eventStart
+        this.eventEnd = eventEnd
+        frequency = ReportScheduleKt.frequency {
+          monthly = ReportScheduleKt.FrequencyKt.monthly {
+            dayOfMonth = 1
+          }
+        }
+      }
+
+      val request = createReportScheduleRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        this.reportSchedule = reportSchedule
+        reportScheduleId = REPORT_SCHEDULE_ID
+      }
+
+      val createdReportSchedule =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking { service.createReportSchedule(request) }
+        }
+
+      assertThat(createdReportSchedule)
+        .isEqualTo(
+          reportSchedule.copy {
+            name = REPORT_SCHEDULE_NAME
+            state = ReportSchedule.State.ACTIVE
+            this.nextReportCreationTime = nextReportCreationTime
+            createTime = INTERNAL_REPORT_SCHEDULE.createTime
+            updateTime = INTERNAL_REPORT_SCHEDULE.updateTime
+          }
+        )
+
+      verifyProtoArgument(
+        internalReportSchedulesMock,
+        ReportSchedulesCoroutineImplBase::createReportSchedule
+      )
+        .isEqualTo(
+          internalCreateReportScheduleRequest {
+            this.reportSchedule = internalReportSchedule {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              this.nextReportCreationTime = nextReportCreationTime
+              details =
+                InternalReportScheduleKt.details {
+                  displayName = INTERNAL_REPORT_SCHEDULE.details.displayName
+                  description = INTERNAL_REPORT_SCHEDULE.details.description
+                  reportTemplate = INTERNAL_REPORT_SCHEDULE.details.reportTemplate
+                  this.eventStart = eventStart
+                  this.eventEnd = eventEnd
+                  frequency = InternalReportScheduleKt.frequency {
+                    monthly = InternalReportScheduleKt.FrequencyKt.monthly {
+                      dayOfMonth = 1
+                    }
+                  }
+                  reportWindow = INTERNAL_REPORT_SCHEDULE.details.reportWindow
+                }
+            }
+            externalReportScheduleId = REPORT_SCHEDULE_ID
+          }
+        )
+    }
+
+  @Test
+  fun `createReportSchedule sets next after start when day of month after start in same month`() =
+    runBlocking {
+      val eventStart = dateTime {
+        year = 3000
+        month = 1
+        day = 1
+        hours = 13
+        timeZone = timeZone { id = "America/Los_Angeles" }
+      }
+      val eventEnd = date {
+        year = 3001
+        month = 12
+        day = 1
+      }
+
+      val nextReportCreationTime = timestamp {
+        seconds = 32505397200 // Monday, January 20, 3000 at 1 PM, America/Los_Angeles
+      }
+
+      whenever(internalReportSchedulesMock.createReportSchedule(any()))
+        .thenReturn(INTERNAL_REPORT_SCHEDULE.copy {
+          details = INTERNAL_REPORT_SCHEDULE.details.copy {
+            this.eventStart = eventStart
+            this.eventEnd = eventEnd
+            frequency = InternalReportScheduleKt.frequency {
+              monthly = InternalReportScheduleKt.FrequencyKt.monthly {
+                dayOfMonth = 20
+              }
+            }
+          }
+          this.nextReportCreationTime = nextReportCreationTime
+        })
+
+      val reportSchedule = REPORT_SCHEDULE.copy {
+        this.eventStart = eventStart
+        this.eventEnd = eventEnd
+        frequency = ReportScheduleKt.frequency {
+          monthly = ReportScheduleKt.FrequencyKt.monthly {
+            dayOfMonth = 20
+          }
+        }
+      }
+
+      val request = createReportScheduleRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        this.reportSchedule = reportSchedule
+        reportScheduleId = REPORT_SCHEDULE_ID
+      }
+
+      val createdReportSchedule =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking { service.createReportSchedule(request) }
+        }
+
+      assertThat(createdReportSchedule)
+        .isEqualTo(
+          reportSchedule.copy {
+            name = REPORT_SCHEDULE_NAME
+            state = ReportSchedule.State.ACTIVE
+            this.nextReportCreationTime = nextReportCreationTime
+            createTime = INTERNAL_REPORT_SCHEDULE.createTime
+            updateTime = INTERNAL_REPORT_SCHEDULE.updateTime
+          }
+        )
+
+      verifyProtoArgument(
+        internalReportSchedulesMock,
+        ReportSchedulesCoroutineImplBase::createReportSchedule
+      )
+        .isEqualTo(
+          internalCreateReportScheduleRequest {
+            this.reportSchedule = internalReportSchedule {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              this.nextReportCreationTime = nextReportCreationTime
+              details =
+                InternalReportScheduleKt.details {
+                  displayName = INTERNAL_REPORT_SCHEDULE.details.displayName
+                  description = INTERNAL_REPORT_SCHEDULE.details.description
+                  reportTemplate = INTERNAL_REPORT_SCHEDULE.details.reportTemplate
+                  this.eventStart = eventStart
+                  this.eventEnd = eventEnd
+                  frequency = InternalReportScheduleKt.frequency {
+                    monthly = InternalReportScheduleKt.FrequencyKt.monthly {
+                      dayOfMonth = 20
+                    }
+                  }
+                  reportWindow = INTERNAL_REPORT_SCHEDULE.details.reportWindow
+                }
+            }
+            externalReportScheduleId = REPORT_SCHEDULE_ID
+          }
+        )
+    }
+
+  @Test
+  fun `createReportSchedule sets next after start when day of month after start in next month`() =
+    runBlocking {
+      val eventStart = dateTime {
+        year = 3000
+        month = 1
+        day = 31
+        hours = 13
+        timeZone = timeZone { id = "America/Los_Angeles" }
+      }
+      val eventEnd = date {
+        year = 3001
+        month = 12
+        day = 1
+      }
+
+      val nextReportCreationTime = timestamp {
+        seconds = 32506434000 // Saturday, February 1, 3000 at 1 PM, America/Los_Angeles
+      }
+
+      whenever(internalReportSchedulesMock.createReportSchedule(any()))
+        .thenReturn(INTERNAL_REPORT_SCHEDULE.copy {
+          details = INTERNAL_REPORT_SCHEDULE.details.copy {
+            this.eventStart = eventStart
+            this.eventEnd = eventEnd
+            frequency = InternalReportScheduleKt.frequency {
+              monthly = InternalReportScheduleKt.FrequencyKt.monthly {
+                dayOfMonth = 1
+              }
+            }
+          }
+          this.nextReportCreationTime = nextReportCreationTime
+        })
+
+      val reportSchedule = REPORT_SCHEDULE.copy {
+        this.eventStart = eventStart
+        this.eventEnd = eventEnd
+        frequency = ReportScheduleKt.frequency {
+          monthly = ReportScheduleKt.FrequencyKt.monthly {
+            dayOfMonth = 1
+          }
+        }
+      }
+
+      val request = createReportScheduleRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        this.reportSchedule = reportSchedule
+        reportScheduleId = REPORT_SCHEDULE_ID
+      }
+
+      val createdReportSchedule =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking { service.createReportSchedule(request) }
+        }
+
+      assertThat(createdReportSchedule)
+        .isEqualTo(
+          reportSchedule.copy {
+            name = REPORT_SCHEDULE_NAME
+            state = ReportSchedule.State.ACTIVE
+            this.nextReportCreationTime = nextReportCreationTime
+            createTime = INTERNAL_REPORT_SCHEDULE.createTime
+            updateTime = INTERNAL_REPORT_SCHEDULE.updateTime
+          }
+        )
+
+      verifyProtoArgument(
+        internalReportSchedulesMock,
+        ReportSchedulesCoroutineImplBase::createReportSchedule
+      )
+        .isEqualTo(
+          internalCreateReportScheduleRequest {
+            this.reportSchedule = internalReportSchedule {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              this.nextReportCreationTime = nextReportCreationTime
+              details =
+                InternalReportScheduleKt.details {
+                  displayName = INTERNAL_REPORT_SCHEDULE.details.displayName
+                  description = INTERNAL_REPORT_SCHEDULE.details.description
+                  reportTemplate = INTERNAL_REPORT_SCHEDULE.details.reportTemplate
+                  this.eventStart = eventStart
+                  this.eventEnd = eventEnd
+                  frequency = InternalReportScheduleKt.frequency {
+                    monthly = InternalReportScheduleKt.FrequencyKt.monthly {
+                      dayOfMonth = 1
+                    }
+                  }
+                  reportWindow = INTERNAL_REPORT_SCHEDULE.details.reportWindow
+                }
+            }
+            externalReportScheduleId = REPORT_SCHEDULE_ID
+          }
+        )
+    }
+
+  @Test
+  fun `createReportSchedule sets next after start when day of month larger than last day`() =
+    runBlocking {
+      val eventStart = dateTime {
+        year = 3000
+        month = 1
+        day = 1
+        hours = 13
+        timeZone = timeZone { id = "America/Los_Angeles" }
+      }
+      val eventEnd = date {
+        year = 3001
+        month = 12
+        day = 1
+      }
+
+      val nextReportCreationTime = timestamp {
+        seconds = 32506347600 // Friday, January 31, 3000 at 1 PM, America/Los_Angeles
+      }
+
+      whenever(internalReportSchedulesMock.createReportSchedule(any()))
+        .thenReturn(INTERNAL_REPORT_SCHEDULE.copy {
+          details = INTERNAL_REPORT_SCHEDULE.details.copy {
+            this.eventStart = eventStart
+            this.eventEnd = eventEnd
+            frequency = InternalReportScheduleKt.frequency {
+              monthly = InternalReportScheduleKt.FrequencyKt.monthly {
+                dayOfMonth = 32
+              }
+            }
+          }
+          this.nextReportCreationTime = nextReportCreationTime
+        })
+
+      val reportSchedule = REPORT_SCHEDULE.copy {
+        this.eventStart = eventStart
+        this.eventEnd = eventEnd
+        frequency = ReportScheduleKt.frequency {
+          monthly = ReportScheduleKt.FrequencyKt.monthly {
+            dayOfMonth = 32
+          }
+        }
+      }
+
+      val request = createReportScheduleRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        this.reportSchedule = reportSchedule
+        reportScheduleId = REPORT_SCHEDULE_ID
+      }
+
+      val createdReportSchedule =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking { service.createReportSchedule(request) }
+        }
+
+      assertThat(createdReportSchedule)
+        .isEqualTo(
+          reportSchedule.copy {
+            name = REPORT_SCHEDULE_NAME
+            state = ReportSchedule.State.ACTIVE
+            this.nextReportCreationTime = nextReportCreationTime
+            createTime = INTERNAL_REPORT_SCHEDULE.createTime
+            updateTime = INTERNAL_REPORT_SCHEDULE.updateTime
+          }
+        )
+
+      verifyProtoArgument(
+        internalReportSchedulesMock,
+        ReportSchedulesCoroutineImplBase::createReportSchedule
+      )
+        .isEqualTo(
+          internalCreateReportScheduleRequest {
+            this.reportSchedule = internalReportSchedule {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              this.nextReportCreationTime = nextReportCreationTime
+              details =
+                InternalReportScheduleKt.details {
+                  displayName = INTERNAL_REPORT_SCHEDULE.details.displayName
+                  description = INTERNAL_REPORT_SCHEDULE.details.description
+                  reportTemplate = INTERNAL_REPORT_SCHEDULE.details.reportTemplate
+                  this.eventStart = eventStart
+                  this.eventEnd = eventEnd
+                  frequency = InternalReportScheduleKt.frequency {
+                    monthly = InternalReportScheduleKt.FrequencyKt.monthly {
+                      dayOfMonth = 32
+                    }
+                  }
+                  reportWindow = INTERNAL_REPORT_SCHEDULE.details.reportWindow
+                }
+            }
+            externalReportScheduleId = REPORT_SCHEDULE_ID
+          }
+        )
+    }
 
   @Test
   fun `createReportSchedule returns report schedule when composite reporting set used`() {
@@ -1203,25 +1873,12 @@ class ReportSchedulesServiceTest {
         .thenReturn(
           DATA_PROVIDER.copy {
             dataAvailabilityInterval = interval {
-              startTime =
-                dateTime {
-                    year = 1
-                    month = 1
-                    day = 1
-                    hours = 6
-                    timeZone = timeZone { id = "America/New_York" }
-                  }
-                  .toTimestamp()
-
-              endTime =
-                dateTime {
-                    year = 9100
-                    month = 1
-                    day = 1
-                    hours = 6
-                    timeZone = timeZone { id = "America/New_York" }
-                  }
-                  .toTimestamp()
+              startTime = timestamp {
+                seconds = 946760400 // January 1, 2000 at 1 PM, America/Los_Angeles
+              }
+              endTime = timestamp {
+                seconds = 64060664400 // January 1, 4000 at 1 PM, America/Los_Angeles
+              }
             }
           }
         )
@@ -1230,25 +1887,12 @@ class ReportSchedulesServiceTest {
         .thenReturn(
           EVENT_GROUP.copy {
             dataAvailabilityInterval = interval {
-              startTime =
-                dateTime {
-                    year = 9000
-                    month = 1
-                    day = 1
-                    hours = 6
-                    timeZone = timeZone { id = "America/New_York" }
-                  }
-                  .toTimestamp()
-
-              endTime =
-                dateTime {
-                    year = 9100
-                    month = 1
-                    day = 1
-                    hours = 6
-                    timeZone = timeZone { id = "America/New_York" }
-                  }
-                  .toTimestamp()
+              startTime = timestamp {
+                seconds = 48282210000 // January 1, 3500 at 1 PM, America/Los_Angeles
+              }
+              endTime = timestamp {
+                seconds = 64060664400 // January 1, 4000 at 1 PM, America/Los_Angeles
+              }
             }
           }
         )
@@ -1264,7 +1908,7 @@ class ReportSchedulesServiceTest {
             month = 10
             day = 1
             hours = 6
-            timeZone = timeZone { id = "America/New_York" }
+            timeZone = timeZone { id = "America/Los_Angeles" }
           }
           eventEnd = date {
             year = 3001
@@ -1293,25 +1937,12 @@ class ReportSchedulesServiceTest {
         .thenReturn(
           DATA_PROVIDER.copy {
             dataAvailabilityInterval = interval {
-              startTime =
-                dateTime {
-                    year = 9000
-                    month = 1
-                    day = 1
-                    hours = 6
-                    timeZone = timeZone { id = "America/New_York" }
-                  }
-                  .toTimestamp()
-
-              endTime =
-                dateTime {
-                    year = 9100
-                    month = 1
-                    day = 1
-                    hours = 6
-                    timeZone = timeZone { id = "America/New_York" }
-                  }
-                  .toTimestamp()
+              startTime = timestamp {
+                seconds = 48282210000 // January 1, 3500 at 1 PM, America/Los_Angeles
+              }
+              endTime = timestamp {
+                seconds = 64060664400 // January 1, 4000 at 1 PM, America/Los_Angeles
+              }
             }
           }
         )
@@ -1320,25 +1951,12 @@ class ReportSchedulesServiceTest {
         .thenReturn(
           EVENT_GROUP.copy {
             dataAvailabilityInterval = interval {
-              startTime =
-                dateTime {
-                    year = 1
-                    month = 1
-                    day = 1
-                    hours = 6
-                    timeZone = timeZone { id = "America/New_York" }
-                  }
-                  .toTimestamp()
-
-              endTime =
-                dateTime {
-                    year = 9100
-                    month = 1
-                    day = 1
-                    hours = 6
-                    timeZone = timeZone { id = "America/New_York" }
-                  }
-                  .toTimestamp()
+              startTime = timestamp {
+                seconds = 946760400 // January 1, 2000 at 1 PM, America/Los_Angeles
+              }
+              endTime = timestamp {
+                seconds = 64060664400 // January 1, 4000 at 1 PM, America/Los_Angeles
+              }
             }
           }
         )
@@ -1354,7 +1972,7 @@ class ReportSchedulesServiceTest {
             month = 10
             day = 1
             hours = 6
-            timeZone = timeZone { id = "America/New_York" }
+            timeZone = timeZone { id = "America/Los_Angeles" }
           }
           eventEnd = date {
             year = 3001
@@ -2145,13 +2763,14 @@ class ReportSchedulesServiceTest {
                       INTERNAL_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId
                   }
               }
+            details = InternalReportKt.details {}
           }
           eventStart = dateTime {
             year = 3000
-            month = 10
+            month = 1
             day = 1
-            hours = 6
-            timeZone = timeZone { id = "America/New_York" }
+            hours = 13
+            timeZone = timeZone { id = "America/Los_Angeles" }
           }
           eventEnd = date {
             year = 3001
@@ -2171,7 +2790,9 @@ class ReportSchedulesServiceTest {
                 }
             }
         }
-      nextReportCreationTime = details.eventStart.toTimestamp()
+      nextReportCreationTime = timestamp {
+        seconds = 32503755600 // January 1, 3000 at 1 PM, America/Los_Angeles
+      }
       createTime = timestamp { seconds = 50 }
       updateTime = timestamp { seconds = 150 }
     }
@@ -2218,49 +2839,23 @@ class ReportSchedulesServiceTest {
 
     private val DATA_PROVIDER = dataProvider {
       dataAvailabilityInterval = interval {
-        startTime =
-          dateTime {
-              year = 2000
-              month = 1
-              day = 1
-              hours = 6
-              timeZone = timeZone { id = "America/New_York" }
-            }
-            .toTimestamp()
-
-        endTime =
-          dateTime {
-              year = 4000
-              month = 1
-              day = 1
-              hours = 6
-              timeZone = timeZone { id = "America/New_York" }
-            }
-            .toTimestamp()
+        startTime = timestamp {
+          seconds = 946760400 // January 1, 2000 at 1 PM, America/Los_Angeles
+        }
+        endTime = timestamp {
+          seconds = 64060664400 // January 1, 4000 at 1 PM, America/Los_Angeles
+        }
       }
     }
 
     private val EVENT_GROUP = eventGroup {
       dataAvailabilityInterval = interval {
-        startTime =
-          dateTime {
-              year = 2000
-              month = 1
-              day = 1
-              hours = 6
-              timeZone = timeZone { id = "America/New_York" }
-            }
-            .toTimestamp()
-
-        endTime =
-          dateTime {
-              year = 4000
-              month = 1
-              day = 1
-              hours = 6
-              timeZone = timeZone { id = "America/New_York" }
-            }
-            .toTimestamp()
+        startTime = timestamp {
+          seconds = 946760400 // January 1, 2000 at 1 PM, America/Los_Angeles
+        }
+        endTime = timestamp {
+          seconds = 64060664400 // January 1, 4000 at 1 PM, America/Los_Angeles
+        }
       }
     }
   }
