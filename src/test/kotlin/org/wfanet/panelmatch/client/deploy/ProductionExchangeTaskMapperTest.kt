@@ -1,0 +1,103 @@
+// Copyright 2023 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package org.wfanet.panelmatch.client.deploy
+
+import com.google.common.truth.Truth.assertThat
+import java.time.LocalDate
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.commutativeDeterministicEncryptStep
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.copyOptions
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.copyToSharedStorageStep
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
+import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
+import org.wfanet.panelmatch.client.common.ExchangeContext
+import org.wfanet.panelmatch.client.deploy.testing.TestProductionExchangeTaskMapper
+import org.wfanet.panelmatch.client.exchangetasks.CopyToSharedStorageTask
+import org.wfanet.panelmatch.client.launcher.testing.inputStep
+import org.wfanet.panelmatch.client.storage.StorageDetails
+import org.wfanet.panelmatch.client.storage.StorageDetailsKt.fileStorage
+import org.wfanet.panelmatch.client.storage.storageDetails
+import org.wfanet.panelmatch.client.storage.testing.TestPrivateStorageSelector
+import org.wfanet.panelmatch.client.storage.testing.TestSharedStorageSelector
+import org.wfanet.panelmatch.common.testing.runBlockingTest
+
+private val WORKFLOW = exchangeWorkflow {
+  steps += inputStep("a" to "b")
+  steps += step {
+    this.commutativeDeterministicEncryptStep = commutativeDeterministicEncryptStep {}
+  }
+  steps += step {
+    this.copyToSharedStorageStep = copyToSharedStorageStep {
+      this.copyOptions = copyOptions {
+        labelType = ExchangeWorkflow.Step.CopyOptions.LabelType.BLOB
+      }
+    }
+    inputLabels.put("certificate-resource-name", "edp-certificate-resource-name")
+    inputLabels.put("hkdf-pepper", "edp-hkdf-pepper")
+    outputLabels.put("hkdf-pepper", "hkdf-pepper")
+  }
+}
+
+private val DATE: LocalDate = LocalDate.of(2021, 11, 1)
+
+private const val RECURRING_EXCHANGE_ID = "some-recurring-exchange-id"
+private val ATTEMPT_KEY =
+  CanonicalExchangeStepAttemptKey(
+    RECURRING_EXCHANGE_ID,
+    "some-exchange",
+    "some-step",
+    "some-attempt"
+  )
+
+@RunWith(JUnit4::class)
+class ProductionExchangeTaskMapperTest {
+  private val testPrivateStorageSelector = TestPrivateStorageSelector()
+  private val testSharedStorageSelector = TestSharedStorageSelector()
+  private val exchangeTaskMapper =
+    TestProductionExchangeTaskMapper(
+      testPrivateStorageSelector.selector,
+      testSharedStorageSelector.selector
+    )
+
+  private val testPrivateStorageDetails = storageDetails {
+    file = fileStorage {}
+    visibility = StorageDetails.Visibility.PRIVATE
+  }
+  private val testSharedStorageDetails = storageDetails {
+    file = fileStorage {}
+    visibility = StorageDetails.Visibility.SHARED
+  }
+
+  @Before
+  fun setUpStorageDetails() {
+    testPrivateStorageSelector.storageDetails.underlyingMap[RECURRING_EXCHANGE_ID] =
+      testPrivateStorageDetails.toByteString()
+    testSharedStorageSelector.storageDetails.underlyingMap[RECURRING_EXCHANGE_ID] =
+      testSharedStorageDetails.toByteString()
+    print(testPrivateStorageSelector.storageDetails.underlyingMap)
+  }
+
+  @Test
+  fun `map export task with dependent input`() = runBlockingTest {
+    val context = ExchangeContext(ATTEMPT_KEY, DATE, WORKFLOW, WORKFLOW.getSteps(2))
+    val exchangeTask = exchangeTaskMapper.getExchangeTaskForStep(context)
+    assertThat(exchangeTask).isInstanceOf(CopyToSharedStorageTask::class.java)
+  }
+}
