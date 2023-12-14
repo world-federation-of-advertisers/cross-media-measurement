@@ -23,7 +23,7 @@ runs:
 
     - name: Remove cached Docker images
       shell: bash
-      run: docker rmi $(docker image ls -aq)
+      run: sudo docker image prune --all --force
 
     - name: Remove Android toolkit
       shell: bash
@@ -32,6 +32,10 @@ runs:
     - name: Remove dotnet
       shell: bash
       run: sudo rm -rf /usr/share/dotnet
+    
+    - name: Remove CodeQL
+      shell: bash
+      run: sudo rm -rf /opt/hostedtoolcache/CodeQL
 
     - shell: bash
       run: df -h
