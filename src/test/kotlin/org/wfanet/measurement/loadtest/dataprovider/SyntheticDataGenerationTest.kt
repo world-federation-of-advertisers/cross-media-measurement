@@ -657,7 +657,6 @@ class SyntheticDataGenerationTest {
 
     val convertedSyntheticEventGroupSpec =
       cartesianSyntheticEventGroupSpecRecipe.toSyntheticEventGroupSpec()
-    // print(convertedSyntheticEventGroupSpec)
 
     val expectedSyntheticEventGroupSpec = syntheticEventGroupSpec {
       description = "event group 1"
