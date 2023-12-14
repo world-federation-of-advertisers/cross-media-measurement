@@ -66,6 +66,8 @@ import org.wfanet.measurement.internal.kingdom.account as internalAccount
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
+import com.google.protobuf.timestamp
+import com.google.type.interval
 import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.kingdom.service.api.v2alpha.fillCertificateFromDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.parseCertificateDer
@@ -263,6 +265,10 @@ class ResourceSetup(
               publicKey = signedPublicKey.message.value
               publicKeySignature = signedPublicKey.signature
               publicKeySignatureAlgorithmOid = signedPublicKey.signatureAlgorithmOid
+              dataAvailabilityInterval = interval {
+                startTime = timestamp { seconds = 936760400 }
+                endTime = timestamp { seconds = 32503755600 }
+              }
             }
           requiredExternalDuchyIds += requiredDuchies
         }

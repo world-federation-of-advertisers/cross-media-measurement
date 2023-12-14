@@ -8,7 +8,7 @@ kt_jvm_test(
     ],
     test_class = "org.wfanet.measurement.reporting.job.ReportSchedulingJobTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:report_schedule_name_server_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:report_schedules_service",
         "//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",

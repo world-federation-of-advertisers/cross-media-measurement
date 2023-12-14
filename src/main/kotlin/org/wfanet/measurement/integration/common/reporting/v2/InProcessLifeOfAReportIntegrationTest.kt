@@ -47,6 +47,11 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
+import com.google.protobuf.duration
+import com.google.type.DayOfWeek
+import com.google.type.date
+import com.google.type.dateTime
+import com.google.type.timeZone
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
@@ -89,16 +94,21 @@ import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportKt
+import org.wfanet.measurement.reporting.v2alpha.ReportSchedule
+import org.wfanet.measurement.reporting.v2alpha.ReportScheduleKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.createMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.createMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
+import org.wfanet.measurement.reporting.v2alpha.createReportScheduleRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.getMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
+import org.wfanet.measurement.reporting.v2alpha.getReportScheduleRequest
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.listMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportingSetsRequest
@@ -108,6 +118,7 @@ import org.wfanet.measurement.reporting.v2alpha.metricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.metricSpec
 import org.wfanet.measurement.reporting.v2alpha.periodicTimeInterval
 import org.wfanet.measurement.reporting.v2alpha.report
+import org.wfanet.measurement.reporting.v2alpha.reportSchedule
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
 import org.wfanet.measurement.reporting.v2alpha.timeIntervals
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
@@ -215,6 +226,10 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
   private val publicReportingSetsClient by lazy {
     ReportingSetsCoroutineStub(reportingServer.publicApiChannel)
+  }
+
+  private val publicReportSchedulesClient by lazy {
+    ReportSchedulesCoroutineStub(reportingServer.publicApiChannel)
   }
 
   @After
@@ -1805,6 +1820,781 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         )
         .isTrue()
     }
+  }
+
+  @Test
+  fun `report schedule with daily freq processed by job sets fields correctly`() = runBlocking {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val eventGroups = listEventGroups()
+    val eventGroup = eventGroups[0]
+
+    val primitiveReportingSet = reportingSet {
+      displayName = "primitive"
+      filter = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
+      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
+    }
+
+    val createdPrimitiveReportingSet =
+      publicReportingSetsClient
+        .withPrincipalName(measurementConsumerData.name)
+        .createReportingSet(
+          createReportingSetRequest {
+            parent = measurementConsumerData.name
+            reportingSet = primitiveReportingSet
+            reportingSetId = "abc"
+          }
+        )
+
+    val createdMetricCalculationSpec =
+      publicMetricCalculationSpecsClient
+        .withPrincipalName(measurementConsumerData.name)
+        .createMetricCalculationSpec(
+          createMetricCalculationSpecRequest {
+            parent = measurementConsumerData.name
+            metricCalculationSpec = metricCalculationSpec {
+              displayName = "union"
+              metricSpecs +=
+                metricSpec {
+                  reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                  vidSamplingInterval = VID_SAMPLING_INTERVAL
+                }
+                  .withDefaults(reportingServer.metricSpecConfig)
+            }
+            metricCalculationSpecId = "fed"
+          }
+        )
+
+    val reportSchedule = reportSchedule {
+      displayName = "display"
+      description = "description"
+      reportTemplate = report {
+        reportingMetricEntries +=
+          ReportKt.reportingMetricEntry {
+            key = createdPrimitiveReportingSet.name
+            value =
+              ReportKt.reportingMetricCalculationSpec {
+                metricCalculationSpecs += createdMetricCalculationSpec.name
+              }
+          }
+      }
+      eventStart = dateTime {
+        year = 2000
+        month = 1
+        day = 1
+        hours = 13
+        timeZone = timeZone { id = "America/Los_Angeles" }
+      }
+      eventEnd = date {
+        year = 3000
+        month = 12
+        day = 1
+      }
+      frequency =
+        ReportScheduleKt.frequency {
+          daily = ReportSchedule.Frequency.Daily.getDefaultInstance()
+        }
+      reportWindow =
+        ReportScheduleKt.reportWindow {
+          trailingWindow =
+            ReportScheduleKt.ReportWindowKt.trailingWindow {
+              count = 1
+              increment = ReportSchedule.ReportWindow.TrailingWindow.Increment.DAY
+            }
+        }
+    }
+
+    val createdReportSchedule =
+      publicReportSchedulesClient
+        .withPrincipalName(measurementConsumerData.name)
+        .createReportSchedule(
+          createReportScheduleRequest {
+            parent = measurementConsumerData.name
+            this.reportSchedule = reportSchedule
+            reportScheduleId = "report-schedule"
+          }
+        )
+    assertThat(createdReportSchedule.nextReportCreationTime).isEqualTo(
+      timestamp {
+        seconds = 946760400 // Saturday, January 1, 2000, 1 PM, America/Los_Angeles
+      }
+    )
+
+    reportingServer.reportSchedulingJob.execute()
+
+    val retrievedReportSchedule = publicReportSchedulesClient
+      .withPrincipalName(measurementConsumerData.name)
+      .getReportSchedule(
+        getReportScheduleRequest {
+          name = createdReportSchedule.name
+        }
+      )
+    assertThat(retrievedReportSchedule.nextReportCreationTime).isEqualTo(
+      timestamp {
+        seconds = 946846800 // Sunday, January 2, 2000, 1 PM, America/Los_Angeles
+      }
+    )
+
+    val retrievedReport = publicReportsClient
+      .withPrincipalName(measurementConsumerData.name)
+      .listReports(
+        listReportsRequest {
+          parent = measurementConsumerData.name
+        }
+      )
+      .reportsList
+      .first()
+    assertThat(retrievedReport.periodicTimeInterval.startTime).isEqualTo(
+      timestamp {
+        seconds = 946674000 // Friday, December 31, 1999, 1 PM, America/Los_Angeles
+      }
+    )
+  }
+
+  @Test
+  fun `report schedule with 2 week window processed by job sets fields correctly`() = runBlocking {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val eventGroups = listEventGroups()
+    val eventGroup = eventGroups[0]
+
+    val primitiveReportingSet = reportingSet {
+      displayName = "primitive"
+      filter = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
+      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
+    }
+
+    val createdPrimitiveReportingSet =
+      publicReportingSetsClient
+        .withPrincipalName(measurementConsumerData.name)
+        .createReportingSet(
+          createReportingSetRequest {
+            parent = measurementConsumerData.name
+            reportingSet = primitiveReportingSet
+            reportingSetId = "abc"
+          }
+        )
+
+    val createdMetricCalculationSpec =
+      publicMetricCalculationSpecsClient
+        .withPrincipalName(measurementConsumerData.name)
+        .createMetricCalculationSpec(
+          createMetricCalculationSpecRequest {
+            parent = measurementConsumerData.name
+            metricCalculationSpec = metricCalculationSpec {
+              displayName = "union"
+              metricSpecs +=
+                metricSpec {
+                  reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                  vidSamplingInterval = VID_SAMPLING_INTERVAL
+                }
+                  .withDefaults(reportingServer.metricSpecConfig)
+            }
+            metricCalculationSpecId = "fed"
+          }
+        )
+
+    val reportSchedule = reportSchedule {
+      displayName = "display"
+      description = "description"
+      reportTemplate = report {
+        reportingMetricEntries +=
+          ReportKt.reportingMetricEntry {
+            key = createdPrimitiveReportingSet.name
+            value =
+              ReportKt.reportingMetricCalculationSpec {
+                metricCalculationSpecs += createdMetricCalculationSpec.name
+              }
+          }
+      }
+      eventStart = dateTime {
+        year = 2000
+        month = 1
+        day = 1
+        hours = 13
+        timeZone = timeZone { id = "America/Los_Angeles" }
+      }
+      eventEnd = date {
+        year = 3000
+        month = 12
+        day = 1
+      }
+      frequency =
+        ReportScheduleKt.frequency {
+          daily = ReportSchedule.Frequency.Daily.getDefaultInstance()
+        }
+      reportWindow =
+        ReportScheduleKt.reportWindow {
+          trailingWindow =
+            ReportScheduleKt.ReportWindowKt.trailingWindow {
+              count = 2
+              increment = ReportSchedule.ReportWindow.TrailingWindow.Increment.WEEK
+            }
+        }
+    }
+
+    val createdReportSchedule =
+      publicReportSchedulesClient
+        .withPrincipalName(measurementConsumerData.name)
+        .createReportSchedule(
+          createReportScheduleRequest {
+            parent = measurementConsumerData.name
+            this.reportSchedule = reportSchedule
+            reportScheduleId = "report-schedule"
+          }
+        )
+    assertThat(createdReportSchedule.nextReportCreationTime).isEqualTo(
+      timestamp {
+        seconds = 946760400 // Saturday, January 1, 2000, 1 PM, America/Los_Angeles
+      }
+    )
+
+    reportingServer.reportSchedulingJob.execute()
+
+    val retrievedReportSchedule = publicReportSchedulesClient
+      .withPrincipalName(measurementConsumerData.name)
+      .getReportSchedule(
+        getReportScheduleRequest {
+          name = createdReportSchedule.name
+        }
+      )
+    assertThat(retrievedReportSchedule.nextReportCreationTime).isEqualTo(
+      timestamp {
+        seconds = 946846800 // Sunday, January 2, 2000, 1 PM, America/Los_Angeles
+      }
+    )
+
+    val retrievedReport = publicReportsClient
+      .withPrincipalName(measurementConsumerData.name)
+      .listReports(
+        listReportsRequest {
+          parent = measurementConsumerData.name
+        }
+      )
+      .reportsList
+      .first()
+    assertThat(retrievedReport.periodicTimeInterval.startTime).isEqualTo(
+      timestamp {
+        seconds = 945550800 // Saturday, December 18, 1999, 1 PM, America/Los_Angeles
+      }
+    )
+  }
+
+  @Test
+  fun `report schedule with 2 month window processed by job sets fields correctly`() = runBlocking {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val eventGroups = listEventGroups()
+    val eventGroup = eventGroups[0]
+
+    val primitiveReportingSet = reportingSet {
+      displayName = "primitive"
+      filter = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
+      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
+    }
+
+    val createdPrimitiveReportingSet =
+      publicReportingSetsClient
+        .withPrincipalName(measurementConsumerData.name)
+        .createReportingSet(
+          createReportingSetRequest {
+            parent = measurementConsumerData.name
+            reportingSet = primitiveReportingSet
+            reportingSetId = "abc"
+          }
+        )
+
+    val createdMetricCalculationSpec =
+      publicMetricCalculationSpecsClient
+        .withPrincipalName(measurementConsumerData.name)
+        .createMetricCalculationSpec(
+          createMetricCalculationSpecRequest {
+            parent = measurementConsumerData.name
+            metricCalculationSpec = metricCalculationSpec {
+              displayName = "union"
+              metricSpecs +=
+                metricSpec {
+                  reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                  vidSamplingInterval = VID_SAMPLING_INTERVAL
+                }
+                  .withDefaults(reportingServer.metricSpecConfig)
+            }
+            metricCalculationSpecId = "fed"
+          }
+        )
+
+    val reportSchedule = reportSchedule {
+      displayName = "display"
+      description = "description"
+      reportTemplate = report {
+        reportingMetricEntries +=
+          ReportKt.reportingMetricEntry {
+            key = createdPrimitiveReportingSet.name
+            value =
+              ReportKt.reportingMetricCalculationSpec {
+                metricCalculationSpecs += createdMetricCalculationSpec.name
+              }
+          }
+      }
+      eventStart = dateTime {
+        year = 2000
+        month = 1
+        day = 31
+        hours = 13
+        timeZone = timeZone { id = "America/Los_Angeles" }
+      }
+      eventEnd = date {
+        year = 3000
+        month = 12
+        day = 1
+      }
+      frequency =
+        ReportScheduleKt.frequency {
+          daily = ReportSchedule.Frequency.Daily.getDefaultInstance()
+        }
+      reportWindow =
+        ReportScheduleKt.reportWindow {
+          trailingWindow =
+            ReportScheduleKt.ReportWindowKt.trailingWindow {
+              count = 2
+              increment = ReportSchedule.ReportWindow.TrailingWindow.Increment.MONTH
+            }
+        }
+    }
+
+    val createdReportSchedule =
+      publicReportSchedulesClient
+        .withPrincipalName(measurementConsumerData.name)
+        .createReportSchedule(
+          createReportScheduleRequest {
+            parent = measurementConsumerData.name
+            this.reportSchedule = reportSchedule
+            reportScheduleId = "report-schedule"
+          }
+        )
+    assertThat(createdReportSchedule.nextReportCreationTime).isEqualTo(
+      timestamp {
+        seconds = 949352400 // Monday, January 31, 2000, 1 PM, America/Los_Angeles
+      }
+    )
+
+    reportingServer.reportSchedulingJob.execute()
+
+    val retrievedReportSchedule = publicReportSchedulesClient
+      .withPrincipalName(measurementConsumerData.name)
+      .getReportSchedule(
+        getReportScheduleRequest {
+          name = createdReportSchedule.name
+        }
+      )
+    assertThat(retrievedReportSchedule.nextReportCreationTime).isEqualTo(
+      timestamp {
+        seconds = 949438800 // Tuesday, February 1, 2000, 1 PM, America/Los_Angeles
+      }
+    )
+
+    val retrievedReport = publicReportsClient
+      .withPrincipalName(measurementConsumerData.name)
+      .listReports(
+        listReportsRequest {
+          parent = measurementConsumerData.name
+        }
+      )
+      .reportsList
+      .first()
+    assertThat(retrievedReport.periodicTimeInterval.startTime).isEqualTo(
+      timestamp {
+        seconds = 943995600 // Tuesday, November 30, 1999, 1 PM, America/Los_Angeles
+      }
+    )
+  }
+
+  @Test
+  fun `report schedule with daily freq and offset processed by job sets fields correctly`() =
+    runBlocking {
+      val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+      val eventGroups = listEventGroups()
+      val eventGroup = eventGroups[0]
+
+      val primitiveReportingSet = reportingSet {
+        displayName = "primitive"
+        filter = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
+        primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
+      }
+
+      val createdPrimitiveReportingSet =
+        publicReportingSetsClient
+          .withPrincipalName(measurementConsumerData.name)
+          .createReportingSet(
+            createReportingSetRequest {
+              parent = measurementConsumerData.name
+              reportingSet = primitiveReportingSet
+              reportingSetId = "abc"
+            }
+          )
+
+      val createdMetricCalculationSpec =
+        publicMetricCalculationSpecsClient
+          .withPrincipalName(measurementConsumerData.name)
+          .createMetricCalculationSpec(
+            createMetricCalculationSpecRequest {
+              parent = measurementConsumerData.name
+              metricCalculationSpec = metricCalculationSpec {
+                displayName = "union"
+                metricSpecs +=
+                  metricSpec {
+                    reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                    vidSamplingInterval = VID_SAMPLING_INTERVAL
+                  }
+                    .withDefaults(reportingServer.metricSpecConfig)
+              }
+              metricCalculationSpecId = "fed"
+            }
+          )
+
+      val reportSchedule = reportSchedule {
+        displayName = "display"
+        description = "description"
+        reportTemplate = report {
+          reportingMetricEntries +=
+            ReportKt.reportingMetricEntry {
+              key = createdPrimitiveReportingSet.name
+              value =
+                ReportKt.reportingMetricCalculationSpec {
+                  metricCalculationSpecs += createdMetricCalculationSpec.name
+                }
+            }
+        }
+        eventStart = dateTime {
+          year = 2000
+          month = 1
+          day = 1
+          hours = 13
+          utcOffset = duration {
+            seconds = -28800
+          }
+        }
+        eventEnd = date {
+          year = 3000
+          month = 12
+          day = 1
+        }
+        frequency =
+          ReportScheduleKt.frequency {
+            daily = ReportSchedule.Frequency.Daily.getDefaultInstance()
+          }
+        reportWindow =
+          ReportScheduleKt.reportWindow {
+            trailingWindow =
+              ReportScheduleKt.ReportWindowKt.trailingWindow {
+                count = 1
+                increment = ReportSchedule.ReportWindow.TrailingWindow.Increment.DAY
+              }
+          }
+      }
+
+      val createdReportSchedule =
+        publicReportSchedulesClient
+          .withPrincipalName(measurementConsumerData.name)
+          .createReportSchedule(
+            createReportScheduleRequest {
+              parent = measurementConsumerData.name
+              this.reportSchedule = reportSchedule
+              reportScheduleId = "report-schedule"
+            }
+          )
+      assertThat(createdReportSchedule.nextReportCreationTime).isEqualTo(
+        timestamp {
+          seconds = 946760400 // Saturday, January 1, 2000, 1 PM, America/Los_Angeles
+        }
+      )
+
+      reportingServer.reportSchedulingJob.execute()
+
+      val retrievedReportSchedule = publicReportSchedulesClient
+        .withPrincipalName(measurementConsumerData.name)
+        .getReportSchedule(
+          getReportScheduleRequest {
+            name = createdReportSchedule.name
+          }
+        )
+      assertThat(retrievedReportSchedule.nextReportCreationTime).isEqualTo(
+        timestamp {
+          seconds = 946846800 // Sunday, January 2, 2000, 1 PM, America/Los_Angeles
+        }
+      )
+
+      val retrievedReport = publicReportsClient
+        .withPrincipalName(measurementConsumerData.name)
+        .listReports(
+          listReportsRequest {
+            parent = measurementConsumerData.name
+          }
+        )
+        .reportsList
+        .first()
+      assertThat(retrievedReport.periodicTimeInterval.startTime).isEqualTo(
+        timestamp {
+          seconds = 946674000 // Friday, December 31, 1999, 1 PM, America/Los_Angeles
+        }
+      )
+    }
+
+  @Test
+  fun `report schedule with weekly freq processed by job sets fields correctly`() = runBlocking {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val eventGroups = listEventGroups()
+    val eventGroup = eventGroups[0]
+
+    val primitiveReportingSet = reportingSet {
+      displayName = "primitive"
+      filter = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
+      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
+    }
+
+    val createdPrimitiveReportingSet =
+      publicReportingSetsClient
+        .withPrincipalName(measurementConsumerData.name)
+        .createReportingSet(
+          createReportingSetRequest {
+            parent = measurementConsumerData.name
+            reportingSet = primitiveReportingSet
+            reportingSetId = "abc"
+          }
+        )
+
+    val createdMetricCalculationSpec =
+      publicMetricCalculationSpecsClient
+        .withPrincipalName(measurementConsumerData.name)
+        .createMetricCalculationSpec(
+          createMetricCalculationSpecRequest {
+            parent = measurementConsumerData.name
+            metricCalculationSpec = metricCalculationSpec {
+              displayName = "union"
+              metricSpecs +=
+                metricSpec {
+                  reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                  vidSamplingInterval = VID_SAMPLING_INTERVAL
+                }
+                  .withDefaults(reportingServer.metricSpecConfig)
+            }
+            metricCalculationSpecId = "fed"
+          }
+        )
+
+    val reportSchedule = reportSchedule {
+      displayName = "display"
+      description = "description"
+      reportTemplate = report {
+        reportingMetricEntries +=
+          ReportKt.reportingMetricEntry {
+            key = createdPrimitiveReportingSet.name
+            value =
+              ReportKt.reportingMetricCalculationSpec {
+                metricCalculationSpecs += createdMetricCalculationSpec.name
+              }
+          }
+      }
+      eventStart = dateTime {
+        year = 2000
+        month = 1
+        day = 1
+        hours = 13
+        timeZone = timeZone { id = "America/Los_Angeles" }
+      }
+      eventEnd = date {
+        year = 3000
+        month = 12
+        day = 1
+      }
+      frequency =
+        ReportScheduleKt.frequency {
+          weekly = ReportScheduleKt.FrequencyKt.weekly {
+            dayOfWeek = DayOfWeek.WEDNESDAY
+          }
+        }
+      reportWindow =
+        ReportScheduleKt.reportWindow {
+          trailingWindow =
+            ReportScheduleKt.ReportWindowKt.trailingWindow {
+              count = 1
+              increment = ReportSchedule.ReportWindow.TrailingWindow.Increment.DAY
+            }
+        }
+    }
+
+    val createdReportSchedule =
+      publicReportSchedulesClient
+        .withPrincipalName(measurementConsumerData.name)
+        .createReportSchedule(
+          createReportScheduleRequest {
+            parent = measurementConsumerData.name
+            this.reportSchedule = reportSchedule
+            reportScheduleId = "report-schedule"
+          }
+        )
+    assertThat(createdReportSchedule.nextReportCreationTime).isEqualTo(
+      timestamp {
+        seconds = 947106000 // Wednesday, January 5, 2000, 1 PM, America/Los_Angeles
+      }
+    )
+
+    reportingServer.reportSchedulingJob.execute()
+
+    val retrievedReportSchedule = publicReportSchedulesClient
+      .withPrincipalName(measurementConsumerData.name)
+      .getReportSchedule(
+        getReportScheduleRequest {
+          name = createdReportSchedule.name
+        }
+      )
+    assertThat(retrievedReportSchedule.nextReportCreationTime).isEqualTo(
+      timestamp {
+        seconds = 947710800 // Wednesday, January 12, 2000, 1 PM, America/Los_Angeles
+      }
+    )
+
+    val retrievedReport = publicReportsClient
+      .withPrincipalName(measurementConsumerData.name)
+      .listReports(
+        listReportsRequest {
+          parent = measurementConsumerData.name
+        }
+      )
+      .reportsList
+      .first()
+    assertThat(retrievedReport.periodicTimeInterval.startTime).isEqualTo(
+      timestamp {
+        seconds = 947019600 // Tuesday, January 4, 2000, 1 PM, America/Los_Angeles
+      }
+    )
+  }
+
+  @Test
+  fun `report schedule with monthly freq processed by job sets fields correctly`() = runBlocking {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val eventGroups = listEventGroups()
+    val eventGroup = eventGroups[0]
+
+    val primitiveReportingSet = reportingSet {
+      displayName = "primitive"
+      filter = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
+      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
+    }
+
+    val createdPrimitiveReportingSet =
+      publicReportingSetsClient
+        .withPrincipalName(measurementConsumerData.name)
+        .createReportingSet(
+          createReportingSetRequest {
+            parent = measurementConsumerData.name
+            reportingSet = primitiveReportingSet
+            reportingSetId = "abc"
+          }
+        )
+
+    val createdMetricCalculationSpec =
+      publicMetricCalculationSpecsClient
+        .withPrincipalName(measurementConsumerData.name)
+        .createMetricCalculationSpec(
+          createMetricCalculationSpecRequest {
+            parent = measurementConsumerData.name
+            metricCalculationSpec = metricCalculationSpec {
+              displayName = "union"
+              metricSpecs +=
+                metricSpec {
+                  reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                  vidSamplingInterval = VID_SAMPLING_INTERVAL
+                }
+                  .withDefaults(reportingServer.metricSpecConfig)
+            }
+            metricCalculationSpecId = "fed"
+          }
+        )
+
+    val reportSchedule = reportSchedule {
+      displayName = "display"
+      description = "description"
+      reportTemplate = report {
+        reportingMetricEntries +=
+          ReportKt.reportingMetricEntry {
+            key = createdPrimitiveReportingSet.name
+            value =
+              ReportKt.reportingMetricCalculationSpec {
+                metricCalculationSpecs += createdMetricCalculationSpec.name
+              }
+          }
+      }
+      eventStart = dateTime {
+        year = 2000
+        month = 1
+        day = 1
+        hours = 13
+        timeZone = timeZone { id = "America/Los_Angeles" }
+      }
+      eventEnd = date {
+        year = 3000
+        month = 12
+        day = 1
+      }
+      frequency =
+        ReportScheduleKt.frequency {
+          monthly = ReportScheduleKt.FrequencyKt.monthly {
+            dayOfMonth = 5
+          }
+        }
+      reportWindow =
+        ReportScheduleKt.reportWindow {
+          trailingWindow =
+            ReportScheduleKt.ReportWindowKt.trailingWindow {
+              count = 1
+              increment = ReportSchedule.ReportWindow.TrailingWindow.Increment.DAY
+            }
+        }
+    }
+
+    val createdReportSchedule =
+      publicReportSchedulesClient
+        .withPrincipalName(measurementConsumerData.name)
+        .createReportSchedule(
+          createReportScheduleRequest {
+            parent = measurementConsumerData.name
+            this.reportSchedule = reportSchedule
+            reportScheduleId = "report-schedule"
+          }
+        )
+    assertThat(createdReportSchedule.nextReportCreationTime).isEqualTo(
+      timestamp {
+        seconds = 947106000 // Wednesday, January 5, 2000, 1 PM, America/Los_Angeles
+      }
+    )
+
+    reportingServer.reportSchedulingJob.execute()
+
+    val retrievedReportSchedule = publicReportSchedulesClient
+      .withPrincipalName(measurementConsumerData.name)
+      .getReportSchedule(
+        getReportScheduleRequest {
+          name = createdReportSchedule.name
+        }
+      )
+    assertThat(retrievedReportSchedule.nextReportCreationTime).isEqualTo(
+      timestamp {
+        seconds = 949784400 // Saturday, February 5, 2000, 1 PM, America/Los_Angeles
+      }
+    )
+
+    val retrievedReport = publicReportsClient
+      .withPrincipalName(measurementConsumerData.name)
+      .listReports(
+        listReportsRequest {
+          parent = measurementConsumerData.name
+        }
+      )
+      .reportsList
+      .first()
+    assertThat(retrievedReport.periodicTimeInterval.startTime).isEqualTo(
+      timestamp {
+        seconds = 947019600 // Tuesday, January 4, 2000, 1 PM, America/Los_Angeles
+      }
+    )
   }
 
   private suspend fun listEventGroups(): List<EventGroup> {

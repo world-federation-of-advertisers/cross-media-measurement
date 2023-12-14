@@ -43,9 +43,10 @@ import org.wfanet.measurement.internal.reporting.v2.batchGetMetricCalculationSpe
 import org.wfanet.measurement.internal.reporting.v2.createReportRequest as internalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internalGetReportRequest
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
+import org.wfanet.measurement.internal.reporting.v2.CreateReportRequestKt
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withPrincipalName
-import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleNameServerInterceptor.Companion.reportScheduleNameFromCurrentContext
+import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.reportScheduleInfoFromCurrentContext
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
@@ -655,14 +656,17 @@ class ReportsService(
       requestId = request.requestId
       externalReportId = request.reportId
 
-      val reportScheduleName: String? = reportScheduleNameFromCurrentContext
-      if (reportScheduleName != null) {
+      val reportScheduleInfo: ReportScheduleInfoServerInterceptor.ReportScheduleInfo? = reportScheduleInfoFromCurrentContext
+      if (reportScheduleInfo != null) {
         val reportScheduleKey =
-          grpcRequireNotNull(ReportScheduleKey.fromName(reportScheduleName)) {
+          grpcRequireNotNull(ReportScheduleKey.fromName(reportScheduleInfo.name)) {
             "reportScheduleName is invalid"
           }
 
-        externalReportScheduleId = reportScheduleKey.reportScheduleId
+        this.reportScheduleInfo = CreateReportRequestKt.reportScheduleInfo {
+          externalReportScheduleId = reportScheduleKey.reportScheduleId
+          nextReportCreationTime = reportScheduleInfo.nextReportCreationTime
+        }
       }
     }
   }

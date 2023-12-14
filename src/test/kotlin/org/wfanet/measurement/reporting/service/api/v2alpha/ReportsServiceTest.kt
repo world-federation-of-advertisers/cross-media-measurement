@@ -75,7 +75,8 @@ import org.wfanet.measurement.internal.reporting.v2.periodicTimeInterval as inte
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals as Intervals
-import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleNameServerInterceptor.Companion.withReportScheduleAndMeasurementConsumerPrincipal
+import org.wfanet.measurement.internal.reporting.v2.CreateReportRequestKt
+import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.withReportScheduleInfoAndMeasurementConsumerPrincipal
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListReportsPageTokenKt
@@ -282,6 +283,9 @@ class ReportsServiceTest {
   @Test
   fun `createReport returns report with one metric created when report schedule name set`() {
     val externalReportScheduleId = "external-report-schedule-id"
+    val nextReportCreationTime = timestamp {
+      seconds = 1000
+    }
     runBlocking {
       whenever(
           internalReportsMock.createReport(
@@ -289,7 +293,10 @@ class ReportsServiceTest {
               internalCreateReportRequest {
                 report = INTERNAL_REACH_REPORTS.requestingReport
                 externalReportId = "report-id"
-                this.externalReportScheduleId = externalReportScheduleId
+                reportScheduleInfo = CreateReportRequestKt.reportScheduleInfo {
+                  this.externalReportScheduleId = externalReportScheduleId
+                  this.nextReportCreationTime = nextReportCreationTime
+                }
               }
             )
           )
@@ -337,8 +344,11 @@ class ReportsServiceTest {
         .toName()
 
     val result =
-      withReportScheduleAndMeasurementConsumerPrincipal(
-        reportScheduleName,
+      withReportScheduleInfoAndMeasurementConsumerPrincipal(
+        ReportScheduleInfoServerInterceptor.ReportScheduleInfo(
+          reportScheduleName,
+          nextReportCreationTime
+        ),
         MEASUREMENT_CONSUMER_KEYS.first().toName(),
         CONFIG
       ) {
@@ -2321,6 +2331,9 @@ class ReportsServiceTest {
   @Test
   fun `createReport throws NOT_FOUND when report schedule not found`() = runBlocking {
     val externalReportScheduleId = "external-report-schedule-id"
+    val nextReportCreationTime = timestamp {
+      seconds = 1000
+    }
 
     whenever(
         internalReportsMock.createReport(
@@ -2328,7 +2341,10 @@ class ReportsServiceTest {
             internalCreateReportRequest {
               report = INTERNAL_REACH_REPORTS.requestingReport
               externalReportId = "report-id"
-              this.externalReportScheduleId = externalReportScheduleId
+              reportScheduleInfo = CreateReportRequestKt.reportScheduleInfo {
+                this.externalReportScheduleId = externalReportScheduleId
+                this.nextReportCreationTime = nextReportCreationTime
+              }
             }
           )
         )
@@ -2355,8 +2371,11 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withReportScheduleAndMeasurementConsumerPrincipal(
-          reportScheduleName,
+        withReportScheduleInfoAndMeasurementConsumerPrincipal(
+          ReportScheduleInfoServerInterceptor.ReportScheduleInfo(
+            reportScheduleName,
+            nextReportCreationTime
+          ),
           measurementConsumerKey.toName(),
           CONFIG
         ) {
@@ -2382,8 +2401,13 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withReportScheduleAndMeasurementConsumerPrincipal(
-          "name123",
+        withReportScheduleInfoAndMeasurementConsumerPrincipal(
+          ReportScheduleInfoServerInterceptor.ReportScheduleInfo(
+            "name123",
+            timestamp {
+              seconds = 1000
+            }
+          ),
           MEASUREMENT_CONSUMER_KEYS.first().toName(),
           CONFIG
         ) {
