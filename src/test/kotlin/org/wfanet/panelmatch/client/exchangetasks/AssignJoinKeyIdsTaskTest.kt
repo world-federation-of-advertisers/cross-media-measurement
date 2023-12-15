@@ -59,6 +59,6 @@ class AssignJoinKeyIdsTaskTest {
 
   @Test
   fun missingInputs() {
-    assertFailsWith<NoSuchElementException> { runAssignIds(joinKeys = emptyList()) }
+    assertFailsWith<IllegalArgumentException> { runAssignIds(joinKeys = emptyList()) }
   }
 }
