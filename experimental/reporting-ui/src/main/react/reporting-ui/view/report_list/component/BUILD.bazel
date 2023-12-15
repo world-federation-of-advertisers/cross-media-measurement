@@ -9,6 +9,8 @@ package(
 js_library(
     name = "component",
     srcs = [
+        "header.css",
+        "header.tsx",
         "row.tsx",
         "table.tsx",
     ],
