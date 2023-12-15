@@ -58,7 +58,7 @@ class ReportsService(private val backendReportsStub: BackendReportsGrpcKt.Report
       else request.view
     val results = listReportsResponse {
       resp.reportsList
-        .filter { it.tags.containsKey("ui.halo-cmm.org") }
+        .filter { it.tagsMap.containsKey("ui.halo-cmm.org") }
         .forEach { reports += it.toBffReport(view) }
     }
     return results
