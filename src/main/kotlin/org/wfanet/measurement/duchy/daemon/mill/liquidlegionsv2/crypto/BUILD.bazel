@@ -14,7 +14,6 @@ kt_jvm_library(
         "//src/main/swig/protocol/liquidlegionsv2:liquid_legions_v2_encryption_utility",
         "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
 
@@ -30,6 +29,5 @@ kt_jvm_library(
         "//src/main/swig/protocol/reachonlyliquidlegionsv2:reach_only_liquid_legions_v2_encryption_utility",
         "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )

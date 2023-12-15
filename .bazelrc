@@ -13,10 +13,6 @@ build --java_language_version=8
 # Pass environment variables.
 test --test_env TESTCONTAINERS_RYUK_DISABLED=true
 
-# Disable rules_docker transitions, as it breaks our usage of glibc target
-# constraints for on images based on Distroless Java.
-build --@io_bazel_rules_docker//transitions:enable=false
-
 # Configuration for GitHub Container Registry
 build:ghcr --define container_registry=ghcr.io
 build:ghcr --define image_repo_prefix=world-federation-of-advertisers

@@ -1,9 +1,11 @@
-load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
+load("@rules_java//java:defs.bzl", "java_test")
+load("@wfa_common_jvm//build/rules_kotlin:defs.bzl", "kt_jvm_library")
 
-kt_jvm_test(
-    name = "ReachFrequencyLiquidLegionsV2MillTest",
+package(default_testonly = True)
+
+kt_jvm_library(
+    name = "reach_frequency_liquid_legions_v2_mill_test",
     srcs = ["ReachFrequencyLiquidLegionsV2MillTest.kt"],
-    test_class = "org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.ReachFrequencyLiquidLegionsV2MillTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/liquidlegionsv2:reach_frequency_liquid_legions_v2_mill",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/testing",
@@ -30,10 +32,16 @@ kt_jvm_test(
     ],
 )
 
-kt_jvm_test(
-    name = "ReachOnlyLiquidLegionsV2MillTest",
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
+java_test(
+    name = "ReachFrequencyLiquidLegionsV2MillTest",
+    test_class = "org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.ReachFrequencyLiquidLegionsV2MillTest",
+    runtime_deps = [":reach_frequency_liquid_legions_v2_mill_test"],
+)
+
+kt_jvm_library(
+    name = "reach_only_liquid_legions_v2_mill_test",
     srcs = ["ReachOnlyLiquidLegionsV2MillTest.kt"],
-    test_class = "org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.ReachOnlyLiquidLegionsV2MillTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/liquidlegionsv2:reach_only_liquid_legions_v2_mill",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/testing",
@@ -58,4 +66,11 @@ kt_jvm_test(
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/common:key_handles",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
     ],
+)
+
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
+java_test(
+    name = "ReachOnlyLiquidLegionsV2MillTest",
+    test_class = "org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.ReachOnlyLiquidLegionsV2MillTest",
+    runtime_deps = [":reach_only_liquid_legions_v2_mill_test"],
 )

@@ -1,6 +1,6 @@
-load("@io_bazel_rules_docker//java:image.bzl", "java_image")
-load("@wfa_common_jvm//build/rules_kotlin:defs.bzl", "kt_jvm_library")
 load("@rules_java//java:defs.bzl", "java_binary")
+load("@wfa_common_jvm//build/rules_kotlin:defs.bzl", "kt_jvm_library")
+load("//src/main/docker:macros.bzl", "java_image")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -33,10 +33,5 @@ java_binary(
 
 java_image(
     name = "google_cloud_example_daemon_image",
-    data = ["@grpc_health_probe//file"],
-    main_class = "org.wfanet.panelmatch.client.deploy.example.gcloud.GoogleCloudExampleDaemonKt",
-    runtime_deps = [
-        ":gcloud",
-        "//imports/java/org/slf4j:simple",
-    ],
+    binary = ":GoogleCloudExampleDaemon",
 )

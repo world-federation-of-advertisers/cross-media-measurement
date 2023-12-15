@@ -14,11 +14,9 @@
 
 package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto
 
-import java.nio.file.Paths
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
 import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
-import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneRequest
@@ -116,14 +114,8 @@ class JniLiquidLegionsV2Encryption : LiquidLegionsV2Encryption {
 
   companion object {
     init {
-      loadLibrary(
-        name = "liquid_legions_v2_encryption_utility",
-        directoryPath = Paths.get("wfa_measurement_system/src/main/swig/protocol/liquidlegionsv2")
-      )
-      loadLibrary(
-        name = "sketch_encrypter_adapter",
-        directoryPath = Paths.get("any_sketch_java/src/main/java/org/wfanet/anysketch/crypto")
-      )
+      System.loadLibrary("liquid_legions_v2_encryption_utility")
+      System.loadLibrary("sketch_encrypter_adapter")
     }
   }
 }

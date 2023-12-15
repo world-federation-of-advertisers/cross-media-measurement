@@ -15,7 +15,6 @@ package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
-import java.nio.file.Paths
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import org.junit.Test
@@ -30,7 +29,6 @@ import org.wfanet.anysketch.crypto.combineElGamalPublicKeysRequest
 import org.wfanet.anysketch.crypto.encryptSketchRequest
 import org.wfanet.anysketch.sketch
 import org.wfanet.estimation.Estimators
-import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.duchy.daemon.utils.toAnySketchElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toCmmsElGamalPublicKey
 import org.wfanet.measurement.internal.duchy.protocol.CompleteReachOnlyExecutionPhaseAtAggregatorResponse
@@ -219,15 +217,9 @@ class ReachOnlyLiquidLegionsV2EncryptionUtilityTest {
 
   companion object {
     init {
-      loadLibrary(
-        "reach_only_liquid_legions_v2_encryption_utility",
-        Paths.get("wfa_measurement_system/src/main/swig/protocol/reachonlyliquidlegionsv2")
-      )
-      loadLibrary(
-        "sketch_encrypter_adapter",
-        Paths.get("any_sketch_java/src/main/java/org/wfanet/anysketch/crypto")
-      )
-      loadLibrary("estimators", Paths.get("any_sketch_java/src/main/java/org/wfanet/estimation"))
+      System.loadLibrary("reach_only_liquid_legions_v2_encryption_utility")
+      System.loadLibrary("sketch_encrypter_adapter")
+      System.loadLibrary("estimators")
     }
 
     private const val DECAY_RATE = 12.0
