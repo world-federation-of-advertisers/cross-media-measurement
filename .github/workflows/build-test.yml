@@ -89,6 +89,15 @@ jobs:
         with:
           cache-version: 1
 
+      - name: Mount scratch disk
+        env:
+          BAZEL_CACHE_PATH: ${{ steps.get-cache-params.outputs.cache-path }}
+        run: |
+          mkdir -p "$BAZEL_CACHE_PATH"
+          sudo mkdir -p /mnt/bazel-cache
+          sudo chown 'runner:runner' /mnt/bazel-cache
+          sudo mount --bind /mnt/bazel-cache "$BAZEL_CACHE_PATH"
+
       - name: Restore Bazel cache
         uses: actions/cache/restore@v3
         with:
