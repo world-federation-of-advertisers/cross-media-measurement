@@ -166,18 +166,6 @@ steps {
   output_labels { key: "input" value: "mp-plaintext-join-keys" }
 }
 
-# MP assigns ids to join-keys
-steps {
-  step_id: "assign-join-key-ids"
-  party: MODEL_PROVIDER
-
-  assign_join_key_ids_step {}
-
-  input_labels { key: "join-keys" value: "mp-plaintext-join-keys" }
-
-  output_labels { key: "shuffled-join-key-and-ids" value: "mp-shuffled-join-key-and-ids" }
-}
-
 # EDP provides previously generated private key as input.
 steps {
   step_id: "generate-edp-commutative-deterministic-key"
@@ -249,7 +237,7 @@ steps {
 
   commutative_deterministic_encrypt_step {}
 
-  input_labels { key: "unencrypted-data" value: "mp-shuffled-join-key-and-ids" }
+  input_labels { key: "unencrypted-data" value: "mp-plaintext-join-keys" }
   input_labels { key: "encryption-key" value: "mp-commutative-deterministic-key" }
 
   output_labels { key: "encrypted-data" value: "mp-single-blinded-join-keys" }
@@ -594,7 +582,7 @@ steps {
   input_labels { key: "serialized-rlwe-public-key" value: "mp-serialized-rlwe-public-key" }
   input_labels { key: "compression-parameters" value: "mp-compression-parameters" }
   input_labels { key: "query-to-ids-map" value: "mp-query-to-ids-map" }
-  input_labels { key: "plaintext-join-keys-to-id-map" value: "mp-shuffled-join-key-and-ids" }
+  input_labels { key: "plaintext-join-keys-to-id-map" value: "mp-plaintext-join-keys" }
   input_labels { key: "decrypted-join-keys-to-id-map" value: "mp-decrypted-join-keys" }
   input_labels { key: "encrypted-results" value: "mp-encrypted-query-results" }
   input_labels { key: "pepper" value: "mp-hkdf-pepper" }
