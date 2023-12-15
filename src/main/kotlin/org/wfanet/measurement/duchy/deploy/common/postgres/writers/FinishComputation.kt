@@ -84,21 +84,35 @@ class FinishComputation<ProtocolT, StageT, ComputationDT : Message, StageDT : Me
       updateTime = writeTime,
     )
 
-    updateComputationStage(
-      localId = localId,
-      stage = currentStageLong,
-      endTime = writeTime,
-      followingStage = endingStageLong,
-    )
+    if (currentStage == endingStage) {
+      // TODO(world-federation-of-advertisers/cross-media-measurement#774): Determine whether this
+      // actually works around this bug and come up with a better fix.
+      logger.warning { "Computation $localId is already in ending stage" }
 
-    insertComputationStage(
-      localId = localId,
-      stage = endingStageLong,
-      creationTime = writeTime,
-      previousStage = currentStageLong,
-      nextAttempt = 1,
-      details = endingStageDetails,
-    )
+      updateComputationStage(
+        localId = localId,
+        stage = currentStageLong,
+        endTime = writeTime,
+        details = endingStageDetails,
+        nextAttempt = 1
+      )
+    } else {
+      updateComputationStage(
+        localId = localId,
+        stage = currentStageLong,
+        endTime = writeTime,
+        followingStage = endingStageLong,
+      )
+
+      insertComputationStage(
+        localId = localId,
+        stage = endingStageLong,
+        creationTime = writeTime,
+        previousStage = currentStageLong,
+        nextAttempt = 1,
+        details = endingStageDetails,
+      )
+    }
 
     ComputationStageAttemptReader()
       .readUnfinishedAttempts(
