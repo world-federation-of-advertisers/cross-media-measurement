@@ -91,7 +91,6 @@ class FullWithPreprocessingTest : AbstractInProcessPanelMatchIntegrationTest() {
       parsePlaintextResults(blob.parseDelimitedMessages(keyedDecryptedEventDataSet {})).map {
         it.joinKey to it.plaintexts
       }
-
     assertThat(decryptedEvents)
       .containsExactly(
         "join-key-1" to listOf("payload-1-for-join-key-1", "payload-2-for-join-key-1"),

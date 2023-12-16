@@ -16,9 +16,11 @@ package org.wfanet.panelmatch.integration
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import java.io.File
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.regex.Pattern
+import kotlinx.coroutines.runBlocking
 import org.junit.runner.RunWith
 import org.junit.runners.Parameterized
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
@@ -27,6 +29,7 @@ import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.toProtoDate
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 private val FIXTURES_FILES_PATH: Path =
   checkNotNull(
@@ -144,6 +147,8 @@ class SingleStepTest(
         "generate-serialized-rlwe-keys",
         "prepare-event-lookup-queries",
         "preprocess-events",
+        "assign-join-key-ids",
+        "single-blind",
       )
 
     @JvmStatic
