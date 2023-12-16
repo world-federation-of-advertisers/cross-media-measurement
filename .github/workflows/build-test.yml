@@ -89,6 +89,10 @@ jobs:
         with:
           cache-version: 1
 
+      # This is a hack to utilize the undocumented relatively large empty
+      # scratch disk mounted at /mnt. It's currently needed to work around
+      # bazel-contrib/rules_oci#439 as that's what is pushing our usage over the
+      # limit. The alternative is to use a runner with more disk space. 
       - name: Mount scratch disk
         env:
           BAZEL_CACHE_PATH: ${{ steps.get-cache-params.outputs.cache-path }}
@@ -160,12 +164,15 @@ jobs:
           name: cluster-logs
           path: ${{ env.CLUSTER_LOGS_PATH }}
 
-      # Delete large files that are cheap to re-create.
+      # Delete large files that are relatively cheap to re-create.
       - name: Trim Bazel cache
         if: github.event_name == 'push'
         run: |
           bazel_out="$(bazelisk info output_path)"
           find "${bazel_out}" -type f \( -iname '*.tar' -o -iname '*.tar.gz' \) -delete
+          find "${bazel_out}" -type d -name blobs -exec chmod -R +w "{}" \;
+          find "${bazel_out}" -type f -path '*/blobs/*' -delete
+          
 
       - name: Save Bazel cache
         if: github.event_name == 'push'
