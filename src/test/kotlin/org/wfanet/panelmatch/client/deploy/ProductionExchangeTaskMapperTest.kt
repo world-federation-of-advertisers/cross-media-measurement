@@ -16,6 +16,7 @@ package org.wfanet.panelmatch.client.deploy
 
 import com.google.common.truth.Truth.assertThat
 import java.time.LocalDate
+import kotlin.test.assertFailsWith
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -37,34 +38,6 @@ import org.wfanet.panelmatch.client.storage.storageDetails
 import org.wfanet.panelmatch.client.storage.testing.TestPrivateStorageSelector
 import org.wfanet.panelmatch.client.storage.testing.TestSharedStorageSelector
 import org.wfanet.panelmatch.common.testing.runBlockingTest
-
-private val WORKFLOW = exchangeWorkflow {
-  steps += inputStep("a" to "b")
-  steps += step {
-    this.commutativeDeterministicEncryptStep = commutativeDeterministicEncryptStep {}
-  }
-  steps += step {
-    this.copyToSharedStorageStep = copyToSharedStorageStep {
-      this.copyOptions = copyOptions {
-        labelType = ExchangeWorkflow.Step.CopyOptions.LabelType.BLOB
-      }
-    }
-    inputLabels.put("certificate-resource-name", "edp-certificate-resource-name")
-    inputLabels.put("hkdf-pepper", "edp-hkdf-pepper")
-    outputLabels.put("hkdf-pepper", "hkdf-pepper")
-  }
-}
-
-private val DATE: LocalDate = LocalDate.of(2021, 11, 1)
-
-private const val RECURRING_EXCHANGE_ID = "some-recurring-exchange-id"
-private val ATTEMPT_KEY =
-  CanonicalExchangeStepAttemptKey(
-    RECURRING_EXCHANGE_ID,
-    "some-exchange",
-    "some-step",
-    "some-attempt"
-  )
 
 @RunWith(JUnit4::class)
 class ProductionExchangeTaskMapperTest {
@@ -98,5 +71,67 @@ class ProductionExchangeTaskMapperTest {
     val context = ExchangeContext(ATTEMPT_KEY, DATE, WORKFLOW, WORKFLOW.getSteps(2))
     val exchangeTask = exchangeTaskMapper.getExchangeTaskForStep(context)
     assertThat(exchangeTask).isInstanceOf(CopyToSharedStorageTask::class.java)
+  }
+
+  @Test
+  fun `map export task without dependent input`() = runBlockingTest {
+    val context = ExchangeContext(ATTEMPT_KEY, DATE, WORKFLOW, WORKFLOW.getSteps(3))
+    val exchangeTask = exchangeTaskMapper.getExchangeTaskForStep(context)
+    assertThat(exchangeTask).isInstanceOf(CopyToSharedStorageTask::class.java)
+  }
+
+  @Test
+  fun `map export task with too many inputs`() = runBlockingTest {
+    val context = ExchangeContext(ATTEMPT_KEY, DATE, WORKFLOW, WORKFLOW.getSteps(4))
+    assertFailsWith<IllegalArgumentException> { exchangeTaskMapper.getExchangeTaskForStep(context) }
+  }
+
+  companion object {
+    private val WORKFLOW = exchangeWorkflow {
+      steps += inputStep("a" to "b")
+      steps += step {
+        this.commutativeDeterministicEncryptStep = commutativeDeterministicEncryptStep {}
+      }
+      steps += step {
+        this.copyToSharedStorageStep = copyToSharedStorageStep {
+          this.copyOptions = copyOptions {
+            labelType = ExchangeWorkflow.Step.CopyOptions.LabelType.BLOB
+          }
+        }
+        inputLabels.put("certificate-resource-name", "edp-certificate-resource-name")
+        inputLabels.put("hkdf-pepper", "edp-hkdf-pepper")
+        outputLabels.put("hkdf-pepper", "hkdf-pepper")
+      }
+      steps += step {
+        this.copyToSharedStorageStep = copyToSharedStorageStep {
+          this.copyOptions = copyOptions {
+            labelType = ExchangeWorkflow.Step.CopyOptions.LabelType.BLOB
+          }
+        }
+        inputLabels.put("hkdf-pepper", "edp-hkdf-pepper")
+        outputLabels.put("hkdf-pepper", "hkdf-pepper")
+      }
+      steps += step {
+        this.copyToSharedStorageStep = copyToSharedStorageStep {
+          this.copyOptions = copyOptions {
+            labelType = ExchangeWorkflow.Step.CopyOptions.LabelType.BLOB
+          }
+        }
+        inputLabels.put("hkdf-pepper-1", "edp-hkdf-pepper-1")
+        inputLabels.put("hkdf-pepper-2", "edp-hkdf-pepper-2")
+        outputLabels.put("hkdf-pepper", "hkdf-pepper")
+      }
+    }
+
+    private val DATE: LocalDate = LocalDate.of(2021, 11, 1)
+
+    private const val RECURRING_EXCHANGE_ID = "some-recurring-exchange-id"
+    private val ATTEMPT_KEY =
+      CanonicalExchangeStepAttemptKey(
+        RECURRING_EXCHANGE_ID,
+        "some-exchange",
+        "some-step",
+        "some-attempt"
+      )
   }
 }
