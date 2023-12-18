@@ -20,7 +20,6 @@ import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
 
-
 option java_package = "org.wfanet.measurement.reporting.bff.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "ReportProto";
@@ -55,7 +54,7 @@ message Report {
   // This helps the system and user know what data is viewable.
   State state = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
 
-  // Metrics of the report that directly contains the time interval and 
+  // Metrics of the report that directly contains the time interval and
   // demographics; metrics are nested under demographics.
   message DemographicMetricsByTimeInterval {
     // Mostly copied from
@@ -71,12 +70,13 @@ message Report {
     // Metrics of the report that directly contain the demographic category and
     // sources of the metrics; metrics are nested under the sources.
     message DemoBucket {
-      // The human readable name of the demographic bucket these metrics fall into.
+      // The human readable name of the demographic bucket these metrics fall
+      // into.
       string demo_category_name = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
 
       // The metrics of a given source.
-      // The metrics are limited to the prior contraints of time interval and demographic,
-      // and the current constraint of source.
+      // The metrics are limited to the prior contraints of time interval and
+      // demographic, and the current constraint of source.
       message SourceMetrics {
         // The name of the source of these metrics.
         // The metrics may be built from a set of sources.
@@ -90,7 +90,8 @@ message Report {
         //   2+: 5
         //   3+: 2
         //   ...
-        map<int32, double> frequency_histogram = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+        map<int32, double> frequency_histogram = 3
+            [(google.api.field_behavior) = OUTPUT_ONLY];
 
         // The reach value.
         int64 reach = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
@@ -102,13 +103,14 @@ message Report {
           [(google.api.field_behavior) = OUTPUT_ONLY];
 
       // Full union metric set.
-      SourceMetrics union_source = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+      SourceMetrics union_source = 3
+          [(google.api.field_behavior) = OUTPUT_ONLY];
     }
 
     // The time period for which this metric was calculated.
     Interval time_interval = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
 
-    // The demographic of this metric. The actual metric values are 
+    // The demographic of this metric. The actual metric values are
     // nested underneath.
     repeated DemoBucket demo_bucket = 2
         [(google.api.field_behavior) = OUTPUT_ONLY];
