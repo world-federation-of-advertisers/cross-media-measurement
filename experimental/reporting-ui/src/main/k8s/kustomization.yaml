@@ -1,0 +1,6 @@
+secretGenerator:
+- name: signing
+  files:
+  - reporting_root.pem
+  - mc_tls.key
+  - mc_tls.pem

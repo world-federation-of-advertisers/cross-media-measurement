@@ -1,0 +1,93 @@
+apiVersion: v1
+kind: List
+items:
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: reporting-bff-v1alpha-public-api-server-deployment
+      labels:
+        app.kubernetes.io/name: reporting-bff-v1alpha-public-api-server-deployment
+        app.kubernetes.io/component: reporting-bff
+        app: reporting-bff-v1alpha-public-api-server-app
+        app.kubernetes.io/part-of: halo-cmms
+      annotations:
+        system: reporting-bff
+    spec:
+      selector:
+        matchLabels:
+          app: reporting-bff-v1alpha-public-api-server-app
+      template:
+        metadata:
+          labels:
+            app: reporting-bff-v1alpha-public-api-server-app
+        spec:
+          restartPolicy: Always
+          serviceAccountName: reporting-bff-server
+          containers:
+            - args:
+                - --reporting-api-target=v2alpha.reporting.dev.halo-cmm.org:8443
+                - --tls-cert-file=/var/run/secrets/files/mc_tls.pem
+                - --tls-key-file=/var/run/secrets/files/mc_tls.key
+                - --cert-collection-file=/var/run/secrets/files/reporting_root.pem
+                - --require-client-auth=false
+                - --reporting-api-certHost=localhost
+                - --health-port=8000
+              resources:
+                limits:
+                  memory: 256Mi
+                requests:
+                  cpu: 25m
+                  memory: 256Mi
+              name: reporting-v1alpha-public-api-server-container
+              image: gcr.io/halo-cmm-dev/reporting-bff/v1/v1alpha-public-api:build-0001
+              imagePullPolicy: Always
+              ports:
+                - containerPort: 8443
+              volumeMounts:
+                - name: reporting-v2alpha-public-api-server-files
+                  mountPath: /var/run/secrets/files
+                  readOnly: true
+          volumes:
+            - secret:
+                secretName: signing-bbgt26tb62
+              name: reporting-v2alpha-public-api-server-files
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: reporting-bff-server
+      labels:
+        app.kubernetes.io/name: reporting-bff-server
+        app.kubernetes.io/component: reporting-bff
+        app.kubernetes.io/part-of: halo-cmms
+      annotations:
+        system: reporting-bff
+        cloud.google.com/app-protocols: '{"grpc-port": "HTTP2"}'
+        kubernetes.io/ingress.allow-http: "false"
+    spec:
+      selector:
+        app: reporting-bff-v1alpha-public-api-server-app
+      ports:
+        - port: 8443
+          name: grpc-port
+      type: LoadBalancer
+      loadBalancerIP: 34.121.171.2
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: reporting-bff-v1alpha-public-api-server-network-policy
+      labels:
+        app.kubernetes.io/part-of: halo-cmms
+    spec:
+      podSelector:
+        matchLabels:
+          app: reporting-bff-v1alpha-public-api-server-app
+      policyTypes:
+        - Ingress
+        - Egress
+      ingress:
+        - from: []
+          ports:
+            - port: 8443
+      egress:
+        - to: []
+          ports: []
