@@ -12,9 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export type InitApiProps = {
-  // eslint-disable-next-line node/no-unsupported-features/node-builtins
-  endpoint: URL;
-  // TODO(@bdomen-ggl): Look into multi-MC support later.
-  measurementConsumer: string;
-};
+package org.wfanet.panelmatch.client.storage.testing
+
+import org.wfanet.measurement.storage.testing.InMemoryStorageClient
+import org.wfanet.panelmatch.common.secrets.testing.TestMutableSecretMap
+
+class TestSharedStorageSelector {
+  val storageClient = InMemoryStorageClient()
+  val storageDetails = TestMutableSecretMap()
+  val selector = makeTestSharedStorageSelector(storageDetails, storageClient)
+}

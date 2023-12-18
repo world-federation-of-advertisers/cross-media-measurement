@@ -32,6 +32,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - uses: ./.github/actions/free-disk-space
+
       - id: get-image-tag
         name: Get image tag
         run: |

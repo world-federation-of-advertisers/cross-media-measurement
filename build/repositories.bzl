@@ -16,8 +16,8 @@
 Adds external repos necessary for wfa_measurement_system.
 """
 
-load("//build/wfa:repositories.bzl", "wfa_repo_archive")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
+load("//build/wfa:repositories.bzl", "wfa_repo_archive")
 
 MEASUREMENT_SYSTEM_REPO = "https://github.com/world-federation-of-advertisers/cross-media-measurement"
 
@@ -27,8 +27,8 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_common_jvm",
         repo = "common-jvm",
-        sha256 = "eaf1745f7be38899f131f08cfd9e099cbcdc925664f52c380e8e9ab1a4a34c94",
-        version = "0.70.0",
+        sha256 = "00b66cb6f7bb8b23a0fc4063b0d454a150b1babd4aa49f6898fd51b7cdd086cd",
+        version = "0.71.2",
     )
 
     wfa_repo_archive(
@@ -125,6 +125,13 @@ def wfa_measurement_system_repositories():
         sha256 = "0675f7f8300f659a23e7ea4b8be5b38726c173b506a4d25c4309e93b4f1616ae",
         strip_prefix = "grpc-gateway-2.15.2",
         urls = ["https://github.com/grpc-ecosystem/grpc-gateway/archive/refs/tags/v2.15.2.tar.gz"],
+    )
+
+    http_archive(
+        name = "aspect_bazel_lib",
+        sha256 = "4d6010ca5e3bb4d7045b071205afa8db06ec11eb24de3f023d74d77cca765f66",
+        strip_prefix = "bazel-lib-1.39.0",
+        url = "https://github.com/aspect-build/bazel-lib/releases/download/v1.39.0/bazel-lib-v1.39.0.tar.gz",
     )
 
     http_archive(

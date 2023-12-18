@@ -12,9 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export type InitApiProps = {
-  // eslint-disable-next-line node/no-unsupported-features/node-builtins
-  endpoint: URL;
-  // TODO(@bdomen-ggl): Look into multi-MC support later.
-  measurementConsumer: string;
+import React from 'react';
+import Navbar from 'react-bootstrap/Navbar';
+import {
+  AddIcon,
+  DownloadIcon,
+  FilterIcon,
+  MenuIcon,
+  TrailingIcon,
+} from '../../../public/asset/icon';
+import './header.css';
+
+type HeaderProps = {
 };
+
+export function Header({}: HeaderProps) {
+  return (
+    <React.Fragment>
+      <Navbar id="get-report-header" className="bg-body-tertiary">
+        <div id="get-report-header-menu">
+          <MenuIcon />
+        </div>
+        <Navbar.Brand id="header-title">Demo Reporting UI</Navbar.Brand>
+      </Navbar>
+    </React.Fragment>
+  );
+}
