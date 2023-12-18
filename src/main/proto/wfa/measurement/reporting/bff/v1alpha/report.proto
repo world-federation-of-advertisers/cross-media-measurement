@@ -82,14 +82,25 @@ message Report {
         // The metrics may be built from a set of sources.
         string source_name = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
 
+        // Impression count with standard deviation.
+        message ImpressionCountResult {
+          // The number of impressions.
+          int64 impression_count = 1;
+
+          // The standard deviation for determining confidence intervals.
+          double standard_deviation = 2;
+        }
+
         // The number of impressions.
-        int64 impression_count = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+        ImpressionCountResult impression_count = 2
+            [(google.api.field_behavior) = OUTPUT_ONLY];
 
         // The frequency of views by cumulative count. EG:
-        //   1+: 10
-        //   2+: 5
-        //   3+: 2
-        //   ...
+        //   1: 10
+        //   2: 5
+        //   3: 2
+        // The keys are implied to be views of at least that amount (eg. 1 is
+        // really 1+).
         map<int32, double> frequency_histogram = 3
             [(google.api.field_behavior) = OUTPUT_ONLY];
 
