@@ -92,6 +92,7 @@ message HonestMajorityShareShuffle {
       NoiseMechanism noise_mechanism = 3;
     }
     Parameters parameters = 2;
+
     // Seeds used by non-aggregators to generate noise and permutation.
     message RandomSeeds {
       // Seed to generates noise and permutation.
@@ -100,5 +101,39 @@ message HonestMajorityShareShuffle {
       bytes common_random_seed_from_peer = 2;
     }
     RandomSeeds seeds = 3;
+
+    // The list of ids of duchies participating in this computation.
+    // The list is sorted by the duchy order by names, with the first element
+    // being the first non-aggregator following by other non-aggregators,
+    // and the last element being the aggregator.
+    repeated string participants = 4;
+  }
+
+  message ShufflePhaseInput {
+    bytes common_random_seed = 1;
+  }
+
+  // Details about a particular attempt of running a stage of the
+  // HonestMajorityShareShuffle Protocol.
+  message StageDetails {
+    oneof detail {
+      // Details specific to the WAIT_ON_INPUT stage.
+      WaitOnInputPhaseDetails wait_on_input_phase_details = 1;
+    }
+  }
+
+  // The stage WAIT_ON_INPUT of the aggregator duchy has a bootstrapping step
+  // where it requires input from all other non-aggregators before it can move
+  // forward. The bookkeeping of which duchy has provided is stored in this
+  // message.
+  message WaitOnInputPhaseDetails {
+    // A mapping of the name of a duchy to the BlobId corresponding to the
+    // ComputationBlobDependency.OUTPUT BLOB where it will be written.
+    //
+    // Upon receiving a sketch from a duchy the OUTPUT reference with the id
+    // found in this map is updated with the local copy of the blob. When all
+    // the output references have a path the worker can move onto the next
+    // stage.
+    map<string, int64> external_duchy_local_blob_id = 1;
   }
 }
