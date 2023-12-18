@@ -1,6 +1,17 @@
 # proto-file: wfa/measurement/api/v2alpha/exchange_workflow.proto
 # proto-message: ExchangeWorkflow
 
+# EDP generates a certificate.
+steps {
+  step_id: "generate-edp-certificate"
+  party: DATA_PROVIDER
+  output_labels {
+    key: "certificate-resource-name"
+    value: "edp-certificate-resource-name"
+  }
+  generate_certificate_step { }
+}
+
 # EDP provides a previously generated pepper used in generating AES keys.
 steps {
   step_id: "input-hkdf-pepper"
@@ -23,6 +34,10 @@ steps {
   }
 
   input_labels { key: "hkdf-pepper" value: "edp-hkdf-pepper" }
+  input_labels {
+    key: "certificate-resource-name"
+    value: "edp-certificate-resource-name"
+  }
   output_labels { key: "hkdf-pepper" value: "hkdf-pepper" }
 }
 
