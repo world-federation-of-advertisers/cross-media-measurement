@@ -18,7 +18,7 @@ import './feedback_button.css';
 const FeedbackButton = () => {
     return (
         <div id="fixed-bottom">
-            <a href="https://docs.google.com/document/d/1HRUCoGLr34frH18iI_o3mNAJ-I6ylsDdJF-7usT4XZg/edit?usp=sharing" target="_blank">
+            <a href="https://docs.google.com/forms/d/e/1FAIpQLSfeLyJDETxQw92eyDiv2vA6XN9NpcIGHa0mbZweouqQ9mu8sg/viewform?usp=header_link" target="_blank">
                 <Button variant="primary">
                     Feedback?
                 </Button>
