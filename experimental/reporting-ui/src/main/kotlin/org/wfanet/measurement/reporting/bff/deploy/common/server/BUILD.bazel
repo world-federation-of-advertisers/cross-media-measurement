@@ -48,6 +48,8 @@ java_binary(
 java_image(
     name = "v1alpha_public_api_server_image",
     binary = ":V1AlphaPublicApiServer",
-    main_class = "org.wfanet.measurement.reporting.deploy.common.server.V1AlphaPublicApiServerKt",
-    visibility = ["//src:docker_image_deployment"],
+    main_class = "org.wfanet.measurement.reporting.bff.deploy.common.server.V1AlphaPublicApiServerKt",
+    visibility = [
+        "//experimental/reporting-ui/src/main/docker:__subpackages__",
+    ],
 )

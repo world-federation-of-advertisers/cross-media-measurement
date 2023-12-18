@@ -42,6 +42,8 @@ type Options struct {
 	TlsCertPath string
 
 	TlsKeyPath string
+
+	CertHost string
 }
 
 // Run starts a HTTP server and blocks while running if successful.
@@ -50,7 +52,7 @@ func Run(ctx context.Context, opts Options) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	conn, err := dial(ctx, opts.GRPCServer.Addr, opts.TlsCertPath)
+	conn, err := dial(ctx, opts.GRPCServer.Addr, opts.TlsCertPath, opts.CertHost)
 	if err != nil {
 		return err
 	}

@@ -1,4 +1,6 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_oci//oci:defs.bzl", "oci_image")
+load("@rules_pkg//:pkg.bzl", "pkg_tar")
 
 go_library(
     name = "gateway",
@@ -41,4 +43,17 @@ go_binary(
         "//src/main/k8s/testing/secretfiles:mc_tls.pem",
         "//src/main/k8s/testing/secretfiles:reporting_root.pem",
     ],
+)
+
+pkg_tar(
+    name = "server_app_layer",
+    srcs = [":server"],
+)
+
+oci_image(
+    name = "alphav1_reporting_bff_gateway_image",
+    base = "@distroless_base",
+    entrypoint = ["/server"],
+    tars = [":server_app_layer"],
+    visibility = ["//experimental/reporting-ui/src/main/docker:__subpackages__"],
 )
