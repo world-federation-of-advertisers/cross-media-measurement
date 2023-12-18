@@ -17,6 +17,8 @@ import { ListReportViewModel } from '../../view_model/report_list/report_list_vi
 import { ReportListTable } from './component/table';
 import { Loader } from '../../component/loader/loader';
 import { Error } from '../../component/error/error';
+import Card from 'react-bootstrap/esm/Card';
+import { Header } from './component/header';
 
 export const ReportListView = ({baseLink}) => {
   const { reports, errors, load, loading } = ListReportViewModel();
@@ -34,6 +36,13 @@ export const ReportListView = ({baseLink}) => {
   }
 
   return(
-    <ReportListTable reports={reports} baseLink={baseLink}/>
+    <React.Fragment>
+      <Header />
+      <Card className="SummaryCard">
+        <Card.Body>
+          <ReportListTable reports={reports} baseLink={baseLink}/>
+        </Card.Body>
+      </Card>
+    </React.Fragment>
   );
 }
