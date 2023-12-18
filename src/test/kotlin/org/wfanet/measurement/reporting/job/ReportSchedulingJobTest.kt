@@ -60,6 +60,7 @@ import org.wfanet.measurement.reporting.v2alpha.ReportKt
 import org.wfanet.measurement.internal.reporting.v2.ReportKt as InternalReportKt
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import com.google.protobuf.util.Timestamps
+import com.google.type.DayOfWeek
 import io.grpc.Status
 import org.mockito.kotlin.KArgumentCaptor
 import org.mockito.kotlin.argumentCaptor
@@ -73,14 +74,17 @@ import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.internal.reporting.v2.ListReportSchedulesRequest
+import org.wfanet.measurement.internal.reporting.v2.ListReportSchedulesRequestKt
 import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIteration
 import org.wfanet.measurement.internal.reporting.v2.SetReportScheduleIterationStateRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
+import org.wfanet.measurement.internal.reporting.v2.listReportSchedulesRequest
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.internal.reporting.v2.reportScheduleIteration
 import org.wfanet.measurement.internal.reporting.v2.setReportScheduleIterationStateRequest
+import org.wfanet.measurement.internal.reporting.v2.stopReportScheduleRequest
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricCalculationSpecKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportSchedulesService.Companion.buildReportWindowStartTimestamp
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
@@ -129,6 +133,9 @@ class ReportSchedulingJobTest {
       .thenReturn(listReportSchedulesResponse {
         reportSchedules += INTERNAL_REPORT_SCHEDULE
       })
+
+    onBlocking { stopReportSchedule(any()) }
+      .thenReturn(INTERNAL_REPORT_SCHEDULE)
   }
   private val reportsMock: ReportsCoroutineImplBase = mockService {
     onBlocking { createReport(any()) }
@@ -173,6 +180,17 @@ class ReportSchedulingJobTest {
 
     job.execute()
 
+    verifyProtoArgument(reportSchedulesMock, ReportSchedulesCoroutineImplBase::listReportSchedules)
+      .isEqualTo(
+        listReportSchedulesRequest {
+          filter = ListReportSchedulesRequestKt.filter {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            state = ReportSchedule.State.ACTIVE
+          }
+          limit = BATCH_SIZE
+        }
+      )
+
     verifyProtoArgument(reportScheduleIterationsMock, ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration)
       .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
       .isEqualTo(
@@ -213,6 +231,97 @@ class ReportSchedulingJobTest {
   }
 
   @Test
+  fun `execute stops report schedule after report creation when next time after event end`() =
+    runBlocking {
+      whenever(reportSchedulesMock.listReportSchedules(any()))
+        .thenReturn(
+          listReportSchedulesResponse {
+            reportSchedules += INTERNAL_REPORT_SCHEDULE.copy {
+              clearLatestIteration()
+              details = INTERNAL_REPORT_SCHEDULE.details.copy {
+                eventStart = dateTime {
+                  year = 2022
+                  month = 1
+                  day = 2
+                  hours = 13
+                  timeZone = timeZone { id = "America/Los_Angeles" }
+                }
+                eventEnd = date {
+                  year = 2022
+                  month = 1
+                  day = 3
+                }
+                frequency =
+                  ReportScheduleKt.frequency {
+                    weekly = ReportScheduleKt.FrequencyKt.weekly {
+                      dayOfWeek = DayOfWeek.SATURDAY
+                    }
+                  }
+              }
+            }
+          })
+
+      job.execute()
+
+      verifyProtoArgument(reportSchedulesMock, ReportSchedulesCoroutineImplBase::listReportSchedules)
+        .isEqualTo(
+          listReportSchedulesRequest {
+            filter = ListReportSchedulesRequestKt.filter {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              state = ReportSchedule.State.ACTIVE
+            }
+            limit = BATCH_SIZE
+          }
+        )
+
+      verifyProtoArgument(reportScheduleIterationsMock, ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration)
+        .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
+        .isEqualTo(
+          reportScheduleIteration {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalReportScheduleId = REPORT_SCHEDULE_ID
+            reportEventTime = INTERNAL_REPORT_SCHEDULE.nextReportCreationTime
+          }
+        )
+
+      val publicReportSchedule = INTERNAL_REPORT_SCHEDULE.toPublic()
+      verifyProtoArgument(reportsMock, ReportsCoroutineImplBase::createReport)
+        .ignoringFields(CreateReportRequest.REPORT_ID_FIELD_NUMBER)
+        .isEqualTo(
+          createReportRequest {
+            parent = MEASUREMENT_CONSUMER_NAME
+            requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
+            report = publicReportSchedule.reportTemplate.copy {
+              periodicTimeInterval = periodicTimeInterval {
+                startTime = buildReportWindowStartTimestamp(publicReportSchedule, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
+                increment = Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
+                intervalCount = 1
+              }
+            }
+          }
+        )
+
+      verifyProtoArgument(reportSchedulesMock, ReportSchedulesCoroutineImplBase::stopReportSchedule)
+        .isEqualTo(
+          stopReportScheduleRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalReportScheduleId = REPORT_SCHEDULE_ID
+          }
+        )
+
+      verifyProtoArgument(reportScheduleIterationsMock, ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState)
+        .isEqualTo(
+          setReportScheduleIterationStateRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalReportScheduleId = REPORT_SCHEDULE_ID
+            externalReportScheduleIterationId = REPORT_SCHEDULE_ITERATION_ID
+
+            state = ReportScheduleIteration.State.REPORT_CREATED
+          }
+        )
+    }
+
+  @Test
   fun `execute creates reports for multiple schedules for 1 mc for new iterations`(): Unit =
     runBlocking {
       val otherReportScheduleId = REPORT_SCHEDULE_ID + "a"
@@ -229,6 +338,17 @@ class ReportSchedulingJobTest {
           })
 
       job.execute()
+
+      verifyProtoArgument(reportSchedulesMock, ReportSchedulesCoroutineImplBase::listReportSchedules)
+        .isEqualTo(
+          listReportSchedulesRequest {
+            filter = ListReportSchedulesRequestKt.filter {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              state = ReportSchedule.State.ACTIVE
+            }
+            limit = BATCH_SIZE
+          }
+        )
 
       val createReportScheduleIterationCaptor: KArgumentCaptor<ReportScheduleIteration> = argumentCaptor()
       verifyBlocking(reportScheduleIterationsMock, times(2)) { createReportScheduleIteration(createReportScheduleIterationCaptor.capture()) }
@@ -640,6 +760,68 @@ class ReportSchedulingJobTest {
     }
 
   @Test
+  fun `execute does not create report when next time after event end`() =
+    runBlocking {
+      whenever(reportSchedulesMock.listReportSchedules(any()))
+        .thenReturn(
+          listReportSchedulesResponse {
+            reportSchedules += INTERNAL_REPORT_SCHEDULE.copy {
+              latestIteration = INTERNAL_REPORT_SCHEDULE_ITERATION.copy {
+                state = ReportScheduleIteration.State.WAITING_FOR_DATA_AVAILABILITY
+              }
+              details = INTERNAL_REPORT_SCHEDULE.details.copy {
+                eventStart = dateTime {
+                  year = 2022
+                  month = 1
+                  day = 2
+                  hours = 13
+                  timeZone = timeZone { id = "America/Los_Angeles" }
+                }
+                eventEnd = date {
+                  year = 2022
+                  month = 1
+                  day = 3
+                }
+                frequency =
+                  ReportScheduleKt.frequency {
+                    daily = ReportSchedule.Frequency.Daily.getDefaultInstance()
+                  }
+              }
+              nextReportCreationTime = timestamp {
+                seconds = 1641330000 // January 4, 2022 at 1 PM, America/Los_Angeles
+              }
+            }
+          })
+
+      job.execute()
+
+      val createReportScheduleIterationCaptor: KArgumentCaptor<ReportScheduleIteration> = argumentCaptor()
+      verifyBlocking(reportScheduleIterationsMock, times(0)) { createReportScheduleIteration(createReportScheduleIterationCaptor.capture()) }
+
+      val createReportCaptor: KArgumentCaptor<CreateReportRequest> = argumentCaptor()
+      verifyBlocking(reportsMock, times(0)) { createReport(createReportCaptor.capture()) }
+
+      verifyProtoArgument(reportSchedulesMock, ReportSchedulesCoroutineImplBase::stopReportSchedule)
+        .isEqualTo(
+          stopReportScheduleRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalReportScheduleId = REPORT_SCHEDULE_ID
+          }
+        )
+
+      verifyProtoArgument(reportScheduleIterationsMock, ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState)
+        .isEqualTo(
+          setReportScheduleIterationStateRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalReportScheduleId = REPORT_SCHEDULE_ID
+            externalReportScheduleIterationId = REPORT_SCHEDULE_ITERATION_ID
+
+            state = ReportScheduleIteration.State.REPORT_CREATED
+          }
+        )
+    }
+
+  @Test
   fun `execute sets iteration state to RETRYING_REPORT_CREATION when creation fails`() =
     runBlocking {
       whenever(reportsMock.createReport(any()))
@@ -799,6 +981,8 @@ class ReportSchedulingJobTest {
   }
 
   companion object {
+    private const val BATCH_SIZE = 50
+
     private const val DATA_PROVIDER_ID = "D123"
     private const val DATA_PROVIDER_NAME = "dataProviders/$DATA_PROVIDER_ID"
 

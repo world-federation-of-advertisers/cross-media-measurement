@@ -53,6 +53,8 @@ message ListReportSchedulesRequest {
     string cmms_measurement_consumer_id = 1;
     // Skips to results with an external id greater than this.
     string external_report_schedule_id_after = 2;
+    // If set, include only the state this is set to.
+    ReportSchedule.State state = 3;
   }
   Filter filter = 1;
 

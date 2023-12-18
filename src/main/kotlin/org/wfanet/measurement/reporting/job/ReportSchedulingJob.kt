@@ -24,7 +24,9 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.Reportin
 import com.google.protobuf.Duration
 import com.google.protobuf.Timestamp
 import com.google.protobuf.util.Timestamps
+import com.google.type.DateTime
 import com.google.type.TimeZone
+import com.google.type.copy
 import io.grpc.Status
 import io.grpc.StatusException
 import java.time.LocalDateTime
@@ -56,6 +58,7 @@ import org.wfanet.measurement.internal.reporting.v2.setReportScheduleIterationSt
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportSchedulesService
 import org.wfanet.measurement.reporting.service.api.v2alpha.toPublic
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedule
+import org.wfanet.measurement.internal.reporting.v2.stopReportScheduleRequest
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withPrincipalName
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.withReportScheduleInfo
@@ -91,6 +94,7 @@ class ReportSchedulingJob(
               if (listReportSchedulesResponse.reportSchedulesList.size > 0) {
                 externalReportScheduleIdAfter = listReportSchedulesResponse.reportSchedulesList.last().externalReportScheduleId
               }
+              state = ReportSchedule.State.ACTIVE
             }
             limit = BATCH_SIZE
           }
@@ -139,16 +143,43 @@ class ReportSchedulingJob(
             )
 
             if (isDataAvailable) {
-              try {
-                val nextReportCreationTime: Timestamp =
-                  if (reportSchedule.details.eventStart.hasUtcOffset()) {
-                    val offsetDateTime = reportSchedule.nextReportCreationTime.toOffsetDateTime(reportSchedule.details.eventStart.utcOffset)
-                    getNextReportCreationTime(offsetDateTime, reportSchedule.details.frequency)
-                  } else {
-                    val zonedDateTime = reportSchedule.nextReportCreationTime.toZonedDateTime(reportSchedule.details.eventStart.timeZone)
-                    getNextReportCreationTime(zonedDateTime, reportSchedule.details.frequency)
-                  }
+              val nextReportCreationTime: Timestamp =
+                if (reportSchedule.details.eventStart.hasUtcOffset()) {
+                  val offsetDateTime = reportSchedule.nextReportCreationTime.toOffsetDateTime(reportSchedule.details.eventStart.utcOffset)
+                  getNextReportCreationTime(offsetDateTime, reportSchedule.details.frequency)
+                } else {
+                  val zonedDateTime = reportSchedule.nextReportCreationTime.toZonedDateTime(reportSchedule.details.eventStart.timeZone)
+                  getNextReportCreationTime(zonedDateTime, reportSchedule.details.frequency)
+                }
 
+              val eventEndTimestamp = publicReportSchedule.eventStart.copy {
+                day = reportSchedule.details.eventEnd.day
+                month = reportSchedule.details.eventEnd.month
+                year = reportSchedule.details.eventEnd.year
+              }.toTimestamp()
+
+              val stopReportScheduleRequest = stopReportScheduleRequest {
+                cmmsMeasurementConsumerId = measurementConsumerId
+                externalReportScheduleId = reportSchedule.externalReportScheduleId
+              }
+
+              val setReportScheduleIterationStateRequest = setReportScheduleIterationStateRequest {
+                cmmsMeasurementConsumerId = measurementConsumerId
+                externalReportScheduleId = reportSchedule.externalReportScheduleId
+                externalReportScheduleIterationId =
+                  reportScheduleIteration.externalReportScheduleIterationId
+                state = ReportScheduleIteration.State.REPORT_CREATED
+              }
+
+              if (Timestamps.compare(reportSchedule.nextReportCreationTime, eventEndTimestamp) > 0) {
+                internalReportSchedulesStub.stopReportSchedule(stopReportScheduleRequest)
+                internalReportScheduleIterationsStub.setReportScheduleIterationState(
+                  setReportScheduleIterationStateRequest
+                )
+                continue
+              }
+
+              try {
                 reportsStub
                   .withPrincipalName(measurementConsumerConfig.key)
                   .withReportScheduleInfo(
@@ -186,14 +217,12 @@ class ReportSchedulingJob(
                 continue
               }
 
+              if (Timestamps.compare(nextReportCreationTime, eventEndTimestamp) > 0) {
+                internalReportSchedulesStub.stopReportSchedule(stopReportScheduleRequest)
+              }
+
               internalReportScheduleIterationsStub.setReportScheduleIterationState(
-                setReportScheduleIterationStateRequest {
-                  cmmsMeasurementConsumerId = measurementConsumerId
-                  externalReportScheduleId = reportSchedule.externalReportScheduleId
-                  externalReportScheduleIterationId =
-                    reportScheduleIteration.externalReportScheduleIterationId
-                  state = ReportScheduleIteration.State.REPORT_CREATED
-                }
+                setReportScheduleIterationStateRequest
               )
             }
           } catch (e: Exception) {
@@ -377,6 +406,39 @@ class ReportSchedulingJob(
           throw Status.FAILED_PRECONDITION.withDescription("frequency is not set")
             .asRuntimeException()
         }
+      }
+    }
+
+    private fun DateTime.toTimestamp(): Timestamp {
+      val source = this
+      return if (source.hasUtcOffset()) {
+        val offset = ZoneOffset.ofTotalSeconds(source.utcOffset.seconds.toInt())
+        val offsetDateTime =
+          OffsetDateTime.of(
+            source.year,
+            source.month,
+            source.day,
+            source.hours,
+            source.minutes,
+            source.seconds,
+            source.nanos,
+            offset
+          )
+        offsetDateTime.toInstant().toProtoTime()
+      } else {
+        val id = ZoneId.of(source.timeZone.id)
+        val zonedDateTime =
+          ZonedDateTime.of(
+            source.year,
+            source.month,
+            source.day,
+            source.hours,
+            source.minutes,
+            source.seconds,
+            source.nanos,
+            id
+          )
+        zonedDateTime.toInstant().toProtoTime()
       }
     }
   }
