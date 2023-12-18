@@ -18,30 +18,48 @@ package org.wfanet.measurement.reporting.job
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.timestamp
+import com.google.protobuf.util.Timestamps
+import com.google.type.DayOfWeek
 import com.google.type.date
 import com.google.type.dateTime
 import com.google.type.interval
 import com.google.type.timeZone
+import io.grpc.Status
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.KArgumentCaptor
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.eq
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verifyBlocking
+import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
+import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.config.reporting.measurementConsumerConfig
+import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.internal.reporting.v2.BatchGetReportingSetsRequest
+import org.wfanet.measurement.internal.reporting.v2.ListReportSchedulesRequest
+import org.wfanet.measurement.internal.reporting.v2.ListReportSchedulesRequestKt
+import org.wfanet.measurement.internal.reporting.v2.ReportKt as InternalReportKt
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedule
+import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIteration
 import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpcKt.ReportScheduleIterationsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpcKt.ReportScheduleIterationsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportScheduleKt
@@ -51,38 +69,15 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsResponse
-import org.wfanet.measurement.internal.reporting.v2.listReportSchedulesResponse
-import org.wfanet.measurement.internal.reporting.v2.reportSchedule
-import org.wfanet.measurement.internal.reporting.v2.reportingSet
-import org.wfanet.measurement.reporting.v2alpha.Report
-import org.wfanet.measurement.reporting.v2alpha.ReportKt
-import org.wfanet.measurement.internal.reporting.v2.ReportKt as InternalReportKt
-import org.wfanet.measurement.internal.reporting.v2.report as internalReport
-import com.google.protobuf.util.Timestamps
-import com.google.type.DayOfWeek
-import io.grpc.Status
-import org.mockito.kotlin.KArgumentCaptor
-import org.mockito.kotlin.argumentCaptor
-import org.mockito.kotlin.times
-import org.mockito.kotlin.verifyBlocking
-import org.mockito.kotlin.whenever
-import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
-import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
-import org.wfanet.measurement.api.v2alpha.copy
-import org.wfanet.measurement.common.testing.verifyProtoArgument
-import org.wfanet.measurement.config.reporting.measurementConsumerConfig
-import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
-import org.wfanet.measurement.internal.reporting.v2.ListReportSchedulesRequest
-import org.wfanet.measurement.internal.reporting.v2.ListReportSchedulesRequestKt
-import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIteration
 import org.wfanet.measurement.internal.reporting.v2.SetReportScheduleIterationStateRequest
+import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsResponse
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.listReportSchedulesRequest
-import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineImplBase
-import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
-import org.wfanet.measurement.reporting.v2alpha.report
+import org.wfanet.measurement.internal.reporting.v2.listReportSchedulesResponse
+import org.wfanet.measurement.internal.reporting.v2.report as internalReport
+import org.wfanet.measurement.internal.reporting.v2.reportSchedule
 import org.wfanet.measurement.internal.reporting.v2.reportScheduleIteration
+import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.setReportScheduleIterationStateRequest
 import org.wfanet.measurement.internal.reporting.v2.stopReportScheduleRequest
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricCalculationSpecKey
@@ -90,9 +85,14 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.ReportSchedulesServi
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.toPublic
 import org.wfanet.measurement.reporting.v2alpha.CreateReportRequest
+import org.wfanet.measurement.reporting.v2alpha.Report
+import org.wfanet.measurement.reporting.v2alpha.ReportKt
+import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineImplBase
+import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.periodicTimeInterval
+import org.wfanet.measurement.reporting.v2alpha.report
 
 @RunWith(JUnit4::class)
 class ReportSchedulingJobTest {
@@ -111,8 +111,10 @@ class ReportSchedulingJobTest {
         val request = it.arguments[0] as BatchGetReportingSetsRequest
         val reportingSetsMap =
           mapOf(
-            INTERNAL_COMPOSITE_REPORTING_SET.externalReportingSetId to INTERNAL_COMPOSITE_REPORTING_SET,
-            INTERNAL_PRIMITIVE_REPORTING_SET.externalReportingSetId to INTERNAL_PRIMITIVE_REPORTING_SET
+            INTERNAL_COMPOSITE_REPORTING_SET.externalReportingSetId to
+              INTERNAL_COMPOSITE_REPORTING_SET,
+            INTERNAL_PRIMITIVE_REPORTING_SET.externalReportingSetId to
+              INTERNAL_PRIMITIVE_REPORTING_SET
           )
         batchGetReportingSetsResponse {
           reportingSets +=
@@ -130,16 +132,12 @@ class ReportSchedulingJobTest {
     }
   private val reportSchedulesMock: ReportSchedulesCoroutineImplBase = mockService {
     onBlocking { listReportSchedules(any()) }
-      .thenReturn(listReportSchedulesResponse {
-        reportSchedules += INTERNAL_REPORT_SCHEDULE
-      })
+      .thenReturn(listReportSchedulesResponse { reportSchedules += INTERNAL_REPORT_SCHEDULE })
 
-    onBlocking { stopReportSchedule(any()) }
-      .thenReturn(INTERNAL_REPORT_SCHEDULE)
+    onBlocking { stopReportSchedule(any()) }.thenReturn(INTERNAL_REPORT_SCHEDULE)
   }
   private val reportsMock: ReportsCoroutineImplBase = mockService {
-    onBlocking { createReport(any()) }
-      .thenReturn(REPORT)
+    onBlocking { createReport(any()) }.thenReturn(REPORT)
   }
 
   @get:Rule
@@ -173,25 +171,28 @@ class ReportSchedulingJobTest {
     whenever(reportSchedulesMock.listReportSchedules(any()))
       .thenReturn(
         listReportSchedulesResponse {
-          reportSchedules += INTERNAL_REPORT_SCHEDULE.copy {
-            clearLatestIteration()
+          reportSchedules += INTERNAL_REPORT_SCHEDULE.copy { clearLatestIteration() }
         }
-      })
+      )
 
     job.execute()
 
     verifyProtoArgument(reportSchedulesMock, ReportSchedulesCoroutineImplBase::listReportSchedules)
       .isEqualTo(
         listReportSchedulesRequest {
-          filter = ListReportSchedulesRequestKt.filter {
-            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            state = ReportSchedule.State.ACTIVE
-          }
+          filter =
+            ListReportSchedulesRequestKt.filter {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              state = ReportSchedule.State.ACTIVE
+            }
           limit = BATCH_SIZE
         }
       )
 
-    verifyProtoArgument(reportScheduleIterationsMock, ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration)
+    verifyProtoArgument(
+        reportScheduleIterationsMock,
+        ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration
+      )
       .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
       .isEqualTo(
         reportScheduleIteration {
@@ -208,17 +209,26 @@ class ReportSchedulingJobTest {
         createReportRequest {
           parent = MEASUREMENT_CONSUMER_NAME
           requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
-          report = publicReportSchedule.reportTemplate.copy {
-            periodicTimeInterval = periodicTimeInterval {
-              startTime = buildReportWindowStartTimestamp(publicReportSchedule, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
-              increment = Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
-              intervalCount = 1
+          report =
+            publicReportSchedule.reportTemplate.copy {
+              periodicTimeInterval = periodicTimeInterval {
+                startTime =
+                  buildReportWindowStartTimestamp(
+                    publicReportSchedule,
+                    INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
+                  )
+                increment =
+                  Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
+                intervalCount = 1
+              }
             }
-          }
         }
       )
 
-    verifyProtoArgument(reportScheduleIterationsMock, ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState)
+    verifyProtoArgument(
+        reportScheduleIterationsMock,
+        ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState
+      )
       .isEqualTo(
         setReportScheduleIterationStateRequest {
           cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -236,45 +246,54 @@ class ReportSchedulingJobTest {
       whenever(reportSchedulesMock.listReportSchedules(any()))
         .thenReturn(
           listReportSchedulesResponse {
-            reportSchedules += INTERNAL_REPORT_SCHEDULE.copy {
-              clearLatestIteration()
-              details = INTERNAL_REPORT_SCHEDULE.details.copy {
-                eventStart = dateTime {
-                  year = 2022
-                  month = 1
-                  day = 2
-                  hours = 13
-                  timeZone = timeZone { id = "America/Los_Angeles" }
-                }
-                eventEnd = date {
-                  year = 2022
-                  month = 1
-                  day = 3
-                }
-                frequency =
-                  ReportScheduleKt.frequency {
-                    weekly = ReportScheduleKt.FrequencyKt.weekly {
-                      dayOfWeek = DayOfWeek.SATURDAY
+            reportSchedules +=
+              INTERNAL_REPORT_SCHEDULE.copy {
+                clearLatestIteration()
+                details =
+                  INTERNAL_REPORT_SCHEDULE.details.copy {
+                    eventStart = dateTime {
+                      year = 2022
+                      month = 1
+                      day = 2
+                      hours = 13
+                      timeZone = timeZone { id = "America/Los_Angeles" }
                     }
+                    eventEnd = date {
+                      year = 2022
+                      month = 1
+                      day = 3
+                    }
+                    frequency =
+                      ReportScheduleKt.frequency {
+                        weekly =
+                          ReportScheduleKt.FrequencyKt.weekly { dayOfWeek = DayOfWeek.SATURDAY }
+                      }
                   }
               }
-            }
-          })
+          }
+        )
 
       job.execute()
 
-      verifyProtoArgument(reportSchedulesMock, ReportSchedulesCoroutineImplBase::listReportSchedules)
+      verifyProtoArgument(
+          reportSchedulesMock,
+          ReportSchedulesCoroutineImplBase::listReportSchedules
+        )
         .isEqualTo(
           listReportSchedulesRequest {
-            filter = ListReportSchedulesRequestKt.filter {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-              state = ReportSchedule.State.ACTIVE
-            }
+            filter =
+              ListReportSchedulesRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                state = ReportSchedule.State.ACTIVE
+              }
             limit = BATCH_SIZE
           }
         )
 
-      verifyProtoArgument(reportScheduleIterationsMock, ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration)
+      verifyProtoArgument(
+          reportScheduleIterationsMock,
+          ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration
+        )
         .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
         .isEqualTo(
           reportScheduleIteration {
@@ -291,13 +310,22 @@ class ReportSchedulingJobTest {
           createReportRequest {
             parent = MEASUREMENT_CONSUMER_NAME
             requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
-            report = publicReportSchedule.reportTemplate.copy {
-              periodicTimeInterval = periodicTimeInterval {
-                startTime = buildReportWindowStartTimestamp(publicReportSchedule, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
-                increment = Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
-                intervalCount = 1
+            report =
+              publicReportSchedule.reportTemplate.copy {
+                periodicTimeInterval = periodicTimeInterval {
+                  startTime =
+                    buildReportWindowStartTimestamp(
+                      publicReportSchedule,
+                      INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
+                    )
+                  increment =
+                    Timestamps.between(
+                      startTime,
+                      INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
+                    )
+                  intervalCount = 1
+                }
               }
-            }
           }
         )
 
@@ -309,7 +337,10 @@ class ReportSchedulingJobTest {
           }
         )
 
-      verifyProtoArgument(reportScheduleIterationsMock, ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState)
+      verifyProtoArgument(
+          reportScheduleIterationsMock,
+          ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState
+        )
         .isEqualTo(
           setReportScheduleIterationStateRequest {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -328,30 +359,37 @@ class ReportSchedulingJobTest {
       whenever(reportSchedulesMock.listReportSchedules(any()))
         .thenReturn(
           listReportSchedulesResponse {
-            reportSchedules += INTERNAL_REPORT_SCHEDULE.copy {
-              clearLatestIteration()
-            }
-            reportSchedules += INTERNAL_REPORT_SCHEDULE.copy {
-              externalReportScheduleId = otherReportScheduleId
-              clearLatestIteration()
-            }
-          })
+            reportSchedules += INTERNAL_REPORT_SCHEDULE.copy { clearLatestIteration() }
+            reportSchedules +=
+              INTERNAL_REPORT_SCHEDULE.copy {
+                externalReportScheduleId = otherReportScheduleId
+                clearLatestIteration()
+              }
+          }
+        )
 
       job.execute()
 
-      verifyProtoArgument(reportSchedulesMock, ReportSchedulesCoroutineImplBase::listReportSchedules)
+      verifyProtoArgument(
+          reportSchedulesMock,
+          ReportSchedulesCoroutineImplBase::listReportSchedules
+        )
         .isEqualTo(
           listReportSchedulesRequest {
-            filter = ListReportSchedulesRequestKt.filter {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-              state = ReportSchedule.State.ACTIVE
-            }
+            filter =
+              ListReportSchedulesRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                state = ReportSchedule.State.ACTIVE
+              }
             limit = BATCH_SIZE
           }
         )
 
-      val createReportScheduleIterationCaptor: KArgumentCaptor<ReportScheduleIteration> = argumentCaptor()
-      verifyBlocking(reportScheduleIterationsMock, times(2)) { createReportScheduleIteration(createReportScheduleIterationCaptor.capture()) }
+      val createReportScheduleIterationCaptor: KArgumentCaptor<ReportScheduleIteration> =
+        argumentCaptor()
+      verifyBlocking(reportScheduleIterationsMock, times(2)) {
+        createReportScheduleIteration(createReportScheduleIterationCaptor.capture())
+      }
       val reportScheduleIteration = reportScheduleIteration {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         externalReportScheduleId = REPORT_SCHEDULE_ID
@@ -359,12 +397,15 @@ class ReportSchedulingJobTest {
       }
       assertThat(createReportScheduleIterationCaptor.allValues)
         .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
-        .containsExactly(reportScheduleIteration, reportScheduleIteration.copy {
-          externalReportScheduleId = otherReportScheduleId
-        })
+        .containsExactly(
+          reportScheduleIteration,
+          reportScheduleIteration.copy { externalReportScheduleId = otherReportScheduleId }
+        )
 
       val getDataProviderCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
-      verifyBlocking(dataProvidersMock, times(1)) { getDataProvider(getDataProviderCaptor.capture()) }
+      verifyBlocking(dataProvidersMock, times(1)) {
+        getDataProvider(getDataProviderCaptor.capture())
+      }
 
       val getEventGroupCaptor: KArgumentCaptor<GetEventGroupRequest> = argumentCaptor()
       verifyBlocking(eventGroupsMock, times(1)) { getEventGroup(getEventGroupCaptor.capture()) }
@@ -375,20 +416,30 @@ class ReportSchedulingJobTest {
       val createReportRequest = createReportRequest {
         parent = MEASUREMENT_CONSUMER_NAME
         requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
-        report = publicReportSchedule.reportTemplate.copy {
-          periodicTimeInterval = periodicTimeInterval {
-            startTime = buildReportWindowStartTimestamp(publicReportSchedule, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
-            increment = Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
-            intervalCount = 1
+        report =
+          publicReportSchedule.reportTemplate.copy {
+            periodicTimeInterval = periodicTimeInterval {
+              startTime =
+                buildReportWindowStartTimestamp(
+                  publicReportSchedule,
+                  INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
+                )
+              increment =
+                Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
+              intervalCount = 1
+            }
           }
-        }
       }
       assertThat(createReportCaptor.allValues)
         .ignoringFields(CreateReportRequest.REPORT_ID_FIELD_NUMBER)
         .containsExactly(createReportRequest, createReportRequest)
 
-      val setReportScheduleIterationStateCaptor: KArgumentCaptor<SetReportScheduleIterationStateRequest> = argumentCaptor()
-      verifyBlocking(reportScheduleIterationsMock, times(2)) { setReportScheduleIterationState(setReportScheduleIterationStateCaptor.capture()) }
+      val setReportScheduleIterationStateCaptor:
+        KArgumentCaptor<SetReportScheduleIterationStateRequest> =
+        argumentCaptor()
+      verifyBlocking(reportScheduleIterationsMock, times(2)) {
+        setReportScheduleIterationState(setReportScheduleIterationStateCaptor.capture())
+      }
       val setReportScheduleIterationStateRequest = setReportScheduleIterationStateRequest {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         externalReportScheduleId = REPORT_SCHEDULE_ID
@@ -397,89 +448,108 @@ class ReportSchedulingJobTest {
         state = ReportScheduleIteration.State.REPORT_CREATED
       }
       assertThat(setReportScheduleIterationStateCaptor.allValues)
-        .containsExactly(setReportScheduleIterationStateRequest, setReportScheduleIterationStateRequest.copy {
-          externalReportScheduleId = otherReportScheduleId
-        })
+        .containsExactly(
+          setReportScheduleIterationStateRequest,
+          setReportScheduleIterationStateRequest.copy {
+            externalReportScheduleId = otherReportScheduleId
+          }
+        )
     }
 
   @Test
-  fun `execute creates report for schedule if other has error`(): Unit =
-    runBlocking {
-      val otherReportScheduleId = REPORT_SCHEDULE_ID + "a"
-      whenever(reportSchedulesMock.listReportSchedules(any()))
-        .thenReturn(
-          listReportSchedulesResponse {
-            reportSchedules += INTERNAL_REPORT_SCHEDULE.copy {
-              clearLatestIteration()
-            }
-            reportSchedules += INTERNAL_REPORT_SCHEDULE.copy {
+  fun `execute creates report for schedule if other has error`(): Unit = runBlocking {
+    val otherReportScheduleId = REPORT_SCHEDULE_ID + "a"
+    whenever(reportSchedulesMock.listReportSchedules(any()))
+      .thenReturn(
+        listReportSchedulesResponse {
+          reportSchedules += INTERNAL_REPORT_SCHEDULE.copy { clearLatestIteration() }
+          reportSchedules +=
+            INTERNAL_REPORT_SCHEDULE.copy {
               externalReportScheduleId = otherReportScheduleId
               clearLatestIteration()
             }
-          })
+        }
+      )
 
-      whenever(reportsMock.createReport(any()))
-        .thenReturn(REPORT)
-        .thenThrow(Status.UNKNOWN.asRuntimeException())
+    whenever(reportsMock.createReport(any()))
+      .thenReturn(REPORT)
+      .thenThrow(Status.UNKNOWN.asRuntimeException())
 
-      job.execute()
+    job.execute()
 
-      val createReportScheduleIterationCaptor: KArgumentCaptor<ReportScheduleIteration> = argumentCaptor()
-      verifyBlocking(reportScheduleIterationsMock, times(2)) { createReportScheduleIteration(createReportScheduleIterationCaptor.capture()) }
-      val reportScheduleIteration = reportScheduleIteration {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        externalReportScheduleId = REPORT_SCHEDULE_ID
-        reportEventTime = INTERNAL_REPORT_SCHEDULE.nextReportCreationTime
-      }
-      assertThat(createReportScheduleIterationCaptor.allValues)
-        .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
-        .containsExactly(reportScheduleIteration, reportScheduleIteration.copy {
-          externalReportScheduleId = otherReportScheduleId
-        })
+    val createReportScheduleIterationCaptor: KArgumentCaptor<ReportScheduleIteration> =
+      argumentCaptor()
+    verifyBlocking(reportScheduleIterationsMock, times(2)) {
+      createReportScheduleIteration(createReportScheduleIterationCaptor.capture())
+    }
+    val reportScheduleIteration = reportScheduleIteration {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalReportScheduleId = REPORT_SCHEDULE_ID
+      reportEventTime = INTERNAL_REPORT_SCHEDULE.nextReportCreationTime
+    }
+    assertThat(createReportScheduleIterationCaptor.allValues)
+      .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
+      .containsExactly(
+        reportScheduleIteration,
+        reportScheduleIteration.copy { externalReportScheduleId = otherReportScheduleId }
+      )
 
-      val getDataProviderCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
-      verifyBlocking(dataProvidersMock, times(1)) { getDataProvider(getDataProviderCaptor.capture()) }
+    val getDataProviderCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
+    verifyBlocking(dataProvidersMock, times(1)) { getDataProvider(getDataProviderCaptor.capture()) }
 
-      val getEventGroupCaptor: KArgumentCaptor<GetEventGroupRequest> = argumentCaptor()
-      verifyBlocking(eventGroupsMock, times(1)) { getEventGroup(getEventGroupCaptor.capture()) }
+    val getEventGroupCaptor: KArgumentCaptor<GetEventGroupRequest> = argumentCaptor()
+    verifyBlocking(eventGroupsMock, times(1)) { getEventGroup(getEventGroupCaptor.capture()) }
 
-      val createReportCaptor: KArgumentCaptor<CreateReportRequest> = argumentCaptor()
-      verifyBlocking(reportsMock, times(2)) { createReport(createReportCaptor.capture()) }
-      val publicReportSchedule = INTERNAL_REPORT_SCHEDULE.toPublic()
-      val createReportRequest = createReportRequest {
-        parent = MEASUREMENT_CONSUMER_NAME
-        requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
-        report = publicReportSchedule.reportTemplate.copy {
+    val createReportCaptor: KArgumentCaptor<CreateReportRequest> = argumentCaptor()
+    verifyBlocking(reportsMock, times(2)) { createReport(createReportCaptor.capture()) }
+    val publicReportSchedule = INTERNAL_REPORT_SCHEDULE.toPublic()
+    val createReportRequest = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
+      report =
+        publicReportSchedule.reportTemplate.copy {
           periodicTimeInterval = periodicTimeInterval {
-            startTime = buildReportWindowStartTimestamp(publicReportSchedule, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
-            increment = Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
+            startTime =
+              buildReportWindowStartTimestamp(
+                publicReportSchedule,
+                INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
+              )
+            increment =
+              Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
             intervalCount = 1
           }
         }
-      }
-      assertThat(createReportCaptor.allValues)
-        .ignoringFields(CreateReportRequest.REPORT_ID_FIELD_NUMBER)
-        .containsExactly(createReportRequest, createReportRequest)
-
-      val setReportScheduleIterationStateCaptor: KArgumentCaptor<SetReportScheduleIterationStateRequest> = argumentCaptor()
-      verifyBlocking(reportScheduleIterationsMock, times(2)) { setReportScheduleIterationState(setReportScheduleIterationStateCaptor.capture()) }
-      val setReportScheduleIterationStateSuccessRequest = setReportScheduleIterationStateRequest {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        externalReportScheduleId = REPORT_SCHEDULE_ID
-        externalReportScheduleIterationId = REPORT_SCHEDULE_ITERATION_ID
-
-        state = ReportScheduleIteration.State.REPORT_CREATED
-      }
-      val setReportScheduleIterationStateFailureRequest = setReportScheduleIterationStateRequest {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        externalReportScheduleId = otherReportScheduleId
-        externalReportScheduleIterationId = REPORT_SCHEDULE_ITERATION_ID
-
-        state = ReportScheduleIteration.State.RETRYING_REPORT_CREATION
-      }
-      assertThat(setReportScheduleIterationStateCaptor.allValues)
-        .containsExactly(setReportScheduleIterationStateSuccessRequest, setReportScheduleIterationStateFailureRequest)
     }
+    assertThat(createReportCaptor.allValues)
+      .ignoringFields(CreateReportRequest.REPORT_ID_FIELD_NUMBER)
+      .containsExactly(createReportRequest, createReportRequest)
+
+    val setReportScheduleIterationStateCaptor:
+      KArgumentCaptor<SetReportScheduleIterationStateRequest> =
+      argumentCaptor()
+    verifyBlocking(reportScheduleIterationsMock, times(2)) {
+      setReportScheduleIterationState(setReportScheduleIterationStateCaptor.capture())
+    }
+    val setReportScheduleIterationStateSuccessRequest = setReportScheduleIterationStateRequest {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalReportScheduleId = REPORT_SCHEDULE_ID
+      externalReportScheduleIterationId = REPORT_SCHEDULE_ITERATION_ID
+
+      state = ReportScheduleIteration.State.REPORT_CREATED
+    }
+    val setReportScheduleIterationStateFailureRequest = setReportScheduleIterationStateRequest {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalReportScheduleId = otherReportScheduleId
+      externalReportScheduleIterationId = REPORT_SCHEDULE_ITERATION_ID
+
+      state = ReportScheduleIteration.State.RETRYING_REPORT_CREATION
+    }
+    assertThat(setReportScheduleIterationStateCaptor.allValues)
+      .containsExactly(
+        setReportScheduleIterationStateSuccessRequest,
+        setReportScheduleIterationStateFailureRequest
+      )
+  }
 
   @Test
   fun `execute creates reports for multiple schedules across 2 mcs for new iterations`(): Unit =
@@ -500,21 +570,24 @@ class ReportSchedulingJobTest {
           ReportsCoroutineStub(grpcTestServerRule.channel),
         )
 
-      whenever(reportSchedulesMock.listReportSchedules(any()))
-        .thenAnswer {
-          val request = it.arguments[0] as ListReportSchedulesRequest
-          listReportSchedulesResponse {
-            reportSchedules += INTERNAL_REPORT_SCHEDULE.copy {
+      whenever(reportSchedulesMock.listReportSchedules(any())).thenAnswer {
+        val request = it.arguments[0] as ListReportSchedulesRequest
+        listReportSchedulesResponse {
+          reportSchedules +=
+            INTERNAL_REPORT_SCHEDULE.copy {
               cmmsMeasurementConsumerId = request.filter.cmmsMeasurementConsumerId
               clearLatestIteration()
             }
-          }
         }
+      }
 
       job.execute()
 
-      val createReportScheduleIterationCaptor: KArgumentCaptor<ReportScheduleIteration> = argumentCaptor()
-      verifyBlocking(reportScheduleIterationsMock, times(2)) { createReportScheduleIteration(createReportScheduleIterationCaptor.capture()) }
+      val createReportScheduleIterationCaptor: KArgumentCaptor<ReportScheduleIteration> =
+        argumentCaptor()
+      verifyBlocking(reportScheduleIterationsMock, times(2)) {
+        createReportScheduleIteration(createReportScheduleIterationCaptor.capture())
+      }
       val reportScheduleIteration = reportScheduleIteration {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         externalReportScheduleId = REPORT_SCHEDULE_ID
@@ -522,12 +595,17 @@ class ReportSchedulingJobTest {
       }
       assertThat(createReportScheduleIterationCaptor.allValues)
         .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
-        .containsExactly(reportScheduleIteration, reportScheduleIteration.copy {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID_2
-        })
+        .containsExactly(
+          reportScheduleIteration,
+          reportScheduleIteration.copy {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID_2
+          }
+        )
 
       val getDataProviderCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
-      verifyBlocking(dataProvidersMock, times(1)) { getDataProvider(getDataProviderCaptor.capture()) }
+      verifyBlocking(dataProvidersMock, times(1)) {
+        getDataProvider(getDataProviderCaptor.capture())
+      }
 
       val getEventGroupCaptor: KArgumentCaptor<GetEventGroupRequest> = argumentCaptor()
       verifyBlocking(eventGroupsMock, times(2)) { getEventGroup(getEventGroupCaptor.capture()) }
@@ -538,31 +616,54 @@ class ReportSchedulingJobTest {
       val createReportRequest = createReportRequest {
         parent = MEASUREMENT_CONSUMER_NAME
         requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
-        report = publicReportSchedule.reportTemplate.copy {
-          periodicTimeInterval = periodicTimeInterval {
-            startTime = buildReportWindowStartTimestamp(publicReportSchedule, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
-            increment = Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
-            intervalCount = 1
+        report =
+          publicReportSchedule.reportTemplate.copy {
+            periodicTimeInterval = periodicTimeInterval {
+              startTime =
+                buildReportWindowStartTimestamp(
+                  publicReportSchedule,
+                  INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
+                )
+              increment =
+                Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
+              intervalCount = 1
+            }
           }
-        }
       }
       assertThat(createReportCaptor.allValues)
         .ignoringFields(CreateReportRequest.REPORT_ID_FIELD_NUMBER)
-        .containsExactly(createReportRequest, createReportRequest.copy {
-          parent = MEASUREMENT_CONSUMER_NAME_2
-          report = createReportRequest.report.copy {
-            reportingMetricEntries.clear()
-            reportingMetricEntries += ReportKt.reportingMetricEntry {
-              key = ReportingSetKey(CMMS_MEASUREMENT_CONSUMER_ID_2, PRIMITIVE_REPORTING_SET_ID).toName()
-              value = ReportKt.reportingMetricCalculationSpec {
-                metricCalculationSpecs += MetricCalculationSpecKey(CMMS_MEASUREMENT_CONSUMER_ID_2, METRIC_CALCULATION_SPEC_ID).toName()
+        .containsExactly(
+          createReportRequest,
+          createReportRequest.copy {
+            parent = MEASUREMENT_CONSUMER_NAME_2
+            report =
+              createReportRequest.report.copy {
+                reportingMetricEntries.clear()
+                reportingMetricEntries +=
+                  ReportKt.reportingMetricEntry {
+                    key =
+                      ReportingSetKey(CMMS_MEASUREMENT_CONSUMER_ID_2, PRIMITIVE_REPORTING_SET_ID)
+                        .toName()
+                    value =
+                      ReportKt.reportingMetricCalculationSpec {
+                        metricCalculationSpecs +=
+                          MetricCalculationSpecKey(
+                              CMMS_MEASUREMENT_CONSUMER_ID_2,
+                              METRIC_CALCULATION_SPEC_ID
+                            )
+                            .toName()
+                      }
+                  }
               }
-            }
           }
-        })
+        )
 
-      val setReportScheduleIterationStateCaptor: KArgumentCaptor<SetReportScheduleIterationStateRequest> = argumentCaptor()
-      verifyBlocking(reportScheduleIterationsMock, times(2)) { setReportScheduleIterationState(setReportScheduleIterationStateCaptor.capture()) }
+      val setReportScheduleIterationStateCaptor:
+        KArgumentCaptor<SetReportScheduleIterationStateRequest> =
+        argumentCaptor()
+      verifyBlocking(reportScheduleIterationsMock, times(2)) {
+        setReportScheduleIterationState(setReportScheduleIterationStateCaptor.capture())
+      }
       val setReportScheduleIterationStateRequest = setReportScheduleIterationStateRequest {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         externalReportScheduleId = REPORT_SCHEDULE_ID
@@ -571,45 +672,57 @@ class ReportSchedulingJobTest {
         state = ReportScheduleIteration.State.REPORT_CREATED
       }
       assertThat(setReportScheduleIterationStateCaptor.allValues)
-        .containsExactly(setReportScheduleIterationStateRequest, setReportScheduleIterationStateRequest.copy {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID_2
-        })
+        .containsExactly(
+          setReportScheduleIterationStateRequest,
+          setReportScheduleIterationStateRequest.copy {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID_2
+          }
+        )
     }
 
   @Test
   fun `execute does not create report when data not yet available for data provider`() =
     runBlocking {
-      whenever(dataProvidersMock.getDataProvider(eq(getDataProviderRequest { name = DATA_PROVIDER_NAME })))
-        .thenReturn(DATA_PROVIDER.copy {
-          dataAvailabilityInterval = interval {
-            startTime = timestamp {
-              seconds = 221845467600 // January 1, 9000 at 1 PM, America/Los_Angeles
-            }
+      whenever(
+          dataProvidersMock.getDataProvider(
+            eq(getDataProviderRequest { name = DATA_PROVIDER_NAME })
+          )
+        )
+        .thenReturn(
+          DATA_PROVIDER.copy {
+            dataAvailabilityInterval = interval {
+              startTime = timestamp {
+                seconds = 221845467600 // January 1, 9000 at 1 PM, America/Los_Angeles
+              }
 
-            endTime =
-              timestamp {
+              endTime = timestamp {
                 seconds = 221877003600 // January 1, 9001 at 1 PM, America/Los_Angeles
               }
+            }
           }
-        })
+        )
 
       whenever(eventGroupsMock.getEventGroup(eq(getEventGroupRequest { name = EVENT_GROUP_NAME })))
-        .thenReturn(EVENT_GROUP.copy {
-          dataAvailabilityInterval = interval {
-            startTime = timestamp {
-              seconds =  946760400 // January 1, 2000 at 1 PM, America/Los_Angeles
-            }
+        .thenReturn(
+          EVENT_GROUP.copy {
+            dataAvailabilityInterval = interval {
+              startTime = timestamp {
+                seconds = 946760400 // January 1, 2000 at 1 PM, America/Los_Angeles
+              }
 
-            endTime =
-              timestamp {
+              endTime = timestamp {
                 seconds = 95617659600 // January 1, 5000 at 1 PM, America/Los_Angeles
               }
+            }
           }
-        })
+        )
 
       job.execute()
 
-      verifyProtoArgument(reportScheduleIterationsMock, ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration)
+      verifyProtoArgument(
+          reportScheduleIterationsMock,
+          ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration
+        )
         .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
         .isEqualTo(
           reportScheduleIteration {
@@ -620,118 +733,125 @@ class ReportSchedulingJobTest {
         )
 
       verifyProtoArgument(dataProvidersMock, DataProvidersCoroutineImplBase::getDataProvider)
-        .isEqualTo(
-          getDataProviderRequest {
-            name = DATA_PROVIDER_NAME
-          }
-        )
+        .isEqualTo(getDataProviderRequest { name = DATA_PROVIDER_NAME })
 
       verifyProtoArgument(eventGroupsMock, EventGroupsCoroutineImplBase::getEventGroup)
-        .isEqualTo(
-          getEventGroupRequest {
-            name = EVENT_GROUP_NAME
-          }
-        )
+        .isEqualTo(getEventGroupRequest { name = EVENT_GROUP_NAME })
 
-      val setReportScheduleIterationStateCaptor: KArgumentCaptor<SetReportScheduleIterationStateRequest> = argumentCaptor()
-      verifyBlocking(reportScheduleIterationsMock, times(0)) { setReportScheduleIterationState(setReportScheduleIterationStateCaptor.capture()) }
+      val setReportScheduleIterationStateCaptor:
+        KArgumentCaptor<SetReportScheduleIterationStateRequest> =
+        argumentCaptor()
+      verifyBlocking(reportScheduleIterationsMock, times(0)) {
+        setReportScheduleIterationState(setReportScheduleIterationStateCaptor.capture())
+      }
     }
 
   @Test
-  fun `execute does not create report when data not yet available for event group`() =
-    runBlocking {
-      whenever(dataProvidersMock.getDataProvider(eq(getDataProviderRequest { name = DATA_PROVIDER_NAME })))
-        .thenReturn(DATA_PROVIDER.copy {
+  fun `execute does not create report when data not yet available for event group`() = runBlocking {
+    whenever(
+        dataProvidersMock.getDataProvider(eq(getDataProviderRequest { name = DATA_PROVIDER_NAME }))
+      )
+      .thenReturn(
+        DATA_PROVIDER.copy {
           dataAvailabilityInterval = interval {
             startTime = timestamp {
-              seconds =  946760400 // January 1, 2000 at 1 PM, America/Los_Angeles
+              seconds = 946760400 // January 1, 2000 at 1 PM, America/Los_Angeles
             }
 
-            endTime =
-              timestamp {
-                seconds = 95617659600 // January 1, 5000 at 1 PM, America/Los_Angeles
-              }
+            endTime = timestamp {
+              seconds = 95617659600 // January 1, 5000 at 1 PM, America/Los_Angeles
+            }
           }
-        })
+        }
+      )
 
-      whenever(eventGroupsMock.getEventGroup(eq(getEventGroupRequest { name = EVENT_GROUP_NAME })))
-        .thenReturn(EVENT_GROUP.copy {
+    whenever(eventGroupsMock.getEventGroup(eq(getEventGroupRequest { name = EVENT_GROUP_NAME })))
+      .thenReturn(
+        EVENT_GROUP.copy {
           dataAvailabilityInterval = interval {
             startTime = timestamp {
               seconds = 221845467600 // January 1, 9000 at 1 PM, America/Los_Angeles
             }
 
-            endTime =
-              timestamp {
-                seconds = 221877003600 // January 1, 9001 at 1 PM, America/Los_Angeles
-              }
+            endTime = timestamp {
+              seconds = 221877003600 // January 1, 9001 at 1 PM, America/Los_Angeles
+            }
           }
-        })
+        }
+      )
 
-      job.execute()
+    job.execute()
 
-      verifyProtoArgument(reportScheduleIterationsMock, ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration)
-        .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
-        .isEqualTo(
-          reportScheduleIteration {
-            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            externalReportScheduleId = REPORT_SCHEDULE_ID
-            reportEventTime = INTERNAL_REPORT_SCHEDULE.nextReportCreationTime
-          }
-        )
+    verifyProtoArgument(
+        reportScheduleIterationsMock,
+        ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration
+      )
+      .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
+      .isEqualTo(
+        reportScheduleIteration {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportScheduleId = REPORT_SCHEDULE_ID
+          reportEventTime = INTERNAL_REPORT_SCHEDULE.nextReportCreationTime
+        }
+      )
 
-      verifyProtoArgument(dataProvidersMock, DataProvidersCoroutineImplBase::getDataProvider)
-        .isEqualTo(
-          getDataProviderRequest {
-            name = DATA_PROVIDER_NAME
-          }
-        )
+    verifyProtoArgument(dataProvidersMock, DataProvidersCoroutineImplBase::getDataProvider)
+      .isEqualTo(getDataProviderRequest { name = DATA_PROVIDER_NAME })
 
-      verifyProtoArgument(eventGroupsMock, EventGroupsCoroutineImplBase::getEventGroup)
-        .isEqualTo(
-          getEventGroupRequest {
-            name = EVENT_GROUP_NAME
-          }
-        )
+    verifyProtoArgument(eventGroupsMock, EventGroupsCoroutineImplBase::getEventGroup)
+      .isEqualTo(getEventGroupRequest { name = EVENT_GROUP_NAME })
 
-      val setReportScheduleIterationStateCaptor: KArgumentCaptor<SetReportScheduleIterationStateRequest> = argumentCaptor()
-      verifyBlocking(reportScheduleIterationsMock, times(0)) { setReportScheduleIterationState(setReportScheduleIterationStateCaptor.capture()) }
+    val setReportScheduleIterationStateCaptor:
+      KArgumentCaptor<SetReportScheduleIterationStateRequest> =
+      argumentCaptor()
+    verifyBlocking(reportScheduleIterationsMock, times(0)) {
+      setReportScheduleIterationState(setReportScheduleIterationStateCaptor.capture())
     }
+  }
 
   @Test
   fun `execute does not create report when data not available for event group due to edp`() =
     runBlocking {
-      whenever(dataProvidersMock.getDataProvider(eq(getDataProviderRequest { name = DATA_PROVIDER_NAME })))
-        .thenReturn(DATA_PROVIDER.copy {
-          dataAvailabilityInterval = interval {
-            startTime = timestamp {
-              seconds =  946760400 // January 1, 2000 at 1 PM, America/Los_Angeles
-            }
-
-            endTime =
-              timestamp {
-                seconds =  1104613200 // January 1, 2005 at 1 PM, America/Los_Angeles
+      whenever(
+          dataProvidersMock.getDataProvider(
+            eq(getDataProviderRequest { name = DATA_PROVIDER_NAME })
+          )
+        )
+        .thenReturn(
+          DATA_PROVIDER.copy {
+            dataAvailabilityInterval = interval {
+              startTime = timestamp {
+                seconds = 946760400 // January 1, 2000 at 1 PM, America/Los_Angeles
               }
+
+              endTime = timestamp {
+                seconds = 1104613200 // January 1, 2005 at 1 PM, America/Los_Angeles
+              }
+            }
           }
-        })
+        )
 
       whenever(eventGroupsMock.getEventGroup(eq(getEventGroupRequest { name = EVENT_GROUP_NAME })))
-        .thenReturn(EVENT_GROUP.copy {
-          dataAvailabilityInterval = interval {
-            startTime = timestamp {
-              seconds =  946760400 // January 1, 2000 at 1 PM, America/Los_Angeles
-            }
+        .thenReturn(
+          EVENT_GROUP.copy {
+            dataAvailabilityInterval = interval {
+              startTime = timestamp {
+                seconds = 946760400 // January 1, 2000 at 1 PM, America/Los_Angeles
+              }
 
-            endTime =
-              timestamp {
+              endTime = timestamp {
                 seconds = 221877003600 // January 1, 9001 at 1 PM, America/Los_Angeles
               }
+            }
           }
-        })
+        )
 
       job.execute()
 
-      verifyProtoArgument(reportScheduleIterationsMock, ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration)
+      verifyProtoArgument(
+          reportScheduleIterationsMock,
+          ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration
+        )
         .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
         .isEqualTo(
           reportScheduleIteration {
@@ -742,97 +862,104 @@ class ReportSchedulingJobTest {
         )
 
       verifyProtoArgument(dataProvidersMock, DataProvidersCoroutineImplBase::getDataProvider)
-        .isEqualTo(
-          getDataProviderRequest {
-            name = DATA_PROVIDER_NAME
-          }
-        )
+        .isEqualTo(getDataProviderRequest { name = DATA_PROVIDER_NAME })
 
       verifyProtoArgument(eventGroupsMock, EventGroupsCoroutineImplBase::getEventGroup)
-        .isEqualTo(
-          getEventGroupRequest {
-            name = EVENT_GROUP_NAME
-          }
-        )
+        .isEqualTo(getEventGroupRequest { name = EVENT_GROUP_NAME })
 
-      val setReportScheduleIterationStateCaptor: KArgumentCaptor<SetReportScheduleIterationStateRequest> = argumentCaptor()
-      verifyBlocking(reportScheduleIterationsMock, times(0)) { setReportScheduleIterationState(setReportScheduleIterationStateCaptor.capture()) }
+      val setReportScheduleIterationStateCaptor:
+        KArgumentCaptor<SetReportScheduleIterationStateRequest> =
+        argumentCaptor()
+      verifyBlocking(reportScheduleIterationsMock, times(0)) {
+        setReportScheduleIterationState(setReportScheduleIterationStateCaptor.capture())
+      }
     }
 
   @Test
-  fun `execute does not create report when next time after event end`() =
-    runBlocking {
-      whenever(reportSchedulesMock.listReportSchedules(any()))
-        .thenReturn(
-          listReportSchedulesResponse {
-            reportSchedules += INTERNAL_REPORT_SCHEDULE.copy {
-              latestIteration = INTERNAL_REPORT_SCHEDULE_ITERATION.copy {
-                state = ReportScheduleIteration.State.WAITING_FOR_DATA_AVAILABILITY
-              }
-              details = INTERNAL_REPORT_SCHEDULE.details.copy {
-                eventStart = dateTime {
-                  year = 2022
-                  month = 1
-                  day = 2
-                  hours = 13
-                  timeZone = timeZone { id = "America/Los_Angeles" }
+  fun `execute does not create report when next time after event end`() = runBlocking {
+    whenever(reportSchedulesMock.listReportSchedules(any()))
+      .thenReturn(
+        listReportSchedulesResponse {
+          reportSchedules +=
+            INTERNAL_REPORT_SCHEDULE.copy {
+              latestIteration =
+                INTERNAL_REPORT_SCHEDULE_ITERATION.copy {
+                  state = ReportScheduleIteration.State.WAITING_FOR_DATA_AVAILABILITY
                 }
-                eventEnd = date {
-                  year = 2022
-                  month = 1
-                  day = 3
-                }
-                frequency =
-                  ReportScheduleKt.frequency {
-                    daily = ReportSchedule.Frequency.Daily.getDefaultInstance()
+              details =
+                INTERNAL_REPORT_SCHEDULE.details.copy {
+                  eventStart = dateTime {
+                    year = 2022
+                    month = 1
+                    day = 2
+                    hours = 13
+                    timeZone = timeZone { id = "America/Los_Angeles" }
                   }
-              }
+                  eventEnd = date {
+                    year = 2022
+                    month = 1
+                    day = 3
+                  }
+                  frequency =
+                    ReportScheduleKt.frequency {
+                      daily = ReportSchedule.Frequency.Daily.getDefaultInstance()
+                    }
+                }
               nextReportCreationTime = timestamp {
                 seconds = 1641330000 // January 4, 2022 at 1 PM, America/Los_Angeles
               }
             }
-          })
+        }
+      )
 
-      job.execute()
+    job.execute()
 
-      val createReportScheduleIterationCaptor: KArgumentCaptor<ReportScheduleIteration> = argumentCaptor()
-      verifyBlocking(reportScheduleIterationsMock, times(0)) { createReportScheduleIteration(createReportScheduleIterationCaptor.capture()) }
-
-      val createReportCaptor: KArgumentCaptor<CreateReportRequest> = argumentCaptor()
-      verifyBlocking(reportsMock, times(0)) { createReport(createReportCaptor.capture()) }
-
-      verifyProtoArgument(reportSchedulesMock, ReportSchedulesCoroutineImplBase::stopReportSchedule)
-        .isEqualTo(
-          stopReportScheduleRequest {
-            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            externalReportScheduleId = REPORT_SCHEDULE_ID
-          }
-        )
-
-      verifyProtoArgument(reportScheduleIterationsMock, ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState)
-        .isEqualTo(
-          setReportScheduleIterationStateRequest {
-            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            externalReportScheduleId = REPORT_SCHEDULE_ID
-            externalReportScheduleIterationId = REPORT_SCHEDULE_ITERATION_ID
-
-            state = ReportScheduleIteration.State.REPORT_CREATED
-          }
-        )
+    val createReportScheduleIterationCaptor: KArgumentCaptor<ReportScheduleIteration> =
+      argumentCaptor()
+    verifyBlocking(reportScheduleIterationsMock, times(0)) {
+      createReportScheduleIteration(createReportScheduleIterationCaptor.capture())
     }
+
+    val createReportCaptor: KArgumentCaptor<CreateReportRequest> = argumentCaptor()
+    verifyBlocking(reportsMock, times(0)) { createReport(createReportCaptor.capture()) }
+
+    verifyProtoArgument(reportSchedulesMock, ReportSchedulesCoroutineImplBase::stopReportSchedule)
+      .isEqualTo(
+        stopReportScheduleRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportScheduleId = REPORT_SCHEDULE_ID
+        }
+      )
+
+    verifyProtoArgument(
+        reportScheduleIterationsMock,
+        ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState
+      )
+      .isEqualTo(
+        setReportScheduleIterationStateRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportScheduleId = REPORT_SCHEDULE_ID
+          externalReportScheduleIterationId = REPORT_SCHEDULE_ITERATION_ID
+
+          state = ReportScheduleIteration.State.REPORT_CREATED
+        }
+      )
+  }
 
   @Test
   fun `execute sets iteration state to RETRYING_REPORT_CREATION when creation fails`() =
     runBlocking {
-      whenever(reportsMock.createReport(any()))
-        .thenThrow(Status.UNKNOWN.asRuntimeException())
+      whenever(reportsMock.createReport(any())).thenThrow(Status.UNKNOWN.asRuntimeException())
 
       job.execute()
 
       val reportsCaptor: KArgumentCaptor<CreateReportRequest> = argumentCaptor()
       verifyBlocking(reportsMock, times(1)) { createReport(reportsCaptor.capture()) }
 
-      verifyProtoArgument(reportScheduleIterationsMock, ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState)
+      verifyProtoArgument(
+          reportScheduleIterationsMock,
+          ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState
+        )
         .isEqualTo(
           setReportScheduleIterationStateRequest {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -848,18 +975,25 @@ class ReportSchedulingJobTest {
   fun `execute creates report when iteration state is WAITING_FOR_DATA_AVAILABILITY`() =
     runBlocking {
       whenever(reportSchedulesMock.listReportSchedules(any()))
-        .thenReturn(listReportSchedulesResponse {
-          reportSchedules += INTERNAL_REPORT_SCHEDULE.copy {
-            latestIteration = INTERNAL_REPORT_SCHEDULE_ITERATION.copy {
-              state = ReportScheduleIteration.State.WAITING_FOR_DATA_AVAILABILITY
-            }
+        .thenReturn(
+          listReportSchedulesResponse {
+            reportSchedules +=
+              INTERNAL_REPORT_SCHEDULE.copy {
+                latestIteration =
+                  INTERNAL_REPORT_SCHEDULE_ITERATION.copy {
+                    state = ReportScheduleIteration.State.WAITING_FOR_DATA_AVAILABILITY
+                  }
+              }
           }
-        })
+        )
 
       job.execute()
 
-      val createReportScheduleIterationCaptor: KArgumentCaptor<ReportScheduleIteration> = argumentCaptor()
-      verifyBlocking(reportScheduleIterationsMock, times(0)) { createReportScheduleIteration(createReportScheduleIterationCaptor.capture()) }
+      val createReportScheduleIterationCaptor: KArgumentCaptor<ReportScheduleIteration> =
+        argumentCaptor()
+      verifyBlocking(reportScheduleIterationsMock, times(0)) {
+        createReportScheduleIteration(createReportScheduleIterationCaptor.capture())
+      }
 
       val publicReportSchedule = INTERNAL_REPORT_SCHEDULE.toPublic()
       verifyProtoArgument(reportsMock, ReportsCoroutineImplBase::createReport)
@@ -868,17 +1002,29 @@ class ReportSchedulingJobTest {
           createReportRequest {
             parent = MEASUREMENT_CONSUMER_NAME
             requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
-            report = publicReportSchedule.reportTemplate.copy {
-              periodicTimeInterval = periodicTimeInterval {
-                startTime = buildReportWindowStartTimestamp(publicReportSchedule, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
-                increment = Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
-                intervalCount = 1
+            report =
+              publicReportSchedule.reportTemplate.copy {
+                periodicTimeInterval = periodicTimeInterval {
+                  startTime =
+                    buildReportWindowStartTimestamp(
+                      publicReportSchedule,
+                      INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
+                    )
+                  increment =
+                    Timestamps.between(
+                      startTime,
+                      INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
+                    )
+                  intervalCount = 1
+                }
               }
-            }
           }
         )
 
-      verifyProtoArgument(reportScheduleIterationsMock, ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState)
+      verifyProtoArgument(
+          reportScheduleIterationsMock,
+          ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState
+        )
         .isEqualTo(
           setReportScheduleIterationStateRequest {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -893,18 +1039,25 @@ class ReportSchedulingJobTest {
   @Test
   fun `execute creates report when iteration state is RETRYING_REPORT_CREATION`() = runBlocking {
     whenever(reportSchedulesMock.listReportSchedules(any()))
-      .thenReturn(listReportSchedulesResponse {
-        reportSchedules += INTERNAL_REPORT_SCHEDULE.copy {
-          latestIteration = INTERNAL_REPORT_SCHEDULE_ITERATION.copy {
-            state = ReportScheduleIteration.State.RETRYING_REPORT_CREATION
-          }
+      .thenReturn(
+        listReportSchedulesResponse {
+          reportSchedules +=
+            INTERNAL_REPORT_SCHEDULE.copy {
+              latestIteration =
+                INTERNAL_REPORT_SCHEDULE_ITERATION.copy {
+                  state = ReportScheduleIteration.State.RETRYING_REPORT_CREATION
+                }
+            }
         }
-      })
+      )
 
     job.execute()
 
-    val createReportScheduleIterationCaptor: KArgumentCaptor<ReportScheduleIteration> = argumentCaptor()
-    verifyBlocking(reportScheduleIterationsMock, times(0)) { createReportScheduleIteration(createReportScheduleIterationCaptor.capture()) }
+    val createReportScheduleIterationCaptor: KArgumentCaptor<ReportScheduleIteration> =
+      argumentCaptor()
+    verifyBlocking(reportScheduleIterationsMock, times(0)) {
+      createReportScheduleIteration(createReportScheduleIterationCaptor.capture())
+    }
 
     val publicReportSchedule = INTERNAL_REPORT_SCHEDULE.toPublic()
     verifyProtoArgument(reportsMock, ReportsCoroutineImplBase::createReport)
@@ -913,17 +1066,26 @@ class ReportSchedulingJobTest {
         createReportRequest {
           parent = MEASUREMENT_CONSUMER_NAME
           requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
-          report = publicReportSchedule.reportTemplate.copy {
-            periodicTimeInterval = periodicTimeInterval {
-              startTime = buildReportWindowStartTimestamp(publicReportSchedule, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
-              increment = Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
-              intervalCount = 1
+          report =
+            publicReportSchedule.reportTemplate.copy {
+              periodicTimeInterval = periodicTimeInterval {
+                startTime =
+                  buildReportWindowStartTimestamp(
+                    publicReportSchedule,
+                    INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
+                  )
+                increment =
+                  Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
+                intervalCount = 1
+              }
             }
-          }
         }
       )
 
-    verifyProtoArgument(reportScheduleIterationsMock, ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState)
+    verifyProtoArgument(
+        reportScheduleIterationsMock,
+        ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState
+      )
       .isEqualTo(
         setReportScheduleIterationStateRequest {
           cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -938,18 +1100,25 @@ class ReportSchedulingJobTest {
   @Test
   fun `execute creates report when last iteration state is REPORT_CREATED`() = runBlocking {
     whenever(reportSchedulesMock.listReportSchedules(any()))
-      .thenReturn(listReportSchedulesResponse {
-        reportSchedules += INTERNAL_REPORT_SCHEDULE.copy {
-          latestIteration = INTERNAL_REPORT_SCHEDULE_ITERATION.copy {
-            state = ReportScheduleIteration.State.REPORT_CREATED
-          }
+      .thenReturn(
+        listReportSchedulesResponse {
+          reportSchedules +=
+            INTERNAL_REPORT_SCHEDULE.copy {
+              latestIteration =
+                INTERNAL_REPORT_SCHEDULE_ITERATION.copy {
+                  state = ReportScheduleIteration.State.REPORT_CREATED
+                }
+            }
         }
-      })
+      )
 
     job.execute()
 
-    val createReportScheduleIterationCaptor: KArgumentCaptor<ReportScheduleIteration> = argumentCaptor()
-    verifyBlocking(reportScheduleIterationsMock, times(1)) { createReportScheduleIteration(createReportScheduleIterationCaptor.capture()) }
+    val createReportScheduleIterationCaptor: KArgumentCaptor<ReportScheduleIteration> =
+      argumentCaptor()
+    verifyBlocking(reportScheduleIterationsMock, times(1)) {
+      createReportScheduleIteration(createReportScheduleIterationCaptor.capture())
+    }
 
     val publicReportSchedule = INTERNAL_REPORT_SCHEDULE.toPublic()
     verifyProtoArgument(reportsMock, ReportsCoroutineImplBase::createReport)
@@ -958,17 +1127,26 @@ class ReportSchedulingJobTest {
         createReportRequest {
           parent = MEASUREMENT_CONSUMER_NAME
           requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
-          report = publicReportSchedule.reportTemplate.copy {
-            periodicTimeInterval = periodicTimeInterval {
-              startTime = buildReportWindowStartTimestamp(publicReportSchedule, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
-              increment = Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
-              intervalCount = 1
+          report =
+            publicReportSchedule.reportTemplate.copy {
+              periodicTimeInterval = periodicTimeInterval {
+                startTime =
+                  buildReportWindowStartTimestamp(
+                    publicReportSchedule,
+                    INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
+                  )
+                increment =
+                  Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
+                intervalCount = 1
+              }
             }
-          }
         }
       )
 
-    verifyProtoArgument(reportScheduleIterationsMock, ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState)
+    verifyProtoArgument(
+        reportScheduleIterationsMock,
+        ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState
+      )
       .isEqualTo(
         setReportScheduleIterationStateRequest {
           cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -1002,12 +1180,14 @@ class ReportSchedulingJobTest {
       "${MEASUREMENT_CONSUMER_NAME}/reportingSets/${COMPOSITE_REPORTING_SET_ID}"
 
     private const val REPORT_SCHEDULE_ID = "b123"
-    private const val REPORT_SCHEDULE_NAME = "${MEASUREMENT_CONSUMER_NAME}/reportSchedules/${REPORT_SCHEDULE_ID}"
+    private const val REPORT_SCHEDULE_NAME =
+      "${MEASUREMENT_CONSUMER_NAME}/reportSchedules/${REPORT_SCHEDULE_ID}"
 
     private const val REPORT_SCHEDULE_ITERATION_ID = "b1234"
 
     private const val METRIC_CALCULATION_SPEC_ID = "m123"
-    private const val METRIC_CALCULATION_SPEC_NAME = "${MEASUREMENT_CONSUMER_NAME}/metricCalculationSpecs/${METRIC_CALCULATION_SPEC_ID}"
+    private const val METRIC_CALCULATION_SPEC_NAME =
+      "${MEASUREMENT_CONSUMER_NAME}/metricCalculationSpecs/${METRIC_CALCULATION_SPEC_ID}"
 
     private const val REPORT_ID = "r123"
     private const val REPORT_NAME = "${MEASUREMENT_CONSUMER_NAME}/reports/${REPORT_ID}"
@@ -1149,17 +1329,17 @@ class ReportSchedulingJobTest {
 
     private val REPORT = report {
       name = REPORT_NAME
-      reportingMetricEntries += ReportKt.reportingMetricEntry {
-        key = COMPOSITE_REPORTING_SET_NAME
-        value = ReportKt.reportingMetricCalculationSpec {
-          metricCalculationSpecs += METRIC_CALCULATION_SPEC_NAME
+      reportingMetricEntries +=
+        ReportKt.reportingMetricEntry {
+          key = COMPOSITE_REPORTING_SET_NAME
+          value =
+            ReportKt.reportingMetricCalculationSpec {
+              metricCalculationSpecs += METRIC_CALCULATION_SPEC_NAME
+            }
         }
-      }
       state = Report.State.RUNNING
       periodicTimeInterval = periodicTimeInterval {
-        startTime = timestamp {
-          seconds = 100
-        }
+        startTime = timestamp { seconds = 100 }
         increment = Timestamps.between(startTime, timestamp { seconds = 200 })
         intervalCount = 1
       }

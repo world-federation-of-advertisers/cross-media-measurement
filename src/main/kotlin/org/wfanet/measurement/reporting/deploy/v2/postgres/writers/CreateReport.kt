@@ -302,9 +302,13 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
             """
             UPDATE ReportSchedules SET NextReportCreationTime = $1, UpdateTime = $2
             WHERE MeasurementConsumerId = $3 AND ReportScheduleId = $4
-            """.trimIndent()
+            """
+              .trimIndent()
           ) {
-            bind("$1", request.reportScheduleInfo.nextReportCreationTime.toInstant().atOffset(ZoneOffset.UTC))
+            bind(
+              "$1",
+              request.reportScheduleInfo.nextReportCreationTime.toInstant().atOffset(ZoneOffset.UTC)
+            )
             bind("$2", updateTime)
             bind("$3", measurementConsumerId)
             bind("$4", reportScheduleId)

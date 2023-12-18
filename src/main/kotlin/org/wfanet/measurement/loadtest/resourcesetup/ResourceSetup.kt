@@ -17,6 +17,8 @@ package org.wfanet.measurement.loadtest.resourcesetup
 import com.google.protobuf.ByteString
 import com.google.protobuf.TextFormat
 import com.google.protobuf.kotlin.toByteString
+import com.google.protobuf.timestamp
+import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
 import java.io.File
@@ -66,8 +68,6 @@ import org.wfanet.measurement.internal.kingdom.account as internalAccount
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
-import com.google.protobuf.timestamp
-import com.google.type.interval
 import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.kingdom.service.api.v2alpha.fillCertificateFromDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.parseCertificateDer

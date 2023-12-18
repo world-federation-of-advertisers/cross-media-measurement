@@ -102,11 +102,11 @@ class PostgresReportSchedulesService(
       listReportSchedulesResponse {
         reportSchedules +=
           if (request.filter.state == ReportSchedule.State.STATE_UNSPECIFIED) {
-            ReportScheduleReader(readContext).readReportSchedules(request)
-          } else {
-            ReportScheduleReader(readContext).readReportSchedulesByState(request)
-          }
-          .map { it.reportSchedule }
+              ReportScheduleReader(readContext).readReportSchedules(request)
+            } else {
+              ReportScheduleReader(readContext).readReportSchedulesByState(request)
+            }
+            .map { it.reportSchedule }
       }
     } finally {
       readContext.close()

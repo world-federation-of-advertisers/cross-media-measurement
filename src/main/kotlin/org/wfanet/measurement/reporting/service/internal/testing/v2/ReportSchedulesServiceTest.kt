@@ -624,13 +624,16 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
       externalReportScheduleId = "external-report-schedule-id"
     }
     val createdReportSchedule = service.createReportSchedule(request)
-    service.stopReportSchedule(stopReportScheduleRequest {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      externalReportScheduleId = createdReportSchedule.externalReportScheduleId
-    })
-    val createdReportSchedule2 = service.createReportSchedule(
-      request.copy { externalReportScheduleId = "external-report-schedule-id-2" }
+    service.stopReportSchedule(
+      stopReportScheduleRequest {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        externalReportScheduleId = createdReportSchedule.externalReportScheduleId
+      }
     )
+    val createdReportSchedule2 =
+      service.createReportSchedule(
+        request.copy { externalReportScheduleId = "external-report-schedule-id-2" }
+      )
 
     val retrievedReportSchedules =
       service

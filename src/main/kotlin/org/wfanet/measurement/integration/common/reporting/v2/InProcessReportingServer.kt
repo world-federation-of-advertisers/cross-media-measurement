@@ -47,6 +47,7 @@ import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
+import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.config.reporting.MetricSpecConfigKt
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
@@ -55,14 +56,15 @@ import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.M
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineStub as InternalMetricsCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub as InternalReportSchedulesCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpcKt.ReportScheduleIterationsCoroutineStub as InternalReportScheduleIterationsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub as InternalReportSchedulesCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.reporting.deploy.v2.common.server.InternalReportingServer
 import org.wfanet.measurement.reporting.deploy.v2.common.server.InternalReportingServer.Companion.toList
+import org.wfanet.measurement.reporting.job.ReportSchedulingJob
 import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v2alpha.DataProvidersService
@@ -71,14 +73,12 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withMetadataPrincipalIdentities
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricCalculationSpecsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricsService
-import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetsService
+import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.withReportScheduleInfoInterceptor
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportSchedulesService
+import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub as PublicMetricsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub as PublicReportsCoroutineStub
-import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
-import org.wfanet.measurement.reporting.job.ReportSchedulingJob
-import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.withReportScheduleInfoInterceptor
 
 /** TestRule that starts and stops all Reporting Server gRPC services. */
 class InProcessReportingServer(
@@ -240,18 +240,18 @@ class InProcessReportingServer(
             ReportingSetsService(internalReportingSetsClient)
               .withMetadataPrincipalIdentities(measurementConsumerConfigs),
             ReportSchedulesService(
-              internalReportSchedulesClient,
-              internalReportingSetsClient,
-              publicKingdomDataProvidersClient,
-              publicKingdomEventGroupsClient
-            )
+                internalReportSchedulesClient,
+                internalReportingSetsClient,
+                publicKingdomDataProvidersClient,
+                publicKingdomEventGroupsClient
+              )
               .withMetadataPrincipalIdentities(measurementConsumerConfigs),
             ReportsService(
-              internalReportsClient,
-              internalMetricCalculationSpecsClient,
-              PublicMetricsCoroutineStub(this@GrpcTestServerRule.channel),
-              METRIC_SPEC_CONFIG,
-            )
+                internalReportsClient,
+                internalMetricCalculationSpecsClient,
+                PublicMetricsCoroutineStub(this@GrpcTestServerRule.channel),
+                METRIC_SPEC_CONFIG,
+              )
               .withMetadataPrincipalIdentities(measurementConsumerConfigs)
               .withReportScheduleInfoInterceptor()
           )

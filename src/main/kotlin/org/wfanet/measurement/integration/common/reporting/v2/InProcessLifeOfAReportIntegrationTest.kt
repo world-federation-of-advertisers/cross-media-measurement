@@ -18,11 +18,16 @@ package org.wfanet.measurement.integration.common.reporting.v2
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.duration
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.Durations
 import com.google.protobuf.util.Timestamps
+import com.google.type.DayOfWeek
 import com.google.type.Interval
+import com.google.type.date
+import com.google.type.dateTime
 import com.google.type.interval
+import com.google.type.timeZone
 import java.io.File
 import java.nio.file.Paths
 import java.time.LocalDate
@@ -47,11 +52,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
-import com.google.protobuf.duration
-import com.google.type.DayOfWeek
-import com.google.type.date
-import com.google.type.dateTime
-import com.google.type.timeZone
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
@@ -96,10 +96,10 @@ import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportKt
 import org.wfanet.measurement.reporting.v2alpha.ReportSchedule
 import org.wfanet.measurement.reporting.v2alpha.ReportScheduleKt
+import org.wfanet.measurement.reporting.v2alpha.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
-import org.wfanet.measurement.reporting.v2alpha.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.createMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.createMetricRequest
@@ -1855,9 +1855,9 @@ abstract class InProcessLifeOfAReportIntegrationTest(
               displayName = "union"
               metricSpecs +=
                 metricSpec {
-                  reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-                  vidSamplingInterval = VID_SAMPLING_INTERVAL
-                }
+                    reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                    vidSamplingInterval = VID_SAMPLING_INTERVAL
+                  }
                   .withDefaults(reportingServer.metricSpecConfig)
             }
             metricCalculationSpecId = "fed"
@@ -1890,9 +1890,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         day = 1
       }
       frequency =
-        ReportScheduleKt.frequency {
-          daily = ReportSchedule.Frequency.Daily.getDefaultInstance()
-        }
+        ReportScheduleKt.frequency { daily = ReportSchedule.Frequency.Daily.getDefaultInstance() }
       reportWindow =
         ReportScheduleKt.reportWindow {
           trailingWindow =
@@ -1913,41 +1911,38 @@ abstract class InProcessLifeOfAReportIntegrationTest(
             reportScheduleId = "report-schedule"
           }
         )
-    assertThat(createdReportSchedule.nextReportCreationTime).isEqualTo(
-      timestamp {
-        seconds = 946760400 // Saturday, January 1, 2000, 1 PM, America/Los_Angeles
-      }
-    )
+    assertThat(createdReportSchedule.nextReportCreationTime)
+      .isEqualTo(
+        timestamp {
+          seconds = 946760400 // Saturday, January 1, 2000, 1 PM, America/Los_Angeles
+        }
+      )
 
     reportingServer.reportSchedulingJob.execute()
 
-    val retrievedReportSchedule = publicReportSchedulesClient
-      .withPrincipalName(measurementConsumerData.name)
-      .getReportSchedule(
-        getReportScheduleRequest {
-          name = createdReportSchedule.name
+    val retrievedReportSchedule =
+      publicReportSchedulesClient
+        .withPrincipalName(measurementConsumerData.name)
+        .getReportSchedule(getReportScheduleRequest { name = createdReportSchedule.name })
+    assertThat(retrievedReportSchedule.nextReportCreationTime)
+      .isEqualTo(
+        timestamp {
+          seconds = 946846800 // Sunday, January 2, 2000, 1 PM, America/Los_Angeles
         }
       )
-    assertThat(retrievedReportSchedule.nextReportCreationTime).isEqualTo(
-      timestamp {
-        seconds = 946846800 // Sunday, January 2, 2000, 1 PM, America/Los_Angeles
-      }
-    )
 
-    val retrievedReport = publicReportsClient
-      .withPrincipalName(measurementConsumerData.name)
-      .listReports(
-        listReportsRequest {
-          parent = measurementConsumerData.name
+    val retrievedReport =
+      publicReportsClient
+        .withPrincipalName(measurementConsumerData.name)
+        .listReports(listReportsRequest { parent = measurementConsumerData.name })
+        .reportsList
+        .first()
+    assertThat(retrievedReport.periodicTimeInterval.startTime)
+      .isEqualTo(
+        timestamp {
+          seconds = 946674000 // Friday, December 31, 1999, 1 PM, America/Los_Angeles
         }
       )
-      .reportsList
-      .first()
-    assertThat(retrievedReport.periodicTimeInterval.startTime).isEqualTo(
-      timestamp {
-        seconds = 946674000 // Friday, December 31, 1999, 1 PM, America/Los_Angeles
-      }
-    )
   }
 
   @Test
@@ -1983,9 +1978,9 @@ abstract class InProcessLifeOfAReportIntegrationTest(
               displayName = "union"
               metricSpecs +=
                 metricSpec {
-                  reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-                  vidSamplingInterval = VID_SAMPLING_INTERVAL
-                }
+                    reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                    vidSamplingInterval = VID_SAMPLING_INTERVAL
+                  }
                   .withDefaults(reportingServer.metricSpecConfig)
             }
             metricCalculationSpecId = "fed"
@@ -2018,9 +2013,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         day = 1
       }
       frequency =
-        ReportScheduleKt.frequency {
-          daily = ReportSchedule.Frequency.Daily.getDefaultInstance()
-        }
+        ReportScheduleKt.frequency { daily = ReportSchedule.Frequency.Daily.getDefaultInstance() }
       reportWindow =
         ReportScheduleKt.reportWindow {
           trailingWindow =
@@ -2041,41 +2034,38 @@ abstract class InProcessLifeOfAReportIntegrationTest(
             reportScheduleId = "report-schedule"
           }
         )
-    assertThat(createdReportSchedule.nextReportCreationTime).isEqualTo(
-      timestamp {
-        seconds = 946760400 // Saturday, January 1, 2000, 1 PM, America/Los_Angeles
-      }
-    )
+    assertThat(createdReportSchedule.nextReportCreationTime)
+      .isEqualTo(
+        timestamp {
+          seconds = 946760400 // Saturday, January 1, 2000, 1 PM, America/Los_Angeles
+        }
+      )
 
     reportingServer.reportSchedulingJob.execute()
 
-    val retrievedReportSchedule = publicReportSchedulesClient
-      .withPrincipalName(measurementConsumerData.name)
-      .getReportSchedule(
-        getReportScheduleRequest {
-          name = createdReportSchedule.name
+    val retrievedReportSchedule =
+      publicReportSchedulesClient
+        .withPrincipalName(measurementConsumerData.name)
+        .getReportSchedule(getReportScheduleRequest { name = createdReportSchedule.name })
+    assertThat(retrievedReportSchedule.nextReportCreationTime)
+      .isEqualTo(
+        timestamp {
+          seconds = 946846800 // Sunday, January 2, 2000, 1 PM, America/Los_Angeles
         }
       )
-    assertThat(retrievedReportSchedule.nextReportCreationTime).isEqualTo(
-      timestamp {
-        seconds = 946846800 // Sunday, January 2, 2000, 1 PM, America/Los_Angeles
-      }
-    )
 
-    val retrievedReport = publicReportsClient
-      .withPrincipalName(measurementConsumerData.name)
-      .listReports(
-        listReportsRequest {
-          parent = measurementConsumerData.name
+    val retrievedReport =
+      publicReportsClient
+        .withPrincipalName(measurementConsumerData.name)
+        .listReports(listReportsRequest { parent = measurementConsumerData.name })
+        .reportsList
+        .first()
+    assertThat(retrievedReport.periodicTimeInterval.startTime)
+      .isEqualTo(
+        timestamp {
+          seconds = 945550800 // Saturday, December 18, 1999, 1 PM, America/Los_Angeles
         }
       )
-      .reportsList
-      .first()
-    assertThat(retrievedReport.periodicTimeInterval.startTime).isEqualTo(
-      timestamp {
-        seconds = 945550800 // Saturday, December 18, 1999, 1 PM, America/Los_Angeles
-      }
-    )
   }
 
   @Test
@@ -2111,9 +2101,9 @@ abstract class InProcessLifeOfAReportIntegrationTest(
               displayName = "union"
               metricSpecs +=
                 metricSpec {
-                  reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-                  vidSamplingInterval = VID_SAMPLING_INTERVAL
-                }
+                    reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                    vidSamplingInterval = VID_SAMPLING_INTERVAL
+                  }
                   .withDefaults(reportingServer.metricSpecConfig)
             }
             metricCalculationSpecId = "fed"
@@ -2146,9 +2136,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         day = 1
       }
       frequency =
-        ReportScheduleKt.frequency {
-          daily = ReportSchedule.Frequency.Daily.getDefaultInstance()
-        }
+        ReportScheduleKt.frequency { daily = ReportSchedule.Frequency.Daily.getDefaultInstance() }
       reportWindow =
         ReportScheduleKt.reportWindow {
           trailingWindow =
@@ -2169,41 +2157,38 @@ abstract class InProcessLifeOfAReportIntegrationTest(
             reportScheduleId = "report-schedule"
           }
         )
-    assertThat(createdReportSchedule.nextReportCreationTime).isEqualTo(
-      timestamp {
-        seconds = 949352400 // Monday, January 31, 2000, 1 PM, America/Los_Angeles
-      }
-    )
+    assertThat(createdReportSchedule.nextReportCreationTime)
+      .isEqualTo(
+        timestamp {
+          seconds = 949352400 // Monday, January 31, 2000, 1 PM, America/Los_Angeles
+        }
+      )
 
     reportingServer.reportSchedulingJob.execute()
 
-    val retrievedReportSchedule = publicReportSchedulesClient
-      .withPrincipalName(measurementConsumerData.name)
-      .getReportSchedule(
-        getReportScheduleRequest {
-          name = createdReportSchedule.name
+    val retrievedReportSchedule =
+      publicReportSchedulesClient
+        .withPrincipalName(measurementConsumerData.name)
+        .getReportSchedule(getReportScheduleRequest { name = createdReportSchedule.name })
+    assertThat(retrievedReportSchedule.nextReportCreationTime)
+      .isEqualTo(
+        timestamp {
+          seconds = 949438800 // Tuesday, February 1, 2000, 1 PM, America/Los_Angeles
         }
       )
-    assertThat(retrievedReportSchedule.nextReportCreationTime).isEqualTo(
-      timestamp {
-        seconds = 949438800 // Tuesday, February 1, 2000, 1 PM, America/Los_Angeles
-      }
-    )
 
-    val retrievedReport = publicReportsClient
-      .withPrincipalName(measurementConsumerData.name)
-      .listReports(
-        listReportsRequest {
-          parent = measurementConsumerData.name
+    val retrievedReport =
+      publicReportsClient
+        .withPrincipalName(measurementConsumerData.name)
+        .listReports(listReportsRequest { parent = measurementConsumerData.name })
+        .reportsList
+        .first()
+    assertThat(retrievedReport.periodicTimeInterval.startTime)
+      .isEqualTo(
+        timestamp {
+          seconds = 943995600 // Tuesday, November 30, 1999, 1 PM, America/Los_Angeles
         }
       )
-      .reportsList
-      .first()
-    assertThat(retrievedReport.periodicTimeInterval.startTime).isEqualTo(
-      timestamp {
-        seconds = 943995600 // Tuesday, November 30, 1999, 1 PM, America/Los_Angeles
-      }
-    )
   }
 
   @Test
@@ -2240,9 +2225,9 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 displayName = "union"
                 metricSpecs +=
                   metricSpec {
-                    reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-                    vidSamplingInterval = VID_SAMPLING_INTERVAL
-                  }
+                      reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                      vidSamplingInterval = VID_SAMPLING_INTERVAL
+                    }
                     .withDefaults(reportingServer.metricSpecConfig)
               }
               metricCalculationSpecId = "fed"
@@ -2267,9 +2252,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           month = 1
           day = 1
           hours = 13
-          utcOffset = duration {
-            seconds = -28800
-          }
+          utcOffset = duration { seconds = -28800 }
         }
         eventEnd = date {
           year = 3000
@@ -2277,9 +2260,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           day = 1
         }
         frequency =
-          ReportScheduleKt.frequency {
-            daily = ReportSchedule.Frequency.Daily.getDefaultInstance()
-          }
+          ReportScheduleKt.frequency { daily = ReportSchedule.Frequency.Daily.getDefaultInstance() }
         reportWindow =
           ReportScheduleKt.reportWindow {
             trailingWindow =
@@ -2300,41 +2281,38 @@ abstract class InProcessLifeOfAReportIntegrationTest(
               reportScheduleId = "report-schedule"
             }
           )
-      assertThat(createdReportSchedule.nextReportCreationTime).isEqualTo(
-        timestamp {
-          seconds = 946760400 // Saturday, January 1, 2000, 1 PM, America/Los_Angeles
-        }
-      )
+      assertThat(createdReportSchedule.nextReportCreationTime)
+        .isEqualTo(
+          timestamp {
+            seconds = 946760400 // Saturday, January 1, 2000, 1 PM, America/Los_Angeles
+          }
+        )
 
       reportingServer.reportSchedulingJob.execute()
 
-      val retrievedReportSchedule = publicReportSchedulesClient
-        .withPrincipalName(measurementConsumerData.name)
-        .getReportSchedule(
-          getReportScheduleRequest {
-            name = createdReportSchedule.name
+      val retrievedReportSchedule =
+        publicReportSchedulesClient
+          .withPrincipalName(measurementConsumerData.name)
+          .getReportSchedule(getReportScheduleRequest { name = createdReportSchedule.name })
+      assertThat(retrievedReportSchedule.nextReportCreationTime)
+        .isEqualTo(
+          timestamp {
+            seconds = 946846800 // Sunday, January 2, 2000, 1 PM, America/Los_Angeles
           }
         )
-      assertThat(retrievedReportSchedule.nextReportCreationTime).isEqualTo(
-        timestamp {
-          seconds = 946846800 // Sunday, January 2, 2000, 1 PM, America/Los_Angeles
-        }
-      )
 
-      val retrievedReport = publicReportsClient
-        .withPrincipalName(measurementConsumerData.name)
-        .listReports(
-          listReportsRequest {
-            parent = measurementConsumerData.name
+      val retrievedReport =
+        publicReportsClient
+          .withPrincipalName(measurementConsumerData.name)
+          .listReports(listReportsRequest { parent = measurementConsumerData.name })
+          .reportsList
+          .first()
+      assertThat(retrievedReport.periodicTimeInterval.startTime)
+        .isEqualTo(
+          timestamp {
+            seconds = 946674000 // Friday, December 31, 1999, 1 PM, America/Los_Angeles
           }
         )
-        .reportsList
-        .first()
-      assertThat(retrievedReport.periodicTimeInterval.startTime).isEqualTo(
-        timestamp {
-          seconds = 946674000 // Friday, December 31, 1999, 1 PM, America/Los_Angeles
-        }
-      )
     }
 
   @Test
@@ -2370,9 +2348,9 @@ abstract class InProcessLifeOfAReportIntegrationTest(
               displayName = "union"
               metricSpecs +=
                 metricSpec {
-                  reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-                  vidSamplingInterval = VID_SAMPLING_INTERVAL
-                }
+                    reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                    vidSamplingInterval = VID_SAMPLING_INTERVAL
+                  }
                   .withDefaults(reportingServer.metricSpecConfig)
             }
             metricCalculationSpecId = "fed"
@@ -2406,9 +2384,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       }
       frequency =
         ReportScheduleKt.frequency {
-          weekly = ReportScheduleKt.FrequencyKt.weekly {
-            dayOfWeek = DayOfWeek.WEDNESDAY
-          }
+          weekly = ReportScheduleKt.FrequencyKt.weekly { dayOfWeek = DayOfWeek.WEDNESDAY }
         }
       reportWindow =
         ReportScheduleKt.reportWindow {
@@ -2430,41 +2406,38 @@ abstract class InProcessLifeOfAReportIntegrationTest(
             reportScheduleId = "report-schedule"
           }
         )
-    assertThat(createdReportSchedule.nextReportCreationTime).isEqualTo(
-      timestamp {
-        seconds = 947106000 // Wednesday, January 5, 2000, 1 PM, America/Los_Angeles
-      }
-    )
+    assertThat(createdReportSchedule.nextReportCreationTime)
+      .isEqualTo(
+        timestamp {
+          seconds = 947106000 // Wednesday, January 5, 2000, 1 PM, America/Los_Angeles
+        }
+      )
 
     reportingServer.reportSchedulingJob.execute()
 
-    val retrievedReportSchedule = publicReportSchedulesClient
-      .withPrincipalName(measurementConsumerData.name)
-      .getReportSchedule(
-        getReportScheduleRequest {
-          name = createdReportSchedule.name
+    val retrievedReportSchedule =
+      publicReportSchedulesClient
+        .withPrincipalName(measurementConsumerData.name)
+        .getReportSchedule(getReportScheduleRequest { name = createdReportSchedule.name })
+    assertThat(retrievedReportSchedule.nextReportCreationTime)
+      .isEqualTo(
+        timestamp {
+          seconds = 947710800 // Wednesday, January 12, 2000, 1 PM, America/Los_Angeles
         }
       )
-    assertThat(retrievedReportSchedule.nextReportCreationTime).isEqualTo(
-      timestamp {
-        seconds = 947710800 // Wednesday, January 12, 2000, 1 PM, America/Los_Angeles
-      }
-    )
 
-    val retrievedReport = publicReportsClient
-      .withPrincipalName(measurementConsumerData.name)
-      .listReports(
-        listReportsRequest {
-          parent = measurementConsumerData.name
+    val retrievedReport =
+      publicReportsClient
+        .withPrincipalName(measurementConsumerData.name)
+        .listReports(listReportsRequest { parent = measurementConsumerData.name })
+        .reportsList
+        .first()
+    assertThat(retrievedReport.periodicTimeInterval.startTime)
+      .isEqualTo(
+        timestamp {
+          seconds = 947019600 // Tuesday, January 4, 2000, 1 PM, America/Los_Angeles
         }
       )
-      .reportsList
-      .first()
-    assertThat(retrievedReport.periodicTimeInterval.startTime).isEqualTo(
-      timestamp {
-        seconds = 947019600 // Tuesday, January 4, 2000, 1 PM, America/Los_Angeles
-      }
-    )
   }
 
   @Test
@@ -2500,9 +2473,9 @@ abstract class InProcessLifeOfAReportIntegrationTest(
               displayName = "union"
               metricSpecs +=
                 metricSpec {
-                  reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-                  vidSamplingInterval = VID_SAMPLING_INTERVAL
-                }
+                    reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                    vidSamplingInterval = VID_SAMPLING_INTERVAL
+                  }
                   .withDefaults(reportingServer.metricSpecConfig)
             }
             metricCalculationSpecId = "fed"
@@ -2536,9 +2509,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       }
       frequency =
         ReportScheduleKt.frequency {
-          monthly = ReportScheduleKt.FrequencyKt.monthly {
-            dayOfMonth = 5
-          }
+          monthly = ReportScheduleKt.FrequencyKt.monthly { dayOfMonth = 5 }
         }
       reportWindow =
         ReportScheduleKt.reportWindow {
@@ -2560,41 +2531,38 @@ abstract class InProcessLifeOfAReportIntegrationTest(
             reportScheduleId = "report-schedule"
           }
         )
-    assertThat(createdReportSchedule.nextReportCreationTime).isEqualTo(
-      timestamp {
-        seconds = 947106000 // Wednesday, January 5, 2000, 1 PM, America/Los_Angeles
-      }
-    )
+    assertThat(createdReportSchedule.nextReportCreationTime)
+      .isEqualTo(
+        timestamp {
+          seconds = 947106000 // Wednesday, January 5, 2000, 1 PM, America/Los_Angeles
+        }
+      )
 
     reportingServer.reportSchedulingJob.execute()
 
-    val retrievedReportSchedule = publicReportSchedulesClient
-      .withPrincipalName(measurementConsumerData.name)
-      .getReportSchedule(
-        getReportScheduleRequest {
-          name = createdReportSchedule.name
+    val retrievedReportSchedule =
+      publicReportSchedulesClient
+        .withPrincipalName(measurementConsumerData.name)
+        .getReportSchedule(getReportScheduleRequest { name = createdReportSchedule.name })
+    assertThat(retrievedReportSchedule.nextReportCreationTime)
+      .isEqualTo(
+        timestamp {
+          seconds = 949784400 // Saturday, February 5, 2000, 1 PM, America/Los_Angeles
         }
       )
-    assertThat(retrievedReportSchedule.nextReportCreationTime).isEqualTo(
-      timestamp {
-        seconds = 949784400 // Saturday, February 5, 2000, 1 PM, America/Los_Angeles
-      }
-    )
 
-    val retrievedReport = publicReportsClient
-      .withPrincipalName(measurementConsumerData.name)
-      .listReports(
-        listReportsRequest {
-          parent = measurementConsumerData.name
+    val retrievedReport =
+      publicReportsClient
+        .withPrincipalName(measurementConsumerData.name)
+        .listReports(listReportsRequest { parent = measurementConsumerData.name })
+        .reportsList
+        .first()
+    assertThat(retrievedReport.periodicTimeInterval.startTime)
+      .isEqualTo(
+        timestamp {
+          seconds = 947019600 // Tuesday, January 4, 2000, 1 PM, America/Los_Angeles
         }
       )
-      .reportsList
-      .first()
-    assertThat(retrievedReport.periodicTimeInterval.startTime).isEqualTo(
-      timestamp {
-        seconds = 947019600 // Tuesday, January 4, 2000, 1 PM, America/Los_Angeles
-      }
-    )
   }
 
   private suspend fun listEventGroups(): List<EventGroup> {

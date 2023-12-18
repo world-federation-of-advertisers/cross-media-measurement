@@ -60,10 +60,11 @@ class ReportScheduleInfoServerInterceptor : ServerInterceptor {
     val gson = gsonBuilder.create()
 
     val reportScheduleInfo =
-      gson.fromJson((headers[REPORT_SCHEDULE_INFO_METADATA_KEY]
-        ?: return Contexts.interceptCall(Context.current(), call, headers, next))
-        .decodeToString(),
-                    ReportScheduleInfo::class.java
+      gson.fromJson(
+        (headers[REPORT_SCHEDULE_INFO_METADATA_KEY]
+            ?: return Contexts.interceptCall(Context.current(), call, headers, next))
+          .decodeToString(),
+        ReportScheduleInfo::class.java
       )
 
     val context = Context.current().withReportScheduleInfo(reportScheduleInfo)
@@ -72,8 +73,8 @@ class ReportScheduleInfoServerInterceptor : ServerInterceptor {
 
   companion object {
     private const val KEY_NAME = "report-schedule-info-bin"
-    private val REPORT_SCHEDULE_INFO_CONTEXT_KEY: Context.Key<ReportScheduleInfo> = Context.key(
-      KEY_NAME)
+    private val REPORT_SCHEDULE_INFO_CONTEXT_KEY: Context.Key<ReportScheduleInfo> =
+      Context.key(KEY_NAME)
     private val REPORT_SCHEDULE_INFO_METADATA_KEY: Metadata.Key<ByteArray> =
       Metadata.Key.of(KEY_NAME, Metadata.BINARY_BYTE_MARSHALLER)
 

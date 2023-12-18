@@ -16,11 +16,6 @@
 
 package org.wfanet.measurement.reporting.job
 
-import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
-import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpcKt.ReportScheduleIterationsCoroutineStub as InternalReportScheduleIterationsCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub as InternalReportSchedulesCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import com.google.protobuf.Duration
 import com.google.protobuf.Timestamp
 import com.google.protobuf.util.Timestamps
@@ -39,8 +34,10 @@ import java.util.UUID
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
@@ -50,18 +47,21 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.internal.reporting.v2.ListReportSchedulesRequestKt
 import org.wfanet.measurement.internal.reporting.v2.ListReportSchedulesResponse
+import org.wfanet.measurement.internal.reporting.v2.ReportSchedule
 import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIteration
+import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpcKt.ReportScheduleIterationsCoroutineStub as InternalReportScheduleIterationsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub as InternalReportSchedulesCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.listReportSchedulesRequest
 import org.wfanet.measurement.internal.reporting.v2.reportScheduleIteration
 import org.wfanet.measurement.internal.reporting.v2.setReportScheduleIterationStateRequest
-import org.wfanet.measurement.reporting.service.api.v2alpha.ReportSchedulesService
-import org.wfanet.measurement.reporting.service.api.v2alpha.toPublic
-import org.wfanet.measurement.internal.reporting.v2.ReportSchedule
 import org.wfanet.measurement.internal.reporting.v2.stopReportScheduleRequest
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withPrincipalName
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.withReportScheduleInfo
+import org.wfanet.measurement.reporting.service.api.v2alpha.ReportSchedulesService
+import org.wfanet.measurement.reporting.service.api.v2alpha.toPublic
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
@@ -84,25 +84,35 @@ class ReportSchedulingJob(
       // map of resource name to resource
       val eventGroupsMap: MutableMap<String, EventGroup> = mutableMapOf()
 
-      val measurementConsumerId = MeasurementConsumerKey.fromName(measurementConsumerConfig.key)!!.measurementConsumerId
-      var listReportSchedulesResponse: ListReportSchedulesResponse = ListReportSchedulesResponse.getDefaultInstance()
+      val measurementConsumerId =
+        MeasurementConsumerKey.fromName(measurementConsumerConfig.key)!!.measurementConsumerId
+      var listReportSchedulesResponse: ListReportSchedulesResponse =
+        ListReportSchedulesResponse.getDefaultInstance()
       do {
-        listReportSchedulesResponse = internalReportSchedulesStub.listReportSchedules(
-          listReportSchedulesRequest {
-            filter = ListReportSchedulesRequestKt.filter {
-              cmmsMeasurementConsumerId = measurementConsumerId
-              if (listReportSchedulesResponse.reportSchedulesList.size > 0) {
-                externalReportScheduleIdAfter = listReportSchedulesResponse.reportSchedulesList.last().externalReportScheduleId
-              }
-              state = ReportSchedule.State.ACTIVE
+        listReportSchedulesResponse =
+          internalReportSchedulesStub.listReportSchedules(
+            listReportSchedulesRequest {
+              filter =
+                ListReportSchedulesRequestKt.filter {
+                  cmmsMeasurementConsumerId = measurementConsumerId
+                  if (listReportSchedulesResponse.reportSchedulesList.size > 0) {
+                    externalReportScheduleIdAfter =
+                      listReportSchedulesResponse.reportSchedulesList
+                        .last()
+                        .externalReportScheduleId
+                  }
+                  state = ReportSchedule.State.ACTIVE
+                }
+              limit = BATCH_SIZE
             }
-            limit = BATCH_SIZE
-          }
-        )
+          )
 
         for (reportSchedule in listReportSchedulesResponse.reportSchedulesList) {
           val reportScheduleIteration =
-            if (!reportSchedule.hasLatestIteration() || reportSchedule.latestIteration.state == ReportScheduleIteration.State.REPORT_CREATED) {
+            if (
+              !reportSchedule.hasLatestIteration() ||
+                reportSchedule.latestIteration.state == ReportScheduleIteration.State.REPORT_CREATED
+            ) {
               internalReportScheduleIterationsStub.createReportScheduleIteration(
                 reportScheduleIteration {
                   cmmsMeasurementConsumerId = measurementConsumerId
@@ -126,37 +136,52 @@ class ReportSchedulingJob(
               )
 
             val eventGroupKeys: List<ReportingSet.Primitive.EventGroupKey> =
-              internalReportingSets.filter { it.hasPrimitive() }.flatMap { it.primitive.eventGroupKeysList }
+              internalReportingSets
+                .filter { it.hasPrimitive() }
+                .flatMap { it.primitive.eventGroupKeysList }
 
             val windowStart: Timestamp =
-              ReportSchedulesService.buildReportWindowStartTimestamp(publicReportSchedule, reportSchedule.nextReportCreationTime)
+              ReportSchedulesService.buildReportWindowStartTimestamp(
+                publicReportSchedule,
+                reportSchedule.nextReportCreationTime
+              )
 
-            val isDataAvailable: Boolean = isDataAvailable(
-              windowStart,
-              reportSchedule.nextReportCreationTime,
-              eventGroupKeys,
-              dataProvidersStub,
-              dataProvidersMap,
-              eventGroupsStub,
-              eventGroupsMap,
-              measurementConsumerConfig.value.apiKey
-            )
+            val isDataAvailable: Boolean =
+              isDataAvailable(
+                windowStart,
+                reportSchedule.nextReportCreationTime,
+                eventGroupKeys,
+                dataProvidersStub,
+                dataProvidersMap,
+                eventGroupsStub,
+                eventGroupsMap,
+                measurementConsumerConfig.value.apiKey
+              )
 
             if (isDataAvailable) {
               val nextReportCreationTime: Timestamp =
                 if (reportSchedule.details.eventStart.hasUtcOffset()) {
-                  val offsetDateTime = reportSchedule.nextReportCreationTime.toOffsetDateTime(reportSchedule.details.eventStart.utcOffset)
+                  val offsetDateTime =
+                    reportSchedule.nextReportCreationTime.toOffsetDateTime(
+                      reportSchedule.details.eventStart.utcOffset
+                    )
                   getNextReportCreationTime(offsetDateTime, reportSchedule.details.frequency)
                 } else {
-                  val zonedDateTime = reportSchedule.nextReportCreationTime.toZonedDateTime(reportSchedule.details.eventStart.timeZone)
+                  val zonedDateTime =
+                    reportSchedule.nextReportCreationTime.toZonedDateTime(
+                      reportSchedule.details.eventStart.timeZone
+                    )
                   getNextReportCreationTime(zonedDateTime, reportSchedule.details.frequency)
                 }
 
-              val eventEndTimestamp = publicReportSchedule.eventStart.copy {
-                day = reportSchedule.details.eventEnd.day
-                month = reportSchedule.details.eventEnd.month
-                year = reportSchedule.details.eventEnd.year
-              }.toTimestamp()
+              val eventEndTimestamp =
+                publicReportSchedule.eventStart
+                  .copy {
+                    day = reportSchedule.details.eventEnd.day
+                    month = reportSchedule.details.eventEnd.month
+                    year = reportSchedule.details.eventEnd.year
+                  }
+                  .toTimestamp()
 
               val stopReportScheduleRequest = stopReportScheduleRequest {
                 cmmsMeasurementConsumerId = measurementConsumerId
@@ -171,7 +196,9 @@ class ReportSchedulingJob(
                 state = ReportScheduleIteration.State.REPORT_CREATED
               }
 
-              if (Timestamps.compare(reportSchedule.nextReportCreationTime, eventEndTimestamp) > 0) {
+              if (
+                Timestamps.compare(reportSchedule.nextReportCreationTime, eventEndTimestamp) > 0
+              ) {
                 internalReportSchedulesStub.stopReportSchedule(stopReportScheduleRequest)
                 internalReportScheduleIterationsStub.setReportScheduleIterationState(
                   setReportScheduleIterationStateRequest
@@ -188,21 +215,26 @@ class ReportSchedulingJob(
                       nextReportCreationTime
                     )
                   )
-                  .createReport(createReportRequest {
-                  parent = measurementConsumerConfig.key
-                  requestId = reportScheduleIteration.createReportRequestId
-                  reportId = "a" + reportScheduleIteration.createReportRequestId
-                  report = publicReportSchedule.reportTemplate.copy {
-                    periodicTimeInterval = periodicTimeInterval {
-                      startTime = windowStart
-                      increment =
-                        Timestamps.between(windowStart, reportSchedule.nextReportCreationTime)
-                      intervalCount = 1
+                  .createReport(
+                    createReportRequest {
+                      parent = measurementConsumerConfig.key
+                      requestId = reportScheduleIteration.createReportRequestId
+                      reportId = "a" + reportScheduleIteration.createReportRequestId
+                      report =
+                        publicReportSchedule.reportTemplate.copy {
+                          periodicTimeInterval = periodicTimeInterval {
+                            startTime = windowStart
+                            increment =
+                              Timestamps.between(windowStart, reportSchedule.nextReportCreationTime)
+                            intervalCount = 1
+                          }
+                        }
                     }
-                  }
-                })
+                  )
               } catch (e: Exception) {
-                logger.warning("Report creation for Report Schedule ${publicReportSchedule.name} failed: ${e.cause}")
+                logger.warning(
+                  "Report creation for Report Schedule ${publicReportSchedule.name} failed: ${e.cause}"
+                )
 
                 internalReportScheduleIterationsStub.setReportScheduleIterationState(
                   setReportScheduleIterationStateRequest {
@@ -226,7 +258,9 @@ class ReportSchedulingJob(
               )
             }
           } catch (e: Exception) {
-            logger.warning("Processing failed for Report Schedule ${publicReportSchedule.name}: ${e.cause}")
+            logger.warning(
+              "Processing failed for Report Schedule ${publicReportSchedule.name}: ${e.cause}"
+            )
             continue
           }
         }
@@ -252,9 +286,9 @@ class ReportSchedulingJob(
       for (eventGroupKey in eventGroupKeys) {
         val eventGroupName =
           EventGroupKey(
-            dataProviderId = eventGroupKey.cmmsDataProviderId,
-            eventGroupId = eventGroupKey.cmmsEventGroupId
-          )
+              dataProviderId = eventGroupKey.cmmsDataProviderId,
+              eventGroupId = eventGroupKey.cmmsEventGroupId
+            )
             .toName()
         val eventGroup =
           if (eventGroupsMap.containsKey(eventGroupName)) {
@@ -267,11 +301,11 @@ class ReportSchedulingJob(
                   .getEventGroup(getEventGroupRequest { name = eventGroupName })
               } catch (e: StatusException) {
                 throw when (e.status.code) {
-                  Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-                  Status.Code.CANCELLED -> Status.CANCELLED
-                  Status.Code.NOT_FOUND -> Status.NOT_FOUND
-                  else -> Status.UNKNOWN
-                }
+                    Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+                    Status.Code.CANCELLED -> Status.CANCELLED
+                    Status.Code.NOT_FOUND -> Status.NOT_FOUND
+                    else -> Status.UNKNOWN
+                  }
                   .withCause(e)
                   .withDescription("Unable to get EventGroup with name $eventGroupName.")
                   .asRuntimeException()
@@ -292,11 +326,11 @@ class ReportSchedulingJob(
                   .getDataProvider(getDataProviderRequest { name = dataProviderName })
               } catch (e: StatusException) {
                 throw when (e.status.code) {
-                  Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-                  Status.Code.CANCELLED -> Status.CANCELLED
-                  Status.Code.NOT_FOUND -> Status.NOT_FOUND
-                  else -> Status.UNKNOWN
-                }
+                    Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+                    Status.Code.CANCELLED -> Status.CANCELLED
+                    Status.Code.NOT_FOUND -> Status.NOT_FOUND
+                    else -> Status.UNKNOWN
+                  }
                   .withCause(e)
                   .withDescription("Unable to get DataProvider with name $dataProviderName.")
                   .asRuntimeException()
@@ -307,16 +341,32 @@ class ReportSchedulingJob(
 
         // When checking data availability, the report window is compared against the event group's
         // data availability when bounded by its data provider's data availability.
-        if (Timestamps.compare(dataProvider!!.dataAvailabilityInterval.endTime, eventGroup!!.dataAvailabilityInterval.startTime) <= 0) {
+        if (
+          Timestamps.compare(
+            dataProvider!!.dataAvailabilityInterval.endTime,
+            eventGroup!!.dataAvailabilityInterval.startTime
+          ) <= 0
+        ) {
           return false
         }
 
-        if (eventGroup.dataAvailabilityInterval.hasEndTime() && Timestamps.compare(dataProvider.dataAvailabilityInterval.startTime, eventGroup.dataAvailabilityInterval.endTime) >= 0) {
+        if (
+          eventGroup.dataAvailabilityInterval.hasEndTime() &&
+            Timestamps.compare(
+              dataProvider.dataAvailabilityInterval.startTime,
+              eventGroup.dataAvailabilityInterval.endTime
+            ) >= 0
+        ) {
           return false
         }
 
         val dataAvailabilityIntervalStart =
-          if (Timestamps.compare(dataProvider.dataAvailabilityInterval.startTime, eventGroup.dataAvailabilityInterval.startTime) >= 0) {
+          if (
+            Timestamps.compare(
+              dataProvider.dataAvailabilityInterval.startTime,
+              eventGroup.dataAvailabilityInterval.startTime
+            ) >= 0
+          ) {
             dataProvider.dataAvailabilityInterval.startTime
           } else {
             eventGroup.dataAvailabilityInterval.startTime
@@ -324,7 +374,12 @@ class ReportSchedulingJob(
 
         val dataAvailabilityIntervalEnd =
           if (eventGroup.dataAvailabilityInterval.hasEndTime()) {
-            if (Timestamps.compare(dataProvider.dataAvailabilityInterval.endTime, eventGroup.dataAvailabilityInterval.endTime) < 0) {
+            if (
+              Timestamps.compare(
+                dataProvider.dataAvailabilityInterval.endTime,
+                eventGroup.dataAvailabilityInterval.endTime
+              ) < 0
+            ) {
               dataProvider.dataAvailabilityInterval.endTime
             } else {
               eventGroup.dataAvailabilityInterval.endTime
@@ -334,7 +389,7 @@ class ReportSchedulingJob(
           }
 
         if (Timestamps.compare(eventTimestamp, dataAvailabilityIntervalEnd) > 0) {
-         return false
+          return false
         }
 
         if (Timestamps.compare(windowStart, dataAvailabilityIntervalStart) < 0) {
@@ -347,13 +402,8 @@ class ReportSchedulingJob(
 
     private fun Timestamp.toOffsetDateTime(utcOffset: Duration): OffsetDateTime {
       val source = this
-      val offset =
-        ZoneOffset.ofTotalSeconds(utcOffset.seconds.toInt())
-      val localDateTime = LocalDateTime.ofEpochSecond(
-        source.seconds,
-        source.nanos,
-        offset
-      )
+      val offset = ZoneOffset.ofTotalSeconds(utcOffset.seconds.toInt())
+      val localDateTime = LocalDateTime.ofEpochSecond(source.seconds, source.nanos, offset)
 
       return OffsetDateTime.of(localDateTime, offset)
     }
@@ -365,20 +415,32 @@ class ReportSchedulingJob(
       return ZonedDateTime.ofInstant(source.toInstant(), id)
     }
 
-    private fun getNextReportCreationTime(offsetDateTime: OffsetDateTime, frequency: ReportSchedule.Frequency): Timestamp {
+    private fun getNextReportCreationTime(
+      offsetDateTime: OffsetDateTime,
+      frequency: ReportSchedule.Frequency
+    ): Timestamp {
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       return when (frequency.frequencyCase) {
         ReportSchedule.Frequency.FrequencyCase.DAILY -> {
           offsetDateTime.plusDays(1).toInstant().toProtoTime()
         }
         ReportSchedule.Frequency.FrequencyCase.WEEKLY -> {
-          offsetDateTime.with(TemporalAdjusters.next(java.time.DayOfWeek.valueOf(frequency.weekly.dayOfWeek.name))).toInstant().toProtoTime()
+          offsetDateTime
+            .with(
+              TemporalAdjusters.next(java.time.DayOfWeek.valueOf(frequency.weekly.dayOfWeek.name))
+            )
+            .toInstant()
+            .toProtoTime()
         }
         ReportSchedule.Frequency.FrequencyCase.MONTHLY -> {
-          val offsetDateTimeNextMonthEnd = offsetDateTime.plusMonths(1).with(TemporalAdjusters.lastDayOfMonth())
-          offsetDateTimeNextMonthEnd.withDayOfMonth(
-            minOf(offsetDateTimeNextMonthEnd.dayOfMonth, frequency.monthly.dayOfMonth)
-          ).toInstant().toProtoTime()
+          val offsetDateTimeNextMonthEnd =
+            offsetDateTime.plusMonths(1).with(TemporalAdjusters.lastDayOfMonth())
+          offsetDateTimeNextMonthEnd
+            .withDayOfMonth(
+              minOf(offsetDateTimeNextMonthEnd.dayOfMonth, frequency.monthly.dayOfMonth)
+            )
+            .toInstant()
+            .toProtoTime()
         }
         ReportSchedule.Frequency.FrequencyCase.FREQUENCY_NOT_SET -> {
           throw Status.FAILED_PRECONDITION.withDescription("frequency is not set")
@@ -387,20 +449,32 @@ class ReportSchedulingJob(
       }
     }
 
-    private fun getNextReportCreationTime(zonedDateTime: ZonedDateTime, frequency: ReportSchedule.Frequency): Timestamp {
+    private fun getNextReportCreationTime(
+      zonedDateTime: ZonedDateTime,
+      frequency: ReportSchedule.Frequency
+    ): Timestamp {
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       return when (frequency.frequencyCase) {
         ReportSchedule.Frequency.FrequencyCase.DAILY -> {
           zonedDateTime.plusDays(1).toInstant().toProtoTime()
         }
         ReportSchedule.Frequency.FrequencyCase.WEEKLY -> {
-          zonedDateTime.with(TemporalAdjusters.next(java.time.DayOfWeek.valueOf(frequency.weekly.dayOfWeek.name))).toInstant().toProtoTime()
+          zonedDateTime
+            .with(
+              TemporalAdjusters.next(java.time.DayOfWeek.valueOf(frequency.weekly.dayOfWeek.name))
+            )
+            .toInstant()
+            .toProtoTime()
         }
         ReportSchedule.Frequency.FrequencyCase.MONTHLY -> {
-          val zonedDateTimeNextMonthEnd = zonedDateTime.plusMonths(1).with(TemporalAdjusters.lastDayOfMonth())
-          zonedDateTimeNextMonthEnd.withDayOfMonth(
-            minOf(zonedDateTimeNextMonthEnd.dayOfMonth, frequency.monthly.dayOfMonth)
-          ).toInstant().toProtoTime()
+          val zonedDateTimeNextMonthEnd =
+            zonedDateTime.plusMonths(1).with(TemporalAdjusters.lastDayOfMonth())
+          zonedDateTimeNextMonthEnd
+            .withDayOfMonth(
+              minOf(zonedDateTimeNextMonthEnd.dayOfMonth, frequency.monthly.dayOfMonth)
+            )
+            .toInstant()
+            .toProtoTime()
         }
         ReportSchedule.Frequency.FrequencyCase.FREQUENCY_NOT_SET -> {
           throw Status.FAILED_PRECONDITION.withDescription("frequency is not set")

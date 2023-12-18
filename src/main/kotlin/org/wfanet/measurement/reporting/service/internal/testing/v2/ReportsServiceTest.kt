@@ -20,8 +20,8 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.duration
 import com.google.protobuf.timestamp
-import com.google.type.Interval
 import com.google.protobuf.util.Timestamps
+import com.google.type.Interval
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -38,9 +38,9 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
-import org.wfanet.measurement.internal.reporting.v2.CreateReportRequestKt
 import org.wfanet.measurement.internal.reporting.v2.BatchCreateMetricsResponse
 import org.wfanet.measurement.internal.reporting.v2.CreateMetricRequest
+import org.wfanet.measurement.internal.reporting.v2.CreateReportRequestKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
@@ -488,18 +488,17 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       )
     val baseReport = createReportForRequest(createdReportingSet, createdMetricCalculationSpec)
 
-    val nextReportCreationTime = timestamp {
-      seconds = 1000
-    }
+    val nextReportCreationTime = timestamp { seconds = 1000 }
     val createdReport =
       service.createReport(
         createReportRequest {
           report = baseReport
           externalReportId = "external-report-id"
-          reportScheduleInfo = CreateReportRequestKt.reportScheduleInfo {
-            externalReportScheduleId = createdReportSchedule.externalReportScheduleId
-            this.nextReportCreationTime = nextReportCreationTime
-          }
+          reportScheduleInfo =
+            CreateReportRequestKt.reportScheduleInfo {
+              externalReportScheduleId = createdReportSchedule.externalReportScheduleId
+              this.nextReportCreationTime = nextReportCreationTime
+            }
         }
       )
 
@@ -516,11 +515,17 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       }
     }
 
-    val updatedReportSchedule = reportSchedulesService.getReportSchedule(getReportScheduleRequest {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      externalReportScheduleId = createdReportSchedule.externalReportScheduleId
-    })
-    assertThat(Timestamps.compare(updatedReportSchedule.updateTime, updatedReportSchedule.createTime)).isGreaterThan(0)
+    val updatedReportSchedule =
+      reportSchedulesService.getReportSchedule(
+        getReportScheduleRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportScheduleId = createdReportSchedule.externalReportScheduleId
+        }
+      )
+    assertThat(
+        Timestamps.compare(updatedReportSchedule.updateTime, updatedReportSchedule.createTime)
+      )
+      .isGreaterThan(0)
     assertThat(updatedReportSchedule.nextReportCreationTime).isEqualTo(nextReportCreationTime)
   }
 
@@ -1072,12 +1077,11 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
           createReportRequest {
             report = baseReport
             externalReportId = "external-report-id"
-            reportScheduleInfo = CreateReportRequestKt.reportScheduleInfo {
-              externalReportScheduleId = "external-report-schedule-id"
-              nextReportCreationTime = timestamp {
-                seconds = 1000
+            reportScheduleInfo =
+              CreateReportRequestKt.reportScheduleInfo {
+                externalReportScheduleId = "external-report-schedule-id"
+                nextReportCreationTime = timestamp { seconds = 1000 }
               }
-            }
           }
         )
       }
@@ -1831,12 +1835,11 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
           this.report = report
           this.externalReportId = externalReportId
           if (reportSchedule != null) {
-            reportScheduleInfo = CreateReportRequestKt.reportScheduleInfo {
-              externalReportScheduleId = reportSchedule.externalReportScheduleId
-              nextReportCreationTime = timestamp {
-                seconds = 1000
+            reportScheduleInfo =
+              CreateReportRequestKt.reportScheduleInfo {
+                externalReportScheduleId = reportSchedule.externalReportScheduleId
+                nextReportCreationTime = timestamp { seconds = 1000 }
               }
-            }
           }
         }
       )

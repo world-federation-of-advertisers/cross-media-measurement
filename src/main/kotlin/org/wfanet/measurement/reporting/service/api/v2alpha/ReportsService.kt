@@ -33,6 +33,7 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.CreateReportRequest as InternalCreateReportRequest
+import org.wfanet.measurement.internal.reporting.v2.CreateReportRequestKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec as InternalMetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.Report as InternalReport
@@ -43,7 +44,6 @@ import org.wfanet.measurement.internal.reporting.v2.batchGetMetricCalculationSpe
 import org.wfanet.measurement.internal.reporting.v2.createReportRequest as internalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internalGetReportRequest
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
-import org.wfanet.measurement.internal.reporting.v2.CreateReportRequestKt
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withPrincipalName
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.reportScheduleInfoFromCurrentContext
@@ -656,17 +656,19 @@ class ReportsService(
       requestId = request.requestId
       externalReportId = request.reportId
 
-      val reportScheduleInfo: ReportScheduleInfoServerInterceptor.ReportScheduleInfo? = reportScheduleInfoFromCurrentContext
+      val reportScheduleInfo: ReportScheduleInfoServerInterceptor.ReportScheduleInfo? =
+        reportScheduleInfoFromCurrentContext
       if (reportScheduleInfo != null) {
         val reportScheduleKey =
           grpcRequireNotNull(ReportScheduleKey.fromName(reportScheduleInfo.name)) {
             "reportScheduleName is invalid"
           }
 
-        this.reportScheduleInfo = CreateReportRequestKt.reportScheduleInfo {
-          externalReportScheduleId = reportScheduleKey.reportScheduleId
-          nextReportCreationTime = reportScheduleInfo.nextReportCreationTime
-        }
+        this.reportScheduleInfo =
+          CreateReportRequestKt.reportScheduleInfo {
+            externalReportScheduleId = reportScheduleKey.reportScheduleId
+            nextReportCreationTime = reportScheduleInfo.nextReportCreationTime
+          }
       }
     }
   }
