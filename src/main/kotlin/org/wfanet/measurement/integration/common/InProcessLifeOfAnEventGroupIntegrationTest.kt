@@ -25,6 +25,7 @@ import org.junit.Test
 import org.junit.rules.TestRule
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub as PublicAccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt.ApiKeysCoroutineStub as PublicApiKeysCoroutineStub
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as PublicEventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as PublicMeasurementConsumersCoroutineStub
@@ -33,6 +34,7 @@ import org.wfanet.measurement.api.v2alpha.deleteEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
+import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
@@ -99,7 +101,10 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
     mcResourceName = measurementConsumer.name
     // Create EDP Resource
     edpDisplayName = ALL_EDP_DISPLAY_NAMES[0]
-    edpResourceName = resourceSetup.createInternalDataProvider(createEntityContent(edpDisplayName))
+    val internalDataProvider =
+      resourceSetup.createInternalDataProvider(createEntityContent(edpDisplayName))
+    val dataProviderId = externalIdToApiId(internalDataProvider.externalDataProviderId)
+    edpResourceName = DataProviderKey(dataProviderId).toName()
   }
 
   @Test

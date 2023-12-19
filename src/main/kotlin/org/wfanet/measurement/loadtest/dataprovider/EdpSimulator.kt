@@ -42,6 +42,7 @@ import org.wfanet.anysketch.crypto.elGamalPublicKey as anySketchElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt.variance
+import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DeterministicCountDistinct
 import org.wfanet.measurement.api.v2alpha.DeterministicDistribution
@@ -82,6 +83,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedMessage
+import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
@@ -106,12 +108,12 @@ import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificate
-import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.consent.client.common.NonceMismatchException
 import org.wfanet.measurement.consent.client.common.PublicKeyMismatchException
+import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
@@ -143,10 +145,12 @@ data class EdpData(
   val name: String,
   /** The EDP's display name. */
   val displayName: String,
-  /** The EDP's consent signaling encryption key. */
-  val encryptionKey: PrivateKeyHandle,
+  /** The EDP's decryption key. */
+  val privateEncryptionKey: PrivateKeyHandle,
   /** The EDP's consent signaling signing key. */
-  val signingKey: SigningKeyHandle
+  val signingKeyHandle: SigningKeyHandle,
+  /** The CertificateKey to use for result signing. */
+  val certificateKey: DataProviderCertificateKey
 )
 
 /** A simulator handling EDP businesses. */
@@ -167,6 +171,7 @@ class EdpSimulator(
   private val random: Random = Random,
   private val compositionMechanism: CompositionMechanism,
 ) {
+
   /** A sequence of operations done in the simulator. */
   suspend fun run() {
     throttler.loopOnReady { executeRequisitionFulfillingWorkflow() }
@@ -369,9 +374,13 @@ class EdpSimulator(
 
     val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
 
+    val publicKey = requisition.dataProviderPublicKey.unpack(EncryptionPublicKey::class.java)!!
+    check(publicKey == edpData.privateEncryptionKey.publicKey.toEncryptionPublicKey()) {
+      "Unable to decrypt for this public key"
+    }
     val signedRequisitionSpec: SignedMessage =
       try {
-        decryptRequisitionSpec(requisition.encryptedRequisitionSpec, edpData.encryptionKey)
+        decryptRequisitionSpec(requisition.encryptedRequisitionSpec, edpData.privateEncryptionKey)
       } catch (e: GeneralSecurityException) {
         throw InvalidConsentSignalException("RequisitionSpec decryption failed", e)
       }
@@ -1505,16 +1514,12 @@ class EdpSimulator(
     nonce: Long,
     measurementResult: Measurement.Result
   ) {
-    // Verify that the signing key we have matches the one from the Requisition. A real EDP would
-    // look up the matching signing key, but the simulator is only configured with one.
-    val certificate = getCertificate(requisition.dataProviderCertificate)
-    if (certificate.subjectKeyIdentifier != edpData.signingKey.certificate.subjectKeyIdentifier) {
-      throw RequisitionRefusalException(
-        Requisition.Refusal.Justification.UNFULFILLABLE,
-        "Private key not found for ${certificate.name}"
-      )
-    }
-
+    val requisitionCertificateKey =
+      DataProviderCertificateKey.fromName(requisition.dataProviderCertificate)
+        ?: throw RequisitionRefusalException(
+          Requisition.Refusal.Justification.UNFULFILLABLE,
+          "Invalid data provider certificate"
+        )
     val measurementEncryptionPublicKey: EncryptionPublicKey =
       if (measurementSpec.hasMeasurementPublicKey()) {
         measurementSpec.measurementPublicKey.unpack()
@@ -1522,7 +1527,7 @@ class EdpSimulator(
         @Suppress("DEPRECATION") // Handle legacy resources.
         EncryptionPublicKey.parseFrom(measurementSpec.serializedMeasurementPublicKey)
       }
-    val signedResult: SignedMessage = signResult(measurementResult, edpData.signingKey)
+    val signedResult: SignedMessage = signResult(measurementResult, edpData.signingKeyHandle)
     val encryptedResult: EncryptedMessage =
       encryptResult(signedResult, measurementEncryptionPublicKey)
 
@@ -1532,6 +1537,7 @@ class EdpSimulator(
           name = requisition.name
           this.encryptedResult = encryptedResult
           this.nonce = nonce
+          this.certificate = edpData.certificateKey.toName()
         }
       )
     } catch (e: StatusException) {

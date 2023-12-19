@@ -33,6 +33,7 @@ message Resources {
     message DataProvider {
       bytes authority_key_identifier = 1;
       string display_name = 2;
+      string certificate = 3;
     }
     message DuchyCertificate {
       string duchy_id = 1;

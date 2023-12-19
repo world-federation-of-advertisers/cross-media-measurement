@@ -15,4 +15,6 @@
 export type InitApiProps = {
   // eslint-disable-next-line node/no-unsupported-features/node-builtins
   endpoint: URL;
+  // TODO(@bdomen-ggl): Look into multi-MC support later.
+  measurementConsumer: string;
 };

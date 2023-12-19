@@ -83,6 +83,8 @@ message FulfillRequisitionRequest {
     // measurement.
     bytes encrypted_data = 2;
     string api_version = 3;
+    // Certificate that should be used to verify the encrypted `SignedData`.
+    fixed64 external_certificate_id = 4;
   }
 
   oneof params {

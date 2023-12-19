@@ -1,11 +1,15 @@
 load(
-    "@io_bazel_rules_docker//container:container.bzl",
-    "container_bundle",
+    "@wfa_common_jvm//build/rules_oci:defs.bzl",
     "container_push",
+    "container_push_all",
 )
-load("@io_bazel_rules_docker//contrib:push-all.bzl", "docker_push")
 load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
-load("//src/main/docker/panel_exchange_client:images.bzl", "AWS_IMAGES", "GCLOUD_IMAGES", "LOCAL_IMAGES")
+load(
+    "//src/main/docker/panel_exchange_client:images.bzl",
+    "AWS_IMAGES",
+    "GCLOUD_IMAGES",
+    "LOCAL_IMAGES",
+)
 
 package(
     default_testonly = True,  #TODO: delete when InMemoryKeyStore and FakeHybridCipher are not used.
@@ -22,29 +26,21 @@ ALL_IMAGES = GCLOUD_IMAGES + AWS_IMAGES + LOCAL_IMAGES
 [
     container_push(
         name = "push_" + image_spec.name,
-        format = "Docker",
         image = image_spec.image,
         registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
         repository = image_spec.repository,
+        tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
         tags = ["manual"],
     )
     for image_spec in ALL_IMAGES
 ]
 
-container_bundle(
-    name = "all_images",
+container_push_all(
+    name = "push_all_images",
     images = {"{registry}/{name}:{tag}".format(
         name = image_spec.repository,
         registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
         tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
     ): image_spec.image for image_spec in ALL_IMAGES},
-    tags = ["manual"],
-    visibility = ["//visibility:private"],
-)
-
-docker_push(
-    name = "push_all_images",
-    bundle = ":all_images",
-    sequential = True,
     tags = ["manual"],
 )

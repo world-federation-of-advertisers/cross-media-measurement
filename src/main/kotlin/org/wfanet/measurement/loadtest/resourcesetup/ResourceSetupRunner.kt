@@ -75,14 +75,14 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
         displayName = it.key,
         signingKey = loadSigningKey(it.value, flags.edpCsKeyDerFiles.getValue(it.key)),
         encryptionPublicKey =
-          loadPublicKey(flags.edpEncryptionPublicKeysets.getValue(it.key)).toEncryptionPublicKey()
+          loadPublicKey(flags.edpEncryptionPublicKeysets.getValue(it.key)).toEncryptionPublicKey(),
       )
     }
   val measurementConsumerContent =
     EntityContent(
       displayName = "mc_001",
       signingKey = loadSigningKey(flags.mcCsCertDerFile, flags.mcCsKeyDerFile),
-      encryptionPublicKey = loadPublicKey(flags.mcEncryptionPublicKeyset).toEncryptionPublicKey()
+      encryptionPublicKey = loadPublicKey(flags.mcEncryptionPublicKeyset).toEncryptionPublicKey(),
     )
   val duchyCerts =
     flags.duchyCsCertDerFiles.map {

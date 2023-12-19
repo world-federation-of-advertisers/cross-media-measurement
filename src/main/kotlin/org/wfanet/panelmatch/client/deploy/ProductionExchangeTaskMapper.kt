@@ -294,8 +294,8 @@ open class ProductionExchangeTaskMapper(
     val copyOptions = step.copyToSharedStorageStep.copyOptions
     val destination =
       sharedStorageSelector.getSigningStorage(workflow.exchangeIdentifiers.storage, this)
-    val sourceLabel = step.inputLabelsMap.keys.single()
-    val sourceBlobKey = step.inputLabelsMap.values.single()
+    val sourceLabel = step.inputLabelsMap.keys.single { it != "certificate-resource-name" }
+    val sourceBlobKey = step.inputLabelsMap.getValue(sourceLabel)
     val destinationBlobKey = step.outputLabelsMap.values.single()
 
     return when (copyOptions.labelType) {
