@@ -1,7 +1,6 @@
 load("@wfa_common_jvm//build/rules_kotlin:defs.bzl", "kt_jvm_library")
 
 package(default_visibility = [
-    "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:__pkg__",
     "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/job:__pkg__",
     "//src/test/kotlin/org/wfanet/measurement/reporting/job:__pkg__",
 ])

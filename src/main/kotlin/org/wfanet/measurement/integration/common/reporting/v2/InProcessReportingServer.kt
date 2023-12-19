@@ -47,7 +47,6 @@ import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
-import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.config.reporting.MetricSpecConfigKt
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
@@ -56,15 +55,12 @@ import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.M
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineStub as InternalMetricsCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpcKt.ReportScheduleIterationsCoroutineStub as InternalReportScheduleIterationsCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub as InternalReportSchedulesCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.reporting.deploy.v2.common.server.InternalReportingServer
 import org.wfanet.measurement.reporting.deploy.v2.common.server.InternalReportingServer.Companion.toList
-import org.wfanet.measurement.reporting.job.ReportSchedulingJob
 import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v2alpha.DataProvidersService
@@ -73,12 +69,9 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withMetadataPrincipalIdentities
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricCalculationSpecsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricsService
-import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.withReportScheduleInfoInterceptor
-import org.wfanet.measurement.reporting.service.api.v2alpha.ReportSchedulesService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub as PublicMetricsCoroutineStub
-import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub as PublicReportsCoroutineStub
 
 /** TestRule that starts and stops all Reporting Server gRPC services. */
 class InProcessReportingServer(
@@ -123,12 +116,6 @@ class InProcessReportingServer(
   private val internalReportingSetsClient by lazy {
     InternalReportingSetsCoroutineStub(internalApiChannel)
   }
-  private val internalReportSchedulesClient by lazy {
-    InternalReportSchedulesCoroutineStub(internalApiChannel)
-  }
-  private val internalReportScheduleIterationsClient by lazy {
-    InternalReportScheduleIterationsCoroutineStub(internalApiChannel)
-  }
   private val internalReportsClient by lazy { InternalReportsCoroutineStub(internalApiChannel) }
 
   private val internalReportingServer =
@@ -141,7 +128,6 @@ class InProcessReportingServer(
 
   private lateinit var publicApiServer: GrpcTestServerRule
 
-  private lateinit var measurementConsumerConfigs: MeasurementConsumerConfigs
   lateinit var metricSpecConfig: MetricSpecConfig
 
   private fun createPublicApiTestServerRule(): GrpcTestServerRule =
@@ -174,7 +160,7 @@ class InProcessReportingServer(
               )!!
               .measurementConsumerId
           )
-        measurementConsumerConfigs = measurementConsumerConfigs {
+        val measurementConsumerConfigs = measurementConsumerConfigs {
           configs[measurementConsumerName.toName()] = measurementConsumerConfig
         }
 
@@ -239,13 +225,6 @@ class InProcessReportingServer(
               .withMetadataPrincipalIdentities(measurementConsumerConfigs),
             ReportingSetsService(internalReportingSetsClient)
               .withMetadataPrincipalIdentities(measurementConsumerConfigs),
-            ReportSchedulesService(
-                internalReportSchedulesClient,
-                internalReportingSetsClient,
-                publicKingdomDataProvidersClient,
-                publicKingdomEventGroupsClient
-              )
-              .withMetadataPrincipalIdentities(measurementConsumerConfigs),
             ReportsService(
                 internalReportsClient,
                 internalMetricCalculationSpecsClient,
@@ -253,7 +232,6 @@ class InProcessReportingServer(
                 METRIC_SPEC_CONFIG,
               )
               .withMetadataPrincipalIdentities(measurementConsumerConfigs)
-              .withReportScheduleInfoInterceptor()
           )
           .forEach { addService(it.withVerboseLogging(verboseGrpcLogging)) }
       }
@@ -262,18 +240,6 @@ class InProcessReportingServer(
   /** Provides a gRPC channel to the Reporting Server's public API. */
   val publicApiChannel: Channel
     get() = publicApiServer.channel
-
-  val reportSchedulingJob: ReportSchedulingJob
-    get() =
-      ReportSchedulingJob(
-        measurementConsumerConfigs,
-        publicKingdomDataProvidersClient,
-        publicKingdomEventGroupsClient,
-        internalReportingSetsClient,
-        internalReportScheduleIterationsClient,
-        internalReportSchedulesClient,
-        PublicReportsCoroutineStub(publicApiServer.channel)
-      )
 
   override fun apply(statement: Statement, description: Description): Statement {
     publicApiServer = createPublicApiTestServerRule()
