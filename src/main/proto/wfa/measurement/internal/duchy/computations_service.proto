@@ -86,6 +86,10 @@ service Computations {
   // Records the blob path where the data of a requisition is stored.
   rpc RecordRequisitionBlobPath(RecordRequisitionBlobPathRequest)
       returns (RecordRequisitionBlobPathResponse);
+
+  // Record the seed of a requisition.
+  rpc RecordRequisitionSeed(RecordRequisitionSeedRequest)
+      returns (RecordRequisitionSeedResponse);
 }
 
 // Request to create a new computation.
@@ -304,6 +308,21 @@ message RecordRequisitionBlobPathRequest {
   string blob_path = 3;
 }
 message RecordRequisitionBlobPathResponse {
+  // The computationToken of the parent computation after updating.
+  ComputationToken token = 1;
+}
+
+// Request to record the seed of a requisition.
+message RecordRequisitionSeedRequest {
+  // Token for the computation to update. Required.
+  ComputationToken token = 1;
+  // The public API resource key of the requisition to update. Required.
+  ExternalRequisitionKey key = 2;
+  // The seed in the requisition
+  bytes seed = 3;
+}
+// Response to record the seed of a requisition.
+message RecordRequisitionSeedResponse {
   // The computationToken of the parent computation after updating.
   ComputationToken token = 1;
 }

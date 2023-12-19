@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.duchy.db.computation.testing
 
+import com.google.protobuf.ByteString
 import io.grpc.Status
 import java.time.Duration
 import java.time.Instant
@@ -327,6 +328,21 @@ private constructor(
         error("Requisition not found: ${externalRequisitionKey.toJson()}")
       }
       requisitions[requisitionIndex] = requisitions[requisitionIndex].copy { path = pathToBlob }
+    }
+  }
+
+  override suspend fun writeRequisitionSeed(
+    token: ComputationEditToken<ComputationType, ComputationStage>,
+    externalRequisitionKey: ExternalRequisitionKey,
+    seed: ByteString
+  ) {
+    @Suppress("CANDIDATE_CHOSEN_USING_OVERLOAD_RESOLUTION_BY_LAMBDA_ANNOTATION")
+    updateToken(token) {
+      val requisitionIndex = requisitions.indexOfFirst { it.externalKey == externalRequisitionKey }
+      if (requisitionIndex < 0) {
+        error("Requisition not found: ${externalRequisitionKey.toJson()}")
+      }
+      requisitions[requisitionIndex] = requisitions[requisitionIndex].copy { this.seed = seed }
     }
   }
 

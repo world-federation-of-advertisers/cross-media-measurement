@@ -19,6 +19,7 @@ import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Struct
+import com.google.protobuf.ByteString
 import com.google.protobuf.Message
 import java.time.Clock
 import java.time.Duration
@@ -652,12 +653,15 @@ class GcpSpannerComputationsDatabaseTransactor<
     }
   }
 
-  override suspend fun writeRequisitionBlobPath(
+  private suspend fun writeRequisitionData(
     token: ComputationEditToken<ProtocolT, StageT>,
     externalRequisitionKey: ExternalRequisitionKey,
-    pathToBlob: String
+    pathToBlob: String? = null,
+    seed: ByteString? = null
   ) {
-    require(pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $externalRequisitionKey" }
+    require((pathToBlob != null && seed == null) || (pathToBlob == null && seed != null)) {
+      "There must be only one of seed or pathToBlob non-null."
+    }
     databaseClient.readWriteTransaction().execute { txn ->
       val row =
         txn.readRowUsingIndex(
@@ -674,6 +678,7 @@ class GcpSpannerComputationsDatabaseTransactor<
       require(localComputationId == token.localId) {
         "The token doesn't match the computation owns the requisition."
       }
+
       txn.buffer(
         listOf(
           computationMutations.updateComputation(
@@ -685,11 +690,30 @@ class GcpSpannerComputationsDatabaseTransactor<
             requisitionId = requisitionId,
             externalRequisitionId = externalRequisitionKey.externalRequisitionId,
             requisitionFingerprint = externalRequisitionKey.requisitionFingerprint,
-            pathToBlob = pathToBlob
+            pathToBlob = pathToBlob,
+            randomSeed = seed
           )
         )
       )
     }
+  }
+
+  override suspend fun writeRequisitionBlobPath(
+    token: ComputationEditToken<ProtocolT, StageT>,
+    externalRequisitionKey: ExternalRequisitionKey,
+    pathToBlob: String
+  ) {
+    require(pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $externalRequisitionKey" }
+    writeRequisitionData(token, externalRequisitionKey, pathToBlob = pathToBlob)
+  }
+
+  override suspend fun writeRequisitionSeed(
+    token: ComputationEditToken<ProtocolT, StageT>,
+    externalRequisitionKey: ExternalRequisitionKey,
+    seed: ByteString
+  ) {
+    require(!seed.isEmpty) { "Cannot insert empty seed. $externalRequisitionKey" }
+    writeRequisitionData(token, externalRequisitionKey, seed = seed)
   }
 
   override suspend fun insertComputationStat(

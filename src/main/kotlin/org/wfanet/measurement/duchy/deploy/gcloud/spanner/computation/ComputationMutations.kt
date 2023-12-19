@@ -420,6 +420,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     externalRequisitionId: String,
     requisitionFingerprint: ByteString,
     pathToBlob: String? = null,
+    randomSeed: ByteString? = null,
     requisitionDetails: RequisitionDetails? = null
   ): Mutation {
     return newBuilderFunction("Requisitions")
@@ -429,6 +430,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
         set("ExternalRequisitionId" to externalRequisitionId)
         set("RequisitionFingerprint" to requisitionFingerprint.toGcloudByteArray())
         pathToBlob?.let { set("PathToBlob" to nonNullValueString(it)) }
+        randomSeed?.let { set("RandomSeed" to it.toGcloudByteArray()) }
         requisitionDetails?.let {
           set("RequisitionDetails" to it)
           setJson("RequisitionDetailsJSON" to it)
@@ -449,6 +451,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     externalRequisitionId: String,
     requisitionFingerprint: ByteString,
     pathToBlob: String? = null,
+    randomSeed: ByteString? = null,
     requisitionDetails: RequisitionDetails = RequisitionDetails.getDefaultInstance()
   ): Mutation {
     return requisition(
@@ -458,6 +461,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
       externalRequisitionId,
       requisitionFingerprint,
       pathToBlob,
+      randomSeed,
       requisitionDetails
     )
   }
@@ -465,8 +469,8 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
   /**
    * Creates an update to the Requisitions spanner table.
    *
-   * Fields required for the write are non-nullable. Any param set to null will be excluded from the
-   * update mutation. Writing null values to the column is not supported
+   * Fields required for the writer are non-nullable. Any param set to null will be excluded from
+   * the update mutation. Writing null values to the column is not supported
    */
   fun updateRequisition(
     localComputationId: Long,
@@ -474,6 +478,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     externalRequisitionId: String,
     requisitionFingerprint: ByteString,
     pathToBlob: String? = null,
+    randomSeed: ByteString? = null,
     requisitionDetails: RequisitionDetails? = null
   ): Mutation {
     return requisition(
@@ -483,6 +488,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
       externalRequisitionId,
       requisitionFingerprint,
       pathToBlob,
+      randomSeed,
       requisitionDetails
     )
   }

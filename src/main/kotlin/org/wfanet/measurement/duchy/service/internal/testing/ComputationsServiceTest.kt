@@ -66,6 +66,7 @@ import org.wfanet.measurement.internal.duchy.protocol.copy
 import org.wfanet.measurement.internal.duchy.purgeComputationsRequest
 import org.wfanet.measurement.internal.duchy.recordOutputBlobPathRequest
 import org.wfanet.measurement.internal.duchy.recordRequisitionBlobPathRequest
+import org.wfanet.measurement.internal.duchy.recordRequisitionSeedRequest
 import org.wfanet.measurement.internal.duchy.requisitionDetails
 import org.wfanet.measurement.internal.duchy.requisitionEntry
 import org.wfanet.measurement.internal.duchy.requisitionMetadata
@@ -1052,4 +1053,66 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
 
     assertThat(exception.message).contains("found")
   }
+
+  @Test
+  fun `recordRequisitionSeed returns updated token`() = runBlocking {
+    val createComputationResponse = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+
+    val seed = "a seed in bytes".toByteStringUtf8()
+    val recordRequisitionSeedRequest = recordRequisitionSeedRequest {
+      token = createComputationResponse.token
+      key = DEFAULT_REQUISITION_ENTRY.key
+      this.seed = seed
+    }
+    val recordRequisitionSeedResponse = service.recordRequisitionSeed(recordRequisitionSeedRequest)
+
+    val expectedToken =
+      createComputationResponse.token.copy {
+        requisitions[0] = requisitions[0].copy { this.seed = seed }
+      }
+    assertThat(recordRequisitionSeedResponse.token)
+      .ignoringFields(ComputationToken.VERSION_FIELD_NUMBER)
+      .isEqualTo(expectedToken)
+  }
+
+  @Test
+  fun `recordRequisitionSeed throws IllegalArgumentException when seed is empty`(): Unit =
+    runBlocking {
+      val createComputationResponse = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+
+      val seed = "".toByteStringUtf8()
+      val recordRequisitionSeedRequest = recordRequisitionSeedRequest {
+        token = createComputationResponse.token
+        key = DEFAULT_REQUISITION_ENTRY.key
+        this.seed = seed
+      }
+      val exception =
+        assertFailsWith<IllegalArgumentException> {
+          service.recordRequisitionSeed(recordRequisitionSeedRequest)
+        }
+
+      assertThat(exception.message).contains("empty seed")
+    }
+
+  @Test
+  fun `recordRequisitionSeed throws IllegalStateException when requisition does not exist`(): Unit =
+    runBlocking {
+      val createComputationResponse = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+
+      val seed = "a seed in bytes".toByteStringUtf8()
+      val recordRequisitionSeedRequest = recordRequisitionSeedRequest {
+        token = createComputationResponse.token
+        key = externalRequisitionKey {
+          externalRequisitionId = "dne_external_requsition_id"
+          requisitionFingerprint = "dne_finger_print".toByteStringUtf8()
+        }
+        this.seed = seed
+      }
+      val exception =
+        assertFailsWith<IllegalStateException> {
+          service.recordRequisitionSeed(recordRequisitionSeedRequest)
+        }
+
+      assertThat(exception.message).contains("found")
+    }
 }
