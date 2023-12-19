@@ -19,6 +19,7 @@ package wfa.measurement.reporting.bff.v1alpha;
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
+import "google/type/interval.proto";
 
 option java_package = "org.wfanet.measurement.reporting.bff.v1alpha";
 option java_multiple_files = true;
@@ -57,16 +58,6 @@ message Report {
   // Metrics of the report that directly contains the time interval and
   // demographics; metrics are nested under demographics.
   message DemographicMetricsByTimeInterval {
-    // Mostly copied from
-    // https://github.com/googleapis/googleapis/blob/master/google/type/interval.proto
-    // TODO(@bdomen-ggl): Remove when we get the GRPC Gateway protos working by
-    // updating the bazel packages.
-    message Interval {
-      google.protobuf.Timestamp start_time = 1;
-
-      google.protobuf.Timestamp end_time = 2;
-    }
-
     // Metrics of the report that directly contain the demographic category and
     // sources of the metrics; metrics are nested under the sources.
     message DemoBucket {
@@ -119,7 +110,7 @@ message Report {
     }
 
     // The time period for which this metric was calculated.
-    Interval time_interval = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+    google.type.Interval time_interval = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
 
     // The demographic of this metric. The actual metric values are
     // nested underneath.
