@@ -51,6 +51,52 @@ items:
             - secret:
                 secretName: signing-bbgt26tb62
               name: reporting-v2alpha-public-api-server-files
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: reporting-bff-gateway-v1alpha-public-api-server-deployment
+      labels:
+        app.kubernetes.io/name: reporting-bff-gateway-v1alpha-public-api-server-deployment
+        app.kubernetes.io/component: reporting-bff-gateway
+        app: reporting-bff-gateway-v1alpha-public-api-server-app
+        app.kubernetes.io/part-of: halo-cmms
+      annotations:
+        system: reporting-bff-gateway
+    spec:
+      selector:
+        matchLabels:
+          app: reporting-bff-gateway-v1alpha-public-api-server-app
+      template:
+        metadata:
+          labels:
+            app: reporting-bff-gateway-v1alpha-public-api-server-app
+        spec:
+          restartPolicy: Always
+          serviceAccountName: reporting-bff-gateway-server
+          containers:
+            - args:
+                - --tls-cert-file=/var/run/secrets/files/mc_tls.pem
+                - --tls-key-file=/var/run/secrets/files/mc_tls.key
+                - --port=8080
+              resources:
+                limits:
+                  memory: 256Mi
+                requests:
+                  cpu: 25m
+                  memory: 256Mi
+              name: reporting-gateway-v1alpha-public-api-server-container
+              image: gcr.io/halo-cmm-dev/reporting-bff-gateway/v1/v1alpha-public-api:build-0001
+              imagePullPolicy: Always
+              ports:
+                - containerPort: 8080
+              volumeMounts:
+                - name: reporting-gateway-v1alpha-public-api-server-files
+                  mountPath: /var/run/secrets/files
+                  readOnly: true
+          volumes:
+            - secret:
+                secretName: signing-bbgt26tb62
+              name: reporting-gateway-v1alpha-public-api-server-files
   - apiVersion: v1
     kind: Service
     metadata:
@@ -71,6 +117,26 @@ items:
           name: grpc-port
       type: LoadBalancer
       loadBalancerIP: 34.121.171.2
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: reporting-bff-gateway-server
+      labels:
+        app.kubernetes.io/name: reporting-bff-gateway-server
+        app.kubernetes.io/component: reporting-bff-gateway
+        app.kubernetes.io/part-of: halo-cmms
+      annotations:
+        system: reporting-bff-gateway
+        cloud.google.com/app-protocols: '{"rest-port": "HTTP2"}'
+        kubernetes.io/ingress.allow-http: "true"
+    spec:
+      selector:
+        app: reporting-bff-gateway-v1alpha-public-api-server-app
+      ports:
+        - port: 8080
+          name: rest-port
+      type: LoadBalancer
+      # loadBalancerIP: 34.121.171.2
   - apiVersion: networking.k8s.io/v1
     kind: NetworkPolicy
     metadata:
