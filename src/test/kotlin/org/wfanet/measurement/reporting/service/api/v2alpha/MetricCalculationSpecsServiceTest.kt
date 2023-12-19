@@ -1001,8 +1001,8 @@ class MetricCalculationSpecsServiceTest {
           width = REACH_ONLY_VID_SAMPLING_WIDTH
         }
 
-      frequencyHistogramParams =
-        MetricSpecConfigKt.frequencyHistogramParams {
+      reachAndFrequencyParams =
+        MetricSpecConfigKt.reachAndFrequencyParams {
           reachPrivacyParams =
             MetricSpecConfigKt.differentialPrivacyParams {
               epsilon = REACH_FREQUENCY_REACH_EPSILON
@@ -1015,7 +1015,7 @@ class MetricCalculationSpecsServiceTest {
             }
           maximumFrequency = REACH_FREQUENCY_MAXIMUM_FREQUENCY
         }
-      frequencyHistogramVidSamplingInterval =
+      reachAndFrequencyVidSamplingInterval =
         MetricSpecConfigKt.vidSamplingInterval {
           start = REACH_FREQUENCY_VID_SAMPLING_START
           width = REACH_FREQUENCY_VID_SAMPLING_WIDTH

@@ -115,7 +115,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     val worker2Cert: String,
     val measurementConsumer: String,
     val apiKey: String,
-    val dataProviders: Map<String, String>
+    val dataProviders: Map<String, Resources.Resource>
   ) {
     companion object {
       fun from(resources: Iterable<Resources.Resource>): ResourceInfo {
@@ -124,7 +124,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         var worker2Cert: String? = null
         var measurementConsumer: String? = null
         var apiKey: String? = null
-        val dataProviders = mutableMapOf<String, String>()
+        val dataProviders = mutableMapOf<String, Resources.Resource>()
 
         for (resource in resources) {
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields cannot be null.
@@ -135,7 +135,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
             }
             Resources.Resource.ResourceCase.DATA_PROVIDER -> {
               val displayName = resource.dataProvider.displayName
-              require(dataProviders.putIfAbsent(displayName, resource.name) == null) {
+              require(dataProviders.putIfAbsent(displayName, resource) == null) {
                 "Entry already exists for DataProvider $displayName"
               }
             }
@@ -314,8 +314,11 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
               .replace("{mc_name}", resourceInfo.measurementConsumer)
               .let {
                 var config = it
-                for ((displayName, resourceName) in resourceInfo.dataProviders) {
-                  config = config.replace("{${displayName}_name}", resourceName)
+                for ((displayName, resource) in resourceInfo.dataProviders) {
+                  config =
+                    config
+                      .replace("{${displayName}_name}", resource.name)
+                      .replace("{${displayName}_cert_name}", resource.dataProvider.certificate)
                 }
                 config
               }
@@ -462,7 +465,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     private val LOCAL_K8S_PATH = Paths.get("src", "main", "k8s", "local")
     private val LOCAL_K8S_TESTING_PATH = LOCAL_K8S_PATH.resolve("testing")
     private val CONFIG_FILES_PATH = LOCAL_K8S_TESTING_PATH.resolve("config_files")
-    private val IMAGE_PUSHER_PATH = Paths.get("src", "main", "docker", "push_all_local_images")
+    private val IMAGE_PUSHER_PATH = Paths.get("src", "main", "docker", "push_all_local_images.bash")
 
     private val tempDir = TemporaryFolder()
 

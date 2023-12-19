@@ -39,7 +39,7 @@ import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.RequisitionDetails
-import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
+import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 import org.wfanet.measurement.internal.duchy.externalRequisitionKey
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 
@@ -50,17 +50,13 @@ class GcpSpannerComputationsDatabaseReaderTest :
   companion object {
     val DETAILS_WHEN_NON_AGGREGATOR: ComputationDetails =
       ComputationDetails.newBuilder()
-        .apply {
-          liquidLegionsV2Builder.apply {
-            role = LiquidLegionsV2SetupConfig.RoleInComputation.NON_AGGREGATOR
-          }
-        }
+        .apply { liquidLegionsV2Builder.apply { role = RoleInComputation.NON_AGGREGATOR } }
         .build()
     val DETAILS_WHEN_AGGREGATOR: ComputationDetails =
       ComputationDetails.newBuilder()
         .apply {
           liquidLegionsV2Builder.apply {
-            role = LiquidLegionsV2SetupConfig.RoleInComputation.AGGREGATOR
+            role = RoleInComputation.AGGREGATOR
             addParticipantBuilder().apply { duchyId = "non_aggregator_1" }
             addParticipantBuilder().apply { duchyId = "non_aggregator_2" }
             addParticipantBuilder().apply { duchyId = "aggregator" }
@@ -302,7 +298,6 @@ class GcpSpannerComputationsDatabaseReaderTest :
           }
           addRequisitionsBuilder().apply {
             externalKey = requisition3Key
-            path = ""
             details = RequisitionDetails.getDefaultInstance()
           }
         }

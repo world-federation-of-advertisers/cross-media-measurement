@@ -35,6 +35,7 @@ import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt.ApiKeysCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Certificate
+import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
@@ -58,12 +59,14 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionP
 import org.wfanet.measurement.internal.kingdom.Account as InternalAccount
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
+import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
 import org.wfanet.measurement.internal.kingdom.DataProviderKt as InternalDataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.account as internalAccount
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
+import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.kingdom.service.api.v2alpha.fillCertificateFromDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.parseCertificateDer
 import org.wfanet.measurement.loadtest.common.ConsoleOutput
@@ -141,15 +144,21 @@ class ResourceSetup(
 
     // Step 2: Create the EDPs.
     dataProviderContents.forEach {
-      val dataProviderName = createInternalDataProvider(it)
-      logger.info("Successfully created data provider: $dataProviderName")
+      val internalDataProvider: InternalDataProvider = createInternalDataProvider(it)
+      val dataProviderId: String = externalIdToApiId(internalDataProvider.externalDataProviderId)
+      val dataProviderResourceName: String = DataProviderKey(dataProviderId).toName()
+      val certificateId: String =
+        externalIdToApiId(internalDataProvider.certificate.externalCertificateId)
+      val dataProviderCertificateKeyName: String =
+        DataProviderCertificateKey(dataProviderId, certificateId).toName()
+      logger.info("Successfully created internal data provider: $dataProviderResourceName")
       resources.add(
         resource {
-          name = dataProviderName
+          name = dataProviderResourceName
           dataProvider =
             ResourcesKt.ResourceKt.dataProvider {
               displayName = it.displayName
-
+              certificate = dataProviderCertificateKeyName
               // Assume signing cert uses same issuer as TLS client cert.
               authorityKeyIdentifier =
                 checkNotNull(it.signingKey.certificate.authorityKeyIdentifier)
@@ -213,6 +222,9 @@ class ResourceSetup(
           Resources.Resource.ResourceCase.DATA_PROVIDER -> {
             val displayName = resource.dataProvider.displayName
             writer.appendLine("build:$configName --define=${displayName}_name=${resource.name}")
+            writer.appendLine(
+              "build:$configName --define=${displayName}_cert_name=${resource.dataProvider.certificate}"
+            )
           }
           Resources.Resource.ResourceCase.MEASUREMENT_CONSUMER -> {
             with(resource) {
@@ -236,30 +248,28 @@ class ResourceSetup(
   }
 
   /** Create an internal dataProvider, and return its corresponding public API resource name. */
-  suspend fun createInternalDataProvider(dataProviderContent: EntityContent): String {
+  suspend fun createInternalDataProvider(dataProviderContent: EntityContent): InternalDataProvider {
     val encryptionPublicKey = dataProviderContent.encryptionPublicKey
     val signedPublicKey =
       signEncryptionPublicKey(encryptionPublicKey, dataProviderContent.signingKey)
-    val internalDataProvider =
-      try {
-        internalDataProvidersClient.createDataProvider(
-          internalDataProvider {
-            certificate =
-              parseCertificateDer(dataProviderContent.signingKey.certificate.encoded.toByteString())
-            details =
-              InternalDataProviderKt.details {
-                apiVersion = API_VERSION.string
-                publicKey = signedPublicKey.message.value
-                publicKeySignature = signedPublicKey.signature
-                publicKeySignatureAlgorithmOid = signedPublicKey.signatureAlgorithmOid
-              }
-            requiredExternalDuchyIds += requiredDuchies
-          }
-        )
-      } catch (e: StatusException) {
-        throw Exception("Error creating DataProvider", e)
-      }
-    return DataProviderKey(externalIdToApiId(internalDataProvider.externalDataProviderId)).toName()
+    return try {
+      internalDataProvidersClient.createDataProvider(
+        internalDataProvider {
+          certificate =
+            parseCertificateDer(dataProviderContent.signingKey.certificate.encoded.toByteString())
+          details =
+            InternalDataProviderKt.details {
+              apiVersion = API_VERSION.string
+              publicKey = signedPublicKey.message.value
+              publicKeySignature = signedPublicKey.signature
+              publicKeySignatureAlgorithmOid = signedPublicKey.signatureAlgorithmOid
+            }
+          requiredExternalDuchyIds += requiredDuchies
+        }
+      )
+    } catch (e: StatusException) {
+      throw Exception("Error creating DataProvider", e)
+    }
   }
 
   suspend fun createAccountWithRetries(): InternalAccount {
@@ -417,12 +427,12 @@ data class EntityContent(
   /** The consent signaling encryption key. */
   val encryptionPublicKey: EncryptionPublicKey,
   /** The consent signaling signing key. */
-  val signingKey: SigningKeyHandle
+  val signingKey: SigningKeyHandle,
 )
 
 data class DuchyCert(
   /** The external duchy Id. */
   val duchyId: String,
   /** The consent signaling certificate in DER format. */
-  val consentSignalCertificateDer: ByteString
+  val consentSignalCertificateDer: ByteString,
 )

@@ -34,6 +34,7 @@
 #include "wfa/measurement/common/crypto/encryption_utility_helper.h"
 #include "wfa/measurement/common/crypto/protocol_cryptor.h"
 #include "wfa/measurement/common/string_block_sorter.h"
+#include "wfa/measurement/internal/duchy/noise_mechanism.pb.h"
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/multithreading_helper.h"
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/noise_parameters_computation.h"
 
@@ -73,7 +74,7 @@ using ::wfa::measurement::common::crypto::MultiplyEcPointPairByScalar;
 using ::wfa::measurement::common::crypto::ProtocolCryptor;
 using ::wfa::measurement::common::crypto::ProtocolCryptorOptions;
 using ::wfa::measurement::internal::duchy::ElGamalPublicKey;
-using ::wfa::measurement::internal::duchy::protocol::LiquidLegionsV2NoiseConfig;
+using ::wfa::measurement::internal::duchy::NoiseMechanism;
 
 // Blinds the last layer of ElGamal Encryption of register indexes, and return
 // the deterministically encrypted results.
@@ -619,8 +620,7 @@ absl::Status ValidateFrequencyNoiseParameters(
 absl::Status AddAllFrequencyNoise(
     MultithreadingHelper& helper, int curve_id,
     const FlagCountTupleNoiseGenerationParameters& noise_parameters,
-    const LiquidLegionsV2NoiseConfig::NoiseMechanism& noise_mechanism,
-    std::string& data) {
+    const NoiseMechanism& noise_mechanism, std::string& data) {
   RETURN_IF_ERROR(ValidateFrequencyNoiseParameters(noise_parameters));
 
   auto noiser = GetFrequencyNoiser(noise_parameters.dp_params(),
