@@ -24,6 +24,8 @@ import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.M
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineImplBase
+import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpcKt.ReportScheduleIterationsCoroutineImplBase
+import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineImplBase
 import picocli.CommandLine
@@ -35,6 +37,8 @@ abstract class InternalReportingServer : Runnable {
     val metricsService: MetricsCoroutineImplBase,
     val reportingSetsService: ReportingSetsCoroutineImplBase,
     val reportsService: ReportsCoroutineImplBase,
+    val reportSchedulesService: ReportSchedulesCoroutineImplBase,
+    val reportScheduleIterationsService: ReportScheduleIterationsCoroutineImplBase,
     val metricCalculationSpecsService: MetricCalculationSpecsCoroutineImplBase,
   )
 
