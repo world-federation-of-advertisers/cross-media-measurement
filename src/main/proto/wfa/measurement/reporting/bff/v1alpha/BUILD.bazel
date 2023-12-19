@@ -39,7 +39,7 @@ go_grpc_gateway_proto_library(
     name = "report_go_proto",
     importpath = GO_IMPORT_PATH,
     protos = [":report_proto"],
-    deps = ["@org_golang_google_genproto//googleapis/type/interval"]
+    deps = ["@org_golang_google_genproto//googleapis/type/interval"],
 )
 
 go_grpc_gateway_proto_library(
@@ -49,7 +49,7 @@ go_grpc_gateway_proto_library(
     ],
     importpath = GO_IMPORT_PATH,
     protos = [":reports_service_proto"],
-    deps = ["@org_golang_google_genproto//googleapis/type/interval"]
+    deps = ["@org_golang_google_genproto//googleapis/type/interval"],
 )
 
 kt_jvm_grpc_proto_library(
