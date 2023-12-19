@@ -28,7 +28,7 @@ items:
                 - --reporting-api-target=v2alpha.reporting.dev.halo-cmm.org:8443
                 - --tls-cert-file=/var/run/secrets/files/mc_tls.pem
                 - --tls-key-file=/var/run/secrets/files/mc_tls.key
-                - --cert-collection-file=/var/run/secrets/files/reporting_root.pem
+                - --cert-collection-file=/var/run/secrets/files/all_root_certs.pem
                 - --require-client-auth=false
                 - --reporting-api-certHost=localhost
                 - --health-port=8000
@@ -49,7 +49,7 @@ items:
                   readOnly: true
           volumes:
             - secret:
-                secretName: signing-bbgt26tb62
+                secretName: signing-h98g2ddfgf
               name: reporting-v2alpha-public-api-server-files
   - apiVersion: apps/v1
     kind: Deployment
@@ -75,8 +75,9 @@ items:
           serviceAccountName: reporting-bff-gateway-server
           containers:
             - args:
-                - --tls-cert-file=/var/run/secrets/files/mc_tls.pem
-                - --tls-key-file=/var/run/secrets/files/mc_tls.key
+                - --tls_cert=/var/run/secrets/files/mc_tls.pem
+                - --tls_key=/var/run/secrets/files/mc_tls.key
+                - --endpoint=34.121.171.2:8443
                 - --port=8080
               resources:
                 limits:
@@ -95,7 +96,7 @@ items:
                   readOnly: true
           volumes:
             - secret:
-                secretName: signing-bbgt26tb62
+                secretName: signing-h98g2ddfgf
               name: reporting-gateway-v1alpha-public-api-server-files
   - apiVersion: v1
     kind: Service
@@ -151,9 +152,34 @@ items:
         - Ingress
         - Egress
       ingress:
+        - from:
+            - podSelector:
+                matchLabels:
+                  app: reporting-bff-gateway-v1alpha-public-api-server-app
+          ports: []
         - from: []
           ports:
             - port: 8443
       egress:
         - to: []
           ports: []
+  # - apiVersion: networking.k8s.io/v1
+  #   kind: NetworkPolicy
+  #   metadata:
+  #     name: reporting-bff-gateway-v1alpha-public-api-server-network-policy
+  #     labels:
+  #       app.kubernetes.io/part-of: halo-cmms
+  #   spec:
+  #     podSelector:
+  #       matchLabels:
+  #         app: reporting-bff-gateway-v1alpha-public-api-server-app
+  #     policyTypes:
+  #       - Ingress
+  #       - Egress
+  #     ingress:
+  #       - from: []
+  #         ports:
+  #           - port: 8080
+  #     egress:
+  #       - to: []
+  #         ports: []
