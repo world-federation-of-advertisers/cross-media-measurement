@@ -24,9 +24,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.client.exchangetasks.testing.executeToByteStrings
 
-private val JOIN_KEYS: List<JoinKey> =
-  (1..10).map { joinKey { key = "join-key-$it".toByteStringUtf8() } }
-
 @RunWith(JUnit4::class)
 class AssignJoinKeyIdsTaskTest {
   private fun runAssignIds(
@@ -60,5 +57,10 @@ class AssignJoinKeyIdsTaskTest {
   @Test
   fun missingInputs() {
     assertFailsWith<IllegalArgumentException> { runAssignIds(joinKeys = emptyList()) }
+  }
+
+  companion object {
+    private val JOIN_KEYS: List<JoinKey> =
+      (1..10).map { joinKey { key = "join-key-$it".toByteStringUtf8() } }
   }
 }

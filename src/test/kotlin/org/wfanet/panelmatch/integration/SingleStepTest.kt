@@ -145,7 +145,6 @@ class SingleStepTest(
         "prepare-event-lookup-queries",
         "preprocess-events",
         "assign-join-key-ids",
-        "single-blind",
       )
 
     @JvmStatic
