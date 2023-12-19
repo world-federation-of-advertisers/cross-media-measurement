@@ -110,7 +110,8 @@ message Report {
     }
 
     // The time period for which this metric was calculated.
-    google.type.Interval time_interval = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+    google.type.Interval time_interval = 1
+        [(google.api.field_behavior) = OUTPUT_ONLY];
 
     // The demographic of this metric. The actual metric values are
     // nested underneath.
