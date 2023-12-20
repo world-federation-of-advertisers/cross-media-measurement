@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.duchy.db.computation
 
+import com.google.protobuf.ByteString
 import java.time.Duration
 import java.time.Instant
 import org.wfanet.measurement.internal.duchy.ComputationDetails
@@ -197,6 +198,13 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
     token: ComputationEditToken<ProtocolT, StageT>,
     externalRequisitionKey: ExternalRequisitionKey,
     pathToBlob: String
+  )
+
+  /** Writes the seed of a requisition fulfillment. */
+  suspend fun writeRequisitionSeed(
+    token: ComputationEditToken<ProtocolT, StageT>,
+    externalRequisitionKey: ExternalRequisitionKey,
+    seed: ByteString
   )
 
   /** Inserts the specified [ComputationStatMetric] into the database. */
