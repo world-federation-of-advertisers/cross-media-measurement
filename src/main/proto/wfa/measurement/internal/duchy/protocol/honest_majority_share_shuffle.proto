@@ -28,6 +28,8 @@ message HonestMajorityShareShuffle {
   //
   // For non-aggregators, the normal stage transition is:
   // INITIALIZED -> SETUP_PHASE -> WAIT_ON_INPUT -> SHUFFLE_PHASE -> COMPLETE
+  // The WAIT_ON_INPUT stage will be skipped if all the input (requisition data
+  // and peer worker input) has been received before end of SETUP_PHASE.
   //
   // For the aggregator, the normal stage transition is:
   // WAIT_ON_INPUT -> AGGREGATION_PHASE -> COMPLETE
@@ -46,7 +48,7 @@ message HonestMajorityShareShuffle {
     SETUP_PHASE = 2;
 
     // Non-aggregators wait for input of seeds from the peer as well as
-    // requisition from EDPs.
+    // requisition data from EDPs.
     //
     // The aggregator waits for input of combined shares from
     // non-aggregators. It is the initial stage for the aggregator.

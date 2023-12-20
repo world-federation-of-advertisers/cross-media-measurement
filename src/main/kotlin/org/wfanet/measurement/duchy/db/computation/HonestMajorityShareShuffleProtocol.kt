@@ -58,8 +58,7 @@ object HonestMajorityShareShuffleProtocol {
       mapOf(
           INITIALIZED to setOf(SETUP_PHASE),
           // A Non-aggregator will skip WAIT_ON_INPUT into SHUFFLE_PHASE if the requisition data
-          // from EDPs and seed
-          // from the peer worker has been received.
+          // from EDPs and seed from the peer worker has been received.
           SETUP_PHASE to
             setOf(
               WAIT_ON_INPUT,
