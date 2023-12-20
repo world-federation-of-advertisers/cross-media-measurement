@@ -77,32 +77,22 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         ExternalId(requests.first().measurement.externalMeasurementConsumerId)
       )
 
-    val measurements = mutableListOf<Measurement>()
-    for (createMeasurementRequest in requests) {
-      if (createMeasurementRequest.requestId.isNotEmpty()) {
-        val existingMeasurement =
-          findExistingMeasurement(createMeasurementRequest, measurementConsumerId)
-        if (existingMeasurement != null) {
-          measurements.add(existingMeasurement)
-          continue
-        }
-      }
-
-      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields are never null.
-      val measurement =
-        when (createMeasurementRequest.measurement.details.protocolConfig.protocolCase) {
+    return requests.map {
+      findExistingMeasurement(it, measurementConsumerId)
+        ?: @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields are never null.
+        when (it.measurement.details.protocolConfig.protocolCase) {
           ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2,
-          ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
-            createComputedMeasurement(createMeasurementRequest, measurementConsumerId)
+          ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2
+          -> {
+            createComputedMeasurement(it, measurementConsumerId)
           }
+
           ProtocolConfig.ProtocolCase.DIRECT ->
-            createDirectMeasurement(createMeasurementRequest, measurementConsumerId)
+            createDirectMeasurement(it, measurementConsumerId)
+
           ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Protocol is not set.")
         }
-      measurements.add(measurement)
     }
-
-    return measurements
   }
 
   private suspend fun TransactionScope.createComputedMeasurement(
