@@ -55,6 +55,7 @@ import org.wfanet.measurement.internal.duchy.deleteComputationRequest
 import org.wfanet.measurement.internal.duchy.externalRequisitionKey
 import org.wfanet.measurement.internal.duchy.getComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
+import org.wfanet.measurement.internal.duchy.recordRequisitionSeedRequest
 import org.wfanet.measurement.internal.duchy.requisitionEntry
 import org.wfanet.measurement.internal.duchy.requisitionMetadata
 import org.wfanet.measurement.internal.duchy.updateComputationDetailsRequest
@@ -473,7 +474,7 @@ class ComputationsServiceTest {
   }
 
   @Test
-  fun `record requisition blob path`() = runBlocking {
+  fun `RecordRequisitionBlobPath records blob path`() = runBlocking {
     val id = "1234"
     val requisitionKey = externalRequisitionKey {
       externalRequisitionId = "1234"
@@ -511,6 +512,42 @@ class ComputationsServiceTest {
           }
           .build()
           .toRecordRequisitionBlobPathResponse()
+      )
+  }
+
+  @Test
+  fun `recordRequisitionSeed records seed`() = runBlocking {
+    val id = "1234"
+    val requisitionKey = externalRequisitionKey {
+      externalRequisitionId = "1234"
+      requisitionFingerprint = "A requisition fingerprint".toByteStringUtf8()
+    }
+    fakeDatabase.addComputation(
+      globalId = id,
+      stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
+      computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
+      requisitions = listOf(requisitionMetadata { externalKey = requisitionKey })
+    )
+
+    val tokenAtStart = service.getComputationToken(id.toGetTokenRequest()).token
+
+    val seed = "a seed in bytes.".toByteStringUtf8()
+    val request = recordRequisitionSeedRequest {
+      token = tokenAtStart
+      key = requisitionKey
+      this.seed = seed
+    }
+
+    assertThat(service.recordRequisitionSeed(request).token)
+      .isEqualTo(
+        tokenAtStart.copy {
+          version = 1
+          requisitions.clear()
+          requisitions += requisitionMetadata {
+            externalKey = requisitionKey
+            this.seed = seed
+          }
+        }
       )
   }
 

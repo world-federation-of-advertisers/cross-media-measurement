@@ -14,10 +14,12 @@
 
 package org.wfanet.measurement.duchy.service.api.v2alpha
 
+import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
@@ -27,6 +29,7 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.common.consumeFirst
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.consent.client.duchy.Requisition as ConsentSignalingRequisition
@@ -42,6 +45,7 @@ import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathRequest
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.externalRequisitionKey
 import org.wfanet.measurement.internal.duchy.getComputationTokenRequest
+import org.wfanet.measurement.internal.duchy.recordRequisitionSeedRequest
 import org.wfanet.measurement.system.v1alpha.RequisitionKey as SystemRequisitionKey
 import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.fulfillRequisitionRequest as systemFulfillRequisitionRequest
@@ -94,13 +98,34 @@ class RequisitionFulfillmentService(
         // Only try writing to the blob store if it is not already marked fulfilled.
         // TODO(world-federation-of-advertisers/cross-media-measurement#85): Handle the case that it
         //  is already marked fulfilled locally.
-        if (requisitionMetadata.path.isBlank()) {
-          val blob =
-            requisitionStore.write(
-              RequisitionBlobContext(computationToken.globalComputationId, key.requisitionId),
-              consumed.remaining.map { it.bodyChunk.data }
-            )
-          recordRequisitionBlobPathLocally(computationToken, externalRequisitionKey, blob.blobKey)
+        if (requisitionMetadata.dataCase == RequisitionMetadata.DataCase.DATA_NOT_SET) {
+          @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
+          when (header.protocolCase) {
+            FulfillRequisitionRequest.Header.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+              if (consumed.remaining.toList().isNotEmpty()) {
+                failGrpc(Status.INVALID_ARGUMENT) {
+                  "The requisition with seed cannot contain body chunks"
+                }
+              }
+              recordRequisitionSeedLocally(
+                computationToken,
+                externalRequisitionKey,
+                header.honestMajorityShareShuffle.seed
+              )
+            }
+            FulfillRequisitionRequest.Header.ProtocolCase.PROTOCOL_NOT_SET -> {
+              val blob =
+                requisitionStore.write(
+                  RequisitionBlobContext(computationToken.globalComputationId, key.requisitionId),
+                  consumed.remaining.map { it.bodyChunk.data }
+                )
+              recordRequisitionBlobPathLocally(
+                computationToken,
+                externalRequisitionKey,
+                blob.blobKey
+              )
+            }
+          }
         }
 
         fulfillRequisitionAtKingdom(
@@ -189,6 +214,21 @@ class RequisitionFulfillmentService(
           it.blobPath = blobPath
         }
         .build()
+    )
+  }
+
+  /** Sends rpc to the duchy's internal ComputationService to record requisition seed. */
+  private suspend fun recordRequisitionSeedLocally(
+    token: ComputationToken,
+    key: ExternalRequisitionKey,
+    seed: ByteString
+  ) {
+    computationsClient.recordRequisitionSeed(
+      recordRequisitionSeedRequest {
+        this.token = token
+        this.key = key
+        this.seed = seed
+      }
     )
   }
 
