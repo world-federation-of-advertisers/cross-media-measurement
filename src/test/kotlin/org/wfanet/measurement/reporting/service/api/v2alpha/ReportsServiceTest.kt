@@ -2441,22 +2441,26 @@ class ReportsServiceTest {
         runBlocking { service.getReport(request) }
       }
 
-    assertThat(report).isEqualTo(PENDING_REACH_REPORT.copy {
-      state = Report.State.FAILED
-      metricCalculationResults += ReportKt.metricCalculationResult {
-        metricCalculationSpec = REACH_METRIC_CALCULATION_SPEC_NAME
-        displayName = INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.displayName
-        reportingSet = SUCCEEDED_REACH_METRIC.reportingSet
-        cumulative = INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.cumulative
-        resultAttributes +=
-          ReportKt.MetricCalculationResultKt.resultAttribute {
-            metric = failedReachMetric.name
-            metricSpec = failedReachMetric.metricSpec
-            timeInterval = failedReachMetric.timeInterval
-            state = Metric.State.FAILED
-          }
-      }
-    })
+    assertThat(report)
+      .isEqualTo(
+        PENDING_REACH_REPORT.copy {
+          state = Report.State.FAILED
+          metricCalculationResults +=
+            ReportKt.metricCalculationResult {
+              metricCalculationSpec = REACH_METRIC_CALCULATION_SPEC_NAME
+              displayName = INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.displayName
+              reportingSet = SUCCEEDED_REACH_METRIC.reportingSet
+              cumulative = INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.cumulative
+              resultAttributes +=
+                ReportKt.MetricCalculationResultKt.resultAttribute {
+                  metric = failedReachMetric.name
+                  metricSpec = failedReachMetric.metricSpec
+                  timeInterval = failedReachMetric.timeInterval
+                  state = Metric.State.FAILED
+                }
+            }
+        }
+      )
   }
 
   @Test
@@ -2990,38 +2994,42 @@ class ReportsServiceTest {
       }
 
     val expected = listReportsResponse {
-      reports += PENDING_REACH_REPORT.copy {
-        state = Report.State.FAILED
-        metricCalculationResults += ReportKt.metricCalculationResult {
-          metricCalculationSpec = REACH_METRIC_CALCULATION_SPEC_NAME
-          displayName = INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.displayName
-          reportingSet = SUCCEEDED_REACH_METRIC.reportingSet
-          cumulative = INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.cumulative
-          resultAttributes +=
-            ReportKt.MetricCalculationResultKt.resultAttribute {
-              metric = failedReachMetric.name
-              metricSpec = failedReachMetric.metricSpec
-              timeInterval = failedReachMetric.timeInterval
-              state = Metric.State.FAILED
+      reports +=
+        PENDING_REACH_REPORT.copy {
+          state = Report.State.FAILED
+          metricCalculationResults +=
+            ReportKt.metricCalculationResult {
+              metricCalculationSpec = REACH_METRIC_CALCULATION_SPEC_NAME
+              displayName = INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.displayName
+              reportingSet = SUCCEEDED_REACH_METRIC.reportingSet
+              cumulative = INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.cumulative
+              resultAttributes +=
+                ReportKt.MetricCalculationResultKt.resultAttribute {
+                  metric = failedReachMetric.name
+                  metricSpec = failedReachMetric.metricSpec
+                  timeInterval = failedReachMetric.timeInterval
+                  state = Metric.State.FAILED
+                }
             }
         }
-      }
-      reports += PENDING_WATCH_DURATION_REPORT.copy {
-        state = Report.State.FAILED
-        metricCalculationResults += ReportKt.metricCalculationResult {
-          metricCalculationSpec = WATCH_DURATION_METRIC_CALCULATION_SPEC_NAME
-          displayName = INTERNAL_WATCH_DURATION_METRIC_CALCULATION_SPEC.details.displayName
-          reportingSet = SUCCEEDED_WATCH_DURATION_METRIC.reportingSet
-          cumulative = INTERNAL_WATCH_DURATION_METRIC_CALCULATION_SPEC.details.cumulative
-          resultAttributes +=
-            ReportKt.MetricCalculationResultKt.resultAttribute {
-              metric = failedWatchDurationMetric.name
-              metricSpec = failedWatchDurationMetric.metricSpec
-              timeInterval = failedWatchDurationMetric.timeInterval
-              state = Metric.State.FAILED
+      reports +=
+        PENDING_WATCH_DURATION_REPORT.copy {
+          state = Report.State.FAILED
+          metricCalculationResults +=
+            ReportKt.metricCalculationResult {
+              metricCalculationSpec = WATCH_DURATION_METRIC_CALCULATION_SPEC_NAME
+              displayName = INTERNAL_WATCH_DURATION_METRIC_CALCULATION_SPEC.details.displayName
+              reportingSet = SUCCEEDED_WATCH_DURATION_METRIC.reportingSet
+              cumulative = INTERNAL_WATCH_DURATION_METRIC_CALCULATION_SPEC.details.cumulative
+              resultAttributes +=
+                ReportKt.MetricCalculationResultKt.resultAttribute {
+                  metric = failedWatchDurationMetric.name
+                  metricSpec = failedWatchDurationMetric.metricSpec
+                  timeInterval = failedWatchDurationMetric.timeInterval
+                  state = Metric.State.FAILED
+                }
             }
         }
-      }
     }
 
     verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::streamReports)

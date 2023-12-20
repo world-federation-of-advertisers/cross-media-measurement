@@ -517,7 +517,12 @@ class ReportsService(
             metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId
           )
         ReportKt.metricCalculationResult {
-          this.metricCalculationSpec = MetricCalculationSpecKey(metricCalculationSpec.cmmsMeasurementConsumerId, metricCalculationSpec.externalMetricCalculationSpecId).toName()
+          this.metricCalculationSpec =
+            MetricCalculationSpecKey(
+                metricCalculationSpec.cmmsMeasurementConsumerId,
+                metricCalculationSpec.externalMetricCalculationSpecId
+              )
+              .toName()
           displayName = metricCalculationSpec.details.displayName
           reportingSet = reportingSetName
           cumulative = metricCalculationSpec.details.cumulative
