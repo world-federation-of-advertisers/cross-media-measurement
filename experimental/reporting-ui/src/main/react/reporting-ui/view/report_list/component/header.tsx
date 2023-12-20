@@ -12,18 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import ReactDOM from 'react-dom/client';
-import AppConfig from '../../initialize';
-import { FakeReportingClient } from './fake_reporting_client';
-import 'bootstrap/dist/css/bootstrap.min.css';
-import '../../../index.css';
-import App from "../../../app";
+import React from 'react';
+import Navbar from 'react-bootstrap/Navbar';
+import {
+  AddIcon,
+  DownloadIcon,
+  FilterIcon,
+  MenuIcon,
+  TrailingIcon,
+} from '../../../public/asset/icon';
+import './header.css';
 
-const config = {
-  reportingClient: new FakeReportingClient(),
+type HeaderProps = {
 };
 
-AppConfig.initialize(config);
-
-const root = ReactDOM.createRoot(document.getElementById('root')!);
-root.render(<App />);
+export function Header({}: HeaderProps) {
+  return (
+    <React.Fragment>
+      <Navbar id="get-report-header" className="bg-body-tertiary">
+        <div id="get-report-header-menu">
+          <MenuIcon />
+        </div>
+        <Navbar.Brand id="header-title">Demo Reporting UI</Navbar.Brand>
+      </Navbar>
+    </React.Fragment>
+  );
+}

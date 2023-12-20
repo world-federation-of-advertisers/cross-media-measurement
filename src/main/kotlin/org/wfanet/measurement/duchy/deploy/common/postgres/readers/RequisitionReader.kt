@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.duchy.deploy.common.postgres.readers
 
+import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
@@ -109,7 +110,7 @@ class RequisitionReader {
       boundStatement(
         """
       SELECT
-        ExternalRequisitionId, RequisitionFingerprint, PathToBlob, RequisitionDetails
+        ExternalRequisitionId, RequisitionFingerprint, PathToBlob, RandomSeed, RequisitionDetails
       FROM Requisitions
         WHERE ComputationId = $1
       """
@@ -128,6 +129,7 @@ class RequisitionReader {
         requisitionFingerprint = row["RequisitionFingerprint"]
       }
       row.get<String?>("PathToBlob")?.let { path = it }
+      row.get<ByteString?>("RandomSeed")?.let { seed = it }
       details = row.getProtoMessage("RequisitionDetails", RequisitionDetails.parser())
     }
   }

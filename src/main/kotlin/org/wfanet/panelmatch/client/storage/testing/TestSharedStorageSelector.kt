@@ -12,18 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import ReactDOM from 'react-dom/client';
-import AppConfig from '../../initialize';
-import { FakeReportingClient } from './fake_reporting_client';
-import 'bootstrap/dist/css/bootstrap.min.css';
-import '../../../index.css';
-import App from "../../../app";
+package org.wfanet.panelmatch.client.storage.testing
 
-const config = {
-  reportingClient: new FakeReportingClient(),
-};
+import org.wfanet.measurement.storage.testing.InMemoryStorageClient
+import org.wfanet.panelmatch.common.secrets.testing.TestMutableSecretMap
 
-AppConfig.initialize(config);
-
-const root = ReactDOM.createRoot(document.getElementById('root')!);
-root.render(<App />);
+class TestSharedStorageSelector {
+  val storageClient = InMemoryStorageClient()
+  val storageDetails = TestMutableSecretMap()
+  val selector = makeTestSharedStorageSelector(storageDetails, storageClient)
+}

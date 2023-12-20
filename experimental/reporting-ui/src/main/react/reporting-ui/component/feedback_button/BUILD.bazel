@@ -7,11 +7,9 @@ package(
 )
 
 js_library(
-    name = "component",
+    name = "feedback_button",
     srcs = [
-        "header.css",
-        "header.tsx",
-        "row.tsx",
-        "table.tsx",
+        "feedback_button.css",
+        "feedback_button.tsx",
     ],
 )
