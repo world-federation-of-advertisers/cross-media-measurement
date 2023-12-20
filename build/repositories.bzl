@@ -41,10 +41,8 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_measurement_proto",
         repo = "cross-media-measurement-api",
-        sha256 = "f15f04896c3355c910e45ef6ca64e70b14754c69f1099c54d9fed5733b754976",
-        #version = "0.52.0",
-        #DO NOT SUBMIT(https://github.com/world-federation-of-advertisers/cross-media-measurement-api/pull/190): use version
-        commit = "3539cbb59a0910e3e183b275135d04dbf32bcfb0",
+        sha256 = "28e5f3e6699518e8a5b5454f5e567fae84f81d2475577f5b824a456cccdf913f",
+        version = "0.54.0",
     )
 
     wfa_repo_archive(
@@ -98,35 +96,35 @@ def wfa_measurement_system_repositories():
 
     http_archive(
         name = "io_bazel_rules_go",
-        sha256 = "6b65cb7917b4d1709f9410ffe00ecf3e160edf674b78c54a894471320862184f",
+        sha256 = "d6ab6b57e48c09523e93050f13698f708428cfd5e619252e369d377af6597707",
         urls = [
-            "https://mirror.bazel.build/github.com/bazelbuild/rules_go/releases/download/v0.39.0/rules_go-v0.39.0.zip",
-            "https://github.com/bazelbuild/rules_go/releases/download/v0.39.0/rules_go-v0.39.0.zip",
+            "https://mirror.bazel.build/github.com/bazelbuild/rules_go/releases/download/v0.43.0/rules_go-v0.43.0.zip",
+            "https://github.com/bazelbuild/rules_go/releases/download/v0.43.0/rules_go-v0.43.0.zip",
         ],
     )
 
     http_archive(
         name = "bazel_gazelle",
-        sha256 = "ecba0f04f96b4960a5b250c8e8eeec42281035970aa8852dda73098274d14a1d",
+        sha256 = "b7387f72efb59f876e4daae42f1d3912d0d45563eac7cb23d1de0b094ab588cf",
         urls = [
-            "https://mirror.bazel.build/github.com/bazelbuild/bazel-gazelle/releases/download/v0.29.0/bazel-gazelle-v0.29.0.tar.gz",
-            "https://github.com/bazelbuild/bazel-gazelle/releases/download/v0.29.0/bazel-gazelle-v0.29.0.tar.gz",
+            "https://mirror.bazel.build/github.com/bazelbuild/bazel-gazelle/releases/download/v0.34.0/bazel-gazelle-v0.34.0.tar.gz",
+            "https://github.com/bazelbuild/bazel-gazelle/releases/download/v0.34.0/bazel-gazelle-v0.34.0.tar.gz",
         ],
     )
 
     http_file(
         name = "protoc_gen_grpc_gateway",
-        sha256 = "d60028423c44b85c0bfbcf6393c35be7c53d439bc74b2e6f6caca863ad6df812",
-        urls = ["https://github.com/grpc-ecosystem/grpc-gateway/releases/download/v2.15.2/protoc-gen-grpc-gateway-v2.15.2-linux-x86_64"],
+        sha256 = "3c21171d880f44e50223a3415d81cc3e359ac40360a58aabc3a6d7325d75ebc9",
+        urls = ["https://github.com/grpc-ecosystem/grpc-gateway/releases/download/v2.18.1/protoc-gen-grpc-gateway-v2.18.1-linux-x86_64"],
         executable = True,
         downloaded_file_path = "protoc-gen-grpc-gateway",
     )
 
     http_archive(
         name = "grpc_ecosystem_grpc_gateway",
-        sha256 = "0675f7f8300f659a23e7ea4b8be5b38726c173b506a4d25c4309e93b4f1616ae",
-        strip_prefix = "grpc-gateway-2.15.2",
-        urls = ["https://github.com/grpc-ecosystem/grpc-gateway/archive/refs/tags/v2.15.2.tar.gz"],
+        sha256 = "440e2cb28f5bb84169f2956c822f7c53740b17d96bc51e2f378eced1c0f63219",
+        strip_prefix = "grpc-gateway-2.18.1",
+        urls = ["https://github.com/grpc-ecosystem/grpc-gateway/archive/refs/tags/v2.18.1.tar.gz"],
     )
 
     http_archive(
