@@ -144,6 +144,7 @@ class SingleStepTest(
         "generate-serialized-rlwe-keys",
         "prepare-event-lookup-queries",
         "preprocess-events",
+        "assign-join-key-ids",
       )
 
     @JvmStatic
