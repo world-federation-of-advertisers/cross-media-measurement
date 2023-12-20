@@ -41,16 +41,15 @@ go_binary(
     visibility = ["//visibility:public"],
 )
 
-# Put app go_binary into a tar layer.
 pkg_tar(
-    name = "app_layer",
+    name = "server_app_layer",
     srcs = [":server"],
 )
 
 oci_image(
-    name = "image",
+    name = "alphav1_reporting_bff_gateway_image",
     base = "@distroless_base",
     entrypoint = ["/server"],
-    tars = [":app_layer"],
-    visibility = ["//visibility:public"],
+    tars = [":server_app_layer"],
+    visibility = ["//experimental/reporting-ui/src/main/docker:__subpackages__"],
 )

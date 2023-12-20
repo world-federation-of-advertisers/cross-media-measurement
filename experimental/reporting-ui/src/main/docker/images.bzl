@@ -26,7 +26,7 @@ REPORTING_BFF_COMMON_IMAGES = [
     ),
     struct(
         name = "reporting_bff_gateway_v1alpha_public_api_server_image",
-        image = "//experimental/reporting-ui/src/main/go/org/wfanet/measurement/reporting/bff/gateway:image",
+        image = "//experimental/reporting-ui/src/main/go/org/wfanet/measurement/reporting/bff/gateway:alphav1_reporting_bff_gateway_image",
         repository = _PREFIX + "/reporting-bff-gateway/v1/v1alpha-public-api",
     ),
 ]
