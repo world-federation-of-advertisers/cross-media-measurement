@@ -34,6 +34,11 @@ message JoinKeyIdentifier {
   bytes id = 1;
 }
 
+// A collection of panelist keys
+message JoinKeyCollection {
+  repeated JoinKey join_keys = 1;
+}
+
 message JoinKeyAndId {
   JoinKey join_key = 1;
   JoinKeyIdentifier join_key_identifier = 2;
