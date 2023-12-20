@@ -466,7 +466,7 @@ class ReportsService(
       state = inferReportState(metrics)
       createTime = internalReport.createTime
 
-      if (state == Report.State.SUCCEEDED) {
+      if (state == Report.State.SUCCEEDED || state == Report.State.FAILED) {
         val externalMetricCalculationSpecIds =
           internalReport.reportingMetricEntriesMap.flatMap { reportingMetricCalculationSpec ->
             reportingMetricCalculationSpec.value.metricCalculationSpecReportingMetricsList.map {
@@ -517,6 +517,7 @@ class ReportsService(
             metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId
           )
         ReportKt.metricCalculationResult {
+          this.metricCalculationSpec = MetricCalculationSpecKey(metricCalculationSpec.cmmsMeasurementConsumerId, metricCalculationSpec.externalMetricCalculationSpecId).toName()
           displayName = metricCalculationSpec.details.displayName
           reportingSet = reportingSetName
           cumulative = metricCalculationSpec.details.cumulative
@@ -526,11 +527,15 @@ class ReportsService(
                 externalIdToMetricMap[reportingMetric.externalMetricId]
                   ?: error("Got a metric not associated with the report.")
               ReportKt.MetricCalculationResultKt.resultAttribute {
+                this.metric = metric.name
                 groupingPredicates += reportingMetric.details.groupingPredicatesList
                 filter = metricCalculationSpec.details.filter
                 metricSpec = metric.metricSpec
                 timeInterval = metric.timeInterval
-                metricResult = metric.result
+                state = metric.state
+                if (metric.state == Metric.State.SUCCEEDED) {
+                  metricResult = metric.result
+                }
               }
             }
         }
