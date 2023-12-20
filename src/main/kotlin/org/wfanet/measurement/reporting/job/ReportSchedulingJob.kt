@@ -196,6 +196,8 @@ class ReportSchedulingJob(
                 state = ReportScheduleIteration.State.REPORT_CREATED
               }
 
+              // If schedule should have been stopped in the last run, but it failed, then this will
+              // catch it.
               if (
                 Timestamps.compare(reportSchedule.nextReportCreationTime, eventEndTimestamp) > 0
               ) {
@@ -246,6 +248,7 @@ class ReportSchedulingJob(
                   }
                 )
 
+                // Other schedules still have to be processed.
                 continue
               }
 
@@ -261,6 +264,7 @@ class ReportSchedulingJob(
             logger.warning(
               "Processing failed for Report Schedule ${publicReportSchedule.name}: ${e.cause}"
             )
+            // Other schedules still have to be processed.
             continue
           }
         }
