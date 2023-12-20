@@ -82,14 +82,10 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         ?: @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields are never null.
         when (it.measurement.details.protocolConfig.protocolCase) {
           ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2,
-          ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2
-          -> {
+          ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
             createComputedMeasurement(it, measurementConsumerId)
           }
-
-          ProtocolConfig.ProtocolCase.DIRECT ->
-            createDirectMeasurement(it, measurementConsumerId)
-
+          ProtocolConfig.ProtocolCase.DIRECT -> createDirectMeasurement(it, measurementConsumerId)
           ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Protocol is not set.")
         }
     }
