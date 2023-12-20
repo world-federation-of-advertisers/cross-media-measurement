@@ -22,10 +22,10 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.common.flatten
-import org.wfanet.panelmatch.client.common.joinKeyAndIdOf
+import org.wfanet.panelmatch.client.common.joinKeyOf
 import org.wfanet.panelmatch.client.common.unprocessedEventOf
 import org.wfanet.panelmatch.client.eventpreprocessing.UnprocessedEvent
-import org.wfanet.panelmatch.client.exchangetasks.joinKeyAndIdCollection
+import org.wfanet.panelmatch.client.exchangetasks.joinKeyCollection
 import org.wfanet.panelmatch.client.privatemembership.keyedDecryptedEventDataSet
 import org.wfanet.panelmatch.common.compression.CompressionParametersKt.brotliCompressionParameters
 import org.wfanet.panelmatch.common.compression.compressionParameters
@@ -33,11 +33,9 @@ import org.wfanet.panelmatch.common.parseDelimitedMessages
 import org.wfanet.panelmatch.common.toDelimitedByteString
 import org.wfanet.panelmatch.integration.testing.parsePlaintextResults
 
-private val PLAINTEXT_JOIN_KEYS = joinKeyAndIdCollection {
-  joinKeyAndIds +=
-    joinKeyAndIdOf("join-key-1".toByteStringUtf8(), "join-key-id-1".toByteStringUtf8())
-  joinKeyAndIds +=
-    joinKeyAndIdOf("join-key-2".toByteStringUtf8(), "join-key-id-2".toByteStringUtf8())
+private val PLAINTEXT_JOIN_KEYS = joinKeyCollection {
+  joinKeys += joinKeyOf("join-key-1".toByteStringUtf8())
+  joinKeys += joinKeyOf("join-key-2".toByteStringUtf8())
 }
 
 private val EDP_COMPRESSION_PARAMETERS = compressionParameters {
@@ -93,7 +91,6 @@ class FullWithPreprocessingTest : AbstractInProcessPanelMatchIntegrationTest() {
       parsePlaintextResults(blob.parseDelimitedMessages(keyedDecryptedEventDataSet {})).map {
         it.joinKey to it.plaintexts
       }
-
     assertThat(decryptedEvents)
       .containsExactly(
         "join-key-1" to listOf("payload-1-for-join-key-1", "payload-2-for-join-key-1"),

@@ -45,6 +45,7 @@ abstract class ExchangeTaskMapper {
         StepCase.HYBRID_DECRYPT_STEP -> hybridDecrypt()
         StepCase.GENERATE_HYBRID_ENCRYPTION_KEY_PAIR_STEP -> generateHybridEncryptionKeyPair()
         StepCase.GENERATE_RANDOM_BYTES_STEP -> generateRandomBytes()
+        StepCase.ASSIGN_JOIN_KEY_IDS_STEP -> assignJoinKeyIds()
         else -> throw IllegalArgumentException("Unsupported step type: ${step.stepCase}")
       }
     }
@@ -109,4 +110,7 @@ abstract class ExchangeTaskMapper {
 
   /** Returns the task that generates random bytes. */
   abstract suspend fun ExchangeContext.generateRandomBytes(): ExchangeTask
+
+  /** Returns the task that assigns ids to each [JoinKey]. */
+  abstract suspend fun ExchangeContext.assignJoinKeyIds(): ExchangeTask
 }
