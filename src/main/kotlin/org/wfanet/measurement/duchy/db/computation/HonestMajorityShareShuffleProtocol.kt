@@ -57,6 +57,9 @@ object HonestMajorityShareShuffleProtocol {
     override val validSuccessors =
       mapOf(
           INITIALIZED to setOf(SETUP_PHASE),
+          // A Non-aggregator will skip WAIT_ON_INPUT into SHUFFLE_PHASE if the requisition data
+          // from EDPs and seed
+          // from the peer worker has been received.
           SETUP_PHASE to
             setOf(
               WAIT_ON_INPUT,
@@ -90,6 +93,8 @@ object HonestMajorityShareShuffleProtocol {
         details: HonestMajorityShareShuffle.ComputationDetails
       ): Boolean {
         return when (stage) {
+          INITIALIZED,
+          SETUP_PHASE,
           SHUFFLE_PHASE -> details.role == RoleInComputation.NON_AGGREGATOR
           AGGREGATION_PHASE -> details.role == RoleInComputation.AGGREGATOR
           else -> true /* Stage can be executed at either primary or non-primary */
@@ -121,15 +126,15 @@ object HonestMajorityShareShuffleProtocol {
         computationDetails: HonestMajorityShareShuffle.ComputationDetails
       ): Int {
         return when (stage) {
-          SETUP_PHASE,
+          SETUP_PHASE -> 0
           SHUFFLE_PHASE,
           AGGREGATION_PHASE ->
             // The output is the intermediate computation result either received from another duchy
             // or computed locally.
             1
           WAIT_ON_INPUT ->
-            // Non-aggregators have no output blob for WAIT_ON_INPUT
-            // The aggregator has two output blobs sent by non-aggregators for WAIT_ON_INPUT.
+            // Non-aggregators have no output blob for this stage
+            // The aggregator has two output blobs received from non-aggregators.
             if (isAggregator(computationDetails)) 2 else 0
           // Mill have nothing to do for this stage.
           COMPLETE -> error("Computation should be ended with call to endComputation(...)")

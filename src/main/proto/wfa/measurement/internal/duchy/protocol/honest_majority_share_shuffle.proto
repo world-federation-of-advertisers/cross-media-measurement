@@ -37,12 +37,12 @@ message HonestMajorityShareShuffle {
 
     // Computation is created by the non-aggregator.
     //
-    // Non-aggregators are ready to accept requisitions. Mills of
-    // non-aggregators will pick up computations in this stage.
+    // Non-aggregators are ready to accept requisitions. The randomness seed is
+    // sampled and stored.
     INITIALIZED = 1;
 
-    // Non-aggregator samples seeds, then sends them to the peer. Seeds are used
-    // for generating either noise or permutation.
+    // Non-aggregator reads the randomness seed, then sends it to the peer.
+    // Seeds are used for generating either noise or permutation.
     SETUP_PHASE = 2;
 
     // Non-aggregators wait for input of seeds from the peer as well as

@@ -56,6 +56,7 @@ fun AdvanceComputationRequest.Header.stageExpectingInput(): ComputationStage =
     ProtocolCase.PROTOCOL_NOT_SET -> failGrpc { "Unknown protocol $protocolCase" }
   }
 
+/** Returns true if the stage expects blob input from the request. */
 fun AdvanceComputationRequest.Header.doesExpectBlobInput(): Boolean =
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
   when (protocolCase) {
@@ -72,6 +73,7 @@ fun AdvanceComputationRequest.Header.doesExpectBlobInput(): Boolean =
     ProtocolCase.PROTOCOL_NOT_SET -> failGrpc { "Unknown protocol $protocolCase" }
   }
 
+/** Returns true if the stage expects protocol specific input from the header of the request. */
 fun AdvanceComputationRequest.Header.doesExpectProtocolSpecificInput(): Boolean =
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
   when (protocolCase) {
