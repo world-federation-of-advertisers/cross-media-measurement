@@ -195,9 +195,7 @@ bazel build //src/main/k8s/dev:reporting_v2.tar \
   --define postgres_region=us-central1 \
   --define kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
   --define container_registry=gcr.io \
-  --define image_repo_prefix=halo-reporting-demo \
-  --define image_tag=build-0001 \
-  --define report_scheduling_cron_schedule="0 7 * * *"
+  --define image_repo_prefix=halo-reporting-demo --define image_tag=build-0001
 ```
 
 Extract the generated archive to some directory.
@@ -369,6 +367,11 @@ IP address is ephemeral. We can reserve a static IP to make it easier to access.
 See [Reserving External IPs](cluster-config.md#reserving-external-ips).
 
 ## Appendix
+
+### Configuring the Report Scheduling CronJob
+
+See [Updating Retention Policies](../operations/updating-retention-policies.md)
+for an example.
 
 ### Troubleshooting
 

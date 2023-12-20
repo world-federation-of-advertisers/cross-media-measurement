@@ -14,11 +14,8 @@
 
 package k8s
 
-params: {
-	_reportingSecretName:          string @tag("secret_name")
-	_reportingMcConfigSecretName:  string @tag("mc_config_secret_name")
-	_reportSchedulingCronSchedule: "* */3 * * *"
-}
+_reportingSecretName:         string @tag("secret_name")
+_reportingMcConfigSecretName: string @tag("mc_config_secret_name")
 
 #KingdomApiTarget: #GrpcTarget & {
 	target: string @tag("kingdom_public_api_target")
@@ -53,10 +50,9 @@ objectSets: [
 ]
 
 reporting: #Reporting & {
-	_secretName:                   params._reportingSecretName
-	_mcConfigSecretName:           params._reportingMcConfigSecretName
-	_reportSchedulingCronSchedule: params._reportSchedulingCronSchedule
-	_kingdomApiTarget:             #KingdomApiTarget
+	_secretName:         _reportingSecretName
+	_mcConfigSecretName: _reportingMcConfigSecretName
+	_kingdomApiTarget:   #KingdomApiTarget
 	_internalApiTarget: certificateHost: "localhost"
 
 	_postgresConfig: {

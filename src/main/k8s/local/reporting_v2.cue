@@ -14,19 +14,15 @@
 
 package k8s
 
-params: {
-	_reportingSecretName:          string @tag("secret_name")
-	_reportingDbSecretName:        string @tag("db_secret_name")
-	_reportingMcConfigSecretName:  string @tag("mc_config_secret_name")
-	_reportSchedulingCronSchedule: "*/10 * * * *"
-}
+_reportingSecretName:         string @tag("secret_name")
+_reportingDbSecretName:       string @tag("db_secret_name")
+_reportingMcConfigSecretName: string @tag("mc_config_secret_name")
 
 objectSets: [ for objectSet in reporting {objectSet}]
 
 reporting: #Reporting & {
-	_secretName:                   params._reportingSecretName
-	_mcConfigSecretName:           params._reportingMcConfigSecretName
-	_reportSchedulingCronSchedule: params._reportSchedulingCronSchedule
+	_secretName:         _reportingSecretName
+	_mcConfigSecretName: _reportingMcConfigSecretName
 	_imageSuffixes: {
 		"update-reporting-schema":            "reporting/v2/local-postgres-update-schema"
 		"postgres-internal-reporting-server": "reporting/v2/local-postgres-internal"
@@ -51,14 +47,14 @@ reporting: #Reporting & {
 		"POSTGRES_USER": {
 			valueFrom:
 				secretKeyRef: {
-					name: params._reportingDbSecretName
+					name: _reportingDbSecretName
 					key:  "username"
 				}
 		}
 		"POSTGRES_PASSWORD": {
 			valueFrom:
 				secretKeyRef: {
-					name: params._reportingDbSecretName
+					name: _reportingDbSecretName
 					key:  "password"
 				}
 		}
