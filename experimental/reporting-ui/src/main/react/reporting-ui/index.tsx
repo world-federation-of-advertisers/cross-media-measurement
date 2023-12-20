@@ -12,13 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import React from 'react';
 import ReactDOM from 'react-dom/client';
-import {routes} from './route';
 import reportWebVitals from './report_web_vitals';
 import AppConfig from './client/initialize';
 import { ReportingClientImpl } from './client/reporting/client_impl';
-import {createBrowserRouter, RouterProvider} from 'react-router-dom';
+import App from "./app";
 import './index.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
@@ -34,10 +32,8 @@ const configProps = {
 
 AppConfig.initialize(configProps);
 
-const router = createBrowserRouter(routes);
-
 const root = ReactDOM.createRoot(document.getElementById('root')!);
-root.render(<RouterProvider router={router} />);
+root.render(<App />);
 
 // If you want to start measuring performance in your app, pass a function
 // to log results (for example: reportWebVitals(console.log))
