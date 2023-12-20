@@ -154,11 +154,11 @@ message Report {
       // calculated cumulatively over this time interval.
       google.type.Interval time_interval = 3;
 
-      // `Metric` state.
+      // Denormalized `state` from `Metric`.
       Metric.State state = 7;
 
       // The metric result calculated on the reporting set with the setup in the
-      // attribute.
+      // attribute. Only set if `state` is `SUCCEEDED`.
       MetricResult metric_result = 4;
     }
     // The number of results is equal to the size of the Cartesian product of
