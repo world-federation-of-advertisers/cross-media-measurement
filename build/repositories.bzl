@@ -27,15 +27,15 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_common_jvm",
         repo = "common-jvm",
-        sha256 = "f0743506b25bc1fa8503a820d938fa8d21d92a5d41d5590a78b54587f84e58bd",
-        version = "0.71.1",
+        sha256 = "00b66cb6f7bb8b23a0fc4063b0d454a150b1babd4aa49f6898fd51b7cdd086cd",
+        version = "0.71.2",
     )
 
     wfa_repo_archive(
         name = "wfa_common_cpp",
         repo = "common-cpp",
-        sha256 = "b500535306189d43a9ececd3889a0e2cb969619a46339007037360f2c1651323",
-        version = "0.10.1",
+        sha256 = "43398c7b44f692ef4a189afb674f27fa22e407797074a91d6db79908e6775162",
+        version = "0.10.3",
     )
 
     wfa_repo_archive(
@@ -55,15 +55,15 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "any_sketch",
         repo = "any-sketch",
-        sha256 = "dfa9eece9965b8c043e7562d0f7c6e06cd649c62d88d9be99c0295f9f5980d7b",
-        version = "0.4.3",
+        sha256 = "6abb78badf089502261cdb7cc2bc9e3397781e1f35287ace099da59f972bb014",
+        version = "0.4.5",
     )
 
     wfa_repo_archive(
         name = "any_sketch_java",
         repo = "any-sketch-java",
-        sha256 = "0d463c7eb9cce9e94a4af2575f8c9e1c79f1d5ebbe6fa8db168be167bd80cf5a",
-        version = "0.4.1",
+        sha256 = "282195c2df2a53999c99ba86ead543865c8fff77cca24820870f44cff4531d9b",
+        version = "0.4.2",
     )
 
     wfa_repo_archive(
