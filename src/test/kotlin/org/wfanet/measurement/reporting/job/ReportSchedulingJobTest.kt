@@ -457,99 +457,188 @@ class ReportSchedulingJobTest {
     }
 
   @Test
-  fun `execute creates report for schedule if other has error`(): Unit = runBlocking {
-    val otherReportScheduleId = REPORT_SCHEDULE_ID + "a"
-    whenever(reportSchedulesMock.listReportSchedules(any()))
-      .thenReturn(
-        listReportSchedulesResponse {
-          reportSchedules += INTERNAL_REPORT_SCHEDULE.copy { clearLatestIteration() }
-          reportSchedules +=
-            INTERNAL_REPORT_SCHEDULE.copy {
-              externalReportScheduleId = otherReportScheduleId
-              clearLatestIteration()
-            }
-        }
-      )
-
-    whenever(reportsMock.createReport(any()))
-      .thenReturn(REPORT)
-      .thenThrow(Status.UNKNOWN.asRuntimeException())
-
-    job.execute()
-
-    val createReportScheduleIterationCaptor: KArgumentCaptor<ReportScheduleIteration> =
-      argumentCaptor()
-    verifyBlocking(reportScheduleIterationsMock, times(2)) {
-      createReportScheduleIteration(createReportScheduleIterationCaptor.capture())
-    }
-    val reportScheduleIteration = reportScheduleIteration {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      externalReportScheduleId = REPORT_SCHEDULE_ID
-      reportEventTime = INTERNAL_REPORT_SCHEDULE.nextReportCreationTime
-    }
-    assertThat(createReportScheduleIterationCaptor.allValues)
-      .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
-      .containsExactly(
-        reportScheduleIteration,
-        reportScheduleIteration.copy { externalReportScheduleId = otherReportScheduleId }
-      )
-
-    val getDataProviderCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
-    verifyBlocking(dataProvidersMock, times(1)) { getDataProvider(getDataProviderCaptor.capture()) }
-
-    val getEventGroupCaptor: KArgumentCaptor<GetEventGroupRequest> = argumentCaptor()
-    verifyBlocking(eventGroupsMock, times(1)) { getEventGroup(getEventGroupCaptor.capture()) }
-
-    val createReportCaptor: KArgumentCaptor<CreateReportRequest> = argumentCaptor()
-    verifyBlocking(reportsMock, times(2)) { createReport(createReportCaptor.capture()) }
-    val publicReportSchedule = INTERNAL_REPORT_SCHEDULE.toPublic()
-    val createReportRequest = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAME
-      requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
-      report =
-        publicReportSchedule.reportTemplate.copy {
-          periodicTimeInterval = periodicTimeInterval {
-            startTime =
-              buildReportWindowStartTimestamp(
-                publicReportSchedule,
-                INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
-              )
-            increment =
-              Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
-            intervalCount = 1
+  fun `execute creates report for schedule if other has error creating report`(): Unit =
+    runBlocking {
+      val otherReportScheduleId = REPORT_SCHEDULE_ID + "a"
+      whenever(reportSchedulesMock.listReportSchedules(any()))
+        .thenReturn(
+          listReportSchedulesResponse {
+            reportSchedules += INTERNAL_REPORT_SCHEDULE.copy { clearLatestIteration() }
+            reportSchedules +=
+              INTERNAL_REPORT_SCHEDULE.copy {
+                externalReportScheduleId = otherReportScheduleId
+                clearLatestIteration()
+              }
           }
-        }
-    }
-    assertThat(createReportCaptor.allValues)
-      .ignoringFields(CreateReportRequest.REPORT_ID_FIELD_NUMBER)
-      .containsExactly(createReportRequest, createReportRequest)
+        )
 
-    val setReportScheduleIterationStateCaptor:
-      KArgumentCaptor<SetReportScheduleIterationStateRequest> =
-      argumentCaptor()
-    verifyBlocking(reportScheduleIterationsMock, times(2)) {
-      setReportScheduleIterationState(setReportScheduleIterationStateCaptor.capture())
-    }
-    val setReportScheduleIterationStateSuccessRequest = setReportScheduleIterationStateRequest {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      externalReportScheduleId = REPORT_SCHEDULE_ID
-      externalReportScheduleIterationId = REPORT_SCHEDULE_ITERATION_ID
+      whenever(reportsMock.createReport(any()))
+        .thenReturn(REPORT)
+        .thenThrow(Status.UNKNOWN.asRuntimeException())
 
-      state = ReportScheduleIteration.State.REPORT_CREATED
-    }
-    val setReportScheduleIterationStateFailureRequest = setReportScheduleIterationStateRequest {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      externalReportScheduleId = otherReportScheduleId
-      externalReportScheduleIterationId = REPORT_SCHEDULE_ITERATION_ID
+      job.execute()
 
-      state = ReportScheduleIteration.State.RETRYING_REPORT_CREATION
+      val createReportScheduleIterationCaptor: KArgumentCaptor<ReportScheduleIteration> =
+        argumentCaptor()
+      verifyBlocking(reportScheduleIterationsMock, times(2)) {
+        createReportScheduleIteration(createReportScheduleIterationCaptor.capture())
+      }
+      val reportScheduleIteration = reportScheduleIteration {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        externalReportScheduleId = REPORT_SCHEDULE_ID
+        reportEventTime = INTERNAL_REPORT_SCHEDULE.nextReportCreationTime
+      }
+      assertThat(createReportScheduleIterationCaptor.allValues)
+        .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
+        .containsExactly(
+          reportScheduleIteration,
+          reportScheduleIteration.copy { externalReportScheduleId = otherReportScheduleId }
+        )
+
+      val getDataProviderCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
+      verifyBlocking(dataProvidersMock, times(1)) { getDataProvider(getDataProviderCaptor.capture()) }
+
+      val getEventGroupCaptor: KArgumentCaptor<GetEventGroupRequest> = argumentCaptor()
+      verifyBlocking(eventGroupsMock, times(1)) { getEventGroup(getEventGroupCaptor.capture()) }
+
+      val createReportCaptor: KArgumentCaptor<CreateReportRequest> = argumentCaptor()
+      verifyBlocking(reportsMock, times(2)) { createReport(createReportCaptor.capture()) }
+      val publicReportSchedule = INTERNAL_REPORT_SCHEDULE.toPublic()
+      val createReportRequest = createReportRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
+        report =
+          publicReportSchedule.reportTemplate.copy {
+            periodicTimeInterval = periodicTimeInterval {
+              startTime =
+                buildReportWindowStartTimestamp(
+                  publicReportSchedule,
+                  INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
+                )
+              increment =
+                Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
+              intervalCount = 1
+            }
+          }
+      }
+      assertThat(createReportCaptor.allValues)
+        .ignoringFields(CreateReportRequest.REPORT_ID_FIELD_NUMBER)
+        .containsExactly(createReportRequest, createReportRequest)
+
+      val setReportScheduleIterationStateCaptor:
+        KArgumentCaptor<SetReportScheduleIterationStateRequest> =
+        argumentCaptor()
+      verifyBlocking(reportScheduleIterationsMock, times(2)) {
+        setReportScheduleIterationState(setReportScheduleIterationStateCaptor.capture())
+      }
+      val setReportScheduleIterationStateSuccessRequest = setReportScheduleIterationStateRequest {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        externalReportScheduleId = REPORT_SCHEDULE_ID
+        externalReportScheduleIterationId = REPORT_SCHEDULE_ITERATION_ID
+
+        state = ReportScheduleIteration.State.REPORT_CREATED
+      }
+      val setReportScheduleIterationStateFailureRequest = setReportScheduleIterationStateRequest {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        externalReportScheduleId = otherReportScheduleId
+        externalReportScheduleIterationId = REPORT_SCHEDULE_ITERATION_ID
+
+        state = ReportScheduleIteration.State.RETRYING_REPORT_CREATION
+      }
+      assertThat(setReportScheduleIterationStateCaptor.allValues)
+        .containsExactly(
+          setReportScheduleIterationStateSuccessRequest,
+          setReportScheduleIterationStateFailureRequest
+        )
     }
-    assertThat(setReportScheduleIterationStateCaptor.allValues)
-      .containsExactly(
-        setReportScheduleIterationStateSuccessRequest,
-        setReportScheduleIterationStateFailureRequest
-      )
-  }
+
+  @Test
+  fun `execute creates report for schedule if other has error getting data provider`(): Unit =
+    runBlocking {
+      val otherReportScheduleId = REPORT_SCHEDULE_ID + "a"
+      whenever(reportSchedulesMock.listReportSchedules(any()))
+        .thenReturn(
+          listReportSchedulesResponse {
+            reportSchedules += INTERNAL_REPORT_SCHEDULE.copy { clearLatestIteration() }
+            reportSchedules +=
+              INTERNAL_REPORT_SCHEDULE.copy {
+                externalReportScheduleId = otherReportScheduleId
+                clearLatestIteration()
+              }
+          }
+        )
+
+      whenever(dataProvidersMock.getDataProvider(any()))
+        .thenThrow(Status.UNKNOWN.asRuntimeException())
+        .thenReturn(DATA_PROVIDER)
+
+      job.execute()
+
+      val createReportScheduleIterationCaptor: KArgumentCaptor<ReportScheduleIteration> =
+        argumentCaptor()
+      verifyBlocking(reportScheduleIterationsMock, times(2)) {
+        createReportScheduleIteration(createReportScheduleIterationCaptor.capture())
+      }
+      val reportScheduleIteration = reportScheduleIteration {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        externalReportScheduleId = REPORT_SCHEDULE_ID
+        reportEventTime = INTERNAL_REPORT_SCHEDULE.nextReportCreationTime
+      }
+      assertThat(createReportScheduleIterationCaptor.allValues)
+        .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
+        .containsExactly(
+          reportScheduleIteration,
+          reportScheduleIteration.copy { externalReportScheduleId = otherReportScheduleId }
+        )
+
+      val getDataProviderCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
+      verifyBlocking(dataProvidersMock, times(2)) { getDataProvider(getDataProviderCaptor.capture()) }
+
+      val getEventGroupCaptor: KArgumentCaptor<GetEventGroupRequest> = argumentCaptor()
+      verifyBlocking(eventGroupsMock, times(1)) { getEventGroup(getEventGroupCaptor.capture()) }
+
+      val createReportCaptor: KArgumentCaptor<CreateReportRequest> = argumentCaptor()
+      verifyBlocking(reportsMock, times(1)) { createReport(createReportCaptor.capture()) }
+      val publicReportSchedule = INTERNAL_REPORT_SCHEDULE.toPublic()
+      val createReportRequest = createReportRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
+        report =
+          publicReportSchedule.reportTemplate.copy {
+            periodicTimeInterval = periodicTimeInterval {
+              startTime =
+                buildReportWindowStartTimestamp(
+                  publicReportSchedule,
+                  INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
+                )
+              increment =
+                Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
+              intervalCount = 1
+            }
+          }
+      }
+      assertThat(createReportCaptor.allValues)
+        .ignoringFields(CreateReportRequest.REPORT_ID_FIELD_NUMBER)
+        .containsExactly(createReportRequest)
+
+      val setReportScheduleIterationStateCaptor:
+        KArgumentCaptor<SetReportScheduleIterationStateRequest> =
+        argumentCaptor()
+      verifyBlocking(reportScheduleIterationsMock, times(1)) {
+        setReportScheduleIterationState(setReportScheduleIterationStateCaptor.capture())
+      }
+      val setReportScheduleIterationStateSuccessRequest = setReportScheduleIterationStateRequest {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        externalReportScheduleId = otherReportScheduleId
+        externalReportScheduleIterationId = REPORT_SCHEDULE_ITERATION_ID
+
+        state = ReportScheduleIteration.State.REPORT_CREATED
+      }
+      assertThat(setReportScheduleIterationStateCaptor.allValues)
+        .containsExactly(
+          setReportScheduleIterationStateSuccessRequest
+        )
+    }
 
   @Test
   fun `execute creates reports for multiple schedules across 2 mcs for new iterations`(): Unit =
