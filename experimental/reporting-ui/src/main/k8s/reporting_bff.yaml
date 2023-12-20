@@ -137,7 +137,7 @@ items:
         - port: 8080
           name: rest-port
       type: LoadBalancer
-      # loadBalancerIP: 34.121.171.2
+      loadBalancerIP: 34.41.59.152
   - apiVersion: networking.k8s.io/v1
     kind: NetworkPolicy
     metadata:

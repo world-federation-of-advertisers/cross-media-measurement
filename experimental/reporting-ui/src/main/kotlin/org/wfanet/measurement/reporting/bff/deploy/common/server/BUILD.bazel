@@ -33,6 +33,11 @@ kt_jvm_library(
 
 java_binary(
     name = "V1AlphaPublicApiServer",
+    data = [
+        "//src/main/k8s/testing/secretfiles:mc_tls.key",
+        "//src/main/k8s/testing/secretfiles:mc_tls.pem",
+        "//src/main/k8s/testing/secretfiles:reporting_root.pem",
+    ],
     main_class = "org.wfanet.measurement.reporting.bff.deploy.common.server.V1AlphaPublicApiServerKt",
     runtime_deps = [
         ":v1alpha_public_api_server",

@@ -19,16 +19,18 @@ load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
 _PREFIX = IMAGE_REPOSITORY_SETTINGS.repository_prefix
 
 REPORTING_BFF_COMMON_IMAGES = [
-    # struct(
-    #     name = "reporting_bff_v1alpha_public_api_server_image",
-    #     image = "//experimental/reporting-ui/src/main/kotlin/org/wfanet/measurement/reporting/bff/deploy/common/server:v1alpha_public_api_server_image",
-    #     repository = _PREFIX + "/reporting-bff/v1/v1alpha-public-api",
-    # ),
+    struct(
+        name = "reporting_bff_v1alpha_public_api_server_image",
+        image = "//experimental/reporting-ui/src/main/kotlin/org/wfanet/measurement/reporting/bff/deploy/common/server:v1alpha_public_api_server_image",
+        repository = _PREFIX + "/reporting-bff/v1/v1alpha-public-api",
+    ),
     struct(
         name = "reporting_bff_gateway_v1alpha_public_api_server_image",
-        image = "//experimental/reporting-ui/src/main/go/org/wfanet/measurement/reporting/bff/gateway:go_image",
+        image = "//experimental/reporting-ui/src/main/go/org/wfanet/measurement/reporting/bff/gateway:image",
         repository = _PREFIX + "/reporting-bff-gateway/v1/v1alpha-public-api",
     ),
 ]
 
 ALL_REPORTING_BFF_GKE_IMAGES = REPORTING_BFF_COMMON_IMAGES
+
+ALL_IMAGES = ALL_REPORTING_BFF_GKE_IMAGES

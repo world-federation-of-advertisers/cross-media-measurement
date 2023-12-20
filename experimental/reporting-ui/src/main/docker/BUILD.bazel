@@ -1,25 +1,16 @@
 load(
-    "@io_bazel_rules_docker//container:container.bzl",
-    "container_bundle",
+    "@wfa_common_jvm//build/rules_oci:defs.bzl",
+    "container_push_all",
 )
-load("@io_bazel_rules_docker//contrib:push-all.bzl", "docker_push")
 load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
 load(":images.bzl", "ALL_REPORTING_BFF_GKE_IMAGES")
 
-container_bundle(
-    name = "reporting_bff_gke_images",
+container_push_all(
+    name = "push_all_reporting_bff_gke_images",
     images = {"{registry}/{name}:{tag}".format(
         name = image_spec.repository,
         registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
         tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
     ): image_spec.image for image_spec in ALL_REPORTING_BFF_GKE_IMAGES},
-    tags = ["manual"],
-    visibility = ["//visibility:private"],
-)
-
-docker_push(
-    name = "push_all_reporting_bff_gke_images",
-    bundle = ":reporting_bff_gke_images",
-    sequential = True,
     tags = ["manual"],
 )

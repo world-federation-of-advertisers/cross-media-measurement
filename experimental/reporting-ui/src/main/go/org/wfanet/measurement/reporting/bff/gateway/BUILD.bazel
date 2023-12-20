@@ -1,5 +1,7 @@
 load("@io_bazel_rules_docker//go:image.bzl", "go_image")
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_oci//oci:defs.bzl", "oci_image")
+load("@rules_pkg//:pkg.bzl", "pkg_tar")
 
 go_library(
     name = "gateway",
@@ -35,26 +37,25 @@ go_library(
 
 go_binary(
     name = "server",
+    data = [
+        "//src/main/k8s/testing/secretfiles:mc_tls.key",
+        "//src/main/k8s/testing/secretfiles:mc_tls.pem",
+        "//src/main/k8s/testing/secretfiles:reporting_root.pem",
+    ],
     embed = [":gateway-server_lib"],
     visibility = ["//visibility:public"],
 )
 
-go_image(
-    name = "go_image",
-    srcs = [
-        "main.go",
-    ],
-    deps = [
-        ":gateway",
-        "//src/main/proto/wfa/measurement/reporting/bff/v1alpha:reports_service_go_proto",
-        "@com_github_golang_glog//:glog",
-        "@go_googleapis//google/rpc:errdetails_go_proto",
-        "@grpc_ecosystem_grpc_gateway//runtime",
-        "@org_golang_google_grpc//:go_default_library",
-        "@org_golang_google_grpc//connectivity",
-        "@org_golang_google_grpc//credentials",
-        "@org_golang_google_grpc//credentials/insecure",
-    ],
-    importpath = "service",
+# Put app go_binary into a tar layer.
+pkg_tar(
+    name = "app_layer",
+    srcs = [":server"],
+)
+
+oci_image(
+    name = "image",
+    base = "@distroless_base",
+    entrypoint = ["/server"],
+    tars = [":app_layer"],
     visibility = ["//visibility:public"],
 )
