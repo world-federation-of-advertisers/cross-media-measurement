@@ -32,6 +32,7 @@ import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.time.Duration
 import java.time.Instant
+import kotlin.math.ceil
 import kotlin.math.pow
 import kotlin.math.sqrt
 import kotlin.test.assertFails
@@ -193,7 +194,6 @@ import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetric
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsSketchParams as internalReachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
-import kotlin.math.ceil
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMetricVarianceParams
@@ -2967,7 +2967,15 @@ class MetricsServiceTest {
     // Verify proto argument of cmms MeasurementsCoroutineImplBase::batchCreateMeasurements
     val batchCreateMeasurementsCaptor: KArgumentCaptor<BatchCreateMeasurementsRequest> =
       argumentCaptor()
-    verifyBlocking(measurementsMock, times(ceil((1 + BATCH_SET_CMMS_MEASUREMENT_IDS_LIMIT).toDouble() / BATCH_KINGDOM_MEASUREMENTS_LIMIT).toInt())) {
+    verifyBlocking(
+      measurementsMock,
+      times(
+        ceil(
+            (1 + BATCH_SET_CMMS_MEASUREMENT_IDS_LIMIT).toDouble() / BATCH_KINGDOM_MEASUREMENTS_LIMIT
+          )
+          .toInt()
+      )
+    ) {
       batchCreateMeasurements(batchCreateMeasurementsCaptor.capture())
     }
 
@@ -5568,7 +5576,16 @@ class MetricsServiceTest {
       // Verify proto argument of cmms MeasurementsCoroutineImplBase::batchGetMeasurements
       val batchGetMeasurementsCaptor: KArgumentCaptor<BatchGetMeasurementsRequest> =
         argumentCaptor()
-      verifyBlocking(measurementsMock, times(ceil((1 + BATCH_SET_MEASUREMENT_RESULTS_LIMIT).toDouble() / BATCH_KINGDOM_MEASUREMENTS_LIMIT).toInt())) {
+      verifyBlocking(
+        measurementsMock,
+        times(
+          ceil(
+              (1 + BATCH_SET_MEASUREMENT_RESULTS_LIMIT).toDouble() /
+                BATCH_KINGDOM_MEASUREMENTS_LIMIT
+            )
+            .toInt()
+        )
+      ) {
         batchGetMeasurements(batchGetMeasurementsCaptor.capture())
       }
 
@@ -5642,7 +5659,16 @@ class MetricsServiceTest {
       // Verify proto argument of cmms MeasurementsCoroutineImplBase::batchGetMeasurements
       val batchGetMeasurementsCaptor: KArgumentCaptor<BatchGetMeasurementsRequest> =
         argumentCaptor()
-      verifyBlocking(measurementsMock, times(ceil((1 + BATCH_SET_MEASUREMENT_FAILURES_LIMIT).toDouble() / BATCH_KINGDOM_MEASUREMENTS_LIMIT).toInt())) {
+      verifyBlocking(
+        measurementsMock,
+        times(
+          ceil(
+              (1 + BATCH_SET_MEASUREMENT_FAILURES_LIMIT).toDouble() /
+                BATCH_KINGDOM_MEASUREMENTS_LIMIT
+            )
+            .toInt()
+        )
+      ) {
         batchGetMeasurements(batchGetMeasurementsCaptor.capture())
       }
 
