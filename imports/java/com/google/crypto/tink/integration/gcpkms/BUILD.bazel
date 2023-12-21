@@ -1,0 +1,6 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "gcpkms",
+    actual = "@maven//:com_google_crypto_tink_tink_gcpkms",
+)

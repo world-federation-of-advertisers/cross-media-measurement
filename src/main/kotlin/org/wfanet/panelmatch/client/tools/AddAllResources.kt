@@ -14,12 +14,12 @@
 
 package org.wfanet.panelmatch.client.tools
 
+import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.integration.awskms.AwsKmsClient
 import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.protobuf.kotlin.toByteString
 import java.io.File
 import java.time.LocalDate
-import java.util.Optional
 import java.util.concurrent.Callable
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.aws.s3.S3StorageClient
@@ -148,16 +148,17 @@ class AddAllResources : Callable<Int> {
   }
 
   private val defaults by lazy {
-    when (storageType) {
-      StorageDetails.PlatformCase.GCS ->
-        // Register GcpKmsClient before setting storage folders.
-        GcpKmsClient.register(Optional.of(tinkKeyUri), Optional.empty())
-      StorageDetails.PlatformCase.AWS ->
-        // Register AwsKmsClient before setting storage folders.
-        AwsKmsClient.register(Optional.of(tinkKeyUri), Optional.empty())
-      else -> throw IllegalArgumentException("Unsupported default private storage type.")
-    }
-    DaemonStorageClientDefaults(rootStorageClient, tinkKeyUri, TinkKeyStorageProvider())
+    val kmsClient: KmsClient =
+      when (storageType) {
+        StorageDetails.PlatformCase.GCS ->
+          // Register GcpKmsClient before setting storage folders.
+          GcpKmsClient()
+        StorageDetails.PlatformCase.AWS ->
+          // Register AwsKmsClient before setting storage folders.
+          AwsKmsClient()
+        else -> throw IllegalArgumentException("Unsupported default private storage type.")
+      }
+    DaemonStorageClientDefaults(rootStorageClient, tinkKeyUri, TinkKeyStorageProvider(kmsClient))
   }
 
   private val addResource by lazy { ConfigureResource(defaults) }
