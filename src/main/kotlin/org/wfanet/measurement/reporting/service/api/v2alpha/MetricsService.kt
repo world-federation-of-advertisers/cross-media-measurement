@@ -496,7 +496,7 @@ class MetricsService(
             }
         }
         vidSamplingInterval = metricSpec.vidSamplingInterval.toCmmsVidSamplingInterval()
-        //TODO(jojijac0b): Add modelLine
+        //TODO(@jojijac0b): Add modelLine
       }
     }
 

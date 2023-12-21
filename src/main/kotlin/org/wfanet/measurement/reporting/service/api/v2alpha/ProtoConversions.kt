@@ -318,7 +318,7 @@ fun InternalMetricSpec.toMetricSpec(): MetricSpec {
     if (source.hasVidSamplingInterval()) {
       vidSamplingInterval = source.vidSamplingInterval.toVidSamplingInterval()
     }
-    // TODO(jojijac0b): To add model line check and assignment
+    // TODO(@jojijac0b): To add model line check and assignment
   }
 }
 
