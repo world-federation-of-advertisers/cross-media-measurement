@@ -25,7 +25,11 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.BatchCancelMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.BatchCancelMeasurementsResponse
+import org.wfanet.measurement.internal.kingdom.BatchCreateMeasurementsRequest
+import org.wfanet.measurement.internal.kingdom.BatchCreateMeasurementsResponse
 import org.wfanet.measurement.internal.kingdom.BatchDeleteMeasurementsRequest
+import org.wfanet.measurement.internal.kingdom.BatchGetMeasurementsRequest
+import org.wfanet.measurement.internal.kingdom.BatchGetMeasurementsResponse
 import org.wfanet.measurement.internal.kingdom.CancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.CreateMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.GetMeasurementByComputationIdRequest
@@ -34,6 +38,8 @@ import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.SetMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
+import org.wfanet.measurement.internal.kingdom.batchCreateMeasurementsResponse
+import org.wfanet.measurement.internal.kingdom.batchGetMeasurementsResponse
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
@@ -50,7 +56,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementR
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchCancelMeasurements
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchDeleteMeasurements
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CancelMeasurement
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateMeasurement
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateMeasurements
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetMeasurementResult
 
 private const val MAX_BATCH_DELETE = 1000
@@ -64,7 +70,7 @@ class SpannerMeasurementsService(
   override suspend fun createMeasurement(request: CreateMeasurementRequest): Measurement {
     validateCreateMeasurementRequest(request)
     try {
-      return CreateMeasurement(request).execute(client, idGenerator)
+      return CreateMeasurements(listOf(request)).execute(client, idGenerator).first()
     } catch (e: CertificateIsInvalidException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Certificate is invalid.")
     } catch (e: MeasurementConsumerNotFoundException) {
@@ -228,5 +234,57 @@ class SpannerMeasurementsService(
         "external_measurement_id not specified"
       }
     }
+  }
+
+  override suspend fun batchCreateMeasurements(
+    request: BatchCreateMeasurementsRequest
+  ): BatchCreateMeasurementsResponse {
+    for (createMeasurementRequest in request.requestsList) {
+      grpcRequire(
+        request.externalMeasurementConsumerId ==
+          createMeasurementRequest.measurement.externalMeasurementConsumerId
+      ) {
+        "Child request external_measurement_consumer_id does not match parent request external_measurement_consumer_id."
+      }
+      validateCreateMeasurementRequest(createMeasurementRequest)
+    }
+
+    try {
+      return batchCreateMeasurementsResponse {
+        measurements += CreateMeasurements(request.requestsList).execute(client, idGenerator)
+      }
+    } catch (e: CertificateIsInvalidException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Certificate is invalid.")
+    } catch (e: MeasurementConsumerNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found.")
+    } catch (e: DataProviderNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "DataProvider not found.")
+    } catch (e: DuchyNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Duchy not found.")
+    } catch (e: CertificateNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Certificate not found.")
+    } catch (e: DuchyNotActiveException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Inactive required duchy.")
+    } catch (e: KingdomInternalException) {
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
+    }
+  }
+
+  override suspend fun batchGetMeasurements(
+    request: BatchGetMeasurementsRequest
+  ): BatchGetMeasurementsResponse {
+    val results: List<MeasurementReader.Result> =
+      MeasurementReader(Measurement.View.DEFAULT)
+        .readByExternalIds(
+          client.singleUse(),
+          ExternalId(request.externalMeasurementConsumerId),
+          request.externalMeasurementIdsList.map { ExternalId(it) }
+        )
+
+    if (results.size < request.externalMeasurementIdsList.size) {
+      throw Status.NOT_FOUND.withDescription("Measurement not found").asRuntimeException()
+    }
+
+    return batchGetMeasurementsResponse { measurements += results.map { it.measurement } }
   }
 }
