@@ -48,6 +48,8 @@ sealed class ProtocolStages(val stageType: ComputationStage.StageCase) {
         ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 -> LiquidLegionsV2Stages()
         ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
           ReachOnlyLiquidLegionsV2Stages()
+        // TODO(@renjiez): Implement ProtocolStages for HONEST_MAJORITY_SHARE_SHUFFLE
+        ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE,
         ComputationStage.StageCase.STAGE_NOT_SET -> null
       }
     }

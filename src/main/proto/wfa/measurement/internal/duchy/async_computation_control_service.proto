@@ -49,6 +49,8 @@ message AdvanceComputationRequest {
   int64 blob_id = 3;
   // The path of the blob newly added.
   string blob_path = 4;
+  // The protocol specific input for a certain stage.
+  ComputationStageInput computation_stage_input = 5;
 }
 
 message AdvanceComputationResponse {

@@ -16,9 +16,11 @@ package org.wfanet.measurement.duchy.service.system.v1alpha
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flowOf
@@ -31,7 +33,9 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
+import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.DuchyIdentity
@@ -48,20 +52,27 @@ import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.Async
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.advanceComputationRequest as asyncAdvanceComputationRequest
 import org.wfanet.measurement.internal.duchy.computationStageBlobMetadata
+import org.wfanet.measurement.internal.duchy.computationStageInput
 import org.wfanet.measurement.internal.duchy.getOutputBlobMetadataRequest
+import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle as HonestMajorityShareShuffleProtocol
+import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt.shufflePhaseInput
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.testing.BlobSubject.Companion.assertThat
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
+import org.wfanet.measurement.system.v1alpha.HonestMajorityShareShuffle
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
 import org.wfanet.measurement.system.v1alpha.ReachOnlyLiquidLegionsV2
+import org.wfanet.measurement.system.v1alpha.advanceComputationRequest
 
 private const val RUNNING_DUCHY_NAME = "Alsace"
 private const val BAVARIA = "Bavaria"
 private const val CARINTHIA = "Carinthia"
 private val OTHER_DUCHY_NAMES = listOf(BAVARIA, CARINTHIA)
 private const val BLOB_ID = 1234L
+private val BLOB_CONTENT = "content".toByteStringUtf8()
+private val SEED = "seed".toByteStringUtf8()
 
 @RunWith(JUnit4::class)
 class ComputationControlServiceTest {
@@ -132,7 +143,7 @@ class ComputationControlServiceTest {
     val blobKey = "$id/WAIT_SETUP_PHASE_INPUTS/$BLOB_ID"
     val carinthiaHeader =
       advanceComputationHeader(LiquidLegionsV2.Description.SETUP_PHASE_INPUT, id)
-    withSender(carinthia) { advanceComputation(carinthiaHeader.withContent("contents")) }
+    withSender(carinthia) { advanceComputation(carinthiaHeader.withContent(BLOB_CONTENT)) }
 
     verifyProtoArgument(
         mockAsyncControlService,
@@ -157,7 +168,7 @@ class ComputationControlServiceTest {
           .build()
       )
     val data = assertNotNull(computationStore.get(blobKey))
-    assertThat(data).contentEqualTo(ByteString.copyFromUtf8("contents"))
+    assertThat(data).contentEqualTo(BLOB_CONTENT)
   }
 
   @Test
@@ -166,7 +177,7 @@ class ComputationControlServiceTest {
     val blobKey = "$id/WAIT_EXECUTION_PHASE_ONE_INPUTS/$BLOB_ID"
     val carinthiaHeader =
       advanceComputationHeader(LiquidLegionsV2.Description.EXECUTION_PHASE_ONE_INPUT, id)
-    withSender(carinthia) { advanceComputation(carinthiaHeader.withContent("contents")) }
+    withSender(carinthia) { advanceComputation(carinthiaHeader.withContent(BLOB_CONTENT)) }
 
     verifyProtoArgument(
         mockAsyncControlService,
@@ -192,7 +203,7 @@ class ComputationControlServiceTest {
           .build()
       )
     val data = assertNotNull(computationStore.get(blobKey))
-    assertThat(data).contentEqualTo(ByteString.copyFromUtf8("contents"))
+    assertThat(data).contentEqualTo(BLOB_CONTENT)
   }
 
   @Test
@@ -201,7 +212,7 @@ class ComputationControlServiceTest {
     val blobKey = "$id/WAIT_EXECUTION_PHASE_TWO_INPUTS/$BLOB_ID"
     val bavariaHeader =
       advanceComputationHeader(LiquidLegionsV2.Description.EXECUTION_PHASE_TWO_INPUT, id)
-    withSender(bavaria) { advanceComputation(bavariaHeader.withContent("contents")) }
+    withSender(bavaria) { advanceComputation(bavariaHeader.withContent(BLOB_CONTENT)) }
 
     verifyProtoArgument(
         mockAsyncControlService,
@@ -228,7 +239,7 @@ class ComputationControlServiceTest {
       )
 
     val data = assertNotNull(computationStore.get(blobKey))
-    assertThat(data).contentEqualTo(ByteString.copyFromUtf8("contents"))
+    assertThat(data).contentEqualTo(BLOB_CONTENT)
   }
 
   @Test
@@ -237,7 +248,7 @@ class ComputationControlServiceTest {
     val blobKey = "$id/WAIT_EXECUTION_PHASE_THREE_INPUTS/$BLOB_ID"
     val bavariaHeader =
       advanceComputationHeader(LiquidLegionsV2.Description.EXECUTION_PHASE_THREE_INPUT, id)
-    withSender(bavaria) { advanceComputation(bavariaHeader.withContent("contents")) }
+    withSender(bavaria) { advanceComputation(bavariaHeader.withContent(BLOB_CONTENT)) }
 
     verifyProtoArgument(
         mockAsyncControlService,
@@ -263,7 +274,7 @@ class ComputationControlServiceTest {
           .build()
       )
     val data = assertNotNull(computationStore.get(blobKey))
-    assertThat(data).contentEqualTo(ByteString.copyFromUtf8("contents"))
+    assertThat(data).contentEqualTo(BLOB_CONTENT)
   }
 
   @Test
@@ -307,15 +318,13 @@ class ComputationControlServiceTest {
       }
       assertFailsWith<StatusRuntimeException> {
         withSender(bavaria) {
-          advanceComputation(
-            goodHeader.toBuilder().clearName().build().withContent("blob-contents")
-          )
+          advanceComputation(goodHeader.toBuilder().clearName().build().withContent(BLOB_CONTENT))
         }
       }
       assertFailsWith<StatusRuntimeException> {
         withSender(bavaria) {
           advanceComputation(
-            goodHeader.toBuilder().clearProtocol().build().withContent("blob-contents")
+            goodHeader.toBuilder().clearProtocol().build().withContent(BLOB_CONTENT)
           )
         }
       }
@@ -327,7 +336,7 @@ class ComputationControlServiceTest {
     val blobKey = "$id/WAIT_SETUP_PHASE_INPUTS/$BLOB_ID"
     val carinthiaHeader =
       advanceComputationHeader(ReachOnlyLiquidLegionsV2.Description.SETUP_PHASE_INPUT, id)
-    withSender(carinthia) { advanceComputation(carinthiaHeader.withContent("contents")) }
+    withSender(carinthia) { advanceComputation(carinthiaHeader.withContent(BLOB_CONTENT)) }
 
     verifyProtoArgument(
         mockAsyncControlService,
@@ -351,7 +360,7 @@ class ComputationControlServiceTest {
         }
       )
     val data = assertNotNull(computationStore.get(blobKey))
-    assertThat(data).contentEqualTo(ByteString.copyFromUtf8("contents"))
+    assertThat(data).contentEqualTo(BLOB_CONTENT)
   }
 
   @Test
@@ -360,7 +369,7 @@ class ComputationControlServiceTest {
     val blobKey = "$id/WAIT_EXECUTION_PHASE_INPUTS/$BLOB_ID"
     val carinthiaHeader =
       advanceComputationHeader(ReachOnlyLiquidLegionsV2.Description.EXECUTION_PHASE_INPUT, id)
-    withSender(carinthia) { advanceComputation(carinthiaHeader.withContent("contents")) }
+    withSender(carinthia) { advanceComputation(carinthiaHeader.withContent(BLOB_CONTENT)) }
 
     verifyProtoArgument(
         mockAsyncControlService,
@@ -384,20 +393,83 @@ class ComputationControlServiceTest {
         }
       )
     val data = assertNotNull(computationStore.get(blobKey))
-    assertThat(data).contentEqualTo(ByteString.copyFromUtf8("contents"))
+    assertThat(data).contentEqualTo(BLOB_CONTENT)
+  }
+
+  @Test
+  fun `honest majority share shuffle sends blob as input`() = runBlocking {
+    val id = "444444"
+    val blobKey = "$id/WAIT_ON_INPUT/$BLOB_ID"
+    val carinthiaHeader =
+      advanceComputationHeader(HonestMajorityShareShuffle.Description.AGGREGATION_PHASE_INPUT, id)
+
+    withSender(carinthia) { advanceComputation(carinthiaHeader.withContent(BLOB_CONTENT)) }
+
+    verifyProtoArgument(
+        mockAsyncControlService,
+        AsyncComputationControlCoroutineImplBase::getOutputBlobMetadata
+      )
+      .isEqualTo(
+        getOutputBlobMetadataRequest {
+          globalComputationId = id
+          dataOrigin = CARINTHIA
+        }
+      )
+    assertThat(advanceAsyncComputationRequests)
+      .containsExactly(
+        asyncAdvanceComputationRequest {
+          globalComputationId = id
+          computationStage =
+            HonestMajorityShareShuffleProtocol.Stage.WAIT_ON_INPUT.toProtocolStage()
+          blobId = BLOB_ID
+          blobPath = blobKey
+        }
+      )
+    val data = assertNotNull(computationStore.get(blobKey))
+    assertThat(data).contentEqualTo(BLOB_CONTENT)
+  }
+
+  @Test
+  fun `honest majority share shuffle sends seed as input`() = runBlocking {
+    val id = "444444"
+    val blobKey = "$id/WAIT_ON_INPUT/$BLOB_ID"
+    val carinthiaHeader =
+      advanceComputationHeader(HonestMajorityShareShuffle.Description.SHUFFLE_PHASE_INPUT, id, SEED)
+
+    withSender(carinthia) { advanceComputation(carinthiaHeader.withSeed()) }
+
+    verifyBlocking(mockAsyncControlService, never()) { getOutputBlobMetadata(any()) }
+    assertThat(advanceAsyncComputationRequests)
+      .containsExactly(
+        asyncAdvanceComputationRequest {
+          globalComputationId = id
+          computationStage =
+            HonestMajorityShareShuffleProtocol.Stage.WAIT_ON_INPUT.toProtocolStage()
+          computationStageInput = computationStageInput {
+            honestMajorityShareShuffleShufflePhaseInput = shufflePhaseInput {
+              commonRandomSeed = SEED
+            }
+          }
+        }
+      )
+    val data = assertNull(computationStore.get(blobKey))
   }
 }
 
 private fun AdvanceComputationRequest.Header.withContent(
-  vararg bodyContent: String
+  vararg bodyContent: ByteString
 ): Flow<AdvanceComputationRequest> {
   return bodyContent
     .asSequence()
     .map {
       AdvanceComputationRequest.newBuilder()
-        .apply { bodyChunkBuilder.apply { partialData = ByteString.copyFromUtf8(it) } }
+        .apply { bodyChunkBuilder.apply { partialData = it } }
         .build()
     }
     .asFlow()
     .onStart { emit(AdvanceComputationRequest.newBuilder().setHeader(this@withContent).build()) }
+}
+
+private fun AdvanceComputationRequest.Header.withSeed(): Flow<AdvanceComputationRequest> {
+  return flowOf(advanceComputationRequest { header = this@withSeed })
 }

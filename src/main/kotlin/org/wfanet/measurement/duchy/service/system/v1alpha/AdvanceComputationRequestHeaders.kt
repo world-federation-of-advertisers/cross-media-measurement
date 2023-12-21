@@ -14,34 +14,80 @@
 
 package org.wfanet.measurement.duchy.service.system.v1alpha
 
+import com.google.protobuf.ByteString
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationStage
+import org.wfanet.measurement.internal.duchy.ComputationStageInput
+import org.wfanet.measurement.internal.duchy.computationStageInput
+import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle as HonestMajorityShareShuffleProtocol
+import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt.shufflePhaseInput as internalShufflePhaseInput
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest.Header.ProtocolCase
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequestKt
 import org.wfanet.measurement.system.v1alpha.ComputationKey
+import org.wfanet.measurement.system.v1alpha.HonestMajorityShareShuffle
+import org.wfanet.measurement.system.v1alpha.HonestMajorityShareShuffleKt.shufflePhaseInput
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
 import org.wfanet.measurement.system.v1alpha.ReachOnlyLiquidLegionsV2
+import org.wfanet.measurement.system.v1alpha.honestMajorityShareShuffle
 import org.wfanet.measurement.system.v1alpha.liquidLegionsV2
 import org.wfanet.measurement.system.v1alpha.reachOnlyLiquidLegionsV2
 
 /** True if the protocol specified in the header is asynchronous. */
 fun AdvanceComputationRequest.Header.isForAsyncComputation(): Boolean =
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
   when (protocolCase) {
     ProtocolCase.LIQUID_LEGIONS_V2,
-    ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> true
-    else -> failGrpc { "Unknown protocol $protocolCase" }
+    ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2,
+    ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> true
+    ProtocolCase.PROTOCOL_NOT_SET -> failGrpc { "Unknown protocol $protocolCase" }
   }
 
 /** Returns the [ComputationStage] which expects the input described in the header. */
 fun AdvanceComputationRequest.Header.stageExpectingInput(): ComputationStage =
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
   when (protocolCase) {
     ProtocolCase.LIQUID_LEGIONS_V2 -> liquidLegionsV2.stageExpectingInput()
     ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> reachOnlyLiquidLegionsV2.stageExpectingInput()
-    else -> failGrpc { "Unknown protocol $protocolCase" }
+    ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> honestMajorityShareShuffle.stageExpectingInput()
+    ProtocolCase.PROTOCOL_NOT_SET -> failGrpc { "Unknown protocol $protocolCase" }
+  }
+
+/** Returns true if the stage expects blob input from the request. */
+fun AdvanceComputationRequest.Header.doesExpectBlobInput(): Boolean =
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+  when (protocolCase) {
+    ProtocolCase.LIQUID_LEGIONS_V2,
+    ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> true
+    ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+      when (honestMajorityShareShuffle.description) {
+        HonestMajorityShareShuffle.Description.SHUFFLE_PHASE_INPUT -> false
+        HonestMajorityShareShuffle.Description.AGGREGATION_PHASE_INPUT -> true
+        HonestMajorityShareShuffle.Description.DESCRIPTION_UNSPECIFIED,
+        HonestMajorityShareShuffle.Description.UNRECOGNIZED -> failGrpc { "Invalid description." }
+      }
+    ProtocolCase.PROTOCOL_NOT_SET -> failGrpc { "Unknown protocol $protocolCase" }
+  }
+
+/** Returns true if the stage expects protocol specific input from the header of the request. */
+fun AdvanceComputationRequest.Header.doesExpectProtocolSpecificInput(): Boolean =
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+  when (protocolCase) {
+    ProtocolCase.LIQUID_LEGIONS_V2,
+    ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> false
+    ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+      when (honestMajorityShareShuffle.description) {
+        HonestMajorityShareShuffle.Description.SHUFFLE_PHASE_INPUT -> true
+        HonestMajorityShareShuffle.Description.AGGREGATION_PHASE_INPUT -> false
+        HonestMajorityShareShuffle.Description.DESCRIPTION_UNSPECIFIED,
+        HonestMajorityShareShuffle.Description.UNRECOGNIZED -> failGrpc { "Invalid description." }
+      }
+    ProtocolCase.PROTOCOL_NOT_SET -> failGrpc { "Unknown protocol $protocolCase" }
   }
 
 private fun LiquidLegionsV2.stageExpectingInput(): ComputationStage =
@@ -66,6 +112,36 @@ private fun ReachOnlyLiquidLegionsV2.stageExpectingInput(): ComputationStage =
     else -> failGrpc { "Unknown ReachOnlyLiquidLegionsV2 payload description '$description'." }
   }.toProtocolStage()
 
+private fun HonestMajorityShareShuffle.stageExpectingInput(): ComputationStage =
+  when (description) {
+    HonestMajorityShareShuffle.Description.SHUFFLE_PHASE_INPUT,
+    HonestMajorityShareShuffle.Description.AGGREGATION_PHASE_INPUT ->
+      HonestMajorityShareShuffleProtocol.Stage.WAIT_ON_INPUT
+    else -> failGrpc { "Unknown HonestMajorityShareShuffle payload description '$description'." }
+  }.toProtocolStage()
+
+fun AdvanceComputationRequest.Header.computationStageInput(): ComputationStageInput {
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+  return when (protocolCase) {
+    ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> honestMajorityShareShuffle.computationStageInput()
+    ProtocolCase.LIQUID_LEGIONS_V2,
+    ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2,
+    ProtocolCase.PROTOCOL_NOT_SET ->
+      failGrpc { "Protocol $protocolCase does not have ComputationStageInput" }
+  }
+}
+
+private fun HonestMajorityShareShuffle.computationStageInput(): ComputationStageInput =
+  when (description) {
+    HonestMajorityShareShuffle.Description.SHUFFLE_PHASE_INPUT ->
+      computationStageInput {
+        honestMajorityShareShuffleShufflePhaseInput = internalShufflePhaseInput {
+          commonRandomSeed = shufflePhaseInput.commonRandomSeed
+        }
+      }
+    else -> failGrpc { "Unknown ReachOnlyLiquidLegionsV2 payload description '$description'." }
+  }
+
 /** Creates an [AdvanceComputationRequest.Header] for a liquid legions v2 computation. */
 fun advanceComputationHeader(
   liquidLegionsV2ContentDescription: LiquidLegionsV2.Description,
@@ -85,5 +161,37 @@ fun advanceComputationHeader(
     name = ComputationKey(globalComputationId).toName()
     reachOnlyLiquidLegionsV2 = reachOnlyLiquidLegionsV2 {
       description = reachOnlyLiquidLegionsV2ContentDescription
+    }
+  }
+
+/**
+ * Creates an [AdvanceComputationRequest.Header] for a honest majority share shuffle computation
+ * without the seed.
+ */
+fun advanceComputationHeader(
+  honestMajorityShareShuffleContentDescription: HonestMajorityShareShuffle.Description,
+  globalComputationId: String
+): AdvanceComputationRequest.Header =
+  AdvanceComputationRequestKt.header {
+    name = ComputationKey(globalComputationId).toName()
+    honestMajorityShareShuffle = honestMajorityShareShuffle {
+      description = honestMajorityShareShuffleContentDescription
+    }
+  }
+
+/**
+ * Creates an [AdvanceComputationRequest.Header] for the honest majority share shuffle computation
+ * with a seed.
+ */
+fun advanceComputationHeader(
+  honestMajorityShareShuffleContentDescription: HonestMajorityShareShuffle.Description,
+  globalComputationId: String,
+  seed: ByteString
+): AdvanceComputationRequest.Header =
+  AdvanceComputationRequestKt.header {
+    name = ComputationKey(globalComputationId).toName()
+    honestMajorityShareShuffle = honestMajorityShareShuffle {
+      description = honestMajorityShareShuffleContentDescription
+      shufflePhaseInput = shufflePhaseInput { commonRandomSeed = seed }
     }
   }

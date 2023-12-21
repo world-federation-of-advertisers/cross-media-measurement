@@ -17,6 +17,7 @@ package org.wfanet.measurement.duchy.db.computation
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
+import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType.UNRECOGNIZED
@@ -33,6 +34,7 @@ object ComputationProtocolStages :
         LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
       ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+      ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE -> HONEST_MAJORITY_SHARE_SHUFFLE
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
   }
@@ -56,6 +58,11 @@ object ComputationProtocolStages :
             value.reachOnlyLiquidLegionsSketchAggregationV2
           )
         )
+      ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
+        ComputationStageLongValues(
+          ComputationTypes.protocolEnumToLong(HONEST_MAJORITY_SHARE_SHUFFLE),
+          HonestMajorityShareShuffleProtocol.EnumStages.enumToLong(value.honestMajorityShareShuffle)
+        )
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
   }
@@ -71,6 +78,8 @@ object ComputationProtocolStages :
       REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         ReachOnlyLiquidLegionsSketchAggregationV2Protocol.EnumStages.longToEnum(value.stage)
           .toProtocolStage()
+      HONEST_MAJORITY_SHARE_SHUFFLE ->
+        HonestMajorityShareShuffleProtocol.EnumStages.longToEnum(value.stage).toProtocolStage()
       UNSPECIFIED,
       UNRECOGNIZED -> error("protocol not set")
     }
@@ -83,6 +92,8 @@ object ComputationProtocolStages :
         LiquidLegionsSketchAggregationV2Protocol.ComputationStages.validInitialStages
       REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         ReachOnlyLiquidLegionsSketchAggregationV2Protocol.ComputationStages.validInitialStages
+      HONEST_MAJORITY_SHARE_SHUFFLE ->
+        HonestMajorityShareShuffleProtocol.ComputationStages.validInitialStages
       UNSPECIFIED,
       UNRECOGNIZED -> error("protocol not set")
     }
@@ -95,6 +106,8 @@ object ComputationProtocolStages :
         LiquidLegionsSketchAggregationV2Protocol.ComputationStages.validTerminalStages
       REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         ReachOnlyLiquidLegionsSketchAggregationV2Protocol.ComputationStages.validTerminalStages
+      HONEST_MAJORITY_SHARE_SHUFFLE ->
+        HonestMajorityShareShuffleProtocol.ComputationStages.validTerminalStages
       UNSPECIFIED,
       UNRECOGNIZED -> error("protocol not set")
     }
@@ -117,6 +130,8 @@ object ComputationProtocolStages :
           LiquidLegionsSketchAggregationV2Protocol.ComputationStages.validSuccessors
         ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
           ReachOnlyLiquidLegionsSketchAggregationV2Protocol.ComputationStages.validSuccessors
+        ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
+          HonestMajorityShareShuffleProtocol.ComputationStages.validSuccessors
         ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
       }.getOrDefault(currentStage, setOf())
   }
