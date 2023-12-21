@@ -18,6 +18,7 @@ package org.wfanet.measurement.api.v2alpha.tools
 
 import com.google.crypto.tink.BinaryKeysetReader
 import com.google.crypto.tink.CleartextKeysetHandle
+import com.google.crypto.tink.KeysetHandle
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
 import com.google.protobuf.InvalidProtocolBufferException
@@ -268,7 +269,10 @@ private class Accounts {
       }
 
     // TODO(@SanjayVas): Use a util from common.crypto rather than directly interacting with Tink.
-    val keysetHandle = CleartextKeysetHandle.read(BinaryKeysetReader.withFile(siopKey))
+    val keysetHandle: KeysetHandle =
+      siopKey.inputStream().use { input ->
+        CleartextKeysetHandle.read(BinaryKeysetReader.withInputStream(input))
+      }
     val idToken: String =
       SelfIssuedIdTokens.generateIdToken(
         PrivateJwkHandle(keysetHandle),

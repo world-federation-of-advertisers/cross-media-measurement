@@ -15,7 +15,6 @@
 package org.wfanet.panelmatch.client.deploy.example.gcloud
 
 import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
-import java.util.Optional
 import kotlin.properties.Delegates
 import org.apache.beam.runners.dataflow.DataflowRunner
 import org.apache.beam.runners.dataflow.options.DataflowWorkerLoggingOptions
@@ -202,8 +201,11 @@ private class GoogleCloudExampleDaemon : ExampleDaemon() {
   /** This can be customized per deployment. */
   private val defaults by lazy {
     // Register GcpKmsClient before setting storage folders. Set GOOGLE_APPLICATION_CREDENTIALS.
-    GcpKmsClient.register(Optional.of(tinkKeyUri), Optional.empty())
-    DaemonStorageClientDefaults(rootStorageClient, tinkKeyUri, TinkKeyStorageProvider())
+    DaemonStorageClientDefaults(
+      rootStorageClient,
+      tinkKeyUri,
+      TinkKeyStorageProvider(GcpKmsClient())
+    )
   }
 
   /** This can be customized per deployment. */
