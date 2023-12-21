@@ -54,6 +54,14 @@ service Measurements {
   // Permanently deletes Measurements.
   rpc BatchDeleteMeasurements(BatchDeleteMeasurementsRequest)
       returns (google.protobuf.Empty);
+
+  // Creates Measurements in a batch.
+  rpc BatchCreateMeasurements(BatchCreateMeasurementsRequest)
+      returns (BatchCreateMeasurementsResponse);
+
+  // Gets Measurements in a batch.
+  rpc BatchGetMeasurements(BatchGetMeasurementsRequest)
+      returns (BatchGetMeasurementsResponse);
 }
 
 message CreateMeasurementRequest {
@@ -169,4 +177,27 @@ message MeasurementKey {
 
 message ComputationKey {
   fixed64 external_computation_id = 1;
+}
+
+message BatchCreateMeasurementsRequest {
+  fixed64 external_measurement_consumer_id = 1;
+  // The request message specifying the Measurements to create. All child
+  // requests must have their `external_measurement_consumer_id` match the
+  // parent `external_measurement_consumer_id`. A maximum of 50 Measurements
+  // can be created in a batch.
+  repeated CreateMeasurementRequest requests = 2;
+}
+
+message BatchCreateMeasurementsResponse {
+  repeated Measurement measurements = 1;
+}
+
+message BatchGetMeasurementsRequest {
+  fixed64 external_measurement_consumer_id = 1;
+  // A maximum of 50 Measurements can be retrieved in a batch.
+  repeated fixed64 external_measurement_ids = 2;
+}
+
+message BatchGetMeasurementsResponse {
+  repeated Measurement measurements = 1;
 }
