@@ -89,7 +89,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.batchCreateMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.batchCreateMeasurementsResponse
-import org.wfanet.measurement.api.v2alpha.batchGetMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.batchGetMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.copy
@@ -194,6 +193,7 @@ import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetric
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsSketchParams as internalReachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
+import kotlin.math.ceil
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMetricVarianceParams
@@ -2964,6 +2964,13 @@ class MetricsServiceTest {
       runBlocking { service.createMetric(request) }
     }
 
+    // Verify proto argument of cmms MeasurementsCoroutineImplBase::batchCreateMeasurements
+    val batchCreateMeasurementsCaptor: KArgumentCaptor<BatchCreateMeasurementsRequest> =
+      argumentCaptor()
+    verifyBlocking(measurementsMock, times(ceil((1 + BATCH_SET_CMMS_MEASUREMENT_IDS_LIMIT).toDouble() / BATCH_KINGDOM_MEASUREMENTS_LIMIT).toInt())) {
+      batchCreateMeasurements(batchCreateMeasurementsCaptor.capture())
+    }
+
     // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds
     val batchSetCmmsMeasurementIdsCaptor: KArgumentCaptor<BatchSetCmmsMeasurementIdsRequest> =
       argumentCaptor()
@@ -5558,6 +5565,13 @@ class MetricsServiceTest {
         runBlocking { service.getMetric(request) }
       }
 
+      // Verify proto argument of cmms MeasurementsCoroutineImplBase::batchGetMeasurements
+      val batchGetMeasurementsCaptor: KArgumentCaptor<BatchGetMeasurementsRequest> =
+        argumentCaptor()
+      verifyBlocking(measurementsMock, times(ceil((1 + BATCH_SET_MEASUREMENT_RESULTS_LIMIT).toDouble() / BATCH_KINGDOM_MEASUREMENTS_LIMIT).toInt())) {
+        batchGetMeasurements(batchGetMeasurementsCaptor.capture())
+      }
+
       // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
@@ -5623,6 +5637,13 @@ class MetricsServiceTest {
 
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
         runBlocking { service.getMetric(request) }
+      }
+
+      // Verify proto argument of cmms MeasurementsCoroutineImplBase::batchGetMeasurements
+      val batchGetMeasurementsCaptor: KArgumentCaptor<BatchGetMeasurementsRequest> =
+        argumentCaptor()
+      verifyBlocking(measurementsMock, times(ceil((1 + BATCH_SET_MEASUREMENT_FAILURES_LIMIT).toDouble() / BATCH_KINGDOM_MEASUREMENTS_LIMIT).toInt())) {
+        batchGetMeasurements(batchGetMeasurementsCaptor.capture())
       }
 
       // Verify proto argument of internal
