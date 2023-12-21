@@ -1315,9 +1315,7 @@ private val REQUESTING_POPULATION_MEASUREMENT =
 
     measurementSpec =
       signMeasurementSpec(
-        POPULATION_MEASUREMENT_SPEC.copy {
-          nonceHashes += Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG)
-        },
+        POPULATION_MEASUREMENT_SPEC,
         MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
       )
   }
@@ -7521,7 +7519,7 @@ class MetricsServiceTest {
       },
       )
 
-  capturedMeasurementRequests.forEach { capturedMeasurementRequest ->
+  val capturedMeasurementRequest = capturedMeasurementRequests.first()
     verifyMeasurementSpec(
       capturedMeasurementRequest.measurement.measurementSpec,
       MEASUREMENT_CONSUMER_CERTIFICATE,
@@ -7558,7 +7556,7 @@ class MetricsServiceTest {
         TRUSTED_MEASUREMENT_CONSUMER_ISSUER
       )
     }
-  }
+
 
   // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementId
   verifyProtoArgument(
