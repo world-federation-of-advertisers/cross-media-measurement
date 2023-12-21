@@ -43,11 +43,12 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
 import org.jetbrains.annotations.BlockingExecutor
 import org.wfanet.measurement.api.v2alpha.BatchCreateMeasurementsResponse
+import org.wfanet.measurement.api.v2alpha.BatchGetMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
@@ -68,11 +69,12 @@ import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCorouti
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.SignedMessage
+import org.wfanet.measurement.api.v2alpha.batchCreateMeasurementsRequest
+import org.wfanet.measurement.api.v2alpha.batchGetMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
-import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
@@ -145,10 +147,6 @@ import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchMetho
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
-import kotlinx.coroutines.flow.map
-import org.wfanet.measurement.api.v2alpha.BatchGetMeasurementsResponse
-import org.wfanet.measurement.api.v2alpha.batchCreateMeasurementsRequest
-import org.wfanet.measurement.api.v2alpha.batchGetMeasurementsRequest
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
@@ -303,18 +301,18 @@ class MetricsService(
 
       val cmmsCreateMeasurementRequests: List<CreateMeasurementRequest> =
         internalMetricsList.flatMap { internalMetric ->
-          internalMetric.weightedMeasurementsList.filter {
-            it.measurement.cmmsMeasurementId.isBlank()
-          }.map {
-            buildCreateMeasurementRequest(
-              it.measurement,
-              internalMetric.metricSpec,
-              internalPrimitiveReportingSetMap,
-              measurementConsumer,
-              principal,
-              dataProviderInfoMap
-            )
-          }
+          internalMetric.weightedMeasurementsList
+            .filter { it.measurement.cmmsMeasurementId.isBlank() }
+            .map {
+              buildCreateMeasurementRequest(
+                it.measurement,
+                internalMetric.metricSpec,
+                internalPrimitiveReportingSetMap,
+                measurementConsumer,
+                principal,
+                dataProviderInfoMap
+              )
+            }
         }
 
       // Create CMMS measurements.
@@ -324,13 +322,14 @@ class MetricsService(
           batchCreateCmmsMeasurements(principal, items)
         }
 
-      val cmmsMeasurements: Flow<Measurement> = submitBatchRequests(
-        cmmsCreateMeasurementRequests.asFlow(),
-        BATCH_KINGDOM_MEASUREMENTS_LIMIT,
-        callBatchCreateMeasurementsRpc
-      ) { response: BatchCreateMeasurementsResponse ->
-        response.measurementsList
-      }
+      val cmmsMeasurements: Flow<Measurement> =
+        submitBatchRequests(
+          cmmsCreateMeasurementRequests.asFlow(),
+          BATCH_KINGDOM_MEASUREMENTS_LIMIT,
+          callBatchCreateMeasurementsRpc
+        ) { response: BatchCreateMeasurementsResponse ->
+          response.measurementsList
+        }
 
       // Set CMMS measurement IDs.
       val callBatchSetCmmsMeasurementIdsRpc:
@@ -379,10 +378,12 @@ class MetricsService(
       try {
         return measurementsStub
           .withAuthenticationKey(principal.config.apiKey)
-          .batchCreateMeasurements(batchCreateMeasurementsRequest {
-            parent = principal.resourceKey.toName()
-            requests += createMeasurementRequests
-          })
+          .batchCreateMeasurements(
+            batchCreateMeasurementsRequest {
+              parent = principal.resourceKey.toName()
+              requests += createMeasurementRequests
+            }
+          )
       } catch (e: StatusException) {
         throw when (e.status.code) {
             Status.Code.INVALID_ARGUMENT ->
@@ -760,8 +761,7 @@ class MetricsService(
       principal: MeasurementConsumerPrincipal,
     ): Boolean {
       val newStateToCmmsMeasurements: Map<Measurement.State, List<Measurement>> =
-        getCmmsMeasurements(internalMeasurements, principal).groupBy {
-          measurement ->
+        getCmmsMeasurements(internalMeasurements, principal).groupBy { measurement ->
           measurement.state
         }
 
@@ -896,8 +896,7 @@ class MetricsService(
           }
           .distinct()
 
-      val callBatchGetMeasurementsRpc:
-        suspend (List<String>) -> BatchGetMeasurementsResponse =
+      val callBatchGetMeasurementsRpc: suspend (List<String>) -> BatchGetMeasurementsResponse =
         { items ->
           batchGetCmmsMeasurements(principal, items)
         }
@@ -909,7 +908,7 @@ class MetricsService(
         ) { response: BatchGetMeasurementsResponse ->
           response.measurementsList
         }
-          .toList()
+        .toList()
     }
 
     /** Batch get CMMS measurements. */
@@ -920,23 +919,21 @@ class MetricsService(
       try {
         return measurementsStub
           .withAuthenticationKey(principal.config.apiKey)
-          .batchGetMeasurements(batchGetMeasurementsRequest {
-            parent = principal.resourceKey.toName()
-            names += measurementNames
-          })
+          .batchGetMeasurements(
+            batchGetMeasurementsRequest {
+              parent = principal.resourceKey.toName()
+              names += measurementNames
+            }
+          )
       } catch (e: StatusException) {
         throw when (e.status.code) {
-          Status.Code.NOT_FOUND ->
-            Status.NOT_FOUND.withDescription("Measurements not found.")
-          Status.Code.PERMISSION_DENIED ->
-            Status.PERMISSION_DENIED.withDescription(
-              "Doesn't have permission to get measurements."
-            )
-          else ->
-            Status.UNKNOWN.withDescription(
-              "Unable to retrieve Measurements."
-            )
-        }
+            Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription("Measurements not found.")
+            Status.Code.PERMISSION_DENIED ->
+              Status.PERMISSION_DENIED.withDescription(
+                "Doesn't have permission to get measurements."
+              )
+            else -> Status.UNKNOWN.withDescription("Unable to retrieve Measurements.")
+          }
           .withCause(e)
           .asRuntimeException()
       }
