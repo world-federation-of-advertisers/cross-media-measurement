@@ -26,11 +26,11 @@ import io.grpc.Status
 import io.grpc.StatusException
 import java.time.DateTimeException
 import java.time.LocalDate
-import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
+import java.time.temporal.TemporalAdjusters
 import java.time.zone.ZoneRulesException
 import kotlin.math.min
 import kotlinx.coroutines.flow.asFlow
@@ -44,6 +44,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
+import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -69,6 +70,8 @@ import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.internal.reporting.v2.reportSchedule as internalReportSchedule
 import org.wfanet.measurement.internal.reporting.v2.stopReportScheduleRequest
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
+import org.wfanet.measurement.reporting.service.api.v2alpha.ReportSchedulesService.Companion.toOffsetDateTime
+import org.wfanet.measurement.reporting.service.api.v2alpha.ReportSchedulesService.Companion.toZonedDateTime
 import org.wfanet.measurement.reporting.v2alpha.CreateReportScheduleRequest
 import org.wfanet.measurement.reporting.v2alpha.GetReportScheduleRequest
 import org.wfanet.measurement.reporting.v2alpha.ListReportSchedulesPageToken
@@ -77,14 +80,11 @@ import org.wfanet.measurement.reporting.v2alpha.ListReportSchedulesRequest
 import org.wfanet.measurement.reporting.v2alpha.ListReportSchedulesResponse
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportSchedule
-import org.wfanet.measurement.reporting.v2alpha.ReportScheduleKt
 import org.wfanet.measurement.reporting.v2alpha.ReportSchedulesGrpcKt.ReportSchedulesCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.StopReportScheduleRequest
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.listReportSchedulesPageToken
 import org.wfanet.measurement.reporting.v2alpha.listReportSchedulesResponse
-import org.wfanet.measurement.reporting.v2alpha.report
-import org.wfanet.measurement.reporting.v2alpha.reportSchedule
 
 class ReportSchedulesService(
   private val internalReportSchedulesStub: ReportSchedulesCoroutineStub,
@@ -98,7 +98,8 @@ class ReportSchedulesService(
         "Parent is either unspecified or invalid."
       }
 
-    when (val principal: ReportingPrincipal = principalFromCurrentContext) {
+    val principal: ReportingPrincipal = principalFromCurrentContext
+    when (principal) {
       is MeasurementConsumerPrincipal -> {
         if (parentKey != principal.resourceKey) {
           failGrpc(Status.PERMISSION_DENIED) {
@@ -118,8 +119,6 @@ class ReportSchedulesService(
 
     val internalReportScheduleForRequest = request.reportSchedule.toInternal(parentKey)
 
-    val eventStartTimestamp = request.reportSchedule.eventStart.toTimestamp()
-
     val internalReportingSets: List<InternalReportingSet> =
       getInternalReportingSets(
         request.reportSchedule.reportTemplate,
@@ -132,10 +131,11 @@ class ReportSchedulesService(
 
     checkDataAvailability(
       request.reportSchedule,
-      eventStartTimestamp,
+      internalReportScheduleForRequest.nextReportCreationTime,
       eventGroupKeys,
       dataProvidersStub,
-      eventGroupsStub
+      eventGroupsStub,
+      principal.config.apiKey
     )
 
     val internalReportSchedule =
@@ -317,8 +317,8 @@ class ReportSchedulesService(
   }
 
   /** Converts a public [ReportSchedule] to an internal [InternalReportSchedule]. */
-  private suspend fun ReportSchedule.toInternal(
-    measurementConsumerKey: MeasurementConsumerKey
+  private fun ReportSchedule.toInternal(
+    measurementConsumerKey: MeasurementConsumerKey,
   ): InternalReportSchedule {
     val source = this
 
@@ -350,6 +350,34 @@ class ReportSchedulesService(
       }
     }
 
+    val internalFrequency = source.frequency.toInternal()
+
+    val nextReportCreationTime: Timestamp =
+      if (source.eventStart.hasUtcOffset()) {
+        val offsetDateTime =
+          try {
+            source.eventStart.toOffsetDateTime()
+          } catch (e: DateTimeException) {
+            throw Status.INVALID_ARGUMENT.withDescription(
+                "event_start date portion is invalid or event_start.utc_offset is not in valid range."
+              )
+              .asRuntimeException()
+          }
+        getNextReportCreationTime(offsetDateTime, source.frequency)
+      } else {
+        val zonedDateTime =
+          try {
+            source.eventStart.toZonedDateTime()
+          } catch (e: ZoneRulesException) {
+            throw Status.INVALID_ARGUMENT.withDescription("event_start.time_zone.id is invalid")
+              .asRuntimeException()
+          } catch (e: DateTimeException) {
+            throw Status.INVALID_ARGUMENT.withDescription("event_start date portion is invalid.")
+              .asRuntimeException()
+          }
+        getNextReportCreationTime(zonedDateTime, source.frequency)
+      }
+
     return internalReportSchedule {
       cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
       details =
@@ -359,21 +387,10 @@ class ReportSchedulesService(
           reportTemplate = source.reportTemplate.toInternal(measurementConsumerKey)
           this.eventStart = eventStart
           eventEnd = source.eventEnd
-          frequency = source.frequency.toInternal()
+          frequency = internalFrequency
           reportWindow = source.reportWindow.toInternal(source.eventStart)
         }
-      nextReportCreationTime =
-        try {
-          source.eventStart.toTimestamp()
-        } catch (e: ZoneRulesException) {
-          throw Status.INVALID_ARGUMENT.withDescription("event_start.time_zone.id is invalid")
-            .asRuntimeException()
-        } catch (e: DateTimeException) {
-          throw Status.INVALID_ARGUMENT.withDescription(
-              "event_start.utc_offset is not in valid range."
-            )
-            .asRuntimeException()
-        }
+      this.nextReportCreationTime = nextReportCreationTime
     }
   }
 
@@ -381,9 +398,7 @@ class ReportSchedulesService(
    * Converts a public [Report] used as a template to an internal [InternalReport] used as a
    * template.
    */
-  private suspend fun Report.toInternal(
-    measurementConsumerKey: MeasurementConsumerKey
-  ): InternalReport {
+  private fun Report.toInternal(measurementConsumerKey: MeasurementConsumerKey): InternalReport {
     val source = this
 
     grpcRequire(source.reportingMetricEntriesList.isNotEmpty()) {
@@ -518,77 +533,6 @@ class ReportSchedulesService(
       }
     }
 
-    /** Converts an internal [InternalReportSchedule.State] to a public [ReportSchedule.State]. */
-    private fun InternalReportSchedule.State.toPublic(): ReportSchedule.State {
-      return when (this) {
-        InternalReportSchedule.State.ACTIVE -> ReportSchedule.State.ACTIVE
-        InternalReportSchedule.State.STOPPED -> ReportSchedule.State.STOPPED
-        InternalReportSchedule.State.STATE_UNSPECIFIED -> ReportSchedule.State.STATE_UNSPECIFIED
-        InternalReportSchedule.State.UNRECOGNIZED ->
-          // State is set by the system so if this is reached, something went wrong.
-          throw Status.UNKNOWN.withDescription(
-              "There is an unknown problem with the ReportSchedule"
-            )
-            .asRuntimeException()
-      }
-    }
-
-    /**
-     * Converts an internal [InternalReportSchedule.Frequency] to a public
-     * [ReportSchedule.Frequency].
-     */
-    private fun InternalReportSchedule.Frequency.toPublic(): ReportSchedule.Frequency {
-      val source = this
-      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-      return when (source.frequencyCase) {
-        InternalReportSchedule.Frequency.FrequencyCase.DAILY ->
-          ReportScheduleKt.frequency { daily = ReportSchedule.Frequency.Daily.getDefaultInstance() }
-        InternalReportSchedule.Frequency.FrequencyCase.WEEKLY ->
-          ReportScheduleKt.frequency {
-            weekly = ReportScheduleKt.FrequencyKt.weekly { dayOfWeek = source.weekly.dayOfWeek }
-          }
-        InternalReportSchedule.Frequency.FrequencyCase.MONTHLY ->
-          ReportScheduleKt.frequency {
-            monthly =
-              ReportScheduleKt.FrequencyKt.monthly { dayOfMonth = source.monthly.dayOfMonth }
-          }
-        InternalReportSchedule.Frequency.FrequencyCase.FREQUENCY_NOT_SET ->
-          throw Status.FAILED_PRECONDITION.withDescription("ReportSchedule missing frequency")
-            .asRuntimeException()
-      }
-    }
-
-    /**
-     * Converts an internal [InternalReportSchedule.ReportWindow] to a public
-     * [ReportSchedule.ReportWindow].
-     */
-    private fun InternalReportSchedule.ReportWindow.toPublic(): ReportSchedule.ReportWindow {
-      val source = this
-      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-      return when (source.windowCase) {
-        InternalReportSchedule.ReportWindow.WindowCase.TRAILING_WINDOW ->
-          ReportScheduleKt.reportWindow {
-            trailingWindow =
-              ReportScheduleKt.ReportWindowKt.trailingWindow {
-                count = source.trailingWindow.count
-                increment =
-                  ReportSchedule.ReportWindow.TrailingWindow.Increment.forNumber(
-                    source.trailingWindow.increment.number
-                  )
-                    ?: throw Status.UNKNOWN.withDescription(
-                        "There is an unknown problem with the ReportSchedule"
-                      )
-                      .asRuntimeException()
-              }
-          }
-        InternalReportSchedule.ReportWindow.WindowCase.FIXED_WINDOW ->
-          ReportScheduleKt.reportWindow { fixedWindow = source.fixedWindow }
-        InternalReportSchedule.ReportWindow.WindowCase.WINDOW_NOT_SET ->
-          throw Status.FAILED_PRECONDITION.withDescription("ReportSchedule missing report_window")
-            .asRuntimeException()
-      }
-    }
-
     /**
      * Converts a public [ReportSchedule.Frequency] to an internal
      * [InternalReportSchedule.Frequency].
@@ -689,42 +633,10 @@ class ReportSchedulesService(
       }
     }
 
-    /** Converts an internal [InternalReportSchedule] to a public [ReportSchedule]. */
-    private fun InternalReportSchedule.toPublic(): ReportSchedule {
-      val source = this
-
-      val reportScheduleName =
-        ReportScheduleKey(source.cmmsMeasurementConsumerId, source.externalReportScheduleId)
-          .toName()
-      val reportTemplate = report {
-        reportingMetricEntries +=
-          source.details.reportTemplate.reportingMetricEntriesMap.map { internalReportingMetricEntry
-            ->
-            internalReportingMetricEntry.toReportingMetricEntry(source.cmmsMeasurementConsumerId)
-          }
-        tags.putAll(source.details.reportTemplate.details.tagsMap)
-      }
-
-      return reportSchedule {
-        name = reportScheduleName
-        displayName = source.details.displayName
-        description = source.details.description
-        this.reportTemplate = reportTemplate
-        eventStart = source.details.eventStart
-        eventEnd = source.details.eventEnd
-        frequency = source.details.frequency.toPublic()
-        reportWindow = source.details.reportWindow.toPublic()
-        state = source.state.toPublic()
-        nextReportCreationTime = source.nextReportCreationTime
-        createTime = source.createTime
-        updateTime = source.updateTime
-      }
-    }
-
-    private suspend fun getInternalReportingSets(
+    suspend fun getInternalReportingSets(
       reportTemplate: Report,
       cmmsMeasurementConsumerId: String,
-      reportingSetsStub: ReportingSetsCoroutineStub
+      reportingSetsStub: ReportingSetsCoroutineStub,
     ): List<InternalReportingSet> {
       val reportingSetIds: Set<String> =
         reportTemplate.reportingMetricEntriesList
@@ -798,18 +710,153 @@ class ReportSchedulesService(
     }
 
     /**
+     * Converts a proto [DateTime] to an [OffsetDateTime].
+     *
+     * @throws
+     * * [DateTimeException] when values in DateTime are invalid.
+     */
+    private fun DateTime.toOffsetDateTime(): OffsetDateTime {
+      val source = this
+      val offset = ZoneOffset.ofTotalSeconds(source.utcOffset.seconds.toInt())
+      return OffsetDateTime.of(
+        source.year,
+        source.month,
+        source.day,
+        source.hours,
+        source.minutes,
+        source.seconds,
+        source.nanos,
+        offset
+      )
+    }
+
+    /**
+     * Converts a proto [DateTime] to a [ZonedDateTime].
+     *
+     * @throws
+     * * [DateTimeException] when values in DateTime are invalid.
+     * * [ZoneRulesException] when time zone id is invalid.
+     */
+    private fun DateTime.toZonedDateTime(): ZonedDateTime {
+      val source = this
+      val id = ZoneId.of(source.timeZone.id)
+      return ZonedDateTime.of(
+        source.year,
+        source.month,
+        source.day,
+        source.hours,
+        source.minutes,
+        source.seconds,
+        source.nanos,
+        id
+      )
+    }
+
+    private fun getNextReportCreationTime(
+      offsetDateTime: OffsetDateTime,
+      frequency: ReportSchedule.Frequency
+    ): Timestamp {
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+      return when (frequency.frequencyCase) {
+        ReportSchedule.Frequency.FrequencyCase.DAILY -> {
+          offsetDateTime.toInstant().toProtoTime()
+        }
+        ReportSchedule.Frequency.FrequencyCase.WEEKLY -> {
+          offsetDateTime
+            .with(
+              TemporalAdjusters.nextOrSame(
+                java.time.DayOfWeek.valueOf(frequency.weekly.dayOfWeek.name)
+              )
+            )
+            .toInstant()
+            .toProtoTime()
+        }
+        ReportSchedule.Frequency.FrequencyCase.MONTHLY -> {
+          val lastDayOfMonth = offsetDateTime.with(TemporalAdjusters.lastDayOfMonth()).dayOfMonth
+          if (
+            frequency.monthly.dayOfMonth <= lastDayOfMonth &&
+              offsetDateTime.dayOfMonth <= frequency.monthly.dayOfMonth
+          ) {
+            offsetDateTime.withDayOfMonth(frequency.monthly.dayOfMonth).toInstant().toProtoTime()
+          } else if (frequency.monthly.dayOfMonth > lastDayOfMonth) {
+            offsetDateTime.withDayOfMonth(lastDayOfMonth).toInstant().toProtoTime()
+          } else {
+            val offsetDateTimeNextMonthEnd =
+              offsetDateTime.plusMonths(1).with(TemporalAdjusters.lastDayOfMonth())
+            offsetDateTimeNextMonthEnd
+              .withDayOfMonth(
+                minOf(offsetDateTimeNextMonthEnd.dayOfMonth, frequency.monthly.dayOfMonth)
+              )
+              .toInstant()
+              .toProtoTime()
+          }
+        }
+        ReportSchedule.Frequency.FrequencyCase.FREQUENCY_NOT_SET -> {
+          throw Status.INVALID_ARGUMENT.withDescription("frequency is not set").asRuntimeException()
+        }
+      }
+    }
+
+    private fun getNextReportCreationTime(
+      zonedDateTime: ZonedDateTime,
+      frequency: ReportSchedule.Frequency
+    ): Timestamp {
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+      return when (frequency.frequencyCase) {
+        ReportSchedule.Frequency.FrequencyCase.DAILY -> {
+          zonedDateTime.toInstant().toProtoTime()
+        }
+        ReportSchedule.Frequency.FrequencyCase.WEEKLY -> {
+          zonedDateTime
+            .with(
+              TemporalAdjusters.nextOrSame(
+                java.time.DayOfWeek.valueOf(frequency.weekly.dayOfWeek.name)
+              )
+            )
+            .toInstant()
+            .toProtoTime()
+        }
+        ReportSchedule.Frequency.FrequencyCase.MONTHLY -> {
+          val lastDayOfMonth = zonedDateTime.with(TemporalAdjusters.lastDayOfMonth()).dayOfMonth
+          if (
+            frequency.monthly.dayOfMonth <= lastDayOfMonth &&
+              zonedDateTime.dayOfMonth <= frequency.monthly.dayOfMonth
+          ) {
+            zonedDateTime.withDayOfMonth(frequency.monthly.dayOfMonth).toInstant().toProtoTime()
+          } else if (frequency.monthly.dayOfMonth > lastDayOfMonth) {
+            zonedDateTime.withDayOfMonth(lastDayOfMonth).toInstant().toProtoTime()
+          } else {
+            val zonedDateTimeNextMonthEnd =
+              zonedDateTime.plusMonths(1).with(TemporalAdjusters.lastDayOfMonth())
+            zonedDateTimeNextMonthEnd
+              .withDayOfMonth(
+                minOf(zonedDateTimeNextMonthEnd.dayOfMonth, frequency.monthly.dayOfMonth)
+              )
+              .toInstant()
+              .toProtoTime()
+          }
+        }
+        ReportSchedule.Frequency.FrequencyCase.FREQUENCY_NOT_SET -> {
+          throw Status.INVALID_ARGUMENT.withDescription("frequency is not set").asRuntimeException()
+        }
+      }
+    }
+
+    /**
      * Determines whether the first [Report] time is before any data availability interval. Under
-     * the assumption that data availability intervals only move forward, this is a possible cause
-     * for the rejection of the [ReportSchedule].
+     * the assumption that data availability intervals only move forward, this is a cause for the
+     * rejection of the [ReportSchedule].
      */
     private suspend fun checkDataAvailability(
       reportSchedule: ReportSchedule,
-      eventTimestamp: Timestamp,
+      nextReportCreationTime: Timestamp,
       eventGroupKeys: List<InternalReportingSet.Primitive.EventGroupKey>,
       dataProvidersStub: DataProvidersCoroutineStub,
-      eventGroupsStub: EventGroupsCoroutineStub
+      eventGroupsStub: EventGroupsCoroutineStub,
+      apiAuthenticationKey: String,
     ) {
-      val windowStart: Timestamp = buildReportWindowStartTimestamp(reportSchedule, eventTimestamp)
+      val windowStart: Timestamp =
+        buildReportWindowStartTimestamp(reportSchedule, nextReportCreationTime)
       val eventGroupMap = mutableMapOf<InternalReportingSet.Primitive.EventGroupKey, EventGroup>()
       val dataProviderMap = mutableMapOf<String, DataProvider>()
 
@@ -823,7 +870,9 @@ class ReportSchedulesService(
               .toName()
           val eventGroup =
             try {
-              eventGroupsStub.getEventGroup(getEventGroupRequest { name = eventGroupName })
+              eventGroupsStub
+                .withAuthenticationKey(apiAuthenticationKey)
+                .getEventGroup(getEventGroupRequest { name = eventGroupName })
             } catch (e: StatusException) {
               throw when (e.status.code) {
                   Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
@@ -849,7 +898,9 @@ class ReportSchedulesService(
           val dataProviderName = DataProviderKey(eventGroupKey.cmmsDataProviderId).toName()
           val dataProvider =
             try {
-              dataProvidersStub.getDataProvider(getDataProviderRequest { name = dataProviderName })
+              dataProvidersStub
+                .withAuthenticationKey(apiAuthenticationKey)
+                .getDataProvider(getDataProviderRequest { name = dataProviderName })
             } catch (e: StatusException) {
               throw when (e.status.code) {
                   Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
@@ -881,10 +932,10 @@ class ReportSchedulesService(
     }
 
     /**
-     * Given a [ReportSchedule] and a [Timestamp], create a [Timestamp] that represents the start of
-     * the window.
+     * Given a [ReportSchedule] and a [Timestamp] that represents the end of the window, create a
+     * [Timestamp] that represents the start of the window.
      */
-    private fun buildReportWindowStartTimestamp(
+    fun buildReportWindowStartTimestamp(
       reportSchedule: ReportSchedule,
       timestamp: Timestamp
     ): Timestamp {
@@ -908,7 +959,7 @@ class ReportSchedulesService(
           offsetDateTime.toInstant().toProtoTime()
         } else {
           val trailingWindow = reportSchedule.reportWindow.trailingWindow
-          val windowEnd = OffsetDateTime.of(LocalDateTime.from(timestamp.toInstant()), offset)
+          val windowEnd = OffsetDateTime.ofInstant(timestamp.toInstant(), offset)
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf case fields cannot be null.
           when (trailingWindow.increment) {
             ReportSchedule.ReportWindow.TrailingWindow.Increment.DAY ->
