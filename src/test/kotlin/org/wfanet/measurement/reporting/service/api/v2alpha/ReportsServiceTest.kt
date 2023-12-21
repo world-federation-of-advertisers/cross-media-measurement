@@ -2441,7 +2441,26 @@ class ReportsServiceTest {
         runBlocking { service.getReport(request) }
       }
 
-    assertThat(report).isEqualTo(PENDING_REACH_REPORT.copy { state = Report.State.FAILED })
+    assertThat(report)
+      .isEqualTo(
+        PENDING_REACH_REPORT.copy {
+          state = Report.State.FAILED
+          metricCalculationResults +=
+            ReportKt.metricCalculationResult {
+              metricCalculationSpec = REACH_METRIC_CALCULATION_SPEC_NAME
+              displayName = INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.displayName
+              reportingSet = SUCCEEDED_REACH_METRIC.reportingSet
+              cumulative = INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.cumulative
+              resultAttributes +=
+                ReportKt.MetricCalculationResultKt.resultAttribute {
+                  metric = failedReachMetric.name
+                  metricSpec = failedReachMetric.metricSpec
+                  timeInterval = failedReachMetric.timeInterval
+                  state = Metric.State.FAILED
+                }
+            }
+        }
+      )
   }
 
   @Test
@@ -2920,13 +2939,16 @@ class ReportsServiceTest {
             state = Report.State.SUCCEEDED
             metricCalculationResults +=
               ReportKt.metricCalculationResult {
+                metricCalculationSpec = WATCH_DURATION_METRIC_CALCULATION_SPEC_NAME
                 displayName = DISPLAY_NAME
                 reportingSet = SUCCEEDED_WATCH_DURATION_METRIC.reportingSet
                 cumulative = false
                 resultAttributes +=
                   ReportKt.MetricCalculationResultKt.resultAttribute {
+                    metric = SUCCEEDED_WATCH_DURATION_METRIC.name
                     metricSpec = SUCCEEDED_WATCH_DURATION_METRIC.metricSpec
                     timeInterval = SUCCEEDED_WATCH_DURATION_METRIC.timeInterval
+                    state = SUCCEEDED_WATCH_DURATION_METRIC.state
                     metricResult = SUCCEEDED_WATCH_DURATION_METRIC.result
                   }
               }
@@ -2972,8 +2994,42 @@ class ReportsServiceTest {
       }
 
     val expected = listReportsResponse {
-      reports += PENDING_REACH_REPORT.copy { state = Report.State.FAILED }
-      reports += PENDING_WATCH_DURATION_REPORT.copy { state = Report.State.FAILED }
+      reports +=
+        PENDING_REACH_REPORT.copy {
+          state = Report.State.FAILED
+          metricCalculationResults +=
+            ReportKt.metricCalculationResult {
+              metricCalculationSpec = REACH_METRIC_CALCULATION_SPEC_NAME
+              displayName = INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.displayName
+              reportingSet = SUCCEEDED_REACH_METRIC.reportingSet
+              cumulative = INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.cumulative
+              resultAttributes +=
+                ReportKt.MetricCalculationResultKt.resultAttribute {
+                  metric = failedReachMetric.name
+                  metricSpec = failedReachMetric.metricSpec
+                  timeInterval = failedReachMetric.timeInterval
+                  state = Metric.State.FAILED
+                }
+            }
+        }
+      reports +=
+        PENDING_WATCH_DURATION_REPORT.copy {
+          state = Report.State.FAILED
+          metricCalculationResults +=
+            ReportKt.metricCalculationResult {
+              metricCalculationSpec = WATCH_DURATION_METRIC_CALCULATION_SPEC_NAME
+              displayName = INTERNAL_WATCH_DURATION_METRIC_CALCULATION_SPEC.details.displayName
+              reportingSet = SUCCEEDED_WATCH_DURATION_METRIC.reportingSet
+              cumulative = INTERNAL_WATCH_DURATION_METRIC_CALCULATION_SPEC.details.cumulative
+              resultAttributes +=
+                ReportKt.MetricCalculationResultKt.resultAttribute {
+                  metric = failedWatchDurationMetric.name
+                  metricSpec = failedWatchDurationMetric.metricSpec
+                  timeInterval = failedWatchDurationMetric.timeInterval
+                  state = Metric.State.FAILED
+                }
+            }
+        }
     }
 
     verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::streamReports)
@@ -3491,6 +3547,7 @@ class ReportsServiceTest {
     private val REACH_METRIC_CALCULATION_SPEC_NAME =
       "${MEASUREMENT_CONSUMER_KEYS.first().toName()}/metricCalculationSpecs/$REACH_METRIC_CALCULATION_SPEC_ID"
     private val INTERNAL_REACH_METRIC_CALCULATION_SPEC = internalMetricCalculationSpec {
+      cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
       externalMetricCalculationSpecId = REACH_METRIC_CALCULATION_SPEC_ID
       details =
         InternalMetricCalculationSpecKt.details {
@@ -3530,6 +3587,7 @@ class ReportsServiceTest {
     private val WATCH_DURATION_METRIC_CALCULATION_SPEC_NAME =
       "${MEASUREMENT_CONSUMER_KEYS.first().toName()}/metricCalculationSpecs/$WATCH_DURATION_METRIC_CALCULATION_SPEC_ID"
     private val INTERNAL_WATCH_DURATION_METRIC_CALCULATION_SPEC = internalMetricCalculationSpec {
+      cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
       externalMetricCalculationSpecId = WATCH_DURATION_METRIC_CALCULATION_SPEC_ID
       details =
         InternalMetricCalculationSpecKt.details {
@@ -3583,13 +3641,16 @@ class ReportsServiceTest {
         state = Report.State.SUCCEEDED
         metricCalculationResults +=
           ReportKt.metricCalculationResult {
+            metricCalculationSpec = REACH_METRIC_CALCULATION_SPEC_NAME
             displayName = DISPLAY_NAME
             reportingSet = SUCCEEDED_REACH_METRIC.reportingSet
             cumulative = false
             resultAttributes +=
               ReportKt.MetricCalculationResultKt.resultAttribute {
+                metric = SUCCEEDED_REACH_METRIC.name
                 metricSpec = SUCCEEDED_REACH_METRIC.metricSpec
                 timeInterval = SUCCEEDED_REACH_METRIC.timeInterval
+                state = SUCCEEDED_REACH_METRIC.state
                 metricResult = SUCCEEDED_REACH_METRIC.result
               }
           }
