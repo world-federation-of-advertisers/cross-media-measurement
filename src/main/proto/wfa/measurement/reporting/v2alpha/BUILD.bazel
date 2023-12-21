@@ -63,6 +63,8 @@ proto_library(
         ":metric_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_googleapis//google/type:date_proto",
+        "@com_google_googleapis//google/type:dayofweek_proto",
     ],
 )
 
@@ -86,6 +88,7 @@ proto_library(
         ":time_interval_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_googleapis//google/type:datetime_proto",
         "@com_google_googleapis//google/type:interval_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
