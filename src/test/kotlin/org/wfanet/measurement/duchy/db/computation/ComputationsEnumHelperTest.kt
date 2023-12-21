@@ -19,6 +19,7 @@ import kotlin.test.assertFails
 import org.junit.Test
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.computationStage
+import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
 
@@ -56,6 +57,21 @@ class ComputationsEnumHelperTest {
           "protocolEnumToLong and longToProtocolEnum were not inverses for $stage"
         )
       }
+    }
+  }
+
+  @Test
+  fun `honestMajorityShareShuffle round trip conversion should get the same stage`() {
+    for (stage in HonestMajorityShareShuffle.Stage.values()) {
+      if (stage == HonestMajorityShareShuffle.Stage.UNRECOGNIZED) continue
+      val computationStage = computationStage { honestMajorityShareShuffle = stage }
+      assertEquals(
+        computationStage,
+        ComputationProtocolStages.longValuesToComputationStageEnum(
+          ComputationProtocolStages.computationStageEnumToLongValues(computationStage)
+        ),
+        "protocolEnumToLong and longToProtocolEnum were not inverses for $stage"
+      )
     }
   }
 

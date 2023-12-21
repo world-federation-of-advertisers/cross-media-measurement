@@ -18,6 +18,7 @@ package wfa.measurement.internal.duchy;
 
 import "wfa/measurement/internal/duchy/protocol/liquid_legions_sketch_aggregation_v2.proto";
 import "wfa/measurement/internal/duchy/protocol/reach_only_liquid_legions_sketch_aggregation_v2.proto";
+import "wfa/measurement/internal/duchy/protocol/honest_majority_share_shuffle.proto";
 
 option java_package = "org.wfanet.measurement.internal.duchy";
 option java_multiple_files = true;
@@ -37,6 +38,16 @@ message ComputationStage {
     // computation.
     protocol.ReachOnlyLiquidLegionsSketchAggregationV2.Stage
         reach_only_liquid_legions_sketch_aggregation_v2 = 2;
+
+    // Stage of Honest Majority Share Shuffle computation.
+    protocol.HonestMajorityShareShuffle.Stage honest_majority_share_shuffle = 3;
+  }
+}
+
+message ComputationStageInput {
+  oneof input {
+    protocol.HonestMajorityShareShuffle.ShufflePhaseInput
+        honest_majority_share_shuffle_shuffle_phase_input = 1;
   }
 }
 
@@ -55,5 +66,8 @@ message ComputationTypeEnum {
 
     // Aggregation of Reach-Only Liquid Legions V2.
     REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 = 2;
+
+    // Honest Majority Share Shuffle.
+    HONEST_MAJORITY_SHARE_SHUFFLE = 3;
   }
 }
