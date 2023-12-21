@@ -259,7 +259,6 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                 }
                 MetricSpec.TypeCase.TYPE_NOT_SET -> {}
               }
-              DifferentialPrivacyParams.getDefaultInstance()
               bind("$15", it.metric.metricSpec.vidSamplingInterval.start)
               bind("$16", it.metric.metricSpec.vidSamplingInterval.width)
               bind("$17", createTime)

@@ -749,7 +749,7 @@ class MetricReader(private val readContext: ReadContext) {
                   }
               }
               MetricSpec.TypeCase.POPULATION_COUNT -> {
-                populationCount = MetricSpecKt.populationCountParams {  }
+                populationCount = MetricSpec.PopulationCountParams.getDefaultInstance()
               }
               MetricSpec.TypeCase.TYPE_NOT_SET -> throw IllegalStateException()
             }
