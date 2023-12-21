@@ -127,7 +127,8 @@ message ReportSchedule {
   }
   State state = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
 
-  // The earliest the next `Report` can be scheduled.
+  // The earliest the next `Report` can be scheduled. Updated every time a new
+  // `Report` is created for this schedule.
   google.protobuf.Timestamp next_report_creation_time = 10
       [(google.api.field_behavior) = OUTPUT_ONLY];
 
