@@ -496,7 +496,9 @@ class ReportSchedulingJobTest {
         )
 
       val getDataProviderCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
-      verifyBlocking(dataProvidersMock, times(1)) { getDataProvider(getDataProviderCaptor.capture()) }
+      verifyBlocking(dataProvidersMock, times(1)) {
+        getDataProvider(getDataProviderCaptor.capture())
+      }
 
       val getEventGroupCaptor: KArgumentCaptor<GetEventGroupRequest> = argumentCaptor()
       verifyBlocking(eventGroupsMock, times(1)) { getEventGroup(getEventGroupCaptor.capture()) }
@@ -592,7 +594,9 @@ class ReportSchedulingJobTest {
         )
 
       val getDataProviderCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
-      verifyBlocking(dataProvidersMock, times(2)) { getDataProvider(getDataProviderCaptor.capture()) }
+      verifyBlocking(dataProvidersMock, times(2)) {
+        getDataProvider(getDataProviderCaptor.capture())
+      }
 
       val getEventGroupCaptor: KArgumentCaptor<GetEventGroupRequest> = argumentCaptor()
       verifyBlocking(eventGroupsMock, times(1)) { getEventGroup(getEventGroupCaptor.capture()) }
@@ -635,9 +639,7 @@ class ReportSchedulingJobTest {
         state = ReportScheduleIteration.State.REPORT_CREATED
       }
       assertThat(setReportScheduleIterationStateCaptor.allValues)
-        .containsExactly(
-          setReportScheduleIterationStateSuccessRequest
-        )
+        .containsExactly(setReportScheduleIterationStateSuccessRequest)
     }
 
   @Test
@@ -770,136 +772,130 @@ class ReportSchedulingJobTest {
     }
 
   @Test
-  fun `execute does not create report when data provider start after window start`() =
-    runBlocking {
-      whenever(
-          dataProvidersMock.getDataProvider(
-            eq(getDataProviderRequest { name = DATA_PROVIDER_NAME })
-          )
-        )
-        .thenReturn(
-          DATA_PROVIDER.copy {
-            dataAvailabilityInterval = interval {
-              startTime = timestamp {
-                seconds = 221845467600 // January 1, 9000 at 1 PM, America/Los_Angeles
-              }
-
-              endTime = timestamp {
-                seconds = 221877003600 // January 1, 9001 at 1 PM, America/Los_Angeles
-              }
-            }
-          }
-        )
-
-      whenever(eventGroupsMock.getEventGroup(eq(getEventGroupRequest { name = EVENT_GROUP_NAME })))
-        .thenReturn(
-          EVENT_GROUP.copy {
-            dataAvailabilityInterval = interval {
-              startTime = timestamp {
-                seconds = 946760400 // January 1, 2000 at 1 PM, America/Los_Angeles
-              }
-
-              endTime = timestamp {
-                seconds = 95617659600 // January 1, 5000 at 1 PM, America/Los_Angeles
-              }
-            }
-          }
-        )
-
-      job.execute()
-
-      verifyProtoArgument(
-          reportScheduleIterationsMock,
-          ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration
-        )
-        .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
-        .isEqualTo(
-          reportScheduleIteration {
-            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            externalReportScheduleId = REPORT_SCHEDULE_ID
-            reportEventTime = INTERNAL_REPORT_SCHEDULE.nextReportCreationTime
-          }
-        )
-
-      verifyProtoArgument(dataProvidersMock, DataProvidersCoroutineImplBase::getDataProvider)
-        .isEqualTo(getDataProviderRequest { name = DATA_PROVIDER_NAME })
-
-      verifyProtoArgument(eventGroupsMock, EventGroupsCoroutineImplBase::getEventGroup)
-        .isEqualTo(getEventGroupRequest { name = EVENT_GROUP_NAME })
-
-      val setReportScheduleIterationStateCaptor:
-        KArgumentCaptor<SetReportScheduleIterationStateRequest> =
-        argumentCaptor()
-      verifyBlocking(reportScheduleIterationsMock, times(0)) {
-        setReportScheduleIterationState(setReportScheduleIterationStateCaptor.capture())
-      }
-    }
-
-  @Test
-  fun `execute does not create report when data provider end before window end`() =
-    runBlocking {
-      whenever(
-        dataProvidersMock.getDataProvider(
-          eq(getDataProviderRequest { name = DATA_PROVIDER_NAME })
-        )
+  fun `execute does not create report when data provider start after window start`() = runBlocking {
+    whenever(
+        dataProvidersMock.getDataProvider(eq(getDataProviderRequest { name = DATA_PROVIDER_NAME }))
       )
-        .thenReturn(
-          DATA_PROVIDER.copy {
-            dataAvailabilityInterval = interval {
-              startTime = timestamp {
-                seconds = 631227600 // January 1, 1990 at 1 PM, America/Los_Angeles
-              }
+      .thenReturn(
+        DATA_PROVIDER.copy {
+          dataAvailabilityInterval = interval {
+            startTime = timestamp {
+              seconds = 221845467600 // January 1, 9000 at 1 PM, America/Los_Angeles
+            }
 
-              endTime = timestamp {
-                seconds = 946760400 // January 1, 2000 at 1 PM, America/Los_Angeles
-              }
+            endTime = timestamp {
+              seconds = 221877003600 // January 1, 9001 at 1 PM, America/Los_Angeles
             }
           }
-        )
+        }
+      )
 
-      whenever(eventGroupsMock.getEventGroup(eq(getEventGroupRequest { name = EVENT_GROUP_NAME })))
-        .thenReturn(
-          EVENT_GROUP.copy {
-            dataAvailabilityInterval = interval {
-              startTime = timestamp {
-                seconds = 631227600 // January 1, 1990 at 1 PM, America/Los_Angeles
-              }
+    whenever(eventGroupsMock.getEventGroup(eq(getEventGroupRequest { name = EVENT_GROUP_NAME })))
+      .thenReturn(
+        EVENT_GROUP.copy {
+          dataAvailabilityInterval = interval {
+            startTime = timestamp {
+              seconds = 946760400 // January 1, 2000 at 1 PM, America/Los_Angeles
+            }
 
-              endTime = timestamp {
-                seconds = 95617659600 // January 1, 5000 at 1 PM, America/Los_Angeles
-              }
+            endTime = timestamp {
+              seconds = 95617659600 // January 1, 5000 at 1 PM, America/Los_Angeles
             }
           }
-        )
+        }
+      )
 
-      job.execute()
+    job.execute()
 
-      verifyProtoArgument(
+    verifyProtoArgument(
         reportScheduleIterationsMock,
         ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration
       )
-        .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
-        .isEqualTo(
-          reportScheduleIteration {
-            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            externalReportScheduleId = REPORT_SCHEDULE_ID
-            reportEventTime = INTERNAL_REPORT_SCHEDULE.nextReportCreationTime
-          }
-        )
+      .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
+      .isEqualTo(
+        reportScheduleIteration {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportScheduleId = REPORT_SCHEDULE_ID
+          reportEventTime = INTERNAL_REPORT_SCHEDULE.nextReportCreationTime
+        }
+      )
 
-      verifyProtoArgument(dataProvidersMock, DataProvidersCoroutineImplBase::getDataProvider)
-        .isEqualTo(getDataProviderRequest { name = DATA_PROVIDER_NAME })
+    verifyProtoArgument(dataProvidersMock, DataProvidersCoroutineImplBase::getDataProvider)
+      .isEqualTo(getDataProviderRequest { name = DATA_PROVIDER_NAME })
 
-      verifyProtoArgument(eventGroupsMock, EventGroupsCoroutineImplBase::getEventGroup)
-        .isEqualTo(getEventGroupRequest { name = EVENT_GROUP_NAME })
+    verifyProtoArgument(eventGroupsMock, EventGroupsCoroutineImplBase::getEventGroup)
+      .isEqualTo(getEventGroupRequest { name = EVENT_GROUP_NAME })
 
-      val setReportScheduleIterationStateCaptor:
-        KArgumentCaptor<SetReportScheduleIterationStateRequest> =
-        argumentCaptor()
-      verifyBlocking(reportScheduleIterationsMock, times(0)) {
-        setReportScheduleIterationState(setReportScheduleIterationStateCaptor.capture())
-      }
+    val setReportScheduleIterationStateCaptor:
+      KArgumentCaptor<SetReportScheduleIterationStateRequest> =
+      argumentCaptor()
+    verifyBlocking(reportScheduleIterationsMock, times(0)) {
+      setReportScheduleIterationState(setReportScheduleIterationStateCaptor.capture())
     }
+  }
+
+  @Test
+  fun `execute does not create report when data provider end before window end`() = runBlocking {
+    whenever(
+        dataProvidersMock.getDataProvider(eq(getDataProviderRequest { name = DATA_PROVIDER_NAME }))
+      )
+      .thenReturn(
+        DATA_PROVIDER.copy {
+          dataAvailabilityInterval = interval {
+            startTime = timestamp {
+              seconds = 631227600 // January 1, 1990 at 1 PM, America/Los_Angeles
+            }
+
+            endTime = timestamp {
+              seconds = 946760400 // January 1, 2000 at 1 PM, America/Los_Angeles
+            }
+          }
+        }
+      )
+
+    whenever(eventGroupsMock.getEventGroup(eq(getEventGroupRequest { name = EVENT_GROUP_NAME })))
+      .thenReturn(
+        EVENT_GROUP.copy {
+          dataAvailabilityInterval = interval {
+            startTime = timestamp {
+              seconds = 631227600 // January 1, 1990 at 1 PM, America/Los_Angeles
+            }
+
+            endTime = timestamp {
+              seconds = 95617659600 // January 1, 5000 at 1 PM, America/Los_Angeles
+            }
+          }
+        }
+      )
+
+    job.execute()
+
+    verifyProtoArgument(
+        reportScheduleIterationsMock,
+        ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration
+      )
+      .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
+      .isEqualTo(
+        reportScheduleIteration {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportScheduleId = REPORT_SCHEDULE_ID
+          reportEventTime = INTERNAL_REPORT_SCHEDULE.nextReportCreationTime
+        }
+      )
+
+    verifyProtoArgument(dataProvidersMock, DataProvidersCoroutineImplBase::getDataProvider)
+      .isEqualTo(getDataProviderRequest { name = DATA_PROVIDER_NAME })
+
+    verifyProtoArgument(eventGroupsMock, EventGroupsCoroutineImplBase::getEventGroup)
+      .isEqualTo(getEventGroupRequest { name = EVENT_GROUP_NAME })
+
+    val setReportScheduleIterationStateCaptor:
+      KArgumentCaptor<SetReportScheduleIterationStateRequest> =
+      argumentCaptor()
+    verifyBlocking(reportScheduleIterationsMock, times(0)) {
+      setReportScheduleIterationState(setReportScheduleIterationStateCaptor.capture())
+    }
+  }
 
   @Test
   fun `execute does not create report when event group start after window start`() = runBlocking {
@@ -967,8 +963,8 @@ class ReportSchedulingJobTest {
   @Test
   fun `execute does not create report when event group end before window end`() = runBlocking {
     whenever(
-      dataProvidersMock.getDataProvider(eq(getDataProviderRequest { name = DATA_PROVIDER_NAME }))
-    )
+        dataProvidersMock.getDataProvider(eq(getDataProviderRequest { name = DATA_PROVIDER_NAME }))
+      )
       .thenReturn(
         DATA_PROVIDER.copy {
           dataAvailabilityInterval = interval {
@@ -1001,9 +997,9 @@ class ReportSchedulingJobTest {
     job.execute()
 
     verifyProtoArgument(
-      reportScheduleIterationsMock,
-      ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration
-    )
+        reportScheduleIterationsMock,
+        ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration
+      )
       .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
       .isEqualTo(
         reportScheduleIteration {
