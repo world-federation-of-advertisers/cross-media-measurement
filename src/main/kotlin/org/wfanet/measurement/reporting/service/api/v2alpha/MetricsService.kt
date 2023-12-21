@@ -63,7 +63,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
@@ -174,8 +173,8 @@ import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.HistogramResultKt
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.HistogramResultKt.binResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.histogramResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.impressionCountResult
-import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.reachAndFrequencyResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.populationCountResult
+import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.reachAndFrequencyResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.reachResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.watchDurationResult
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineImplBase
@@ -496,7 +495,7 @@ class MetricsService(
             }
         }
         vidSamplingInterval = metricSpec.vidSamplingInterval.toCmmsVidSamplingInterval()
-        //TODO(@jojijac0b): Add modelLine
+        // TODO(@jojijac0b): Add modelLine
       }
     }
 
@@ -1663,7 +1662,7 @@ private fun aggregateResults(
     if (result.hasWatchDuration()) {
       watchDurationValue += result.watchDuration.value
     }
-    if(result.hasPopulation()) {
+    if (result.hasPopulation()) {
       populationValue += result.population.value
     }
   }
@@ -1685,8 +1684,8 @@ private fun aggregateResults(
       this.watchDuration =
         InternalMeasurementKt.ResultKt.watchDuration { value = watchDurationValue }
     }
-    if(internalMeasurementResults.first().hasPopulation()){
-      this.population = InternalMeasurementKt.ResultKt.population { value= populationValue }
+    if (internalMeasurementResults.first().hasPopulation()) {
+      this.population = InternalMeasurementKt.ResultKt.population { value = populationValue }
     }
   }
 }
@@ -1763,10 +1762,9 @@ private fun calculatePopulationResult(
   weightedMeasurements: List<WeightedMeasurement>,
 ): MetricResult.PopulationCountResult {
   // Only take the first measurement because Population measurements will only have one element.
-  val populationResult = aggregateResults(weightedMeasurements.single().measurement.details.resultsList)
-  return populationCountResult {
-    value = populationResult.population.value
-  }
+  val populationResult =
+    aggregateResults(weightedMeasurements.single().measurement.details.resultsList)
+  return populationCountResult { value = populationResult.population.value }
 }
 
 /** Converts [Duration] format to [Double] second. */
@@ -2146,7 +2144,8 @@ fun buildWeightedFrequencyMeasurementVarianceParams(
       weightedMeasurement,
       metricSpec.vidSamplingInterval,
       metricSpec.reachAndFrequency.reachPrivacyParams
-    ) ?: return null
+    )
+      ?: return null
 
   val reachMeasurementVariance: Double =
     variances.computeMeasurementVariance(

@@ -94,7 +94,7 @@ message MetricSpec {
   }
 
   // Parameters that are used to generate `Population` metric.
-  message PopulationCountParams { }
+  message PopulationCountParams {}
 
   // Types of metric with parameters.
   oneof type {

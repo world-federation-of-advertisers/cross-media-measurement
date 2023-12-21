@@ -76,7 +76,7 @@ message MetricSpecConfig {
   }
 
   // Parameters that are used to generate `Population` metric.
-  message PopulationCountParams { }
+  message PopulationCountParams {}
 
   // Parameters for generating the count of unique audiences reached given a set
   // of event groups.

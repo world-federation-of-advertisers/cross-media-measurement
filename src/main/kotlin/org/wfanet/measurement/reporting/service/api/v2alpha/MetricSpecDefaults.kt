@@ -17,7 +17,6 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
-import org.wfanet.measurement.config.reporting.MetricSpecConfigKt
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.copy
