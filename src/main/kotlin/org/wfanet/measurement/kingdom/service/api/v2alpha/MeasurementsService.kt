@@ -24,6 +24,10 @@ import io.grpc.StatusException
 import java.util.AbstractMap
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.api.v2alpha.BatchCreateMeasurementsRequest
+import org.wfanet.measurement.api.v2alpha.BatchCreateMeasurementsResponse
+import org.wfanet.measurement.api.v2alpha.BatchGetMeasurementsRequest
+import org.wfanet.measurement.api.v2alpha.BatchGetMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.CancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
@@ -46,6 +50,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.SignedMessage
+import org.wfanet.measurement.api.v2alpha.batchCreateMeasurementsResponse
+import org.wfanet.measurement.api.v2alpha.batchGetMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.isA
 import org.wfanet.measurement.api.v2alpha.listMeasurementsPageToken
@@ -58,6 +64,7 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.internal.kingdom.CreateMeasurementRequest as InternalCreateMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
 import org.wfanet.measurement.internal.kingdom.Measurement.View as InternalMeasurementView
@@ -66,6 +73,8 @@ import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCo
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.batchCreateMeasurementsRequest
+import org.wfanet.measurement.internal.kingdom.batchGetMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.createMeasurementRequest as internalCreateMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
@@ -74,6 +83,7 @@ import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
+private const val MAX_BATCH_SIZE = 50
 
 private const val MISSING_RESOURCE_NAME_ERROR = "Resource name is either unspecified or invalid"
 
@@ -127,60 +137,8 @@ class MeasurementsService(
       }
     }
 
-    val measurementConsumerCertificateKey =
-      grpcRequireNotNull(
-        MeasurementConsumerCertificateKey.fromName(
-          request.measurement.measurementConsumerCertificate
-        )
-      ) {
-        "measurement_consumer_certificate is either unspecified or invalid"
-      }
-    grpcRequire(
-      measurementConsumerCertificateKey.measurementConsumerId == parentKey.measurementConsumerId
-    ) {
-      "measurement_consumer_certificate does not belong to ${request.parent}"
-    }
+    val internalRequest = request.buildInternalCreateMeasurementRequest(parentKey)
 
-    grpcRequire(request.measurement.hasMeasurementSpec()) { "measurement_spec is unspecified" }
-
-    val measurementSpec: MeasurementSpec =
-      try {
-        request.measurement.measurementSpec.unpack()
-      } catch (e: InvalidProtocolBufferException) {
-        throw Status.INVALID_ARGUMENT.withCause(e)
-          .withDescription("measurement.measurement_spec does not contain a valid MeasurementSpec")
-          .asRuntimeException()
-      }
-    measurementSpec.validate()
-
-    grpcRequire(request.measurement.dataProvidersList.isNotEmpty()) {
-      "Data Providers list is empty"
-    }
-    val dataProvidersMap = mutableMapOf<Long, DataProviderValue>()
-    request.measurement.dataProvidersList.forEach {
-      with(it.validateAndMap()) {
-        grpcRequire(!dataProvidersMap.containsKey(key)) {
-          "Duplicated keys found in the data_providers."
-        }
-        dataProvidersMap[key] = value
-      }
-    }
-
-    grpcRequire(measurementSpec.nonceHashesCount == request.measurement.dataProvidersCount) {
-      "nonce_hash list size is not equal to the data_providers list size."
-    }
-
-    val internalRequest = internalCreateMeasurementRequest {
-      measurement =
-        request.measurement.toInternal(
-          measurementConsumerCertificateKey,
-          dataProvidersMap,
-          measurementSpec,
-          noiseMechanisms.map { it.toInternal() },
-          reachOnlyLlV2Enabled
-        )
-      requestId = request.requestId
-    }
     val internalMeasurement =
       try {
         internalMeasurementsStub.createMeasurement(internalRequest)
@@ -274,6 +232,209 @@ class MeasurementsService(
       }
 
     return internalMeasurement.toMeasurement()
+  }
+
+  override suspend fun batchCreateMeasurements(
+    request: BatchCreateMeasurementsRequest
+  ): BatchCreateMeasurementsResponse {
+    val authenticatedMeasurementConsumerKey = getAuthenticatedMeasurementConsumerKey()
+
+    val parentKey =
+      grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
+        "parent is either unspecified or invalid"
+      }
+
+    if (parentKey != authenticatedMeasurementConsumerKey) {
+      failGrpc(Status.PERMISSION_DENIED) {
+        "Cannot create a Measurement for another MeasurementConsumer"
+      }
+    }
+
+    if (request.requestsList.isEmpty()) {
+      failGrpc { "requests is empty." }
+    }
+
+    if (request.requestsList.size > MAX_BATCH_SIZE) {
+      failGrpc { "Number of elements in requests exceeds the maximum batch size." }
+    }
+
+    val internalCreateMeasurementRequests = mutableListOf<InternalCreateMeasurementRequest>()
+    var isParentEmpty = false
+    var isParentNotEmpty = false
+    for (createMeasurementRequest in request.requestsList) {
+      if (createMeasurementRequest.parent.isEmpty()) {
+        if (isParentNotEmpty) {
+          failGrpc(Status.INVALID_ARGUMENT) {
+            "Every parent in all child requests must match all other child requests."
+          }
+        }
+        isParentEmpty = true
+      } else {
+        if (isParentEmpty) {
+          failGrpc(Status.INVALID_ARGUMENT) {
+            "Every parent in all child requests must match all other child requests."
+          }
+        }
+        isParentNotEmpty = true
+
+        val childParentKey =
+          grpcRequireNotNull(MeasurementConsumerKey.fromName(createMeasurementRequest.parent)) {
+            "Child request parent is invalid."
+          }
+
+        if (childParentKey != parentKey) {
+          failGrpc(Status.INVALID_ARGUMENT) {
+            "Child request parent does not match parent in parent request."
+          }
+        }
+      }
+
+      val internalCreateMeasurementRequest =
+        createMeasurementRequest.buildInternalCreateMeasurementRequest(parentKey)
+      internalCreateMeasurementRequests.add(internalCreateMeasurementRequest)
+    }
+
+    val internalMeasurements =
+      try {
+        internalMeasurementsStub
+          .batchCreateMeasurements(
+            batchCreateMeasurementsRequest { requests += internalCreateMeasurementRequests }
+          )
+          .measurementsList
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.INVALID_ARGUMENT ->
+            failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid" }
+          Status.Code.FAILED_PRECONDITION ->
+            failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition" }
+          Status.Code.NOT_FOUND ->
+            failGrpc(Status.NOT_FOUND, ex) { "MeasurementConsumer not found." }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
+      }
+
+    return batchCreateMeasurementsResponse {
+      measurements += internalMeasurements.map { it.toMeasurement() }
+    }
+  }
+
+  override suspend fun batchGetMeasurements(
+    request: BatchGetMeasurementsRequest
+  ): BatchGetMeasurementsResponse {
+    val authenticatedMeasurementConsumerKey = getAuthenticatedMeasurementConsumerKey()
+
+    val parentKey =
+      grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
+        "parent is either unspecified or invalid"
+      }
+
+    if (parentKey != authenticatedMeasurementConsumerKey) {
+      failGrpc(Status.PERMISSION_DENIED) {
+        "Cannot get a Measurement from another MeasurementConsumer"
+      }
+    }
+
+    if (request.namesList.isEmpty()) {
+      failGrpc { "names is empty." }
+    }
+
+    if (request.namesList.size > MAX_BATCH_SIZE) {
+      failGrpc { "Number of elements in names exceeds the maximum batch size." }
+    }
+
+    val externalMeasurementConsumerId = apiIdToExternalId(parentKey.measurementConsumerId)
+    val externalMeasurementIds = mutableListOf<Long>()
+    for (name in request.namesList) {
+      val key = grpcRequireNotNull(MeasurementKey.fromName(name)) { "name is invalid." }
+
+      if (authenticatedMeasurementConsumerKey != key.parentKey) {
+        failGrpc(Status.INVALID_ARGUMENT) {
+          "MeasurementConsumer in name does not match parent MeasurementConsumer."
+        }
+      }
+
+      externalMeasurementIds.add(apiIdToExternalId(key.measurementId))
+    }
+
+    val internalMeasurements =
+      try {
+        internalMeasurementsStub
+          .batchGetMeasurements(
+            batchGetMeasurementsRequest {
+              this.externalMeasurementConsumerId = externalMeasurementConsumerId
+              this.externalMeasurementIds += externalMeasurementIds
+            }
+          )
+          .measurementsList
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Measurement not found" }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
+      }
+
+    return batchGetMeasurementsResponse {
+      measurements += internalMeasurements.map { it.toMeasurement() }
+    }
+  }
+
+  private fun CreateMeasurementRequest.buildInternalCreateMeasurementRequest(
+    parentKey: MeasurementConsumerKey
+  ): InternalCreateMeasurementRequest {
+    val measurementConsumerCertificateKey =
+      grpcRequireNotNull(
+        MeasurementConsumerCertificateKey.fromName(measurement.measurementConsumerCertificate)
+      ) {
+        "measurement_consumer_certificate is either unspecified or invalid"
+      }
+    grpcRequire(
+      measurementConsumerCertificateKey.measurementConsumerId == parentKey.measurementConsumerId
+    ) {
+      "measurement_consumer_certificate does not belong to $parent"
+    }
+
+    grpcRequire(measurement.hasMeasurementSpec()) { "measurement_spec is unspecified" }
+
+    val measurementSpec: MeasurementSpec =
+      try {
+        measurement.measurementSpec.unpack()
+      } catch (e: InvalidProtocolBufferException) {
+        throw Status.INVALID_ARGUMENT.withCause(e)
+          .withDescription("measurement.measurement_spec does not contain a valid MeasurementSpec")
+          .asRuntimeException()
+      }
+    measurementSpec.validate()
+
+    grpcRequire(measurement.dataProvidersList.isNotEmpty()) { "Data Providers list is empty" }
+    val dataProvidersMap = mutableMapOf<Long, DataProviderValue>()
+    measurement.dataProvidersList.forEach {
+      with(it.validateAndMap()) {
+        grpcRequire(!dataProvidersMap.containsKey(key)) {
+          "Duplicated keys found in the data_providers."
+        }
+        dataProvidersMap[key] = value
+      }
+    }
+
+    grpcRequire(measurementSpec.nonceHashesCount == measurement.dataProvidersCount) {
+      "nonce_hash list size is not equal to the data_providers list size."
+    }
+
+    val internalMeasurement =
+      measurement.toInternal(
+        measurementConsumerCertificateKey,
+        dataProvidersMap,
+        measurementSpec,
+        noiseMechanisms.map { it.toInternal() },
+        reachOnlyLlV2Enabled
+      )
+
+    val requestId = this.requestId
+
+    return internalCreateMeasurementRequest {
+      measurement = internalMeasurement
+      this.requestId = requestId
+    }
   }
 }
 
@@ -460,7 +621,7 @@ private fun getAuthenticatedMeasurementConsumerKey(): MeasurementConsumerKey {
   val principal: MeasurementPrincipal = principalFromCurrentContext
 
   if (principal !is MeasurementConsumerPrincipal) {
-    failGrpc(Status.PERMISSION_DENIED) { "Caller cannot get a Measurement" }
+    failGrpc(Status.PERMISSION_DENIED) { "Caller does not have access to Measurements." }
   }
 
   return principal.resourceKey
