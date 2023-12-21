@@ -24,18 +24,18 @@ import {
 export class ReportingClientImpl {
   // eslint-disable-next-line node/no-unsupported-features/node-builtins
   baseUrl: URL;
+  measurementConsumer: string;
   cache: Map<string, any> = new Map();
 
   constructor(props: InitApiProps) {
     this.baseUrl = props.endpoint;
+    this.measurementConsumer = props.measurementConsumer;
   }
 
   async listReports(): Promise<ListReportsResponse> {
-    const res = await fetch(this.baseUrl.toString() + '/api/reports');
-    const reports = await res.json();
-    const response = Object.freeze({
-      reports,
-    });
+    const res = await fetch(this.baseUrl.toString() + `v1alpha/measurementConsumers/${this.measurementConsumer}/reports`);
+    const resObj = await res.json();
+    const response = Object.freeze(resObj);
     return response;
   }
 
@@ -46,7 +46,7 @@ export class ReportingClientImpl {
       return this.cache.get(key);
     }
 
-    const res = await fetch(this.baseUrl.toString() + '/api/reports' + req.id);
+    const res = await fetch(this.baseUrl.toString() + `v1alpha/measurementConsumers/${this.measurementConsumer}/reports/${req.id}`);
     const report: Report = await res.json();
     const response = Object.freeze({
       report,

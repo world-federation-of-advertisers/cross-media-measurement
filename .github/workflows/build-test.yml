@@ -67,11 +67,17 @@ jobs:
           build --define duchy_public_api_target=duchy.example.com:8443
           build --define mc_name=measurementConsumers/foo
           build --define edp1_name=dataProviders/foo1
+          build --define edp1_cert_name=dataProviders/foo1/certificates/bar1
           build --define edp2_name=dataProviders/foo2
+          build --define edp2_cert_name=dataProviders/foo2/certificates/bar2
           build --define edp3_name=dataProviders/foo3
+          build --define edp3_cert_name=dataProviders/foo3/certificates/bar3
           build --define edp4_name=dataProviders/foo4
+          build --define edp4_cert_name=dataProviders/foo4/certificates/bar4
           build --define edp5_name=dataProviders/foo5
+          build --define edp5_cert_name=dataProviders/foo5/certificates/bar5
           build --define edp6_name=dataProviders/foo6
+          build --define edp6_cert_name=dataProviders/foo6/certificates/bar6
           build --define google_cloud_project=example-project
           build --define bigquery_dataset=example-dataset
           build --define bigquery_table=events
@@ -82,6 +88,19 @@ jobs:
         uses: world-federation-of-advertisers/actions/bazel-get-cache-params@v2
         with:
           cache-version: 1
+
+      # This is a hack to utilize the undocumented relatively large empty
+      # scratch disk mounted at /mnt. It's currently needed to work around
+      # bazel-contrib/rules_oci#439 as that's what is pushing our usage over the
+      # limit. The alternative is to use a runner with more disk space. 
+      - name: Mount scratch disk
+        env:
+          BAZEL_CACHE_PATH: ${{ steps.get-cache-params.outputs.cache-path }}
+        run: |
+          mkdir -p "$BAZEL_CACHE_PATH"
+          sudo mkdir -p /mnt/bazel-cache
+          sudo chown 'runner:runner' /mnt/bazel-cache
+          sudo mount --bind /mnt/bazel-cache "$BAZEL_CACHE_PATH"
 
       - name: Restore Bazel cache
         uses: actions/cache/restore@v3
@@ -145,12 +164,15 @@ jobs:
           name: cluster-logs
           path: ${{ env.CLUSTER_LOGS_PATH }}
 
-      # Delete large files that are cheap to re-create.
+      # Delete large files that are relatively cheap to re-create.
       - name: Trim Bazel cache
         if: github.event_name == 'push'
         run: |
           bazel_out="$(bazelisk info output_path)"
           find "${bazel_out}" -type f \( -iname '*.tar' -o -iname '*.tar.gz' \) -delete
+          find "${bazel_out}" -type d -name blobs -exec chmod -R +w "{}" \;
+          find "${bazel_out}" -type f -path '*/blobs/*' -delete
+          
 
       - name: Save Bazel cache
         if: github.event_name == 'push'

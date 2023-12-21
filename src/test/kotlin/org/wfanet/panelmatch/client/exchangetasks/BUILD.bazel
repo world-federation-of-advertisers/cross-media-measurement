@@ -1,6 +1,22 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
+    name = "AssignJoinKeyIdsTaskTest",
+    timeout = "short",
+    srcs = ["AssignJoinKeyIdsTaskTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.exchangetasks.AssignJoinKeyIdsTaskTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/exchangetasks",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/exchangetasks/testing",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
     name = "DeterministicCommutativeCipherTaskTest",
     timeout = "short",
     srcs = ["DeterministicCommutativeCipherTaskTest.kt"],

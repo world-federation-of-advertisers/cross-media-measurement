@@ -32,6 +32,7 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import org.jetbrains.annotations.Blocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
@@ -55,6 +56,7 @@ import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 class InProcessEdpSimulator(
   val displayName: String,
   resourceName: String,
+  private val certificateKey: DataProviderCertificateKey,
   mcResourceName: String,
   kingdomPublicApiChannel: Channel,
   duchyPublicApiChannel: Channel,
@@ -128,8 +130,10 @@ class InProcessEdpSimulator(
     EdpData(
       name = resourceName,
       displayName = displayName,
-      encryptionKey = loadEncryptionPrivateKey("${displayName}_enc_private.tink"),
-      signingKey = loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der")
+      certificateKey = certificateKey,
+      privateEncryptionKey = loadEncryptionPrivateKey("${displayName}_enc_private.tink"),
+      signingKeyHandle =
+        loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der")
     )
 
   companion object {

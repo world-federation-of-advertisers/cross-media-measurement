@@ -12,26 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import React from 'react';
 import ReactDOM from 'react-dom/client';
-import {routes} from './route';
 import reportWebVitals from './report_web_vitals';
 import AppConfig from './client/initialize';
 import { ReportingClientImpl } from './client/reporting/client_impl';
-import {createBrowserRouter, RouterProvider} from 'react-router-dom';
+import App from "./app";
 import './index.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
+// TODO(@bdomen-ggl): Look into making this configurable.
+// https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/4877bb901568597cf3d0ef8030e1b7e82e074803/src/test/kotlin/org/wfanet/measurement/integration/k8s/BUILD.bazel#L88C1-L88C1
 const configProps = {
-  reportingClient: new ReportingClientImpl({endpoint: new URL('http://localhost:3000')}),
+  reportingClient: new ReportingClientImpl(
+    {
+      endpoint: new URL('http://localhost:8080'),
+      measurementConsumer: 'VCTqwV_vFXw',
+    }),
 };
 
 AppConfig.initialize(configProps);
 
-const router = createBrowserRouter(routes);
-
 const root = ReactDOM.createRoot(document.getElementById('root')!);
-root.render(<RouterProvider router={router} />);
+root.render(<App />);
 
 // If you want to start measuring performance in your app, pass a function
 // to log results (for example: reportWebVitals(console.log))

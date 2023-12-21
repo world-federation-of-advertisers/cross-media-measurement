@@ -22,6 +22,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.security.MessageDigest
 import kotlinx.coroutines.flow.singleOrNull
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.identity.ExternalId
@@ -89,6 +90,25 @@ class MeasurementReader(private val view: Measurement.View) :
       }
       .execute(readContext)
       .singleOrNull()
+  }
+
+  suspend fun readByExternalIds(
+    readContext: AsyncDatabaseClient.ReadContext,
+    externalMeasurementConsumerId: ExternalId,
+    externalMeasurementIds: List<ExternalId>
+  ): List<Result> {
+    return fillStatementBuilder {
+        appendClause(
+          """
+          WHERE ExternalMeasurementConsumerId = @externalMeasurementConsumerId
+            AND ExternalMeasurementId IN UNNEST(@ids)
+          """
+        )
+        bind("externalMeasurementConsumerId").to(externalMeasurementConsumerId.value)
+        bind("ids").toInt64Array(externalMeasurementIds.map { it.value })
+      }
+      .execute(readContext)
+      .toList()
   }
 
   suspend fun readByExternalComputationId(
@@ -399,6 +419,7 @@ private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {
       this.externalDataProviderCertificateId = externalDataProviderCertificateId
       dataProviderPublicKey = requisitionDetails.dataProviderPublicKey
       encryptedRequisitionSpec = requisitionDetails.encryptedRequisitionSpec
+      nonceHash = requisitionDetails.nonceHash
 
       // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting these
       // fields.
@@ -410,7 +431,12 @@ private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {
     if (measurementSucceeded && !requisitionDetails.encryptedData.isEmpty) {
       results += resultInfo {
         this.externalDataProviderId = externalDataProviderId
-        externalCertificateId = externalDataProviderCertificateId
+        externalCertificateId =
+          if (requisitionDetails.externalCertificateId != 0L) {
+            requisitionDetails.externalCertificateId
+          } else {
+            externalDataProviderCertificateId
+          }
         encryptedResult = requisitionDetails.encryptedData
         apiVersion = requisitionDetails.encryptedDataApiVersion.ifEmpty { Version.V2_ALPHA.string }
       }

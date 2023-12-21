@@ -50,8 +50,8 @@ fun MetricSpec.withDefaults(metricSpecConfig: MetricSpecConfig): MetricSpec {
           metricSpecConfig.watchDurationVidSamplingInterval
         }
         MetricSpec.TypeCase.POPULATION_COUNT -> {
-          populationCount = MetricSpecKt.populationCountParams {}
-          MetricSpecConfigKt.vidSamplingInterval {}
+          populationCount = MetricSpec.PopulationCountParams.getDefaultInstance()
+          MetricSpecConfig.VidSamplingInterval.getDefaultInstance()
         }
         MetricSpec.TypeCase.TYPE_NOT_SET ->
           throw MetricSpecDefaultsException(

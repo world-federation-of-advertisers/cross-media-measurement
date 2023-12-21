@@ -76,6 +76,7 @@ suspend fun PostgresWriter.TransactionScope.updateRequisition(
   requisitionFingerprint: ByteString,
   updateTime: Instant,
   pathToBlob: String? = null,
+  randomSeed: ByteString? = null,
   requisitionDetails: RequisitionDetails? = null,
 ) {
   val sql =
@@ -83,28 +84,30 @@ suspend fun PostgresWriter.TransactionScope.updateRequisition(
       """
       UPDATE Requisitions SET
         PathToBlob = COALESCE($1, PathToBlob),
-        RequisitionDetails = COALESCE($2, RequisitionDetails),
-        RequisitionDetailsJSON = COALESCE($3::jsonb, RequisitionDetailsJSON),
-        UpdateTime = $4
+        RandomSeed = COALESCE($2, RandomSeed),
+        RequisitionDetails = COALESCE($3, RequisitionDetails),
+        RequisitionDetailsJSON = COALESCE($4::jsonb, RequisitionDetailsJSON),
+        UpdateTime = $5
       WHERE
-        ComputationId = $5
+        ComputationId = $6
       AND
-        RequisitionId = $6
+        RequisitionId = $7
       AND
-        ExternalRequisitionId = $7
+        ExternalRequisitionId = $8
       AND
-        RequisitionFingerprint = $8
+        RequisitionFingerprint = $9
     """
         .trimIndent()
     ) {
       bind("$1", pathToBlob)
-      bind("$2", requisitionDetails?.toByteArray())
-      bind("$3", requisitionDetails?.toJson())
-      bind("$4", updateTime)
-      bind("$5", localComputationId)
-      bind("$6", requisitionId)
-      bind("$7", externalRequisitionId)
-      bind("$8", requisitionFingerprint.toByteArray())
+      bind("$2", randomSeed?.toByteArray())
+      bind("$3", requisitionDetails?.toByteArray())
+      bind("$4", requisitionDetails?.toJson())
+      bind("$5", updateTime)
+      bind("$6", localComputationId)
+      bind("$7", requisitionId)
+      bind("$8", externalRequisitionId)
+      bind("$9", requisitionFingerprint.toByteArray())
     }
 
   transactionContext.executeStatement(sql)

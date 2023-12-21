@@ -488,7 +488,7 @@ class MetricsService(
             duration = metricSpec.watchDuration.toDuration()
           }
           InternalMetricSpec.TypeCase.POPULATION_COUNT -> {
-            population = MeasurementSpecKt.population { }
+            population = MeasurementSpec.Population.getDefaultInstance()
           }
           InternalMetricSpec.TypeCase.TYPE_NOT_SET ->
             failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
@@ -496,7 +496,7 @@ class MetricsService(
             }
         }
         vidSamplingInterval = metricSpec.vidSamplingInterval.toCmmsVidSamplingInterval()
-        //TODO: jojijac0b add modelLine
+        //TODO(jojijac0b): Add modelLine
       }
     }
 
@@ -1636,6 +1636,7 @@ private fun aggregateResults(
     seconds = 0
     nanos = 0
   }
+  var populationValue = 0L
 
   // Aggregation
   for (result in internalMeasurementResults) {
@@ -1662,6 +1663,9 @@ private fun aggregateResults(
     if (result.hasWatchDuration()) {
       watchDurationValue += result.watchDuration.value
     }
+    if(result.hasPopulation()) {
+      populationValue += result.population.value
+    }
   }
 
   return InternalMeasurementKt.result {
@@ -1680,6 +1684,9 @@ private fun aggregateResults(
     if (internalMeasurementResults.first().hasWatchDuration()) {
       this.watchDuration =
         InternalMeasurementKt.ResultKt.watchDuration { value = watchDurationValue }
+    }
+    if(internalMeasurementResults.first().hasPopulation()){
+      this.population = InternalMeasurementKt.ResultKt.population { value= populationValue }
     }
   }
 }
@@ -1755,15 +1762,10 @@ private fun calculateWatchDurationResult(
 private fun calculatePopulationResult(
   weightedMeasurements: List<WeightedMeasurement>,
 ): MetricResult.PopulationCountResult {
-  for (weightedMeasurement in weightedMeasurements) {
-    if (weightedMeasurement.measurement.details.resultsList.any { !it.hasPopulation() }) {
-      failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
-        "Population measurement result is missing."
-      }
-    }
-  }
+  // Only take the first measurement because Population measurements will only have one element.
+  val populationResult = aggregateResults(weightedMeasurements.single().measurement.details.resultsList)
   return populationCountResult {
-    value = weightedMeasurements.first().measurement.details.resultsList.first().population.value
+    value = populationResult.population.value
   }
 }
 

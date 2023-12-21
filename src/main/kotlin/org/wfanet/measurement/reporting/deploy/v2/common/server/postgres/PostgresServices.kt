@@ -23,6 +23,8 @@ import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementCo
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMetricCalculationSpecsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMetricsService
+import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportScheduleIterationsService
+import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportSchedulesService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportingSetsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportsService
 
@@ -35,6 +37,8 @@ object PostgresServices {
       PostgresMetricsService(idGenerator, client),
       PostgresReportingSetsService(idGenerator, client),
       PostgresReportsService(idGenerator, client),
+      PostgresReportSchedulesService(idGenerator, client),
+      PostgresReportScheduleIterationsService(idGenerator, client),
       PostgresMetricCalculationSpecsService(idGenerator, client),
     )
   }
