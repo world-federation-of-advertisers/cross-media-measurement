@@ -39,6 +39,11 @@ object ComputationProtocolStageDetails :
       ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         ReachOnlyLiquidLegionsSketchAggregationV2Protocol.ComputationStages.Details
           .validateRoleForStage(stage, computationDetails)
+      ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
+        HonestMajorityShareShuffleProtocol.ComputationStages.Details.validateRoleForStage(
+          stage,
+          computationDetails
+        )
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
   }
@@ -53,6 +58,8 @@ object ComputationProtocolStageDetails :
       ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         ReachOnlyLiquidLegionsSketchAggregationV2Protocol.ComputationStages.Details
           .afterTransitionForStage(stage)
+      ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
+        HonestMajorityShareShuffleProtocol.ComputationStages.Details.afterTransitionForStage(stage)
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
   }
@@ -69,6 +76,11 @@ object ComputationProtocolStageDetails :
       ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         ReachOnlyLiquidLegionsSketchAggregationV2Protocol.ComputationStages.Details
           .outputBlobNumbersForStage(stage, computationDetails)
+      ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
+        HonestMajorityShareShuffleProtocol.ComputationStages.Details.outputBlobNumbersForStage(
+          stage,
+          computationDetails
+        )
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
   }
@@ -89,6 +101,11 @@ object ComputationProtocolStageDetails :
           stage,
           computationDetails
         )
+      ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
+        HonestMajorityShareShuffleProtocol.ComputationStages.Details.detailsFor(
+          stage,
+          computationDetails
+        )
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
   }
@@ -102,6 +119,8 @@ object ComputationProtocolStageDetails :
         ReachOnlyLiquidLegionsSketchAggregationV2Protocol.ComputationStages.Details.parseDetails(
           bytes
         )
+      ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE ->
+        HonestMajorityShareShuffleProtocol.ComputationStages.Details.parseDetails(bytes)
       ComputationType.UNSPECIFIED,
       ComputationType.UNRECOGNIZED -> error("invalid protocol")
     }
