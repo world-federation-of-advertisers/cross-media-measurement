@@ -1,6 +1,6 @@
-load("@io_bazel_rules_docker//java:image.bzl", "java_image")
-load("@wfa_common_jvm//build/rules_kotlin:defs.bzl", "kt_jvm_library")
 load("@rules_java//java:defs.bzl", "java_binary")
+load("@wfa_common_jvm//build/rules_kotlin:defs.bzl", "kt_jvm_library")
+load("//src/main/docker:macros.bzl", "java_image")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -8,6 +8,7 @@ kt_jvm_library(
     name = "gcloud",
     srcs = glob(["*.kt"]),
     deps = [
+        "//imports/java/com/google/crypto/tink/integration/gcpkms",
         "//imports/java/org/apache/beam/runners/dataflow",
         "//imports/java/software/amazon/awssdk/auth",
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy",
@@ -15,7 +16,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
         "//src/main/kotlin/org/wfanet/panelmatch/common/certificates/gcloud",
         "//src/main/kotlin/org/wfanet/panelmatch/common/secrets",
-        "@tink_java//src/main/java/com/google/crypto/tink/integration/gcpkms:gcp_kms_client",
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
@@ -33,10 +33,5 @@ java_binary(
 
 java_image(
     name = "google_cloud_example_daemon_image",
-    data = ["@grpc_health_probe//file"],
-    main_class = "org.wfanet.panelmatch.client.deploy.example.gcloud.GoogleCloudExampleDaemonKt",
-    runtime_deps = [
-        ":gcloud",
-        "//imports/java/org/slf4j:simple",
-    ],
+    binary = ":GoogleCloudExampleDaemon",
 )

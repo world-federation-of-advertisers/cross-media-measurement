@@ -1,12 +1,13 @@
 load("@aspect_rules_js//js:defs.bzl", "js_library")
-load("@npm//:defs.bzl", "npm_link_all_packages")
 load("@aspect_rules_webpack//webpack:defs.bzl", "webpack_bundle", "webpack_devserver")
+load("@npm//:defs.bzl", "npm_link_all_packages")
 
 npm_link_all_packages()
 
 js_library(
     name = "app",
     srcs = [
+        "app.tsx",
         "index.css",
         "index.tsx",
         "logo.tsx",
@@ -17,6 +18,7 @@ js_library(
         "//experimental/reporting-ui/src/main/react/reporting-ui:__subpackages__",
     ],
     deps = [
+        "//experimental/reporting-ui/src/main/react/reporting-ui/component/feedback_button",
         "//experimental/reporting-ui/src/main/react/reporting-ui/public/asset/font",
         "//experimental/reporting-ui/src/main/react/reporting-ui/view/report",
         "//experimental/reporting-ui/src/main/react/reporting-ui/view/report_list",

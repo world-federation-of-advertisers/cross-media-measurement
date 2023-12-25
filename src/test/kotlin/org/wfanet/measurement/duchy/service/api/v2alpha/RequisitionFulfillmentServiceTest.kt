@@ -24,6 +24,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -32,12 +33,15 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
+import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.honestMajorityShareShuffle
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionResponse
@@ -63,6 +67,7 @@ import org.wfanet.measurement.internal.duchy.copy
 import org.wfanet.measurement.internal.duchy.externalRequisitionKey
 import org.wfanet.measurement.internal.duchy.getComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.recordRequisitionBlobPathRequest
+import org.wfanet.measurement.internal.duchy.recordRequisitionSeedRequest
 import org.wfanet.measurement.internal.duchy.requisitionDetails
 import org.wfanet.measurement.internal.duchy.requisitionMetadata
 import org.wfanet.measurement.storage.testing.BlobSubject.Companion.assertThat
@@ -80,7 +85,8 @@ private const val NONCE = -3060866405677570814L // Hex: D5859E38A0A96502
 private val NONCE_HASH =
   HexString("45FEAA185D434E0EB4747F547F0918AA5B8403DBBD7F90D6F0D8C536E2D620D7")
 private val REQUISITION_FINGERPRINT = "A fingerprint".toByteStringUtf8()
-private val TEST_REQUISITION_DATA = ByteString.copyFromUtf8("some data")
+private val TEST_REQUISITION_DATA = "some data".toByteStringUtf8()
+private val TEST_REQUISITION_SEED = "a seed".toByteStringUtf8()
 private val HEADER = header {
   name = CanonicalRequisitionKey(DATA_PROVIDER_API_ID, REQUISITION_API_ID).toName()
   requisitionFingerprint = REQUISITION_FINGERPRINT
@@ -204,6 +210,73 @@ class RequisitionFulfillmentServiceTest {
   }
 
   @Test
+  fun `fulfill requisition writes the seed`() = runBlocking {
+    val fakeToken = computationToken {
+      globalComputationId = COMPUTATION_ID
+      computationDetails = COMPUTATION_DETAILS
+      requisitions += REQUISITION_METADATA
+    }
+    computationsServiceMock.stub {
+      onBlocking { getComputationToken(any()) }
+        .thenReturn(getComputationTokenResponse { token = fakeToken })
+    }
+    RequisitionBlobContext(COMPUTATION_ID, HEADER.name)
+
+    val response =
+      withPrincipal(DATA_PROVIDER_PRINCIPAL) {
+        service.fulfillRequisition(HEADER.withSeed(TEST_REQUISITION_SEED))
+      }
+
+    assertThat(response).isEqualTo(FULFILLED_RESPONSE)
+    verifyProtoArgument(
+        computationsServiceMock,
+        ComputationsCoroutineImplBase::recordRequisitionSeed
+      )
+      .isEqualTo(
+        recordRequisitionSeedRequest {
+          token = fakeToken
+          key = REQUISITION_KEY
+          seed = TEST_REQUISITION_SEED
+        }
+      )
+    verifyProtoArgument(requisitionsServiceMock, RequisitionsCoroutineImplBase::fulfillRequisition)
+      .isEqualTo(
+        systemFulfillRequisitionRequest {
+          name = SYSTEM_REQUISITION_KEY.toName()
+          nonce = NONCE
+        }
+      )
+  }
+
+  @Test
+  fun `fulfill requisition with both data and seed raises error`() = runBlocking {
+    val fakeToken = computationToken {
+      globalComputationId = COMPUTATION_ID
+      computationDetails = COMPUTATION_DETAILS
+      requisitions += REQUISITION_METADATA
+    }
+    computationsServiceMock.stub {
+      onBlocking { getComputationToken(any()) }
+        .thenReturn(getComputationTokenResponse { token = fakeToken })
+    }
+    RequisitionBlobContext(COMPUTATION_ID, HEADER.name)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipal(DATA_PROVIDER_PRINCIPAL) {
+          service.fulfillRequisition(
+            HEADER.withSeedAndData(TEST_REQUISITION_SEED, TEST_REQUISITION_DATA)
+          )
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(requisitionStore.get(REQUISITION_BLOB_CONTEXT)).isNull()
+    verifyBlocking(computationsServiceMock, never()) { recordRequisitionSeed(any()) }
+    verifyBlocking(requisitionsServiceMock, never()) { fulfillRequisition(any()) }
+  }
+
+  @Test
   fun `fulfill requisition fails due to missing nonce`() = runBlocking {
     val e =
       assertFailsWith(StatusRuntimeException::class) {
@@ -285,6 +358,39 @@ class RequisitionFulfillmentServiceTest {
       .map { fulfillRequisitionRequest { bodyChunk = bodyChunk { data = it } } }
       .asFlow()
       .onStart { emit(fulfillRequisitionRequest { header = this@withContent }) }
+  }
+
+  private fun FulfillRequisitionRequest.Header.withSeed(
+    randomSeed: ByteString
+  ): Flow<FulfillRequisitionRequest> {
+    return flowOf(
+      fulfillRequisitionRequest {
+        header =
+          this@withSeed.copy {
+            honestMajorityShareShuffle = honestMajorityShareShuffle { seed = randomSeed }
+          }
+      }
+    )
+  }
+
+  private fun FulfillRequisitionRequest.Header.withSeedAndData(
+    randomSeed: ByteString,
+    vararg bodyContent: ByteString
+  ): Flow<FulfillRequisitionRequest> {
+    return bodyContent
+      .asSequence()
+      .map { fulfillRequisitionRequest { bodyChunk = bodyChunk { data = it } } }
+      .asFlow()
+      .onStart {
+        emit(
+          fulfillRequisitionRequest {
+            header =
+              this@withSeedAndData.copy {
+                honestMajorityShareShuffle = honestMajorityShareShuffle { seed = randomSeed }
+              }
+          }
+        )
+      }
   }
 
   companion object {

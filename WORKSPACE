@@ -16,7 +16,6 @@ load(
     "GRPC_KOTLIN",
     "KOTLIN_RELEASE_VERSION",
     "OPENTELEMETRY_JAVA_VERSION",
-    "TINK_COMMIT",
 )
 load("@aspect_rules_js//js:repositories.bzl", "rules_js_dependencies")
 
@@ -56,7 +55,7 @@ npm_repositories()
 
 load("//build/tink:repositories.bzl", "tink_cc")
 
-tink_cc(TINK_COMMIT)
+tink_cc()
 
 load("@wfa_common_cpp//build:common_cpp_repositories.bzl", "common_cpp_repositories")
 
@@ -90,13 +89,13 @@ load("//build/grpc_health_probe:repo.bzl", "grpc_health_probe")
 grpc_health_probe()
 
 # Maven
+load("@rules_jvm_external//:defs.bzl", "maven_install")
 load(
     "@wfa_common_jvm//build:common_jvm_maven.bzl",
     "COMMON_JVM_EXCLUDED_ARTIFACTS",
     "COMMON_JVM_MAVEN_OVERRIDE_TARGETS",
     "common_jvm_maven_artifacts_dict",
 )
-load("@rules_jvm_external//:defs.bzl", "maven_install")
 load("@wfa_common_jvm//build/maven:artifacts.bzl", "artifacts")
 
 MAVEN_ARTIFACTS_DICT = dict(common_jvm_maven_artifacts_dict().items() + {
@@ -115,6 +114,8 @@ MAVEN_ARTIFACTS_DICT = dict(common_jvm_maven_artifacts_dict().items() + {
     "software.amazon.awssdk:sts": AWS_JAVA_SDK_VERSION,
     "software.amazon.awssdk:auth": AWS_JAVA_SDK_VERSION,
     "software.amazon.awssdk:acmpca": AWS_JAVA_SDK_VERSION,
+    "com.google.crypto.tink:tink-gcpkms": "1.9.0",
+    "com.google.crypto.tink:tink-awskms": "1.9.1",
 }.items())
 
 EXCLUDED_MAVEN_ARTIFACTS = [x for x in COMMON_JVM_EXCLUDED_ARTIFACTS if x != "org.slf4j:slf4j-log4j12"] + ["org.apache.beam:beam-sdks-java-io-kafka"]
@@ -154,6 +155,27 @@ go_repository(
     importpath = "google.golang.org/grpc/cmd/protoc-gen-go-grpc",
     sum = "h1:TLkBREm4nIsEcexnCjgQd5GQWaHcqMzwQV0TX9pq8S0=",
     version = "v1.2.0",
+)
+
+go_repository(
+    name = "org_golang_google_genproto_googleapis_api",
+    importpath = "google.golang.org/genproto/googleapis/api",
+    sum = "h1:JpwMPBpFN3uKhdaekDpiNlImDdkUAyiJ6ez/uxGaUSo=",
+    version = "v0.0.0-20231106174013-bbf56f31fb17",
+)
+
+go_repository(
+    name = "org_golang_google_genproto_googleapis_rpc",
+    importpath = "google.golang.org/genproto/googleapis/rpc",
+    sum = "h1:/jFB8jK5R3Sq3i/lmeZO0cATSzFfZaJq1J2Euan3XKU=",
+    version = "v0.0.0-20231212172506-995d672761c0",
+)
+
+go_repository(
+    name = "org_golang_google_genproto",
+    importpath = "google.golang.org/genproto",
+    sum = "h1:1hfbdAfFbkmpg41000wDVqr7jUpK/Yo+LPnIxxGzmkg=",
+    version = "v0.0.0-20231211222908-989df2bf70f3",
 )
 
 load("@wfa_common_jvm//build:common_jvm_extra_deps.bzl", "common_jvm_extra_deps")

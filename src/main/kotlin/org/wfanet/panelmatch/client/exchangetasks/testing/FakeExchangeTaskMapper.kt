@@ -67,7 +67,7 @@ class FakeExchangeTaskMapper(
   override suspend fun ExchangeContext.copyToSharedStorage() =
     createExchangeTask("copy-to-shared-storage")
 
-  override suspend fun ExchangeContext.hybridEncrypt() = createExchangeTask("hybird-encrypt")
+  override suspend fun ExchangeContext.hybridEncrypt() = createExchangeTask("hybrid-encrypt")
 
   override suspend fun ExchangeContext.hybridDecrypt() = createExchangeTask("hybrid-decrypt")
 
@@ -76,4 +76,7 @@ class FakeExchangeTaskMapper(
 
   override suspend fun ExchangeContext.generateRandomBytes() =
     createExchangeTask("generate-random-bytes")
+
+  override suspend fun ExchangeContext.assignJoinKeyIds() =
+    createExchangeTask("assign-join-key-ids")
 }

@@ -15,7 +15,7 @@
 package org.wfanet.panelmatch.client.exchangetasks
 
 import com.google.crypto.tink.HybridEncrypt
-import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.crypto.tink.hybrid.HybridConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
@@ -43,7 +43,8 @@ class HybridEncryptTask : ExchangeTask {
     // See https://github.com/world-federation-of-advertisers/panel-exchange-client/issues/322
     val inputData = input.getValue(PLAINTEXT_DATA_LABEL).toByteString()
     val publicKeyData = input.getValue(PUBLIC_KEY_LABEL).toByteString()
-    val publicKeysetHandle = KeysetHandle.readNoSecret(publicKeyData.toByteArray())
+    val publicKeysetHandle =
+      TinkProtoKeysetFormat.parseKeysetWithoutSecret(publicKeyData.toByteArray())
     val hybridEncrypt = publicKeysetHandle.getPrimitive(HybridEncrypt::class.java)
     val encryptedData =
       hybridEncrypt.encrypt(inputData.toByteArray(), NO_ASSOCIATED_DATA).toByteString()
