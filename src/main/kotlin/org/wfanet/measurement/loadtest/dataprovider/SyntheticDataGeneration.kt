@@ -20,6 +20,7 @@ import com.google.protobuf.Descriptors.FieldDescriptor
 import com.google.protobuf.Message
 import java.time.ZoneOffset
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.CartesianSyntheticEventGroupSpecRecipe
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.CartesianSyntheticEventGroupSpecRecipe.FrequencyDimensionSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.CartesianSyntheticEventGroupSpecRecipe.NonPopulationDimensionSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
@@ -159,8 +160,33 @@ private fun SyntheticEventGroupSpec.DateSpec.DateRange.toProgression(): LocalDat
   return start.toLocalDate()..endExclusive.toLocalDate().minusDays(1)
 }
 
-fun CartesianSyntheticEventGroupSpecRecipe.toSyntheticEventGroupSpec(): SyntheticEventGroupSpec {
-  var vidStart = this.vidStart
+/**
+ * Converts a [CartesianSyntheticEventGroupSpecRecipe] to [SyntheticEventGroupSpec] using a
+ * [SyntheticPopulationSpec].
+ *
+ * For each dateSpec in [the CartesianSyntheticEventGroupSpecRecipe];
+ * 1. Group the nonPopulationDimensionSpecs based on their field names. These groups specify the
+ *    distribution of the data for that dimension.
+ * 2. Cross these groups with each other and the frequencyDimensionSpecs. This produces a desired
+ *    distribution for all the non population dimensions and the frequencies.
+ * 3. Cross this result with the subPopulations defined in the syntheticPopulationSpec. This will
+ *    not add any fields since the poopualtion values are defiend in the syntheticPopulationSpec,
+ *    this operation is used to query the vid ranges to be used for the resulting cartesian product.
+ *
+ * @param syntheticPopulationSpec specification of the synthetic population
+ * @throws IllegalArgumentException for a [CartesianSyntheticEventGroupSpecRecipe] that implies vids
+ *   that are not specified in [syntheticPopulationSpec]
+ */
+fun CartesianSyntheticEventGroupSpecRecipe.toSyntheticEventGroupSpec(
+  syntheticPopulationSpec: SyntheticPopulationSpec
+): SyntheticEventGroupSpec {
+
+  // For each subPopulation keeps track of the vidRange that is avaliable to be used.
+  val avaliableSubPopulationRanges =
+    syntheticPopulationSpec.subPopulationsList.map { subPopulation ->
+      AvaliableSubPopulationRange(subPopulation, subPopulation.vidSubRange.start)
+    }
+
   val mappedDateSpecs =
     this.dateSpecsList.map { dateSpec ->
       val totalReach = dateSpec.totalReach
@@ -168,18 +194,19 @@ fun CartesianSyntheticEventGroupSpecRecipe.toSyntheticEventGroupSpec(): Syntheti
       val groupedNonPopulationDimensionSpecs =
         dateSpec.nonPopulationDimensionSpecsList.groupBy { it.fieldName }
 
-      // Check if all sum up to 1.
+      // Check if all non Population dimension ratios sum up to 1.
       groupedNonPopulationDimensionSpecs.forEach { (fieldName, group) ->
         check(group.map { it.ratio }.sum() == 1.0f) {
           "Non poupulation dimension : $fieldName does not sum up to 1."
         }
       }
 
-      // Check if FrequencyDimensionSpecs sum up to 1.
+      // Check if FrequencyDimensionSpec ratios sum up to 1.
       check(dateSpec.frequencyDimensionSpecsList.map { it.ratio }.sum() == 1.0f) {
         "Frequency dimension does not sum up to 1."
       }
 
+      // Take the cartesian product of all non population dimensions
       val nonPopulationCartesianProduct: List<List<NonPopulationDimensionSpec>> =
         groupedNonPopulationDimensionSpecs
           .map { (_, group) -> group }
@@ -197,22 +224,15 @@ fun CartesianSyntheticEventGroupSpecRecipe.toSyntheticEventGroupSpec(): Syntheti
                 nonPopulationSpecs.map { it.ratio }.reduce { acc, element -> acc * element })
               .toLong()
 
-          mappedFrequencySpecs +=
-            SyntheticEventGroupSpecKt.frequencySpec {
-              frequency = freqDimension.frequency
-
-              vidRangeSpecs +=
-                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
-                  vidRange = vidRange {
-                    start = vidStart
-                    endExclusive = vidStart + bucketWidth
-                  }
-                  nonPopulationFieldValues.putAll(
-                    nonPopulationSpecs.associate { it.fieldName to it.fieldValue }
-                  )
-                }
-            }
-          vidStart += bucketWidth
+          avaliableSubPopulationRanges.forEach { avaliableSubPopulationRange ->
+            mappedFrequencySpecs +=
+              createFrequencySpec(
+                bucketWidth,
+                freqDimension,
+                nonPopulationSpecs,
+                avaliableSubPopulationRange
+              )
+          }
         }
       }
       SyntheticEventGroupSpecKt.dateSpec {
@@ -226,3 +246,40 @@ fun CartesianSyntheticEventGroupSpecRecipe.toSyntheticEventGroupSpec(): Syntheti
     dateSpecs += mappedDateSpecs
   }
 }
+
+private data class AvaliableSubPopulationRange(
+  private val subPopulation: SyntheticPopulationSpec.SubPopulation,
+  private var avaliableStart: Long
+) {
+  fun take(amount: Long): VidRange {
+    if (avaliableStart + amount >= subPopulation.vidSubRange.endExclusive) {
+      throw IllegalArgumentException(
+        "CartesianSyntheticEventGroupSpecRecipe implies non existing vids"
+      )
+    }
+    val vidRange = vidRange {
+      start = avaliableStart
+      endExclusive = avaliableStart + amount
+    }
+    this.avaliableStart += amount
+    return vidRange
+  }
+}
+
+private fun createFrequencySpec(
+  bucketWidth: Long,
+  freqDimension: FrequencyDimensionSpec,
+  nonPopulationSpecs: List<NonPopulationDimensionSpec>,
+  avaliableSubPopulationRange: AvaliableSubPopulationRange
+) =
+  SyntheticEventGroupSpecKt.frequencySpec {
+    frequency = freqDimension.frequency
+
+    vidRangeSpecs +=
+      SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+        vidRange = avaliableSubPopulationRange.take(bucketWidth)
+        nonPopulationFieldValues.putAll(
+          nonPopulationSpecs.associate { it.fieldName to it.fieldValue }
+        )
+      }
+  }

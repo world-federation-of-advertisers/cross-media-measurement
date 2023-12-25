@@ -598,6 +598,49 @@ class SyntheticDataGenerationTest {
 
   @Test
   fun `toSyntheticEventGroupSpec returns correct SyntheticEventGroupSpec`() {
+
+    val populationSpec = syntheticPopulationSpec {
+      vidRange = vidRange {
+        start = 0L
+        endExclusive = 100L
+      }
+
+      populationFields += "person.gender"
+      populationFields += "person.age_group"
+
+      nonPopulationFields += "banner_ad.viewable"
+      nonPopulationFields += "video_ad.viewed_fraction"
+
+      subPopulations +=
+        SyntheticPopulationSpecKt.subPopulation {
+          vidSubRange = vidRange {
+            start = 0L
+            endExclusive = 5000L
+          }
+
+          populationFieldsValues["person.gender"] = fieldValue {
+            enumValue = Person.Gender.MALE_VALUE
+          }
+          populationFieldsValues["person.age_group"] = fieldValue {
+            enumValue = Person.AgeGroup.YEARS_18_TO_34_VALUE
+          }
+        }
+      subPopulations +=
+        SyntheticPopulationSpecKt.subPopulation {
+          vidSubRange = vidRange {
+            start = 5000L
+            endExclusive = 10000L
+          }
+
+          populationFieldsValues["person.gender"] = fieldValue {
+            enumValue = Person.Gender.FEMALE_VALUE
+          }
+          populationFieldsValues["person.age_group"] = fieldValue {
+            enumValue = Person.AgeGroup.YEARS_18_TO_34_VALUE
+          }
+        }
+    }
+
     val cartesianSyntheticEventGroupSpecRecipe = cartesianSyntheticEventGroupSpecRecipe {
       description = "event group 1"
       dateSpecs +=
@@ -656,7 +699,7 @@ class SyntheticDataGenerationTest {
     }
 
     val convertedSyntheticEventGroupSpec =
-      cartesianSyntheticEventGroupSpecRecipe.toSyntheticEventGroupSpec()
+      cartesianSyntheticEventGroupSpecRecipe.toSyntheticEventGroupSpec(populationSpec)
 
     val expectedSyntheticEventGroupSpec = syntheticEventGroupSpec {
       description = "event group 1"
@@ -676,7 +719,7 @@ class SyntheticDataGenerationTest {
                 day = 28
               }
             }
-
+          // For gender = MALE and age_group = 18_TO_34
           frequencySpecs +=
             SyntheticEventGroupSpecKt.frequencySpec {
               frequency = 1
@@ -694,7 +737,26 @@ class SyntheticDataGenerationTest {
                   }
                 }
             }
+          // For gender = FEMALE and age_group = 18_TO_34
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 1
 
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 5000L
+                    endExclusive = 5012L
+                  }
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.3
+                  }
+                }
+            }
+
+          // For gender = MALE and age_group = 18_TO_34
           frequencySpecs +=
             SyntheticEventGroupSpecKt.frequencySpec {
               frequency = 1
@@ -712,7 +774,25 @@ class SyntheticDataGenerationTest {
                   }
                 }
             }
+          // For gender = FEMALE and age_group = 18_TO_34
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 1
 
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 5012L
+                    endExclusive = 5024L
+                  }
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.7
+                  }
+                }
+            }
+          // For gender = MALE and age_group = 18_TO_34
           frequencySpecs +=
             SyntheticEventGroupSpecKt.frequencySpec {
               frequency = 1
@@ -731,6 +811,25 @@ class SyntheticDataGenerationTest {
                 }
             }
 
+          // For gender = FEMALE and age_group = 18_TO_34
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 1
+
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 5024L
+                    endExclusive = 5036L
+                  }
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = false }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.3
+                  }
+                }
+            }
+          // For gender = MALE and age_group = 18_TO_34
           frequencySpecs +=
             SyntheticEventGroupSpecKt.frequencySpec {
               frequency = 1
@@ -748,7 +847,25 @@ class SyntheticDataGenerationTest {
                   }
                 }
             }
+          // For gender = FEMALE and age_group = 18_TO_34
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 1
 
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 5036L
+                    endExclusive = 5048L
+                  }
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = false }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.7
+                  }
+                }
+            }
+          // For gender = MALE and age_group = 18_TO_34
           frequencySpecs +=
             SyntheticEventGroupSpecKt.frequencySpec {
               frequency = 2
@@ -766,7 +883,25 @@ class SyntheticDataGenerationTest {
                   }
                 }
             }
+          // For gender = FEMALE and age_group = 18_TO_34
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 2
 
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 5048L
+                    endExclusive = 5060L
+                  }
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.3
+                  }
+                }
+            }
+          // For gender = MALE and age_group = 18_TO_34
           frequencySpecs +=
             SyntheticEventGroupSpecKt.frequencySpec {
               frequency = 2
@@ -784,7 +919,25 @@ class SyntheticDataGenerationTest {
                   }
                 }
             }
+          // For gender = FEMALE and age_group = 18_TO_34
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 2
 
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 5060L
+                    endExclusive = 5072L
+                  }
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.7
+                  }
+                }
+            }
+          // For gender = MALE and age_group = 18_TO_34
           frequencySpecs +=
             SyntheticEventGroupSpecKt.frequencySpec {
               frequency = 2
@@ -802,7 +955,25 @@ class SyntheticDataGenerationTest {
                   }
                 }
             }
+          // For gender = FEMALE and age_group = 18_TO_34
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 2
 
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 5072L
+                    endExclusive = 5084L
+                  }
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = false }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.3
+                  }
+                }
+            }
+          // For gender = MALE and age_group = 18_TO_34
           frequencySpecs +=
             SyntheticEventGroupSpecKt.frequencySpec {
               frequency = 2
@@ -820,9 +991,202 @@ class SyntheticDataGenerationTest {
                   }
                 }
             }
+          // For gender = FEMALE and age_group = 18_TO_34
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 2
+
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 5084L
+                    endExclusive = 5096L
+                  }
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = false }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.7
+                  }
+                }
+            }
+        }
+    }
+    // There should be only 1 date spec.
+    assertThat(convertedSyntheticEventGroupSpec.dateSpecsList.size).isEqualTo(1)
+    // There should be 16 frequencySpecs since there are 2 non population fields (viewable and
+    // viewed_fraction) each with 2 possible values and there are 2 frequencies (1,2). so 2*2*2 = 8.
+    // These are then crossed with the population spec which defines 2 subPopulations. So 8*2*2 = 16
+    assertThat(convertedSyntheticEventGroupSpec.dateSpecsList.get(0).frequencySpecsList.size)
+      .isEqualTo(16)
+    assertThat(convertedSyntheticEventGroupSpec).isEqualTo(expectedSyntheticEventGroupSpec)
+  }
+
+  @Test
+  fun `toSyntheticEventGroupSpec converts correctly for multiple dateSpecs`() {
+
+    val populationSpec = syntheticPopulationSpec {
+      vidRange = vidRange {
+        start = 0L
+        endExclusive = 100L
+      }
+
+      populationFields += "person.gender"
+      populationFields += "person.age_group"
+
+      nonPopulationFields += "banner_ad.viewable"
+      nonPopulationFields += "video_ad.viewed_fraction"
+
+      subPopulations +=
+        SyntheticPopulationSpecKt.subPopulation {
+          vidSubRange = vidRange {
+            start = 0L
+            endExclusive = 5000L
+          }
+
+          populationFieldsValues["person.gender"] = fieldValue {
+            enumValue = Person.Gender.MALE_VALUE
+          }
+          populationFieldsValues["person.age_group"] = fieldValue {
+            enumValue = Person.AgeGroup.YEARS_18_TO_34_VALUE
+          }
+        }
+      subPopulations +=
+        SyntheticPopulationSpecKt.subPopulation {
+          vidSubRange = vidRange {
+            start = 5000L
+            endExclusive = 10000L
+          }
+
+          populationFieldsValues["person.gender"] = fieldValue {
+            enumValue = Person.Gender.FEMALE_VALUE
+          }
+          populationFieldsValues["person.age_group"] = fieldValue {
+            enumValue = Person.AgeGroup.YEARS_18_TO_34_VALUE
+          }
         }
     }
 
-    assertThat(convertedSyntheticEventGroupSpec).isEqualTo(expectedSyntheticEventGroupSpec)
+    val cartesianSyntheticEventGroupSpecRecipe = cartesianSyntheticEventGroupSpecRecipe {
+      description = "event group 1"
+      dateSpecs +=
+        CartesianSyntheticEventGroupSpecRecipeKt.dateSpec {
+          totalReach = 100
+          dateRange =
+            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+              start = date {
+                year = 2023
+                month = 6
+                day = 27
+              }
+              endExclusive = date {
+                year = 2023
+                month = 6
+                day = 28
+              }
+            }
+
+          frequencyDimensionSpecs +=
+            CartesianSyntheticEventGroupSpecRecipeKt.frequencyDimensionSpec {
+              frequency = 1
+              ratio = 0.5f
+            }
+
+          frequencyDimensionSpecs +=
+            CartesianSyntheticEventGroupSpecRecipeKt.frequencyDimensionSpec {
+              frequency = 2
+              ratio = 0.5f
+            }
+          nonPopulationDimensionSpecs +=
+            CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
+              fieldName = "banner_ad.viewable"
+              fieldValue = fieldValue { boolValue = true }
+              ratio = 0.5f
+            }
+          nonPopulationDimensionSpecs +=
+            CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
+              fieldName = "banner_ad.viewable"
+              fieldValue = fieldValue { boolValue = false }
+              ratio = 0.5f
+            }
+          nonPopulationDimensionSpecs +=
+            CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
+              fieldName = "video_ad.viewed_fraction"
+              fieldValue = fieldValue { doubleValue = 0.3 }
+              ratio = 0.5f
+            }
+          nonPopulationDimensionSpecs +=
+            CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
+              fieldName = "video_ad.viewed_fraction"
+              fieldValue = fieldValue { doubleValue = 0.7 }
+              ratio = 0.5f
+            }
+        }
+      dateSpecs +=
+        CartesianSyntheticEventGroupSpecRecipeKt.dateSpec {
+          totalReach = 100
+          dateRange =
+            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+              start = date {
+                year = 2023
+                month = 6
+                day = 29
+              }
+              endExclusive = date {
+                year = 2023
+                month = 6
+                day = 30
+              }
+            }
+
+          frequencyDimensionSpecs +=
+            CartesianSyntheticEventGroupSpecRecipeKt.frequencyDimensionSpec {
+              frequency = 1
+              ratio = 0.5f
+            }
+
+          frequencyDimensionSpecs +=
+            CartesianSyntheticEventGroupSpecRecipeKt.frequencyDimensionSpec {
+              frequency = 2
+              ratio = 0.5f
+            }
+          nonPopulationDimensionSpecs +=
+            CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
+              fieldName = "banner_ad.viewable"
+              fieldValue = fieldValue { boolValue = true }
+              ratio = 0.5f
+            }
+          nonPopulationDimensionSpecs +=
+            CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
+              fieldName = "banner_ad.viewable"
+              fieldValue = fieldValue { boolValue = false }
+              ratio = 0.5f
+            }
+          nonPopulationDimensionSpecs +=
+            CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
+              fieldName = "video_ad.viewed_fraction"
+              fieldValue = fieldValue { doubleValue = 0.3 }
+              ratio = 0.5f
+            }
+          nonPopulationDimensionSpecs +=
+            CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
+              fieldName = "video_ad.viewed_fraction"
+              fieldValue = fieldValue { doubleValue = 0.7 }
+              ratio = 0.5f
+            }
+        }
+    }
+
+    val convertedSyntheticEventGroupSpec =
+      cartesianSyntheticEventGroupSpecRecipe.toSyntheticEventGroupSpec(populationSpec)
+
+    // There should be only 2 date specs as defined in the
+    assertThat(convertedSyntheticEventGroupSpec.dateSpecsList.size).isEqualTo(2)
+    // For all the date specs, there should be 16 frequencySpecs since there are 2 non population
+    // fields (viewable and viewed_fraction) each with 2 possible values and there are 2 frequencies
+    // (1,2). so 2*2*2 = 8.These are then crossed with the population spec which defines 2
+    // subPopulations. So 8*2*2 = 16.
+    for (dateSpec in convertedSyntheticEventGroupSpec.dateSpecsList) {
+      assertThat(dateSpec.frequencySpecsList.size).isEqualTo(16)
+    }
   }
 }

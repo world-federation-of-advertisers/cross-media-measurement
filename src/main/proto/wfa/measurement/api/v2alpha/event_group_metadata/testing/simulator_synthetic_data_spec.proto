@@ -140,8 +140,6 @@ message SyntheticEventGroupSpec {
 // DateSpec.
 message CartesianSyntheticEventGroupSpecRecipe {
   string description = 1;
-  // The first vid value this recipe starts generating from.
-  int64 vid_start = 2;
 
   // The specification of Frequency dimension.
   message FrequencyDimensionSpec {
