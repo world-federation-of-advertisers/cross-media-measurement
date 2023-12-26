@@ -173,14 +173,22 @@ private fun SyntheticEventGroupSpec.DateSpec.DateRange.toProgression(): LocalDat
  *    not add any fields since the poopualtion values are defiend in the syntheticPopulationSpec,
  *    this operation is used to query the vid ranges to be used for the resulting cartesian product.
  *
- * @param syntheticPopulationSpec specification of the synthetic population
+ * Since the algorithm takes the cross product of the population spec, it needs to define at least
+ * one sub population.
+ *
  * @throws IllegalArgumentException for a [CartesianSyntheticEventGroupSpecRecipe] that implies vids
  *   that are not specified in [syntheticPopulationSpec]
+ * @throws IllegalArgumentException for a [syntheticPopulationSpec] that does not have any
+ *   subPopulations
+ * @throws IllegalArgumentException for a [CartesianSyntheticEventGroupSpecRecipe] that has
+ *   frequency or nonpolation dimensions that don't sum up to 1 in thier ratios.
  */
 fun CartesianSyntheticEventGroupSpecRecipe.toSyntheticEventGroupSpec(
   syntheticPopulationSpec: SyntheticPopulationSpec
 ): SyntheticEventGroupSpec {
-
+  check(syntheticPopulationSpec.subPopulationsList.isNotEmpty()) {
+    "syntheticPopulationSpec must have sub populations"
+  }
   // For each subPopulation keeps track of the vidRange that is avaliable to be used.
   val avaliableSubPopulationRanges =
     syntheticPopulationSpec.subPopulationsList.map { subPopulation ->
