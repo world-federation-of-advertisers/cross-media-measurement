@@ -894,9 +894,8 @@ val INTERNAL_SUCCEEDED_POPULATION_MEASUREMENT =
       InternalMeasurementKt.details {
         results +=
           InternalMeasurementKt.result {
-            population = InternalMeasurementKt.ResultKt.population {
-              value = TOTAL_POPULATION_VALUE
-            }
+            population =
+              InternalMeasurementKt.ResultKt.population { value = TOTAL_POPULATION_VALUE }
           }
       }
   }
@@ -1999,9 +1998,7 @@ val SUCCEEDED_POPULATION_METRIC =
   PENDING_POPULATION_METRIC.copy {
     state = Metric.State.SUCCEEDED
     result = metricResult {
-      populationCount = MetricResultKt.populationCountResult {
-        value = TOTAL_POPULATION_VALUE
-      }
+      populationCount = MetricResultKt.populationCountResult { value = TOTAL_POPULATION_VALUE }
     }
   }
 
@@ -7621,8 +7618,7 @@ class MetricsServiceTest {
     assertThat(capturedInternalGetMetricRequests)
       .containsExactly(
         internalBatchGetMetricsRequest {
-          cmmsMeasurementConsumerId =
-            INTERNAL_SUCCEEDED_POPULATION_METRIC.cmmsMeasurementConsumerId
+          cmmsMeasurementConsumerId = INTERNAL_SUCCEEDED_POPULATION_METRIC.cmmsMeasurementConsumerId
           externalMetricIds += INTERNAL_SUCCEEDED_POPULATION_METRIC.externalMetricId
         }
       )

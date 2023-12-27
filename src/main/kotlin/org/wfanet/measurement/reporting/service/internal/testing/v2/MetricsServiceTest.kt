@@ -493,9 +493,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         startTime = timestamp { seconds = 10 }
         endTime = timestamp { seconds = 100 }
       }
-      metricSpec = metricSpec {
-        populationCount = MetricSpecKt.populationCountParams {  }
-      }
+      metricSpec = metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
@@ -513,10 +511,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
               }
           }
         }
-      details =
-        MetricKt.details {
-          filters += "filter1"
-        }
+      details = MetricKt.details { filters += "filter1" }
     }
 
     val createdMetric =
@@ -529,7 +524,10 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
 
     assertThat(createdMetric.externalMetricId).isNotEqualTo(0)
     assertThat(createdMetric.hasCreateTime()).isTrue()
-    assertThat(createdMetric.weightedMeasurementsList.first().measurement.cmmsCreateMeasurementRequestId).isNotEmpty()
+    assertThat(
+        createdMetric.weightedMeasurementsList.first().measurement.cmmsCreateMeasurementRequestId
+      )
+      .isNotEmpty()
   }
 
 
@@ -2379,7 +2377,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         metric =
           metric.copy {
             metricSpec = metricSpec {
-              populationCount = MetricSpecKt.populationCountParams {  }
+              populationCount = MetricSpecKt.populationCountParams {}
             }
           }
       }
