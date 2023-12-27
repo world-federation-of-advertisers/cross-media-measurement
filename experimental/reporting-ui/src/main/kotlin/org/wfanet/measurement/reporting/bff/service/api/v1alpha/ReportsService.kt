@@ -134,17 +134,13 @@ class ReportsService(private val backendReportsStub: BackendReportsGrpcKt.Report
       "person.age_group == 3" to "55+",
     )
 
-    // TODO: Probably have to process MCRs first to get the reporting set.
-    //   Then I can pass that down.
-    //   Or can I associate a Result Attribute to a Reporting Set?
+    // Map the result attributes to the reporting sets
     // val rsByMcr = mutableMapOf<BackendReport.MetricCalculationResult.ResultAttribute, String>()
     val rsByMcr = mutableMapOf<String, String>()
-    var tester: BackendReport.MetricCalculationResult.ResultAttribute? = null
     for (mcr in source.metricCalculationResultsList) {
       val rsName = mcr.reportingSet
       for (ra in mcr.resultAttributesList) {
         rsByMcr[ra.toString()] = rsName
-        tester = ra
       }
     }
 
@@ -167,17 +163,24 @@ class ReportsService(private val backendReportsStub: BackendReportsGrpcKt.Report
           }
 
           // By demo...
-          // Result Attributes grouped by grouping predicates
+          // Result Attributes from the time group, grouped by grouping predicates
           val demoGroup = time.value.groupBy{it.groupingPredicatesList.map{demoMap[it]}.joinToString(prefix = "", postfix = "", separator = ";")}
           for (demo in demoGroup) {
             demoBucket += demoBucket {
               demoCategoryName = demo.key
 
               // By source...
-              perPublisherSource += sourceMetrics {
-                sourceName = "hmmm" // TODO: HOW TO GET THIS!!!
-                for (resultAttribute in demo.value) { // TODO: Except the full union one
-                  println(rsByMcr[resultAttribute.toString()])
+              // Result Attributes from the time group and grouping predicate
+              // TODO: the frequency histogram and impression count comes as two different RAs, merge them?
+              //  Can only tell where they come from due to the RS map.
+              val test = demo.value.groupBy({rsByMcr[it.toString()]}, {rsByMcr[it.toString()]})
+              println("test")
+              println(test)
+              for (resultAttribute in demo.value) {
+                val pubName = rsByMcr[resultAttribute.toString()]!!
+
+                val metrs = sourceMetrics {
+                  sourceName = pubName
                   val oneOfCase = resultAttribute.metricResult.getResultCase()
                   when(oneOfCase) {
                     ResultCase.REACH -> {
@@ -201,17 +204,11 @@ class ReportsService(private val backendReportsStub: BackendReportsGrpcKt.Report
                     else -> println("error")
                   }
                 }
-              }
 
-              // TODO: If tag includes "Full Union"
-              // TODO: Finish calculating this
-              unionSource = sourceMetrics {
-                sourceName = "union"
-                reach = 0
-                // frequencyHistogram
-                impressionCount = impressionCountResult {
-                  count = 0
-                  standardDeviation = 0.0
+                if (!pubName.contains("union")) {
+                  perPublisherSource += metrs
+                } else {
+                  unionSource = metrs
                 }
               }
             }
