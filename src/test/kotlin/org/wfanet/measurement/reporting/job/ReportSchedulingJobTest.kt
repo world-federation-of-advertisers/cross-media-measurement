@@ -81,7 +81,6 @@ import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.setReportScheduleIterationStateRequest
 import org.wfanet.measurement.internal.reporting.v2.stopReportScheduleRequest
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricCalculationSpecKey
-import org.wfanet.measurement.reporting.service.api.v2alpha.ReportSchedulesService.Companion.buildReportWindowStartTimestamp
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.toPublic
 import org.wfanet.measurement.reporting.v2alpha.CreateReportRequest
@@ -212,11 +211,9 @@ class ReportSchedulingJobTest {
           report =
             publicReportSchedule.reportTemplate.copy {
               periodicTimeInterval = periodicTimeInterval {
-                startTime =
-                  buildReportWindowStartTimestamp(
-                    publicReportSchedule,
-                    INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
-                  )
+                startTime = timestamp {
+                  seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+                }
                 increment =
                   Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
                 intervalCount = 1
@@ -313,11 +310,9 @@ class ReportSchedulingJobTest {
             report =
               publicReportSchedule.reportTemplate.copy {
                 periodicTimeInterval = periodicTimeInterval {
-                  startTime =
-                    buildReportWindowStartTimestamp(
-                      publicReportSchedule,
-                      INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
-                    )
+                  startTime = timestamp {
+                    seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+                  }
                   increment =
                     Timestamps.between(
                       startTime,
@@ -419,11 +414,9 @@ class ReportSchedulingJobTest {
         report =
           publicReportSchedule.reportTemplate.copy {
             periodicTimeInterval = periodicTimeInterval {
-              startTime =
-                buildReportWindowStartTimestamp(
-                  publicReportSchedule,
-                  INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
-                )
+              startTime = timestamp {
+                seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+              }
               increment =
                 Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
               intervalCount = 1
@@ -512,11 +505,9 @@ class ReportSchedulingJobTest {
         report =
           publicReportSchedule.reportTemplate.copy {
             periodicTimeInterval = periodicTimeInterval {
-              startTime =
-                buildReportWindowStartTimestamp(
-                  publicReportSchedule,
-                  INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
-                )
+              startTime = timestamp {
+                seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+              }
               increment =
                 Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
               intervalCount = 1
@@ -610,11 +601,9 @@ class ReportSchedulingJobTest {
         report =
           publicReportSchedule.reportTemplate.copy {
             periodicTimeInterval = periodicTimeInterval {
-              startTime =
-                buildReportWindowStartTimestamp(
-                  publicReportSchedule,
-                  INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
-                )
+              startTime = timestamp {
+                seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+              }
               increment =
                 Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
               intervalCount = 1
@@ -710,11 +699,9 @@ class ReportSchedulingJobTest {
         report =
           publicReportSchedule.reportTemplate.copy {
             periodicTimeInterval = periodicTimeInterval {
-              startTime =
-                buildReportWindowStartTimestamp(
-                  publicReportSchedule,
-                  INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
-                )
+              startTime = timestamp {
+                seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+              }
               increment =
                 Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
               intervalCount = 1
@@ -1219,11 +1206,9 @@ class ReportSchedulingJobTest {
             report =
               publicReportSchedule.reportTemplate.copy {
                 periodicTimeInterval = periodicTimeInterval {
-                  startTime =
-                    buildReportWindowStartTimestamp(
-                      publicReportSchedule,
-                      INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
-                    )
+                  startTime = timestamp {
+                    seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+                  }
                   increment =
                     Timestamps.between(
                       startTime,
@@ -1283,11 +1268,9 @@ class ReportSchedulingJobTest {
           report =
             publicReportSchedule.reportTemplate.copy {
               periodicTimeInterval = periodicTimeInterval {
-                startTime =
-                  buildReportWindowStartTimestamp(
-                    publicReportSchedule,
-                    INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
-                  )
+                startTime = timestamp {
+                  seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+                }
                 increment =
                   Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
                 intervalCount = 1
@@ -1344,11 +1327,9 @@ class ReportSchedulingJobTest {
           report =
             publicReportSchedule.reportTemplate.copy {
               periodicTimeInterval = periodicTimeInterval {
-                startTime =
-                  buildReportWindowStartTimestamp(
-                    publicReportSchedule,
-                    INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
-                  )
+                startTime = timestamp {
+                  seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+                }
                 increment =
                   Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
                 intervalCount = 1
