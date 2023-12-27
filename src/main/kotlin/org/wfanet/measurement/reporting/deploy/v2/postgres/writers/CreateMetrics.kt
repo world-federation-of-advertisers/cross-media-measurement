@@ -21,7 +21,6 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
 import kotlinx.coroutines.flow.toList
-import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.common.db.r2dbc.BoundStatement
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
@@ -249,8 +248,8 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                   bind<Long?>("$20", null)
                 }
                 MetricSpec.TypeCase.POPULATION_COUNT -> {
-                  bind("$9", DifferentialPrivacyParams.getDefaultInstance().epsilon)
-                  bind("$10", DifferentialPrivacyParams.getDefaultInstance().delta)
+                  bind("$9", MetricSpec.DifferentialPrivacyParams.getDefaultInstance().epsilon)
+                  bind("$10", MetricSpec.DifferentialPrivacyParams.getDefaultInstance().delta)
                   bind<Double?>("$11", null)
                   bind<Double?>("$12", null)
                   bind<Long?>("$13", null)

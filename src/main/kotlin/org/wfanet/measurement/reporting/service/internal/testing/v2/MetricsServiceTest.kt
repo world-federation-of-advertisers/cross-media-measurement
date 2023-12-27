@@ -482,6 +482,58 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
   }
 
   @Test
+  fun `createMetric succeeds when MetricSpec type is PopulationCount`() = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val createdReportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+
+    val metric = metric {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalReportingSetId = createdReportingSet.externalReportingSetId
+      timeInterval = interval {
+        startTime = timestamp { seconds = 10 }
+        endTime = timestamp { seconds = 100 }
+      }
+      metricSpec = metricSpec {
+        populationCount = MetricSpecKt.populationCountParams {  }
+      }
+      weightedMeasurements +=
+        MetricKt.weightedMeasurement {
+          weight = 2
+          binaryRepresentation = 1
+          measurement = measurement {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            timeInterval = interval {
+              startTime = timestamp { seconds = 10 }
+              endTime = timestamp { seconds = 100 }
+            }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+              }
+          }
+        }
+      details =
+        MetricKt.details {
+          filters += "filter1"
+        }
+    }
+
+    val createdMetric =
+      service.createMetric(
+        createMetricRequest {
+          this.metric = metric
+          externalMetricId = "external-metric-id"
+        }
+      )
+
+    assertThat(createdMetric.externalMetricId).isNotEqualTo(0)
+    assertThat(createdMetric.hasCreateTime()).isTrue()
+    assertThat(createdMetric.weightedMeasurementsList.first().measurement.cmmsCreateMeasurementRequestId).isNotEmpty()
+  }
+
+
+  @Test
   fun `createMetric succeeds when no filters in bases in measurements`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val createdReportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
@@ -2300,6 +2352,34 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                   start = 0.1f
                   width = 0.5f
                 }
+            }
+          }
+      }
+    val createdMetric = service.createMetric(createMetricRequest)
+
+    val retrievedMetrics =
+      service.batchGetMetrics(
+        batchGetMetricsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalMetricIds += createdMetric.externalMetricId
+        }
+      )
+
+    assertThat(retrievedMetrics.metricsList)
+      .ignoringRepeatedFieldOrder()
+      .containsExactly(createdMetric)
+  }
+
+  @Test
+  fun `batchGetMetrics succeeds when metric spec type is population count`(): Unit = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+
+    val createMetricRequest =
+      createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService).copy {
+        metric =
+          metric.copy {
+            metricSpec = metricSpec {
+              populationCount = MetricSpecKt.populationCountParams {  }
             }
           }
       }

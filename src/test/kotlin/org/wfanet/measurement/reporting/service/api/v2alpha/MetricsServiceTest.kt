@@ -887,6 +887,20 @@ val INTERNAL_PENDING_POPULATION_MEASUREMENT = internalMeasurement {
   state = InternalMeasurement.State.PENDING
 }
 
+val INTERNAL_SUCCEEDED_POPULATION_MEASUREMENT =
+  INTERNAL_PENDING_POPULATION_MEASUREMENT.copy {
+    state = InternalMeasurement.State.SUCCEEDED
+    details =
+      InternalMeasurementKt.details {
+        results +=
+          InternalMeasurementKt.result {
+            population = InternalMeasurementKt.ResultKt.population {
+              value = TOTAL_POPULATION_VALUE
+            }
+          }
+      }
+  }
+
 // CMMS measurements
 
 // CMMS incremental reach measurements
@@ -1707,6 +1721,16 @@ val INTERNAL_PENDING_POPULATION_METRIC =
     }
   }
 
+val INTERNAL_SUCCEEDED_POPULATION_METRIC =
+  INTERNAL_PENDING_POPULATION_METRIC.copy {
+    weightedMeasurements.clear()
+    weightedMeasurements += weightedMeasurement {
+      weight = 1
+      binaryRepresentation = 1
+      measurement = INTERNAL_SUCCEEDED_POPULATION_MEASUREMENT
+    }
+  }
+
 // Public Metrics
 
 // Incremental reach metrics
@@ -1969,6 +1993,16 @@ val PENDING_POPULATION_METRIC =
     state = Metric.State.RUNNING
     metricSpec = metricSpec { populationCount = populationCountParams {} }
     createTime = INTERNAL_PENDING_POPULATION_METRIC.createTime
+  }
+
+val SUCCEEDED_POPULATION_METRIC =
+  PENDING_POPULATION_METRIC.copy {
+    state = Metric.State.SUCCEEDED
+    result = metricResult {
+      populationCount = MetricResultKt.populationCountResult {
+        value = TOTAL_POPULATION_VALUE
+      }
+    }
   }
 
 @RunWith(JUnit4::class)
@@ -7561,6 +7595,54 @@ class MetricsServiceTest {
         }
       )
     assertThat(result).isEqualTo(expected)
+  }
+
+  @Test
+  fun `getMetric returns population metric`() = runBlocking {
+    whenever(internalMetricsMock.batchGetMetrics(any()))
+      .thenReturn(
+        internalBatchGetMetricsResponse { metrics += INTERNAL_SUCCEEDED_POPULATION_METRIC }
+      )
+
+    val request = getMetricRequest { name = SUCCEEDED_POPULATION_METRIC.name }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+        runBlocking { service.getMetric(request) }
+      }
+
+    // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
+    val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
+      argumentCaptor()
+    verifyBlocking(internalMetricsMock, times(1)) {
+      batchGetMetrics(batchGetInternalMetricsCaptor.capture())
+    }
+    val capturedInternalGetMetricRequests = batchGetInternalMetricsCaptor.allValues
+    assertThat(capturedInternalGetMetricRequests)
+      .containsExactly(
+        internalBatchGetMetricsRequest {
+          cmmsMeasurementConsumerId =
+            INTERNAL_SUCCEEDED_POPULATION_METRIC.cmmsMeasurementConsumerId
+          externalMetricIds += INTERNAL_SUCCEEDED_POPULATION_METRIC.externalMetricId
+        }
+      )
+
+    // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+    val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
+      argumentCaptor()
+    verifyBlocking(internalMeasurementsMock, never()) {
+      batchSetMeasurementResults(batchSetMeasurementResultsCaptor.capture())
+    }
+
+    // Verify proto argument of internal
+    // MeasurementsCoroutineImplBase::batchSetMeasurementFailures
+    val batchSetMeasurementFailuresCaptor: KArgumentCaptor<BatchSetMeasurementFailuresRequest> =
+      argumentCaptor()
+    verifyBlocking(internalMeasurementsMock, never()) {
+      batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
+    }
+
+    assertThat(result).isEqualTo(SUCCEEDED_POPULATION_METRIC)
   }
 
   companion object {
