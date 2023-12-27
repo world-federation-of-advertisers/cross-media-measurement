@@ -16,7 +16,6 @@ load(
     "GRPC_KOTLIN",
     "KOTLIN_RELEASE_VERSION",
     "OPENTELEMETRY_JAVA_VERSION",
-    "TINK_COMMIT",
 )
 load("@aspect_rules_js//js:repositories.bzl", "rules_js_dependencies")
 
@@ -56,7 +55,7 @@ npm_repositories()
 
 load("//build/tink:repositories.bzl", "tink_cc")
 
-tink_cc(TINK_COMMIT)
+tink_cc()
 
 load("@wfa_common_cpp//build:common_cpp_repositories.bzl", "common_cpp_repositories")
 
@@ -90,13 +89,13 @@ load("//build/grpc_health_probe:repo.bzl", "grpc_health_probe")
 grpc_health_probe()
 
 # Maven
+load("@rules_jvm_external//:defs.bzl", "maven_install")
 load(
     "@wfa_common_jvm//build:common_jvm_maven.bzl",
     "COMMON_JVM_EXCLUDED_ARTIFACTS",
     "COMMON_JVM_MAVEN_OVERRIDE_TARGETS",
     "common_jvm_maven_artifacts_dict",
 )
-load("@rules_jvm_external//:defs.bzl", "maven_install")
 load("@wfa_common_jvm//build/maven:artifacts.bzl", "artifacts")
 
 MAVEN_ARTIFACTS_DICT = dict(common_jvm_maven_artifacts_dict().items() + {
@@ -115,6 +114,8 @@ MAVEN_ARTIFACTS_DICT = dict(common_jvm_maven_artifacts_dict().items() + {
     "software.amazon.awssdk:sts": AWS_JAVA_SDK_VERSION,
     "software.amazon.awssdk:auth": AWS_JAVA_SDK_VERSION,
     "software.amazon.awssdk:acmpca": AWS_JAVA_SDK_VERSION,
+    "com.google.crypto.tink:tink-gcpkms": "1.9.0",
+    "com.google.crypto.tink:tink-awskms": "1.9.1",
 }.items())
 
 EXCLUDED_MAVEN_ARTIFACTS = [x for x in COMMON_JVM_EXCLUDED_ARTIFACTS if x != "org.slf4j:slf4j-log4j12"] + ["org.apache.beam:beam-sdks-java-io-kafka"]
