@@ -530,7 +530,6 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       .isNotEmpty()
   }
 
-
   @Test
   fun `createMetric succeeds when no filters in bases in measurements`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
@@ -2376,9 +2375,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService).copy {
         metric =
           metric.copy {
-            metricSpec = metricSpec {
-              populationCount = MetricSpecKt.populationCountParams {}
-            }
+            metricSpec = metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
           }
       }
     val createdMetric = service.createMetric(createMetricRequest)
