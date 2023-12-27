@@ -107,7 +107,7 @@ class ReportSchedulingJob(
             }
           )
 
-        for (reportSchedule in listReportSchedulesResponse.reportSchedulesList) {
+        for (reportSchedule in listReportSchedulesResponse.reportSchedulesList.sortedBy { it.nextReportCreationTime.seconds }) {
           val reportScheduleIteration =
             if (
               !reportSchedule.hasLatestIteration() ||
