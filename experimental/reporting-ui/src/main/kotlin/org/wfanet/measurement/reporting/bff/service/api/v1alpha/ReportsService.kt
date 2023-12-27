@@ -14,7 +14,7 @@
 
 package org.wfanet.measurement.reporting.bff.service.api.v1alpha
 
-import com.google.protobuf.timestamp
+import com.google.protobuf.Timestamp
 import io.grpc.Status
 import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
@@ -39,6 +39,7 @@ import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt as BackendReportsG
 import org.wfanet.measurement.reporting.v2alpha.report as backendReport
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
+import org.wfanet.measurement.reporting.v2alpha.MetricResult.ResultCase
 import com.google.type.interval
 
 class ReportsService(private val backendReportsStub: BackendReportsGrpcKt.ReportsCoroutineStub) :
@@ -121,60 +122,102 @@ class ReportsService(private val backendReportsStub: BackendReportsGrpcKt.Report
     }
   }
 
-  private fun AddFrequencies(ra: MetricCalculationResult.ResultAttribute): Map<Int, Double> {
-    for (bin in ra.metricResult.reachAndFrequency.frequencyHistogram.binsList) {
-      println(bin)
-    }
-    return mapOf()
-  }
-
-  private fun AddDemoBuckets(mcrs: List<MetricCalculationResult>): List<DemoBucket> {
-    val buckets = mutableListOf<DemoBucket>()
-    for (mcr in mcrs) {
-      for (ra in mcr.resultAttributesList) {
-        val db = demoBucket {
-          // Probably want to break this up?
-          // UI can split on strings, but that's annoying.
-          demoCategoryName = ra.groupingPredicatesList.toString()
-          perPublisherSource += sourceMetrics {
-              sourceName = mcr.reportingSet
-              impressionCount = impressionCountResult {
-                impressionCount = ra.metricResult.impressionCount.value
-              }
-              for(i in [0,1]) {
-                frequencyHistogram += 
-              }
-              // frequencyHistogram += ra.metricResult.reachAndFrequency.frequencyHistogram.binsList
-              reach = 0
-            }
-        }
-        buckets += db
-      }
-    }
-    return buckets
-  }
-
   // Would be nice to add mapping to get reporting sets so we can set a display name
   private fun BackendReport.toFullReport(): Report {
     val source = this
 
-    val timeMap = mutableListOf<DemographicMetricsByTimeInterval>()
-    for (ti in source.timeIntervals.timeIntervalsList) {
-      val timeInterval = demographicMetricsByTimeInterval {
-        timeInterval = interval {
-          startTime = ti.startTime
-          endTime = ti.endTime
-        }
-        demoBucket += AddDemoBuckets(source.metricCalculationResultsList)
+    val demoMap = mapOf(
+      "person.gender == 1" to "Male",
+      "person.gender == 2" to "Female",
+      "person.age_group == 1" to "18-35",
+      "person.age_group == 2" to "36-54",
+      "person.age_group == 3" to "55+",
+    )
+
+    // TODO: Probably have to process MCRs first to get the reporting set.
+    //   Then I can pass that down.
+    //   Or can I associate a Result Attribute to a Reporting Set?
+    // val rsByMcr = mutableMapOf<BackendReport.MetricCalculationResult.ResultAttribute, String>()
+    val rsByMcr = mutableMapOf<String, String>()
+    var tester: BackendReport.MetricCalculationResult.ResultAttribute? = null
+    for (mcr in source.metricCalculationResultsList) {
+      val rsName = mcr.reportingSet
+      for (ra in mcr.resultAttributesList) {
+        rsByMcr[ra.toString()] = rsName
+        tester = ra
       }
-      timeMap.add(timeInterval)
     }
 
+    val ras = source.metricCalculationResultsList.map{it.resultAttributesList}.flatten()
+    val timeGroup = ras.groupBy{it.timeInterval}
+
+    // Build report...
     val rep = report {
       name = source.name
       reportId = source.name
       state = source.state.toBffState()
-      timeInterval += timeMap
+
+      // By time...
+      // TimeGroup = Result Attributes grouped by interval
+      for(time in timeGroup) {
+        timeInterval += demographicMetricsByTimeInterval {
+          timeInterval = interval {
+            startTime = time.key.startTime
+            endTime = time.key.endTime
+          }
+
+          // By demo...
+          // Result Attributes grouped by grouping predicates
+          val demoGroup = time.value.groupBy{it.groupingPredicatesList.map{demoMap[it]}.joinToString(prefix = "", postfix = "", separator = ";")}
+          for (demo in demoGroup) {
+            demoBucket += demoBucket {
+              demoCategoryName = demo.key
+
+              // By source...
+              perPublisherSource += sourceMetrics {
+                sourceName = "hmmm" // TODO: HOW TO GET THIS!!!
+                for (resultAttribute in demo.value) { // TODO: Except the full union one
+                  println(rsByMcr[resultAttribute.toString()])
+                  val oneOfCase = resultAttribute.metricResult.getResultCase()
+                  when(oneOfCase) {
+                    ResultCase.REACH -> {
+                      reach = resultAttribute.metricResult.reach.value
+                    }
+                    ResultCase.REACH_AND_FREQUENCY -> {
+                      reach = resultAttribute.metricResult.reachAndFrequency.reach.value
+                      val bins = resultAttribute.metricResult.reachAndFrequency.frequencyHistogram.binsList.sortedBy{it.label.toInt()}.reversed()
+                      var runningCount = 0.0
+                      for (bin in bins) {
+                        runningCount = runningCount + bin.binResult.value
+                        frequencyHistogram[bin.label.toInt()] = runningCount
+                      }
+                    }
+                    ResultCase.IMPRESSION_COUNT -> {
+                      impressionCount = impressionCountResult {
+                        count = resultAttribute.metricResult.impressionCount.value
+                        standardDeviation = resultAttribute.metricResult.impressionCount.univariateStatistics.standardDeviation
+                      }
+                    }
+                    else -> println("error")
+                  }
+                }
+              }
+
+              // TODO: If tag includes "Full Union"
+              // TODO: Finish calculating this
+              unionSource = sourceMetrics {
+                sourceName = "union"
+                reach = 0
+                // frequencyHistogram
+                impressionCount = impressionCountResult {
+                  count = 0
+                  standardDeviation = 0.0
+                }
+              }
+            }
+          }
+        }
+      }
     }
 
     return rep

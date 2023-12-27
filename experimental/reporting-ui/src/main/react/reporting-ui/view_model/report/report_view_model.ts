@@ -51,40 +51,36 @@ type Reaches = {
 }
 
 const getReaches = (report: Report): Reaches => {
-  const complements = {
-    'A': 'BC',
-    'B': 'AC', 
-    'C': 'AB',
-  };
-
   const data: ChartGroup[] = [];
+  const totalReach: ChartGroup[] = [];
 
   report.timeInterval.forEach(ti => {
+    console.log('TI', ti)
     ti.demoBucket.forEach(db => {
       const fullUnion = db.unionSource;
-      Object.keys(complements).forEach(name => {
-        var complement = db.perPublisherSource.find(x => x.sourceName === complements[name]);
-
-        data.push({
-          value: fullUnion.reach - complement.reach,
-          group: `${name}-${db.demoCategoryName}`,
+      db.perPublisherSource.forEach(pub => {
+        totalReach.push({
+          value: pub.reach,
+          group: `${pub.sourceName}-${db.demoCategoryName}`,
           date: new Date(ti.timeInterval.startTime),
         })
+        // TODO: Get complements and calculate: unique reach = union reach - complement reach
       })
+      // Object.keys(complements).forEach(name => {
+      //   var complement = db.perPublisherSource.find(x => x.sourceName === complements[name]);
+
+      //   data.push({
+      //     value: fullUnion.reach - complement.reach,
+      //     group: `${name}-${db.demoCategoryName}`,
+      //     date: new Date(ti.timeInterval.startTime),
+      //   })
+      // })
     });
   });
 
   return {
     uniqueReach: data,
-    totalReach: [{
-      date: '1+',
-      value: 2,
-      group: 'A',
-    },{
-      date: '2+',
-      value: 1,
-      group: 'A',
-    }],
+    totalReach,
   };
 }
 
@@ -99,62 +95,7 @@ const getImpressionsAndFrequencies = (report: Report): iAndF => {
     totalUniqueReach: 0,
   }
 
-  const dict: { [id: string] : SummaryPublisherData; }= {
-    'A': {
-      id: 0,
-      publisher: 'A',
-      impressions: 0,
-      reach: 0,
-      onTargetReach: 0,
-      uniqueReach: 0,
-      averageFrequency: 0,
-    },
-    'B': {
-      id: 1,
-      publisher: 'B',
-      impressions: 0,
-      reach: 0,
-      onTargetReach: 0,
-      uniqueReach: 0,
-      averageFrequency: 0,
-    },
-    'C': {
-      id: 2,
-      publisher: 'C',
-      impressions: 0,
-      reach: 0,
-      onTargetReach: 0,
-      uniqueReach: 0,
-      averageFrequency: 0,
-    },
-    'AB': {
-      id: 3,
-      publisher: 'C',
-      impressions: 0,
-      reach: 0,
-      onTargetReach: 0,
-      uniqueReach: 0,
-      averageFrequency: 0,
-    },
-    'BC': {
-      id: 4,
-      publisher: 'C',
-      impressions: 0,
-      reach: 0,
-      onTargetReach: 0,
-      uniqueReach: 0,
-      averageFrequency: 0,
-    },
-    'AC': {
-      id: 5,
-      publisher: 'C',
-      impressions: 0,
-      reach: 0,
-      onTargetReach: 0,
-      uniqueReach: 0,
-      averageFrequency: 0,
-    },
-  };
+  const dict: { [id: string] : SummaryPublisherData; }= {};
 
   report.timeInterval.forEach(ti => {
     ti.demoBucket.forEach(db => {
@@ -179,16 +120,16 @@ const getImpressionsAndFrequencies = (report: Report): iAndF => {
           });
         }
       })
-      overview.totalImpressions += db.unionSource.impressions;
-      overview.totalAverageFrequency += db.unionSource.frequency;
-      overview.totalReach += db.unionSource.reach;
+      // overview.totalImpressions += db.unionSource.impressions;
+      // overview.totalAverageFrequency += db.unionSource.frequency;
+      // overview.totalReach += db.unionSource.reach;
     });
   });
 
   const individualPublishers = ['A', 'B', 'C']
-  dict['A'].uniqueReach = overview.totalReach - dict['BC'].reach
-  dict['B'].uniqueReach = overview.totalReach - dict['AC'].reach
-  dict['C'].uniqueReach = overview.totalReach - dict['AB'].reach
+  // dict['A'].uniqueReach = overview.totalReach - dict['BC'].reach
+  // dict['B'].uniqueReach = overview.totalReach - dict['AC'].reach
+  // dict['C'].uniqueReach = overview.totalReach - dict['AB'].reach
 
   return {
     impressions,
@@ -198,31 +139,33 @@ const getImpressionsAndFrequencies = (report: Report): iAndF => {
   }
 }
 
-// const getReachByCount = (report: Report): ChartGroup[] => {
-//   report.timeInterval.forEach(ti => {
-
-//   })
-// }
-
 const handleUiReport = (report: Report|undefined): UiReport|null => {
   if (!report) {
     return null;
   }
 
-  const {impressions, frequencies, summary, overview} = getImpressionsAndFrequencies(report)
+  // const {impressions, frequencies, summary, overview} = getImpressionsAndFrequencies(report)
   const {uniqueReach, totalReach} = getReaches(report);
 
-  return {
+  const res =  {
     id: report.reportId,
     name: report.name,
     status: report.state,
-    overview: overview,
-    summary,
-    impressions,
-    uniqueReach,
+    overview: {
+      totalImpressions: 0,
+      totalReach: 0,
+      totalOnTargetReach: 0,
+      totalUniqueReach: 0,
+      totalAverageFrequency: 0,
+    },
+    summary:[],
+    impressions:[],
+    uniqueReach:[],
     totalReach,
-    averageFrequency: frequencies,
+    averageFrequency:[],
   };
+  console.log(res)
+  return res;
 };
 
 export const ReportViewModel = () => {
