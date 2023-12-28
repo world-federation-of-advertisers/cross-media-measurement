@@ -522,7 +522,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         }
       )
 
-    assertThat(createdMetric.externalMetricId).isNotEqualTo(0)
+    assertThat(createdMetric.externalMetricId).isNotEmpty()
     assertThat(createdMetric.hasCreateTime()).isTrue()
     assertThat(
         createdMetric.weightedMeasurementsList.first().measurement.cmmsCreateMeasurementRequestId
