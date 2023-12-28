@@ -2122,7 +2122,7 @@ class MetricsServiceTest {
         }
       )
 
-    capturedMeasurementRequests.first().requestsList.forEach { createMeasurementRequest ->
+    capturedMeasurementRequests.single().requestsList.forEach { createMeasurementRequest ->
       verifyMeasurementSpec(
         createMeasurementRequest.measurement.measurementSpec,
         MEASUREMENT_CONSUMER_CERTIFICATE,
@@ -2247,7 +2247,7 @@ class MetricsServiceTest {
           }
         )
 
-      capturedMeasurementRequests.first().requestsList.forEach { createMeasurementRequest ->
+      capturedMeasurementRequests.single().requestsList.forEach { createMeasurementRequest ->
         verifyMeasurementSpec(
           createMeasurementRequest.measurement.measurementSpec,
           MEASUREMENT_CONSUMER_CERTIFICATE,
@@ -2359,7 +2359,7 @@ class MetricsServiceTest {
         }
       )
 
-    capturedMeasurementRequests.first().requestsList.forEach { createMeasurementRequest ->
+    capturedMeasurementRequests.single().requestsList.forEach { createMeasurementRequest ->
       verifyMeasurementSpec(
         createMeasurementRequest.measurement.measurementSpec,
         MEASUREMENT_CONSUMER_CERTIFICATE,
@@ -2565,7 +2565,7 @@ class MetricsServiceTest {
         }
       )
 
-    capturedMeasurementRequests.first().requestsList.forEach { createMeasurementRequest ->
+    capturedMeasurementRequests.single().requestsList.forEach { createMeasurementRequest ->
       verifyMeasurementSpec(
         createMeasurementRequest.measurement.measurementSpec,
         MEASUREMENT_CONSUMER_CERTIFICATE,
@@ -2675,7 +2675,7 @@ class MetricsServiceTest {
         }
       )
 
-    capturedMeasurementRequests.first().requestsList.forEach { createMeasurementRequest ->
+    capturedMeasurementRequests.single().requestsList.forEach { createMeasurementRequest ->
       verifyMeasurementSpec(
         createMeasurementRequest.measurement.measurementSpec,
         MEASUREMENT_CONSUMER_CERTIFICATE,
@@ -2827,7 +2827,7 @@ class MetricsServiceTest {
     }
     val capturedMeasurementRequests = measurementsCaptor.allValues
 
-    capturedMeasurementRequests.first().requestsList.forEach { createMeasurementRequest ->
+    capturedMeasurementRequests.single().requestsList.forEach { createMeasurementRequest ->
       val dataProvidersList =
         createMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
 
@@ -3876,7 +3876,7 @@ class MetricsServiceTest {
         }
       )
 
-    capturedMeasurementRequests.first().requestsList.forEach { createMeasurementRequest ->
+    capturedMeasurementRequests.single().requestsList.forEach { createMeasurementRequest ->
       verifyMeasurementSpec(
         createMeasurementRequest.measurement.measurementSpec,
         MEASUREMENT_CONSUMER_CERTIFICATE,
