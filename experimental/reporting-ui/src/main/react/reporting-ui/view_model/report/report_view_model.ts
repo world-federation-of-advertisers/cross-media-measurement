@@ -55,13 +55,12 @@ const getReaches = (report: Report): Reaches => {
   const totalReach: ChartGroup[] = [];
 
   report.timeInterval.forEach(ti => {
-    console.log('TI', ti)
     ti.demoBucket.forEach(db => {
       const fullUnion = db.unionSource;
       db.perPublisherSource.forEach(pub => {
         totalReach.push({
           value: pub.reach,
-          group: `${pub.sourceName}-${db.demoCategoryName}`,
+          group: `${pub.sourceName}|${db.demoCategoryName}`,
           date: new Date(ti.timeInterval.startTime),
         })
         // TODO: Get complements and calculate: unique reach = union reach - complement reach
@@ -95,38 +94,51 @@ const getImpressionsAndFrequencies = (report: Report): iAndF => {
     totalUniqueReach: 0,
   }
 
-  const dict: { [id: string] : SummaryPublisherData; }= {};
+  // Don't add the complements or union
+  const dict: { [id: string] : SummaryPublisherData; } = {};
 
   report.timeInterval.forEach(ti => {
     ti.demoBucket.forEach(db => {
       db.perPublisherSource.forEach(pps => {
-        if (Object.keys(dict).includes(pps.sourceName)) {
-          dict[pps.sourceName].impressions += pps.impressions;
-          dict[pps.sourceName].averageFrequency += pps.frequency;
-          dict[pps.sourceName].reach += pps.reach;
-
-          // Just get the impressions
-          impressions.push({
-            group: `${pps.sourceName}-${db.demoCategoryName}`,
-            value: pps.impressions,
-            date: new Date(ti.timeInterval.startTime),
-          });
-
-          // Get all for now, process later??
-          frequencies.push({
-            group: `${pps.sourceName}-${db.demoCategoryName}`,
-            value: pps.frequency,
-            date: new Date(ti.timeInterval.startTime),
-          });
+        if (!Object.keys(dict).includes(pps.sourceName)) {
+          dict[pps.sourceName] = {
+            id: pps.sourceName,
+            publisher: pps.sourceName,
+            impressions: 0,
+            reach: 0,
+            onTargetReach: 0,
+            uniqueReach: 0,
+            averageFrequency: 0,
+          }
         }
+        dict[pps.sourceName].impressions += pps.impressionCount.impressionCount;
+        dict[pps.sourceName].averageFrequency += pps.frequencyHistogram[1];
+        dict[pps.sourceName].reach += pps.reach;
+
+        // Just get the impressions
+        impressions.push({
+          group: `${pps.sourceName}|${db.demoCategoryName}`,
+          value: pps.impressionCount.impressionCount,
+          date: new Date(ti.timeInterval.startTime),
+        });
+
+        // Get all for now, process later??
+        // TODO: Loop through the bins and push bin label as "date"
+        Object.entries(pps.frequencyHistogram).forEach(([key, value]) => {
+          frequencies.push({
+            group: `${pps.sourceName}|${db.demoCategoryName}`,
+            value,
+            date: key,
+          });
+        });
       })
-      // overview.totalImpressions += db.unionSource.impressions;
-      // overview.totalAverageFrequency += db.unionSource.frequency;
-      // overview.totalReach += db.unionSource.reach;
+      overview.totalImpressions += db.unionSource.impressionCount.impressionCount;
+      overview.totalAverageFrequency += db.unionSource.frequencyHistogram[1];
+      overview.totalReach += Number(db.unionSource.reach);
     });
   });
 
-  const individualPublishers = ['A', 'B', 'C']
+  // const individualPublishers = ['A', 'B', 'C']
   // dict['A'].uniqueReach = overview.totalReach - dict['BC'].reach
   // dict['B'].uniqueReach = overview.totalReach - dict['AC'].reach
   // dict['C'].uniqueReach = overview.totalReach - dict['AB'].reach
@@ -135,7 +147,7 @@ const getImpressionsAndFrequencies = (report: Report): iAndF => {
     impressions,
     frequencies,
     overview,
-    summary: individualPublishers.map(x => dict[x]),
+    summary: Object.values(dict),
   }
 }
 
@@ -144,29 +156,60 @@ const handleUiReport = (report: Report|undefined): UiReport|null => {
     return null;
   }
 
-  // const {impressions, frequencies, summary, overview} = getImpressionsAndFrequencies(report)
+  const {impressions, frequencies, summary, overview} = getImpressionsAndFrequencies(report)
   const {uniqueReach, totalReach} = getReaches(report);
 
   const res =  {
     id: report.reportId,
     name: report.name,
     status: report.state,
-    overview: {
-      totalImpressions: 0,
-      totalReach: 0,
-      totalOnTargetReach: 0,
-      totalUniqueReach: 0,
-      totalAverageFrequency: 0,
-    },
-    summary:[],
-    impressions:[],
-    uniqueReach:[],
-    totalReach,
-    averageFrequency:[],
+    overview,
+    summary,
+    impressions: filter(impressions, 'all'),
+    uniqueReach: filter(uniqueReach, 'all'),
+    totalReach: filter(totalReach, 'all'),
+    averageFrequency: frequencies,
   };
-  console.log(res)
   return res;
 };
+
+const filter = (data: ChartGroup[], filters: 'all'|string[]): ChartGroup[] => {
+  // Remove data points that aren't contained in the filters
+  // If 'all' then skip this step
+  if (filters !== 'all') {
+
+  } else {
+    // ... do stuff ...
+  }
+
+  // Combine the remaining data points by date/publisher by summing the values
+  // Gather dates and publishers
+  const pubs = new Set<string>();
+  const dates = new Set<string>();
+  data.forEach(x => {
+    pubs.add(x.group.slice(0, x.group.indexOf('|')));
+    dates.add(x.date.toString());
+  })
+
+  const filteredResults: ChartGroup[] = [];
+  for (let pub of pubs) {
+    for (let date of dates) {
+      const something = data.filter(x => x.group.startsWith(pub) && x.date.toString() === date);
+      const va = something.reduce((a, b) => {
+        return {
+          ...b,
+          value: a.value + b.value
+        }
+      })
+      va.group = pub;
+      filteredResults.push(va);
+    }
+  }
+
+  console.log('filtered results', filteredResults)
+
+  return filteredResults
+}
 
 export const ReportViewModel = () => {
   const {loadReport} = ReportRepository();

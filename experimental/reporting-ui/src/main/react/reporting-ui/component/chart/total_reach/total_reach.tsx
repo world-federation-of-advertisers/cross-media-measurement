@@ -33,7 +33,7 @@ export function TotalReach({id, reach, pubColors}: TotalReachProps) {
             title='Total reach'
             data={reach}
             config={config}
-            type={ChartType.bar}
+            type={ChartType.multiLine}
         />
     )
 }

@@ -70,7 +70,7 @@ const setUpLinearXScale = (svg, data, dimensions, margins) => {
 const setUpScaleBandXScale = (svg, data, dimensions, margins) => {
     // Create the positional scales.
     const x = d3.scaleBand()
-        .domain(data.map(x => x.cat))
+        .domain(data.map(x => x.date))
         .range([margins.left, dimensions.width - margins.right])
         .padding(0.5);
 
@@ -147,9 +147,9 @@ const drawBar = (svg, data, x, y) => {
     .selectAll()
     .data(data)
     .join("rect")
-        .attr("x", (d) => x(d.cat))
-        .attr("y", (d) => y(d.val))
-        .attr("height", (d) => y(0) - y(d.val))
+        .attr("x", (d) => x(d.date))
+        .attr("y", (d) => y(d.value))
+        .attr("height", (d) => y(0) - y(d.value))
         .attr("width", x.bandwidth());
 }
 
@@ -185,6 +185,14 @@ export const createPercentBarChart = (cardId, data, dimensions, margins) => {
     const svg = initializeGraph(cardId, dimensions);
     const x = setUpScaleBandXScale(svg, data, dimensions, margins);
     const y = setUpLinearYScale(svg, data, dimensions, margins, true)
+
+    drawBar(svg, data, x, y);
+}
+
+export const createBarChart = (cardId, data, dimensions, margins) => {
+    const svg = initializeGraph(cardId, dimensions);
+    const x = setUpScaleBandXScale(svg, data, dimensions, margins);
+    const y = setUpLinearYScale(svg, data, dimensions, margins, false)
 
     drawBar(svg, data, x, y);
 }

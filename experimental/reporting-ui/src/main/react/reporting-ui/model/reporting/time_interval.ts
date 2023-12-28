@@ -12,10 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+export type ImpressionCount = {
+  impressionCount: number,
+  standardDeviation: number,
+}
+
 export type Metric = {
   sourceName: string,
-  impressions: number,
-  frequency: number,
+  impressionCount: ImpressionCount,
+  frequencyHistogram: { [id: number] : number; },
   reach: number,
 };
 
@@ -32,5 +37,5 @@ export type Interval = {
 
 export type TimeInterval = {
   timeInterval: Interval;
-  demoBucket: any;
+  demoBucket: Bucket[];
 };

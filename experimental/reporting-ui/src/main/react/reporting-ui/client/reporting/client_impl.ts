@@ -47,7 +47,8 @@ export class ReportingClientImpl {
     }
 
     const res = await fetch(this.baseUrl.toString() + `v1alpha/measurementConsumers/${this.measurementConsumer}/reports/${req.id}`);
-    const report: Report = await res.json();
+    const report: Report = await (res.json() as Promise<Report>);
+    console.log('fetched report', report)
     const response = Object.freeze({
       report,
     });

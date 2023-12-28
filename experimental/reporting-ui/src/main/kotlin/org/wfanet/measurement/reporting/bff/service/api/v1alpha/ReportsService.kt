@@ -48,17 +48,19 @@ class ReportsService(private val backendReportsStub: BackendReportsGrpcKt.Report
     // TODO(@bdomen-ggl): Still working on UX for pagination, so holding off for now.
     // Will hold off on internally looping the request until it becomes an issue (eg. no reports
     // returned)
-    // if (request.pageSize != 0 || request.pageToken.isNotEmpty()) {
-    //   throw Status.UNIMPLEMENTED.withDescription("PageSize and PageToken not implemented yet")
-    //     .asRuntimeException()
-    // }
+    if (request.pageSize != 0 || request.pageToken.isNotEmpty()) {
+      throw Status.UNIMPLEMENTED.withDescription("PageSize and PageToken not implemented yet")
+        .asRuntimeException()
+    }
 
-    // val backendRequest = listReportsRequest {
-    //   parent = request.parent
-    //   pageSize = 1000
-    // }
+    val backendRequest = listReportsRequest {
+      parent = request.parent
+      pageSize = 1000
+    }
 
-    // val resp = runBlocking(Dispatchers.IO) { backendReportsStub.listReports(backendRequest) }
+    println(backendRequest)
+
+    val resp = backendReportsStub.listReports(backendRequest)
 
     // if (resp.nextPageToken.isNotEmpty()) {
     //   logger.warning { "Additional ListReport items. Not Loopping through additional pages." }
@@ -69,28 +71,24 @@ class ReportsService(private val backendReportsStub: BackendReportsGrpcKt.Report
     //   else request.view
     // val results = listReportsResponse {
     //   resp.reportsList
-    //     .filter { it.tagsMap.containsKey("ui.halo-cmm.org") }
+    //     // .filter { it.tagsMap.containsKey("ui.halo-cmm.org") }
     //     .forEach { reports += it.toBffReport(view) }
     // }
-    val testResults = listReportsResponse {
+    val results = listReportsResponse {
       reports += report{
         name = "TESTREPORT"
         reportId = "TESTREPORT"
         state = Report.State.SUCCEEDED
       }
     }
-    return testResults
+    return results
   }
 
   override suspend fun getReport(request: GetReportRequest): Report {
     // val backendRequest = getReportRequest { name = request.name }
     val backendRequest = getReportRequest { name = "measurementConsumers/VCTqwV_vFXw/reports/ui-report-non-cumulative-non-uniq-6" }
 
-    val resp = runBlocking(Dispatchers.IO) { backendReportsStub.getReport(backendRequest) }
-    // val resp = backendReport{
-    //   name = "TestName"
-    //   state = BackendReport.State.SUCCEEDED
-    // }
+    val resp = backendReportsStub.getReport(backendRequest)
 
     val view =
       if (request.view == ReportView.REPORT_VIEW_UNSPECIFIED) ReportView.REPORT_VIEW_FULL
@@ -122,7 +120,6 @@ class ReportsService(private val backendReportsStub: BackendReportsGrpcKt.Report
     }
   }
 
-  // Would be nice to add mapping to get reporting sets so we can set a display name
   private fun BackendReport.toFullReport(): Report {
     val source = this
 
@@ -134,11 +131,11 @@ class ReportsService(private val backendReportsStub: BackendReportsGrpcKt.Report
       "person.age_group == 3" to "55+",
     )
 
-    // Map the result attributes to the reporting sets
+    // Map the result attributes to the reporting sets so we can set the RS name later
     // val rsByMcr = mutableMapOf<BackendReport.MetricCalculationResult.ResultAttribute, String>()
     val rsByMcr = mutableMapOf<String, String>()
     for (mcr in source.metricCalculationResultsList) {
-      val rsName = mcr.reportingSet
+      val rsName = mcr.reportingSet // TODO: This will come from tags on the RS
       for (ra in mcr.resultAttributesList) {
         rsByMcr[ra.toString()] = rsName
       }
@@ -154,7 +151,7 @@ class ReportsService(private val backendReportsStub: BackendReportsGrpcKt.Report
       state = source.state.toBffState()
 
       // By time...
-      // TimeGroup = Result Attributes grouped by interval
+      // Result Attributes grouped by interval
       for(time in timeGroup) {
         timeInterval += demographicMetricsByTimeInterval {
           timeInterval = interval {
@@ -171,40 +168,38 @@ class ReportsService(private val backendReportsStub: BackendReportsGrpcKt.Report
 
               // By source...
               // Result Attributes from the time group and grouping predicate
-              // TODO: the frequency histogram and impression count comes as two different RAs, merge them?
-              //  Can only tell where they come from due to the RS map.
-              val test = demo.value.groupBy({rsByMcr[it.toString()]}, {rsByMcr[it.toString()]})
-              println("test")
-              println(test)
-              for (resultAttribute in demo.value) {
-                val pubName = rsByMcr[resultAttribute.toString()]!!
-
+              // The Result Attributes come multiple times in some cases (frequency and impressions are separate)
+              // so they need to be grouped and merged.
+              val pubGroup = demo.value.groupBy{rsByMcr[it.toString()]!!}
+              for (pub in pubGroup) {
+                val pubName = pub.key
                 val metrs = sourceMetrics {
                   sourceName = pubName
-                  val oneOfCase = resultAttribute.metricResult.getResultCase()
-                  when(oneOfCase) {
-                    ResultCase.REACH -> {
-                      reach = resultAttribute.metricResult.reach.value
-                    }
-                    ResultCase.REACH_AND_FREQUENCY -> {
-                      reach = resultAttribute.metricResult.reachAndFrequency.reach.value
-                      val bins = resultAttribute.metricResult.reachAndFrequency.frequencyHistogram.binsList.sortedBy{it.label.toInt()}.reversed()
-                      var runningCount = 0.0
-                      for (bin in bins) {
-                        runningCount = runningCount + bin.binResult.value
-                        frequencyHistogram[bin.label.toInt()] = runningCount
+                  for (resultAttribute in pub.value) {
+                    val oneOfCase = resultAttribute.metricResult.getResultCase()
+                    when(oneOfCase) {
+                      ResultCase.REACH -> {
+                        reach = resultAttribute.metricResult.reach.value
                       }
-                    }
-                    ResultCase.IMPRESSION_COUNT -> {
-                      impressionCount = impressionCountResult {
-                        count = resultAttribute.metricResult.impressionCount.value
-                        standardDeviation = resultAttribute.metricResult.impressionCount.univariateStatistics.standardDeviation
+                      ResultCase.REACH_AND_FREQUENCY -> {
+                        reach = resultAttribute.metricResult.reachAndFrequency.reach.value
+                        val bins = resultAttribute.metricResult.reachAndFrequency.frequencyHistogram.binsList.sortedBy{it.label.toInt()}.reversed()
+                        var runningCount = 0.0
+                        for (bin in bins) {
+                          runningCount = runningCount + bin.binResult.value
+                          frequencyHistogram[bin.label.toInt()] = runningCount
+                        }
                       }
+                      ResultCase.IMPRESSION_COUNT -> {
+                        impressionCount = impressionCountResult {
+                          count = resultAttribute.metricResult.impressionCount.value
+                          standardDeviation = resultAttribute.metricResult.impressionCount.univariateStatistics.standardDeviation
+                        }
+                      }
+                      else -> println("error")
                     }
-                    else -> println("error")
                   }
                 }
-
                 if (!pubName.contains("union")) {
                   perPublisherSource += metrs
                 } else {

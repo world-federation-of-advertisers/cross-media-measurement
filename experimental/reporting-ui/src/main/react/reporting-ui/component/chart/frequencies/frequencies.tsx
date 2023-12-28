@@ -32,7 +32,7 @@ export function Frequencies({id, frequencies, pubColors}: FrequenciesProps) {
             title='Average Frequency'
             data={frequencies}
             config={config}
-            type={ChartType.multiLine}
+            type={ChartType.bar}
         />
     )
 }
