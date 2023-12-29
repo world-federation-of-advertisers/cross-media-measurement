@@ -753,7 +753,10 @@ class MetricReader(private val readContext: ReadContext) {
               }
               MetricSpec.TypeCase.TYPE_NOT_SET -> throw IllegalStateException()
             }
-            this.vidSamplingInterval = vidSamplingInterval
+            // Population metric does not have a vidSamplingInterval
+            if (metricType != MetricSpec.TypeCase.POPULATION_COUNT) {
+              this.vidSamplingInterval = vidSamplingInterval
+            }
           }
 
           MetricInfo(

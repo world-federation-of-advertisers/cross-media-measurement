@@ -2370,14 +2370,38 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
   @Test
   fun `batchGetMetrics succeeds when metric spec type is population count`(): Unit = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val createdReportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
 
-    val createMetricRequest =
-      createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService).copy {
-        metric =
-          metric.copy {
-            metricSpec = metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
+    val createMetricRequest = createMetricRequest {
+      externalMetricId = "external-metric-id"
+      metric = metric {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        externalReportingSetId = createdReportingSet.externalReportingSetId
+        timeInterval = interval {
+          startTime = timestamp { seconds = 10 }
+          endTime = timestamp { seconds = 100 }
+        }
+        metricSpec = metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
+        weightedMeasurements +=
+          MetricKt.weightedMeasurement {
+            weight = 2
+            binaryRepresentation = 1
+            measurement = measurement {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              timeInterval = interval {
+                startTime = timestamp { seconds = 10 }
+                endTime = timestamp { seconds = 100 }
+              }
+              primitiveReportingSetBases +=
+                ReportingSetKt.primitiveReportingSetBasis {
+                  externalReportingSetId = createdReportingSet.externalReportingSetId
+                  filters += "filter1"
+                }
+            }
           }
+        details = MetricKt.details { filters += "filter1" }
       }
+    }
     val createdMetric = service.createMetric(createMetricRequest)
 
     val retrievedMetrics =
