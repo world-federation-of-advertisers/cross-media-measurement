@@ -22,14 +22,19 @@ import java.security.cert.X509Certificate
 import java.security.spec.PKCS8EncodedKeySpec
 import java.util.Optional
 import java.util.concurrent.ConcurrentHashMap
+import java.util.logging.Level
+import kotlinx.coroutines.withContext
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.createCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.common.crypto.jceProvider
 import org.wfanet.measurement.common.crypto.readCertificate
+import org.wfanet.panelmatch.client.logger.TaskLog
+import org.wfanet.panelmatch.client.logger.addToTaskLog
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.certificates.CertificateManager.KeyPair
+import org.wfanet.panelmatch.common.loggerFor
 import org.wfanet.panelmatch.common.secrets.MutableSecretMap
 import org.wfanet.panelmatch.common.secrets.SecretMap
 
@@ -87,30 +92,36 @@ class V2AlphaCertificateManager(
   }
 
   override suspend fun createForExchange(exchange: ExchangeDateKey): String {
-    val existingKeys = getSigningKeys(exchange.path)
-    if (existingKeys != null) {
-      return existingKeys.certResourceName
+    return withContext(TaskLog(exchange)) {
+      logger.addToTaskLog("Read Existing Keys", Level.FINE)
+      val existingKeys = getSigningKeys(exchange.path)
+      if (existingKeys != null) {
+        return@withContext existingKeys.certResourceName
+      }
+
+      logger.addToTaskLog("Generate X509", Level.FINE)
+      val (x509, privateKey) = certificateAuthority.generateX509CertificateAndPrivateKey()
+
+      val request = createCertificateRequest {
+        parent = localName
+        certificate = certificate { x509Der = x509.encoded.toByteString() }
+      }
+      logger.addToTaskLog("Create Certificate with Kingdom", Level.FINE)
+      val certificate = certificateService.createCertificate(request)
+      val certResourceName = certificate.name
+
+      val signingKeys = signingKeys {
+        this.certResourceName = certResourceName
+        this.privateKey = privateKey.encoded.toByteString()
+      }
+
+      logger.addToTaskLog("Cache Keys", Level.FINE)
+      privateKeys.put(exchange.path, signingKeys.toByteString())
+      x509CertCache[certResourceName] = x509
+      signingKeysCache[exchange.path] = Optional.of(signingKeys)
+
+      return@withContext certResourceName
     }
-
-    val (x509, privateKey) = certificateAuthority.generateX509CertificateAndPrivateKey()
-
-    val request = createCertificateRequest {
-      parent = localName
-      certificate = certificate { x509Der = x509.encoded.toByteString() }
-    }
-    val certificate = certificateService.createCertificate(request)
-    val certResourceName = certificate.name
-
-    val signingKeys = signingKeys {
-      this.certResourceName = certResourceName
-      this.privateKey = privateKey.encoded.toByteString()
-    }
-
-    privateKeys.put(exchange.path, signingKeys.toByteString())
-    x509CertCache[certResourceName] = x509
-    signingKeysCache[exchange.path] = Optional.of(signingKeys)
-
-    return certResourceName
   }
 
   private suspend fun getSigningKeys(name: String): SigningKeys? {
@@ -145,5 +156,9 @@ class V2AlphaCertificateManager(
         requireNotNull(rootCerts.get(ownerName)) { "Missing root certificate for $ownerName" }
       readCertificate(certBytes)
     }
+  }
+
+  companion object {
+    private val logger by loggerFor()
   }
 }

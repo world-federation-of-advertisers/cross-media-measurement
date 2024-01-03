@@ -27,6 +27,8 @@ import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.deploy.CertificateAuthorityFlags
 import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
 import org.wfanet.panelmatch.client.deploy.example.ExampleDaemon
+import org.wfanet.panelmatch.client.launcher.ExchangeStepValidatorImpl
+import org.wfanet.panelmatch.client.launcher.ExchangeTaskExecutor
 import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
 import org.wfanet.panelmatch.common.beam.BeamOptions
 import org.wfanet.panelmatch.common.certificates.aws.CertificateAuthority
@@ -140,6 +142,16 @@ private class AwsExampleDaemon : ExampleDaemon() {
 
   override val certificateAuthority by lazy {
     CertificateAuthority(caFlags.context, certificateAuthorityArn, PrivateCaClient())
+  }
+
+  override val stepExecutor by lazy {
+    ExchangeTaskExecutor(
+      apiClient = apiClient,
+      timeout = taskTimeout,
+      privateStorageSelector = privateStorageSelector,
+      exchangeTaskMapper = exchangeTaskMapper,
+      validator = ExchangeStepValidatorImpl(identity.party, validExchangeWorkflows, clock)
+    )
   }
 }
 

@@ -14,15 +14,15 @@
 
 package org.wfanet.panelmatch.client.launcher
 
+import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
-import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidatedExchangeStep
 
 /** Executes [ExchangeWorkflow.Step]s. */
 interface ExchangeStepExecutor {
   /** Executes [step]. */
   suspend fun execute(
-    validatedStep: ValidatedExchangeStep,
+    exchangeStep: ExchangeStep,
     attemptKey: CanonicalExchangeStepAttemptKey,
   )
 }
