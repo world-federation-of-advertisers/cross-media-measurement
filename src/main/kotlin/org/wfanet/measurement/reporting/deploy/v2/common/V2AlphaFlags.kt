@@ -22,14 +22,6 @@ import picocli.CommandLine
 /** Flags specific to the V2Alpha API version. */
 class V2AlphaFlags {
   @CommandLine.Option(
-    names = ["--authority-key-identifier-to-principal-map-file"],
-    description = ["File path to a AuthorityKeyToPrincipalMap textproto"],
-    required = true,
-  )
-  lateinit var authorityKeyIdentifierToPrincipalMapFile: File
-    private set
-
-  @CommandLine.Option(
     names = ["--measurement-consumer-config-file"],
     description = ["File path to a MeasurementConsumerConfig textproto"],
     required = true,

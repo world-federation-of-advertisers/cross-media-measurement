@@ -21,6 +21,7 @@ import io.grpc.Channel
 import io.grpc.ServerServiceDefinition
 import io.grpc.Status
 import io.grpc.StatusException
+import java.io.File
 import java.security.SecureRandom
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -88,6 +89,7 @@ private fun run(
   @CommandLine.Mixin kingdomApiFlags: KingdomApiFlags,
   @CommandLine.Mixin commonServerFlags: CommonServer.Flags,
   @CommandLine.Mixin v2AlphaFlags: V2AlphaFlags,
+  @CommandLine.Mixin v2AlphaPublicServerFlags: V2AlphaPublicServerFlags,
   @CommandLine.Mixin encryptionKeyPairMap: EncryptionKeyPairMap,
 ) {
   val clientCerts =
@@ -114,7 +116,7 @@ private fun run(
 
   val principalLookup: PrincipalLookup<ReportingPrincipal, ByteString> =
     AkidPrincipalLookup(
-        v2AlphaFlags.authorityKeyIdentifierToPrincipalMapFile,
+        v2AlphaPublicServerFlags.authorityKeyIdentifierToPrincipalMapFile,
         v2AlphaFlags.measurementConsumerConfigFile
       )
       .memoizing()
@@ -225,3 +227,13 @@ private fun run(
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)
+
+private class V2AlphaPublicServerFlags {
+  @CommandLine.Option(
+    names = ["--authority-key-identifier-to-principal-map-file"],
+    description = ["File path to a AuthorityKeyToPrincipalMap textproto"],
+    required = true,
+  )
+  lateinit var authorityKeyIdentifierToPrincipalMapFile: File
+    private set
+}

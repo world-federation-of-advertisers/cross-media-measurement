@@ -18,6 +18,8 @@ package k8s
 	_verboseGrpcServerLogging: bool | *false
 	_verboseGrpcClientLogging: bool | *false
 
+	_reportSchedulingCronSchedule: *"30 6 * * *" // Daily at 6:30 AM
+
 	_postgresConfig: #PostgresConfig
 
 	_internalApiTarget: #GrpcTarget & {
@@ -35,6 +37,7 @@ package k8s
 		"update-reporting-schema":             string | *"reporting/v2/postgres-update-schema"
 		"postgres-internal-reporting-server":  string | *"reporting/v2/postgres-internal-server"
 		"reporting-v2alpha-public-api-server": string | *"reporting/v2/v2alpha-public-api"
+		"report-scheduling":                   string | *"reporting/v2/report-scheduling"
 	}
 	_imageConfigs: [_=string]: #ImageConfig
 	_imageConfigs: {
@@ -134,6 +137,41 @@ package k8s
 		}
 	}
 
+	cronJobs: [Name=_]: #CronJob & {
+		_name:       Name
+		_secretName: Reporting._secretName
+		_system:     "reporting"
+		_container: {
+			image: _images[_name]
+		}
+	}
+	cronJobs: {
+		"report-scheduling": {
+			_container: args: [
+						_debugVerboseGrpcClientLoggingFlag,
+						_debugVerboseGrpcServerLoggingFlag,
+						_reportingCertCollectionFileFlag,
+						_measurementConsumerConfigFileFlag,
+						_signingPrivateKeyStoreDirFlag,
+						_encryptionKeyPairDirFlag,
+						_encryptionKeyPairConfigFileFlag,
+						_metricSpecConfigFileFlag,
+						"--port=8443",
+						"--health-port=8080",
+			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args
+			spec: {
+				jobTemplate: spec: template: spec: _mounts: {
+					"mc-config": {
+						volume: secret: secretName: Reporting._mcConfigSecretName
+						volumeMount: mountPath: "/var/run/secrets/files/config/mc/"
+					}
+					"config-files": #ConfigMapMount
+				}
+				schedule: _reportSchedulingCronSchedule
+			}
+		}
+	}
+
 	networkPolicies: [Name=_]: #NetworkPolicy & {
 		_name: Name
 	}
@@ -143,6 +181,7 @@ package k8s
 			_app_label: "postgres-internal-reporting-server-app"
 			_sourceMatchLabels: [
 				"reporting-v2alpha-public-api-server-app",
+				"report-scheduling-app",
 			]
 			_egresses: {
 				// Needs to call out to Postgres server.
@@ -159,6 +198,14 @@ package k8s
 					}]
 				}
 			}
+			_egresses: {
+				// Needs to call out to Kingdom.
+				any: {}
+			}
+		}
+		"report-scheduling": {
+			_app_label: "report-scheduling-app"
+			_destinationMatchLabels: ["postgres-internal-reporting-server-app"]
 			_egresses: {
 				// Needs to call out to Kingdom.
 				any: {}

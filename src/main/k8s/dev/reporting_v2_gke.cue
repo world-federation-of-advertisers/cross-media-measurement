@@ -45,6 +45,7 @@ objectSets: [
 	reporting.configMaps,
 	reporting.deployments,
 	reporting.services,
+	reporting.cronJobs,
 	reporting.networkPolicies,
 ]
 
