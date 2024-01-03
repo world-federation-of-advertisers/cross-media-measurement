@@ -119,9 +119,12 @@ class ExchangeTaskExecutor(
   private suspend fun ExchangeContext.runStep(privateStorage: StorageClient) {
     timeout.runWithTimeout {
       val exchangeTask: ExchangeTask = exchangeTaskMapper.getExchangeTaskForStep(this@runStep)
+      logger.addToTaskLog("Reading Inputs")
       val taskInput: Map<String, Blob> =
         if (exchangeTask.skipReadInput()) emptyMap() else readInputs(step, privateStorage)
+      logger.addToTaskLog("Executing")
       val taskOutput: Map<String, Flow<ByteString>> = exchangeTask.execute(taskInput)
+      logger.addToTaskLog("Writing Outputs")
       writeOutputs(step, taskOutput, privateStorage)
     }
   }

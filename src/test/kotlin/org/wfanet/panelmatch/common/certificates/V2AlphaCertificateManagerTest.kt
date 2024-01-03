@@ -158,7 +158,6 @@ class V2AlphaCertificateManagerTest {
     setRootCertificate(LOCAL_NAME)
 
     assertThat(certificateManager.createForExchange(EXCHANGE_DATE_KEY)).isEqualTo(RESOURCE_NAME)
-
     val privateKey = certificateManager.getExchangePrivateKey(EXCHANGE_DATE_KEY)
     assertThat(privateKey).isEqualTo(PRIVATE_KEY)
 
