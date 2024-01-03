@@ -119,11 +119,6 @@ message Measurement {
 
     message Population {
       int64 value = 1;
-
-      oneof methodology {
-        CustomDirectMethodology custom_direct_methodology = 3;
-        DeterministicCount deterministic_count = 4;
-      }
     }
     Population population = 5;
   }

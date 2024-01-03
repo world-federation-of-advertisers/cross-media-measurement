@@ -422,7 +422,7 @@ fun Measurement.Result.toInternal(protocolConfig: ProtocolConfig): InternalMeasu
       watchDuration = source.watchDuration.toInternal(protocolConfig)
     }
     if (source.hasPopulation()) {
-      // Methodology in protocolCOnfig is not set for Population so it is not needed to convert to
+      // Methodology in protocolConfig is not set for Population, so it is not needed to convert to
       // internal Population
       population = InternalMeasurementKt.ResultKt.population { value = source.population.value }
     }

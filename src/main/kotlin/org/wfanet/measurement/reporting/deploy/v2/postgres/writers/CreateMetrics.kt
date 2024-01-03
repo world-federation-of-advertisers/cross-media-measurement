@@ -190,11 +190,11 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
             val createTime = Instant.now().atOffset(ZoneOffset.UTC)
             val vidSamplingIntervalStart =
               if (it.metric.metricSpec.typeCase == MetricSpec.TypeCase.POPULATION_COUNT)
-                MetricSpec.VidSamplingInterval.getDefaultInstance().start
+                0
               else it.metric.metricSpec.vidSamplingInterval.start
             val vidSamplingIntervalWidth =
               if (it.metric.metricSpec.typeCase == MetricSpec.TypeCase.POPULATION_COUNT)
-                MetricSpec.VidSamplingInterval.getDefaultInstance().width
+                0
               else it.metric.metricSpec.vidSamplingInterval.width
 
             addBinding {
@@ -256,8 +256,8 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                   bind<Long?>("$20", null)
                 }
                 MetricSpec.TypeCase.POPULATION_COUNT -> {
-                  bind("$9", MetricSpec.DifferentialPrivacyParams.getDefaultInstance().epsilon)
-                  bind("$10", MetricSpec.DifferentialPrivacyParams.getDefaultInstance().delta)
+                  bind("$9", 0)
+                  bind("$10", 0)
                   bind<Double?>("$11", null)
                   bind<Double?>("$12", null)
                   bind<Long?>("$13", null)
