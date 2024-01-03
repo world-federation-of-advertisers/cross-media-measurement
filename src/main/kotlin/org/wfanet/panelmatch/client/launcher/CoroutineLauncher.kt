@@ -32,6 +32,7 @@ class CoroutineLauncher(
   maxCoroutines: Int? = null
 ) : JobLauncher {
   private val semaphore = if (maxCoroutines !== null) Semaphore(maxCoroutines) else null
+
   override suspend fun execute(
     step: ValidatedExchangeStep,
     attemptKey: CanonicalExchangeStepAttemptKey
