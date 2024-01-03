@@ -15,6 +15,7 @@
 package org.wfanet.panelmatch.client.deploy.example.aws
 
 import com.google.crypto.tink.integration.awskms.AwsKmsClient
+import java.util.Optional
 import kotlin.properties.Delegates
 import org.apache.beam.runners.direct.DirectRunner
 import org.apache.beam.sdk.options.PipelineOptions
@@ -78,7 +79,7 @@ private class AwsExampleDaemon : ExampleDaemon() {
   @set:Option(
     names = ["--s3-from-beam"],
     description = ["Whether to configure s3 access from Apache Beam."],
-    defaultValue = "false"
+    defaultValue = "true"
   )
   private var s3FromBeam by Delegates.notNull<Boolean>()
 
@@ -113,11 +114,8 @@ private class AwsExampleDaemon : ExampleDaemon() {
   /** This can be customized per deployment. */
   private val defaults by lazy {
     // Register AwsKmsClient before setting storage folders.
-    DaemonStorageClientDefaults(
-      rootStorageClient,
-      tinkKeyUri,
-      TinkKeyStorageProvider(AwsKmsClient())
-    )
+    AwsKmsClient.register(Optional.of(tinkKeyUri), Optional.empty())
+    DaemonStorageClientDefaults(rootStorageClient, tinkKeyUri, TinkKeyStorageProvider())
   }
 
   /** This can be customized per deployment. */
