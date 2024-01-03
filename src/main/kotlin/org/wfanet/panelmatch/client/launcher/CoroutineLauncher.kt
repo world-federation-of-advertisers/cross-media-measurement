@@ -21,8 +21,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
 import kotlinx.coroutines.sync.Semaphore
-import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
+import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidatedExchangeStep
 
 /** Executes an [ExchangeStep] in a new coroutine in [scope]. */
@@ -33,10 +33,7 @@ class CoroutineLauncher(
 ) : JobLauncher {
   private val semaphore = if (maxCoroutines !== null) Semaphore(maxCoroutines) else null
 
-  override suspend fun execute(
-    step: ValidatedExchangeStep,
-    attemptKey: CanonicalExchangeStepAttemptKey
-  ) {
+  override suspend fun execute(step: ValidatedExchangeStep, attemptKey: ExchangeStepAttemptKey) {
     (scope + SupervisorJob()).launch(CoroutineName(attemptKey.toName())) {
       if (semaphore !== null) semaphore.acquire()
       stepExecutor.execute(step, attemptKey)

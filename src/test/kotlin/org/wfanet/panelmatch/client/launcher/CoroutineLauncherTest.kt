@@ -31,7 +31,7 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
-import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
+import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.commutativeDeterministicEncryptStep
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
 import org.wfanet.measurement.common.CountDownLatch
@@ -58,8 +58,8 @@ class CoroutineLauncherTest {
     val middleLatch2 = CountDownLatch(1)
     val endLatch2 = CountDownLatch(1)
 
-    val attemptKey1 = CanonicalExchangeStepAttemptKey("a", "b", "c", "d")
-    val attemptKey2 = CanonicalExchangeStepAttemptKey("w", "x", "y", "z")
+    val attemptKey1 = ExchangeStepAttemptKey("a", "b", "c", "d")
+    val attemptKey2 = ExchangeStepAttemptKey("w", "x", "y", "z")
 
     whenever(stepExecutor.execute(any(), eq(attemptKey1))).thenAnswer {
       runBlocking {
@@ -90,7 +90,7 @@ class CoroutineLauncherTest {
     endLatch2.await()
 
     val stepCaptor = argumentCaptor<ValidatedExchangeStep>()
-    val attemptKeyCaptor = argumentCaptor<CanonicalExchangeStepAttemptKey>()
+    val attemptKeyCaptor = argumentCaptor<ExchangeStepAttemptKey>()
     verify(stepExecutor, times(2)).execute(stepCaptor.capture(), attemptKeyCaptor.capture())
   }
 
@@ -107,8 +107,8 @@ class CoroutineLauncherTest {
     val endLatch1 = CountDownLatch(1)
     val endLatch2 = CountDownLatch(1)
 
-    val attemptKey1 = CanonicalExchangeStepAttemptKey("a", "b", "c", "d")
-    val attemptKey2 = CanonicalExchangeStepAttemptKey("w", "x", "y", "z")
+    val attemptKey1 = ExchangeStepAttemptKey("a", "b", "c", "d")
+    val attemptKey2 = ExchangeStepAttemptKey("w", "x", "y", "z")
 
     whenever(stepExecutor.execute(any(), eq(attemptKey1))).thenAnswer {
       runBlocking {
@@ -134,7 +134,7 @@ class CoroutineLauncherTest {
       withTimeout(Duration.ofSeconds(10)) { startLatch2.await() }
     }
     val stepCaptor = argumentCaptor<ValidatedExchangeStep>()
-    val attemptKeyCaptor = argumentCaptor<CanonicalExchangeStepAttemptKey>()
+    val attemptKeyCaptor = argumentCaptor<ExchangeStepAttemptKey>()
     verify(stepExecutor, times(1)).execute(stepCaptor.capture(), attemptKeyCaptor.capture())
     assertThat(stepCaptor.firstValue).isEqualTo(validatedExchangeStep)
     assertThat(attemptKeyCaptor.firstValue).isEqualTo(attemptKey1)
