@@ -91,9 +91,7 @@ abstract class ExchangeWorkflowDaemon : Runnable {
     SharedStorageSelector(certificateManager, sharedStorageFactories, sharedStorageInfo)
   }
 
-  override fun run() = runBlocking { runSuspending() }
-
-  suspend fun runSuspending() {
+  protected open val launcher by lazy {
     val stepExecutor =
       ExchangeTaskExecutor(
         apiClient = apiClient,
@@ -101,8 +99,12 @@ abstract class ExchangeWorkflowDaemon : Runnable {
         privateStorageSelector = privateStorageSelector,
         exchangeTaskMapper = exchangeTaskMapper
       )
+    CoroutineLauncher(stepExecutor = stepExecutor)
+  }
 
-    val launcher = CoroutineLauncher(stepExecutor = stepExecutor)
+  override fun run() = runBlocking { runSuspending() }
+
+  suspend fun runSuspending() {
 
     val exchangeStepLauncher =
       ExchangeStepLauncher(
