@@ -38,11 +38,13 @@ const setUpUtcScale = (svg, data, dimensions, margins) => {
         .range([margins.left, dimensions.width - margins.right]);
 
     // Add the horizontal axis.
+    const arr = new Set(data.map(item => item.date.toString())).size
+    const ticks = Math.min(arr - 1, dimensions.width / 80)
     svg.append("g")
         .attr("transform", `translate(0,${dimensions.height - margins.bottom})`)
         .call(
         d3.axisBottom(x)
-            .ticks(dimensions.width / 80)
+            .ticks(ticks)
             .tickSizeOuter(0)
             .tickFormat(d3.timeFormat('%m/%d/%y'))
         );
@@ -132,21 +134,21 @@ const drawMultiLines = (svg, groups, groupColors) => {
         .attr("stroke-width", 1.5)
         .attr("stroke-linejoin", "round")
         .attr("stroke-linecap", "round")
-      .selectAll("path")
-      .data(groups.values())
-      .join("path")
-        .attr("stroke", function(d){ return color(d.key) })
-        // .attr("stroke", function(d){ return groupColors[d.z] })
+        .selectAll("path")
+        .data(groups.values())
+        .join("path")
+        .attr("stroke", function(d){ return groupColors[d.z] })
         .style("mix-blend-mode", "multiply")
         .attr("d", line);
 }
 
-const drawBar = (svg, data, x, y) => {
+const drawBar = (svg, data, x, y, groupColors) => {
     svg.append("g")
-        .attr("fill", "steelblue")
-    .selectAll()
-    .data(data)
-    .join("rect")
+        .attr("fill", "none")
+        .selectAll()
+        .data(data)
+        .join("rect")
+        .attr("stroke", function(d){ return groupColors[d.group] })
         .attr("x", (d) => x(d.date))
         .attr("y", (d) => y(d.value))
         .attr("height", (d) => y(0) - y(d.value))
@@ -164,7 +166,7 @@ export const createMultiLineChart = (cardId, data, dimensions, margins, colorMap
     // Group the points by series.
     const groups = d3.rollup(points, v => Object.assign(v, {z: v[0][2]}), d => d[2]);
 
-    drawMultiLines(svg, groups);
+    drawMultiLines(svg, groups, colorMap);
 }
 
 export const createPercentMultiLineChart = (cardId, data, dimensions, margins, colorMap) => { 
@@ -189,10 +191,10 @@ export const createPercentBarChart = (cardId, data, dimensions, margins) => {
     drawBar(svg, data, x, y);
 }
 
-export const createBarChart = (cardId, data, dimensions, margins) => {
+export const createBarChart = (cardId, data, dimensions, margins, colorMap) => {
     const svg = initializeGraph(cardId, dimensions);
     const x = setUpScaleBandXScale(svg, data, dimensions, margins);
     const y = setUpLinearYScale(svg, data, dimensions, margins, false)
 
-    drawBar(svg, data, x, y);
+    drawBar(svg, data, x, y, colorMap);
 }

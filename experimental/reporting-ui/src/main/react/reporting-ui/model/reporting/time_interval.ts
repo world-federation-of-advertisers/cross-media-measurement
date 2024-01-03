@@ -13,7 +13,7 @@
 // limitations under the License.
 
 export type ImpressionCount = {
-  impressionCount: number,
+  count: number,
   standardDeviation: number,
 }
 

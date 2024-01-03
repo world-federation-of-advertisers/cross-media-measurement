@@ -59,7 +59,7 @@ const getReaches = (report: Report): Reaches => {
       const fullUnion = db.unionSource;
       db.perPublisherSource.forEach(pub => {
         totalReach.push({
-          value: pub.reach,
+          value: fixNumber(pub.reach),
           group: `${pub.sourceName}|${db.demoCategoryName}`,
           date: new Date(ti.timeInterval.startTime),
         })
@@ -81,6 +81,11 @@ const getReaches = (report: Report): Reaches => {
     uniqueReach: data,
     totalReach,
   };
+}
+
+const fixNumber = (num: number): number => {
+  const newNum = Number(num);
+  return Number.isNaN(newNum) || newNum < 0 ? 0 : newNum;
 }
 
 const getImpressionsAndFrequencies = (report: Report): iAndF => {
@@ -111,19 +116,17 @@ const getImpressionsAndFrequencies = (report: Report): iAndF => {
             averageFrequency: 0,
           }
         }
-        dict[pps.sourceName].impressions += pps.impressionCount.impressionCount;
+        dict[pps.sourceName].impressions += fixNumber(pps.impressionCount.count);
         dict[pps.sourceName].averageFrequency += pps.frequencyHistogram[1];
-        dict[pps.sourceName].reach += pps.reach;
+        dict[pps.sourceName].reach += Number(pps.reach);
 
         // Just get the impressions
         impressions.push({
           group: `${pps.sourceName}|${db.demoCategoryName}`,
-          value: pps.impressionCount.impressionCount,
+          value: fixNumber(pps.impressionCount.count),
           date: new Date(ti.timeInterval.startTime),
         });
 
-        // Get all for now, process later??
-        // TODO: Loop through the bins and push bin label as "date"
         Object.entries(pps.frequencyHistogram).forEach(([key, value]) => {
           frequencies.push({
             group: `${pps.sourceName}|${db.demoCategoryName}`,
@@ -132,9 +135,9 @@ const getImpressionsAndFrequencies = (report: Report): iAndF => {
           });
         });
       })
-      overview.totalImpressions += db.unionSource.impressionCount.impressionCount;
-      overview.totalAverageFrequency += db.unionSource.frequencyHistogram[1];
-      overview.totalReach += Number(db.unionSource.reach);
+      overview.totalImpressions += fixNumber(db.unionSource.impressionCount.count);
+      overview.totalAverageFrequency += fixNumber(db.unionSource.frequencyHistogram[1]);
+      overview.totalReach += fixNumber(db.unionSource.reach);
     });
   });
 
@@ -168,7 +171,7 @@ const handleUiReport = (report: Report|undefined): UiReport|null => {
     impressions: filter(impressions, 'all'),
     uniqueReach: filter(uniqueReach, 'all'),
     totalReach: filter(totalReach, 'all'),
-    averageFrequency: frequencies,
+    averageFrequency: filter(frequencies, 'all'),
   };
   return res;
 };
@@ -205,8 +208,6 @@ const filter = (data: ChartGroup[], filters: 'all'|string[]): ChartGroup[] => {
       filteredResults.push(va);
     }
   }
-
-  console.log('filtered results', filteredResults)
 
   return filteredResults
 }

@@ -58,9 +58,9 @@ export function Chart({cardId, title, data, config, type}: props) {
     } else if (type === ChartType.percentMultiLine) {
       createPercentMultiLineChart(cardId, data, dimensions, margins, config.catColors)
     } else if (type === ChartType.barPercent) {
-      createPercentBarChart(cardId, data, dimensions, margins)
+      createPercentBarChart(cardId, data, dimensions, margins, config.pubColors)
     } else if (type === ChartType.bar) {
-      createBarChart(cardId, data, dimensions, margins)
+      createBarChart(cardId, data, dimensions, margins, config.pubColors)
     }
   }
 

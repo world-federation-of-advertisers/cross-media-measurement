@@ -14,10 +14,17 @@
 
 // In powers of 10
 const MAGNITUDES = Object.freeze({
-  3: 'K',
+  3: 'k',
   6: 'M',
   9: 'B',
   12: 'T',
+  15: 'P',
+  18: 'E',
+  21: 'Z',
+  24: 'Y',
+  27: 'R',
+  30: 'Q',
+
 });
 
 export const formatNumberWithMagnitude = (

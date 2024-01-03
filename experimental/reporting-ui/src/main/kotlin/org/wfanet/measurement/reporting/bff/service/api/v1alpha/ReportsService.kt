@@ -58,8 +58,6 @@ class ReportsService(private val backendReportsStub: BackendReportsGrpcKt.Report
       pageSize = 1000
     }
 
-    println(backendRequest)
-
     val resp = backendReportsStub.listReports(backendRequest)
 
     // if (resp.nextPageToken.isNotEmpty()) {
@@ -117,6 +115,22 @@ class ReportsService(private val backendReportsStub: BackendReportsGrpcKt.Report
       reportId = source.name
       name = source.name
       state = source.state.toBffState()
+    }
+  }
+
+  private fun capNumber(num: Double): Double {
+    if (num.isNaN() || num < 0) {
+      return 0.0;
+    } else {
+      return num;
+    }
+  }
+
+  private fun capNumber(num: Long): Long {
+    if (num < 0) {
+      return 0L;
+    } else {
+      return num;
     }
   }
 
@@ -182,17 +196,17 @@ class ReportsService(private val backendReportsStub: BackendReportsGrpcKt.Report
                         reach = resultAttribute.metricResult.reach.value
                       }
                       ResultCase.REACH_AND_FREQUENCY -> {
-                        reach = resultAttribute.metricResult.reachAndFrequency.reach.value
+                        reach = capNumber(resultAttribute.metricResult.reachAndFrequency.reach.value)
                         val bins = resultAttribute.metricResult.reachAndFrequency.frequencyHistogram.binsList.sortedBy{it.label.toInt()}.reversed()
                         var runningCount = 0.0
                         for (bin in bins) {
-                          runningCount = runningCount + bin.binResult.value
+                          runningCount = runningCount + capNumber(bin.binResult.value)
                           frequencyHistogram[bin.label.toInt()] = runningCount
                         }
                       }
                       ResultCase.IMPRESSION_COUNT -> {
                         impressionCount = impressionCountResult {
-                          count = resultAttribute.metricResult.impressionCount.value
+                          count = capNumber(resultAttribute.metricResult.impressionCount.value)
                           standardDeviation = resultAttribute.metricResult.impressionCount.univariateStatistics.standardDeviation
                         }
                       }
