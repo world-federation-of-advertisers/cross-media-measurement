@@ -1087,16 +1087,7 @@ fun Measurement.toInternal(
               }
           }
         }
-        MeasurementSpec.MeasurementTypeCase.POPULATION -> {
-          protocolConfig = internalProtocolConfig {
-            direct =
-              InternalProtocolConfigKt.direct {
-                noiseMechanisms += internalNoiseMechanisms
-                deterministicCount =
-                  InternalProtocolConfig.Direct.DeterministicCount.getDefaultInstance()
-              }
-          }
-        }
+        MeasurementSpec.MeasurementTypeCase.POPULATION -> { }
         MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
           error("MeasurementType not set.")
       }

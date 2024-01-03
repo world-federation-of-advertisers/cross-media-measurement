@@ -160,6 +160,7 @@ import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt as Intern
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as InternalMeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MetricKt as InternalMetricKt
 import org.wfanet.measurement.internal.reporting.v2.MetricKt.weightedMeasurement
+import org.wfanet.measurement.internal.reporting.v2.MetricSpec as InternalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt as InternalMetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt as InternalMetricsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineImplBase
@@ -193,6 +194,7 @@ import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetric
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsSketchParams as internalReachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
+import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMetricVarianceParams
@@ -332,7 +334,7 @@ private val METRIC_SPEC_CONFIG = metricSpecConfig {
       width = WATCH_DURATION_VID_SAMPLING_WIDTH
     }
 
-  populationCountParams = MetricSpecConfigKt.populationCountParams {}
+  populationCountParams = MetricSpecConfig.PopulationCountParams.getDefaultInstance()
 }
 
 private val SECRETS_DIR =
@@ -1303,20 +1305,9 @@ private val POPULATION_MEASUREMENT_SPEC = measurementSpec {
       Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG)
     )
 
-  population = MeasurementSpecKt.population {}
+  population = MeasurementSpec.Population.getDefaultInstance()
 
-  vidSamplingInterval = MeasurementSpecKt.vidSamplingInterval {}
-}
-
-private val POPULATION_PROTOCOL_CONFIG: ProtocolConfig = protocolConfig {
-  measurementType = ProtocolConfig.MeasurementType.POPULATION
-  protocols +=
-    ProtocolConfigKt.protocol {
-      direct =
-        ProtocolConfigKt.direct {
-          deterministicSum = ProtocolConfig.Direct.DeterministicSum.getDefaultInstance()
-        }
-    }
+  vidSamplingInterval = MeasurementSpec.VidSamplingInterval.getDefaultInstance()
 }
 
 private val REQUESTING_POPULATION_MEASUREMENT =
@@ -1335,7 +1326,6 @@ private val PENDING_POPULATION_MEASUREMENT =
           INTERNAL_PENDING_POPULATION_MEASUREMENT.cmmsMeasurementId
         )
         .toName()
-    protocolConfig = POPULATION_PROTOCOL_CONFIG
     state = Measurement.State.COMPUTING
   }
 
@@ -1362,7 +1352,7 @@ private val WATCH_DURATION_METRIC_SPEC: MetricSpec = metricSpec {
 }
 
 private val POPULATION_METRIC_SPEC: MetricSpec = metricSpec {
-  populationCount = populationCountParams {}
+  populationCount = MetricSpec.PopulationCountParams.getDefaultInstance()
 }
 
 // Metrics
@@ -1681,7 +1671,7 @@ val INTERNAL_REQUESTING_POPULATION_METRIC = internalMetric {
   externalReportingSetId = INTERNAL_POPULATION_REPORTING_SET.externalReportingSetId
   timeInterval = TIME_INTERVAL
   metricSpec = internalMetricSpec {
-    populationCount = InternalMetricSpecKt.populationCountParams {}
+    populationCount = InternalMetricSpec.PopulationCountParams.getDefaultInstance()
   }
 
   weightedMeasurements += weightedMeasurement {
@@ -1990,7 +1980,7 @@ val PENDING_POPULATION_METRIC =
         )
         .toName()
     state = Metric.State.RUNNING
-    metricSpec = metricSpec { populationCount = populationCountParams {} }
+    metricSpec = metricSpec { populationCount = MetricSpec.PopulationCountParams.getDefaultInstance() }
     createTime = INTERNAL_PENDING_POPULATION_METRIC.createTime
   }
 

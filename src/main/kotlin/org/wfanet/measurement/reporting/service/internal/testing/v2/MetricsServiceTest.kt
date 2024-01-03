@@ -37,6 +37,7 @@ import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.reporting.v2.CreateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MetricKt
+import org.wfanet.measurement.internal.reporting.v2.MetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
@@ -493,7 +494,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         startTime = timestamp { seconds = 10 }
         endTime = timestamp { seconds = 100 }
       }
-      metricSpec = metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
+      metricSpec = metricSpec { populationCount = MetricSpec.PopulationCountParams.getDefaultInstance() }
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
@@ -2381,7 +2382,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           startTime = timestamp { seconds = 10 }
           endTime = timestamp { seconds = 100 }
         }
-        metricSpec = metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
+        metricSpec = metricSpec { populationCount = MetricSpec.PopulationCountParams.getDefaultInstance() }
         weightedMeasurements +=
           MetricKt.weightedMeasurement {
             weight = 2
