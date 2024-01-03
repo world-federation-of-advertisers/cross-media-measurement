@@ -6719,10 +6719,7 @@ class MetricsServiceTest {
         .isEqualTo(
           SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
             this.result = metricResult {
-              impressionCount =
-                MetricResultKt.impressionCountResult {
-                  value = 0L
-                }
+              impressionCount = MetricResultKt.impressionCountResult { value = 0L }
               cmmsMeasurements += PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name
               cmmsMeasurements += PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name
             }
@@ -7033,10 +7030,7 @@ class MetricsServiceTest {
         .isEqualTo(
           SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
             this.result = metricResult {
-              watchDuration =
-                MetricResultKt.watchDurationResult {
-                  value = 0.0
-                }
+              watchDuration = MetricResultKt.watchDurationResult { value = 0.0 }
               cmmsMeasurements += PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.name
               cmmsMeasurements += PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.name
             }
