@@ -29,9 +29,12 @@ free to use whichever you prefer.
     -   2 Kubernetes deployments
         -   `postgres-internal-reporting-server-deployment`
         -   `reporting-v2alpha-public-api-server-deployment`
-    -   3 Kubernetes network policies
+    -   1 Kubernetes cron job
+        -   `report-scheduling`
+    -   4 Kubernetes network policies
         -   `postgres-internal-reporting-server-network-policy`
         -   `reporting-v2alpha-public-api-server-network-policy`
+        -   `report-scheduling-network-policy`
         -   `default-deny-ingress-and-egress`
 
 ## Before you start
@@ -330,6 +333,12 @@ and
 kubectl get services
 ```
 
+and
+
+```shell
+kubectl get cronjobs
+```
+
 You should see something like the following:
 
 ```
@@ -345,6 +354,11 @@ postgres-internal-reporting-server    ClusterIP      10.16.39.47    <none>      
 reporting-v2alpha-public-api-server   LoadBalancer   10.16.32.255   34.135.79.68   8443:30104/TCP   8m45s
 ```
 
+```
+NAME                       SCHEDULE     SUSPEND   ACTIVE   LAST SCHEDULE   AGE
+report-scheduling-cronjob  30 6 * * *   False     0        <none>          10m
+```
+
 ## Reserve an external IP
 
 The `reporting-v2alpha-public-api-server` service has an external load balancer
@@ -353,6 +367,11 @@ IP address is ephemeral. We can reserve a static IP to make it easier to access.
 See [Reserving External IPs](cluster-config.md#reserving-external-ips).
 
 ## Appendix
+
+### Configuring the Report Scheduling CronJob
+
+See [Updating Retention Policies](../operations/updating-retention-policies.md)
+for an example.
 
 ### Troubleshooting
 
