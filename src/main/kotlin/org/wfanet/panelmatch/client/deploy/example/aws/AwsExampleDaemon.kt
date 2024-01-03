@@ -15,7 +15,6 @@
 package org.wfanet.panelmatch.client.deploy.example.aws
 
 import com.google.crypto.tink.integration.awskms.AwsKmsClient
-import java.util.Optional
 import kotlin.properties.Delegates
 import org.apache.beam.runners.direct.DirectRunner
 import org.apache.beam.sdk.options.PipelineOptions
@@ -28,6 +27,8 @@ import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.deploy.CertificateAuthorityFlags
 import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
 import org.wfanet.panelmatch.client.deploy.example.ExampleDaemon
+import org.wfanet.panelmatch.client.launcher.CoroutineLauncher
+import org.wfanet.panelmatch.client.launcher.ExchangeTaskExecutor
 import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
 import org.wfanet.panelmatch.common.beam.BeamOptions
 import org.wfanet.panelmatch.common.certificates.aws.CertificateAuthority
@@ -77,7 +78,7 @@ private class AwsExampleDaemon : ExampleDaemon() {
   @set:Option(
     names = ["--s3-from-beam"],
     description = ["Whether to configure s3 access from Apache Beam."],
-    defaultValue = "true"
+    defaultValue = "false"
   )
   private var s3FromBeam by Delegates.notNull<Boolean>()
 
@@ -112,8 +113,11 @@ private class AwsExampleDaemon : ExampleDaemon() {
   /** This can be customized per deployment. */
   private val defaults by lazy {
     // Register AwsKmsClient before setting storage folders.
-    AwsKmsClient.register(Optional.of(tinkKeyUri), Optional.empty())
-    DaemonStorageClientDefaults(rootStorageClient, tinkKeyUri, TinkKeyStorageProvider())
+    DaemonStorageClientDefaults(
+      rootStorageClient,
+      tinkKeyUri,
+      TinkKeyStorageProvider(AwsKmsClient())
+    )
   }
 
   /** This can be customized per deployment. */
@@ -142,6 +146,17 @@ private class AwsExampleDaemon : ExampleDaemon() {
       certificateAuthorityArn,
       PrivateCaClient(),
     )
+  }
+
+  override val launcher by lazy {
+    val stepExecutor =
+      ExchangeTaskExecutor(
+        apiClient = apiClient,
+        timeout = taskTimeout,
+        privateStorageSelector = privateStorageSelector,
+        exchangeTaskMapper = exchangeTaskMapper
+      )
+    CoroutineLauncher(stepExecutor = stepExecutor, maxCoroutines = 1)
   }
 }
 

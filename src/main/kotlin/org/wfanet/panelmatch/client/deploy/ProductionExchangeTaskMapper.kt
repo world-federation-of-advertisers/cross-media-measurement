@@ -32,6 +32,7 @@ import org.wfanet.panelmatch.client.eventpreprocessing.JniEventPreprocessor
 import org.wfanet.panelmatch.client.eventpreprocessing.PreprocessingParameters
 import org.wfanet.panelmatch.client.exchangetasks.ApacheBeamContext
 import org.wfanet.panelmatch.client.exchangetasks.ApacheBeamTask
+import org.wfanet.panelmatch.client.exchangetasks.AssignJoinKeyIdsTask
 import org.wfanet.panelmatch.client.exchangetasks.CopyFromPreviousExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.CopyFromSharedStorageTask
 import org.wfanet.panelmatch.client.exchangetasks.CopyToSharedStorageTask
@@ -294,8 +295,8 @@ open class ProductionExchangeTaskMapper(
     val copyOptions = step.copyToSharedStorageStep.copyOptions
     val destination =
       sharedStorageSelector.getSigningStorage(workflow.exchangeIdentifiers.storage, this)
-    val sourceLabel = step.inputLabelsMap.keys.single()
-    val sourceBlobKey = step.inputLabelsMap.values.single()
+    val sourceLabel = step.inputLabelsMap.keys.single { it != "certificate-resource-name" }
+    val sourceBlobKey = step.inputLabelsMap.getValue(sourceLabel)
     val destinationBlobKey = step.outputLabelsMap.values.single()
 
     return when (copyOptions.labelType) {
@@ -338,6 +339,10 @@ open class ProductionExchangeTaskMapper(
   override suspend fun ExchangeContext.generateRandomBytes(): ExchangeTask {
     val numBytes = step.generateRandomBytesStep.byteCount
     return ProducerTask("random-bytes") { generateSecureRandomByteString(numBytes) }
+  }
+
+  override suspend fun ExchangeContext.assignJoinKeyIds(): ExchangeTask {
+    return AssignJoinKeyIdsTask()
   }
 
   private suspend fun ExchangeContext.apacheBeamTaskFor(
