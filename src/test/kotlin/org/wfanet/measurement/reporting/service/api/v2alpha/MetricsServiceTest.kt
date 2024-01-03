@@ -6721,7 +6721,6 @@ class MetricsServiceTest {
             this.result = metricResult {
               impressionCount =
                 MetricResultKt.impressionCountResult {
-                  clearUnivariateStatistics()
                   value = 0L
                 }
               cmmsMeasurements += PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name
@@ -7036,7 +7035,6 @@ class MetricsServiceTest {
             this.result = metricResult {
               watchDuration =
                 MetricResultKt.watchDurationResult {
-                  clearUnivariateStatistics()
                   value = 0.0
                 }
               cmmsMeasurements += PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.name
