@@ -1578,6 +1578,10 @@ private fun InternalMetric.toMetric(variances: Variances): Metric {
 /** Builds a [MetricResult] from the given [InternalMetric]. */
 private fun buildMetricResult(metric: InternalMetric, variances: Variances): MetricResult {
   return metricResult {
+    cmmsMeasurements += metric.weightedMeasurementsList.map {
+      MeasurementKey(metric.cmmsMeasurementConsumerId, it.measurement.cmmsMeasurementId).toName()
+    }
+
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     when (metric.metricSpec.typeCase) {
       InternalMetricSpec.TypeCase.REACH -> {
