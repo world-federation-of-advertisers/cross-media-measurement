@@ -34,7 +34,7 @@ class HonestMajorityShareShuffleProtocolEnumStagesTest {
     }
     assertTrue {
       HonestMajorityShareShuffleProtocol.EnumStages.validInitialStage(
-        HonestMajorityShareShuffle.Stage.WAIT_ON_INPUT
+        HonestMajorityShareShuffle.Stage.WAIT_ON_AGGREGATION_INPUT
       )
     }
     assertFalse {
@@ -78,27 +78,34 @@ class HonestMajorityShareShuffleProtocolEnumStagesTest {
     assertTrue {
       HonestMajorityShareShuffleProtocol.EnumStages.validTransition(
         HonestMajorityShareShuffle.Stage.SETUP_PHASE,
+        HonestMajorityShareShuffle.Stage.WAIT_ON_SHUFFLE_INPUT
+      )
+    }
+
+    assertTrue {
+      HonestMajorityShareShuffleProtocol.EnumStages.validTransition(
+        HonestMajorityShareShuffle.Stage.SETUP_PHASE,
         HonestMajorityShareShuffle.Stage.SHUFFLE_PHASE
       )
     }
 
     assertTrue {
       HonestMajorityShareShuffleProtocol.EnumStages.validTransition(
-        HonestMajorityShareShuffle.Stage.WAIT_ON_INPUT,
+        HonestMajorityShareShuffle.Stage.WAIT_ON_SHUFFLE_INPUT,
         HonestMajorityShareShuffle.Stage.SHUFFLE_PHASE
       )
     }
 
     assertTrue {
       HonestMajorityShareShuffleProtocol.EnumStages.validTransition(
-        HonestMajorityShareShuffle.Stage.WAIT_ON_INPUT,
+        HonestMajorityShareShuffle.Stage.WAIT_ON_AGGREGATION_INPUT,
         HonestMajorityShareShuffle.Stage.AGGREGATION_PHASE
       )
     }
 
     assertFalse {
       HonestMajorityShareShuffleProtocol.EnumStages.validTransition(
-        HonestMajorityShareShuffle.Stage.WAIT_ON_INPUT,
+        HonestMajorityShareShuffle.Stage.WAIT_ON_AGGREGATION_INPUT,
         HonestMajorityShareShuffle.Stage.COMPLETE
       )
     }
