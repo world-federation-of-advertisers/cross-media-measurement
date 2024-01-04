@@ -27,12 +27,13 @@ message HonestMajorityShareShuffle {
   // Stages of the HonestMajorityShareShuffle computation.
   //
   // For non-aggregators, the normal stage transition is:
-  // INITIALIZED -> SETUP_PHASE -> WAIT_ON_INPUT -> SHUFFLE_PHASE -> COMPLETE
+  // INITIALIZED -> SETUP_PHASE -> (WAIT_ON_SHUFFLE_INPUT) -> SHUFFLE_PHASE
+  // -> COMPLETE
   // The WAIT_ON_INPUT stage will be skipped if all the input (requisition data
   // and peer worker input) has been received before the end of SETUP_PHASE.
   //
   // For the aggregator, the normal stage transition is:
-  // WAIT_ON_INPUT -> AGGREGATION_PHASE -> COMPLETE
+  // WAIT_ON_AGGREGATION_INPUT -> AGGREGATION_PHASE -> COMPLETE
   enum Stage {
     // The computation stage is unknown. This is never set intentionally.
     STAGE_UNSPECIFIED = 0;
@@ -47,12 +48,13 @@ message HonestMajorityShareShuffle {
     // Seeds are used for generating either noise or permutation.
     SETUP_PHASE = 2;
 
-    // Non-aggregators wait for input of seeds from the peer as well as
-    // requisition data from EDPs.
-    //
-    // The aggregator waits for input of combined shares from
+    // The non-aggregators only stage waiting for input of seeds from the peer
+    // as well as requisition data from EDPs.
+    WAIT_ON_SHUFFLE_INPUT = 3;
+
+    // The aggregator only stage waiting for input of combined shares from
     // non-aggregators. It is the initial stage for the aggregator.
-    WAIT_ON_INPUT = 3;
+    WAIT_ON_AGGREGATION_INPUT = 4;
 
     // Non-aggregators execute following steps:
     //
@@ -68,16 +70,16 @@ message HonestMajorityShareShuffle {
     // permutation based on the combined seed. Shuffle the shares.
     //
     // 4. Send the result of the share to the aggregator.
-    SHUFFLE_PHASE = 4;
+    SHUFFLE_PHASE = 5;
 
     // The aggregator adds up shares from non-aggregators, subtracts noise
     // offset, and calculates the reach and the frequency histogram, then
     // reports the encrypted result to the kingdom.
-    AGGREGATION_PHASE = 5;
+    AGGREGATION_PHASE = 6;
 
     // The computation is completed or failed. The worker can remove BLOBs that
     // are no longer needed.
-    COMPLETE = 6;
+    COMPLETE = 7;
   }
 
   message ComputationDetails {
@@ -119,16 +121,16 @@ message HonestMajorityShareShuffle {
   // HonestMajorityShareShuffle Protocol.
   message StageDetails {
     oneof detail {
-      // Details specific to the WAIT_ON_INPUT stage.
-      WaitOnInputPhaseDetails wait_on_input_phase_details = 1;
+      // Details specific to the WAIT_ON_AGGREGATION_INPUT stage.
+      WaitOnAggregationInputDetails wait_on_aggregation_input_details = 1;
     }
   }
 
-  // The stage WAIT_ON_INPUT of the aggregator duchy has a bootstrapping step
-  // where it requires input from all other non-aggregators before it can move
-  // forward. The bookkeeping of which duchy has provided is stored in this
-  // message.
-  message WaitOnInputPhaseDetails {
+  // The stage WAIT_ON_AGGREGATION_INPUT of the aggregator duchy has a
+  // bootstrapping step where it requires input from all other non-aggregators
+  // before it can move forward. The bookkeeping of which duchy has provided is
+  // stored in this message.
+  message WaitOnAggregationInputDetails {
     // A mapping of the name of a duchy to the BlobId corresponding to the
     // ComputationBlobDependency.OUTPUT BLOB where it will be written.
     //

@@ -114,9 +114,10 @@ private fun ReachOnlyLiquidLegionsV2.stageExpectingInput(): ComputationStage =
 
 private fun HonestMajorityShareShuffle.stageExpectingInput(): ComputationStage =
   when (description) {
-    HonestMajorityShareShuffle.Description.SHUFFLE_PHASE_INPUT,
+    HonestMajorityShareShuffle.Description.SHUFFLE_PHASE_INPUT ->
+      HonestMajorityShareShuffleProtocol.Stage.WAIT_ON_SHUFFLE_INPUT
     HonestMajorityShareShuffle.Description.AGGREGATION_PHASE_INPUT ->
-      HonestMajorityShareShuffleProtocol.Stage.WAIT_ON_INPUT
+      HonestMajorityShareShuffleProtocol.Stage.WAIT_ON_AGGREGATION_INPUT
     else -> failGrpc { "Unknown HonestMajorityShareShuffle payload description '$description'." }
   }.toProtocolStage()
 

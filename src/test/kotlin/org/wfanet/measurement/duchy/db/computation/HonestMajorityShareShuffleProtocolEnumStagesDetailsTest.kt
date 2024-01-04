@@ -24,8 +24,7 @@ import org.wfanet.measurement.internal.duchy.computationStageDetails
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt.computationDetails
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt.stageDetails
-import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt.waitOnInputPhaseDetails
-import org.wfanet.measurement.internal.duchy.protocol.honestMajorityShareShuffle
+import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt.waitOnAggregationInputDetails
 
 @RunWith(JUnit4::class)
 class HonestMajorityShareShuffleProtocolEnumStagesDetailsTest {
@@ -35,10 +34,10 @@ class HonestMajorityShareShuffleProtocolEnumStagesDetailsTest {
     for (stage in HonestMajorityShareShuffle.Stage.values()) {
       val expected =
         when (stage) {
-          HonestMajorityShareShuffle.Stage.WAIT_ON_INPUT ->
+          HonestMajorityShareShuffle.Stage.WAIT_ON_AGGREGATION_INPUT ->
             computationStageDetails {
               honestMajorityShareShuffle = stageDetails {
-                waitOnInputPhaseDetails = waitOnInputPhaseDetails {
+                waitOnAggregationInputDetails = waitOnAggregationInputDetails {
                   externalDuchyLocalBlobId["worker_1"] = 0L
                   externalDuchyLocalBlobId["worker_2"] = 1L
                   externalDuchyLocalBlobId["worker_3"] = 2L

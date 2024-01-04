@@ -399,7 +399,7 @@ class ComputationControlServiceTest {
   @Test
   fun `honest majority share shuffle sends blob as input`() = runBlocking {
     val id = "444444"
-    val blobKey = "$id/WAIT_ON_INPUT/$BLOB_ID"
+    val blobKey = "$id/WAIT_ON_AGGREGATION_INPUT/$BLOB_ID"
     val carinthiaHeader =
       advanceComputationHeader(HonestMajorityShareShuffle.Description.AGGREGATION_PHASE_INPUT, id)
 
@@ -420,7 +420,7 @@ class ComputationControlServiceTest {
         asyncAdvanceComputationRequest {
           globalComputationId = id
           computationStage =
-            HonestMajorityShareShuffleProtocol.Stage.WAIT_ON_INPUT.toProtocolStage()
+            HonestMajorityShareShuffleProtocol.Stage.WAIT_ON_AGGREGATION_INPUT.toProtocolStage()
           blobId = BLOB_ID
           blobPath = blobKey
         }
@@ -432,7 +432,7 @@ class ComputationControlServiceTest {
   @Test
   fun `honest majority share shuffle sends seed as input`() = runBlocking {
     val id = "444444"
-    val blobKey = "$id/WAIT_ON_INPUT/$BLOB_ID"
+    val blobKey = "$id/WAIT_ON_SHUFFLE_INPUT/$BLOB_ID"
     val carinthiaHeader =
       advanceComputationHeader(HonestMajorityShareShuffle.Description.SHUFFLE_PHASE_INPUT, id, SEED)
 
@@ -444,7 +444,7 @@ class ComputationControlServiceTest {
         asyncAdvanceComputationRequest {
           globalComputationId = id
           computationStage =
-            HonestMajorityShareShuffleProtocol.Stage.WAIT_ON_INPUT.toProtocolStage()
+            HonestMajorityShareShuffleProtocol.Stage.WAIT_ON_SHUFFLE_INPUT.toProtocolStage()
           computationStageInput = computationStageInput {
             honestMajorityShareShuffleShufflePhaseInput = shufflePhaseInput {
               commonRandomSeed = SEED
