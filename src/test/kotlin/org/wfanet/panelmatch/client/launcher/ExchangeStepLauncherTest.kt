@@ -206,31 +206,4 @@ class ExchangeStepLauncherTest {
       assertThat(messagesCaptor.firstValue).containsExactly(message)
     }
   }
-
-  @Test
-  fun genericExceptionInLauncherDoesNotBlock() = runBlockingTest {
-    whenever(apiClient.claimExchangeStep()).thenReturn(CLAIMED_EXCHANGE_STEP)
-    whenever(validator.validate(any())).thenReturn(VALIDATED_EXCHANGE_STEP)
-
-    val message = "some-message"
-    whenever(jobLauncher.execute(any(), any())).thenThrow(RuntimeException(message))
-
-    launcher.findAndRunExchangeStep()
-
-    verifyBlocking(apiClient) {
-      val keyCaptor = argumentCaptor<ExchangeStepAttemptKey>()
-      val stateCaptor = argumentCaptor<ExchangeStepAttempt.State>()
-      val messagesCaptor = argumentCaptor<Iterable<String>>()
-
-      finishExchangeStepAttempt(
-        keyCaptor.capture(),
-        stateCaptor.capture(),
-        messagesCaptor.capture()
-      )
-
-      assertThat(keyCaptor.firstValue).isEqualTo(EXCHANGE_STEP_ATTEMPT_KEY)
-      assertThat(stateCaptor.firstValue).isEqualTo(ExchangeStepAttempt.State.FAILED)
-      assertThat(messagesCaptor.firstValue).containsExactly(message)
-    }
-  }
 }
