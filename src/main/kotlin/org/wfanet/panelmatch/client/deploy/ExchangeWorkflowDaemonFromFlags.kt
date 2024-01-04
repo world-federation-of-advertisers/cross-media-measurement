@@ -111,7 +111,7 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
     )
   }
 
-  private val maxParallelClaimedExchangeSteps: Int? by lazy { flags.maxParallelClaimedExchangeSteps }
+  private val maxParallelClaimedExchangeSteps: Int by lazy { flags.maxParallelClaimedExchangeSteps }
 
   override val apiClient: ApiClient by lazy {
     val exchangeStepsClient = ExchangeStepsCoroutineStub(channel)
