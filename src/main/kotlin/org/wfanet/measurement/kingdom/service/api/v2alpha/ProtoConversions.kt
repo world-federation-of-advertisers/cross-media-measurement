@@ -1087,7 +1087,11 @@ fun Measurement.toInternal(
               }
           }
         }
-        MeasurementSpec.MeasurementTypeCase.POPULATION -> { }
+        MeasurementSpec.MeasurementTypeCase.POPULATION -> {
+          protocolConfig = internalProtocolConfig {
+            direct = InternalProtocolConfig.Direct.getDefaultInstance()
+          }
+        }
         MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
           error("MeasurementType not set.")
       }
