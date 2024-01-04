@@ -1873,6 +1873,7 @@ class MeasurementsServiceTest {
       )
       .isEqualTo(
         internalBatchCreateMeasurementsRequest {
+          externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
           requests += internalCreateMeasurementRequest { measurement = internalMeasurement }
           requests += internalCreateMeasurementRequest { measurement = internalMeasurement }
         }
@@ -1914,6 +1915,7 @@ class MeasurementsServiceTest {
       )
       .isEqualTo(
         internalBatchCreateMeasurementsRequest {
+          externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
           requests += internalCreateMeasurementRequest { measurement = internalMeasurement }
           requests += internalCreateMeasurementRequest { measurement = internalMeasurement }
         }
