@@ -28,6 +28,7 @@ import java.security.cert.X509Certificate
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.math.log2
+import kotlin.math.max
 import kotlin.random.Random
 import kotlin.random.asJavaRandom
 import kotlinx.coroutines.flow.Flow
@@ -83,7 +84,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedMessage
-import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
@@ -1222,7 +1222,7 @@ class EdpSimulator(
    * @param reachValue Direct reach value.
    * @param privacyParams Differential privacy params for reach.
    * @param directNoiseMechanism Selected noise mechanism for direct reach.
-   * @return Noised reach value.
+   * @return Noised non-negative reach value.
    */
   private fun addReachPublisherNoise(
     reachValue: Int,
@@ -1232,7 +1232,7 @@ class EdpSimulator(
     val reachNoiser: AbstractNoiser =
       getPublisherNoiser(privacyParams, directNoiseMechanism, random)
 
-    return reachValue + reachNoiser.sample().toInt()
+    return max(0, reachValue + reachNoiser.sample().toInt())
   }
 
   /**
@@ -1242,7 +1242,7 @@ class EdpSimulator(
    * @param frequencyMap Direct frequency.
    * @param privacyParams Differential privacy params for frequency map.
    * @param directNoiseMechanism Selected noise mechanism for direct frequency.
-   * @return Noised frequency map.
+   * @return Noised non-negative frequency map.
    */
   private fun addFrequencyPublisherNoise(
     reachValue: Int,
@@ -1253,8 +1253,17 @@ class EdpSimulator(
     val frequencyNoiser: AbstractNoiser =
       getPublisherNoiser(privacyParams, directNoiseMechanism, random)
 
-    return frequencyMap.mapValues { (_, percentage) ->
-      (percentage * reachValue.toDouble() + frequencyNoiser.sample()) / reachValue.toDouble()
+    // Add noise to the histogram and cap negative values to zeros.
+    val frequencyHistogram: Map<Int, Double> =
+      frequencyMap.mapValues { (_, percentage) ->
+        max(0.0, percentage * reachValue.toDouble() + frequencyNoiser.sample())
+      }
+    val normalizationTerm: Double = frequencyHistogram.values.sum()
+    // Normalize to get the distribution
+    return if (normalizationTerm != 0.0) {
+      frequencyHistogram.mapValues { (_, count) -> count / normalizationTerm }
+    } else {
+      frequencyHistogram.mapValues { 0.0 }
     }
   }
 
@@ -1514,12 +1523,11 @@ class EdpSimulator(
     nonce: Long,
     measurementResult: Measurement.Result
   ) {
-    val requisitionCertificateKey =
-      DataProviderCertificateKey.fromName(requisition.dataProviderCertificate)
-        ?: throw RequisitionRefusalException(
-          Requisition.Refusal.Justification.UNFULFILLABLE,
-          "Invalid data provider certificate"
-        )
+    DataProviderCertificateKey.fromName(requisition.dataProviderCertificate)
+      ?: throw RequisitionRefusalException(
+        Requisition.Refusal.Justification.UNFULFILLABLE,
+        "Invalid data provider certificate"
+      )
     val measurementEncryptionPublicKey: EncryptionPublicKey =
       if (measurementSpec.hasMeasurementPublicKey()) {
         measurementSpec.measurementPublicKey.unpack()
