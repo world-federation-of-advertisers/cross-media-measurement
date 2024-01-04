@@ -29,7 +29,8 @@ class ExchangeStepLauncher(
   maxParallelExchangeSteps: Int? = null
 ) {
 
-  private val semaphore = if (maxParallelExchangeSteps !== null) Semaphore(maxParallelExchangeSteps) else null
+  private val semaphore =
+    if (maxParallelExchangeSteps !== null) Semaphore(maxParallelExchangeSteps) else null
 
   /**
    * Finds a single ready Exchange Step and starts executing. If an Exchange Step is found,
@@ -39,8 +40,7 @@ class ExchangeStepLauncher(
     if (semaphore !== null) semaphore.acquire()
     val claimedExchangeStep = apiClient.claimExchangeStep()
     if (claimedExchangeStep == null) {
-      if (semaphore !== null)
-        semaphore.release()
+      if (semaphore !== null) semaphore.release()
       return
     }
     val (exchangeStep, attemptKey) = claimedExchangeStep
