@@ -494,7 +494,9 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         startTime = timestamp { seconds = 10 }
         endTime = timestamp { seconds = 100 }
       }
-      metricSpec = metricSpec { populationCount = MetricSpec.PopulationCountParams.getDefaultInstance() }
+      metricSpec = metricSpec {
+        populationCount = MetricSpec.PopulationCountParams.getDefaultInstance()
+      }
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
@@ -2382,7 +2384,9 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           startTime = timestamp { seconds = 10 }
           endTime = timestamp { seconds = 100 }
         }
-        metricSpec = metricSpec { populationCount = MetricSpec.PopulationCountParams.getDefaultInstance() }
+        metricSpec = metricSpec {
+          populationCount = MetricSpec.PopulationCountParams.getDefaultInstance()
+        }
         weightedMeasurements +=
           MetricKt.weightedMeasurement {
             weight = 2

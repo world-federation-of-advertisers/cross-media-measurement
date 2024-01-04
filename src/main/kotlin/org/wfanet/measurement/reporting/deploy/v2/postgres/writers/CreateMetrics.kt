@@ -189,12 +189,10 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
             val reportingSetId: InternalId? = reportingSetMap[it.metric.externalReportingSetId]
             val createTime = Instant.now().atOffset(ZoneOffset.UTC)
             val vidSamplingIntervalStart =
-              if (it.metric.metricSpec.typeCase == MetricSpec.TypeCase.POPULATION_COUNT)
-                0
+              if (it.metric.metricSpec.typeCase == MetricSpec.TypeCase.POPULATION_COUNT) 0
               else it.metric.metricSpec.vidSamplingInterval.start
             val vidSamplingIntervalWidth =
-              if (it.metric.metricSpec.typeCase == MetricSpec.TypeCase.POPULATION_COUNT)
-                0
+              if (it.metric.metricSpec.typeCase == MetricSpec.TypeCase.POPULATION_COUNT) 0
               else it.metric.metricSpec.vidSamplingInterval.width
 
             addBinding {

@@ -130,6 +130,7 @@ import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toInterval
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.config.reporting.MetricSpecConfigKt
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.metricSpecConfig
@@ -195,7 +196,6 @@ import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetric
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsSketchParams as internalReachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
-import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMetricVarianceParams
@@ -1990,7 +1990,9 @@ val PENDING_POPULATION_METRIC =
         )
         .toName()
     state = Metric.State.RUNNING
-    metricSpec = metricSpec { populationCount = MetricSpec.PopulationCountParams.getDefaultInstance() }
+    metricSpec = metricSpec {
+      populationCount = MetricSpec.PopulationCountParams.getDefaultInstance()
+    }
     createTime = INTERNAL_PENDING_POPULATION_METRIC.createTime
   }
 
@@ -2096,8 +2098,7 @@ class MetricsServiceTest {
               PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT,
             PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.name to
               PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT,
-            PENDING_POPULATION_MEASUREMENT.name to
-              PENDING_POPULATION_MEASUREMENT
+            PENDING_POPULATION_MEASUREMENT.name to PENDING_POPULATION_MEASUREMENT
           )
         batchGetMeasurementsResponse {
           measurements +=
@@ -7712,9 +7713,7 @@ class MetricsServiceTest {
       .thenReturn(INTERNAL_PENDING_INITIAL_POPULATION_METRIC)
     whenever(measurementsMock.batchCreateMeasurements(any()))
       .thenReturn(
-        batchCreateMeasurementsResponse {
-          measurements += PENDING_POPULATION_MEASUREMENT
-        }
+        batchCreateMeasurementsResponse { measurements += PENDING_POPULATION_MEASUREMENT }
       )
 
     val request = createMetricRequest {
@@ -7741,7 +7740,9 @@ class MetricsServiceTest {
 
     // Verify proto argument of MeasurementsCoroutineImplBase::createMeasurement
     val measurementsCaptor: KArgumentCaptor<BatchCreateMeasurementsRequest> = argumentCaptor()
-    verifyBlocking(measurementsMock, times(1)) { batchCreateMeasurements(measurementsCaptor.capture()) }
+    verifyBlocking(measurementsMock, times(1)) {
+      batchCreateMeasurements(measurementsCaptor.capture())
+    }
     val capturedMeasurementRequests = measurementsCaptor.allValues
     assertThat(capturedMeasurementRequests)
       .ignoringRepeatedFieldOrder()
