@@ -14,13 +14,8 @@
 
 package org.wfanet.panelmatch.client.launcher
 
-import com.google.common.truth.Truth.assertThat
-import java.time.Duration
 import java.time.LocalDate
-import kotlin.test.assertFailsWith
-import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.time.withTimeout
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4

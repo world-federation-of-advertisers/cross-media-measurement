@@ -27,8 +27,6 @@ import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.deploy.CertificateAuthorityFlags
 import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
 import org.wfanet.panelmatch.client.deploy.example.ExampleDaemon
-import org.wfanet.panelmatch.client.launcher.CoroutineLauncher
-import org.wfanet.panelmatch.client.launcher.ExchangeTaskExecutor
 import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
 import org.wfanet.panelmatch.common.beam.BeamOptions
 import org.wfanet.panelmatch.common.certificates.aws.CertificateAuthority
@@ -147,7 +145,6 @@ private class AwsExampleDaemon : ExampleDaemon() {
       PrivateCaClient(),
     )
   }
-
 }
 
 /** Reference Google Cloud implementation of a daemon for executing Exchange Workflows. */

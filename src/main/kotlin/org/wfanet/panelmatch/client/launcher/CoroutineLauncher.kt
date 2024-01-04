@@ -20,7 +20,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
-import kotlinx.coroutines.sync.Semaphore
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidatedExchangeStep
