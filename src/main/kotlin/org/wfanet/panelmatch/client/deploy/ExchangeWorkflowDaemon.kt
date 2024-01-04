@@ -91,7 +91,11 @@ abstract class ExchangeWorkflowDaemon : Runnable {
     SharedStorageSelector(certificateManager, sharedStorageFactories, sharedStorageInfo)
   }
 
-  protected open val launcher by lazy {
+  protected open val maxParallelExchangeSteps: Int? = null
+
+  override fun run() = runBlocking { runSuspending() }
+
+  suspend fun runSuspending() {
     val stepExecutor =
       ExchangeTaskExecutor(
         apiClient = apiClient,
@@ -99,19 +103,17 @@ abstract class ExchangeWorkflowDaemon : Runnable {
         privateStorageSelector = privateStorageSelector,
         exchangeTaskMapper = exchangeTaskMapper
       )
-    CoroutineLauncher(stepExecutor = stepExecutor)
-  }
 
-  override fun run() = runBlocking { runSuspending() }
-
-  suspend fun runSuspending() {
+    val launcher = CoroutineLauncher(stepExecutor = stepExecutor)
 
     val exchangeStepLauncher =
       ExchangeStepLauncher(
         apiClient = apiClient,
         validator = ExchangeStepValidatorImpl(identity.party, validExchangeWorkflows, clock),
-        jobLauncher = launcher
+        jobLauncher = launcher,
+        maxParallelExchangeSteps = maxParallelExchangeSteps,
       )
+
     runDaemon(exchangeStepLauncher)
   }
 

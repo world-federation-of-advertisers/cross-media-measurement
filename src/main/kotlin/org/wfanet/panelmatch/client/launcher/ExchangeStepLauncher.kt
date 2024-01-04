@@ -14,6 +14,7 @@
 
 package org.wfanet.panelmatch.client.launcher
 
+import kotlinx.coroutines.sync.Semaphore
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
@@ -24,15 +25,25 @@ import org.wfanet.panelmatch.client.launcher.InvalidExchangeStepException.Failur
 class ExchangeStepLauncher(
   private val apiClient: ApiClient,
   private val validator: ExchangeStepValidator,
-  private val jobLauncher: JobLauncher
+  private val jobLauncher: JobLauncher,
+  maxParallelExchangeSteps: Int? = null
 ) {
+
+  private val semaphore = if (maxParallelExchangeSteps !== null) Semaphore(maxParallelExchangeSteps) else null
 
   /**
    * Finds a single ready Exchange Step and starts executing. If an Exchange Step is found,
    * validates it, and starts executing. If not found simply returns.
    */
   suspend fun findAndRunExchangeStep() {
-    val (exchangeStep, attemptKey) = apiClient.claimExchangeStep() ?: return
+    if (semaphore !== null) semaphore.acquire()
+    val claimedExchangeStep = apiClient.claimExchangeStep()
+    if (claimedExchangeStep == null) {
+      if (semaphore !== null)
+        semaphore.release()
+      return
+    }
+    val (exchangeStep, attemptKey) = claimedExchangeStep
 
     try {
       val validatedExchangeStep = validator.validate(exchangeStep)
@@ -40,6 +51,7 @@ class ExchangeStepLauncher(
     } catch (e: Exception) {
       invalidateAttempt(attemptKey, e)
     }
+    if (semaphore !== null) semaphore.release()
   }
 
   private suspend fun invalidateAttempt(attemptKey: ExchangeStepAttemptKey, exception: Exception) {
