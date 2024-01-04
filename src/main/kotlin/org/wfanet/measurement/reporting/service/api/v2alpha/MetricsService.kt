@@ -2160,8 +2160,7 @@ fun buildWeightedFrequencyMeasurementVarianceParams(
       weightedMeasurement,
       metricSpec.vidSamplingInterval,
       metricSpec.reachAndFrequency.reachPrivacyParams
-    )
-      ?: return null
+    ) ?: return null
 
   val reachMeasurementVariance: Double =
     variances.computeMeasurementVariance(
