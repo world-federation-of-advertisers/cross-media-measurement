@@ -1,0 +1,11 @@
+# proto-file: wfa/measurement/reporting/v2alpha/metric.proto
+# proto-message: MetricSpec
+reach {
+  privacy_params {
+    epsilon: 0.0041
+    delta: 1.0E-12
+  }
+}
+vid_sampling_interval {
+  width: 0.01
+}

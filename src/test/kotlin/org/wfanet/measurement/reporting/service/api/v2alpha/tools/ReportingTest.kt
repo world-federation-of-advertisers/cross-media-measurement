@@ -57,21 +57,30 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsResponse
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsResponse
+import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
+import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
+import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
+import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineImplBase
+import org.wfanet.measurement.reporting.v2alpha.createMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.eventGroup
+import org.wfanet.measurement.reporting.v2alpha.getMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsResponse
+import org.wfanet.measurement.reporting.v2alpha.listMetricCalculationSpecsRequest
+import org.wfanet.measurement.reporting.v2alpha.listMetricCalculationSpecsResponse
 import org.wfanet.measurement.reporting.v2alpha.listReportingSetsRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportingSetsResponse
 import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportsResponse
+import org.wfanet.measurement.reporting.v2alpha.metricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.periodicTimeInterval
 import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
@@ -88,6 +97,11 @@ class ReportingTest {
     onBlocking { createReport(any()) }.thenReturn(REPORT)
     onBlocking { listReports(any()) }.thenReturn(listReportsResponse { reports += REPORT })
     onBlocking { getReport(any()) }.thenReturn(REPORT)
+  }
+  private val metricCalculationSpecsServiceMock: MetricCalculationSpecsCoroutineImplBase = mockService {
+    onBlocking { createMetricCalculationSpec(any()) }.thenReturn(METRIC_CALCULATION_SPEC)
+    onBlocking { listMetricCalculationSpecs(any()) }.thenReturn(listMetricCalculationSpecsResponse { metricCalculationSpecs += METRIC_CALCULATION_SPEC })
+    onBlocking { getMetricCalculationSpec(any()) }.thenReturn(METRIC_CALCULATION_SPEC)
   }
   private val eventGroupsServiceMock: EventGroupsCoroutineImplBase = mockService {
     onBlocking { listEventGroups(any()) }
@@ -121,6 +135,7 @@ class ReportingTest {
     listOf(
       reportingSetsServiceMock.bindService(),
       reportsServiceMock.bindService(),
+      metricCalculationSpecsServiceMock.bindService(),
       eventGroupsServiceMock.bindService(),
       dataProvidersServiceMock.bindService(),
       eventGroupMetadataDescriptorsServiceMock.bindService(),
@@ -549,6 +564,134 @@ class ReportingTest {
   }
 
   @Test
+  fun `create metric calculation spec calls api with valid request`() {
+    val textFormatMetricSpecFile =
+      TEXTPROTO_DIR.resolve("metric_spec.textproto").toFile()
+
+    val displayName = "display"
+    val filter = "gender == MALE"
+    val grouping1 = "gender == MALE,gender == FEMALE"
+    val grouping2 = "age == 18_34,age == 55_PLUS"
+    val cumulative = true
+
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "metric-calculation-specs",
+        "create",
+        "--parent=$MEASUREMENT_CONSUMER_NAME",
+        "--id=$METRIC_CALCULATION_SPEC_ID",
+        "--display-name=$displayName",
+        "--metric-spec=${textFormatMetricSpecFile.readText()}",
+        "--filter=$filter",
+        "--grouping=$grouping1",
+        "--grouping=$grouping2",
+        "--cumulative=$cumulative",
+      )
+
+    val output = callCli(args)
+
+    verifyProtoArgument(metricCalculationSpecsServiceMock, MetricCalculationSpecsCoroutineImplBase::createMetricCalculationSpec)
+      .isEqualTo(
+        createMetricCalculationSpecRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          metricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
+          metricCalculationSpec = metricCalculationSpec {
+            this.displayName = displayName
+            metricSpecs +=
+              parseTextProto(
+                textFormatMetricSpecFile,
+                MetricSpec.getDefaultInstance()
+              )
+            this.filter = filter
+            groupings += MetricCalculationSpecKt.grouping {
+              predicates += grouping1.split(',')
+            }
+            groupings += MetricCalculationSpecKt.grouping {
+              predicates += grouping2.split(',')
+            }
+            this.cumulative = cumulative
+          }
+        }
+      )
+
+    assertThat(output).status().isEqualTo(0)
+    assertThat(parseTextProto(output.out.reader(), MetricCalculationSpec.getDefaultInstance())).isEqualTo(
+      METRIC_CALCULATION_SPEC)
+  }
+
+  @Test
+  fun `create metric calculation spec with no --metric-spec fails`() {
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "metric-calculation-specs",
+        "create",
+        "--parent=$MEASUREMENT_CONSUMER_NAME",
+        "--id=$METRIC_CALCULATION_SPEC_ID",
+        "--display-name=display",
+        "--filter='gender == MALE'",
+        "--grouping='gender == MALE,gender == FEMALE'",
+        "--grouping='age == 18_34,age == 55_PLUS'",
+        "--cumulative=true",
+      )
+
+    val capturedOutput = callCli(args)
+
+    assertThat(capturedOutput).status().isEqualTo(2)
+  }
+
+  @Test
+  fun `list metric calculation specs calls api with valid request`() {
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "metric-calculation-specs",
+        "list",
+        "--parent=$MEASUREMENT_CONSUMER_NAME",
+      )
+    callCli(args)
+
+    verifyProtoArgument(metricCalculationSpecsServiceMock, MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs)
+      .isEqualTo(
+        listMetricCalculationSpecsRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          pageSize = 1000
+        }
+      )
+  }
+
+  @Test
+  fun `get metric calculation spec calls api with valid request`() {
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "metric-calculation-specs",
+        "get",
+        METRIC_CALCULATION_SPEC_NAME,
+      )
+    val output = callCli(args)
+
+    verifyProtoArgument(metricCalculationSpecsServiceMock, MetricCalculationSpecsCoroutineImplBase::getMetricCalculationSpec)
+      .isEqualTo(getMetricCalculationSpecRequest { name = METRIC_CALCULATION_SPEC_NAME })
+    assertThat(output).status().isEqualTo(0)
+    assertThat(parseTextProto(output.out.reader(), MetricCalculationSpec.getDefaultInstance())).isEqualTo(
+      METRIC_CALCULATION_SPEC)
+  }
+
+  @Test
   fun `list event groups calls api with valid request`() {
     val args =
       arrayOf(
@@ -725,6 +868,16 @@ class ReportingTest {
     private const val REPORT_ID = "abc"
     private const val REPORT_NAME = "$MEASUREMENT_CONSUMER_NAME/reports/$REPORT_ID"
     private val REPORT = report { name = REPORT_NAME }
+
+    private const val METRIC_CALCULATION_SPEC_ID = "b123"
+    private const val METRIC_CALCULATION_SPEC_NAME =
+      "$MEASUREMENT_CONSUMER_NAME/metricCalculationSpecs/$METRIC_CALCULATION_SPEC_ID"
+    private val METRIC_CALCULATION_SPEC = metricCalculationSpec {
+      name = METRIC_CALCULATION_SPEC_NAME
+      displayName = "displayName"
+      metricSpecs += MetricSpec.getDefaultInstance()
+      cumulative = true
+    }
 
     private const val EVENT_GROUP_NAME = "$MEASUREMENT_CONSUMER_NAME/eventGroups/1"
     private val EVENT_GROUP = eventGroup { name = EVENT_GROUP_NAME }

@@ -38,17 +38,24 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
+import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.createMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
+import org.wfanet.measurement.reporting.v2alpha.getMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
+import org.wfanet.measurement.reporting.v2alpha.listMetricCalculationSpecsRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportingSetsRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
+import org.wfanet.measurement.reporting.v2alpha.metricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.periodicTimeInterval
 import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
@@ -429,6 +436,159 @@ class ReportsCommand : Runnable {
   override fun run() {}
 }
 
+@CommandLine.Command(name = "create", description = ["Create a metric calculation spec"])
+class CreateMetricCalculationSpecCommand : Runnable {
+  @CommandLine.ParentCommand private lateinit var parent: MetricCalculationSpecsCommand
+
+  @CommandLine.Option(
+    names = ["--parent"],
+    description = ["API resource name of the Measurement Consumer"],
+    required = true,
+  )
+  private lateinit var measurementConsumerName: String
+
+  @CommandLine.Option(
+    names = ["--display-name"],
+    description = ["Human-readable name for display purposes"],
+    required = false,
+    defaultValue = ""
+  )
+  private lateinit var displayName: String
+
+  @CommandLine.Option(
+    names = ["--metric-spec"],
+    description = ["MetricSpec protobuf messages in text format"],
+    required = true,
+  )
+  lateinit var textFormatMetricSpecs: List<String>
+
+  @CommandLine.Option(
+    names = ["--grouping"],
+    description = ["Each grouping is a list of comma-separated predicates"],
+    required = false,
+  )
+  lateinit var groupings: List<String>
+
+  @CommandLine.Option(
+    names = ["--filter"],
+    description = ["CEL filter predicate that will be conjoined to any Reporting Set filters"],
+    required = false,
+    defaultValue = ""
+  )
+  private lateinit var filter: String
+
+  @CommandLine.Option(
+    names = ["--cumulative"],
+    description = ["Only supported when used in a Report that uses PeriodicTimeInterval"],
+    required = false,
+  )
+  private var cumulative: Boolean = false
+
+  @CommandLine.Option(
+    names = ["--id"],
+    description = ["Resource ID of the Metric Calculation Spec"],
+    required = true,
+    defaultValue = ""
+  )
+  private lateinit var metricCalculationSpecId: String
+
+  override fun run() {
+    val request = createMetricCalculationSpecRequest {
+      parent = measurementConsumerName
+      metricCalculationSpec = metricCalculationSpec {
+        displayName = this@CreateMetricCalculationSpecCommand.displayName
+        for (textFormatMetricSpec in textFormatMetricSpecs) {
+          metricSpecs +=
+            parseTextProto(
+              textFormatMetricSpec.reader(),
+              MetricSpec.getDefaultInstance()
+            )
+        }
+
+        filter = this@CreateMetricCalculationSpecCommand.filter
+
+        for (grouping in this@CreateMetricCalculationSpecCommand.groupings) {
+          groupings += MetricCalculationSpecKt.grouping {
+            predicates += grouping.trim().split(',')
+          }
+        }
+
+        cumulative = this@CreateMetricCalculationSpecCommand.cumulative
+      }
+
+      metricCalculationSpecId = this@CreateMetricCalculationSpecCommand.metricCalculationSpecId
+    }
+    val metricCalculationSpec = runBlocking(Dispatchers.IO) { parent.metricCalculationSpecsStub.createMetricCalculationSpec(request) }
+
+    println(metricCalculationSpec)
+  }
+}
+
+@CommandLine.Command(name = "list", description = ["List metric calculation specs"])
+class ListMetricCalculationSpecsCommand : Runnable {
+  @CommandLine.ParentCommand private lateinit var parent: MetricCalculationSpecsCommand
+
+  @CommandLine.Option(
+    names = ["--parent"],
+    description = ["API resource name of the Measurement Consumer"],
+    required = true,
+  )
+  private lateinit var measurementConsumerName: String
+
+  @CommandLine.Mixin private lateinit var pageParams: PageParams
+
+  override fun run() {
+    val request = listMetricCalculationSpecsRequest {
+      parent = measurementConsumerName
+      pageSize = pageParams.pageSize
+      pageToken = pageParams.pageToken
+    }
+
+    val response = runBlocking(Dispatchers.IO) { parent.metricCalculationSpecsStub.listMetricCalculationSpecs(request) }
+
+    response.metricCalculationSpecsList.forEach { println(it.name) }
+    if (response.nextPageToken.isNotEmpty()) {
+      println("nextPageToken: ${response.nextPageToken}")
+    }
+  }
+}
+
+@CommandLine.Command(name = "get", description = ["Get a metric calculation spec"])
+class GetMetricCalculationSpecCommand : Runnable {
+  @CommandLine.ParentCommand private lateinit var parent: MetricCalculationSpecsCommand
+
+  @CommandLine.Parameters(
+    description = ["API resource name of the Metric Calculation Spec"],
+  )
+  private lateinit var metricCalculationSpecName: String
+
+  override fun run() {
+    val request = getMetricCalculationSpecRequest { name = metricCalculationSpecName }
+
+    val metricCalculationSpec = runBlocking(Dispatchers.IO) { parent.metricCalculationSpecsStub.getMetricCalculationSpec(request) }
+    println(metricCalculationSpec)
+  }
+}
+
+@CommandLine.Command(
+  name = "metric-calculation-specs",
+  sortOptions = false,
+  subcommands =
+  [
+    CommandLine.HelpCommand::class,
+    CreateMetricCalculationSpecCommand::class,
+    ListMetricCalculationSpecsCommand::class,
+    GetMetricCalculationSpecCommand::class,
+  ]
+)
+class MetricCalculationSpecsCommand : Runnable {
+  @CommandLine.ParentCommand lateinit var parent: Reporting
+
+  val metricCalculationSpecsStub: MetricCalculationSpecsCoroutineStub by lazy { MetricCalculationSpecsCoroutineStub(parent.channel) }
+
+  override fun run() {}
+}
+
 @CommandLine.Command(name = "list", description = ["List event groups"])
 class ListEventGroups : Runnable {
   @CommandLine.ParentCommand private lateinit var parent: EventGroupsCommand
@@ -596,6 +756,7 @@ class EventGroupMetadataDescriptorsCommand : Runnable {
       CommandLine.HelpCommand::class,
       ReportingSetsCommand::class,
       ReportsCommand::class,
+      MetricCalculationSpecsCommand::class,
       EventGroupsCommand::class,
       DataProvidersCommand::class,
       EventGroupMetadataDescriptorsCommand::class,
@@ -625,7 +786,8 @@ class Reporting : Runnable {
 }
 
 /**
- * Reporting Set, Report, Event Group, Event Group Metadata Descriptor, and Data Provider methods.
+ * Reporting Set, Report, Metric Calculation Spec, Event Group, Event Group Metadata Descriptor, and
+ * Data Provider methods.
  *
  * Use the `help` command to see usage details.
  */

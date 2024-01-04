@@ -98,20 +98,7 @@ Reporting \
   --reporting-metric-entry='
       key: "measurementConsumers/VCTqwV_vFXw/reportingSets/abc"
       value {
-        metric_calculation_specs {
-          display_name: "spec_1"
-          metric_specs {
-            reach {
-              privacy_params {
-                epsilon: 0.0041
-                delta: 1.0E-12
-              }
-            }
-            vid_sampling_interval {
-              width: 0.01
-            }
-          }
-        }
+        metric_calculation_specs: "measurementConsumers/Dipo47pr5to/metricCalculationSpecs/abc"
       }
   '
 ```
@@ -147,6 +134,76 @@ Reporting \
   --cert-collection-file=secretfiles/reporting_root.pem \
   --reporting-server-api-target=v2alpha.reporting.dev.halo-cmm.org:8443 \
   reports get measurementConsumers/VCTqwV_vFXw/reports/abcd
+```
+
+### metric-calculation-specs
+
+#### create
+
+```shell
+Reporting \
+  --tls-cert-file=secretfiles/mc_tls.pem \
+  --tls-key-file=secretfiles/mc_tls.key \
+  --cert-collection-file=secretfiles/reporting_root.pem \
+  --reporting-server-api-target=v2alpha.reporting.dev.halo-cmm.org:8443 \
+  metric-calculation-specs create \
+  --parent=measurementConsumers/VCTqwV_vFXw \
+  --id=abcd \
+  --display-name=display \
+  --metric-spec='
+    reach {
+      privacy_params {
+        epsilon: 0.0041
+        delta: 1.0E-12
+      }
+    }
+    vid_sampling_interval {
+      width: 0.01
+    }
+  ' \
+  --metric-spec='
+    impression {
+      privacy_params {
+        epsilon: 0.0041
+        delta: 1.0E-12
+      }
+    }
+    vid_sampling_interval {
+      width: 0.01
+    }
+  ' \
+  --filter='gender == MALE' \
+  --grouping='gender == MALE,gender == FEMALE' \
+  --grouping='age == 18_34,age == 55_PLUS' \
+  --cumulative=true
+```
+
+The `--metric-spec` option expects a
+[`MetricSpec`](../../../../../../../../../proto/wfa/measurement/reporting/v2alpha/metric.proto)
+protobuf message in text format. You can use shell quoting for a multiline string, or
+use command substitution to read the message from a file e.g. `--metric-spec=$(cat
+metric_spec.textproto)`.
+
+#### list
+
+```shell
+Reporting \
+  --tls-cert-file=secretfiles/mc_tls.pem \
+  --tls-key-file=secretfiles/mc_tls.key \
+  --cert-collection-file=secretfiles/reporting_root.pem \
+  --reporting-server-api-target=v2alpha.reporting.dev.halo-cmm.org:8443 \
+  metric-calculation-specs list --parent=measurementConsumers/VCTqwV_vFXw
+```
+
+#### get
+
+```shell
+Reporting \
+  --tls-cert-file=secretfiles/mc_tls.pem \
+  --tls-key-file=secretfiles/mc_tls.key \
+  --cert-collection-file=secretfiles/reporting_root.pem \
+  --reporting-server-api-target=v2alpha.reporting.dev.halo-cmm.org:8443 \
+  metric-calculation-specs get measurementConsumers/VCTqwV_vFXw/metricCalculationSpecs/abcd
 ```
 
 ### event-groups
