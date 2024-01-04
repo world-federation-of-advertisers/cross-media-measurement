@@ -144,11 +144,11 @@ const drawMultiLines = (svg, groups, groupColors) => {
 
 const drawBar = (svg, data, x, y, groupColors) => {
     svg.append("g")
-        .attr("fill", "none")
+        // .attr("fill", "none")
         .selectAll()
         .data(data)
         .join("rect")
-        .attr("stroke", function(d){ return groupColors[d.group] })
+        .attr("fill", function(d){ return groupColors[d.group] })
         .attr("x", (d) => x(d.date))
         .attr("y", (d) => y(d.value))
         .attr("height", (d) => y(0) - y(d.value))

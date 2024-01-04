@@ -118,7 +118,8 @@ const getImpressionsAndFrequencies = (report: Report): iAndF => {
         }
         dict[pps.sourceName].impressions += fixNumber(pps.impressionCount.count);
         dict[pps.sourceName].averageFrequency += pps.frequencyHistogram[1];
-        dict[pps.sourceName].reach += Number(pps.reach);
+        dict[pps.sourceName].reach += fixNumber(pps.reach);
+        // dict[pps.sourceName].uniqueReach += fixNumber(pps.)
 
         // Just get the impressions
         impressions.push({
@@ -131,7 +132,7 @@ const getImpressionsAndFrequencies = (report: Report): iAndF => {
           frequencies.push({
             group: `${pps.sourceName}|${db.demoCategoryName}`,
             value,
-            date: key,
+            date: `${key}+`,
           });
         });
       })

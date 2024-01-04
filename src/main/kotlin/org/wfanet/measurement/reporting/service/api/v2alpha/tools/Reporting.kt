@@ -150,6 +150,14 @@ class CreateReportingSetCommand : Runnable {
   )
   private lateinit var reportingSetId: String
 
+  @CommandLine.Option(
+    names = ["--tags"],
+    description = ["Tags for the Reporting Set"],
+    required = false,
+    defaultValue = ""
+  )
+  private lateinit var myTags: Array<String>
+
   override fun run() {
     val request = createReportingSetRequest {
       parent = measurementConsumerName
@@ -169,6 +177,12 @@ class CreateReportingSetCommand : Runnable {
         }
         filter = filterExpression
         displayName = displayNameInput
+        if (myTags!!.isNotEmpty()) {
+          for (tag in myTags) {
+            val (key, value) = tag.split("=")
+            tags.put(key, value)
+          }
+        }
       }
       reportingSetId = this@CreateReportingSetCommand.reportingSetId
     }

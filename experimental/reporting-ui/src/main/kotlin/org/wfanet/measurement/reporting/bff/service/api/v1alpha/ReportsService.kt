@@ -146,10 +146,9 @@ class ReportsService(private val backendReportsStub: BackendReportsGrpcKt.Report
     )
 
     // Map the result attributes to the reporting sets so we can set the RS name later
-    // val rsByMcr = mutableMapOf<BackendReport.MetricCalculationResult.ResultAttribute, String>()
-    val rsByMcr = mutableMapOf<String, String>()
+    val rsByMcr = mutableMapOf<BackendReport.MetricCalculationResult.ResultAttribute, String>()
     for (mcr in source.metricCalculationResultsList) {
-      val rsName = mcr.reportingSet // TODO: This will come from tags on the RS
+      val rsName = mcr.reportingSet // TODO: This will come from display_name on the RS, will also need to fetch the reporting set to get this
       for (ra in mcr.resultAttributesList) {
         rsByMcr[ra.toString()] = rsName
       }
@@ -184,7 +183,7 @@ class ReportsService(private val backendReportsStub: BackendReportsGrpcKt.Report
               // Result Attributes from the time group and grouping predicate
               // The Result Attributes come multiple times in some cases (frequency and impressions are separate)
               // so they need to be grouped and merged.
-              val pubGroup = demo.value.groupBy{rsByMcr[it.toString()]!!}
+              val pubGroup = demo.value.groupBy{rsByMcr[it]!!}
               for (pub in pubGroup) {
                 val pubName = pub.key
                 val metrs = sourceMetrics {
