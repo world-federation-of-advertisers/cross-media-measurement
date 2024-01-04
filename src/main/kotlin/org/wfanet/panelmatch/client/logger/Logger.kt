@@ -23,7 +23,7 @@ import org.wfanet.panelmatch.common.ExchangeDateKey
 
 class TaskLog(val name: String) : CoroutineContext.Element {
   constructor(exchangeDateKey: ExchangeDateKey) : this(exchangeDateKey.path)
-  
+
   override val key = Key
   val logs: MutableList<String> = synchronizedList(mutableListOf())
 
