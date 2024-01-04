@@ -247,6 +247,11 @@ REPORTING_V2_COMMON_IMAGES = [
         image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/server:v2alpha_public_api_server_image",
         repository = _PREFIX + "/reporting/v2/v2alpha-public-api",
     ),
+    struct(
+        name = "report_scheduling_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/job:report_scheduling_job_executor_image",
+        repository = _PREFIX + "/reporting/v2/report-scheduling",
+    ),
 ]
 
 REPORTING_V2_LOCAL_IMAGES = [
