@@ -143,9 +143,6 @@ private class AwsExampleDaemon : ExampleDaemon() {
       PrivateCaClient(),
     )
   }
-
-  // TODO: Pass this in as a flag
-  override val maxParallelExchangeSteps = 1
 }
 
 /** Reference Google Cloud implementation of a daemon for executing Exchange Workflows. */

@@ -91,8 +91,6 @@ abstract class ExchangeWorkflowDaemon : Runnable {
     SharedStorageSelector(certificateManager, sharedStorageFactories, sharedStorageInfo)
   }
 
-  protected open val maxParallelExchangeSteps: Int? = null
-
   override fun run() = runBlocking { runSuspending() }
 
   suspend fun runSuspending() {
@@ -110,8 +108,7 @@ abstract class ExchangeWorkflowDaemon : Runnable {
       ExchangeStepLauncher(
         apiClient = apiClient,
         validator = ExchangeStepValidatorImpl(identity.party, validExchangeWorkflows, clock),
-        jobLauncher = launcher,
-        maxParallelExchangeSteps = maxParallelExchangeSteps,
+        jobLauncher = launcher
       )
 
     runDaemon(exchangeStepLauncher)
