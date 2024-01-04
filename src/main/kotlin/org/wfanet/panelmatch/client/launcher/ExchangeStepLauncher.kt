@@ -37,7 +37,10 @@ class ExchangeStepLauncher(
    * validates it, and starts executing. If not found simply returns.
    */
   suspend fun findAndRunExchangeStep() {
-    if (semaphore !== null) semaphore.acquire()
+    if (semaphore !== null) {
+      val semaphoreAcquired = semaphore.tryAcquire()
+      if (!semaphoreAcquired) return
+    }
     val claimedExchangeStep = apiClient.claimExchangeStep()
     if (claimedExchangeStep == null) {
       if (semaphore !== null) semaphore.release()
