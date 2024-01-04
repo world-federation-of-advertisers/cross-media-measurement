@@ -499,18 +499,13 @@ class CreateMetricCalculationSpecCommand : Runnable {
         displayName = this@CreateMetricCalculationSpecCommand.displayName
         for (textFormatMetricSpec in textFormatMetricSpecs) {
           metricSpecs +=
-            parseTextProto(
-              textFormatMetricSpec.reader(),
-              MetricSpec.getDefaultInstance()
-            )
+            parseTextProto(textFormatMetricSpec.reader(), MetricSpec.getDefaultInstance())
         }
 
         filter = this@CreateMetricCalculationSpecCommand.filter
 
         for (grouping in this@CreateMetricCalculationSpecCommand.groupings) {
-          groupings += MetricCalculationSpecKt.grouping {
-            predicates += grouping.trim().split(',')
-          }
+          groupings += MetricCalculationSpecKt.grouping { predicates += grouping.trim().split(',') }
         }
 
         cumulative = this@CreateMetricCalculationSpecCommand.cumulative
@@ -518,7 +513,10 @@ class CreateMetricCalculationSpecCommand : Runnable {
 
       metricCalculationSpecId = this@CreateMetricCalculationSpecCommand.metricCalculationSpecId
     }
-    val metricCalculationSpec = runBlocking(Dispatchers.IO) { parent.metricCalculationSpecsStub.createMetricCalculationSpec(request) }
+    val metricCalculationSpec =
+      runBlocking(Dispatchers.IO) {
+        parent.metricCalculationSpecsStub.createMetricCalculationSpec(request)
+      }
 
     println(metricCalculationSpec)
   }
@@ -544,7 +542,10 @@ class ListMetricCalculationSpecsCommand : Runnable {
       pageToken = pageParams.pageToken
     }
 
-    val response = runBlocking(Dispatchers.IO) { parent.metricCalculationSpecsStub.listMetricCalculationSpecs(request) }
+    val response =
+      runBlocking(Dispatchers.IO) {
+        parent.metricCalculationSpecsStub.listMetricCalculationSpecs(request)
+      }
 
     response.metricCalculationSpecsList.forEach { println(it.name) }
     if (response.nextPageToken.isNotEmpty()) {
@@ -565,7 +566,10 @@ class GetMetricCalculationSpecCommand : Runnable {
   override fun run() {
     val request = getMetricCalculationSpecRequest { name = metricCalculationSpecName }
 
-    val metricCalculationSpec = runBlocking(Dispatchers.IO) { parent.metricCalculationSpecsStub.getMetricCalculationSpec(request) }
+    val metricCalculationSpec =
+      runBlocking(Dispatchers.IO) {
+        parent.metricCalculationSpecsStub.getMetricCalculationSpec(request)
+      }
     println(metricCalculationSpec)
   }
 }
@@ -574,17 +578,19 @@ class GetMetricCalculationSpecCommand : Runnable {
   name = "metric-calculation-specs",
   sortOptions = false,
   subcommands =
-  [
-    CommandLine.HelpCommand::class,
-    CreateMetricCalculationSpecCommand::class,
-    ListMetricCalculationSpecsCommand::class,
-    GetMetricCalculationSpecCommand::class,
-  ]
+    [
+      CommandLine.HelpCommand::class,
+      CreateMetricCalculationSpecCommand::class,
+      ListMetricCalculationSpecsCommand::class,
+      GetMetricCalculationSpecCommand::class,
+    ]
 )
 class MetricCalculationSpecsCommand : Runnable {
   @CommandLine.ParentCommand lateinit var parent: Reporting
 
-  val metricCalculationSpecsStub: MetricCalculationSpecsCoroutineStub by lazy { MetricCalculationSpecsCoroutineStub(parent.channel) }
+  val metricCalculationSpecsStub: MetricCalculationSpecsCoroutineStub by lazy {
+    MetricCalculationSpecsCoroutineStub(parent.channel)
+  }
 
   override fun run() {}
 }

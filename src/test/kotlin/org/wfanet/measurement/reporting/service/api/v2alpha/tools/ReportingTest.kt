@@ -98,11 +98,15 @@ class ReportingTest {
     onBlocking { listReports(any()) }.thenReturn(listReportsResponse { reports += REPORT })
     onBlocking { getReport(any()) }.thenReturn(REPORT)
   }
-  private val metricCalculationSpecsServiceMock: MetricCalculationSpecsCoroutineImplBase = mockService {
-    onBlocking { createMetricCalculationSpec(any()) }.thenReturn(METRIC_CALCULATION_SPEC)
-    onBlocking { listMetricCalculationSpecs(any()) }.thenReturn(listMetricCalculationSpecsResponse { metricCalculationSpecs += METRIC_CALCULATION_SPEC })
-    onBlocking { getMetricCalculationSpec(any()) }.thenReturn(METRIC_CALCULATION_SPEC)
-  }
+  private val metricCalculationSpecsServiceMock: MetricCalculationSpecsCoroutineImplBase =
+    mockService {
+      onBlocking { createMetricCalculationSpec(any()) }.thenReturn(METRIC_CALCULATION_SPEC)
+      onBlocking { listMetricCalculationSpecs(any()) }
+        .thenReturn(
+          listMetricCalculationSpecsResponse { metricCalculationSpecs += METRIC_CALCULATION_SPEC }
+        )
+      onBlocking { getMetricCalculationSpec(any()) }.thenReturn(METRIC_CALCULATION_SPEC)
+    }
   private val eventGroupsServiceMock: EventGroupsCoroutineImplBase = mockService {
     onBlocking { listEventGroups(any()) }
       .thenReturn(listEventGroupsResponse { eventGroups += EVENT_GROUP })
@@ -565,8 +569,7 @@ class ReportingTest {
 
   @Test
   fun `create metric calculation spec calls api with valid request`() {
-    val textFormatMetricSpecFile =
-      TEXTPROTO_DIR.resolve("metric_spec.textproto").toFile()
+    val textFormatMetricSpecFile = TEXTPROTO_DIR.resolve("metric_spec.textproto").toFile()
 
     val displayName = "display"
     val filter = "gender == MALE"
@@ -594,33 +597,28 @@ class ReportingTest {
 
     val output = callCli(args)
 
-    verifyProtoArgument(metricCalculationSpecsServiceMock, MetricCalculationSpecsCoroutineImplBase::createMetricCalculationSpec)
+    verifyProtoArgument(
+        metricCalculationSpecsServiceMock,
+        MetricCalculationSpecsCoroutineImplBase::createMetricCalculationSpec
+      )
       .isEqualTo(
         createMetricCalculationSpecRequest {
           parent = MEASUREMENT_CONSUMER_NAME
           metricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
           metricCalculationSpec = metricCalculationSpec {
             this.displayName = displayName
-            metricSpecs +=
-              parseTextProto(
-                textFormatMetricSpecFile,
-                MetricSpec.getDefaultInstance()
-              )
+            metricSpecs += parseTextProto(textFormatMetricSpecFile, MetricSpec.getDefaultInstance())
             this.filter = filter
-            groupings += MetricCalculationSpecKt.grouping {
-              predicates += grouping1.split(',')
-            }
-            groupings += MetricCalculationSpecKt.grouping {
-              predicates += grouping2.split(',')
-            }
+            groupings += MetricCalculationSpecKt.grouping { predicates += grouping1.split(',') }
+            groupings += MetricCalculationSpecKt.grouping { predicates += grouping2.split(',') }
             this.cumulative = cumulative
           }
         }
       )
 
     assertThat(output).status().isEqualTo(0)
-    assertThat(parseTextProto(output.out.reader(), MetricCalculationSpec.getDefaultInstance())).isEqualTo(
-      METRIC_CALCULATION_SPEC)
+    assertThat(parseTextProto(output.out.reader(), MetricCalculationSpec.getDefaultInstance()))
+      .isEqualTo(METRIC_CALCULATION_SPEC)
   }
 
   @Test
@@ -661,7 +659,10 @@ class ReportingTest {
       )
     callCli(args)
 
-    verifyProtoArgument(metricCalculationSpecsServiceMock, MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs)
+    verifyProtoArgument(
+        metricCalculationSpecsServiceMock,
+        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs
+      )
       .isEqualTo(
         listMetricCalculationSpecsRequest {
           parent = MEASUREMENT_CONSUMER_NAME
@@ -684,11 +685,14 @@ class ReportingTest {
       )
     val output = callCli(args)
 
-    verifyProtoArgument(metricCalculationSpecsServiceMock, MetricCalculationSpecsCoroutineImplBase::getMetricCalculationSpec)
+    verifyProtoArgument(
+        metricCalculationSpecsServiceMock,
+        MetricCalculationSpecsCoroutineImplBase::getMetricCalculationSpec
+      )
       .isEqualTo(getMetricCalculationSpecRequest { name = METRIC_CALCULATION_SPEC_NAME })
     assertThat(output).status().isEqualTo(0)
-    assertThat(parseTextProto(output.out.reader(), MetricCalculationSpec.getDefaultInstance())).isEqualTo(
-      METRIC_CALCULATION_SPEC)
+    assertThat(parseTextProto(output.out.reader(), MetricCalculationSpec.getDefaultInstance()))
+      .isEqualTo(METRIC_CALCULATION_SPEC)
   }
 
   @Test
