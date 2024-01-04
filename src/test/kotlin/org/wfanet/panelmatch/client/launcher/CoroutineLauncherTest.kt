@@ -45,7 +45,7 @@ class CoroutineLauncherTest {
 
   @Test
   fun launches() = runBlockingTest {
-    val launcher = CoroutineLauncher(stepExecutor = stepExecutor, maxCoroutines = 2)
+    val launcher = CoroutineLauncher(stepExecutor = stepExecutor)
     val workflowStep = step {
       this.commutativeDeterministicEncryptStep = commutativeDeterministicEncryptStep {}
     }
@@ -92,51 +92,5 @@ class CoroutineLauncherTest {
     val stepCaptor = argumentCaptor<ValidatedExchangeStep>()
     val attemptKeyCaptor = argumentCaptor<CanonicalExchangeStepAttemptKey>()
     verify(stepExecutor, times(2)).execute(stepCaptor.capture(), attemptKeyCaptor.capture())
-  }
-
-  @Test
-  fun timesOutWithSingleCoroutineThatNeverCompletes() = runBlockingTest {
-    val launcher = CoroutineLauncher(stepExecutor = stepExecutor, maxCoroutines = 1)
-    val workflowStep = step {
-      this.commutativeDeterministicEncryptStep = commutativeDeterministicEncryptStep {}
-    }
-    val workflow = buildWorkflow(workflowStep, "some-edp", "some-mp")
-
-    val startLatch1 = CountDownLatch(1)
-    val startLatch2 = CountDownLatch(1)
-    val endLatch1 = CountDownLatch(1)
-    val endLatch2 = CountDownLatch(1)
-
-    val attemptKey1 = CanonicalExchangeStepAttemptKey("a", "b", "c", "d")
-    val attemptKey2 = CanonicalExchangeStepAttemptKey("w", "x", "y", "z")
-
-    whenever(stepExecutor.execute(any(), eq(attemptKey1))).thenAnswer {
-      runBlocking {
-        startLatch1.countDown()
-        endLatch1.await()
-      }
-    }
-    whenever(stepExecutor.execute(any(), eq(attemptKey2))).thenAnswer {
-      runBlocking {
-        startLatch2.countDown()
-        endLatch2.await()
-      }
-    }
-    val date = LocalDate.of(2021, 11, 29)
-
-    val validatedExchangeStep = ValidatedExchangeStep(workflow, workflow.getSteps(0), date)
-
-    launcher.execute(validatedExchangeStep, attemptKey1)
-    launcher.execute(validatedExchangeStep, attemptKey2)
-
-    startLatch1.await()
-    assertFailsWith<TimeoutCancellationException> {
-      withTimeout(Duration.ofSeconds(10)) { startLatch2.await() }
-    }
-    val stepCaptor = argumentCaptor<ValidatedExchangeStep>()
-    val attemptKeyCaptor = argumentCaptor<CanonicalExchangeStepAttemptKey>()
-    verify(stepExecutor, times(1)).execute(stepCaptor.capture(), attemptKeyCaptor.capture())
-    assertThat(stepCaptor.firstValue).isEqualTo(validatedExchangeStep)
-    assertThat(attemptKeyCaptor.firstValue).isEqualTo(attemptKey1)
   }
 }

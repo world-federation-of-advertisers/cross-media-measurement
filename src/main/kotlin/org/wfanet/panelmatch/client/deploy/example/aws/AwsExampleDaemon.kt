@@ -148,16 +148,6 @@ private class AwsExampleDaemon : ExampleDaemon() {
     )
   }
 
-  override val launcher by lazy {
-    val stepExecutor =
-      ExchangeTaskExecutor(
-        apiClient = apiClient,
-        timeout = taskTimeout,
-        privateStorageSelector = privateStorageSelector,
-        exchangeTaskMapper = exchangeTaskMapper
-      )
-    CoroutineLauncher(stepExecutor = stepExecutor, maxCoroutines = 1)
-  }
 }
 
 /** Reference Google Cloud implementation of a daemon for executing Exchange Workflows. */
