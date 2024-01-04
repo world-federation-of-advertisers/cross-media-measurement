@@ -51,8 +51,10 @@ import org.wfanet.measurement.internal.duchy.computationStageDetails
 import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 import org.wfanet.measurement.internal.duchy.getOutputBlobMetadataRequest
-import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage as Llv2Stage
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt
+import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage as HmssStage
+import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt
 
 @RunWith(JUnit4::class)
 class AsyncComputationControlServiceTest {
@@ -97,7 +99,7 @@ class AsyncComputationControlServiceTest {
       val tokenToWrite =
         ComputationToken.newBuilder()
           .apply {
-            computationStage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
+            computationStage = Llv2Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
             addBlobs(newInputBlobMetadata(0L, "input-to-the-stage"))
             addBlobs(newEmptyOutputBlobMetadata(1L))
             computationDetails = detailsFor(RoleInComputation.AGGREGATOR)
@@ -119,7 +121,7 @@ class AsyncComputationControlServiceTest {
         AdvanceComputationRequest.newBuilder()
           .apply {
             globalComputationId = COMPUTATION_ID
-            computationStage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
+            computationStage = Llv2Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
             blobId = 1L
             blobPath = BLOB_KEY
           }
@@ -140,7 +142,7 @@ class AsyncComputationControlServiceTest {
           AdvanceComputationStageRequest.newBuilder()
             .apply {
               token = tokenToAdvance
-              nextComputationStage = Stage.EXECUTION_PHASE_ONE.toProtocolStage()
+              nextComputationStage = Llv2Stage.EXECUTION_PHASE_ONE.toProtocolStage()
               addInputBlobs(BLOB_KEY)
               outputBlobs = 1
               stageDetails = ComputationStageDetails.getDefaultInstance()
@@ -156,7 +158,7 @@ class AsyncComputationControlServiceTest {
     val tokenBeforeRecord =
       ComputationToken.newBuilder()
         .apply {
-          computationStage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
+          computationStage = Llv2Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
           addBlobs(newPassThroughBlobMetadata(0L, "pass-through-blob"))
           addBlobs(newEmptyOutputBlobMetadata(1L))
           addBlobs(newEmptyOutputBlobMetadata(2L))
@@ -187,7 +189,7 @@ class AsyncComputationControlServiceTest {
       AdvanceComputationRequest.newBuilder()
         .apply {
           globalComputationId = COMPUTATION_ID
-          computationStage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
+          computationStage = Llv2Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
           blobId = 1L
           blobPath = BLOB_KEY
         }
@@ -213,7 +215,7 @@ class AsyncComputationControlServiceTest {
       val tokenBeforeRecord =
         ComputationToken.newBuilder()
           .apply {
-            computationStage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
+            computationStage = Llv2Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
             addBlobs(newPassThroughBlobMetadata(0L, "pass-through-blob"))
             addBlobs(newEmptyOutputBlobMetadata(1L))
             addBlobs(newOutputBlobMetadata(2L, "written-output"))
@@ -244,7 +246,7 @@ class AsyncComputationControlServiceTest {
         AdvanceComputationRequest.newBuilder()
           .apply {
             globalComputationId = COMPUTATION_ID
-            computationStage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
+            computationStage = Llv2Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
             blobId = 1L
             blobPath = BLOB_KEY
           }
@@ -265,7 +267,7 @@ class AsyncComputationControlServiceTest {
           AdvanceComputationStageRequest.newBuilder()
             .apply {
               token = tokenAfterRecord
-              nextComputationStage = Stage.SETUP_PHASE.toProtocolStage()
+              nextComputationStage = Llv2Stage.SETUP_PHASE.toProtocolStage()
               addInputBlobs("pass-through")
               addInputBlobs(BLOB_KEY)
               addInputBlobs("previously-written-output")
@@ -284,7 +286,7 @@ class AsyncComputationControlServiceTest {
       val tokenOfAlreadyRecordedOutput =
         ComputationToken.newBuilder()
           .apply {
-            computationStage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
+            computationStage = Llv2Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
             addBlobs(newOutputBlobMetadata(1L, BLOB_KEY))
             computationDetails = detailsFor(RoleInComputation.NON_AGGREGATOR)
           }
@@ -297,7 +299,7 @@ class AsyncComputationControlServiceTest {
         AdvanceComputationRequest.newBuilder()
           .apply {
             globalComputationId = COMPUTATION_ID
-            computationStage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
+            computationStage = Llv2Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
             blobId = 1L
             blobPath = BLOB_KEY
           }
@@ -310,7 +312,7 @@ class AsyncComputationControlServiceTest {
           AdvanceComputationStageRequest.newBuilder()
             .apply {
               token = tokenOfAlreadyRecordedOutput
-              nextComputationStage = Stage.EXECUTION_PHASE_ONE.toProtocolStage()
+              nextComputationStage = Llv2Stage.EXECUTION_PHASE_ONE.toProtocolStage()
               addInputBlobs(BLOB_KEY)
               outputBlobs = 1
               stageDetails = ComputationStageDetails.getDefaultInstance()
@@ -326,7 +328,7 @@ class AsyncComputationControlServiceTest {
     val tokenOfAlreadyRecordedOutput =
       ComputationToken.newBuilder()
         .apply {
-          computationStage = Stage.EXECUTION_PHASE_ONE.toProtocolStage()
+          computationStage = Llv2Stage.EXECUTION_PHASE_ONE.toProtocolStage()
           addBlobs(newOutputBlobMetadata(1L, BLOB_KEY))
           computationDetails = detailsFor(RoleInComputation.NON_AGGREGATOR)
         }
@@ -339,7 +341,7 @@ class AsyncComputationControlServiceTest {
       AdvanceComputationRequest.newBuilder()
         .apply {
           globalComputationId = COMPUTATION_ID
-          computationStage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
+          computationStage = Llv2Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
           blobId = 1L
           blobPath = BLOB_KEY
         }
@@ -351,7 +353,7 @@ class AsyncComputationControlServiceTest {
 
   @Test
   fun `advanceComputation throws ABORTED when stage does not match`() = runBlocking {
-    val actualStage = Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS.toProtocolStage()
+    val actualStage = Llv2Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS.toProtocolStage()
     val oldToken = computationToken {
       computationStage = actualStage
       blobs += newEmptyOutputBlobMetadata(1L)
@@ -365,7 +367,7 @@ class AsyncComputationControlServiceTest {
           AdvanceComputationRequest.newBuilder()
             .apply {
               globalComputationId = COMPUTATION_ID
-              computationStage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
+              computationStage = Llv2Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
               blobId = 1L
               blobPath = BLOB_KEY
             }
@@ -382,7 +384,7 @@ class AsyncComputationControlServiceTest {
   @Test
   fun `getBlobOutputMetadata returns by origin Duchy in LLv2 WAIT_SETUP_PHASE_INPUTS`() {
     val token = computationToken {
-      computationStage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
+      computationStage = Llv2Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
       blobs += newPassThroughBlobMetadata(0L, "pass-through-blob")
       blobs += newEmptyOutputBlobMetadata(1L)
       blobs += newEmptyOutputBlobMetadata(2L)
@@ -420,9 +422,45 @@ class AsyncComputationControlServiceTest {
   }
 
   @Test
+  fun `getBlobOutputMetadata returns by origin Duchy in HMSS WAIT_AGGREGATION_PHASE`() = runBlocking {
+    val token = computationToken {
+      computationStage = HmssStage.WAIT_ON_AGGREGATION_INPUT.toProtocolStage()
+      blobs += newEmptyOutputBlobMetadata(1L)
+      blobs += newEmptyOutputBlobMetadata(2L)
+      stageSpecificDetails = computationStageDetails {
+        honestMajorityShareShuffle = HonestMajorityShareShuffleKt.stageDetails {
+          waitOnAggregationInputDetails =
+            HonestMajorityShareShuffleKt.waitOnAggregationInputDetails {
+              externalDuchyLocalBlobId["Buck"] = 1L
+              externalDuchyLocalBlobId["Rippon"] = 2L
+            }
+        }
+      }
+    }
+    mockComputationsService.stub {
+      onBlocking { getComputationToken(any()) }.thenReturn(token.toGetComputationTokenResponse())
+    }
+
+    val blobMetadata = service.getOutputBlobMetadata(
+      getOutputBlobMetadataRequest {
+        globalComputationId = COMPUTATION_ID
+        dataOrigin = "Buck"
+      }
+    )
+
+    assertThat(blobMetadata)
+      .isEqualTo(
+        computationStageBlobMetadata {
+          dependencyType = ComputationBlobDependency.OUTPUT
+          blobId = 1L
+        }
+      )
+  }
+
+  @Test
   fun `getBlobOutputMetadata returns single output blob in LLv2 WAIT_EXECUTION_PHASE_INPUTS`() {
     val token = computationToken {
-      computationStage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
+      computationStage = Llv2Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
       blobs += newInputBlobMetadata(0L, "input-blob")
       blobs += newEmptyOutputBlobMetadata(1L)
       stageSpecificDetails = computationStageDetails {
@@ -453,7 +491,7 @@ class AsyncComputationControlServiceTest {
 
   @Test
   fun `getBlobOutputMetadata throws FAILED_PRECONDITION in unexpected LLv2 stage`() {
-    val token = computationToken { computationStage = Stage.EXECUTION_PHASE_ONE.toProtocolStage() }
+    val token = computationToken { computationStage = Llv2Stage.EXECUTION_PHASE_ONE.toProtocolStage() }
     mockComputationsService.stub {
       onBlocking { getComputationToken(any()) }.thenReturn(token.toGetComputationTokenResponse())
     }
@@ -470,7 +508,29 @@ class AsyncComputationControlServiceTest {
     }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    assertThat(exception).hasMessageThat().contains(Stage.EXECUTION_PHASE_ONE.name)
+    assertThat(exception).hasMessageThat().contains(Llv2Stage.EXECUTION_PHASE_ONE.name)
+  }
+
+  @Test
+  fun `getBlobOutputMetadata throws FAILED_PRECONDITION in unexpected HMSS stage`() {
+    val token = computationToken { computationStage = HmssStage.SHUFFLE_PHASE.toProtocolStage() }
+    mockComputationsService.stub {
+      onBlocking { getComputationToken(any()) }.thenReturn(token.toGetComputationTokenResponse())
+    }
+
+    val exception = runBlocking {
+      assertFailsWith<StatusRuntimeException> {
+        service.getOutputBlobMetadata(
+          getOutputBlobMetadataRequest {
+            globalComputationId = COMPUTATION_ID
+            dataOrigin = "Buck"
+          }
+        )
+      }
+    }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception).hasMessageThat().contains(HmssStage.SHUFFLE_PHASE.name)
   }
 
   companion object {
