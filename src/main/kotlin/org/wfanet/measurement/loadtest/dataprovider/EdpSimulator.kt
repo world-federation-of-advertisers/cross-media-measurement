@@ -21,6 +21,7 @@ import com.google.protobuf.duration
 import com.google.protobuf.kotlin.unpack
 import io.grpc.Status
 import io.grpc.StatusException
+import java.lang.Double.max
 import java.security.GeneralSecurityException
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
@@ -1253,8 +1254,17 @@ class EdpSimulator(
     val frequencyNoiser: AbstractNoiser =
       getPublisherNoiser(privacyParams, directNoiseMechanism, random)
 
-    return frequencyMap.mapValues { (_, percentage) ->
-      (percentage * reachValue.toDouble() + frequencyNoiser.sample()) / reachValue.toDouble()
+    // Add noise to the histogram and cap negative values to zeros.
+    val frequencyHistogram: Map<Int, Double> =
+      frequencyMap.mapValues { (_, percentage) ->
+        max(0.0, percentage * reachValue.toDouble() + frequencyNoiser.sample())
+      }
+    val normalizationTerm: Double = frequencyHistogram.values.sum()
+    // Normalize to get the distribution
+    return if (normalizationTerm != 0.0) {
+      frequencyHistogram.mapValues { (_, count) -> count / normalizationTerm }
+    } else {
+      frequencyHistogram.mapValues { 0.0 }
     }
   }
 
