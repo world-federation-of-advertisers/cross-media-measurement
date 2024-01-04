@@ -29,9 +29,10 @@ import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage.SHUFFLE_PHASE
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage.STAGE_UNSPECIFIED
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage.UNRECOGNIZED
-import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage.WAIT_ON_INPUT
+import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage.WAIT_ON_AGGREGATION_INPUT
+import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage.WAIT_ON_SHUFFLE_INPUT
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt.stageDetails
-import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt.waitOnInputPhaseDetails
+import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt.waitOnAggregationInputDetails
 
 /**
  * Helper classes for working with stages of the Hones Majority Share Shuffle protocol defined in
@@ -51,22 +52,19 @@ import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 object HonestMajorityShareShuffleProtocol {
   /** Implementation of [ProtocolStageEnumHelper] for [HonestMajorityShareShuffle.Stage]. */
   object EnumStages : ProtocolStageEnumHelper<HonestMajorityShareShuffle.Stage> {
-    override val validInitialStages = setOf(INITIALIZED, WAIT_ON_INPUT)
+    override val validInitialStages = setOf(INITIALIZED, WAIT_ON_AGGREGATION_INPUT)
     override val validTerminalStages = setOf(COMPLETE)
 
     override val validSuccessors =
       mapOf(
           INITIALIZED to setOf(SETUP_PHASE),
-          // A Non-aggregator will skip WAIT_ON_INPUT into SHUFFLE_PHASE if the requisition data
-          // from EDPs and seed from the peer worker has been received.
-          SETUP_PHASE to
-            setOf(
-              WAIT_ON_INPUT,
-              SHUFFLE_PHASE,
-            ),
-          WAIT_ON_INPUT to setOf(SHUFFLE_PHASE, AGGREGATION_PHASE),
+          // A Non-aggregator will skip WAIT_ON_SHUFFLE_INPUT into SHUFFLE_PHASE if the requisition
+          // data from EDPs and seed from the peer worker have been received.
+          SETUP_PHASE to setOf(WAIT_ON_SHUFFLE_INPUT, SHUFFLE_PHASE),
+          WAIT_ON_SHUFFLE_INPUT to setOf(SHUFFLE_PHASE),
+          WAIT_ON_AGGREGATION_INPUT to setOf(AGGREGATION_PHASE),
           SHUFFLE_PHASE to setOf(COMPLETE),
-          AGGREGATION_PHASE to setOf(COMPLETE)
+          AGGREGATION_PHASE to setOf(COMPLETE),
         )
         .withDefault { setOf() }
 
@@ -108,7 +106,8 @@ object HonestMajorityShareShuffleProtocol {
           SETUP_PHASE,
           SHUFFLE_PHASE,
           AGGREGATION_PHASE -> AfterTransition.ADD_UNCLAIMED_TO_QUEUE
-          WAIT_ON_INPUT -> AfterTransition.DO_NOT_ADD_TO_QUEUE
+          WAIT_ON_SHUFFLE_INPUT,
+          WAIT_ON_AGGREGATION_INPUT -> AfterTransition.DO_NOT_ADD_TO_QUEUE
           COMPLETE -> error("Computation should be ended with call to endComputation(...)")
           // Stages that we can't transition to ever.
           UNRECOGNIZED,
@@ -117,24 +116,19 @@ object HonestMajorityShareShuffleProtocol {
         }
       }
 
-      private fun isAggregator(computationDetails: HonestMajorityShareShuffle.ComputationDetails) =
-        computationDetails.seeds.commonRandomSeed.isEmpty
-
       override fun outputBlobNumbersForStage(
         stage: HonestMajorityShareShuffle.Stage,
         computationDetails: HonestMajorityShareShuffle.ComputationDetails
       ): Int {
         return when (stage) {
-          SETUP_PHASE -> 0
+          SETUP_PHASE,
+          WAIT_ON_SHUFFLE_INPUT -> 0
           SHUFFLE_PHASE,
           AGGREGATION_PHASE ->
             // The output is the intermediate computation result either received from another duchy
             // or computed locally.
             1
-          WAIT_ON_INPUT ->
-            // Non-aggregators have no output blob for this stage
-            // The aggregator has two output blobs received from non-aggregators.
-            if (isAggregator(computationDetails)) 2 else 0
+          WAIT_ON_AGGREGATION_INPUT -> 2
           // Mill have nothing to do for this stage.
           COMPLETE -> error("Computation should be ended with call to endComputation(...)")
           // Stages that we can't transition to ever.
@@ -149,10 +143,10 @@ object HonestMajorityShareShuffleProtocol {
         computationDetails: HonestMajorityShareShuffle.ComputationDetails
       ): ComputationStageDetails {
         return when (stage) {
-          WAIT_ON_INPUT ->
+          WAIT_ON_AGGREGATION_INPUT ->
             computationStageDetails {
               honestMajorityShareShuffle = stageDetails {
-                waitOnInputPhaseDetails = waitOnInputPhaseDetails {
+                waitOnAggregationInputDetails = waitOnAggregationInputDetails {
                   val participants = computationDetails.participantsList
                   val nonAggregators = participants.subList(0, participants.size - 1)
                   nonAggregators.mapIndexed { idx, duchyId ->
