@@ -354,11 +354,11 @@ class HonestMajorityShareShuffleStages() :
 
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enums fields cannot be null.
     return when (stage.honestMajorityShareShuffle) {
+      HonestMajorityShareShuffle.Stage.INITIALIZED,
+      HonestMajorityShareShuffle.Stage.SETUP_PHASE,
       HonestMajorityShareShuffle.Stage.WAIT_ON_SHUFFLE_INPUT -> {
         token.computationDetails.honestMajorityShareShuffle.seeds.commonRandomSeedFromPeer.isEmpty
       }
-      HonestMajorityShareShuffle.Stage.INITIALIZED,
-      HonestMajorityShareShuffle.Stage.SETUP_PHASE,
       HonestMajorityShareShuffle.Stage.WAIT_ON_AGGREGATION_INPUT,
       HonestMajorityShareShuffle.Stage.SHUFFLE_PHASE,
       HonestMajorityShareShuffle.Stage.AGGREGATION_PHASE,

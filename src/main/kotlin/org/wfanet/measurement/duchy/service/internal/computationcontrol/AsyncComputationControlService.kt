@@ -143,12 +143,14 @@ class AsyncComputationControlService(
     if (stages.expectStageInput(token)) {
       val computationDetails =
         stages.updateComputationDetails(token.computationDetails, request.computationStageInput)
-      computationsClient.updateComputationDetails(
-        updateComputationDetailsRequest {
-          this.token = token
-          details = computationDetails
-        }
-      )
+      val response =
+        computationsClient.updateComputationDetails(
+          updateComputationDetailsRequest {
+            this.token = token
+            details = computationDetails
+          }
+        )
+      token = response.token
     }
 
     if (stages.readyForNextStage(token)) {
