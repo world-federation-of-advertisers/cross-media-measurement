@@ -304,8 +304,7 @@ class EventFilterValidatorTest {
       )
 
     val expression = "video.viewed_fraction > 0.25"
-    val expectedCompiledNormalizedExpression =
-      Expr.newBuilder().setConstExpr(Constant.newBuilder().setBoolValue(true)).build()
+    val expectedCompiledNormalizedExpression = TRUE_EXPRESSION
 
     assertIgnoringId(compileToNormalForm(expression, env, OPERATIVE_FIELDS))
       .isEqualTo(expectedCompiledNormalizedExpression)
@@ -316,8 +315,7 @@ class EventFilterValidatorTest {
     val env = envWithTestTemplateVars(videoTemplateVar(), personTemplateVar())
 
     val expression = "has(video.viewed_fraction)"
-    val expectedCompiledNormalizedExpression =
-      Expr.newBuilder().setConstExpr(Constant.newBuilder().setBoolValue(true)).build()
+    val expectedCompiledNormalizedExpression = TRUE_EXPRESSION
 
     assertIgnoringId(compileToNormalForm(expression, env, OPERATIVE_FIELDS))
       .isEqualTo(expectedCompiledNormalizedExpression)
@@ -410,5 +408,33 @@ class EventFilterValidatorTest {
 
     assertIgnoringId(compileToNormalForm(expression, env, OPERATIVE_FIELDS))
       .isEqualTo(compile(expectedNormalizedExpression, env))
+  }
+
+  @Test
+  fun `compiles to Normal Form correctly with complex expression without operative fields`() {
+    val env =
+      envWithTestTemplateVars(
+        personTemplateVar(),
+        videoTemplateVar(),
+      )
+
+    val expression =
+      """
+      (video.viewed_fraction > 0.25) && !(
+        person.age_group == 1 || (
+          person.age_group == 2 || !(
+            (video.viewed_fraction > 0.25 && video.viewed_fraction < 1.0)
+          )
+        )
+      )
+      """
+        .trim()
+
+    assertIgnoringId(compileToNormalForm(expression, env, emptySet())).isEqualTo(TRUE_EXPRESSION)
+  }
+
+  companion object {
+    val TRUE_EXPRESSION: Expr =
+      Expr.newBuilder().setConstExpr(Constant.newBuilder().setBoolValue(true)).build()
   }
 }
