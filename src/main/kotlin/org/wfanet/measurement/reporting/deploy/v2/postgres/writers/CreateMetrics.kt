@@ -188,6 +188,12 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
             val externalMetricId: String = it.externalMetricId
             val reportingSetId: InternalId? = reportingSetMap[it.metric.externalReportingSetId]
             val createTime = Instant.now().atOffset(ZoneOffset.UTC)
+            val vidSamplingIntervalStart =
+              if (it.metric.metricSpec.typeCase == MetricSpec.TypeCase.POPULATION_COUNT) 0
+              else it.metric.metricSpec.vidSamplingInterval.start
+            val vidSamplingIntervalWidth =
+              if (it.metric.metricSpec.typeCase == MetricSpec.TypeCase.POPULATION_COUNT) 0
+              else it.metric.metricSpec.vidSamplingInterval.width
 
             addBinding {
               bind("$1", measurementConsumerId)
@@ -247,10 +253,19 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                   )
                   bind<Long?>("$20", null)
                 }
+                MetricSpec.TypeCase.POPULATION_COUNT -> {
+                  bind("$9", 0)
+                  bind("$10", 0)
+                  bind<Double?>("$11", null)
+                  bind<Double?>("$12", null)
+                  bind<Long?>("$13", null)
+                  bind<PostgresInterval?>("$14", null)
+                  bind<Long?>("$20", null)
+                }
                 MetricSpec.TypeCase.TYPE_NOT_SET -> {}
               }
-              bind("$15", it.metric.metricSpec.vidSamplingInterval.start)
-              bind("$16", it.metric.metricSpec.vidSamplingInterval.width)
+              bind("$15", vidSamplingIntervalStart)
+              bind("$16", vidSamplingIntervalWidth)
               bind("$17", createTime)
               bind("$18", it.metric.details)
               bind("$19", it.metric.details.toJson())

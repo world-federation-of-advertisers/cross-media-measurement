@@ -60,8 +60,10 @@ class PostgresMetricsService(
       "Metric Spec missing type."
     }
 
-    grpcRequire(request.metric.metricSpec.hasVidSamplingInterval()) {
-      "Metric Spec missing vid sampling interval."
+    if (!request.metric.metricSpec.hasPopulationCount()) {
+      grpcRequire(request.metric.metricSpec.hasVidSamplingInterval()) {
+        "Metric Spec missing vid sampling interval."
+      }
     }
 
     grpcRequire(request.metric.weightedMeasurementsCount > 0) {

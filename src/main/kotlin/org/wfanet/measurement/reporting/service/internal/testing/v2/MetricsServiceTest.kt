@@ -37,6 +37,7 @@ import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.reporting.v2.CreateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MetricKt
+import org.wfanet.measurement.internal.reporting.v2.MetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
@@ -479,6 +480,57 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     createdMetric.weightedMeasurementsList.forEach {
       assertThat(it.measurement.cmmsCreateMeasurementRequestId).isNotEmpty()
     }
+  }
+
+  @Test
+  fun `createMetric succeeds when MetricSpec type is PopulationCount`() = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val createdReportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+
+    val metric = metric {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalReportingSetId = createdReportingSet.externalReportingSetId
+      timeInterval = interval {
+        startTime = timestamp { seconds = 10 }
+        endTime = timestamp { seconds = 100 }
+      }
+      metricSpec = metricSpec {
+        populationCount = MetricSpec.PopulationCountParams.getDefaultInstance()
+      }
+      weightedMeasurements +=
+        MetricKt.weightedMeasurement {
+          weight = 2
+          binaryRepresentation = 1
+          measurement = measurement {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            timeInterval = interval {
+              startTime = timestamp { seconds = 10 }
+              endTime = timestamp { seconds = 100 }
+            }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+              }
+          }
+        }
+      details = MetricKt.details { filters += "filter1" }
+    }
+
+    val createdMetric =
+      service.createMetric(
+        createMetricRequest {
+          this.metric = metric
+          externalMetricId = "external-metric-id"
+        }
+      )
+
+    assertThat(createdMetric.externalMetricId).isNotEmpty()
+    assertThat(createdMetric.hasCreateTime()).isTrue()
+    assertThat(
+        createdMetric.weightedMeasurementsList.first().measurement.cmmsCreateMeasurementRequestId
+      )
+      .isNotEmpty()
   }
 
   @Test
@@ -2303,6 +2355,58 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
             }
           }
       }
+    val createdMetric = service.createMetric(createMetricRequest)
+
+    val retrievedMetrics =
+      service.batchGetMetrics(
+        batchGetMetricsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalMetricIds += createdMetric.externalMetricId
+        }
+      )
+
+    assertThat(retrievedMetrics.metricsList)
+      .ignoringRepeatedFieldOrder()
+      .containsExactly(createdMetric)
+  }
+
+  @Test
+  fun `batchGetMetrics succeeds when metric spec type is population count`(): Unit = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val createdReportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+
+    val createMetricRequest = createMetricRequest {
+      externalMetricId = "external-metric-id"
+      metric = metric {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        externalReportingSetId = createdReportingSet.externalReportingSetId
+        timeInterval = interval {
+          startTime = timestamp { seconds = 10 }
+          endTime = timestamp { seconds = 100 }
+        }
+        metricSpec = metricSpec {
+          populationCount = MetricSpec.PopulationCountParams.getDefaultInstance()
+        }
+        weightedMeasurements +=
+          MetricKt.weightedMeasurement {
+            weight = 2
+            binaryRepresentation = 1
+            measurement = measurement {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              timeInterval = interval {
+                startTime = timestamp { seconds = 10 }
+                endTime = timestamp { seconds = 100 }
+              }
+              primitiveReportingSetBases +=
+                ReportingSetKt.primitiveReportingSetBasis {
+                  externalReportingSetId = createdReportingSet.externalReportingSetId
+                  filters += "filter1"
+                }
+            }
+          }
+        details = MetricKt.details { filters += "filter1" }
+      }
+    }
     val createdMetric = service.createMetric(createMetricRequest)
 
     val retrievedMetrics =

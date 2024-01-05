@@ -1089,12 +1089,7 @@ fun Measurement.toInternal(
         }
         MeasurementSpec.MeasurementTypeCase.POPULATION -> {
           protocolConfig = internalProtocolConfig {
-            direct =
-              InternalProtocolConfigKt.direct {
-                noiseMechanisms += internalNoiseMechanisms
-                deterministicCount =
-                  InternalProtocolConfig.Direct.DeterministicCount.getDefaultInstance()
-              }
+            direct = InternalProtocolConfig.Direct.getDefaultInstance()
           }
         }
         MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->

@@ -130,6 +130,7 @@ import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toInterval
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.config.reporting.MetricSpecConfigKt
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.metricSpecConfig
@@ -161,6 +162,7 @@ import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt as Intern
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as InternalMeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MetricKt as InternalMetricKt
 import org.wfanet.measurement.internal.reporting.v2.MetricKt.weightedMeasurement
+import org.wfanet.measurement.internal.reporting.v2.MetricSpec as InternalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt as InternalMetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt as InternalMetricsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineImplBase
@@ -331,6 +333,8 @@ private val METRIC_SPEC_CONFIG = metricSpecConfig {
       start = WATCH_DURATION_VID_SAMPLING_START
       width = WATCH_DURATION_VID_SAMPLING_WIDTH
     }
+
+  populationCountParams = MetricSpecConfig.PopulationCountParams.getDefaultInstance()
 }
 
 private val SECRETS_DIR =
@@ -573,6 +577,23 @@ private val INTERNAL_INCREMENTAL_REPORTING_SET = internalReportingSet {
     binaryRepresentation = 2
   }
 }
+private val INTERNAL_POPULATION_REPORTING_SET = internalReportingSet {
+  cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+  externalReportingSetId = INTERNAL_INCREMENTAL_REPORTING_SET.externalReportingSetId + "1"
+  this.primitive =
+    InternalReportingSetKt.primitive {
+      eventGroupKeys += CMMS_EVENT_GROUP_KEYS.first().toInternal()
+    }
+  filter = INCREMENTAL_REPORTING_SET_FILTER
+  displayName = "$cmmsMeasurementConsumerId-$externalReportingSetId-$filter"
+  weightedSubsetUnions += weightedSubsetUnion {
+    primitiveReportingSetBases += primitiveReportingSetBasis {
+      externalReportingSetId = this@internalReportingSet.externalReportingSetId
+    }
+    weight = 1
+    binaryRepresentation = 1
+  }
+}
 
 // Time intervals
 
@@ -649,6 +670,7 @@ private const val IMPRESSION_VALUE = 1_000_000L
 private val WATCH_DURATION_SECOND_LIST = listOf(100L, 200L, 300L)
 private val WATCH_DURATION_LIST = WATCH_DURATION_SECOND_LIST.map { duration { seconds = it } }
 private val TOTAL_WATCH_DURATION = duration { seconds = WATCH_DURATION_SECOND_LIST.sum() }
+private val TOTAL_POPULATION_VALUE = 1000L
 
 // Internal incremental reach measurements
 
@@ -849,6 +871,33 @@ private val INTERNAL_SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT =
                   deterministicSum = InternalDeterministicSum.getDefaultInstance()
                 }
             }
+          }
+      }
+  }
+
+// Internal population measurements
+
+val INTERNAL_PENDING_POPULATION_MEASUREMENT = internalMeasurement {
+  cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+  cmmsCreateMeasurementRequestId = "POPULATION_MEASUREMENT"
+  cmmsMeasurementId = externalIdToApiId(443L)
+  timeInterval = TIME_INTERVAL
+  primitiveReportingSetBases += primitiveReportingSetBasis {
+    externalReportingSetId = INTERNAL_POPULATION_REPORTING_SET.externalReportingSetId
+    filters += INCREMENTAL_REPORTING_SET_FILTER
+  }
+  state = InternalMeasurement.State.PENDING
+}
+
+val INTERNAL_SUCCEEDED_POPULATION_MEASUREMENT =
+  INTERNAL_PENDING_POPULATION_MEASUREMENT.copy {
+    state = InternalMeasurement.State.SUCCEEDED
+    details =
+      InternalMeasurementKt.details {
+        results +=
+          InternalMeasurementKt.result {
+            population =
+              InternalMeasurementKt.ResultKt.population { value = TOTAL_POPULATION_VALUE }
           }
       }
   }
@@ -1253,6 +1302,43 @@ private val SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT =
       }
   }
 
+// CMMS population measurements
+private val POPULATION_MEASUREMENT_SPEC = measurementSpec {
+  measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
+
+  nonceHashes +=
+    listOf(
+      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG),
+      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG),
+      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG)
+    )
+
+  population = MeasurementSpec.Population.getDefaultInstance()
+
+  vidSamplingInterval = MeasurementSpec.VidSamplingInterval.getDefaultInstance()
+}
+
+private val REQUESTING_POPULATION_MEASUREMENT =
+  BASE_MEASUREMENT.copy {
+    dataProviders += DATA_PROVIDER_ENTRIES.getValue(DATA_PROVIDERS.keys.first())
+
+    measurementSpec =
+      signMeasurementSpec(POPULATION_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
+
+    measurementReferenceId = INTERNAL_PENDING_POPULATION_MEASUREMENT.cmmsCreateMeasurementRequestId
+  }
+
+private val PENDING_POPULATION_MEASUREMENT =
+  REQUESTING_POPULATION_MEASUREMENT.copy {
+    name =
+      MeasurementKey(
+          MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
+          INTERNAL_PENDING_POPULATION_MEASUREMENT.cmmsMeasurementId
+        )
+        .toName()
+    state = Measurement.State.COMPUTING
+  }
+
 // Metric Specs
 
 private val REACH_METRIC_SPEC: MetricSpec = metricSpec {
@@ -1273,6 +1359,10 @@ private val WATCH_DURATION_METRIC_SPEC: MetricSpec = metricSpec {
   watchDuration = watchDurationParams {
     privacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
   }
+}
+
+private val POPULATION_METRIC_SPEC: MetricSpec = metricSpec {
+  populationCount = MetricSpec.PopulationCountParams.getDefaultInstance()
 }
 
 // Metrics
@@ -1585,6 +1675,61 @@ private val INTERNAL_SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC =
     }
   }
 
+// Internal population metric
+val INTERNAL_REQUESTING_POPULATION_METRIC = internalMetric {
+  cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+  externalReportingSetId = INTERNAL_POPULATION_REPORTING_SET.externalReportingSetId
+  timeInterval = TIME_INTERVAL
+  metricSpec = internalMetricSpec {
+    populationCount = InternalMetricSpec.PopulationCountParams.getDefaultInstance()
+  }
+
+  weightedMeasurements += weightedMeasurement {
+    weight = 1
+    binaryRepresentation = 1
+    measurement =
+      INTERNAL_PENDING_POPULATION_MEASUREMENT.copy {
+        clearCmmsCreateMeasurementRequestId()
+        clearCmmsMeasurementId()
+        clearState()
+      }
+  }
+  details = InternalMetricKt.details { filters += listOf(INCREMENTAL_REPORTING_SET_FILTER) }
+}
+
+private val INTERNAL_PENDING_INITIAL_POPULATION_METRIC =
+  INTERNAL_REQUESTING_POPULATION_METRIC.copy {
+    externalMetricId = "331L"
+    createTime = Instant.now().toProtoTime()
+    weightedMeasurements.clear()
+
+    weightedMeasurements += weightedMeasurement {
+      weight = 1
+      binaryRepresentation = 1
+      measurement = INTERNAL_PENDING_POPULATION_MEASUREMENT.copy { clearCmmsMeasurementId() }
+    }
+  }
+
+val INTERNAL_PENDING_POPULATION_METRIC =
+  INTERNAL_PENDING_INITIAL_POPULATION_METRIC.copy {
+    weightedMeasurements.clear()
+    weightedMeasurements += weightedMeasurement {
+      weight = 1
+      binaryRepresentation = 1
+      measurement = INTERNAL_PENDING_POPULATION_MEASUREMENT
+    }
+  }
+
+val INTERNAL_SUCCEEDED_POPULATION_METRIC =
+  INTERNAL_PENDING_POPULATION_METRIC.copy {
+    weightedMeasurements.clear()
+    weightedMeasurements += weightedMeasurement {
+      weight = 1
+      binaryRepresentation = 1
+      measurement = INTERNAL_SUCCEEDED_POPULATION_MEASUREMENT
+    }
+  }
+
 // Public Metrics
 
 // Incremental reach metrics
@@ -1828,6 +1973,37 @@ private val SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC =
     }
   }
 
+// Population metric
+val REQUESTING_POPULATION_METRIC = metric {
+  reportingSet = INTERNAL_POPULATION_REPORTING_SET.resourceName
+  timeInterval = TIME_INTERVAL
+  metricSpec = POPULATION_METRIC_SPEC
+  filters += INTERNAL_PENDING_POPULATION_METRIC.details.filtersList
+}
+
+val PENDING_POPULATION_METRIC =
+  REQUESTING_POPULATION_METRIC.copy {
+    name =
+      MetricKey(
+          MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
+          INTERNAL_PENDING_POPULATION_METRIC.externalMetricId
+        )
+        .toName()
+    state = Metric.State.RUNNING
+    metricSpec = metricSpec {
+      populationCount = MetricSpec.PopulationCountParams.getDefaultInstance()
+    }
+    createTime = INTERNAL_PENDING_POPULATION_METRIC.createTime
+  }
+
+val SUCCEEDED_POPULATION_METRIC =
+  PENDING_POPULATION_METRIC.copy {
+    state = Metric.State.SUCCEEDED
+    result = metricResult {
+      populationCount = MetricResultKt.populationCountResult { value = TOTAL_POPULATION_VALUE }
+    }
+  }
+
 @RunWith(JUnit4::class)
 class MetricsServiceTest {
 
@@ -1874,7 +2050,9 @@ class MetricsServiceTest {
               INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET.externalReportingSetId to
                 INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET,
               INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId to
-                INTERNAL_SINGLE_PUBLISHER_REPORTING_SET
+                INTERNAL_SINGLE_PUBLISHER_REPORTING_SET,
+              INTERNAL_POPULATION_REPORTING_SET.externalReportingSetId to
+                INTERNAL_POPULATION_REPORTING_SET,
             )
           batchGetReportingSetsResponse {
             reportingSets +=
@@ -1919,7 +2097,8 @@ class MetricsServiceTest {
             PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name to
               PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT,
             PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.name to
-              PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT
+              PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT,
+            PENDING_POPULATION_MEASUREMENT.name to PENDING_POPULATION_MEASUREMENT
           )
         batchGetMeasurementsResponse {
           measurements +=
@@ -1938,7 +2117,9 @@ class MetricsServiceTest {
               .cmmsCreateMeasurementRequestId to
               PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT,
             INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
-              .cmmsCreateMeasurementRequestId to PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+              .cmmsCreateMeasurementRequestId to PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT,
+            INTERNAL_PENDING_POPULATION_MEASUREMENT.cmmsCreateMeasurementRequestId to
+              PENDING_POPULATION_MEASUREMENT
           )
         batchCreateMeasurementsResponse {
           measurements +=
@@ -7525,6 +7706,164 @@ class MetricsServiceTest {
       assertThat(exception.status.description)
         .isEqualTo("At most $MAX_BATCH_SIZE metrics can be supported in a batch.")
     }
+
+  @Test
+  fun `createMetric creates CMMS measurements for population`() = runBlocking {
+    whenever(internalMetricsMock.createMetric(any()))
+      .thenReturn(INTERNAL_PENDING_INITIAL_POPULATION_METRIC)
+    whenever(measurementsMock.batchCreateMeasurements(any()))
+      .thenReturn(
+        batchCreateMeasurementsResponse { measurements += PENDING_POPULATION_MEASUREMENT }
+      )
+
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric = REQUESTING_POPULATION_METRIC
+      metricId = "metric-id"
+    }
+    val result =
+      withMeasurementConsumerPrincipal(request.parent, CONFIG) {
+        runBlocking { service.createMetric(request) }
+      }
+
+    val expected = PENDING_POPULATION_METRIC
+
+    // Verify proto argument of the internal MetricsCoroutineImplBase::createMetric
+    verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::createMetric)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        internalCreateMetricRequest {
+          metric = INTERNAL_REQUESTING_POPULATION_METRIC
+          externalMetricId = "metric-id"
+        }
+      )
+
+    // Verify proto argument of MeasurementsCoroutineImplBase::createMeasurement
+    val measurementsCaptor: KArgumentCaptor<BatchCreateMeasurementsRequest> = argumentCaptor()
+    verifyBlocking(measurementsMock, times(1)) {
+      batchCreateMeasurements(measurementsCaptor.capture())
+    }
+    val capturedMeasurementRequests = measurementsCaptor.allValues
+    assertThat(capturedMeasurementRequests)
+      .ignoringRepeatedFieldOrder()
+      .ignoringFieldDescriptors(
+        MEASUREMENT_SPEC_FIELD,
+        ENCRYPTED_REQUISITION_SPEC_FIELD,
+      )
+      .containsExactly(
+        batchCreateMeasurementsRequest {
+          parent = request.parent
+          requests += createMeasurementRequest {
+            parent = request.parent
+            measurement = REQUESTING_POPULATION_MEASUREMENT
+            requestId = INTERNAL_PENDING_POPULATION_MEASUREMENT.cmmsCreateMeasurementRequestId
+          }
+        },
+      )
+
+    val capturedMeasurementRequest = capturedMeasurementRequests.single().requestsList.first()
+    verifyMeasurementSpec(
+      capturedMeasurementRequest.measurement.measurementSpec,
+      MEASUREMENT_CONSUMER_CERTIFICATE,
+      TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+    )
+
+    val dataProvidersList =
+      capturedMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
+
+    val measurementSpec: MeasurementSpec =
+      capturedMeasurementRequest.measurement.measurementSpec.unpack()
+
+    assertThat(measurementSpec)
+      .isEqualTo(
+        POPULATION_MEASUREMENT_SPEC.copy {
+          nonceHashes.clear()
+          nonceHashes +=
+            List(dataProvidersList.size) { Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG) }
+        }
+      )
+
+    dataProvidersList.map { dataProviderEntry ->
+      val signedRequisitionSpec =
+        decryptRequisitionSpec(
+          dataProviderEntry.value.encryptedRequisitionSpec,
+          DATA_PROVIDER_PRIVATE_KEY_HANDLE
+        )
+      val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
+      verifyRequisitionSpec(
+        signedRequisitionSpec,
+        requisitionSpec,
+        measurementSpec,
+        MEASUREMENT_CONSUMER_CERTIFICATE,
+        TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+      )
+    }
+
+    // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementId
+    verifyProtoArgument(
+        internalMeasurementsMock,
+        InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds
+      )
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        batchSetCmmsMeasurementIdsRequest {
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          this.measurementIds += measurementIds {
+            cmmsCreateMeasurementRequestId =
+              INTERNAL_PENDING_POPULATION_MEASUREMENT.cmmsCreateMeasurementRequestId
+            cmmsMeasurementId = INTERNAL_PENDING_POPULATION_MEASUREMENT.cmmsMeasurementId
+          }
+        }
+      )
+    assertThat(result).isEqualTo(expected)
+  }
+
+  @Test
+  fun `getMetric returns population metric`() = runBlocking {
+    whenever(internalMetricsMock.batchGetMetrics(any()))
+      .thenReturn(
+        internalBatchGetMetricsResponse { metrics += INTERNAL_SUCCEEDED_POPULATION_METRIC }
+      )
+
+    val request = getMetricRequest { name = SUCCEEDED_POPULATION_METRIC.name }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+        runBlocking { service.getMetric(request) }
+      }
+
+    // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
+    val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
+      argumentCaptor()
+    verifyBlocking(internalMetricsMock, times(1)) {
+      batchGetMetrics(batchGetInternalMetricsCaptor.capture())
+    }
+    val capturedInternalGetMetricRequests = batchGetInternalMetricsCaptor.allValues
+    assertThat(capturedInternalGetMetricRequests)
+      .containsExactly(
+        internalBatchGetMetricsRequest {
+          cmmsMeasurementConsumerId = INTERNAL_SUCCEEDED_POPULATION_METRIC.cmmsMeasurementConsumerId
+          externalMetricIds += INTERNAL_SUCCEEDED_POPULATION_METRIC.externalMetricId
+        }
+      )
+
+    // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+    val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
+      argumentCaptor()
+    verifyBlocking(internalMeasurementsMock, never()) {
+      batchSetMeasurementResults(batchSetMeasurementResultsCaptor.capture())
+    }
+
+    // Verify proto argument of internal
+    // MeasurementsCoroutineImplBase::batchSetMeasurementFailures
+    val batchSetMeasurementFailuresCaptor: KArgumentCaptor<BatchSetMeasurementFailuresRequest> =
+      argumentCaptor()
+    verifyBlocking(internalMeasurementsMock, never()) {
+      batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
+    }
+
+    assertThat(result).isEqualTo(SUCCEEDED_POPULATION_METRIC)
+  }
 
   companion object {
     private val MEASUREMENT_SPEC_FIELD =

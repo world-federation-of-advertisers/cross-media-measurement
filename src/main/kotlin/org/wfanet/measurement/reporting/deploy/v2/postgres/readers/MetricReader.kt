@@ -456,6 +456,9 @@ class MetricReader(private val readContext: ReadContext) {
                     checkNotNull(maximumWatchDurationPerUser).duration.toProtoDuration()
                 }
             }
+            MetricSpec.TypeCase.POPULATION_COUNT -> {
+              populationCount = MetricSpec.PopulationCountParams.getDefaultInstance()
+            }
             MetricSpec.TypeCase.TYPE_NOT_SET -> throw IllegalStateException()
           }
           this.vidSamplingInterval = vidSamplingInterval
@@ -745,9 +748,15 @@ class MetricReader(private val readContext: ReadContext) {
                       checkNotNull(maximumWatchDurationPerUser).duration.toProtoDuration()
                   }
               }
+              MetricSpec.TypeCase.POPULATION_COUNT -> {
+                populationCount = MetricSpec.PopulationCountParams.getDefaultInstance()
+              }
               MetricSpec.TypeCase.TYPE_NOT_SET -> throw IllegalStateException()
             }
-            this.vidSamplingInterval = vidSamplingInterval
+            // Population metric does not have a vidSamplingInterval
+            if (metricType != MetricSpec.TypeCase.POPULATION_COUNT) {
+              this.vidSamplingInterval = vidSamplingInterval
+            }
           }
 
           MetricInfo(
