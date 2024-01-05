@@ -298,7 +298,10 @@ class MeasurementsService(
       try {
         internalMeasurementsStub
           .batchCreateMeasurements(
-            batchCreateMeasurementsRequest { requests += internalCreateMeasurementRequests }
+            batchCreateMeasurementsRequest {
+              externalMeasurementConsumerId = apiIdToExternalId(parentKey.measurementConsumerId)
+              requests += internalCreateMeasurementRequests
+            }
           )
           .measurementsList
       } catch (ex: StatusException) {

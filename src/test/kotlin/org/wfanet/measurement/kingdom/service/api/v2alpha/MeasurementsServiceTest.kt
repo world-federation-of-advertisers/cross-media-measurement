@@ -1873,6 +1873,7 @@ class MeasurementsServiceTest {
       )
       .isEqualTo(
         internalBatchCreateMeasurementsRequest {
+          externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
           requests += internalCreateMeasurementRequest { measurement = internalMeasurement }
           requests += internalCreateMeasurementRequest { measurement = internalMeasurement }
         }
@@ -1914,6 +1915,7 @@ class MeasurementsServiceTest {
       )
       .isEqualTo(
         internalBatchCreateMeasurementsRequest {
+          externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
           requests += internalCreateMeasurementRequest { measurement = internalMeasurement }
           requests += internalCreateMeasurementRequest { measurement = internalMeasurement }
         }
@@ -2650,10 +2652,7 @@ class MeasurementsServiceTest {
       }
 
     private val DEFAULT_INTERNAL_DIRECT_POPULATION_PROTOCOL_CONFIG: InternalProtocolConfig.Direct =
-      direct {
-        noiseMechanisms += DEFAULT_INTERNAL_DIRECT_NOISE_MECHANISMS
-        deterministicCount = InternalProtocolConfig.Direct.DeterministicCount.getDefaultInstance()
-      }
+      InternalProtocolConfig.Direct.getDefaultInstance()
 
     private const val BATCH_LIMIT = 50
   }
