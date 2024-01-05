@@ -34,11 +34,7 @@ class TestPrivacyBucketMapper : PrivacyBucketMapper {
   /** This mapper does not charge any bucket [filterExpression] is ignored. */
   override fun toPrivacyFilterProgram(filterExpression: String): Program =
     try {
-      compileProgram(
-        LoadTestEvent.getDescriptor(),
-        "privacy.filterable == true",
-        operativeFields
-      )
+      compileProgram(LoadTestEvent.getDescriptor(), "privacy.filterable == true", operativeFields)
     } catch (e: EventFilterValidationException) {
       throw PrivacyBudgetManagerException(
         PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER,

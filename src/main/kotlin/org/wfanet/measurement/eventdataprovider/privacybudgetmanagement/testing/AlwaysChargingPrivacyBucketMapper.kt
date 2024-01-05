@@ -28,6 +28,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 class AlwaysChargingPrivacyBucketMapper : PrivacyBucketMapper {
 
   override val operativeFields = emptySet<String>()
+
   override fun toPrivacyFilterProgram(filterExpression: String): Program =
     try {
       compileProgram(TestEvent.getDescriptor(), "true == true", operativeFields)
