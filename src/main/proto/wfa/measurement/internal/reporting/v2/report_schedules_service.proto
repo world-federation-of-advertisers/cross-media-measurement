@@ -16,7 +16,6 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.v2;
 
-import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/reporting/v2/report_schedule.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
