@@ -29,13 +29,15 @@ import org.wfanet.measurement.loadtest.config.LoadTestEventKt.privacy
 
 class TestPrivacyBucketMapper : PrivacyBucketMapper {
 
+  override val operativeFields = setOf("privacy.filterable")
+
   /** This mapper does not charge any bucket [filterExpression] is ignored. */
   override fun toPrivacyFilterProgram(filterExpression: String): Program =
     try {
       compileProgram(
         LoadTestEvent.getDescriptor(),
         "privacy.filterable == true",
-        setOf("privacy.filterable")
+        operativeFields
       )
     } catch (e: EventFilterValidationException) {
       throw PrivacyBudgetManagerException(

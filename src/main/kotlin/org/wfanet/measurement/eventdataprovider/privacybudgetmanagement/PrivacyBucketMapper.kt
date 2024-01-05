@@ -15,13 +15,23 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
 import com.google.protobuf.Message
 import org.projectnessie.cel.Program
+import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 /** Maps Privacy bucket related objects to event filter related objects and vice versa. */
 interface PrivacyBucketMapper {
+
+  val operativeFields: Set<String>
 
   /** Maps [filterExpression] to a [Program] by using privacy related fields and [Message] */
   fun toPrivacyFilterProgram(filterExpression: String): Program
 
   /** Maps [privacyBucketGroup] to an event [Message] */
   fun toEventMessage(privacyBucketGroup: PrivacyBucketGroup): Message
+
+  fun matches(privacyBucketGroup: PrivacyBucketGroup, program: Program): Boolean {
+    if (operativeFields.isEmpty()) {
+      return true
+    }
+    return EventFilters.matches(toEventMessage(privacyBucketGroup), program)
+  }
 }
