@@ -22,6 +22,7 @@ import java.security.cert.X509Certificate
 import java.security.spec.PKCS8EncodedKeySpec
 import java.util.Optional
 import java.util.concurrent.ConcurrentHashMap
+import java.util.logging.Level
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.createCertificateRequest
@@ -30,6 +31,7 @@ import org.wfanet.measurement.common.crypto.jceProvider
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.certificates.CertificateManager.KeyPair
+import org.wfanet.panelmatch.common.loggerFor
 import org.wfanet.panelmatch.common.secrets.MutableSecretMap
 import org.wfanet.panelmatch.common.secrets.SecretMap
 
@@ -106,10 +108,12 @@ class V2AlphaCertificateManager(
       this.privateKey = privateKey.encoded.toByteString()
     }
 
+    logger.log(Level.INFO, "Writing private key to SecretMap")
     privateKeys.put(exchange.path, signingKeys.toByteString())
+    logger.log(Level.INFO, "Finish writing private key to SecretMap")
     x509CertCache[certResourceName] = x509
     signingKeysCache[exchange.path] = Optional.of(signingKeys)
-
+    logger.log(Level.INFO, "Returning certResourceName: $certResourceName")
     return certResourceName
   }
 
@@ -145,5 +149,9 @@ class V2AlphaCertificateManager(
         requireNotNull(rootCerts.get(ownerName)) { "Missing root certificate for $ownerName" }
       readCertificate(certBytes)
     }
+  }
+
+  companion object {
+    private val logger by loggerFor()
   }
 }
