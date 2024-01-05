@@ -180,21 +180,20 @@ class MetricCalculationSpecsServiceTest {
       )
       .isEqualTo(
         internalCreateMetricCalculationSpecRequest {
-          this.metricCalculationSpec =
-            internalMetricCalculationSpec {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-              details =
-                InternalMetricCalculationSpecKt.details {
-                  displayName = metricCalculationSpec.displayName
-                  metricSpecs += internalReachMetricSpec
-                  groupings +=
-                    metricCalculationSpec.groupingsList.map {
-                      InternalMetricCalculationSpecKt.grouping { predicates += it.predicatesList }
-                    }
-                  cumulative = metricCalculationSpec.cumulative
-                  tags.putAll(metricCalculationSpec.tagsMap)
-                }
-            }
+          this.metricCalculationSpec = internalMetricCalculationSpec {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            details =
+              InternalMetricCalculationSpecKt.details {
+                displayName = metricCalculationSpec.displayName
+                metricSpecs += internalReachMetricSpec
+                groupings +=
+                  metricCalculationSpec.groupingsList.map {
+                    InternalMetricCalculationSpecKt.grouping { predicates += it.predicatesList }
+                  }
+                cumulative = metricCalculationSpec.cumulative
+                tags.putAll(metricCalculationSpec.tagsMap)
+              }
+          }
           externalMetricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
         }
       )
