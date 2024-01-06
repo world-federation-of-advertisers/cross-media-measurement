@@ -91,7 +91,7 @@ abstract class ExchangeWorkflowDaemon : Runnable {
     SharedStorageSelector(certificateManager, sharedStorageFactories, sharedStorageInfo)
   }
 
-  protected open val launcher by lazy {
+  private val launcher by lazy {
     val stepExecutor =
       ExchangeTaskExecutor(
         apiClient = apiClient,
