@@ -19,6 +19,7 @@ import io.grpc.Status
 import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.reporting.bff.service.api.v1alpha.GenerateMockReport
 import org.wfanet.measurement.reporting.bff.v1alpha.GetReportRequest
 import org.wfanet.measurement.reporting.bff.v1alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.bff.v1alpha.ListReportsResponse
@@ -83,10 +84,15 @@ class ReportsService(private val backendReportsStub: BackendReportsGrpcKt.Report
   }
 
   override suspend fun getReport(request: GetReportRequest): Report {
+    // Normal Call
     // val backendRequest = getReportRequest { name = request.name }
-    val backendRequest = getReportRequest { name = "measurementConsumers/VCTqwV_vFXw/reports/ui-report-non-cumulative-non-uniq-6" }
 
-    val resp = backendReportsStub.getReport(backendRequest)
+    // Harcode to our report
+    // val backendRequest = getReportRequest { name = "measurementConsumers/VCTqwV_vFXw/reports/ui-report-non-cumulative-non-uniq-6" }
+    // val resp = backendReportsStub.getReport(backendRequest)
+
+    // Mock Report
+    val resp = GenerateMockReport.GenerateReport()
 
     val view =
       if (request.view == ReportView.REPORT_VIEW_UNSPECIFIED) ReportView.REPORT_VIEW_FULL
@@ -145,12 +151,18 @@ class ReportsService(private val backendReportsStub: BackendReportsGrpcKt.Report
       "person.age_group == 3" to "55+",
     )
 
+    // Get Reporting Sets from Reporting Metric Entries
+    for (rme in source.reportingMetricEntriesList) {
+      println(rme.key)
+    }
+
     // Map the result attributes to the reporting sets so we can set the RS name later
     val rsByMcr = mutableMapOf<BackendReport.MetricCalculationResult.ResultAttribute, String>()
+    // val rsByMcr = mutableMapOf<String, String>()
     for (mcr in source.metricCalculationResultsList) {
       val rsName = mcr.reportingSet // TODO: This will come from display_name on the RS, will also need to fetch the reporting set to get this
       for (ra in mcr.resultAttributesList) {
-        rsByMcr[ra.toString()] = rsName
+        rsByMcr[ra] = rsName // TODO: This mapping doesn't always work if two results are exactly the same
       }
     }
 
@@ -209,7 +221,7 @@ class ReportsService(private val backendReportsStub: BackendReportsGrpcKt.Report
                           standardDeviation = resultAttribute.metricResult.impressionCount.univariateStatistics.standardDeviation
                         }
                       }
-                      else -> println("error")
+                      else -> println("error when processing result attribute")
                     }
                   }
                 }
