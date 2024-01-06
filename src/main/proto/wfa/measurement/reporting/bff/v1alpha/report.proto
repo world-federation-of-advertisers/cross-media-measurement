@@ -96,6 +96,9 @@ message Report {
 
         // The reach value.
         int64 reach = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+        // The unique reach value.
+        int64 uniqueReach = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
       }
 
       // The sources (excluding union) where the metrics came from.

@@ -42,6 +42,8 @@ import org.wfanet.measurement.reporting.v2alpha.getReportRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
 import org.wfanet.measurement.reporting.v2alpha.MetricResult.ResultCase
 import com.google.type.interval
+import org.wfanet.measurement.common.toProtoTime
+import java.time.Instant
 
 class ReportingSetGroup(
   var baseSet: String? = null,
@@ -163,99 +165,93 @@ class ReportsService(
     //  to map them to a single result later.
     val req = ListReportingSetsRequest("measurementConsumers/VCTqwV_vFXw", 1000)
     val reportingSets = reportingSetsService.ListReportingSets(req)
-    val reportingSetGroups = reportingSets.groupBy{"measurementConsumers/VCTqwV_vFXw/reportingSets/${it.tagsMap["ui.halo-cmm.org/reporting_set_id"]}"}
-    val reportingSetMaps = mutableMapOf<String, ReportingSetGroup>()
-    for (rme in source.reportingMetricEntriesList) {
-      val rsgs = reportingSetGroups[rme.key]
-      if (rsgs == null) continue
 
-      val reportingSetGroup = ReportingSetGroup()
-      for (rsg in rsgs) {
-        if (rsg.tagsMap["ui.halo-cmm.org/reporting_set_type"] == "unique") {
-          reportingSetGroup.uniqueSet = rsg.name
-        }
-        if (rsg.tagsMap["ui.halo-cmm.org/reporting_set_type"] == "individual") {
-          reportingSetGroup.baseSet = rsg.name
-        }
-        reportingSetMaps.put(rsg.name, reportingSetGroup)
-      }
-    }
-
-    // Map the result attributes to the reporting sets so we can set the RS name later
-    val rsByMcr = mutableMapOf<BackendReport.MetricCalculationResult.ResultAttribute, String>()
-    // val rsByMcr = mutableMapOf<String, String>()
-    for (mcr in source.metricCalculationResultsList) {
-      val rsName = mcr.reportingSet // TODO: This will come from display_name on the RS, will also need to fetch the reporting set to get this
-      for (ra in mcr.resultAttributesList) {
-        rsByMcr[ra] = rsName // TODO: This mapping doesn't always work if two results are exactly the same
-      }
-    }
-
-    val ras = source.metricCalculationResultsList.map{it.resultAttributesList}.flatten()
-    val timeGroup = ras.groupBy{it.timeInterval}
-
-    // Build report...
     val rep = report {
-      name = source.name
       reportId = source.name
+      name = source.name
       state = source.state.toBffState()
 
-      // By time...
-      // Result Attributes grouped by interval
-      for(time in timeGroup) {
+      val timeIntervals = source.timeIntervals.timeIntervalsList.map{"${it.startTime.seconds}|${it.endTime.seconds}"}
+
+      // Go through each time Interval...
+      for (ti in timeIntervals) {
+        val (start, end) = ti.split('|')
         timeInterval += demographicMetricsByTimeInterval {
           timeInterval = interval {
-            startTime = time.key.startTime
-            endTime = time.key.endTime
+            startTime = Instant.ofEpochSecond(start.toLong()).toProtoTime()
+            endTime = Instant.ofEpochSecond(end.toLong()).toProtoTime()
           }
 
-          // By demo...
-          // Result Attributes from the time group, grouped by grouping predicates
-          val demoGroup = time.value.groupBy{it.groupingPredicatesList.map{demoMap[it]}.joinToString(prefix = "", postfix = "", separator = ";")}
-          for (demo in demoGroup) {
-            demoBucket += demoBucket {
-              demoCategoryName = demo.key
+          // Go through each metric calcualtion result
+          // Stop here instead of flattening to get the reporting sets
+          demoBucket += demoBucket {
+            // TODO: There's actually a pair of MCRs one for the individual and one for the unique
+            for (mcr in source.metricCalculationResultsList) {
+              val reportingSetName = mcr.reportingSet
+              val isUnique = reportingSets.find{it.name == reportingSetName}!!.tagsMap["ui.halo-cmm.org/reporting_set_type"] == "unique"
+              if (isUnique) continue
+              val isUnion = reportingSets.find{it.name == reportingSetName}!!.tagsMap["ui.halo-cmm.org/reporting_set_type"] == "union"
 
-              // By source...
-              // Result Attributes from the time group and grouping predicate
-              // The Result Attributes come multiple times in some cases (frequency and impressions are separate)
-              // so they need to be grouped and merged.
-              val pubGroup = demo.value.groupBy{rsByMcr[it]!!}
-              // TODO: Work with the `reportingSetMaps` so we can get the unique reach values too
-              for (pub in pubGroup) {
-                val pubName = pub.key
-                println(pubName)
-                val metrs = sourceMetrics {
-                  sourceName = pubName
-                  for (resultAttribute in pub.value) {
-                    val oneOfCase = resultAttribute.metricResult.getResultCase()
-                    when(oneOfCase) {
-                      ResultCase.REACH -> {
-                        reach = resultAttribute.metricResult.reach.value
-                      }
-                      ResultCase.REACH_AND_FREQUENCY -> {
-                        reach = capNumber(resultAttribute.metricResult.reachAndFrequency.reach.value)
-                        val bins = resultAttribute.metricResult.reachAndFrequency.frequencyHistogram.binsList.sortedBy{it.label.toInt()}.reversed()
-                        var runningCount = 0.0
-                        for (bin in bins) {
-                          runningCount = runningCount + capNumber(bin.binResult.value)
-                          frequencyHistogram[bin.label.toInt()] = runningCount
+              // Make sure to also add the unique reach from the other Metric Calculation Result
+              var groups = listOf(mcr);
+              if (!isUnion) {
+                val lastId = reportingSetName.split("/").last()
+                val rsPair = reportingSets.find{it.tagsMap["ui.halo-cmm.org/reporting_set_type"] == "unique" && it.tagsMap["ui.halo-cmm.org/reporting_set_id"] == lastId}
+                
+                val metricResult = source.metricCalculationResultsList.find{it.reportingSet == rsPair?.name}
+                if(metricResult != null) groups += metricResult
+              }
+
+              for (g in groups) {
+                // Get the result attributes of this metric calculation result
+                // filtered by the time interval
+                // then grouped by the demo category
+                val resultAttributesByDemo = g.resultAttributesList
+                  .filter{"${it.timeInterval.startTime.seconds}|${it.timeInterval.endTime.seconds}" == ti}
+                  .groupBy{
+                    it.groupingPredicatesList
+                      .map{demoMap[it]}
+                      .joinToString(prefix = "", postfix = "", separator = ";")
+                  }
+
+                for (ras in resultAttributesByDemo) {
+                  demoCategoryName = ras.key
+
+                  val metrics = sourceMetrics {
+                    for (resultAttribute in ras.value) {
+                      sourceName = reportingSetName
+
+                      val oneOfCase = resultAttribute.metricResult.getResultCase()
+                      when(oneOfCase) {
+                        ResultCase.IMPRESSION_COUNT -> {
+                          impressionCount = impressionCountResult {
+                            count = capNumber(resultAttribute.metricResult.impressionCount.value)
+                            standardDeviation = resultAttribute.metricResult.impressionCount.univariateStatistics.standardDeviation
+                          }
                         }
-                      }
-                      ResultCase.IMPRESSION_COUNT -> {
-                        impressionCount = impressionCountResult {
-                          count = capNumber(resultAttribute.metricResult.impressionCount.value)
-                          standardDeviation = resultAttribute.metricResult.impressionCount.univariateStatistics.standardDeviation
+                        ResultCase.REACH_AND_FREQUENCY -> {
+                          reach = capNumber(resultAttribute.metricResult.reachAndFrequency.reach.value)
+                          val bins = resultAttribute.metricResult.reachAndFrequency.frequencyHistogram.binsList.sortedBy{it.label.toInt()}.reversed()
+                          var runningCount = 0.0
+                          for (bin in bins) {
+                            runningCount = runningCount + capNumber(bin.binResult.value)
+                            frequencyHistogram[bin.label.toInt()] = runningCount
+                          }
                         }
+                        ResultCase.REACH -> {
+                          println(resultAttribute.metricResult.reach.value)
+                          uniqueReach = resultAttribute.metricResult.reach.value
+                        }
+                        else -> println("error when processing result attribute")
                       }
-                      else -> println("error when processing result attribute")
                     }
                   }
-                }
-                if (!pubName.contains("union")) {
-                  perPublisherSource += metrs
-                } else {
-                  unionSource = metrs
+
+                  if (isUnion) {
+                    unionSource = metrics
+                  } else {
+                    perPublisherSource += metrics
+                  }
                 }
               }
             }
@@ -263,7 +259,6 @@ class ReportsService(
         }
       }
     }
-
     return rep
   }
 

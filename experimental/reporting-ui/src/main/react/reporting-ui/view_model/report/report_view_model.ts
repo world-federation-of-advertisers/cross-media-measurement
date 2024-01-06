@@ -119,7 +119,7 @@ const getImpressionsAndFrequencies = (report: Report): iAndF => {
         dict[pps.sourceName].impressions += fixNumber(pps.impressionCount.count);
         dict[pps.sourceName].averageFrequency += pps.frequencyHistogram[1];
         dict[pps.sourceName].reach += fixNumber(pps.reach);
-        // dict[pps.sourceName].uniqueReach += fixNumber(pps.)
+        // dict[pps.sourceName].uniqueReach += fixNumber(pps.uniqueReach)
 
         // Just get the impressions
         impressions.push({

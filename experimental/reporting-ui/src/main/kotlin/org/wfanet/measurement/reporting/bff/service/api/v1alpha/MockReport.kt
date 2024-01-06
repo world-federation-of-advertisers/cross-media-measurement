@@ -32,6 +32,7 @@ import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportKt.metricCalculationResult
 import org.wfanet.measurement.reporting.v2alpha.ReportKt.reportingMetricEntry
 import org.wfanet.measurement.reporting.v2alpha.ReportKt.MetricCalculationResultKt.resultAttribute
+import org.wfanet.measurement.reporting.v2alpha.timeIntervals
 import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
@@ -40,56 +41,72 @@ import com.google.type.interval
 class GenerateMockReport() {
     companion object {
         fun GenerateReport(): Report {
-            val dataMap = union_data + edp1_data + edp2_data + edp3_data + edp1_unique_data
-            val reportingSets = listOf(
-                union_data[0].reportingSet,
-                edp1_data[0].reportingSet,
-                edp2_data[0].reportingSet,
-                edp3_data[0].reportingSet,
-                edp1_unique_data[0].reportingSet,
+            val reportingSets = mapOf(
+                union_data[0].reportingSet to union_data,
+                edp1_data[0].reportingSet to edp1_data,
+                edp2_data[0].reportingSet to edp2_data,
+                edp3_data[0].reportingSet to edp3_data,
+                edp1_unique_data[0].reportingSet to edp1_unique_data,
             )
+            val dates = union_data.groupBy{Pair(it.start, it.end)}.keys
 
             return report {
                 name = "Fake Report"
                 state = Report.State.SUCCEEDED
-                for (rs in reportingSets) {
+                for (rs in reportingSets.keys) {
                     reportingMetricEntries += reportingMetricEntry {
                         key = rs
                     }
                 }
+                timeIntervals = timeIntervals {
+                    for (date in dates) {
+                        timeIntervals += interval {
+                            startTime = Instant.ofEpochSecond(date.first).toProtoTime()
+                            endTime = Instant.ofEpochSecond(date.second).toProtoTime()
+                        }
+                    }
+                }
                 tags.put("ui.halo-cmm.org", "1")
-                for (dataPoint in dataMap) {
+                // Union MCR
+                for (rs in reportingSets) {
                     metricCalculationResults += metricCalculationResult {
-                        reportingSet = dataPoint.reportingSet
-                        resultAttributes += resultAttribute {
-                            for (group in dataPoint.groups) {
-                                groupingPredicates += group
-                            }
-                            timeInterval = interval {
-                                startTime = Instant.ofEpochSecond(dataPoint.start).toProtoTime()
-                                endTime = Instant.ofEpochSecond(dataPoint.end).toProtoTime()
-                            }
-                            metricResult = metricResult {
-                                if (dataPoint.reach != null && dataPoint.frequencies != null) {
-                                    reachAndFrequency = reachAndFrequencyResult {
-                                        reach = reachResult {
-                                            value = dataPoint.reach!!
-                                        }
-                                        frequencyHistogram = histogramResult {
-                                            for (bin in dataPoint.frequencies!!) {
-                                                bins += bin {
-                                                    label = bin.label
-                                                    binResult = binResult {
-                                                        value = bin.value
+                        reportingSet = rs.key
+                        for (dataPoint in rs.value) {
+                            resultAttributes += resultAttribute {
+                                for (group in dataPoint.groups) {
+                                    groupingPredicates += group
+                                }
+                                timeInterval = interval {
+                                    startTime = Instant.ofEpochSecond(dataPoint.start).toProtoTime()
+                                    endTime = Instant.ofEpochSecond(dataPoint.end).toProtoTime()
+                                }
+                                metricResult = metricResult {
+                                    if (dataPoint.reach != null && dataPoint.frequencies != null) {
+                                        reachAndFrequency = reachAndFrequencyResult {
+                                            reach = reachResult {
+                                                value = dataPoint.reach!!
+                                            }
+                                            frequencyHistogram = histogramResult {
+                                                for (bin in dataPoint.frequencies!!) {
+                                                    bins += bin {
+                                                        label = bin.label
+                                                        binResult = binResult {
+                                                            value = bin.value
+                                                        }
                                                     }
                                                 }
                                             }
                                         }
                                     }
-                                }
-                                if (dataPoint.impression != null) {
-                                    impressionCount = impressionCountResult {
-                                        value = dataPoint.impression!!
+                                    if (dataPoint.reach != null && dataPoint.frequencies == null) {
+                                        reach = reachResult {
+                                            value = dataPoint.reach!!
+                                        }
+                                    }
+                                    if (dataPoint.impression != null) {
+                                        impressionCount = impressionCountResult {
+                                            value = dataPoint.impression!!
+                                        }
                                     }
                                 }
                             }
