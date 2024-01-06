@@ -28,8 +28,6 @@ import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.deploy.CertificateAuthorityFlags
 import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
 import org.wfanet.panelmatch.client.deploy.example.ExampleDaemon
-import org.wfanet.panelmatch.client.launcher.CoroutineLauncher
-import org.wfanet.panelmatch.client.launcher.ExchangeTaskExecutor
 import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
 import org.wfanet.panelmatch.common.beam.BeamOptions
 import org.wfanet.panelmatch.common.certificates.aws.CertificateAuthority
@@ -144,17 +142,6 @@ private class AwsExampleDaemon : ExampleDaemon() {
       certificateAuthorityArn,
       PrivateCaClient(),
     )
-  }
-
-  override val launcher by lazy {
-    val stepExecutor =
-      ExchangeTaskExecutor(
-        apiClient = apiClient,
-        timeout = taskTimeout,
-        privateStorageSelector = privateStorageSelector,
-        exchangeTaskMapper = exchangeTaskMapper
-      )
-    CoroutineLauncher(stepExecutor = stepExecutor, maxCoroutines = 1)
   }
 }
 
