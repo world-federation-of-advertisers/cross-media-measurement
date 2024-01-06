@@ -22,8 +22,10 @@ import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.reporting.bff.service.api.v1alpha.ReportsService
+import org.wfanet.measurement.reporting.bff.service.api.v1alpha.ReportingSetsService
 import org.wfanet.measurement.reporting.bff.v1alpha.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt as HaloReportsGrpcKt
+import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt as HaloReportingSetsGrpcKt
 import picocli.CommandLine
 
 private const val SERVER_NAME = "V1AlphaPublicUiServer"
@@ -52,8 +54,9 @@ private fun run(
       )
       .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
 
+  val reportingSetsService = ReportingSetsService(HaloReportingSetsGrpcKt.ReportingSetsCoroutineStub(channel))
   val services: List<ServerServiceDefinition> =
-    listOf(ReportsService(HaloReportsGrpcKt.ReportsCoroutineStub(channel)).bindService())
+    listOf(ReportsService(HaloReportsGrpcKt.ReportsCoroutineStub(channel), reportingSetsService).bindService())
   CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
 }
 

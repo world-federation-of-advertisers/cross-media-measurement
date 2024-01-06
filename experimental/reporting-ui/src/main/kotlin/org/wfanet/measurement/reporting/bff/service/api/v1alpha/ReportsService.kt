@@ -43,8 +43,15 @@ import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
 import org.wfanet.measurement.reporting.v2alpha.MetricResult.ResultCase
 import com.google.type.interval
 
-class ReportsService(private val backendReportsStub: BackendReportsGrpcKt.ReportsCoroutineStub) :
-  ReportsGrpcKt.ReportsCoroutineImplBase() {
+class ReportingSetGroup(
+  var baseSet: String? = null,
+  var uniqueSet: String? = null
+){}
+
+class ReportsService(
+  private val backendReportsStub: BackendReportsGrpcKt.ReportsCoroutineStub,
+  private val reportingSetsService: ReportingSetsService,
+) : ReportsGrpcKt.ReportsCoroutineImplBase() {
   override suspend fun listReports(request: ListReportsRequest): ListReportsResponse {
     // TODO(@bdomen-ggl): Still working on UX for pagination, so holding off for now.
     // Will hold off on internally looping the request until it becomes an issue (eg. no reports
@@ -102,7 +109,7 @@ class ReportsService(private val backendReportsStub: BackendReportsGrpcKt.Report
     return result
   }
 
-  private fun BackendReport.toBffReport(view: ReportView): Report {
+  private suspend fun BackendReport.toBffReport(view: ReportView): Report {
     val source = this
 
     return when (view) {
@@ -140,7 +147,7 @@ class ReportsService(private val backendReportsStub: BackendReportsGrpcKt.Report
     }
   }
 
-  private fun BackendReport.toFullReport(): Report {
+  private suspend fun BackendReport.toFullReport(): Report {
     val source = this
 
     val demoMap = mapOf(
@@ -152,8 +159,26 @@ class ReportsService(private val backendReportsStub: BackendReportsGrpcKt.Report
     )
 
     // Get Reporting Sets from Reporting Metric Entries
+    //  Need to get both the individual and unique reporting sets
+    //  to map them to a single result later.
+    val req = ListReportingSetsRequest("measurementConsumers/VCTqwV_vFXw", 1000)
+    val reportingSets = reportingSetsService.ListReportingSets(req)
+    val reportingSetGroups = reportingSets.groupBy{"measurementConsumers/VCTqwV_vFXw/reportingSets/${it.tagsMap["ui.halo-cmm.org/reporting_set_id"]}"}
+    val reportingSetMaps = mutableMapOf<String, ReportingSetGroup>()
     for (rme in source.reportingMetricEntriesList) {
-      println(rme.key)
+      val rsgs = reportingSetGroups[rme.key]
+      if (rsgs == null) continue
+
+      val reportingSetGroup = ReportingSetGroup()
+      for (rsg in rsgs) {
+        if (rsg.tagsMap["ui.halo-cmm.org/reporting_set_type"] == "unique") {
+          reportingSetGroup.uniqueSet = rsg.name
+        }
+        if (rsg.tagsMap["ui.halo-cmm.org/reporting_set_type"] == "individual") {
+          reportingSetGroup.baseSet = rsg.name
+        }
+        reportingSetMaps.put(rsg.name, reportingSetGroup)
+      }
     }
 
     // Map the result attributes to the reporting sets so we can set the RS name later
@@ -196,8 +221,10 @@ class ReportsService(private val backendReportsStub: BackendReportsGrpcKt.Report
               // The Result Attributes come multiple times in some cases (frequency and impressions are separate)
               // so they need to be grouped and merged.
               val pubGroup = demo.value.groupBy{rsByMcr[it]!!}
+              // TODO: Work with the `reportingSetMaps` so we can get the unique reach values too
               for (pub in pubGroup) {
                 val pubName = pub.key
+                println(pubName)
                 val metrs = sourceMetrics {
                   sourceName = pubName
                   for (resultAttribute in pub.value) {
