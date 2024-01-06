@@ -15,6 +15,7 @@
 package org.wfanet.panelmatch.client.launcher
 
 import java.time.Clock
+import kotlinx.coroutines.sync.Semaphore
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepResponse
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -37,8 +38,12 @@ class GrpcApiClient(
   identity: Identity,
   private val exchangeStepsClient: ExchangeStepsCoroutineStub,
   private val exchangeStepAttemptsClient: ExchangeStepAttemptsCoroutineStub,
-  private val clock: Clock = Clock.systemUTC()
+  private val clock: Clock = Clock.systemUTC(),
+  val maxClaimedExchangeSteps: Int,
 ) : ApiClient {
+  private val semaphore =
+    if (maxClaimedExchangeSteps != -1) Semaphore(maxClaimedExchangeSteps) else null
+
   private val recurringExchangeParentKey: RecurringExchangeParentKey =
     when (identity.party) {
       Party.DATA_PROVIDER -> DataProviderKey(identity.id)
@@ -48,6 +53,10 @@ class GrpcApiClient(
     }
 
   override suspend fun claimExchangeStep(): ClaimedExchangeStep? {
+    if (semaphore !== null) {
+      val semaphoreAcquired = semaphore.tryAcquire()
+      if (!semaphoreAcquired) return null
+    }
     val response: ClaimReadyExchangeStepResponse =
       exchangeStepsClient.claimReadyExchangeStep(
         claimReadyExchangeStepRequest { parent = recurringExchangeParentKey.toName() }
@@ -86,6 +95,7 @@ class GrpcApiClient(
       }
     }
     exchangeStepAttemptsClient.finishExchangeStepAttempt(request)
+    if (semaphore !== null) semaphore.release()
   }
 
   private fun makeLogEntry(message: String): ExchangeStepAttempt.DebugLogEntry {
