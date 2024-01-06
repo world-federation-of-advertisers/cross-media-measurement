@@ -161,6 +161,9 @@ fun MetricSpec.toInternal(): InternalMetricSpec {
       MetricSpec.TypeCase.WATCH_DURATION -> {
         watchDuration = source.watchDuration.toInternal()
       }
+      MetricSpec.TypeCase.POPULATION_COUNT -> {
+        populationCount = InternalMetricSpec.PopulationCountParams.getDefaultInstance()
+      }
       MetricSpec.TypeCase.TYPE_NOT_SET ->
         throw MetricSpecDefaultsException(
           "Invalid metric spec type",
@@ -306,12 +309,16 @@ fun InternalMetricSpec.toMetricSpec(): MetricSpec {
             maximumWatchDurationPerUser = source.watchDuration.maximumWatchDurationPerUser
             privacyParams = source.watchDuration.privacyParams.toPrivacyParams()
           }
+      InternalMetricSpec.TypeCase.POPULATION_COUNT -> {
+        populationCount = MetricSpec.PopulationCountParams.getDefaultInstance()
+      }
       InternalMetricSpec.TypeCase.TYPE_NOT_SET ->
         throw IllegalArgumentException("The metric type in Metric is not specified.")
     }
     if (source.hasVidSamplingInterval()) {
       vidSamplingInterval = source.vidSamplingInterval.toVidSamplingInterval()
     }
+    // TODO(@jojijac0b): To add model line check and assignment
   }
 }
 
@@ -413,6 +420,11 @@ fun Measurement.Result.toInternal(protocolConfig: ProtocolConfig): InternalMeasu
     }
     if (source.hasWatchDuration()) {
       watchDuration = source.watchDuration.toInternal(protocolConfig)
+    }
+    if (source.hasPopulation()) {
+      // Methodology in protocolConfig is not set for Population, so it is not needed to convert to
+      // internal Population
+      population = InternalMeasurementKt.ResultKt.population { value = source.population.value }
     }
   }
 }
