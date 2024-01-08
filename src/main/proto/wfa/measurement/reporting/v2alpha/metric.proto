@@ -93,6 +93,9 @@ message MetricSpec {
     google.protobuf.Duration maximum_watch_duration_per_user = 2;
   }
 
+  // Parameters that are used to generate `Population` metric.
+  message PopulationCountParams {}
+
   // Types of metric with parameters.
   oneof type {
     // The count of unique audiences reached given a set of event groups.
@@ -109,6 +112,9 @@ message MetricSpec {
     // The watch duration given a set of event groups.
     WatchDurationParams watch_duration = 4
         [(google.api.field_behavior) = IMMUTABLE];
+    // The count of unique members in a population
+    PopulationCountParams population_count = 5
+        [(google.api.field_behavior) = IMMUTABLE];
   }
 
   // Specifies a range of VIDs to be sampled.
@@ -124,7 +130,7 @@ message MetricSpec {
   //
   // If this field is unspecified in a request message, the service
   // implementation will use the value specified in the system defaults.
-  VidSamplingInterval vid_sampling_interval = 5;
+  VidSamplingInterval vid_sampling_interval = 6;
 }
 
 // Statistics of a scalar value
@@ -220,6 +226,12 @@ message MetricResult {
     UnivariateStatistics univariate_statistics = 2;
   }
 
+  // Population count result format.
+  message PopulationCountResult {
+    // Population value.
+    int64 value = 1;
+  }
+
   // The metric result
   oneof result {
     // Reach result.
@@ -230,6 +242,8 @@ message MetricResult {
     ImpressionCountResult impression_count = 5;
     // Watch duration result.
     WatchDurationResult watch_duration = 6;
+    // Population result.
+    PopulationCountResult population_count = 7;
   }
 
   // List of resource names representing `Measurement`s from the CMMS public

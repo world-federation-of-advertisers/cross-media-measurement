@@ -176,6 +176,7 @@ import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.HistogramResultKt
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.HistogramResultKt.binResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.histogramResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.impressionCountResult
+import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.populationCountResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.reachAndFrequencyResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.reachResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.watchDurationResult
@@ -488,12 +489,16 @@ class MetricsService(
           InternalMetricSpec.TypeCase.WATCH_DURATION -> {
             duration = metricSpec.watchDuration.toDuration()
           }
+          InternalMetricSpec.TypeCase.POPULATION_COUNT -> {
+            population = MeasurementSpec.Population.getDefaultInstance()
+          }
           InternalMetricSpec.TypeCase.TYPE_NOT_SET ->
             failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
               "Unset metric type should've already raised error."
             }
         }
         vidSamplingInterval = metricSpec.vidSamplingInterval.toCmmsVidSamplingInterval()
+        // TODO(@jojijac0b): Add modelLine
       }
     }
 
@@ -1623,6 +1628,9 @@ private fun buildMetricResult(metric: InternalMetric, variances: Variances): Met
             variances
           )
       }
+      InternalMetricSpec.TypeCase.POPULATION_COUNT -> {
+        populationCount = calculatePopulationResult(metric.weightedMeasurementsList)
+      }
       InternalMetricSpec.TypeCase.TYPE_NOT_SET -> {
         failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
           "Metric Type should've been set."
@@ -1648,6 +1656,7 @@ private fun aggregateResults(
     seconds = 0
     nanos = 0
   }
+  var populationValue = 0L
 
   // Aggregation
   for (result in internalMeasurementResults) {
@@ -1674,6 +1683,9 @@ private fun aggregateResults(
     if (result.hasWatchDuration()) {
       watchDurationValue += result.watchDuration.value
     }
+    if (result.hasPopulation()) {
+      populationValue += result.population.value
+    }
   }
 
   return InternalMeasurementKt.result {
@@ -1692,6 +1704,9 @@ private fun aggregateResults(
     if (internalMeasurementResults.first().hasWatchDuration()) {
       this.watchDuration =
         InternalMeasurementKt.ResultKt.watchDuration { value = watchDurationValue }
+    }
+    if (internalMeasurementResults.first().hasPopulation()) {
+      this.population = InternalMeasurementKt.ResultKt.population { value = populationValue }
     }
   }
 }
@@ -1761,6 +1776,16 @@ private fun calculateWatchDurationResult(
       }
     }
   }
+}
+
+/** Calculates the population result from [WeightedMeasurement]s. */
+private fun calculatePopulationResult(
+  weightedMeasurements: List<WeightedMeasurement>,
+): MetricResult.PopulationCountResult {
+  // Only take the first measurement because Population measurements will only have one element.
+  val populationResult =
+    aggregateResults(weightedMeasurements.single().measurement.details.resultsList)
+  return populationCountResult { value = populationResult.population.value }
 }
 
 /** Converts [Duration] format to [Double] second. */
