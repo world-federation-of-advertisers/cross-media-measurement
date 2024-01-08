@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.duration
 import com.google.protobuf.timestamp
+import com.google.protobuf.util.Timestamps
 import com.google.type.Interval
 import com.google.type.interval
 import io.grpc.Status
@@ -39,6 +40,7 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.reporting.v2.BatchCreateMetricsResponse
 import org.wfanet.measurement.internal.reporting.v2.CreateMetricRequest
+import org.wfanet.measurement.internal.reporting.v2.CreateReportRequestKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
@@ -59,6 +61,7 @@ import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getReportRequest
+import org.wfanet.measurement.internal.reporting.v2.getReportScheduleRequest
 import org.wfanet.measurement.internal.reporting.v2.measurement
 import org.wfanet.measurement.internal.reporting.v2.metric
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
@@ -466,7 +469,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
   }
 
   @Test
-  fun `createReport succeeds when externalReportScheduleId set`() = runBlocking {
+  fun `createReport succeeds when report schedule info set`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val createdReportingSet =
       createReportingSet(
@@ -485,12 +488,17 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       )
     val baseReport = createReportForRequest(createdReportingSet, createdMetricCalculationSpec)
 
+    val nextReportCreationTime = timestamp { seconds = 1000 }
     val createdReport =
       service.createReport(
         createReportRequest {
           report = baseReport
           externalReportId = "external-report-id"
-          externalReportScheduleId = createdReportSchedule.externalReportScheduleId
+          reportScheduleInfo =
+            CreateReportRequestKt.reportScheduleInfo {
+              externalReportScheduleId = createdReportSchedule.externalReportScheduleId
+              this.nextReportCreationTime = nextReportCreationTime
+            }
         }
       )
 
@@ -506,6 +514,19 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         }
       }
     }
+
+    val updatedReportSchedule =
+      reportSchedulesService.getReportSchedule(
+        getReportScheduleRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportScheduleId = createdReportSchedule.externalReportScheduleId
+        }
+      )
+    assertThat(
+        Timestamps.compare(updatedReportSchedule.updateTime, updatedReportSchedule.createTime)
+      )
+      .isGreaterThan(0)
+    assertThat(updatedReportSchedule.nextReportCreationTime).isEqualTo(nextReportCreationTime)
   }
 
   @Test
@@ -1056,7 +1077,11 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
           createReportRequest {
             report = baseReport
             externalReportId = "external-report-id"
-            externalReportScheduleId = "external-report-schedule-id"
+            reportScheduleInfo =
+              CreateReportRequestKt.reportScheduleInfo {
+                externalReportScheduleId = "external-report-schedule-id"
+                nextReportCreationTime = timestamp { seconds = 1000 }
+              }
           }
         )
       }
@@ -1810,7 +1835,11 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
           this.report = report
           this.externalReportId = externalReportId
           if (reportSchedule != null) {
-            externalReportScheduleId = reportSchedule.externalReportScheduleId
+            reportScheduleInfo =
+              CreateReportRequestKt.reportScheduleInfo {
+                externalReportScheduleId = reportSchedule.externalReportScheduleId
+                nextReportCreationTime = timestamp { seconds = 1000 }
+              }
           }
         }
       )
