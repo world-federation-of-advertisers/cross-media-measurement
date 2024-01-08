@@ -22,6 +22,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.OpenEndTimeRange
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.AlwaysChargingPrivacyBucketMapper
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
 
 private const val MEASUREMENT_CONSUMER_ID = "ACME"
@@ -30,6 +31,8 @@ private const val MEASUREMENT_CONSUMER_ID = "ACME"
 class PrivacyBucketFilterTest {
 
   private val privacyBucketFilter = PrivacyBucketFilter(TestPrivacyBucketMapper())
+  private val alwaysChargingPrivacyBucketFilter =
+    PrivacyBucketFilter(AlwaysChargingPrivacyBucketMapper())
   private val today: LocalDateTime = LocalDate.now().atTime(4, 20)
   private val yesterday: LocalDateTime = today.minusDays(1)
   private val startOfTomorrow: LocalDateTime = today.plusDays(1).toLocalDate().atStartOfDay()
@@ -265,5 +268,240 @@ class PrivacyBucketFilterTest {
         privacyBucketFilter.getPrivacyBucketGroups(MEASUREMENT_CONSUMER_ID, privacyLandscapeMask)
       )
       .hasSize(24)
+  }
+
+  @Test
+  fun `Mapper succeeds with empty operative fields`() {
+    val privacyLandscapeMask =
+      LandscapeMask(
+        listOf(EventGroupSpec("person.age_group in [1] ", timeRange)),
+        0.0f,
+        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+      )
+
+    assertThat(
+        alwaysChargingPrivacyBucketFilter.getPrivacyBucketGroups(
+          MEASUREMENT_CONSUMER_ID,
+          privacyLandscapeMask
+        )
+      )
+      .containsExactly(
+        PrivacyBucketGroup(
+          measurementConsumerId = "ACME",
+          startingDate = yesterday.toLocalDate(),
+          endingDate = yesterday.toLocalDate(),
+          ageGroup = AgeGroup.RANGE_18_34,
+          gender = Gender.MALE,
+          vidSampleStart = 0.0f,
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          measurementConsumerId = "ACME",
+          startingDate = yesterday.toLocalDate(),
+          endingDate = yesterday.toLocalDate(),
+          ageGroup = AgeGroup.RANGE_18_34,
+          gender = Gender.FEMALE,
+          vidSampleStart = 0.0f,
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          measurementConsumerId = "ACME",
+          startingDate = yesterday.toLocalDate(),
+          endingDate = yesterday.toLocalDate(),
+          ageGroup = AgeGroup.RANGE_35_54,
+          gender = Gender.MALE,
+          vidSampleStart = 0.0f,
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          measurementConsumerId = "ACME",
+          startingDate = yesterday.toLocalDate(),
+          endingDate = yesterday.toLocalDate(),
+          ageGroup = AgeGroup.RANGE_35_54,
+          gender = Gender.FEMALE,
+          vidSampleStart = 0.0f,
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          measurementConsumerId = "ACME",
+          startingDate = yesterday.toLocalDate(),
+          endingDate = yesterday.toLocalDate(),
+          ageGroup = AgeGroup.ABOVE_54,
+          gender = Gender.MALE,
+          vidSampleStart = 0.0f,
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          measurementConsumerId = "ACME",
+          startingDate = yesterday.toLocalDate(),
+          endingDate = yesterday.toLocalDate(),
+          ageGroup = AgeGroup.ABOVE_54,
+          gender = Gender.FEMALE,
+          vidSampleStart = 0.0f,
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          measurementConsumerId = "ACME",
+          startingDate = today.toLocalDate(),
+          endingDate = today.toLocalDate(),
+          ageGroup = AgeGroup.RANGE_18_34,
+          gender = Gender.MALE,
+          vidSampleStart = 0.0f,
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          measurementConsumerId = "ACME",
+          startingDate = today.toLocalDate(),
+          endingDate = today.toLocalDate(),
+          ageGroup = AgeGroup.RANGE_18_34,
+          gender = Gender.FEMALE,
+          vidSampleStart = 0.0f,
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          measurementConsumerId = "ACME",
+          startingDate = today.toLocalDate(),
+          endingDate = today.toLocalDate(),
+          ageGroup = AgeGroup.RANGE_35_54,
+          gender = Gender.MALE,
+          vidSampleStart = 0.0f,
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          measurementConsumerId = "ACME",
+          startingDate = today.toLocalDate(),
+          endingDate = today.toLocalDate(),
+          ageGroup = AgeGroup.RANGE_35_54,
+          gender = Gender.FEMALE,
+          vidSampleStart = 0.0f,
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          measurementConsumerId = "ACME",
+          startingDate = today.toLocalDate(),
+          endingDate = today.toLocalDate(),
+          ageGroup = AgeGroup.ABOVE_54,
+          gender = Gender.MALE,
+          vidSampleStart = 0.0f,
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          measurementConsumerId = "ACME",
+          startingDate = today.toLocalDate(),
+          endingDate = today.toLocalDate(),
+          ageGroup = AgeGroup.ABOVE_54,
+          gender = Gender.FEMALE,
+          vidSampleStart = 0.0f,
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          measurementConsumerId = "ACME",
+          startingDate = yesterday.toLocalDate(),
+          endingDate = yesterday.toLocalDate(),
+          ageGroup = AgeGroup.RANGE_18_34,
+          gender = Gender.MALE,
+          vidSampleStart = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          measurementConsumerId = "ACME",
+          startingDate = yesterday.toLocalDate(),
+          endingDate = yesterday.toLocalDate(),
+          ageGroup = AgeGroup.RANGE_18_34,
+          gender = Gender.FEMALE,
+          vidSampleStart = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          measurementConsumerId = "ACME",
+          startingDate = yesterday.toLocalDate(),
+          endingDate = yesterday.toLocalDate(),
+          ageGroup = AgeGroup.RANGE_35_54,
+          gender = Gender.MALE,
+          vidSampleStart = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          measurementConsumerId = "ACME",
+          startingDate = yesterday.toLocalDate(),
+          endingDate = yesterday.toLocalDate(),
+          ageGroup = AgeGroup.RANGE_35_54,
+          gender = Gender.FEMALE,
+          vidSampleStart = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          measurementConsumerId = "ACME",
+          startingDate = yesterday.toLocalDate(),
+          endingDate = yesterday.toLocalDate(),
+          ageGroup = AgeGroup.ABOVE_54,
+          gender = Gender.MALE,
+          vidSampleStart = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          measurementConsumerId = "ACME",
+          startingDate = yesterday.toLocalDate(),
+          endingDate = yesterday.toLocalDate(),
+          ageGroup = AgeGroup.ABOVE_54,
+          gender = Gender.FEMALE,
+          vidSampleStart = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          measurementConsumerId = "ACME",
+          startingDate = today.toLocalDate(),
+          endingDate = today.toLocalDate(),
+          ageGroup = AgeGroup.RANGE_18_34,
+          gender = Gender.MALE,
+          vidSampleStart = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          measurementConsumerId = "ACME",
+          startingDate = today.toLocalDate(),
+          endingDate = today.toLocalDate(),
+          ageGroup = AgeGroup.RANGE_18_34,
+          gender = Gender.FEMALE,
+          vidSampleStart = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          measurementConsumerId = "ACME",
+          startingDate = today.toLocalDate(),
+          endingDate = today.toLocalDate(),
+          ageGroup = AgeGroup.RANGE_35_54,
+          gender = Gender.MALE,
+          vidSampleStart = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          measurementConsumerId = "ACME",
+          startingDate = today.toLocalDate(),
+          endingDate = today.toLocalDate(),
+          ageGroup = AgeGroup.RANGE_35_54,
+          gender = Gender.FEMALE,
+          vidSampleStart = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          measurementConsumerId = "ACME",
+          startingDate = today.toLocalDate(),
+          endingDate = today.toLocalDate(),
+          ageGroup = AgeGroup.ABOVE_54,
+          gender = Gender.MALE,
+          vidSampleStart = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          measurementConsumerId = "ACME",
+          startingDate = today.toLocalDate(),
+          endingDate = today.toLocalDate(),
+          ageGroup = AgeGroup.ABOVE_54,
+          gender = Gender.FEMALE,
+          vidSampleStart = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        )
+      )
   }
 }

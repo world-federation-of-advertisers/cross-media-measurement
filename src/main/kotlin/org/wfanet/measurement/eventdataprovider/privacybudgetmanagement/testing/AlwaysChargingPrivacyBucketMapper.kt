@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 The Cross-Media Measurement Authors
+ * Copyright 2023 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -15,27 +15,23 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing
 
 import com.google.protobuf.Message
 import org.projectnessie.cel.Program
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters.compileProgram
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketMapper
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
 
-/** [PrivacyBucketMapper] for [TestEvent] instances. */
-class TestPrivacyBucketMapper : PrivacyBucketMapper {
+/** [PrivacyBucketMapper] for [TestEvent] instances that charges all buckets. */
+class AlwaysChargingPrivacyBucketMapper : PrivacyBucketMapper {
 
-  override val operativeFields = setOf("person.age_group", "person.gender")
+  override val operativeFields = emptySet<String>()
 
   override fun toPrivacyFilterProgram(filterExpression: String): Program =
     try {
-      compileProgram(TestEvent.getDescriptor(), filterExpression, operativeFields)
+      compileProgram(TestEvent.getDescriptor(), "true == true", operativeFields)
     } catch (e: EventFilterValidationException) {
       throw PrivacyBudgetManagerException(
         PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER,
@@ -44,20 +40,6 @@ class TestPrivacyBucketMapper : PrivacyBucketMapper {
     }
 
   override fun toEventMessage(privacyBucketGroup: PrivacyBucketGroup): Message {
-    return testEvent {
-      person = person {
-        ageGroup =
-          when (privacyBucketGroup.ageGroup) {
-            AgeGroup.RANGE_18_34 -> Person.AgeGroup.YEARS_18_TO_34
-            AgeGroup.RANGE_35_54 -> Person.AgeGroup.YEARS_35_TO_54
-            AgeGroup.ABOVE_54 -> Person.AgeGroup.YEARS_55_PLUS
-          }
-        gender =
-          when (privacyBucketGroup.gender) {
-            Gender.MALE -> Person.Gender.MALE
-            Gender.FEMALE -> Person.Gender.FEMALE
-          }
-      }
-    }
+    return testEvent {}
   }
 }
