@@ -76,6 +76,7 @@ import org.wfanet.measurement.internal.reporting.v2.periodicTimeInterval as inte
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals as Intervals
+import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.withReportScheduleInfoAndMeasurementConsumerPrincipal
 import org.wfanet.measurement.reporting.v2alpha.BatchCancelMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsRequest
