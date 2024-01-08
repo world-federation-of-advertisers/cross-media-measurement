@@ -2006,6 +2006,7 @@ val SUCCEEDED_POPULATION_METRIC =
     state = Metric.State.SUCCEEDED
     result = metricResult {
       populationCount = MetricResultKt.populationCountResult { value = TOTAL_POPULATION_VALUE }
+      cmmsMeasurements += PENDING_POPULATION_MEASUREMENT.name
     }
   }
 
