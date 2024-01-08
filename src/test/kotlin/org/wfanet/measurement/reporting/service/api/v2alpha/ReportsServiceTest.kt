@@ -55,6 +55,7 @@ import org.wfanet.measurement.config.reporting.MetricSpecConfigKt
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.metricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.BatchGetMetricCalculationSpecsRequest
+import org.wfanet.measurement.internal.reporting.v2.CreateReportRequestKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt as InternalMetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
@@ -300,6 +301,7 @@ class ReportsServiceTest {
   @Test
   fun `createReport returns report with one metric created when report schedule name set`() {
     val externalReportScheduleId = "external-report-schedule-id"
+    val nextReportCreationTime = timestamp { seconds = 1000 }
     runBlocking {
       whenever(
           internalReportsMock.createReport(
@@ -307,7 +309,11 @@ class ReportsServiceTest {
               internalCreateReportRequest {
                 report = INTERNAL_REACH_REPORTS.requestingReport
                 externalReportId = "report-id"
-                this.externalReportScheduleId = externalReportScheduleId
+                reportScheduleInfo =
+                  CreateReportRequestKt.reportScheduleInfo {
+                    this.externalReportScheduleId = externalReportScheduleId
+                    this.nextReportCreationTime = nextReportCreationTime
+                  }
               }
             )
           )
@@ -355,8 +361,11 @@ class ReportsServiceTest {
         .toName()
 
     val result =
-      withReportScheduleAndMeasurementConsumerPrincipal(
-        reportScheduleName,
+      withReportScheduleInfoAndMeasurementConsumerPrincipal(
+        ReportScheduleInfoServerInterceptor.ReportScheduleInfo(
+          reportScheduleName,
+          nextReportCreationTime
+        ),
         MEASUREMENT_CONSUMER_KEYS.first().toName(),
         CONFIG
       ) {
@@ -2339,6 +2348,7 @@ class ReportsServiceTest {
   @Test
   fun `createReport throws NOT_FOUND when report schedule not found`() = runBlocking {
     val externalReportScheduleId = "external-report-schedule-id"
+    val nextReportCreationTime = timestamp { seconds = 1000 }
 
     whenever(
         internalReportsMock.createReport(
@@ -2346,7 +2356,11 @@ class ReportsServiceTest {
             internalCreateReportRequest {
               report = INTERNAL_REACH_REPORTS.requestingReport
               externalReportId = "report-id"
-              this.externalReportScheduleId = externalReportScheduleId
+              reportScheduleInfo =
+                CreateReportRequestKt.reportScheduleInfo {
+                  this.externalReportScheduleId = externalReportScheduleId
+                  this.nextReportCreationTime = nextReportCreationTime
+                }
             }
           )
         )
@@ -2373,8 +2387,11 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withReportScheduleAndMeasurementConsumerPrincipal(
-          reportScheduleName,
+        withReportScheduleInfoAndMeasurementConsumerPrincipal(
+          ReportScheduleInfoServerInterceptor.ReportScheduleInfo(
+            reportScheduleName,
+            nextReportCreationTime
+          ),
           measurementConsumerKey.toName(),
           CONFIG
         ) {
@@ -2400,8 +2417,11 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withReportScheduleAndMeasurementConsumerPrincipal(
-          "name123",
+        withReportScheduleInfoAndMeasurementConsumerPrincipal(
+          ReportScheduleInfoServerInterceptor.ReportScheduleInfo(
+            "name123",
+            timestamp { seconds = 1000 }
+          ),
           MEASUREMENT_CONSUMER_KEYS.first().toName(),
           CONFIG
         ) {

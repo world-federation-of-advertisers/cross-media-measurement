@@ -33,6 +33,7 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.CreateReportRequest as InternalCreateReportRequest
+import org.wfanet.measurement.internal.reporting.v2.CreateReportRequestKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec as InternalMetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.Report as InternalReport
@@ -45,8 +46,8 @@ import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internal
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withPrincipalName
-import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleNameServerInterceptor.Companion.reportScheduleNameFromCurrentContext
 import org.wfanet.measurement.reporting.v2alpha.BatchCancelMetricsResponse
+import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.reportScheduleInfoFromCurrentContext
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.CancelReportRequest
@@ -749,14 +750,19 @@ class ReportsService(
       requestId = request.requestId
       externalReportId = request.reportId
 
-      val reportScheduleName: String? = reportScheduleNameFromCurrentContext
-      if (reportScheduleName != null) {
+      val reportScheduleInfo: ReportScheduleInfoServerInterceptor.ReportScheduleInfo? =
+        reportScheduleInfoFromCurrentContext
+      if (reportScheduleInfo != null) {
         val reportScheduleKey =
-          grpcRequireNotNull(ReportScheduleKey.fromName(reportScheduleName)) {
+          grpcRequireNotNull(ReportScheduleKey.fromName(reportScheduleInfo.name)) {
             "reportScheduleName is invalid"
           }
 
-        externalReportScheduleId = reportScheduleKey.reportScheduleId
+        this.reportScheduleInfo =
+          CreateReportRequestKt.reportScheduleInfo {
+            externalReportScheduleId = reportScheduleKey.reportScheduleId
+            nextReportCreationTime = reportScheduleInfo.nextReportCreationTime
+          }
       }
     }
   }
