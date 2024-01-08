@@ -225,7 +225,7 @@ kt_jvm_test(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:principal_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:principal_server_interceptor",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:report_schedule_name_server_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:report_schedule_info_server_interceptor",
         "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",

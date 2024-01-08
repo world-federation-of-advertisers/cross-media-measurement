@@ -612,6 +612,49 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
   }
 
   @Test
+  fun `listReportSchedules lists 1 schedule when state is specified`() = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val metricCalculationSpec =
+      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
+    val reportSchedule = createReportScheduleForRequest(reportingSet, metricCalculationSpec)
+
+    val request = createReportScheduleRequest {
+      this.reportSchedule = reportSchedule
+      externalReportScheduleId = "external-report-schedule-id"
+    }
+    val createdReportSchedule = service.createReportSchedule(request)
+    service.stopReportSchedule(
+      stopReportScheduleRequest {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        externalReportScheduleId = createdReportSchedule.externalReportScheduleId
+      }
+    )
+    val createdReportSchedule2 =
+      service.createReportSchedule(
+        request.copy { externalReportScheduleId = "external-report-schedule-id-2" }
+      )
+
+    val retrievedReportSchedules =
+      service
+        .listReportSchedules(
+          listReportSchedulesRequest {
+            filter =
+              ListReportSchedulesRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                state = ReportSchedule.State.ACTIVE
+              }
+            limit = 1
+          }
+        )
+        .reportSchedulesList
+
+    assertThat(retrievedReportSchedules).hasSize(1)
+    assertThat(retrievedReportSchedules[0].externalReportScheduleId)
+      .isEqualTo(createdReportSchedule2.externalReportScheduleId)
+  }
+
+  @Test
   fun `listReportSchedules lists 1 schedule when after id is specified`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)

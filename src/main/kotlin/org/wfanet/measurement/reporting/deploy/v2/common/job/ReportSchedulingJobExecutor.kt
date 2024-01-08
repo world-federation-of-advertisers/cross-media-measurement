@@ -19,6 +19,7 @@ package org.wfanet.measurement.reporting.deploy.v2.common.job
 import io.grpc.Channel
 import java.security.SecureRandom
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as KingdomCertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub as KingdomDataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as KingdomEventGroupsCoroutineStub
@@ -49,7 +50,7 @@ import org.wfanet.measurement.reporting.job.ReportSchedulingJob
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withMetadataPrincipalIdentities
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricsService
-import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleNameServerInterceptor.Companion.withReportScheduleNameInterceptor
+import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.withReportScheduleInfoInterceptor
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
@@ -136,11 +137,12 @@ private fun run(
       commonServerFlags,
       reportsService
         .withMetadataPrincipalIdentities(measurementConsumerConfigs)
-        .withReportScheduleNameInterceptor()
+        .withReportScheduleInfoInterceptor()
     )
 
   val reportSchedulingJob =
     ReportSchedulingJob(
+      measurementConsumerConfigs,
       KingdomDataProvidersCoroutineStub(kingdomChannel),
       KingdomEventGroupsCoroutineStub(kingdomChannel),
       InternalReportingSetsCoroutineStub(channel),
@@ -149,7 +151,7 @@ private fun run(
       ReportsCoroutineStub(inProcessReportsChannel),
     )
 
-  reportSchedulingJob.execute()
+  runBlocking { reportSchedulingJob.execute() }
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)

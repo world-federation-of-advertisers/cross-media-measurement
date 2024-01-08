@@ -146,6 +146,34 @@ class ReportScheduleReader(private val readContext: ReadContext) {
     return readContext.executeQuery(statement).consume(::translate).toList()
   }
 
+  suspend fun readReportSchedulesByState(request: ListReportSchedulesRequest): List<Result> {
+    val sql =
+      """
+        $baseSql
+        WHERE CmmsMeasurementConsumerId = $1
+          AND ExternalReportScheduleId > $2
+          AND ReportSchedules.State = $3
+        ORDER BY CmmsMeasurementConsumerId ASC, ExternalReportScheduleId ASC
+        LIMIT $4
+      """
+        .trimIndent()
+
+    val statement =
+      boundStatement(sql) {
+        bind("$1", request.filter.cmmsMeasurementConsumerId)
+        bind("$2", request.filter.externalReportScheduleIdAfter)
+        bind("$3", request.filter.state)
+
+        if (request.limit > 0) {
+          bind("$4", request.limit)
+        } else {
+          bind("$4", LIST_DEFAULT_LIMIT)
+        }
+      }
+
+    return readContext.executeQuery(statement).consume(::translate).toList()
+  }
+
   private fun buildReportSchedule(row: ResultRow): ReportSchedule {
     val cmmsMeasurementConsumerId: String = row["CmmsMeasurementConsumerId"]
     val externalReportScheduleId: String = row["ExternalReportScheduleId"]
