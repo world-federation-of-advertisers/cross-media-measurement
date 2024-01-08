@@ -25,10 +25,10 @@ def wfa_measurement_system_repositories():
     """Imports all direct dependencies for wfa_measurement_system."""
 
     wfa_repo_archive(
+        commit = "506734bfff557e54be5ff389214f96720389ed90",
         name = "wfa_common_jvm",
         repo = "common-jvm",
-        sha256 = "c0e39569064363ed61b9b780bf2aa37b99d0c81933a7a434b6b320c2e81063b4",
-        version = "0.65.0",
+        sha256 = "16381fdf06ee513661f3ec56769dfcd8ba462a2f930a7d86a418175e57a60622",
     )
 
     wfa_repo_archive(
