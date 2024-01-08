@@ -57,6 +57,7 @@ import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.BatchCreateMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.BatchGetMeasurementsRequest
+import org.wfanet.measurement.api.v2alpha.CancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodology
@@ -180,10 +181,10 @@ import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsRequest as in
 import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsResponse as internalBatchGetMetricsResponse
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsResponse
-import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementFailuresResponse
+import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresResponse
 import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsResponse
-import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementResultsResponse
+import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
@@ -196,6 +197,8 @@ import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetric
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsSketchParams as internalReachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
+import org.wfanet.measurement.internal.reporting.v2.batchCancelMeasurementsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchCancelMeasurementsResponse
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMetricVarianceParams
@@ -219,6 +222,8 @@ import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt.impressionCountPara
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt.reachAndFrequencyParams
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt.reachParams
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt.watchDurationParams
+import org.wfanet.measurement.reporting.v2alpha.batchCancelMetricsRequest
+import org.wfanet.measurement.reporting.v2alpha.batchCancelMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.batchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.batchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.batchGetMetricsRequest
@@ -241,6 +246,7 @@ private const val BATCH_GET_REPORTING_SETS_LIMIT = 1000
 private const val BATCH_SET_CMMS_MEASUREMENT_IDS_LIMIT = 1000
 private const val BATCH_SET_MEASUREMENT_RESULTS_LIMIT = 1000
 private const val BATCH_SET_MEASUREMENT_FAILURES_LIMIT = 1000
+private const val BATCH_CANCEL_MEASUREMENTS_LIMIT = 1000
 private const val BATCH_KINGDOM_MEASUREMENTS_LIMIT = 50
 
 private const val NUMBER_VID_BUCKETS = 300
@@ -815,6 +821,11 @@ private val INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
             message = "Privacy budget exceeded."
           }
       }
+  }
+
+private val INTERNAL_CANCELLED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
+  INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
+    state = InternalMeasurement.State.CANCELLED
   }
 
 private val INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
@@ -2073,14 +2084,20 @@ class MetricsServiceTest {
       )
     onBlocking { batchSetMeasurementResults(any()) }
       .thenReturn(
-        batchSetCmmsMeasurementResultsResponse {
+        batchSetMeasurementResultsResponse {
           measurements += INTERNAL_SUCCEEDED_UNION_ALL_REACH_MEASUREMENT
         }
       )
     onBlocking { batchSetMeasurementFailures(any()) }
       .thenReturn(
-        batchSetCmmsMeasurementFailuresResponse {
+        batchSetMeasurementFailuresResponse {
           measurements += INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+        }
+      )
+    onBlocking { batchCancelMeasurements(any()) }
+      .thenReturn(
+        batchCancelMeasurementsResponse {
+          measurements += INTERNAL_CANCELLED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
         }
       )
   }
@@ -5999,7 +6016,7 @@ class MetricsServiceTest {
 
       whenever(internalMeasurementsMock.batchSetMeasurementResults(any()))
         .thenReturn(
-          batchSetCmmsMeasurementResultsResponse {
+          batchSetMeasurementResultsResponse {
             measurements += INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT
           }
         )
@@ -6541,7 +6558,7 @@ class MetricsServiceTest {
       }
       whenever(internalMeasurementsMock.batchSetMeasurementResults(any()))
         .thenReturn(
-          batchSetCmmsMeasurementResultsResponse {
+          batchSetMeasurementResultsResponse {
             measurements += INTERNAL_SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT
           }
         )
@@ -6623,7 +6640,7 @@ class MetricsServiceTest {
 
       whenever(internalMeasurementsMock.batchSetMeasurementResults(any()))
         .thenReturn(
-          batchSetCmmsMeasurementResultsResponse {
+          batchSetMeasurementResultsResponse {
             measurements += INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
           }
         )
@@ -6715,7 +6732,7 @@ class MetricsServiceTest {
 
       whenever(internalMeasurementsMock.batchSetMeasurementFailures(any()))
         .thenReturn(
-          batchSetCmmsMeasurementFailuresResponse {
+          batchSetMeasurementFailuresResponse {
             measurements += INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
           }
         )
@@ -7412,7 +7429,7 @@ class MetricsServiceTest {
   }
 
   @Test
-  fun `getMetric throws INVALID_ARGUMENT when Report name is invalid`() {
+  fun `getMetric throws INVALID_ARGUMENT when Metric name is invalid`() {
     val request = getMetricRequest { name = "invalid_metric_name" }
 
     val exception =
@@ -7699,6 +7716,198 @@ class MetricsServiceTest {
         assertFailsWith<StatusRuntimeException> {
           withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
             runBlocking { service.batchGetMetrics(request) }
+          }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.status.description)
+        .isEqualTo("At most $MAX_BATCH_SIZE metrics can be supported in a batch.")
+    }
+
+  @Test
+  fun `batchCancelMetrics returns metrics with CANCELLED when measurements are CANCELLED`() = runBlocking {
+    whenever(
+      internalMetricsMock.batchGetMetrics(
+        eq(
+          internalBatchGetMetricsRequest {
+            cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+            externalMetricIds += INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId
+            externalMetricIds +=
+              INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
+          }
+        )
+      )
+    )
+      .thenReturn(
+        internalBatchGetMetricsResponse {
+          metrics += INTERNAL_PENDING_INCREMENTAL_REACH_METRIC
+          metrics += INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
+        }
+      )
+      .thenReturn(
+        internalBatchGetMetricsResponse {
+          metrics += INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.copy {
+            weightedMeasurements.clear()
+            weightedMeasurements += weightedMeasurement {
+              weight = 1
+              binaryRepresentation = 3
+              measurement = INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.copy {
+                state = InternalMeasurement.State.CANCELLED
+              }
+            }
+            weightedMeasurements += weightedMeasurement {
+              weight = -1
+              binaryRepresentation = 2
+              measurement = INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.copy {
+                state = InternalMeasurement.State.CANCELLED
+              }
+            }
+          }
+          metrics += INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+            weightedMeasurements.clear()
+            weightedMeasurements += weightedMeasurement {
+              weight = 1
+              binaryRepresentation = 3
+              measurement = INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
+                state = InternalMeasurement.State.CANCELLED
+              }
+            }
+          }
+        }
+      )
+
+    whenever(measurementsMock.cancelMeasurement(any())).thenAnswer {
+      val cancelMeasurementRequest = it.arguments[0] as CancelMeasurementRequest
+      val measurementsMap =
+        mapOf(
+          PENDING_UNION_ALL_REACH_MEASUREMENT.name to PENDING_UNION_ALL_REACH_MEASUREMENT.copy {
+            state = Measurement.State.CANCELLED
+          },
+          PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.name to PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.copy {
+            state = Measurement.State.CANCELLED
+          },
+          PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name to PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
+            state = Measurement.State.CANCELLED
+          }
+        )
+
+      measurementsMap.getValue(cancelMeasurementRequest.name)
+    }
+
+    val request = batchCancelMetricsRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      names += PENDING_INCREMENTAL_REACH_METRIC.name
+      names += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+        runBlocking { service.batchCancelMetrics(request) }
+      }
+
+    // Verify proto argument of internal MeasurementsCoroutineImplBase::batchCancelMeasurements
+    verifyProtoArgument(internalMeasurementsMock, InternalMeasurementsCoroutineImplBase::batchCancelMeasurements)
+      .isEqualTo(
+        batchCancelMeasurementsRequest {
+          cmmsMeasurementConsumerId = MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMERS.values.first().name)!!.measurementConsumerId
+          cmmsMeasurementIds += INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.cmmsMeasurementId
+          cmmsMeasurementIds += INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.cmmsMeasurementId
+          cmmsMeasurementIds += INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementId
+        }
+      )
+
+    assertThat(result)
+      .isEqualTo(
+        batchCancelMetricsResponse {
+          metrics += PENDING_INCREMENTAL_REACH_METRIC.copy {
+            state = Metric.State.CANCELLED
+          }
+          metrics += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+            state = Metric.State.CANCELLED
+          }
+        }
+      )
+  }
+
+  @Test
+  fun `batchCancelMetrics throws INVALID_ARGUMENT when Metric name is invalid`() {
+    val request = batchCancelMetricsRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      names += "invalid_metric_name"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.batchCancelMetrics(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `batchCancelMetrics throws PERMISSION_DENIED when MC's identity does not match`() {
+    val request = batchCancelMetricsRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      names += PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.last().name, CONFIG) {
+          runBlocking { service.batchCancelMetrics(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `batchCancelMetrics throws PERMISSION_DENIED when parent doesn't match name's parent`() {
+    val request = batchCancelMetricsRequest {
+      parent = MEASUREMENT_CONSUMERS.values.last().name
+      names += PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.batchCancelMetrics(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `batchCancelMetrics throws UNAUTHENTICATED when the caller is not a MeasurementConsumer`() {
+    val request = batchCancelMetricsRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      names += PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDERS.values.first().name) {
+          runBlocking { service.batchCancelMetrics(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `batchCancelMetrics throws INVALID_ARGUMENT when number of requests exceeds limit`() =
+    runBlocking {
+      val request = batchCancelMetricsRequest {
+        parent = MEASUREMENT_CONSUMERS.values.first().name
+        names += List(MAX_BATCH_SIZE + 1) { "metric_name" }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+            runBlocking { service.batchCancelMetrics(request) }
           }
         }
 

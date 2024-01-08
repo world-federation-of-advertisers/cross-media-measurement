@@ -20,16 +20,20 @@ import io.grpc.Status
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementFailuresResponse
+import org.wfanet.measurement.internal.reporting.v2.BatchCancelMeasurementsRequest
+import org.wfanet.measurement.internal.reporting.v2.BatchCancelMeasurementsResponse
+import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsResponse
-import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementResultsResponse
+import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt
-import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementFailuresResponse
+import org.wfanet.measurement.internal.reporting.v2.batchCancelMeasurementsResponse
+import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresResponse
 import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsResponse
-import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementResultsResponse
+import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsResponse
+import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CancelMeasurements
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.SetCmmsMeasurementIds
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.SetMeasurementFailures
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.SetMeasurementResults
@@ -64,7 +68,7 @@ class PostgresMeasurementsService(
 
   override suspend fun batchSetMeasurementResults(
     request: BatchSetMeasurementResultsRequest
-  ): BatchSetCmmsMeasurementResultsResponse {
+  ): BatchSetMeasurementResultsResponse {
     grpcRequire(request.measurementResultsList.size <= BATCH_SIZE) { "Too many requests" }
 
     grpcRequire(request.cmmsMeasurementConsumerId.isNotEmpty()) {
@@ -72,7 +76,7 @@ class PostgresMeasurementsService(
     }
 
     try {
-      return batchSetCmmsMeasurementResultsResponse {
+      return batchSetMeasurementResultsResponse {
         measurements += SetMeasurementResults(request).execute(client, idGenerator)
       }
     } catch (e: MeasurementConsumerNotFoundException) {
@@ -84,7 +88,7 @@ class PostgresMeasurementsService(
 
   override suspend fun batchSetMeasurementFailures(
     request: BatchSetMeasurementFailuresRequest
-  ): BatchSetCmmsMeasurementFailuresResponse {
+  ): BatchSetMeasurementFailuresResponse {
     grpcRequire(request.measurementFailuresList.size <= BATCH_SIZE) { "Too many requests" }
 
     grpcRequire(request.cmmsMeasurementConsumerId.isNotEmpty()) {
@@ -92,8 +96,26 @@ class PostgresMeasurementsService(
     }
 
     try {
-      return batchSetCmmsMeasurementFailuresResponse {
+      return batchSetMeasurementFailuresResponse {
         measurements += SetMeasurementFailures(request).execute(client, idGenerator)
+      }
+    } catch (e: MeasurementConsumerNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found")
+    } catch (e: MeasurementNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Measurement not found")
+    }
+  }
+
+  override suspend fun batchCancelMeasurements(request: BatchCancelMeasurementsRequest): BatchCancelMeasurementsResponse {
+    grpcRequire(request.cmmsMeasurementIdsList.size <= BATCH_SIZE) { "Too many requests" }
+
+    grpcRequire(request.cmmsMeasurementConsumerId.isNotEmpty()) {
+      "CmmsMeasurementConsumerId is missing"
+    }
+
+    try {
+      return batchCancelMeasurementsResponse {
+        measurements += CancelMeasurements(request).execute(client, idGenerator)
       }
     } catch (e: MeasurementConsumerNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found")

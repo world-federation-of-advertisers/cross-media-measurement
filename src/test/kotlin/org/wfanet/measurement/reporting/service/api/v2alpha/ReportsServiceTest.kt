@@ -76,6 +76,7 @@ import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals as Intervals
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleNameServerInterceptor.Companion.withReportScheduleAndMeasurementConsumerPrincipal
+import org.wfanet.measurement.reporting.v2alpha.BatchCancelMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListReportsPageTokenKt
@@ -88,13 +89,16 @@ import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.Report
+import org.wfanet.measurement.reporting.v2alpha.Report.ReportingMetricEntry
 import org.wfanet.measurement.reporting.v2alpha.ReportKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
+import org.wfanet.measurement.reporting.v2alpha.batchCancelMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.batchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.batchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.batchGetMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.batchGetMetricsResponse
+import org.wfanet.measurement.reporting.v2alpha.cancelReportRequest
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
@@ -144,6 +148,7 @@ private const val DIFFERENTIAL_PRIVACY_DELTA = 1e-12
 
 private const val BATCH_CREATE_METRICS_LIMIT = 1000
 private const val BATCH_GET_METRICS_LIMIT = 100
+private const val BATCH_CANCEL_METRICS_LIMIT = 1000
 
 @RunWith(JUnit4::class)
 class ReportsServiceTest {
@@ -200,6 +205,19 @@ class ReportsServiceTest {
             RUNNING_WATCH_DURATION_METRIC.name to RUNNING_WATCH_DURATION_METRIC
           )
         batchGetMetricsResponse {
+          metrics += request.namesList.map { metricName -> metricsMap.getValue(metricName) }
+        }
+      }
+
+    onBlocking { batchCancelMetrics(any()) }
+      .thenAnswer {
+        val request = it.arguments[0] as BatchCancelMetricsRequest
+        val metricsMap =
+          mapOf(
+            RUNNING_REACH_METRIC.name to RUNNING_REACH_METRIC.copy { state = Metric.State.CANCELLED },
+            RUNNING_WATCH_DURATION_METRIC.name to RUNNING_WATCH_DURATION_METRIC.copy { state = Metric.State.CANCELLED }
+          )
+        batchCancelMetricsResponse {
           metrics += request.namesList.map { metricName -> metricsMap.getValue(metricName) }
         }
       }
@@ -2464,6 +2482,51 @@ class ReportsServiceTest {
   }
 
   @Test
+  fun `getReport returns the report with CANCELLED when any metric CANCELLED`() = runBlocking {
+    val cancelledReachMetric = RUNNING_REACH_METRIC.copy { state = Metric.State.CANCELLED }
+
+    whenever(
+      metricsMock.batchGetMetrics(
+        eq(
+          batchGetMetricsRequest {
+            parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+            names += cancelledReachMetric.name
+          }
+        )
+      )
+    )
+      .thenReturn(batchGetMetricsResponse { metrics += cancelledReachMetric })
+
+    val request = getReportRequest { name = PENDING_REACH_REPORT.name }
+
+    val report =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        runBlocking { service.getReport(request) }
+      }
+
+    assertThat(report)
+      .isEqualTo(
+        PENDING_REACH_REPORT.copy {
+          state = Report.State.CANCELLED
+          metricCalculationResults +=
+            ReportKt.metricCalculationResult {
+              metricCalculationSpec = REACH_METRIC_CALCULATION_SPEC_NAME
+              displayName = INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.displayName
+              reportingSet = SUCCEEDED_REACH_METRIC.reportingSet
+              cumulative = INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.cumulative
+              resultAttributes +=
+                ReportKt.MetricCalculationResultKt.resultAttribute {
+                  metric = cancelledReachMetric.name
+                  metricSpec = cancelledReachMetric.metricSpec
+                  timeInterval = cancelledReachMetric.timeInterval
+                  state = Metric.State.CANCELLED
+                }
+            }
+        }
+      )
+  }
+
+  @Test
   fun `getReport returns the report with RUNNING when metric is pending`(): Unit = runBlocking {
     val request = getReportRequest { name = PENDING_REACH_REPORT.name }
 
@@ -3175,6 +3238,316 @@ class ReportsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.message).contains("not a valid CEL expression")
+  }
+
+  @Test
+  fun `cancelReport returns the report with CANCELLED`(): Unit = runBlocking {
+    val request = cancelReportRequest { name = PENDING_REACH_REPORT.name }
+
+    val report =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        runBlocking { service.cancelReport(request) }
+      }
+
+    assertThat(report).isEqualTo(PENDING_REACH_REPORT.copy {
+      state = Report.State.CANCELLED
+      metricCalculationResults +=
+        ReportKt.metricCalculationResult {
+          metricCalculationSpec = REACH_METRIC_CALCULATION_SPEC_NAME
+          displayName = INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.displayName
+          reportingSet = SUCCEEDED_REACH_METRIC.reportingSet
+          cumulative = INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.cumulative
+          resultAttributes +=
+            ReportKt.MetricCalculationResultKt.resultAttribute {
+              metric = RUNNING_REACH_METRIC.name
+              metricSpec = RUNNING_REACH_METRIC.metricSpec
+              timeInterval = RUNNING_REACH_METRIC.timeInterval
+              state = Metric.State.CANCELLED
+            }
+        }
+    })
+  }
+
+  @Test
+  fun `cancelReport returns report with partial results when metric SUCCEEDED`(): Unit =
+    runBlocking {
+      val internalPendingReport: InternalReport =
+        buildInternalReports(
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
+          timeIntervals =
+          listOf(
+            interval {
+              startTime = START_TIME
+              endTime = END_TIME
+            }
+          ),
+          reportingSetId = PRIMITIVE_REPORTING_SETS.first().resourceId,
+          reportingMetrics = listOf(INITIAL_REACH_REPORTING_METRIC, INITIAL_WATCH_DURATION_REPORTING_METRIC),
+          metricCalculationSpecId = REACH_METRIC_CALCULATION_SPEC_ID,
+          reportIdBase = "reach-"
+        ).pendingReport
+
+      whenever(internalReportsMock.getReport(any()))
+        .thenReturn(internalPendingReport)
+
+      val reachMetricName = MetricKey(MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId, internalPendingReport.reportingMetricEntriesMap.values.first().metricCalculationSpecReportingMetricsList[0].reportingMetricsList[0].externalMetricId).toName()
+      val watchDurationMetricName = MetricKey(MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId, internalPendingReport.reportingMetricEntriesMap.values.first().metricCalculationSpecReportingMetricsList[0].reportingMetricsList[1].externalMetricId).toName()
+
+      whenever(metricsMock.batchCancelMetrics(any()))
+        .thenReturn(
+          batchCancelMetricsResponse {
+            metrics += RUNNING_REACH_METRIC.copy {
+              name = reachMetricName
+              state = Metric.State.CANCELLED
+            }
+            metrics += SUCCEEDED_WATCH_DURATION_METRIC.copy {
+              name = watchDurationMetricName
+            }
+          }
+        )
+
+      val internalMetricCalculationSpec = internalMetricCalculationSpec {
+        cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+        externalMetricCalculationSpecId = REACH_METRIC_CALCULATION_SPEC_ID
+        details =
+          InternalMetricCalculationSpecKt.details {
+            displayName = DISPLAY_NAME
+            metricSpecs += INTERNAL_REACH_METRIC_SPEC
+            metricSpecs += INTERNAL_WATCH_DURATION_METRIC_SPEC
+            cumulative = false
+          }
+      }
+      whenever(internalMetricCalculationSpecsMock.batchGetMetricCalculationSpecs(any()))
+        .thenAnswer {
+          val request = it.arguments[0] as BatchGetMetricCalculationSpecsRequest
+          val metricCalculationSpecsMap =
+            mapOf(
+              internalMetricCalculationSpec.externalMetricCalculationSpecId to
+                internalMetricCalculationSpec
+            )
+          batchGetMetricCalculationSpecsResponse {
+            metricCalculationSpecs +=
+              request.externalMetricCalculationSpecIdsList.map { id ->
+                metricCalculationSpecsMap.getValue(id)
+              }
+          }
+        }
+
+      val request = cancelReportRequest { name = PENDING_REACH_REPORT.name }
+
+      val report =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.cancelReport(request) }
+        }
+
+      assertThat(report)
+        .isEqualTo(PENDING_REACH_REPORT.copy {
+          reportingMetricEntries.clear()
+          reportingMetricEntries += ReportKt.reportingMetricEntry {
+            key = PRIMITIVE_REPORTING_SETS.first().name
+            value = ReportKt.reportingMetricCalculationSpec {
+              metricCalculationSpecs += MetricCalculationSpecKey(internalMetricCalculationSpec.cmmsMeasurementConsumerId, internalMetricCalculationSpec.externalMetricCalculationSpecId).toName()
+            }
+          }
+          state = Report.State.CANCELLED
+          metricCalculationResults +=
+            ReportKt.metricCalculationResult {
+              metricCalculationSpec = MetricCalculationSpecKey(internalMetricCalculationSpec.cmmsMeasurementConsumerId, internalMetricCalculationSpec.externalMetricCalculationSpecId).toName()
+              displayName = internalMetricCalculationSpec.details.displayName
+              reportingSet = PRIMITIVE_REPORTING_SETS.first().name
+              cumulative = internalMetricCalculationSpec.details.cumulative
+              resultAttributes +=
+                ReportKt.MetricCalculationResultKt.resultAttribute {
+                  metric = reachMetricName
+                  metricSpec = RUNNING_REACH_METRIC.metricSpec
+                  timeInterval = RUNNING_REACH_METRIC.timeInterval
+                  state = Metric.State.CANCELLED
+                }
+              resultAttributes +=
+                ReportKt.MetricCalculationResultKt.resultAttribute {
+                  metric = watchDurationMetricName
+                  metricSpec = SUCCEEDED_WATCH_DURATION_METRIC.metricSpec
+                  timeInterval = SUCCEEDED_WATCH_DURATION_METRIC.timeInterval
+                  state = Metric.State.SUCCEEDED
+                  metricResult = SUCCEEDED_WATCH_DURATION_METRIC.result
+                }
+            }
+          createTime = internalPendingReport.createTime
+        })
+    }
+
+  @Test
+  fun `cancelReport returns the report with CANCELLED when more than max batch size metrics`():
+    Unit = runBlocking {
+    val startSec = 10L
+    val incrementSec = 1L
+    val intervalCount = BATCH_CANCEL_METRICS_LIMIT + 1
+
+    val endTimesList: List<Long> =
+      (startSec + incrementSec until startSec + incrementSec + intervalCount).toList()
+    val intervals: List<Interval> =
+      endTimesList.map { end ->
+        interval {
+          startTime = timestamp { seconds = startSec }
+          endTime = timestamp { seconds = end }
+        }
+      }
+
+    val reportingMetrics =
+      intervals.map { timeInterval ->
+        buildInitialReportingMetric(timeInterval, INTERNAL_REACH_METRIC_SPEC, listOf())
+      }
+
+    val internalMetricCalculationSpec = internalMetricCalculationSpec {
+      cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+      externalMetricCalculationSpecId = "1234"
+      details =
+        InternalMetricCalculationSpecKt.details {
+          displayName = DISPLAY_NAME
+          metricSpecs += INTERNAL_REACH_METRIC_SPEC
+          cumulative = true
+        }
+    }
+    whenever(internalMetricCalculationSpecsMock.batchGetMetricCalculationSpecs(any()))
+      .thenReturn(
+        batchGetMetricCalculationSpecsResponse {
+          metricCalculationSpecs += internalMetricCalculationSpec
+        }
+      )
+
+    val internalPendingReport = internalReport {
+      details = InternalReportKt.details { tags.putAll(REPORT_TAGS) }
+      cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+
+      this.periodicTimeInterval = internalPeriodicTimeInterval {
+        startTime = timestamp { seconds = startSec }
+        increment = duration { seconds = incrementSec }
+        this.intervalCount = intervalCount
+      }
+
+      externalReportId = "report-id"
+      createTime = Instant.now().toProtoTime()
+
+      val updatedReportingMetrics =
+        reportingMetrics.mapIndexed { requestId, request ->
+          request.copy {
+            this.createMetricRequestId = requestId.toString()
+            externalMetricId = ExternalId(REACH_METRIC_ID_BASE_LONG + requestId).apiId.value
+          }
+        }
+
+      reportingMetricEntries.putAll(
+        buildInternalReportingMetricEntryWithOneMetricCalculationSpec(
+          reportingSetId = PRIMITIVE_REPORTING_SETS.first().resourceId,
+          reportingMetrics = updatedReportingMetrics,
+          metricCalculationSpecId = internalMetricCalculationSpec.externalMetricCalculationSpecId
+        )
+      )
+    }
+
+    whenever(
+      internalReportsMock.getReport(
+        eq(
+          internalGetReportRequest {
+            cmmsMeasurementConsumerId = internalPendingReport.cmmsMeasurementConsumerId
+            externalReportId = internalPendingReport.externalReportId
+          }
+        )
+      )
+    )
+      .thenReturn(internalPendingReport)
+
+    whenever(metricsMock.batchCancelMetrics(any()))
+      .thenReturn(
+        batchCancelMetricsResponse {
+          metrics +=
+            endTimesList.mapIndexed { index, end ->
+              metric {
+                name =
+                  MetricKey(
+                    MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
+                    ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value
+                  )
+                    .toName()
+                reportingSet = PRIMITIVE_REPORTING_SETS.first().name
+                timeInterval = interval {
+                  startTime = timestamp { seconds = startSec }
+                  endTime = timestamp { seconds = end }
+                }
+                metricSpec = REACH_METRIC_SPEC
+                state = Metric.State.CANCELLED
+                createTime = Instant.now().toProtoTime()
+              }
+            }
+        }
+      )
+
+    val request = cancelReportRequest { name = internalPendingReport.resourceName }
+
+    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+      runBlocking { service.cancelReport(request) }
+    }
+
+    val batchCancelMetricsCaptor: KArgumentCaptor<BatchCancelMetricsRequest> = argumentCaptor()
+    verifyBlocking(metricsMock, times(2)) { batchCancelMetrics(batchCancelMetricsCaptor.capture()) }
+  }
+
+  @Test
+  fun `cancelReport throws INVALID_ARGUMENT when Report name is invalid`() {
+    val request = cancelReportRequest { name = "INVALID_REPORT_NAME" }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.cancelReport(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `cancelReport throws PERMISSION_DENIED when Report name is not accessible`() {
+    val inaccessibleReportName =
+      ReportKey(MEASUREMENT_CONSUMER_KEYS.last().measurementConsumerId, "report-id").toName()
+    val request = cancelReportRequest { name = inaccessibleReportName }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.cancelReport(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `cancelReport throws PERMISSION_DENIED when MeasurementConsumer's identity does not match`() {
+    val request = cancelReportRequest { name = PENDING_REACH_REPORT.name }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.last().toName(), CONFIG) {
+          runBlocking { service.cancelReport(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `cancelReport throws UNAUTHENTICATED when the caller is not a MeasurementConsumer`() {
+    val request = cancelReportRequest { name = PENDING_REACH_REPORT.name }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DataProviderKey(ExternalId(550L).apiId.value).toName()) {
+          runBlocking { service.cancelReport(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 
   companion object {

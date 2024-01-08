@@ -100,11 +100,11 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signRequisition
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
 import org.wfanet.measurement.internal.reporting.v2.BatchGetReportingSetsResponse
-import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementFailuresResponse
+import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequest.MeasurementIds
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequestKt.measurementIds
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsResponse
-import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementResultsResponse
+import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequestKt.measurementFailure
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequestKt.measurementResult
@@ -147,6 +147,9 @@ import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchMetho
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
+import org.wfanet.measurement.api.v2alpha.cancelMeasurementRequest
+import org.wfanet.measurement.internal.reporting.v2.BatchCancelMeasurementsResponse
+import org.wfanet.measurement.internal.reporting.v2.batchCancelMeasurementsRequest
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
@@ -160,6 +163,8 @@ import org.wfanet.measurement.measurementconsumer.stats.WeightedReachMeasurement
 import org.wfanet.measurement.measurementconsumer.stats.WeightedWatchDurationMeasurementVarianceParams
 import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
+import org.wfanet.measurement.reporting.v2alpha.BatchCancelMetricsRequest
+import org.wfanet.measurement.reporting.v2alpha.BatchCancelMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsRequest
@@ -181,6 +186,7 @@ import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.reachAndFrequency
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.reachResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.watchDurationResult
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineImplBase
+import org.wfanet.measurement.reporting.v2alpha.batchCancelMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.batchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.batchGetMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.copy
@@ -200,6 +206,7 @@ private const val BATCH_GET_REPORTING_SETS_LIMIT = 1000
 private const val BATCH_SET_CMMS_MEASUREMENT_IDS_LIMIT = 1000
 private const val BATCH_SET_MEASUREMENT_RESULTS_LIMIT = 1000
 private const val BATCH_SET_MEASUREMENT_FAILURES_LIMIT = 1000
+private const val BATCH_CANCEL_MEASUREMENTS_LIMIT = 1000
 
 class MetricsService(
   private val metricSpecConfig: MetricSpecConfig,
@@ -776,7 +783,7 @@ class MetricsService(
         when (newState) {
           Measurement.State.SUCCEEDED -> {
             val callBatchSetInternalMeasurementResultsRpc:
-              suspend (List<Measurement>) -> BatchSetCmmsMeasurementResultsResponse =
+              suspend (List<Measurement>) -> BatchSetMeasurementResultsResponse =
               { items ->
                 batchSetInternalMeasurementResults(items, apiAuthenticationKey, principal)
               }
@@ -784,7 +791,7 @@ class MetricsService(
                 measurementsList.asFlow(),
                 BATCH_SET_MEASUREMENT_RESULTS_LIMIT,
                 callBatchSetInternalMeasurementResultsRpc
-              ) { response: BatchSetCmmsMeasurementResultsResponse ->
+              ) { response: BatchSetMeasurementResultsResponse ->
                 response.measurementsList
               }
               .toList()
@@ -792,11 +799,11 @@ class MetricsService(
             anyUpdate = true
           }
           Measurement.State.AWAITING_REQUISITION_FULFILLMENT,
-          Measurement.State.COMPUTING -> {} // Do nothing.
-          Measurement.State.FAILED,
-          Measurement.State.CANCELLED -> {
+          Measurement.State.COMPUTING,
+          Measurement.State.CANCELLED -> {} // Do nothing.
+          Measurement.State.FAILED -> {
             val callBatchSetInternalMeasurementFailuresRpc:
-              suspend (List<Measurement>) -> BatchSetCmmsMeasurementFailuresResponse =
+              suspend (List<Measurement>) -> BatchSetMeasurementFailuresResponse =
               { items ->
                 batchSetInternalMeasurementFailures(
                   items,
@@ -807,7 +814,7 @@ class MetricsService(
                 measurementsList.asFlow(),
                 BATCH_SET_MEASUREMENT_FAILURES_LIMIT,
                 callBatchSetInternalMeasurementFailuresRpc
-              ) { response: BatchSetCmmsMeasurementFailuresResponse ->
+              ) { response: BatchSetMeasurementFailuresResponse ->
                 response.measurementsList
               }
               .toList()
@@ -830,13 +837,108 @@ class MetricsService(
     }
 
     /**
+     * Syncs [InternalMeasurement]s with the CMMS [Measurement]s and cancels remaining pending CMMS
+     * [Measurement]s.
+     *
+     * @return a boolean to indicate whether any [InternalMeasurement] was updated.
+     */
+    suspend fun syncAndCancelInternalMeasurements(
+      internalMeasurements: List<InternalMeasurement>,
+      apiAuthenticationKey: String,
+      principal: MeasurementConsumerPrincipal,
+    ): Boolean {
+      val newStateToCmmsMeasurements: Map<Measurement.State, List<Measurement>> =
+        getCmmsMeasurements(internalMeasurements, principal).groupBy { measurement ->
+          measurement.state
+        }
+
+      var anyUpdate = false
+
+      for ((newState, measurementsList) in newStateToCmmsMeasurements) {
+        when (newState) {
+          Measurement.State.SUCCEEDED -> {
+            val callBatchSetInternalMeasurementResultsRpc:
+              suspend (List<Measurement>) -> BatchSetMeasurementResultsResponse =
+              { items ->
+                batchSetInternalMeasurementResults(items, apiAuthenticationKey, principal)
+              }
+            submitBatchRequests(
+              measurementsList.asFlow(),
+              BATCH_SET_MEASUREMENT_RESULTS_LIMIT,
+              callBatchSetInternalMeasurementResultsRpc
+            ) { response: BatchSetMeasurementResultsResponse ->
+              response.measurementsList
+            }
+              .toList()
+
+            anyUpdate = true
+          }
+          Measurement.State.AWAITING_REQUISITION_FULFILLMENT,
+          Measurement.State.COMPUTING -> {
+            val cancelledMeasurements: List<Measurement> = cancelCmmsMeasurements(measurementsList, principal)
+            val callBatchCancelMeasurementsRpc:
+              suspend (List<Measurement>) -> BatchCancelMeasurementsResponse =
+              { items ->
+                batchCancelMeasurements(
+                  items,
+                  principal.resourceKey.measurementConsumerId
+                )
+              }
+            submitBatchRequests(
+              cancelledMeasurements.asFlow(),
+              BATCH_CANCEL_MEASUREMENTS_LIMIT,
+              callBatchCancelMeasurementsRpc
+            ) { response: BatchCancelMeasurementsResponse ->
+              response.measurementsList
+            }
+              .toList()
+
+            anyUpdate = true
+          }
+          Measurement.State.CANCELLED -> {} // Do nothing.
+          Measurement.State.FAILED -> {
+            val callBatchSetInternalMeasurementFailuresRpc:
+              suspend (List<Measurement>) -> BatchSetMeasurementFailuresResponse =
+              { items ->
+                batchSetInternalMeasurementFailures(
+                  items,
+                  principal.resourceKey.measurementConsumerId
+                )
+              }
+            submitBatchRequests(
+              measurementsList.asFlow(),
+              BATCH_SET_MEASUREMENT_FAILURES_LIMIT,
+              callBatchSetInternalMeasurementFailuresRpc
+            ) { response: BatchSetMeasurementFailuresResponse ->
+              response.measurementsList
+            }
+              .toList()
+
+            anyUpdate = true
+          }
+          Measurement.State.STATE_UNSPECIFIED ->
+            failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
+              "The CMMS measurement state should've been set."
+            }
+          Measurement.State.UNRECOGNIZED -> {
+            failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
+              "Unrecognized CMMS measurement state."
+            }
+          }
+        }
+      }
+
+      return anyUpdate
+    }
+
+    /**
      * Sets a batch of failed [InternalMeasurement]s and stores their failure states using the given
-     * failed or canceled CMMS [Measurement]s.
+     * failed CMMS [Measurement]s.
      */
     private suspend fun batchSetInternalMeasurementFailures(
       failedMeasurementsList: List<Measurement>,
       cmmsMeasurementConsumerId: String,
-    ): BatchSetCmmsMeasurementFailuresResponse {
+    ): BatchSetMeasurementFailuresResponse {
       val batchSetInternalMeasurementFailuresRequest = batchSetMeasurementFailuresRequest {
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
         measurementFailures +=
@@ -865,7 +967,7 @@ class MetricsService(
       succeededMeasurementsList: List<Measurement>,
       apiAuthenticationKey: String,
       principal: MeasurementConsumerPrincipal,
-    ): BatchSetCmmsMeasurementResultsResponse {
+    ): BatchSetMeasurementResultsResponse {
       val batchSetMeasurementResultsRequest = batchSetMeasurementResultsRequest {
         cmmsMeasurementConsumerId = principal.resourceKey.measurementConsumerId
         measurementResults +=
@@ -882,6 +984,30 @@ class MetricsService(
         internalMeasurementsStub.batchSetMeasurementResults(batchSetMeasurementResultsRequest)
       } catch (e: StatusException) {
         throw Exception("Unable to set measurement results for Measurements.", e)
+      }
+    }
+
+    /**
+     * Sets the state of a batch of [InternalMeasurement]s to `CANCELLED using the cancelled CMMS
+     * [Measurement]s.
+     */
+    private suspend fun batchCancelMeasurements(
+      cancelledMeasurementsList: List<Measurement>,
+      cmmsMeasurementConsumerId: String,
+    ): BatchCancelMeasurementsResponse {
+      val batchCancelMeasurementsRequest = batchCancelMeasurementsRequest {
+        this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+        cmmsMeasurementIds += cancelledMeasurementsList.map {
+          MeasurementKey.fromName(it.name)!!.measurementId
+        }
+      }
+
+      return try {
+        internalMeasurementsStub.batchCancelMeasurements(
+          batchCancelMeasurementsRequest
+        )
+      } catch (e: StatusException) {
+        throw Exception("Unable to set state to cancelled for Measurements.", e)
       }
     }
 
@@ -941,6 +1067,40 @@ class MetricsService(
           }
           .withCause(e)
           .asRuntimeException()
+      }
+    }
+
+    /** Cancel CMMS [Measurement]s. */
+    private suspend fun cancelCmmsMeasurements(
+      measurements: List<Measurement>,
+      principal: MeasurementConsumerPrincipal,
+    ): List<Measurement> {
+      return buildList {
+        for (measurement in measurements) {
+          try {
+            add(measurementsStub
+              .withAuthenticationKey(principal.config.apiKey)
+              .cancelMeasurement(cancelMeasurementRequest {
+                name = measurement.name
+              }))
+          } catch (e: StatusException) {
+            // If Measurement state has changed to a terminal state before it could be cancelled, then
+            // do nothing.
+            if (e.status.code != Status.Code.FAILED_PRECONDITION) {
+              throw when (e.status.code) {
+                Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription("Measurement not found.")
+                Status.Code.PERMISSION_DENIED ->
+                  Status.PERMISSION_DENIED.withDescription(
+                    "Permission to cancel Measurement unavailable."
+                  )
+
+                else -> Status.UNKNOWN.withDescription("Unable to cancel Measurement.")
+              }
+                .withCause(e)
+                .asRuntimeException()
+            }
+          }
+        }
       }
     }
 
@@ -1386,6 +1546,77 @@ class MetricsService(
 
     // Convert the internal metric to public and return it.
     return batchCreateMetricsResponse { metrics += internalMetrics.map { it.toMetric(variances) } }
+  }
+
+  override suspend fun batchCancelMetrics(request: BatchCancelMetricsRequest): BatchCancelMetricsResponse {
+    val parentKey =
+      grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
+        "Parent is either unspecified or invalid."
+      }
+
+    val principal: ReportingPrincipal = principalFromCurrentContext
+
+    when (principal) {
+      is MeasurementConsumerPrincipal -> {
+        if (parentKey != principal.resourceKey) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot cancel Metrics for another MeasurementConsumer."
+          }
+        }
+      }
+    }
+
+    grpcRequire(request.namesList.isNotEmpty()) { "No metric name is provided." }
+    grpcRequire(request.namesList.size <= MAX_BATCH_SIZE) {
+      "At most $MAX_BATCH_SIZE metrics can be supported in a batch."
+    }
+
+    val metricIds: List<String> =
+      request.namesList.map { metricName ->
+        val metricKey =
+          grpcRequireNotNull(MetricKey.fromName(metricName)) {
+            "Metric name is either unspecified or invalid."
+          }
+
+        if (metricKey.parentKey != principal.resourceKey) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot cancel Metrics for another MeasurementConsumer."
+          }
+        }
+
+        metricKey.metricId
+      }
+
+    val internalMetrics: List<InternalMetric> =
+      batchGetInternalMetrics(principal.resourceKey.measurementConsumerId, metricIds)
+
+    // Only syncs pending measurements which can only be in metrics that are still running.
+    val toBeSyncedInternalMeasurements: List<InternalMeasurement> =
+      internalMetrics
+        .filter { internalMetric -> internalMetric.state == Metric.State.RUNNING }
+        .flatMap { internalMetric -> internalMetric.weightedMeasurementsList }
+        .map { weightedMeasurement -> weightedMeasurement.measurement }
+        .filter { internalMeasurement ->
+          internalMeasurement.state == InternalMeasurement.State.PENDING
+        }
+
+    val anyMeasurementUpdated: Boolean =
+      measurementSupplier.syncAndCancelInternalMeasurements(
+        toBeSyncedInternalMeasurements,
+        principal.config.apiKey,
+        principal,
+      )
+
+    return batchCancelMetricsResponse {
+      metrics +=
+        if (anyMeasurementUpdated) {
+          batchGetInternalMetrics(principal.resourceKey.measurementConsumerId, metricIds).map {
+            it.toMetric(variances)
+          }
+        } else {
+          internalMetrics.map { it.toMetric(variances) }
+        }
+    }
   }
 
   /** Builds an [InternalCreateMetricRequest]. */
@@ -2483,6 +2714,8 @@ private val InternalMetric.state: Metric.State
       Metric.State.SUCCEEDED
     } else if (measurementStates.any { it == InternalMeasurement.State.FAILED }) {
       Metric.State.FAILED
+    } else if (measurementStates.any { it == InternalMeasurement.State.CANCELLED }) {
+      Metric.State.CANCELLED
     } else {
       Metric.State.RUNNING
     }

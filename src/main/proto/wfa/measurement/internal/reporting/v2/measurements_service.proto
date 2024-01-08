@@ -27,10 +27,13 @@ service Measurements {
       returns (BatchSetCmmsMeasurementIdsResponse);
 
   rpc BatchSetMeasurementResults(BatchSetMeasurementResultsRequest)
-      returns (BatchSetCmmsMeasurementResultsResponse);
+      returns (BatchSetMeasurementResultsResponse);
 
   rpc BatchSetMeasurementFailures(BatchSetMeasurementFailuresRequest)
-      returns (BatchSetCmmsMeasurementFailuresResponse);
+      returns (BatchSetMeasurementFailuresResponse);
+
+  rpc BatchCancelMeasurements(BatchCancelMeasurementsRequest)
+      returns (BatchCancelMeasurementsResponse);
 }
 
 message BatchSetCmmsMeasurementIdsRequest {
@@ -64,7 +67,7 @@ message BatchSetMeasurementResultsRequest {
   repeated MeasurementResult measurement_results = 2;
 }
 
-message BatchSetCmmsMeasurementResultsResponse {
+message BatchSetMeasurementResultsResponse {
   repeated Measurement measurements = 1;
 }
 
@@ -81,6 +84,18 @@ message BatchSetMeasurementFailuresRequest {
   repeated MeasurementFailure measurement_failures = 2;
 }
 
-message BatchSetCmmsMeasurementFailuresResponse {
+message BatchSetMeasurementFailuresResponse {
+  repeated Measurement measurements = 1;
+}
+
+message BatchCancelMeasurementsRequest {
+  // `MeasurementConsumer` ID from the CMMS public API.
+  string cmms_measurement_consumer_id = 1;
+
+  // Maximum is 1000.
+  repeated string cmms_measurement_ids = 2;
+}
+
+message BatchCancelMeasurementsResponse {
   repeated Measurement measurements = 1;
 }
