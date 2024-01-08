@@ -47,6 +47,8 @@ class GenerateMockReport() {
                 edp2_data[0].reportingSet to edp2_data,
                 edp3_data[0].reportingSet to edp3_data,
                 edp1_unique_data[0].reportingSet to edp1_unique_data,
+                edp2_unique_data[0].reportingSet to edp2_unique_data,
+                edp3_unique_data[0].reportingSet to edp3_unique_data,
             )
             val dates = union_data.groupBy{Pair(it.start, it.end)}.keys
 
@@ -67,7 +69,6 @@ class GenerateMockReport() {
                     }
                 }
                 tags.put("ui.halo-cmm.org", "1")
-                // Union MCR
                 for (rs in reportingSets) {
                     metricCalculationResults += metricCalculationResult {
                         reportingSet = rs.key

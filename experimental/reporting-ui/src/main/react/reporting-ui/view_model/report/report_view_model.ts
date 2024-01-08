@@ -51,34 +51,28 @@ type Reaches = {
 }
 
 const getReaches = (report: Report): Reaches => {
-  const data: ChartGroup[] = [];
+  const uniqueReach: ChartGroup[] = [];
   const totalReach: ChartGroup[] = [];
 
   report.timeInterval.forEach(ti => {
     ti.demoBucket.forEach(db => {
-      const fullUnion = db.unionSource;
       db.perPublisherSource.forEach(pub => {
         totalReach.push({
           value: fixNumber(pub.reach),
           group: `${pub.sourceName}|${db.demoCategoryName}`,
           date: new Date(ti.timeInterval.startTime),
         })
-        // TODO: Get complements and calculate: unique reach = union reach - complement reach
+        uniqueReach.push({
+          value: fixNumber(pub.uniqueReach),
+          group: `${pub.sourceName}|${db.demoCategoryName}`,
+          date: new Date(ti.timeInterval.startTime),
+        })
       })
-      // Object.keys(complements).forEach(name => {
-      //   var complement = db.perPublisherSource.find(x => x.sourceName === complements[name]);
-
-      //   data.push({
-      //     value: fullUnion.reach - complement.reach,
-      //     group: `${name}-${db.demoCategoryName}`,
-      //     date: new Date(ti.timeInterval.startTime),
-      //   })
-      // })
     });
   });
 
   return {
-    uniqueReach: data,
+    uniqueReach,
     totalReach,
   };
 }
@@ -89,6 +83,7 @@ const fixNumber = (num: number): number => {
 }
 
 const getImpressionsAndFrequencies = (report: Report): iAndF => {
+  const test: Map<string, Map<string,number>> = new Map(); // pub -> freq label -> value
   const impressions: ChartGroup[] = [];
   const frequencies: ChartGroup[] = [];
   const overview: Overview = {
@@ -117,9 +112,8 @@ const getImpressionsAndFrequencies = (report: Report): iAndF => {
           }
         }
         dict[pps.sourceName].impressions += fixNumber(pps.impressionCount.count);
-        dict[pps.sourceName].averageFrequency += pps.frequencyHistogram[1];
         dict[pps.sourceName].reach += fixNumber(pps.reach);
-        // dict[pps.sourceName].uniqueReach += fixNumber(pps.uniqueReach)
+        dict[pps.sourceName].uniqueReach += fixNumber(pps.uniqueReach)
 
         // Just get the impressions
         impressions.push({
@@ -128,24 +122,38 @@ const getImpressionsAndFrequencies = (report: Report): iAndF => {
           date: new Date(ti.timeInterval.startTime),
         });
 
+        // Add up the frequencies over every day.
         Object.entries(pps.frequencyHistogram).forEach(([key, value]) => {
-          frequencies.push({
-            group: `${pps.sourceName}|${db.demoCategoryName}`,
-            value,
-            date: `${key}+`,
-          });
+          const groupName = `${pps.sourceName}|${db.demoCategoryName}`
+          const group = test.get(groupName);
+          const binLabel = `${key}+`;
+          if (!group) {
+            test.set(groupName, new Map([[binLabel, value]]))
+          } else {
+            const runningTotal = group.get(binLabel)
+            group.set(binLabel, !runningTotal ? value : runningTotal + value);
+          }
         });
       })
       overview.totalImpressions += fixNumber(db.unionSource.impressionCount.count);
-      overview.totalAverageFrequency += fixNumber(db.unionSource.frequencyHistogram[1]);
       overview.totalReach += fixNumber(db.unionSource.reach);
+      overview.totalAverageFrequency = overview.totalImpressions / overview.totalReach;
     });
   });
 
-  // const individualPublishers = ['A', 'B', 'C']
-  // dict['A'].uniqueReach = overview.totalReach - dict['BC'].reach
-  // dict['B'].uniqueReach = overview.totalReach - dict['AC'].reach
-  // dict['C'].uniqueReach = overview.totalReach - dict['AB'].reach
+  for (let [pub, bins] of test) {
+    for (let [label, value] of bins) {
+      frequencies.push({
+        group: pub,
+        value,
+        date: label
+      })
+    }
+  }
+
+  for (let pub of Object.values(dict)) {
+    pub.averageFrequency = pub.impressions / pub.reach
+  }
 
   return {
     impressions,

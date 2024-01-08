@@ -146,7 +146,7 @@ const drawBar = (svg, data, x, y, groupColors) => {
     svg.append("g")
         // .attr("fill", "none")
         .selectAll()
-        .data(data)
+        .data(data.sort((a, b) => b.value - a.value))
         .join("rect")
         .attr("fill", function(d){ return groupColors[d.group] })
         .attr("x", (d) => x(d.date))

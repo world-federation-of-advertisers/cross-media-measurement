@@ -14,6 +14,7 @@
 
 // In powers of 10
 const MAGNITUDES = Object.freeze({
+  0: '',
   3: 'k',
   6: 'M',
   9: 'B',
@@ -39,13 +40,9 @@ export const formatNumberWithMagnitude = (
       power += 3;
   }
 
-  if (power === 0) {
-      return num.toString();
-  } else {
-      const value = (newNumber.toFixed(decimals));
+  const value = (newNumber.toFixed(decimals));
 
-      return trailingZeros ?
-          value.toString() + MAGNITUDES[power]
-          : value.toString().replace(/\.0+$/, '') + MAGNITUDES[power]
-  }
+  return trailingZeros ?
+      value.toString() + MAGNITUDES[power]
+      : value.toString().replace(/\.0+$/, '') + MAGNITUDES[power]
 }

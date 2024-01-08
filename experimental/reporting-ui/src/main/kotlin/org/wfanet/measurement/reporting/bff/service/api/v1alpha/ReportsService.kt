@@ -188,6 +188,7 @@ class ReportsService(
             // TODO: There's actually a pair of MCRs one for the individual and one for the unique
             for (mcr in source.metricCalculationResultsList) {
               val reportingSetName = mcr.reportingSet
+              val reportingSetDisplayName = reportingSets.find{it.name == reportingSetName}!!.displayName
               val isUnique = reportingSets.find{it.name == reportingSetName}!!.tagsMap["ui.halo-cmm.org/reporting_set_type"] == "unique"
               if (isUnique) continue
               val isUnion = reportingSets.find{it.name == reportingSetName}!!.tagsMap["ui.halo-cmm.org/reporting_set_type"] == "union"
@@ -201,57 +202,53 @@ class ReportsService(
                 val metricResult = source.metricCalculationResultsList.find{it.reportingSet == rsPair?.name}
                 if(metricResult != null) groups += metricResult
               }
-
-              for (g in groups) {
-                // Get the result attributes of this metric calculation result
-                // filtered by the time interval
-                // then grouped by the demo category
-                val resultAttributesByDemo = g.resultAttributesList
-                  .filter{"${it.timeInterval.startTime.seconds}|${it.timeInterval.endTime.seconds}" == ti}
-                  .groupBy{
+              // Get all the result attributes filtered by the time interval and grouped by the grouping predicate
+              val resultAttributesList = groups
+                .map{it.resultAttributesList}
+                .flatten()
+                .filter{"${it.timeInterval.startTime.seconds}|${it.timeInterval.endTime.seconds}" == ti}
+                .groupBy{
                     it.groupingPredicatesList
                       .map{demoMap[it]}
                       .joinToString(prefix = "", postfix = "", separator = ";")
                   }
 
-                for (ras in resultAttributesByDemo) {
-                  demoCategoryName = ras.key
+              for (ras in resultAttributesList) {
+                demoCategoryName = ras.key
 
-                  val metrics = sourceMetrics {
-                    for (resultAttribute in ras.value) {
-                      sourceName = reportingSetName
+                val metrics = sourceMetrics {
+                  for (resultAttribute in ras.value) {
+                    sourceName = reportingSetDisplayName
 
-                      val oneOfCase = resultAttribute.metricResult.getResultCase()
-                      when(oneOfCase) {
-                        ResultCase.IMPRESSION_COUNT -> {
-                          impressionCount = impressionCountResult {
-                            count = capNumber(resultAttribute.metricResult.impressionCount.value)
-                            standardDeviation = resultAttribute.metricResult.impressionCount.univariateStatistics.standardDeviation
-                          }
+                    val oneOfCase = resultAttribute.metricResult.getResultCase()
+                    when(oneOfCase) {
+                      ResultCase.IMPRESSION_COUNT -> {
+                        impressionCount = impressionCountResult {
+                          count = capNumber(resultAttribute.metricResult.impressionCount.value)
+                          standardDeviation = resultAttribute.metricResult.impressionCount.univariateStatistics.standardDeviation
                         }
-                        ResultCase.REACH_AND_FREQUENCY -> {
-                          reach = capNumber(resultAttribute.metricResult.reachAndFrequency.reach.value)
-                          val bins = resultAttribute.metricResult.reachAndFrequency.frequencyHistogram.binsList.sortedBy{it.label.toInt()}.reversed()
-                          var runningCount = 0.0
-                          for (bin in bins) {
-                            runningCount = runningCount + capNumber(bin.binResult.value)
-                            frequencyHistogram[bin.label.toInt()] = runningCount
-                          }
-                        }
-                        ResultCase.REACH -> {
-                          println(resultAttribute.metricResult.reach.value)
-                          uniqueReach = resultAttribute.metricResult.reach.value
-                        }
-                        else -> println("error when processing result attribute")
                       }
+                      ResultCase.REACH_AND_FREQUENCY -> {
+                        reach = capNumber(resultAttribute.metricResult.reachAndFrequency.reach.value)
+                        val bins = resultAttribute.metricResult.reachAndFrequency.frequencyHistogram.binsList.sortedBy{it.label.toInt()}.reversed()
+                        var runningCount = 0.0
+                        for (bin in bins) {
+                          runningCount = runningCount + capNumber(bin.binResult.value)
+                          frequencyHistogram[bin.label.toInt()] = runningCount
+                        }
+                      }
+                      ResultCase.REACH -> {
+                        uniqueReach = resultAttribute.metricResult.reach.value
+                      }
+                      else -> println("error when processing result attribute")
                     }
                   }
+                }
 
-                  if (isUnion) {
-                    unionSource = metrics
-                  } else {
-                    perPublisherSource += metrics
-                  }
+                if (isUnion) {
+                  unionSource = metrics
+                } else {
+                  perPublisherSource += metrics
                 }
               }
             }

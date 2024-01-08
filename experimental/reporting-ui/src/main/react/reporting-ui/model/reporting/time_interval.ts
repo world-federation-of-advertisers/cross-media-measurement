@@ -22,6 +22,7 @@ export type Metric = {
   impressionCount: ImpressionCount,
   frequencyHistogram: { [id: number] : number; },
   reach: number,
+  uniqueReach: number,
 };
 
 export type Bucket = {
