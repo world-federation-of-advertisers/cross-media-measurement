@@ -71,6 +71,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.batchCreateMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.batchGetMeasurementsRequest
+import org.wfanet.measurement.api.v2alpha.cancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
@@ -99,15 +100,16 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurement
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
+import org.wfanet.measurement.internal.reporting.v2.BatchCancelMeasurementsResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchGetReportingSetsResponse
-import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequest.MeasurementIds
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequestKt.measurementIds
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsResponse
-import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequestKt.measurementFailure
+import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequestKt.measurementResult
+import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.CreateMetricRequest as InternalCreateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodology
 import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
@@ -123,6 +125,7 @@ import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCorouti
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchCancelMeasurementsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchCreateMetricsRequest as internalBatchCreateMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
@@ -147,9 +150,6 @@ import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchMetho
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
-import org.wfanet.measurement.api.v2alpha.cancelMeasurementRequest
-import org.wfanet.measurement.internal.reporting.v2.BatchCancelMeasurementsResponse
-import org.wfanet.measurement.internal.reporting.v2.batchCancelMeasurementsRequest
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
@@ -863,34 +863,32 @@ class MetricsService(
                 batchSetInternalMeasurementResults(items, apiAuthenticationKey, principal)
               }
             submitBatchRequests(
-              measurementsList.asFlow(),
-              BATCH_SET_MEASUREMENT_RESULTS_LIMIT,
-              callBatchSetInternalMeasurementResultsRpc
-            ) { response: BatchSetMeasurementResultsResponse ->
-              response.measurementsList
-            }
+                measurementsList.asFlow(),
+                BATCH_SET_MEASUREMENT_RESULTS_LIMIT,
+                callBatchSetInternalMeasurementResultsRpc
+              ) { response: BatchSetMeasurementResultsResponse ->
+                response.measurementsList
+              }
               .toList()
 
             anyUpdate = true
           }
           Measurement.State.AWAITING_REQUISITION_FULFILLMENT,
           Measurement.State.COMPUTING -> {
-            val cancelledMeasurements: List<Measurement> = cancelCmmsMeasurements(measurementsList, principal)
+            val cancelledMeasurements: List<Measurement> =
+              cancelCmmsMeasurements(measurementsList, principal)
             val callBatchCancelMeasurementsRpc:
               suspend (List<Measurement>) -> BatchCancelMeasurementsResponse =
               { items ->
-                batchCancelMeasurements(
-                  items,
-                  principal.resourceKey.measurementConsumerId
-                )
+                batchCancelMeasurements(items, principal.resourceKey.measurementConsumerId)
               }
             submitBatchRequests(
-              cancelledMeasurements.asFlow(),
-              BATCH_CANCEL_MEASUREMENTS_LIMIT,
-              callBatchCancelMeasurementsRpc
-            ) { response: BatchCancelMeasurementsResponse ->
-              response.measurementsList
-            }
+                cancelledMeasurements.asFlow(),
+                BATCH_CANCEL_MEASUREMENTS_LIMIT,
+                callBatchCancelMeasurementsRpc
+              ) { response: BatchCancelMeasurementsResponse ->
+                response.measurementsList
+              }
               .toList()
 
             anyUpdate = true
@@ -906,12 +904,12 @@ class MetricsService(
                 )
               }
             submitBatchRequests(
-              measurementsList.asFlow(),
-              BATCH_SET_MEASUREMENT_FAILURES_LIMIT,
-              callBatchSetInternalMeasurementFailuresRpc
-            ) { response: BatchSetMeasurementFailuresResponse ->
-              response.measurementsList
-            }
+                measurementsList.asFlow(),
+                BATCH_SET_MEASUREMENT_FAILURES_LIMIT,
+                callBatchSetInternalMeasurementFailuresRpc
+              ) { response: BatchSetMeasurementFailuresResponse ->
+                response.measurementsList
+              }
               .toList()
 
             anyUpdate = true
@@ -997,15 +995,12 @@ class MetricsService(
     ): BatchCancelMeasurementsResponse {
       val batchCancelMeasurementsRequest = batchCancelMeasurementsRequest {
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-        cmmsMeasurementIds += cancelledMeasurementsList.map {
-          MeasurementKey.fromName(it.name)!!.measurementId
-        }
+        cmmsMeasurementIds +=
+          cancelledMeasurementsList.map { MeasurementKey.fromName(it.name)!!.measurementId }
       }
 
       return try {
-        internalMeasurementsStub.batchCancelMeasurements(
-          batchCancelMeasurementsRequest
-        )
+        internalMeasurementsStub.batchCancelMeasurements(batchCancelMeasurementsRequest)
       } catch (e: StatusException) {
         throw Exception("Unable to set state to cancelled for Measurements.", e)
       }
@@ -1078,24 +1073,25 @@ class MetricsService(
       return buildList {
         for (measurement in measurements) {
           try {
-            add(measurementsStub
-              .withAuthenticationKey(principal.config.apiKey)
-              .cancelMeasurement(cancelMeasurementRequest {
-                name = measurement.name
-              }))
+            add(
+              measurementsStub
+                .withAuthenticationKey(principal.config.apiKey)
+                .cancelMeasurement(cancelMeasurementRequest { name = measurement.name })
+            )
           } catch (e: StatusException) {
-            // If Measurement state has changed to a terminal state before it could be cancelled, then
+            // If Measurement state has changed to a terminal state before it could be cancelled,
+            // then
             // do nothing.
             if (e.status.code != Status.Code.FAILED_PRECONDITION) {
               throw when (e.status.code) {
-                Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription("Measurement not found.")
-                Status.Code.PERMISSION_DENIED ->
-                  Status.PERMISSION_DENIED.withDescription(
-                    "Permission to cancel Measurement unavailable."
-                  )
-
-                else -> Status.UNKNOWN.withDescription("Unable to cancel Measurement.")
-              }
+                  Status.Code.NOT_FOUND ->
+                    Status.NOT_FOUND.withDescription("Measurement not found.")
+                  Status.Code.PERMISSION_DENIED ->
+                    Status.PERMISSION_DENIED.withDescription(
+                      "Permission to cancel Measurement unavailable."
+                    )
+                  else -> Status.UNKNOWN.withDescription("Unable to cancel Measurement.")
+                }
                 .withCause(e)
                 .asRuntimeException()
             }
@@ -1548,7 +1544,9 @@ class MetricsService(
     return batchCreateMetricsResponse { metrics += internalMetrics.map { it.toMetric(variances) } }
   }
 
-  override suspend fun batchCancelMetrics(request: BatchCancelMetricsRequest): BatchCancelMetricsResponse {
+  override suspend fun batchCancelMetrics(
+    request: BatchCancelMetricsRequest
+  ): BatchCancelMetricsResponse {
     val parentKey =
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
         "Parent is either unspecified or invalid."

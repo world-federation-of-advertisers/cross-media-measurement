@@ -1351,9 +1351,9 @@ abstract class InProcessLifeOfAReportIntegrationTest(
               displayName = "unique reach"
               metricSpecs +=
                 metricSpec {
-                  reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-                  vidSamplingInterval = VID_SAMPLING_INTERVAL
-                }
+                    reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                    vidSamplingInterval = VID_SAMPLING_INTERVAL
+                  }
                   .withDefaults(reportingServer.metricSpecConfig)
             }
             metricCalculationSpecId = "fed"
@@ -1385,13 +1385,10 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val cancelledReport = publicReportsClient
-      .withPrincipalName(measurementConsumerData.name)
-      .cancelReport(
-        cancelReportRequest {
-          name = createdReport.name
-        }
-      )
+    val cancelledReport =
+      publicReportsClient
+        .withPrincipalName(measurementConsumerData.name)
+        .cancelReport(cancelReportRequest { name = createdReport.name })
     assertThat(cancelledReport.state).isEqualTo(Report.State.CANCELLED)
   }
 

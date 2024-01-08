@@ -1613,23 +1613,22 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
     }
 
   @Test
-  fun `batchCancelMeasurements throws NOT_FOUND when no measurements found`(): Unit =
-    runBlocking {
-      createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+  fun `batchCancelMeasurements throws NOT_FOUND when no measurements found`(): Unit = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
 
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.batchCancelMeasurements(
-            batchCancelMeasurementsRequest {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-              cmmsMeasurementIds += "1234"
-            }
-          )
-        }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.batchCancelMeasurements(
+          batchCancelMeasurementsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            cmmsMeasurementIds += "1234"
+          }
+        )
+      }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-      assertThat(exception.message).contains("Measurement not")
-    }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.message).contains("Measurement not")
+  }
 
   @Test
   fun `batchCancelMeasurements throws NOT_FOUND when measurement consumer not found`(): Unit =
@@ -1649,20 +1648,17 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
     }
 
   @Test
-  fun `batchCancelMeasurements throws INVALID_ARGUMENT when missing mc id`(): Unit =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.batchCancelMeasurements(
-            batchCancelMeasurementsRequest {
-              cmmsMeasurementIds += "1234"
-            }
-          )
-        }
+  fun `batchCancelMeasurements throws INVALID_ARGUMENT when missing mc id`(): Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.batchCancelMeasurements(
+          batchCancelMeasurementsRequest { cmmsMeasurementIds += "1234" }
+        )
+      }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.message).contains("CmmsMeasurementConsumerId")
-    }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("CmmsMeasurementConsumerId")
+  }
 
   @Test
   fun `batchCancelMeasurements throws INVALID_ARGUMENT when too many to update`(): Unit =

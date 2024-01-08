@@ -22,16 +22,16 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.internal.reporting.v2.BatchCancelMeasurementsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchCancelMeasurementsResponse
-import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsResponse
-import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequest
+import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequest
+import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.batchCancelMeasurementsResponse
-import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresResponse
 import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsResponse
+import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresResponse
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsResponse
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CancelMeasurements
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.SetCmmsMeasurementIds
@@ -106,7 +106,9 @@ class PostgresMeasurementsService(
     }
   }
 
-  override suspend fun batchCancelMeasurements(request: BatchCancelMeasurementsRequest): BatchCancelMeasurementsResponse {
+  override suspend fun batchCancelMeasurements(
+    request: BatchCancelMeasurementsRequest
+  ): BatchCancelMeasurementsResponse {
     grpcRequire(request.cmmsMeasurementIdsList.size <= BATCH_SIZE) { "Too many requests" }
 
     grpcRequire(request.cmmsMeasurementConsumerId.isNotEmpty()) {

@@ -175,18 +175,20 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt.primitiveRepo
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt.weightedSubsetUnion
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt as InternalReportingSetsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequestKt.filter
+import org.wfanet.measurement.internal.reporting.v2.batchCancelMeasurementsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchCancelMeasurementsResponse
 import org.wfanet.measurement.internal.reporting.v2.batchCreateMetricsRequest as internalBatchCreateMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchCreateMetricsResponse as internalBatchCreateMetricsResponse
 import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsRequest as internalBatchGetMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsResponse as internalBatchGetMetricsResponse
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsResponse
-import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresResponse
 import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsResponse
-import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresRequest
+import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresResponse
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest as internalCreateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.customDirectMethodology as internalCustomDirectMethodology
@@ -197,8 +199,6 @@ import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetric
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsSketchParams as internalReachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
-import org.wfanet.measurement.internal.reporting.v2.batchCancelMeasurementsRequest
-import org.wfanet.measurement.internal.reporting.v2.batchCancelMeasurementsResponse
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMetricVarianceParams
@@ -7725,109 +7725,120 @@ class MetricsServiceTest {
     }
 
   @Test
-  fun `batchCancelMetrics returns metrics with CANCELLED when measurements are CANCELLED`() = runBlocking {
-    whenever(
-      internalMetricsMock.batchGetMetrics(
-        eq(
-          internalBatchGetMetricsRequest {
-            cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-            externalMetricIds += INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId
-            externalMetricIds +=
-              INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
+  fun `batchCancelMetrics returns metrics with CANCELLED when measurements are CANCELLED`() =
+    runBlocking {
+      whenever(
+          internalMetricsMock.batchGetMetrics(
+            eq(
+              internalBatchGetMetricsRequest {
+                cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+                externalMetricIds += INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId
+                externalMetricIds +=
+                  INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
+              }
+            )
+          )
+        )
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics += INTERNAL_PENDING_INCREMENTAL_REACH_METRIC
+            metrics += INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
           }
         )
-      )
-    )
-      .thenReturn(
-        internalBatchGetMetricsResponse {
-          metrics += INTERNAL_PENDING_INCREMENTAL_REACH_METRIC
-          metrics += INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
-        }
-      )
-      .thenReturn(
-        internalBatchGetMetricsResponse {
-          metrics += INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.copy {
-            weightedMeasurements.clear()
-            weightedMeasurements += weightedMeasurement {
-              weight = 1
-              binaryRepresentation = 3
-              measurement = INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.copy {
-                state = InternalMeasurement.State.CANCELLED
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics +=
+              INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.copy {
+                weightedMeasurements.clear()
+                weightedMeasurements += weightedMeasurement {
+                  weight = 1
+                  binaryRepresentation = 3
+                  measurement =
+                    INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.copy {
+                      state = InternalMeasurement.State.CANCELLED
+                    }
+                }
+                weightedMeasurements += weightedMeasurement {
+                  weight = -1
+                  binaryRepresentation = 2
+                  measurement =
+                    INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.copy {
+                      state = InternalMeasurement.State.CANCELLED
+                    }
+                }
               }
-            }
-            weightedMeasurements += weightedMeasurement {
-              weight = -1
-              binaryRepresentation = 2
-              measurement = INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.copy {
-                state = InternalMeasurement.State.CANCELLED
+            metrics +=
+              INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+                weightedMeasurements.clear()
+                weightedMeasurements += weightedMeasurement {
+                  weight = 1
+                  binaryRepresentation = 3
+                  measurement =
+                    INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
+                      state = InternalMeasurement.State.CANCELLED
+                    }
+                }
               }
-            }
-          }
-          metrics += INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
-            weightedMeasurements.clear()
-            weightedMeasurements += weightedMeasurement {
-              weight = 1
-              binaryRepresentation = 3
-              measurement = INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
-                state = InternalMeasurement.State.CANCELLED
-              }
-            }
-          }
-        }
-      )
-
-    whenever(measurementsMock.cancelMeasurement(any())).thenAnswer {
-      val cancelMeasurementRequest = it.arguments[0] as CancelMeasurementRequest
-      val measurementsMap =
-        mapOf(
-          PENDING_UNION_ALL_REACH_MEASUREMENT.name to PENDING_UNION_ALL_REACH_MEASUREMENT.copy {
-            state = Measurement.State.CANCELLED
-          },
-          PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.name to PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.copy {
-            state = Measurement.State.CANCELLED
-          },
-          PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name to PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
-            state = Measurement.State.CANCELLED
           }
         )
 
-      measurementsMap.getValue(cancelMeasurementRequest.name)
-    }
+      whenever(measurementsMock.cancelMeasurement(any())).thenAnswer {
+        val cancelMeasurementRequest = it.arguments[0] as CancelMeasurementRequest
+        val measurementsMap =
+          mapOf(
+            PENDING_UNION_ALL_REACH_MEASUREMENT.name to
+              PENDING_UNION_ALL_REACH_MEASUREMENT.copy { state = Measurement.State.CANCELLED },
+            PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.name to
+              PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.copy {
+                state = Measurement.State.CANCELLED
+              },
+            PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name to
+              PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
+                state = Measurement.State.CANCELLED
+              }
+          )
 
-    val request = batchCancelMetricsRequest {
-      parent = MEASUREMENT_CONSUMERS.values.first().name
-      names += PENDING_INCREMENTAL_REACH_METRIC.name
-      names += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name
-    }
-
-    val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-        runBlocking { service.batchCancelMetrics(request) }
+        measurementsMap.getValue(cancelMeasurementRequest.name)
       }
 
-    // Verify proto argument of internal MeasurementsCoroutineImplBase::batchCancelMeasurements
-    verifyProtoArgument(internalMeasurementsMock, InternalMeasurementsCoroutineImplBase::batchCancelMeasurements)
-      .isEqualTo(
-        batchCancelMeasurementsRequest {
-          cmmsMeasurementConsumerId = MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMERS.values.first().name)!!.measurementConsumerId
-          cmmsMeasurementIds += INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.cmmsMeasurementId
-          cmmsMeasurementIds += INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.cmmsMeasurementId
-          cmmsMeasurementIds += INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementId
-        }
-      )
+      val request = batchCancelMetricsRequest {
+        parent = MEASUREMENT_CONSUMERS.values.first().name
+        names += PENDING_INCREMENTAL_REACH_METRIC.name
+        names += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name
+      }
 
-    assertThat(result)
-      .isEqualTo(
-        batchCancelMetricsResponse {
-          metrics += PENDING_INCREMENTAL_REACH_METRIC.copy {
-            state = Metric.State.CANCELLED
-          }
-          metrics += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
-            state = Metric.State.CANCELLED
-          }
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.batchCancelMetrics(request) }
         }
-      )
-  }
+
+      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchCancelMeasurements
+      verifyProtoArgument(
+          internalMeasurementsMock,
+          InternalMeasurementsCoroutineImplBase::batchCancelMeasurements
+        )
+        .isEqualTo(
+          batchCancelMeasurementsRequest {
+            cmmsMeasurementConsumerId =
+              MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMERS.values.first().name)!!
+                .measurementConsumerId
+            cmmsMeasurementIds += INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.cmmsMeasurementId
+            cmmsMeasurementIds +=
+              INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.cmmsMeasurementId
+            cmmsMeasurementIds +=
+              INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementId
+          }
+        )
+
+      assertThat(result)
+        .isEqualTo(
+          batchCancelMetricsResponse {
+            metrics += PENDING_INCREMENTAL_REACH_METRIC.copy { state = Metric.State.CANCELLED }
+            metrics +=
+              PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy { state = Metric.State.CANCELLED }
+          }
+        )
+    }
 
   @Test
   fun `batchCancelMetrics throws INVALID_ARGUMENT when Metric name is invalid`() {

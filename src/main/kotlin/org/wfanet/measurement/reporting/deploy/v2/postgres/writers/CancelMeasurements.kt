@@ -18,11 +18,8 @@ package org.wfanet.measurement.reporting.deploy.v2.postgres.writers
 
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
-import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.internal.reporting.v2.BatchCancelMeasurementsRequest
-import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.Measurement
-import org.wfanet.measurement.internal.reporting.v2.MeasurementKt
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MeasurementConsumerReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MeasurementReader
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
@@ -67,10 +64,7 @@ class CancelMeasurements(private val request: BatchCancelMeasurementsRequest) :
 
     val idMap = mutableMapOf<String, Measurement>()
     MeasurementReader(transactionContext)
-      .readMeasurementsByCmmsId(
-        measurementConsumerId,
-        request.cmmsMeasurementIdsList
-      )
+      .readMeasurementsByCmmsId(measurementConsumerId, request.cmmsMeasurementIdsList)
       .collect {
         val measurement = it.measurement
         idMap.computeIfAbsent(measurement.cmmsMeasurementId) { measurement }

@@ -46,8 +46,8 @@ import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internal
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withPrincipalName
-import org.wfanet.measurement.reporting.v2alpha.BatchCancelMetricsResponse
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.reportScheduleInfoFromCurrentContext
+import org.wfanet.measurement.reporting.v2alpha.BatchCancelMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.CancelReportRequest
@@ -429,11 +429,11 @@ class ReportsService(
         )
       } catch (e: StatusException) {
         throw when (e.status.code) {
-          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-          Status.Code.CANCELLED -> Status.CANCELLED
-          Status.Code.NOT_FOUND -> Status.NOT_FOUND
-          else -> Status.UNKNOWN
-        }
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            Status.Code.CANCELLED -> Status.CANCELLED
+            Status.Code.NOT_FOUND -> Status.NOT_FOUND
+            else -> Status.UNKNOWN
+          }
           .withCause(e)
           .withDescription("Unable to cancel Report.")
           .asRuntimeException()
@@ -447,8 +447,8 @@ class ReportsService(
     }
     val externalIdToMetricMap: Map<String, Metric> =
       submitBatchRequests(metricNames, BATCH_CANCEL_METRICS_LIMIT, callRpc) { response ->
-        response.metricsList
-      }
+          response.metricsList
+        }
         .toList()
         .associateBy { checkNotNull(MetricKey.fromName(it.name)).metricId }
 
@@ -471,12 +471,12 @@ class ReportsService(
         )
     } catch (e: StatusException) {
       throw when (e.status.code) {
-        Status.Code.INVALID_ARGUMENT ->
-          Status.INVALID_ARGUMENT.withDescription("Unable to cancel Metrics.\n${e.message}")
-        Status.Code.PERMISSION_DENIED ->
-          Status.PERMISSION_DENIED.withDescription("Unable to cancel Metrics.\n${e.message}")
-        else -> Status.UNKNOWN.withDescription("Unable to cancel Metrics.\n${e.message}")
-      }
+          Status.Code.INVALID_ARGUMENT ->
+            Status.INVALID_ARGUMENT.withDescription("Unable to cancel Metrics.\n${e.message}")
+          Status.Code.PERMISSION_DENIED ->
+            Status.PERMISSION_DENIED.withDescription("Unable to cancel Metrics.\n${e.message}")
+          else -> Status.UNKNOWN.withDescription("Unable to cancel Metrics.\n${e.message}")
+        }
         .withCause(e)
         .asRuntimeException()
     }
@@ -551,7 +551,11 @@ class ReportsService(
       state = inferReportState(metrics)
       createTime = internalReport.createTime
 
-      if (state == Report.State.SUCCEEDED || state == Report.State.FAILED || state == Report.State.CANCELLED) {
+      if (
+        state == Report.State.SUCCEEDED ||
+          state == Report.State.FAILED ||
+          state == Report.State.CANCELLED
+      ) {
         val externalMetricCalculationSpecIds =
           internalReport.reportingMetricEntriesMap.flatMap { reportingMetricCalculationSpec ->
             reportingMetricCalculationSpec.value.metricCalculationSpecReportingMetricsList.map {
