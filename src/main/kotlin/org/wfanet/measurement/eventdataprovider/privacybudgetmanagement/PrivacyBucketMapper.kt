@@ -20,6 +20,10 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 /** Maps Privacy bucket related objects to event filter related objects and vice versa. */
 interface PrivacyBucketMapper {
 
+  /**
+   * Fields in the cel expression that will not be altered by normalization. If left empty, it is
+   * assumed that all buckets will be charged.
+   */
   val operativeFields: Set<String>
 
   /** Maps [filterExpression] to a [Program] by using privacy related fields and [Message] */
@@ -28,6 +32,10 @@ interface PrivacyBucketMapper {
   /** Maps [privacyBucketGroup] to an event [Message] */
   fun toEventMessage(privacyBucketGroup: PrivacyBucketGroup): Message
 
+  /**
+   * Returns if a [privacyBucketGroup] matches for a given cel [program]. Always returns true if
+   * [operativeFields] are empty.
+   */
   fun matches(privacyBucketGroup: PrivacyBucketGroup, program: Program): Boolean {
     if (operativeFields.isEmpty()) {
       return true
