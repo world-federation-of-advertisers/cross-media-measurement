@@ -34,8 +34,6 @@ import org.wfanet.panelmatch.common.certificates.aws.CertificateAuthority
 import org.wfanet.panelmatch.common.certificates.aws.PrivateCaClient
 import org.wfanet.panelmatch.common.secrets.MutableSecretMap
 import org.wfanet.panelmatch.common.secrets.SecretMap
-import org.wfanet.panelmatch.common.secrets.StorageClientSecretMap
-import org.wfanet.panelmatch.common.storage.withPrefix
 import picocli.CommandLine
 import picocli.CommandLine.Command
 import picocli.CommandLine.Mixin
@@ -122,11 +120,9 @@ private class AwsExampleDaemon : ExampleDaemon() {
   override val validExchangeWorkflows: SecretMap
     get() = defaults.validExchangeWorkflows
 
-  private val unsafeSecretMap = StorageClientSecretMap(rootStorageClient.withPrefix("private-keys"))
-
   /** This can be customized per deployment. */
   override val privateKeys: MutableSecretMap
-    get() = unsafeSecretMap
+    get() = defaults.privateKeys
 
   /** This can be customized per deployment. */
   override val rootCertificates: SecretMap
