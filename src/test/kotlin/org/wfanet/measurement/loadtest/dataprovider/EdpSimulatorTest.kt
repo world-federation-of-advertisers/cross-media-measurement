@@ -1721,6 +1721,100 @@ class EdpSimulatorTest {
   }
 
   @Test
+  fun `fulfills direct reach and frequency Requisition when true reach is 0`() {
+    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+    val requisitionSpec =
+      REQUISITION_SPEC.copy {
+        clearEvents()
+        events =
+          RequisitionSpecKt.events {
+            eventGroups += eventGroupEntry {
+              key = EVENT_GROUP_NAME
+              value =
+                RequisitionSpecKt.EventGroupEntryKt.value {
+                  collectionInterval = interval {
+                    startTime = TIME_RANGE.start.toProtoTime()
+                    endTime = TIME_RANGE.endExclusive.toProtoTime()
+                  }
+                  filter = eventFilter {
+                    // An null set expression
+                    expression =
+                      "person.gender == ${Person.Gender.MALE_VALUE} && " +
+                        "person.gender == ${Person.Gender.FEMALE_VALUE}"
+                  }
+                }
+            }
+          }
+      }
+
+    val encryptedRequisitionSpec =
+      encryptRequisitionSpec(
+        signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
+        DATA_PROVIDER_PUBLIC_KEY
+      )
+
+    val requisition =
+      REQUISITION.copy {
+        this.encryptedRequisitionSpec = encryptedRequisitionSpec
+        protocolConfig =
+          protocolConfig.copy {
+            protocols.clear()
+            protocols +=
+              ProtocolConfigKt.protocol {
+                direct =
+                  ProtocolConfigKt.direct {
+                    noiseMechanisms += noiseMechanismOption
+                    deterministicCountDistinct =
+                      ProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
+                    deterministicDistribution =
+                      ProtocolConfig.Direct.DeterministicDistribution.getDefaultInstance()
+                  }
+              }
+          }
+      }
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
+    val simulator =
+      EdpSimulator(
+        EDP_DATA,
+        MC_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        syntheticGeneratorEventQuery,
+        dummyThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        random = Random(RANDOM_SEED),
+        compositionMechanism = COMPOSITION_MECHANISM
+      )
+
+    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+
+    val request: FulfillDirectRequisitionRequest =
+      verifyAndCapture(
+        requisitionsServiceMock,
+        RequisitionsCoroutineImplBase::fulfillDirectRequisition
+      )
+    val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
+    assertThat(result.reach.noiseMechanism == noiseMechanismOption)
+    assertThat(result.reach.hasDeterministicCountDistinct())
+    assertThat(result.frequency.noiseMechanism == noiseMechanismOption)
+    assertThat(result.frequency.hasDeterministicDistribution())
+    assertThat(result).reachValue().isWithin(2.0).of(0L)
+    // TODO(world-federation-of-advertisers/cross-media-measurement#1388): Remove this check after
+    // the issue is resolved.
+    assertThat(result.frequency.relativeFrequencyDistributionMap.values.all { !it.isNaN() })
+      .isTrue()
+    assertThat(result).frequencyDistribution().isWithin(0.01)
+  }
+
+  @Test
   fun `fulfills direct reach and frequency Requisition with sampling rate less than 1`() {
     val measurementSpec =
       MEASUREMENT_SPEC.copy { vidSamplingInterval = vidSamplingInterval.copy { width = 0.1f } }
