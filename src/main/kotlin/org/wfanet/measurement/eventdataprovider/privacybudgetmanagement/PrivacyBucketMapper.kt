@@ -33,8 +33,8 @@ interface PrivacyBucketMapper {
   fun toEventMessage(privacyBucketGroup: PrivacyBucketGroup): Message
 
   /**
-   * Returns if a [privacyBucketGroup] matches for a given cel [program]. Always returns true if
-   * [operativeFields] are empty.
+   * Returns whether a [privacyBucketGroup] matches for a given cel [program]. Always returns `true`
+   * if [operativeFields] are empty.
    */
   fun matches(privacyBucketGroup: PrivacyBucketGroup, program: Program): Boolean {
     if (operativeFields.isEmpty()) {

@@ -271,7 +271,7 @@ class PrivacyBucketFilterTest {
   }
 
   @Test
-  fun `Mapper succeeds with empty operative fields`() {
+  fun `getPrivacyBucketGroups returns all groups when mapper operativeFields is empty`() {
     val privacyLandscapeMask =
       LandscapeMask(
         listOf(EventGroupSpec("person.age_group in [1] ", timeRange)),
