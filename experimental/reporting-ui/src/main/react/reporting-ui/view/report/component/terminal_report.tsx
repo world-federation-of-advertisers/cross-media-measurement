@@ -58,10 +58,12 @@ export const TerminalReport = ({
 
   return (
     <React.Fragment>
-      <Header reportName={name} />
-      <Alert variant='warning' dismissible>
-        This is a prototype UI meant to demonstrate some basic Halo features. Local Market Solution UIs will differ.
-      </Alert>
+      <div className='sticky'>
+        <Header reportName={name} />
+        <Alert variant='warning' dismissible>
+          This is a prototype UI meant to demonstrate some basic Halo features. Local Market Solution UIs will differ.
+        </Alert>
+      </div>
       <ReportOverviewStats reportOverview={overview} />
       <SummaryTable reportSummaries={summaries} publisherColors={pubColors} />
       <Charts
