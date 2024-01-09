@@ -185,7 +185,6 @@ class ReportsService(
           // Go through each metric calcualtion result
           // Stop here instead of flattening to get the reporting sets
           demoBucket += demoBucket {
-            // TODO: There's actually a pair of MCRs one for the individual and one for the unique
             for (mcr in source.metricCalculationResultsList) {
               val reportingSetName = mcr.reportingSet
               val reportingSetDisplayName = reportingSets.find{it.name == reportingSetName}!!.displayName
@@ -217,6 +216,7 @@ class ReportsService(
                 demoCategoryName = ras.key
 
                 val metrics = sourceMetrics {
+                  cumulative = mcr.cumulative
                   for (resultAttribute in ras.value) {
                     sourceName = reportingSetDisplayName
 

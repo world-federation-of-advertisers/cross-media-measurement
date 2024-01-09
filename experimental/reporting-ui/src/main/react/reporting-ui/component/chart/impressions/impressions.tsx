@@ -19,19 +19,22 @@ import { ChartGroup } from '../../../view_model/report/report_view_model';
 
 type OnTargetReachProps = {
     id: string,
+    title?: string,
     impressions: ChartGroup[],
     pubColors: { [Name: string]: string}
 }
 
-export function Impressions({id, impressions, pubColors}: OnTargetReachProps) {
+export function Impressions({id, title='Impressions', impressions, pubColors}: OnTargetReachProps) {
     const config = {
         pubColors,
     }
 
+    console.log('chart impressions', impressions)
+
     return (
         <Chart
             cardId={id}
-            title='Impressions'
+            title={title}
             data={impressions}
             config={config}
             type={ChartType.multiLine}

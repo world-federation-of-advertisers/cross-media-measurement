@@ -23,6 +23,7 @@ import { Frequencies } from '../../../component/chart/frequencies/frequencies';
 
 type ChartProps = {
   impressions: ChartGroup[],
+  cumulativeImpressions: ChartGroup[],
   uniqueReach: ChartGroup[],
   totalReach: ChartGroup[],
   frequencies: ChartGroup[],
@@ -31,6 +32,7 @@ type ChartProps = {
 
 export function Charts({
   impressions,
+  cumulativeImpressions,
   uniqueReach,
   totalReach,
   frequencies,
@@ -43,6 +45,16 @@ export function Charts({
             <Impressions id={'impressions'} impressions={impressions} pubColors={pubColors} />
           </Col>
           <Col className="report-chart">
+            <Impressions id={'impressions-cumulative'} title={'Cumulative Impressions'} impressions={cumulativeImpressions} pubColors={pubColors} />
+          </Col>
+        </Row>
+        <Row className="report-charts">
+          <Col className="report-chart">
+            <TotalReach id={'total-reach'} reach={totalReach} pubColors={pubColors} />
+          </Col>
+        </Row>
+        <Row>
+          <Col className="report-chart">
             <UniqueReqchByPlat
               id={'uniqueReach'}
               reach={uniqueReach}
@@ -50,10 +62,7 @@ export function Charts({
             />
           </Col>
         </Row>
-        <Row className="report-charts">
-          <Col className="report-chart">
-            <TotalReach id={'total-reach'} reach={totalReach} pubColors={pubColors} />
-          </Col>
+        <Row>
           <Col className="report-chart">
             <Frequencies id={'frequencies'} frequencies={frequencies} pubColors={pubColors} />
           </Col>

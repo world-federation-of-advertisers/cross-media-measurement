@@ -33,6 +33,7 @@ type TerminalReportProps = {
   overview: Overview,
   summaries: SummaryPublisherData[],
   impressions: ChartGroup[],
+  cumulativeImpressions: ChartGroup[],
   uniqueReach: ChartGroup[],
   totalReach: ChartGroup[],
   frequencies: ChartGroup[],
@@ -43,6 +44,7 @@ export const TerminalReport = ({
   overview,
   summaries,
   impressions,
+  cumulativeImpressions,
   uniqueReach,
   totalReach,
   frequencies,
@@ -62,6 +64,7 @@ export const TerminalReport = ({
       <SummaryTable reportSummaries={summaries} publisherColors={pubColors} />
       <Charts
         impressions={impressions}
+        cumulativeImpressions={cumulativeImpressions}
         uniqueReach={uniqueReach}
         totalReach={totalReach}
         frequencies={frequencies}

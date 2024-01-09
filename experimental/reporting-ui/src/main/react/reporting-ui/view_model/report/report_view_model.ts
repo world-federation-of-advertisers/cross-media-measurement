@@ -19,6 +19,7 @@ import {
   SummaryPublisherData,
 } from '../../model/reporting';
 import { ReportRepository } from '../../model/report/report_repository';
+import { Metric } from '../../model/reporting/time_interval';
 
 type UiReport = {
   id: string,
@@ -27,6 +28,7 @@ type UiReport = {
   overview: Overview,
   summary: SummaryPublisherData[],
   impressions: ChartGroup[],
+  cumulativeImpressions: ChartGroup[],
   uniqueReach: ChartGroup[],
   totalReach: ChartGroup[],
   averageFrequency: ChartGroup[],
@@ -40,6 +42,7 @@ export type ChartGroup = {
 
 type iAndF = {
   impressions: ChartGroup[],
+  cumulativeImpressions: ChartGroup[],
   frequencies: ChartGroup[],
   summary: SummaryPublisherData[],
   overview: any,
@@ -91,6 +94,7 @@ const fixNumber = (num: number): number => {
 const getImpressionsAndFrequencies = (report: Report): iAndF => {
   const test: Map<string, Map<string,number>> = new Map(); // pub -> freq label -> value
   const impressions: ChartGroup[] = [];
+  const cumulativeImpressions: ChartGroup[] = [];
   const frequencies: ChartGroup[] = [];
   const overview: Overview = {
     totalImpressions: 0,
@@ -98,6 +102,15 @@ const getImpressionsAndFrequencies = (report: Report): iAndF => {
     totalAverageFrequency: 0,
     totalOnTargetReach: 0,
     totalUniqueReach: 0,
+  }
+
+  const getImpressionGroup = (source: Metric, startTime: Date, demoCategoryName: string): ChartGroup => {
+    const imp = {
+      group: `${source.sourceName}|${demoCategoryName}`,
+      value: fixNumber(source.impressionCount.count),
+      date: new Date(startTime),
+    };
+    return imp;
   }
 
   // Don't add the complements or union
@@ -122,11 +135,9 @@ const getImpressionsAndFrequencies = (report: Report): iAndF => {
         dict[pps.sourceName].uniqueReach = fixNumber(pps.uniqueReach)
 
         // Just get the impressions
-        impressions.push({
-          group: `${pps.sourceName}|${db.demoCategoryName}`,
-          value: fixNumber(pps.impressionCount.count),
-          date: new Date(ti.timeInterval.startTime),
-        });
+        const arr = pps.cumulative ? cumulativeImpressions : impressions;
+        const imp = getImpressionGroup(pps, ti.timeInterval.startTime, db.demoCategoryName);
+        arr.push(imp);
 
         // Add up the frequencies over every day.
         Object.entries(pps.frequencyHistogram).forEach(([key, value]) => {
@@ -144,11 +155,9 @@ const getImpressionsAndFrequencies = (report: Report): iAndF => {
       })
       
       // Get Union Impressions
-      impressions.push({
-        group: `${db.unionSource.sourceName}|${db.demoCategoryName}`,
-        value: fixNumber(db.unionSource.impressionCount.count),
-        date: new Date(ti.timeInterval.startTime),
-      });
+      const arr = db.unionSource.cumulative ? cumulativeImpressions : impressions;
+      const imp = getImpressionGroup(db.unionSource, ti.timeInterval.startTime, db.demoCategoryName);
+      arr.push(imp);
 
       // Get Union Frequencies
       Object.entries(db.unionSource.frequencyHistogram).forEach(([key, value]) => {
@@ -183,8 +192,12 @@ const getImpressionsAndFrequencies = (report: Report): iAndF => {
     pub.averageFrequency = pub.impressions / pub.reach
   }
 
+  console.log('impressions-C', cumulativeImpressions)
+  console.log('impressions', impressions)
+
   return {
     impressions,
+    cumulativeImpressions,
     frequencies,
     overview,
     summary: Object.values(dict),
@@ -196,7 +209,13 @@ const handleUiReport = (report: Report|undefined): UiReport|null => {
     return null;
   }
 
-  const {impressions, frequencies, summary, overview} = getImpressionsAndFrequencies(report)
+  const {
+    impressions,
+    cumulativeImpressions,
+    frequencies,
+    summary,
+    overview,
+  } = getImpressionsAndFrequencies(report)
   const {uniqueReach, totalReach} = getReaches(report);
 
   const res =  {
@@ -206,6 +225,7 @@ const handleUiReport = (report: Report|undefined): UiReport|null => {
     overview,
     summary,
     impressions: filter(impressions, 'all'),
+    cumulativeImpressions: filter(cumulativeImpressions, 'all'),
     uniqueReach: filter(uniqueReach, 'all'),
     totalReach: filter(totalReach, 'all'),
     averageFrequency: filter(frequencies, 'all'),

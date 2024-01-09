@@ -99,6 +99,8 @@ message Report {
 
         // The unique reach value.
         int64 uniqueReach = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+        bool cumulative = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
       }
 
       // The sources (excluding union) where the metrics came from.

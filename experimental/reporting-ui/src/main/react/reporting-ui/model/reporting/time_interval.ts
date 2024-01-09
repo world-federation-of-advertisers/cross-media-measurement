@@ -23,6 +23,7 @@ export type Metric = {
   frequencyHistogram: { [id: number] : number; },
   reach: number,
   uniqueReach: number,
+  cumulative: boolean,
 };
 
 export type Bucket = {

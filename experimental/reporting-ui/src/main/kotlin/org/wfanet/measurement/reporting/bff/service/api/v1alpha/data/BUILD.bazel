@@ -9,9 +9,6 @@ kt_jvm_library(
         "Edp1_non_cumulative.kt",
         "Edp2_non_cumulative.kt",
         "Edp3_non_cumulative.kt",
-        # "Edp1-unique.kt",
-        # "Edp2-unique.kt",
-        # "Edp3-unique.kt",
     ],
     visibility = [
         "//experimental/reporting-ui/src/main/kotlin/org/wfanet/measurement/reporting/bff/service:__subpackages__",

@@ -47,6 +47,7 @@ export const ReportView = () => {
               overview={report.overview}
               summaries={report.summary}
               impressions={report.impressions}
+              cumulativeImpressions={report.cumulativeImpressions}
               uniqueReach={report.uniqueReach}
               totalReach={report.totalReach}
               frequencies={report.averageFrequency}

@@ -47,24 +47,33 @@ class Temp(
 class GenerateMockReport() {
     companion object {
         fun GenerateReport(): Report {
-            val reportingSets = mapOf(
-                edp1_cumulative_reportingSet to Temp(edp1_cumulative_reportingSet, edp1_cumulative_data, edp1_cumulative_iscumulative),
-                edp2_cumulative_reportingSet to Temp(edp2_cumulative_reportingSet, edp2_cumulative_data, edp2_cumulative_iscumulative),
-                edp3_cumulative_reportingSet to Temp(edp3_cumulative_reportingSet, edp3_cumulative_data, edp3_cumulative_iscumulative),
-                union_cumulative_reportingSet to Temp(union_cumulative_reportingSet, union_cumulative_data, union_cumulative_iscumulative),
+            val reportingSets = listOf(
+                Temp(edp1_cumulative_reportingSet, edp1_cumulative_data, edp1_cumulative_iscumulative),
+                // edp2_cumulative_reportingSet to Temp(edp2_cumulative_reportingSet, edp2_cumulative_data, edp2_cumulative_iscumulative),
+                // edp3_cumulative_reportingSet to Temp(edp3_cumulative_reportingSet, edp3_cumulative_data, edp3_cumulative_iscumulative),
+                Temp(union_cumulative_reportingSet, union_cumulative_data, union_cumulative_iscumulative),
 
-                edp1_unique_cumulative_reportingSet to Temp(edp1_unique_cumulative_reportingSet, edp1_unique_cumulative_data, edp1_unique_cumulative_iscumulative),
-                edp2_unique_cumulative_reportingSet to Temp(edp2_unique_cumulative_reportingSet, edp2_unique_cumulative_data, edp2_unique_cumulative_iscumulative),
-                edp3_unique_cumulative_reportingSet to Temp(edp3_unique_cumulative_reportingSet, edp3_unique_cumulative_data, edp3_unique_cumulative_iscumulative),
+                // Temp(edp1_unique_cumulative_reportingSet, edp1_unique_cumulative_data, edp1_unique_cumulative_iscumulative),
+                // edp2_unique_cumulative_reportingSet to Temp(edp2_unique_cumulative_reportingSet, edp2_unique_cumulative_data, edp2_unique_cumulative_iscumulative),
+                // edp3_unique_cumulative_reportingSet to Temp(edp3_unique_cumulative_reportingSet, edp3_unique_cumulative_data, edp3_unique_cumulative_iscumulative),
+
+                Temp(edp1_non_cumulative_reportingSet, edp1_non_cumulative_data, edp1_non_cumulative_iscumulative),
+                // edp2_cumulative_reportingSet to Temp(edp2_cumulative_reportingSet, edp2_cumulative_data, edp2_cumulative_iscumulative),
+                // edp3_cumulative_reportingSet to Temp(edp3_cumulative_reportingSet, edp3_cumulative_data, edp3_cumulative_iscumulative),
+                Temp(union_non_cumulative_reportingSet, union_non_cumulative_data, union_non_cumulative_iscumulative),
+
+                // edp1_unique_cumulative_reportingSet to Temp(edp1_unique_cumulative_reportingSet, edp1_unique_cumulative_data, edp1_unique_cumulative_iscumulative),
+                // edp2_unique_cumulative_reportingSet to Temp(edp2_unique_cumulative_reportingSet, edp2_unique_cumulative_data, edp2_unique_cumulative_iscumulative),
+                // edp3_unique_cumulative_reportingSet to Temp(edp3_unique_cumulative_reportingSet, edp3_unique_cumulative_data, edp3_unique_cumulative_iscumulative),
             )
             val dates = edp1_cumulative_data.groupBy{Pair(it.start, it.end)}.keys
 
             return report {
                 name = "Fake Report"
                 state = Report.State.SUCCEEDED
-                for (rs in reportingSets.keys) {
+                for (rs in reportingSets) {
                     reportingMetricEntries += reportingMetricEntry {
-                        key = rs
+                        key = rs.reportingSet
                     }
                 }
                 timeIntervals = timeIntervals {
@@ -78,9 +87,9 @@ class GenerateMockReport() {
                 tags.put("ui.halo-cmm.org", "1")
                 for (rs in reportingSets) {
                     metricCalculationResults += metricCalculationResult {
-                        reportingSet = rs.key
-                        cumulative = rs.value.cumulative
-                        for (dataPoint in rs.value.helpers) {
+                        reportingSet = rs.reportingSet
+                        cumulative = rs.cumulative
+                        for (dataPoint in rs.helpers) {
                             resultAttributes += resultAttribute {
                                 for (group in dataPoint.groups) {
                                     groupingPredicates += group
