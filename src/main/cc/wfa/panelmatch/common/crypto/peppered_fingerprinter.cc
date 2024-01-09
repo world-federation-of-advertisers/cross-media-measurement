@@ -17,6 +17,8 @@
 #include <memory>
 
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "common_cpp/fingerprinters/fingerprinters.h"
 #include "glog/logging.h"
 #include "tink/util/secret_data.h"
