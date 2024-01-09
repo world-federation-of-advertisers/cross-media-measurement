@@ -72,7 +72,7 @@ const setUpLinearXScale = (svg, data, dimensions, margins) => {
 const setUpScaleBandXScale = (svg, data, dimensions, margins) => {
     // Create the positional scales.
     const x = d3.scaleBand()
-        .domain(data.map(x => x.date))
+        .domain(new Set(data.map(d => d.date)))
         .range([margins.left, dimensions.width - margins.right])
         .padding(0.5);
 
@@ -143,16 +143,24 @@ const drawMultiLines = (svg, groups, groupColors) => {
 }
 
 const drawBar = (svg, data, x, y, groupColors) => {
+    const subX = d3.scaleBand()
+        .domain(new Set(data.map(d => d.group)))
+        .rangeRound([0, x.bandwidth()])
+        .padding(0.05);
+
     svg.append("g")
-        // .attr("fill", "none")
         .selectAll()
-        .data(data.sort((a, b) => b.value - a.value))
+        .data(d3.group(data, d => d.date))
+        .join("g")
+            .attr("transform", ([date]) => `translate(${x(date)},0)`)
+        .selectAll()
+        .data(([, d]) => d)
         .join("rect")
-        .attr("fill", function(d){ return groupColors[d.group] })
-        .attr("x", (d) => x(d.date))
-        .attr("y", (d) => y(d.value))
-        .attr("height", (d) => y(0) - y(d.value))
-        .attr("width", x.bandwidth());
+            .attr("x", d => subX(d.group))
+            .attr("y", d => y(d.value))
+            .attr("width", subX.bandwidth())
+            .attr("height", d => y(0) - y(d.value))
+            .attr("fill", d => groupColors[d.group]);
 }
 
 export const createMultiLineChart = (cardId, data, dimensions, margins, colorMap) => { 

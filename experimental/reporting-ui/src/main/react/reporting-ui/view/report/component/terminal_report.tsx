@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import React from 'react';
+import Alert from 'react-bootstrap/Alert';
 import { Header } from './header';
 import { ReportOverviewStats } from './overview';
 import { SummaryTable } from './summary_table';
@@ -54,6 +55,9 @@ export const TerminalReport = ({
   return (
     <React.Fragment>
       <Header reportName={name} />
+      <Alert variant='warning' dismissible>
+        This is a prototype UI meant to demonstrate some basic Halo features. Local Market Solution UIs will differ.
+      </Alert>
       <ReportOverviewStats reportOverview={overview} />
       <SummaryTable reportSummaries={summaries} publisherColors={pubColors} />
       <Charts
