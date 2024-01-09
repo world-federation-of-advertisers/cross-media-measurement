@@ -45,7 +45,6 @@ export function SummaryTable({
               <td>Publisher</td>
               <td>Impressions</td>
               <td>Reach</td>
-              {/* <td>On target reach</td> */}
               <td>Unique reach</td>
               <td>Average frequency</td>
             </tr>
