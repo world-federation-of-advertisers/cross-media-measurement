@@ -66,6 +66,7 @@ import org.wfanet.measurement.api.v2alpha.PopulationKt.populationBlob
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
+import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.honestMajorityShareShuffle
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.protocol
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.reachOnlyLiquidLegionsV2
@@ -89,6 +90,7 @@ import org.wfanet.measurement.api.v2alpha.population
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.reachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.setMessage
+import org.wfanet.measurement.api.v2alpha.shareShuffleSketchParams
 import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.ProtoReflection
@@ -449,6 +451,19 @@ private fun buildMpcProtocolConfig(
             } else {
               protocolConfig.reachOnlyLiquidLegionsV2.noiseMechanism.toNoiseMechanism()
             }
+        }
+      }
+    }
+    InternalProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+      protocol {
+        honestMajorityShareShuffle = honestMajorityShareShuffle {
+          sketchParams = shareShuffleSketchParams {
+            registerCount = protocolConfig.honestMajorityShareShuffle.sketchParams.registerCount
+            bytesPerRegister =
+              protocolConfig.honestMajorityShareShuffle.sketchParams.bytesPerRegister
+          }
+          noiseMechanism =
+            protocolConfig.honestMajorityShareShuffle.noiseMechanism.toNoiseMechanism()
         }
       }
     }
@@ -977,6 +992,8 @@ fun Map.Entry<Long, DataProviderValue>.toDataProviderEntry(apiVersion: Version):
  * Converts a public [Measurement] to an internal [InternalMeasurement] for creation.
  *
  * @throws [IllegalStateException] if MeasurementType not specified
+ *
+ * TODO(@renjie): Enable HMSS protocol based on feature flag.
  */
 fun Measurement.toInternal(
   measurementConsumerCertificateKey: MeasurementConsumerCertificateKey,
