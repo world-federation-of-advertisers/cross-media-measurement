@@ -49,22 +49,22 @@ class GenerateMockReport() {
         fun GenerateReport(): Report {
             val reportingSets = listOf(
                 Temp(edp1_cumulative_reportingSet, edp1_cumulative_data, edp1_cumulative_iscumulative),
-                // edp2_cumulative_reportingSet to Temp(edp2_cumulative_reportingSet, edp2_cumulative_data, edp2_cumulative_iscumulative),
-                // edp3_cumulative_reportingSet to Temp(edp3_cumulative_reportingSet, edp3_cumulative_data, edp3_cumulative_iscumulative),
+                Temp(edp2_cumulative_reportingSet, edp2_cumulative_data, edp2_cumulative_iscumulative),
+                Temp(edp3_cumulative_reportingSet, edp3_cumulative_data, edp3_cumulative_iscumulative),
                 Temp(union_cumulative_reportingSet, union_cumulative_data, union_cumulative_iscumulative),
 
-                // Temp(edp1_unique_cumulative_reportingSet, edp1_unique_cumulative_data, edp1_unique_cumulative_iscumulative),
-                // edp2_unique_cumulative_reportingSet to Temp(edp2_unique_cumulative_reportingSet, edp2_unique_cumulative_data, edp2_unique_cumulative_iscumulative),
-                // edp3_unique_cumulative_reportingSet to Temp(edp3_unique_cumulative_reportingSet, edp3_unique_cumulative_data, edp3_unique_cumulative_iscumulative),
+                Temp(edp1_unique_cumulative_reportingSet, edp1_unique_cumulative_data, edp1_unique_cumulative_iscumulative),
+                Temp(edp2_unique_cumulative_reportingSet, edp2_unique_cumulative_data, edp2_unique_cumulative_iscumulative),
+                Temp(edp3_unique_cumulative_reportingSet, edp3_unique_cumulative_data, edp3_unique_cumulative_iscumulative),
 
                 Temp(edp1_non_cumulative_reportingSet, edp1_non_cumulative_data, edp1_non_cumulative_iscumulative),
-                // edp2_cumulative_reportingSet to Temp(edp2_cumulative_reportingSet, edp2_cumulative_data, edp2_cumulative_iscumulative),
-                // edp3_cumulative_reportingSet to Temp(edp3_cumulative_reportingSet, edp3_cumulative_data, edp3_cumulative_iscumulative),
-                Temp(union_non_cumulative_reportingSet, union_non_cumulative_data, union_non_cumulative_iscumulative),
+                Temp(edp2_non_cumulative_reportingSet, edp2_non_cumulative_data, edp2_non_cumulative_iscumulative),
+                Temp(edp3_non_cumulative_reportingSet, edp3_non_cumulative_data, edp3_non_cumulative_iscumulative),
+                // Temp(union_non_cumulative_reportingSet, union_non_cumulative_data, union_non_cumulative_iscumulative),
 
-                // edp1_unique_cumulative_reportingSet to Temp(edp1_unique_cumulative_reportingSet, edp1_unique_cumulative_data, edp1_unique_cumulative_iscumulative),
-                // edp2_unique_cumulative_reportingSet to Temp(edp2_unique_cumulative_reportingSet, edp2_unique_cumulative_data, edp2_unique_cumulative_iscumulative),
-                // edp3_unique_cumulative_reportingSet to Temp(edp3_unique_cumulative_reportingSet, edp3_unique_cumulative_data, edp3_unique_cumulative_iscumulative),
+                // Temp(edp1_unique_non_cumulative_reportingSet, edp1_unique_non_cumulative_data, edp1_unique_non_cumulative_iscumulative),
+                // Temp(edp2_unique_non_cumulative_reportingSet, edp2_unique_non_cumulative_data, edp2_unique_non_cumulative_iscumulative),
+                // Temp(edp3_unique_non_cumulative_reportingSet, edp3_unique_non_cumulative_data, edp3_unique_non_cumulative_iscumulative),
             )
             val dates = edp1_cumulative_data.groupBy{Pair(it.start, it.end)}.keys
 

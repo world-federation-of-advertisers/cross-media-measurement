@@ -29,8 +29,6 @@ export function Impressions({id, title='Impressions', impressions, pubColors}: O
         pubColors,
     }
 
-    console.log('chart impressions', impressions)
-
     return (
         <Chart
             cardId={id}

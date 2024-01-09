@@ -36,6 +36,7 @@ type TerminalReportProps = {
   cumulativeImpressions: ChartGroup[],
   uniqueReach: ChartGroup[],
   totalReach: ChartGroup[],
+  totalCumulativeReach: ChartGroup[],
   frequencies: ChartGroup[],
 }
 
@@ -47,6 +48,7 @@ export const TerminalReport = ({
   cumulativeImpressions,
   uniqueReach,
   totalReach,
+  totalCumulativeReach,
   frequencies,
 }: TerminalReportProps) => {
   // Assign a color to each publisher
@@ -67,6 +69,7 @@ export const TerminalReport = ({
         cumulativeImpressions={cumulativeImpressions}
         uniqueReach={uniqueReach}
         totalReach={totalReach}
+        totalCumulativeReach={totalCumulativeReach}
         frequencies={frequencies}
         pubColors={pubColors}
       />

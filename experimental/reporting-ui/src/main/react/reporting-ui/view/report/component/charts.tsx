@@ -26,6 +26,7 @@ type ChartProps = {
   cumulativeImpressions: ChartGroup[],
   uniqueReach: ChartGroup[],
   totalReach: ChartGroup[],
+  totalCumulativeReach: ChartGroup[],
   frequencies: ChartGroup[],
   pubColors: { [Name: string]: string},
 }
@@ -35,6 +36,7 @@ export function Charts({
   cumulativeImpressions,
   uniqueReach,
   totalReach,
+  totalCumulativeReach,
   frequencies,
   pubColors,
 }: ChartProps) {
@@ -52,8 +54,11 @@ export function Charts({
           <Col className="report-chart">
             <TotalReach id={'total-reach'} reach={totalReach} pubColors={pubColors} />
           </Col>
+          <Col className="report-chart">
+            <TotalReach id={'total-reach-cumulative'} title={'Total Cumulative Reach'} reach={totalCumulativeReach} pubColors={pubColors} />
+          </Col>
         </Row>
-        <Row>
+        <Row className="report-charts">
           <Col className="report-chart">
             <UniqueReqchByPlat
               id={'uniqueReach'}
@@ -62,7 +67,7 @@ export function Charts({
             />
           </Col>
         </Row>
-        <Row>
+        <Row className="report-charts">
           <Col className="report-chart">
             <Frequencies id={'frequencies'} frequencies={frequencies} pubColors={pubColors} />
           </Col>

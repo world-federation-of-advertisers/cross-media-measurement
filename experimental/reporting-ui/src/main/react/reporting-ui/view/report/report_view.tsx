@@ -50,6 +50,7 @@ export const ReportView = () => {
               cumulativeImpressions={report.cumulativeImpressions}
               uniqueReach={report.uniqueReach}
               totalReach={report.totalReach}
+              totalCumulativeReach={report.totalCumulativeReach}
               frequencies={report.averageFrequency}
             />
   }

@@ -26,6 +26,7 @@ export function Frequencies({id, frequencies, pubColors}: FrequenciesProps) {
     const config = {
         pubColors,
     }
+    console.log('frequencies', frequencies)
     return (
         <Chart
             cardId={id}
