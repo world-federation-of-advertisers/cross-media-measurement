@@ -6,7 +6,6 @@ class Frequency(
 ){}
 
 class Helper(
-    val reportingSet: String,
     val groups: List<String>,
     val start: Long,
     val end: Long,

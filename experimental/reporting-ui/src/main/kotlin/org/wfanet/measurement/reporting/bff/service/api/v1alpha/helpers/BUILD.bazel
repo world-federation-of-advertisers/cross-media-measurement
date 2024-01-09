@@ -1,0 +1,33 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+
+kt_jvm_library(
+    name = "helpers",
+    srcs = ["Helpers.kt"],
+    visibility = [
+        "//experimental/reporting-ui/src/main/kotlin/org/wfanet/measurement/reporting/bff/service:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "mock_report",
+    srcs = [
+        "MockReport.kt",
+    ],
+    visibility = [
+        "//experimental/reporting-ui/src/main/kotlin/org/wfanet/measurement/reporting/bff/service:__subpackages__",
+    ],
+    deps = [
+        ":helpers",
+        "//experimental/reporting-ui/src/main/kotlin/org/wfanet/measurement/reporting/bff/service/api/v1alpha/data:edp_cumulative_data",
+        "//experimental/reporting-ui/src/main/kotlin/org/wfanet/measurement/reporting/bff/service/api/v1alpha/data:union_data",
+        "//src/main/proto/wfa/measurement/reporting/bff/v1alpha:reports_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:reports_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:security_provider",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
+    ],
+)

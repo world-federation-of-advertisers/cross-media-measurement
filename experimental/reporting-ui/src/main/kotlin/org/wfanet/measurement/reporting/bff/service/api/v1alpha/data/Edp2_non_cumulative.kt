@@ -1,8 +1,8 @@
 package org.wfanet.measurement.reporting.bff.service.api.v1alpha
 
-val edp2_data = listOf(
-     Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
+val edp2_non_cumulative_reportingSet = "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2"
+val edp2_non_cumulative_iscumulative = false
+val edp2_non_cumulative_data = listOf(Helper(
      listOf("person.gender == 1"),
      1704067200,
      1704153600,
@@ -13,7 +13,6 @@ val edp2_data = listOf(
           Frequency("3", 927888.44),
           Frequency("4", 380660.49),
           Frequency("5", 124930.89),
-          Frequency("6", 34168.08),
           Frequency("7", 8009.85),
           Frequency("8", 1643.00),
           Frequency("9", 299.57),
@@ -21,7 +20,6 @@ val edp2_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1704067200,
      1704153600,
@@ -29,7 +27,6 @@ val edp2_data = listOf(
      null,
      10669399
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1704153600,
      1704240000,
@@ -40,7 +37,6 @@ val edp2_data = listOf(
           Frequency("3", 761493.07),
           Frequency("4", 310674.59),
           Frequency("5", 101399.43),
-          Frequency("6", 27579.35),
           Frequency("7", 6429.63),
           Frequency("8", 1311.58),
           Frequency("9", 237.82),
@@ -48,7 +44,6 @@ val edp2_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1704153600,
      1704240000,
@@ -56,7 +51,6 @@ val edp2_data = listOf(
      null,
      8775800
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1704240000,
      1704326400,
@@ -67,7 +61,6 @@ val edp2_data = listOf(
           Frequency("3", 694459.44),
           Frequency("4", 282796.88),
           Frequency("5", 92128.15),
-          Frequency("6", 25010.87),
           Frequency("7", 5819.94),
           Frequency("8", 1184.99),
           Frequency("9", 214.47),
@@ -75,7 +68,6 @@ val edp2_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1704240000,
      1704326400,
@@ -83,7 +75,6 @@ val edp2_data = listOf(
      null,
      8007724
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1704326400,
      1704412800,
@@ -94,7 +85,6 @@ val edp2_data = listOf(
           Frequency("3", 787590.10),
           Frequency("4", 321672.86),
           Frequency("5", 105103.84),
-          Frequency("6", 28618.15),
           Frequency("7", 6679.09),
           Frequency("8", 1363.96),
           Frequency("9", 247.59),
@@ -102,7 +92,6 @@ val edp2_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1704326400,
      1704412800,
@@ -110,7 +99,6 @@ val edp2_data = listOf(
      null,
      9071337
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1704412800,
      1704499200,
@@ -121,7 +109,6 @@ val edp2_data = listOf(
           Frequency("3", 955644.32),
           Frequency("4", 392252.19),
           Frequency("5", 128802.55),
-          Frequency("6", 35245.39),
           Frequency("7", 8266.72),
           Frequency("8", 1696.57),
           Frequency("9", 309.50),
@@ -129,7 +116,6 @@ val edp2_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1704412800,
      1704499200,
@@ -137,7 +123,6 @@ val edp2_data = listOf(
      null,
      10988758
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1704499200,
      1704585600,
@@ -148,7 +133,6 @@ val edp2_data = listOf(
           Frequency("3", 1044487.96),
           Frequency("4", 429946.55),
           Frequency("5", 141584.43),
-          Frequency("6", 38853.96),
           Frequency("7", 9139.20),
           Frequency("8", 1881.00),
           Frequency("9", 344.13),
@@ -156,7 +140,6 @@ val edp2_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1704499200,
      1704585600,
@@ -164,7 +147,6 @@ val edp2_data = listOf(
      null,
      11997119
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1704585600,
      1704672000,
@@ -175,7 +157,6 @@ val edp2_data = listOf(
           Frequency("3", 971904.82),
           Frequency("4", 399286.05),
           Frequency("5", 131230.42),
-          Frequency("6", 35942.12),
           Frequency("7", 8437.74),
           Frequency("8", 1733.23),
           Frequency("9", 316.47),
@@ -183,7 +164,6 @@ val edp2_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1704585600,
      1704672000,
@@ -191,7 +171,6 @@ val edp2_data = listOf(
      null,
      11169338
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1704672000,
      1704758400,
@@ -202,7 +181,6 @@ val edp2_data = listOf(
           Frequency("3", 804524.33),
           Frequency("4", 328694.52),
           Frequency("5", 107432.52),
-          Frequency("6", 29261.58),
           Frequency("7", 6831.45),
           Frequency("8", 1395.52),
           Frequency("9", 253.40),
@@ -210,7 +188,6 @@ val edp2_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1704672000,
      1704758400,
@@ -218,7 +195,6 @@ val edp2_data = listOf(
      null,
      9266472
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1704758400,
      1704844800,
@@ -229,7 +205,6 @@ val edp2_data = listOf(
           Frequency("3", 697084.90),
           Frequency("4", 283880.16),
           Frequency("5", 92485.66),
-          Frequency("6", 25109.18),
           Frequency("7", 5843.11),
           Frequency("8", 1189.77),
           Frequency("9", 215.34),
@@ -237,7 +212,6 @@ val edp2_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1704758400,
      1704844800,
@@ -245,7 +219,6 @@ val edp2_data = listOf(
      null,
      8038008
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1704844800,
      1704931200,
@@ -256,7 +229,6 @@ val edp2_data = listOf(
           Frequency("3", 747406.13),
           Frequency("4", 304846.04),
           Frequency("5", 99470.53),
-          Frequency("6", 27047.50),
           Frequency("7", 6303.95),
           Frequency("8", 1285.60),
           Frequency("9", 233.05),
@@ -264,7 +236,6 @@ val edp2_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1704844800,
      1704931200,
@@ -272,7 +243,6 @@ val edp2_data = listOf(
      null,
      8613390
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1704931200,
      1705017600,
@@ -283,7 +253,6 @@ val edp2_data = listOf(
           Frequency("3", 909470.57),
           Frequency("4", 372753.03),
           Frequency("5", 122220.40),
-          Frequency("6", 33395.27),
           Frequency("7", 7821.31),
           Frequency("8", 1602.81),
           Frequency("9", 291.97),
@@ -291,7 +260,6 @@ val edp2_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1704931200,
      1705017600,
@@ -299,7 +267,6 @@ val edp2_data = listOf(
      null,
      10463614
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1705017600,
      1705104000,
@@ -310,7 +277,6 @@ val edp2_data = listOf(
           Frequency("3", 1034959.77),
           Frequency("4", 425948.19),
           Frequency("5", 140242.63),
-          Frequency("6", 38478.85),
           Frequency("7", 9049.35),
           Frequency("8", 1862.18),
           Frequency("9", 340.62),
@@ -318,7 +284,6 @@ val edp2_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1705017600,
      1705104000,
@@ -326,7 +291,6 @@ val edp2_data = listOf(
      null,
      11887593
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1705104000,
      1705190400,
@@ -337,7 +301,6 @@ val edp2_data = listOf(
           Frequency("3", 1007276.59),
           Frequency("4", 414093.21),
           Frequency("5", 136187.57),
-          Frequency("6", 37324.64),
           Frequency("7", 8768.13),
           Frequency("8", 1802.30),
           Frequency("9", 329.30),
@@ -345,7 +308,6 @@ val edp2_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1705104000,
      1705190400,
@@ -353,7 +315,6 @@ val edp2_data = listOf(
      null,
      11576127
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1705190400,
      1705276800,
@@ -364,7 +325,6 @@ val edp2_data = listOf(
           Frequency("3", 852675.03),
           Frequency("4", 348892.40),
           Frequency("5", 114206.15),
-          Frequency("6", 31153.45),
           Frequency("7", 7284.10),
           Frequency("8", 1490.23),
           Frequency("9", 271.01),
@@ -372,7 +332,6 @@ val edp2_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1705190400,
      1705276800,
@@ -380,7 +339,6 @@ val edp2_data = listOf(
      null,
      9815577
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1705276800,
      1705363200,
@@ -391,7 +349,6 @@ val edp2_data = listOf(
           Frequency("3", 713259.57),
           Frequency("4", 290556.24),
           Frequency("5", 94689.71),
-          Frequency("6", 25715.45),
           Frequency("7", 5986.03),
           Frequency("8", 1219.25),
           Frequency("9", 220.75),
@@ -399,7 +356,6 @@ val edp2_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1705276800,
      1705363200,
@@ -407,7 +363,6 @@ val edp2_data = listOf(
      null,
      8224584
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1705363200,
      1705449600,
@@ -418,7 +373,6 @@ val edp2_data = listOf(
           Frequency("3", 716841.32),
           Frequency("4", 292035.15),
           Frequency("5", 95178.14),
-          Frequency("6", 25849.85),
           Frequency("7", 6017.72),
           Frequency("8", 1225.78),
           Frequency("9", 221.94),
@@ -426,7 +380,6 @@ val edp2_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1705363200,
      1705449600,
@@ -434,7 +387,6 @@ val edp2_data = listOf(
      null,
      8265900
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1705449600,
      1705536000,
@@ -445,7 +397,6 @@ val edp2_data = listOf(
           Frequency("3", 860138.63),
           Frequency("4", 351995.93),
           Frequency("5", 115238.29),
-          Frequency("6", 31439.44),
           Frequency("7", 7352.01),
           Frequency("8", 1504.34),
           Frequency("9", 273.61),
@@ -453,7 +404,6 @@ val edp2_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1705449600,
      1705536000,
@@ -461,7 +411,6 @@ val edp2_data = listOf(
      null,
      9901539
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1705536000,
      1705622400,
@@ -472,7 +421,6 @@ val edp2_data = listOf(
           Frequency("3", 1011761.08),
           Frequency("4", 415971.87),
           Frequency("5", 136816.96),
-          Frequency("6", 37500.29),
           Frequency("7", 8810.14),
           Frequency("8", 1811.08),
           Frequency("9", 330.93),
@@ -480,7 +428,6 @@ val edp2_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1705536000,
      1705622400,
@@ -488,7 +435,6 @@ val edp2_data = listOf(
      null,
      11627702
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1705622400,
      1705708800,
@@ -499,7 +445,6 @@ val edp2_data = listOf(
           Frequency("3", 1032329.90),
           Frequency("4", 424844.84),
           Frequency("5", 139872.45),
-          Frequency("6", 38375.39),
           Frequency("7", 9024.57),
           Frequency("8", 1856.99),
           Frequency("9", 339.65),
@@ -507,7 +452,6 @@ val edp2_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1705622400,
      1705708800,
@@ -515,7 +459,6 @@ val edp2_data = listOf(
      null,
      11857363
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1705708800,
      1705795200,
@@ -526,7 +469,6 @@ val edp2_data = listOf(
           Frequency("3", 902152.73),
           Frequency("4", 369702.73),
           Frequency("5", 121203.52),
-          Frequency("6", 33112.85),
           Frequency("7", 7754.10),
           Frequency("8", 1588.82),
           Frequency("9", 289.38),
@@ -534,7 +476,6 @@ val edp2_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1705708800,
      1705795200,
@@ -542,7 +483,6 @@ val edp2_data = listOf(
      null,
      10379372
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1705795200,
      1705881600,
@@ -553,7 +493,6 @@ val edp2_data = listOf(
           Frequency("3", 742132.26),
           Frequency("4", 302664.74),
           Frequency("5", 98748.91),
-          Frequency("6", 26848.60),
           Frequency("7", 6256.97),
           Frequency("8", 1275.89),
           Frequency("9", 231.27),
@@ -561,7 +500,6 @@ val edp2_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1705795200,
      1705881600,
@@ -569,7 +507,6 @@ val edp2_data = listOf(
      null,
      8552588
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1705881600,
      1705968000,
@@ -580,7 +517,6 @@ val edp2_data = listOf(
           Frequency("3", 698692.08),
           Frequency("4", 284543.34),
           Frequency("5", 92704.54),
-          Frequency("6", 25169.37),
           Frequency("7", 5857.29),
           Frequency("8", 1192.70),
           Frequency("9", 215.88),
@@ -588,7 +524,6 @@ val edp2_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1705881600,
      1705968000,
@@ -596,7 +531,6 @@ val edp2_data = listOf(
      null,
      8056547
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1705968000,
      1706054400,
@@ -607,7 +541,6 @@ val edp2_data = listOf(
           Frequency("3", 811539.25),
           Frequency("4", 331604.51),
           Frequency("5", 108398.01),
-          Frequency("6", 29528.47),
           Frequency("7", 6894.68),
           Frequency("8", 1408.62),
           Frequency("9", 255.81),
@@ -615,7 +548,6 @@ val edp2_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1705968000,
      1706054400,
@@ -623,7 +555,6 @@ val edp2_data = listOf(
      null,
      9347307
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1706054400,
      1706140800,
@@ -634,7 +565,6 @@ val edp2_data = listOf(
           Frequency("3", 977888.45),
           Frequency("4", 401789.53),
           Frequency("5", 132068.09),
-          Frequency("6", 36175.62),
           Frequency("7", 8493.51),
           Frequency("8", 1744.88),
           Frequency("9", 318.63),
@@ -642,7 +572,6 @@ val edp2_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1706054400,
      1706140800,
@@ -650,7 +579,6 @@ val edp2_data = listOf(
      null,
      11238150
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1706140800,
      1706227200,
@@ -661,7 +589,6 @@ val edp2_data = listOf(
           Frequency("3", 1043924.55),
           Frequency("4", 429710.09),
           Frequency("5", 141505.06),
-          Frequency("6", 38831.77),
           Frequency("7", 9133.89),
           Frequency("8", 1879.89),
           Frequency("9", 343.92),
@@ -669,7 +596,6 @@ val edp2_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1706140800,
      1706227200,
@@ -677,7 +603,6 @@ val edp2_data = listOf(
      null,
      11990643
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1706227200,
      1706313600,
@@ -688,7 +613,6 @@ val edp2_data = listOf(
           Frequency("3", 949055.63),
           Frequency("4", 389499.47),
           Frequency("5", 127882.78),
-          Frequency("6", 34989.36),
           Frequency("7", 8205.65),
           Frequency("8", 1683.83),
           Frequency("9", 307.14),
@@ -696,7 +620,6 @@ val edp2_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1706227200,
      1706313600,
@@ -704,7 +627,6 @@ val edp2_data = listOf(
      null,
      10912947
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1706313600,
      1706400000,
@@ -715,7 +637,6 @@ val edp2_data = listOf(
           Frequency("3", 781042.71),
           Frequency("4", 318959.22),
           Frequency("5", 104204.27),
-          Frequency("6", 28369.69),
           Frequency("7", 6620.29),
           Frequency("8", 1351.78),
           Frequency("9", 245.35),
@@ -723,7 +644,6 @@ val edp2_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1706313600,
      1706400000,
@@ -731,7 +651,6 @@ val edp2_data = listOf(
      null,
      8995892
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1706400000,
      1706486400,
@@ -742,7 +661,6 @@ val edp2_data = listOf(
           Frequency("3", 693963.94),
           Frequency("4", 282592.45),
           Frequency("5", 92060.68),
-          Frequency("6", 24992.32),
           Frequency("7", 5815.57),
           Frequency("8", 1184.09),
           Frequency("9", 214.30),
@@ -750,7 +668,6 @@ val edp2_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1706400000,
      1706486400,
@@ -758,7 +675,6 @@ val edp2_data = listOf(
      null,
      8002008
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1706486400,
      1706572800,
@@ -769,7 +685,6 @@ val edp2_data = listOf(
           Frequency("3", 767501.16),
           Frequency("4", 313161.40),
           Frequency("5", 102222.72),
-          Frequency("6", 27806.44),
           Frequency("7", 6483.31),
           Frequency("8", 1322.68),
           Frequency("9", 239.86),
@@ -777,7 +692,6 @@ val edp2_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1706486400,
      1706572800,
@@ -785,7 +699,6 @@ val edp2_data = listOf(
      null,
      8845069
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1706572800,
      1706659200,
@@ -796,7 +709,6 @@ val edp2_data = listOf(
           Frequency("3", 934890.81),
           Frequency("4", 383583.77),
           Frequency("5", 125906.90),
-          Frequency("6", 34439.56),
           Frequency("7", 8074.56),
           Frequency("8", 1656.49),
           Frequency("9", 302.07),
@@ -804,7 +716,6 @@ val edp2_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/edp2-2",
      listOf("person.gender == 1"),
      1706572800,
      1706659200,

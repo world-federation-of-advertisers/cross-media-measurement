@@ -1,0 +1,36 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+
+kt_jvm_library(
+    name = "edp_cumulative_data",
+    srcs = [
+        "Edp1_cumulative.kt",
+        "Edp2_cumulative.kt",
+        "Edp3_cumulative.kt",
+        "Edp1_non_cumulative.kt",
+        "Edp2_non_cumulative.kt",
+        "Edp3_non_cumulative.kt",
+        # "Edp1-unique.kt",
+        # "Edp2-unique.kt",
+        # "Edp3-unique.kt",
+    ],
+    visibility = [
+        "//experimental/reporting-ui/src/main/kotlin/org/wfanet/measurement/reporting/bff/service:__subpackages__",
+    ],
+    deps = [
+        "//experimental/reporting-ui/src/main/kotlin/org/wfanet/measurement/reporting/bff/service/api/v1alpha/helpers:helpers",
+    ]
+)
+
+kt_jvm_library(
+    name = "union_data",
+    srcs = [
+        "Union_cumulative.kt",
+        "Union_non_cumulative.kt",
+    ],
+    visibility = [
+        "//experimental/reporting-ui/src/main/kotlin/org/wfanet/measurement/reporting/bff/service:__subpackages__",
+    ],
+    deps = [
+        "//experimental/reporting-ui/src/main/kotlin/org/wfanet/measurement/reporting/bff/service/api/v1alpha/helpers:helpers",
+    ]
+)

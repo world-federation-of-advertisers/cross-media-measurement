@@ -1,8 +1,8 @@
 package org.wfanet.measurement.reporting.bff.service.api.v1alpha
 
-val union_data = listOf(
-     Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
+val union_non_cumulative_reportingSet = "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123"
+val union_non_cumulative_iscumulative = false
+val union_non_cumulative_data = listOf(Helper(
      listOf("person.gender == 1"),
      1704067200,
      1704153600,
@@ -13,7 +13,6 @@ val union_data = listOf(
           Frequency("3", 1873211.79),
           Frequency("4", 790424.69),
           Frequency("5", 266823.51),
-          Frequency("6", 75059.64),
           Frequency("7", 18098.48),
           Frequency("8", 3818.44),
           Frequency("9", 716.11),
@@ -21,7 +20,6 @@ val union_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1704067200,
      1704153600,
@@ -29,7 +27,6 @@ val union_data = listOf(
      null,
      21338799
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1704153600,
      1704240000,
@@ -40,7 +37,6 @@ val union_data = listOf(
           Frequency("3", 1536179.82),
           Frequency("4", 641942.84),
           Frequency("5", 214605.40),
-          Frequency("6", 59786.58),
           Frequency("7", 14276.44),
           Frequency("8", 2982.94),
           Frequency("9", 554.01),
@@ -48,7 +44,6 @@ val union_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1704153600,
      1704240000,
@@ -56,7 +51,6 @@ val union_data = listOf(
      null,
      17551600
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1704240000,
      1704326400,
@@ -67,7 +61,6 @@ val union_data = listOf(
           Frequency("3", 1399536.56),
           Frequency("4", 582334.79),
           Frequency("5", 193843.49),
-          Frequency("6", 53771.04),
           Frequency("7", 12784.95),
           Frequency("8", 2659.85),
           Frequency("9", 491.88),
@@ -75,7 +68,6 @@ val union_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1704240000,
      1704326400,
@@ -83,7 +75,6 @@ val union_data = listOf(
      null,
      16015448
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1704326400,
      1704412800,
@@ -94,7 +85,6 @@ val union_data = listOf(
           Frequency("3", 1588720.54),
           Frequency("4", 664933.73),
           Frequency("5", 222637.95),
-          Frequency("6", 62121.05),
           Frequency("7", 14857.02),
           Frequency("8", 3109.08),
           Frequency("9", 578.34),
@@ -102,7 +92,6 @@ val union_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1704326400,
      1704412800,
@@ -110,7 +99,6 @@ val union_data = listOf(
      null,
      18142674
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1704412800,
      1704499200,
@@ -121,7 +109,6 @@ val union_data = listOf(
           Frequency("3", 1930747.33),
           Frequency("4", 816272.96),
           Frequency("5", 276080.27),
-          Frequency("6", 77813.34),
           Frequency("7", 18798.62),
           Frequency("8", 3973.80),
           Frequency("9", 746.68),
@@ -129,7 +116,6 @@ val union_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1704412800,
      1704499200,
@@ -137,7 +123,6 @@ val union_data = listOf(
      null,
      21977516
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1704499200,
      1704585600,
@@ -148,7 +133,6 @@ val union_data = listOf(
           Frequency("3", 2110891.73),
           Frequency("4", 896935.18),
           Frequency("5", 304892.08),
-          Frequency("6", 86367.43),
           Frequency("7", 20970.42),
           Frequency("8", 4455.25),
           Frequency("9", 841.37),
@@ -156,7 +140,6 @@ val union_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1704499200,
      1704585600,
@@ -164,7 +147,6 @@ val union_data = listOf(
      null,
      23994239
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1704585600,
      1704672000,
@@ -175,7 +157,6 @@ val union_data = listOf(
           Frequency("3", 1962935.50),
           Frequency("4", 830611.75),
           Frequency("5", 281177.20),
-          Frequency("6", 79319.67),
           Frequency("7", 19179.39),
           Frequency("8", 4057.86),
           Frequency("9", 763.14),
@@ -183,7 +164,6 @@ val union_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1704585600,
      1704672000,
@@ -191,7 +171,6 @@ val union_data = listOf(
      null,
      22338676
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1704672000,
      1704758400,
@@ -202,7 +181,6 @@ val union_data = listOf(
           Frequency("3", 1623291.23),
           Frequency("4", 680035.96),
           Frequency("5", 227906.81),
-          Frequency("6", 63650.45),
           Frequency("7", 15236.98),
           Frequency("8", 3191.57),
           Frequency("9", 594.23),
@@ -210,7 +188,6 @@ val union_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1704672000,
      1704758400,
@@ -218,7 +195,6 @@ val union_data = listOf(
      null,
      18532945
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1704758400,
      1704844800,
@@ -229,7 +205,6 @@ val union_data = listOf(
           Frequency("3", 1405222.69),
           Frequency("4", 584934.37),
           Frequency("5", 194786.61),
-          Frequency("6", 54054.25),
           Frequency("7", 12857.42),
           Frequency("8", 2676.00),
           Frequency("9", 495.07),
@@ -237,7 +212,6 @@ val union_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1704758400,
      1704844800,
@@ -245,7 +219,6 @@ val union_data = listOf(
      null,
      16076017
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1704844800,
      1704931200,
@@ -256,7 +229,6 @@ val union_data = listOf(
           Frequency("3", 1507369.27),
           Frequency("4", 629382.81),
           Frequency("5", 210232.61),
-          Frequency("6", 58519.96),
           Frequency("7", 13962.44),
           Frequency("8", 2914.92),
           Frequency("9", 540.93),
@@ -264,7 +236,6 @@ val union_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1704844800,
      1704931200,
@@ -272,7 +243,6 @@ val union_data = listOf(
      null,
      17226781
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1704931200,
      1705017600,
@@ -283,7 +253,6 @@ val union_data = listOf(
           Frequency("3", 1836656.00),
           Frequency("4", 774254.14),
           Frequency("5", 261113.45),
-          Frequency("6", 73382.70),
           Frequency("7", 17677.11),
           Frequency("8", 3725.95),
           Frequency("9", 698.09),
@@ -291,7 +260,6 @@ val union_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1704931200,
      1705017600,
@@ -299,7 +267,6 @@ val union_data = listOf(
      null,
      20927229
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1705017600,
      1705104000,
@@ -310,7 +277,6 @@ val union_data = listOf(
           Frequency("3", 2091679.01),
           Frequency("4", 888459.53),
           Frequency("5", 301904.96),
-          Frequency("6", 85491.24),
           Frequency("7", 20750.39),
           Frequency("8", 4406.96),
           Frequency("9", 831.95),
@@ -318,7 +284,6 @@ val union_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1705017600,
      1705104000,
@@ -326,7 +291,6 @@ val union_data = listOf(
      null,
      23775187
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1705104000,
      1705190400,
@@ -337,7 +301,6 @@ val union_data = listOf(
           Frequency("3", 2035350.45),
           Frequency("4", 862895.97),
           Frequency("5", 292662.90),
-          Frequency("6", 82717.17),
           Frequency("7", 20039.04),
           Frequency("8", 4247.82),
           Frequency("9", 800.39),
@@ -345,7 +308,6 @@ val union_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1705104000,
      1705190400,
@@ -353,7 +315,6 @@ val union_data = listOf(
      null,
      23152255
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1705190400,
      1705276800,
@@ -364,7 +325,6 @@ val union_data = listOf(
           Frequency("3", 1721223.89),
           Frequency("4", 723210.51),
           Frequency("5", 243098.39),
-          Frequency("6", 68095.46),
           Frequency("7", 16349.61),
           Frequency("8", 3434.83),
           Frequency("9", 641.43),
@@ -372,7 +332,6 @@ val union_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1705190400,
      1705276800,
@@ -380,7 +339,6 @@ val union_data = listOf(
      null,
      19631154
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1705276800,
      1705363200,
@@ -391,7 +349,6 @@ val union_data = listOf(
           Frequency("3", 1438202.65),
           Frequency("4", 599205.50),
           Frequency("5", 199719.97),
-          Frequency("6", 55473.55),
           Frequency("7", 13206.98),
           Frequency("8", 2751.25),
           Frequency("9", 509.45),
@@ -399,7 +356,6 @@ val union_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1705276800,
      1705363200,
@@ -407,7 +363,6 @@ val union_data = listOf(
      null,
      16449168
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1705363200,
      1705449600,
@@ -418,7 +373,6 @@ val union_data = listOf(
           Frequency("3", 1445416.84),
           Frequency("4", 602291.90),
           Frequency("5", 200775.60),
-          Frequency("6", 55774.23),
           Frequency("7", 13280.35),
           Frequency("8", 2766.90),
           Frequency("9", 512.42),
@@ -426,7 +380,6 @@ val union_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1705363200,
      1705449600,
@@ -434,7 +387,6 @@ val union_data = listOf(
      null,
      16531800
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1705449600,
      1705536000,
@@ -445,7 +397,6 @@ val union_data = listOf(
           Frequency("3", 1736266.39),
           Frequency("4", 729733.37),
           Frequency("5", 245359.03),
-          Frequency("6", 68747.77),
           Frequency("7", 16510.81),
           Frequency("8", 3469.65),
           Frequency("9", 648.11),
@@ -453,7 +404,6 @@ val union_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1705449600,
      1705536000,
@@ -461,7 +411,6 @@ val union_data = listOf(
      null,
      19803079
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1705536000,
      1705622400,
@@ -472,7 +421,6 @@ val union_data = listOf(
           Frequency("3", 2044956.71),
           Frequency("4", 867371.40),
           Frequency("5", 294317.49),
-          Frequency("6", 83223.46),
           Frequency("7", 20171.06),
           Frequency("8", 4277.79),
           Frequency("9", 806.41),
@@ -480,7 +428,6 @@ val union_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1705536000,
      1705622400,
@@ -488,7 +435,6 @@ val union_data = listOf(
      null,
      23255405
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1705622400,
      1705708800,
@@ -499,7 +445,6 @@ val union_data = listOf(
           Frequency("3", 2085801.77),
           Frequency("4", 885612.57),
           Frequency("5", 300818.47),
-          Frequency("6", 85149.87),
           Frequency("7", 20659.35),
           Frequency("8", 4385.89),
           Frequency("9", 827.65),
@@ -507,7 +452,6 @@ val union_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1705622400,
      1705708800,
@@ -515,7 +459,6 @@ val union_data = listOf(
      null,
      23714727
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1705708800,
      1705795200,
@@ -526,7 +469,6 @@ val union_data = listOf(
           Frequency("3", 1821903.48),
           Frequency("4", 767826.73),
           Frequency("5", 258875.57),
-          Frequency("6", 72734.03),
           Frequency("7", 17516.10),
           Frequency("8", 3691.01),
           Frequency("9", 691.35),
@@ -534,7 +476,6 @@ val union_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1705708800,
      1705795200,
@@ -542,7 +483,6 @@ val union_data = listOf(
      null,
      20758745
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1705795200,
      1705881600,
@@ -553,7 +493,6 @@ val union_data = listOf(
           Frequency("3", 1496321.06),
           Frequency("4", 624458.81),
           Frequency("5", 208484.03),
-          Frequency("6", 58004.35),
           Frequency("7", 13832.53),
           Frequency("8", 2886.36),
           Frequency("9", 535.36),
@@ -561,7 +500,6 @@ val union_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1705795200,
      1705881600,
@@ -569,7 +507,6 @@ val union_data = listOf(
      null,
      17105176
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1705881600,
      1705968000,
@@ -580,7 +517,6 @@ val union_data = listOf(
           Frequency("3", 1408459.12),
           Frequency("4", 586316.84),
           Frequency("5", 195258.74),
-          Frequency("6", 54188.53),
           Frequency("7", 12890.13),
           Frequency("8", 2682.97),
           Frequency("9", 496.39),
@@ -588,7 +524,6 @@ val union_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1705881600,
      1705968000,
@@ -596,7 +531,6 @@ val union_data = listOf(
      null,
      16113094
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1705968000,
      1706054400,
@@ -607,7 +541,6 @@ val union_data = listOf(
           Frequency("3", 1637886.77),
           Frequency("4", 686535.90),
           Frequency("5", 230214.47),
-          Frequency("6", 64331.06),
           Frequency("7", 15408.56),
           Frequency("8", 3229.32),
           Frequency("9", 601.60),
@@ -615,7 +548,6 @@ val union_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1705968000,
      1706054400,
@@ -623,7 +555,6 @@ val union_data = listOf(
      null,
      18694615
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1706054400,
      1706140800,
@@ -634,7 +565,6 @@ val union_data = listOf(
           Frequency("3", 1974996.26),
           Frequency("4", 835900.05),
           Frequency("5", 283029.96),
-          Frequency("6", 79859.99),
           Frequency("7", 19314.31),
           Frequency("8", 4087.31),
           Frequency("9", 768.85),
@@ -642,7 +572,6 @@ val union_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1706054400,
      1706140800,
@@ -650,7 +579,6 @@ val union_data = listOf(
      null,
      22476300
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1706140800,
      1706227200,
@@ -661,7 +589,6 @@ val union_data = listOf(
           Frequency("3", 2109755.70),
           Frequency("4", 896433.86),
           Frequency("5", 304715.34),
-          Frequency("6", 86315.57),
           Frequency("7", 20957.39),
           Frequency("8", 4452.39),
           Frequency("9", 840.81),
@@ -669,7 +596,6 @@ val union_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1706140800,
      1706227200,
@@ -677,7 +603,6 @@ val union_data = listOf(
      null,
      23981286
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1706227200,
      1706313600,
@@ -688,7 +613,6 @@ val union_data = listOf(
           Frequency("3", 1916929.21),
           Frequency("4", 809990.92),
           Frequency("5", 273806.79),
-          Frequency("6", 77130.66),
           Frequency("7", 18623.58),
           Frequency("8", 3934.66),
           Frequency("9", 738.92),
@@ -696,7 +620,6 @@ val union_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1706227200,
      1706313600,
@@ -704,7 +627,6 @@ val union_data = listOf(
      null,
      21825895
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1706313600,
      1706400000,
@@ -715,7 +637,6 @@ val union_data = listOf(
           Frequency("3", 1575085.49),
           Frequency("4", 658868.04),
           Frequency("5", 220486.87),
-          Frequency("6", 61487.35),
           Frequency("7", 14697.45),
           Frequency("8", 3074.02),
           Frequency("9", 571.50),
@@ -723,7 +644,6 @@ val union_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1706313600,
      1706400000,
@@ -731,7 +651,6 @@ val union_data = listOf(
      null,
      17991784
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1706400000,
      1706486400,
@@ -742,7 +661,6 @@ val union_data = listOf(
           Frequency("3", 1398539.01),
           Frequency("4", 581908.93),
           Frequency("5", 193698.14),
-          Frequency("6", 53729.72),
           Frequency("7", 12774.89),
           Frequency("8", 2657.71),
           Frequency("9", 491.48),
@@ -750,7 +668,6 @@ val union_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1706400000,
      1706486400,
@@ -758,7 +675,6 @@ val union_data = listOf(
      null,
      16004017
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1706486400,
      1706572800,
@@ -769,7 +685,6 @@ val union_data = listOf(
           Frequency("3", 1548284.80),
           Frequency("4", 647146.44),
           Frequency("5", 216393.53),
-          Frequency("6", 60298.25),
           Frequency("7", 14401.85),
           Frequency("8", 3009.82),
           Frequency("9", 559.13),
@@ -777,7 +692,6 @@ val union_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1706486400,
      1706572800,
@@ -785,7 +699,6 @@ val union_data = listOf(
      null,
      17690138
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1706572800,
      1706659200,
@@ -796,7 +709,6 @@ val union_data = listOf(
           Frequency("3", 1887847.33),
           Frequency("4", 797045.63),
           Frequency("5", 269208.94),
-          Frequency("6", 75773.01),
           Frequency("7", 18280.70),
           Frequency("8", 3859.04),
           Frequency("9", 724.12),
@@ -804,7 +716,6 @@ val union_data = listOf(
      ),
      null
 ), Helper(
-     "measurementConsumers/VCTqwV_vFXw/reportingSets/union-2-edp123",
      listOf("person.gender == 1"),
      1706572800,
      1706659200,

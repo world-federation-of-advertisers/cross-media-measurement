@@ -38,19 +38,22 @@ import org.wfanet.measurement.reporting.v2alpha.getReportRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
 import com.google.type.interval
 
+class Temp(
+    val reportingSet: String,
+    val helpers: List<Helper>,
+    val cumulative: Boolean,
+) {}
+
 class GenerateMockReport() {
     companion object {
         fun GenerateReport(): Report {
             val reportingSets = mapOf(
-                union_data[0].reportingSet to union_data,
-                edp1_data[0].reportingSet to edp1_data,
-                edp2_data[0].reportingSet to edp2_data,
-                edp3_data[0].reportingSet to edp3_data,
-                edp1_unique_data[0].reportingSet to edp1_unique_data,
-                edp2_unique_data[0].reportingSet to edp2_unique_data,
-                edp3_unique_data[0].reportingSet to edp3_unique_data,
+                edp1_cumulative_reportingSet to Temp(edp1_cumulative_reportingSet, edp1_cumulative_data, edp1_cumulative_iscumulative),
+                edp2_cumulative_reportingSet to Temp(edp2_cumulative_reportingSet, edp2_cumulative_data, edp2_cumulative_iscumulative),
+                edp3_cumulative_reportingSet to Temp(edp3_cumulative_reportingSet, edp3_cumulative_data, edp3_cumulative_iscumulative),
+                union_cumulative_reportingSet to Temp(union_cumulative_reportingSet, union_cumulative_data, union_cumulative_iscumulative),
             )
-            val dates = union_data.groupBy{Pair(it.start, it.end)}.keys
+            val dates = edp1_cumulative_data.groupBy{Pair(it.start, it.end)}.keys
 
             return report {
                 name = "Fake Report"
@@ -72,7 +75,8 @@ class GenerateMockReport() {
                 for (rs in reportingSets) {
                     metricCalculationResults += metricCalculationResult {
                         reportingSet = rs.key
-                        for (dataPoint in rs.value) {
+                        cumulative = rs.value.cumulative
+                        for (dataPoint in rs.value.helpers) {
                             resultAttributes += resultAttribute {
                                 for (group in dataPoint.groups) {
                                     groupingPredicates += group
