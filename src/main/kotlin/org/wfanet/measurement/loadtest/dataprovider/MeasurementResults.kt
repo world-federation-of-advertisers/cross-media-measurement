@@ -28,6 +28,11 @@ object MeasurementResults {
     val eventsPerVid: Map<Long, Int> = sampledVids.groupingBy { it }.eachCount()
     val reach: Int = eventsPerVid.keys.size
 
+    // If the sampled VIDs is empty, set the distribution with all 0s up to maxFrequency.
+    if (reach == 0) {
+      return ReachAndFrequency(reach, (1..maxFrequency).associateWith { 0.0 })
+    }
+
     // Build frequency histogram as a 0-based array.
     val frequencyArray = IntArray(maxFrequency)
     for (count in eventsPerVid.values) {
