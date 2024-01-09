@@ -49,4 +49,21 @@ object MeasurementResults {
   fun computeReach(sampledVids: Iterable<Long>): Int {
     return sampledVids.distinct().size
   }
+
+  /** Computes impression using the "deterministic count" methodology. */
+  fun computeImpression(sampledVids: Iterable<Long>, maxFrequency: Int): Long {
+    val eventsPerVid: Map<Long, Int> = sampledVids.groupingBy { it }.eachCount()
+
+    // Build frequency histogram as a 0-based array. Cap the count at `maxFrequency`.
+    val frequencyArray = IntArray(maxFrequency)
+    for (count in eventsPerVid.values) {
+      val bucket = count.coerceAtMost(maxFrequency)
+      frequencyArray[bucket - 1]++
+    }
+
+    return frequencyArray.withIndex().sumOf { (index, count) ->
+      val frequency = index + 1
+      (frequency * count).toLong()
+    }
+  }
 }
