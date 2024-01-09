@@ -105,6 +105,8 @@ import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults
 import org.wfanet.measurement.measurementconsumer.stats.DeterministicMethodology
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementVarianceParams
+import org.wfanet.measurement.measurementconsumer.stats.ImpressionMeasurementParams
+import org.wfanet.measurement.measurementconsumer.stats.ImpressionMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
@@ -162,26 +164,51 @@ class MeasurementConsumerSimulator(
 
   private val MeasurementInfo.sampledVids: Sequence<Long>
     get() {
-      val vidSamplingInterval = measurementSpec.vidSamplingInterval
-
       return requisitions.asSequence().flatMap {
         val eventGroupsMap: Map<String, RequisitionSpec.EventGroupEntry.Value> =
           it.requisitionSpec.eventGroupsMap
         it.eventGroups.flatMap { eventGroup ->
-          eventQuery
-            .getUserVirtualIds(
-              EventQuery.EventGroupSpec(eventGroup, eventGroupsMap.getValue(eventGroup.name))
-            )
-            .filter { vid ->
-              VidSampling.sampler.vidIsInSamplingBucket(
-                vid,
-                vidSamplingInterval.start,
-                vidSamplingInterval.width
-              )
-            }
+          sampleVids(
+            EventQuery.EventGroupSpec(eventGroup, eventGroupsMap.getValue(eventGroup.name)),
+            measurementSpec.vidSamplingInterval
+          )
         }
       }
     }
+
+  private fun MeasurementInfo.sampleVidsByDataProvider(
+    targetDataProviderId: String
+  ): Sequence<Long> {
+    return requisitions.asSequence().flatMap { requisitionInfo ->
+      val eventGroupsMap: Map<String, RequisitionSpec.EventGroupEntry.Value> =
+        requisitionInfo.requisitionSpec.eventGroupsMap
+
+      requisitionInfo.eventGroups
+        .filter { eventGroup ->
+          targetDataProviderId ==
+            requireNotNull(EventGroupKey.fromName(eventGroup.name)).dataProviderId
+        }
+        .flatMap { eventGroup ->
+          sampleVids(
+            EventQuery.EventGroupSpec(eventGroup, eventGroupsMap.getValue(eventGroup.name)),
+            measurementSpec.vidSamplingInterval
+          )
+        }
+    }
+  }
+
+  private fun sampleVids(
+    eventGroupSpec: EventQuery.EventGroupSpec,
+    vidSamplingInterval: VidSamplingInterval,
+  ): Sequence<Long> {
+    return eventQuery.getUserVirtualIds(eventGroupSpec).filter { vid ->
+      VidSampling.sampler.vidIsInSamplingBucket(
+        vid,
+        vidSamplingInterval.start,
+        vidSamplingInterval.width
+      )
+    }
+  }
 
   data class ExecutionResult(
     val actualResult: Result,
@@ -420,20 +447,25 @@ class MeasurementConsumerSimulator(
     val measurementName = measurementInfo.measurement.name
     logger.info("Created impression Measurement $measurementName.")
 
-    val impressionResults = pollForResults { getImpressionResults(measurementName) }
+    val impressionResults: List<Measurement.ResultOutput> = pollForResults {
+      getImpressionResults(measurementName)
+    }
+    logger.info("Got impression result from Kingdom: $impressionResults")
+
+    val protocol = measurementInfo.measurement.protocolConfig.protocolsList.first()
 
     impressionResults.forEach {
       val result = parseAndVerifyResult(it)
-      assertThat(result.impression.value)
-        .isEqualTo(
-          // EdpSimulator sets it to this value.
-          apiIdToExternalId(DataProviderCertificateKey.fromName(it.certificate)!!.dataProviderId)
-        )
-      assertThat(result.impression.customDirectMethodology)
-        .isEqualTo(
-          customDirectMethodology { variance = CustomDirectMethodologyKt.variance { scalar = 0.0 } }
-        )
+      val dataProviderId = DataProviderCertificateKey.fromName(it.certificate)!!.dataProviderId
+
+      val expectedResult =
+        getExpectedImpressionResultByDataProvider(measurementInfo, dataProviderId)
+
+      val variance = computeImpressionVariance(result, measurementInfo.measurementSpec, protocol)
+      val tolerance = computeErrorMargin(variance)
+      assertThat(result.impression.hasDeterministicCount()).isTrue()
       assertThat(result.impression.noiseMechanism).isEqualTo(expectedDirectNoiseMechanism)
+      assertThat(result).impressionValue().isWithin(tolerance).of(expectedResult.impression.value)
     }
     logger.info("Impression result is equal to the expected result")
   }
@@ -467,6 +499,30 @@ class MeasurementConsumerSimulator(
       assertThat(result.watchDuration.noiseMechanism).isEqualTo(expectedDirectNoiseMechanism)
     }
     logger.info("Duration result is equal to the expected result")
+  }
+
+  /** Computes the tolerance values of an impression [Result] for testing. */
+  private fun computeImpressionVariance(
+    result: Result,
+    measurementSpec: MeasurementSpec,
+    protocol: ProtocolConfig.Protocol,
+  ): Double {
+    val measurementComputationInfo: MeasurementComputationInfo =
+      buildMeasurementComputationInfo(protocol, result.impression.noiseMechanism)
+
+    return VariancesImpl.computeMeasurementVariance(
+      measurementComputationInfo.methodology,
+      ImpressionMeasurementVarianceParams(
+        impression = max(0L, result.impression.value),
+        measurementParams =
+          ImpressionMeasurementParams(
+            vidSamplingInterval = measurementSpec.vidSamplingInterval.toStatsVidSamplingInterval(),
+            dpParams = measurementSpec.impression.privacyParams.toNoiserDpParams(),
+            maximumFrequencyPerUser = measurementSpec.impression.maximumFrequencyPerUser,
+            noiseMechanism = measurementComputationInfo.noiseMechanism.toStatsNoiseMechanism()
+          )
+      )
+    )
   }
 
   /** Computes the tolerance values of a relative frequency distribution [Result] for testing. */
@@ -733,7 +789,7 @@ class MeasurementConsumerSimulator(
       MeasurementSpec.MeasurementTypeCase.REACH -> getExpectedReachResult(measurementInfo)
       MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
         getExpectedReachAndFrequencyResult(measurementInfo)
-      MeasurementSpec.MeasurementTypeCase.IMPRESSION -> getExpectedImpressionResult()
+      MeasurementSpec.MeasurementTypeCase.IMPRESSION -> getExpectedImpressionResult(measurementInfo)
       MeasurementSpec.MeasurementTypeCase.DURATION -> getExpectedDurationResult()
       MeasurementSpec.MeasurementTypeCase.POPULATION -> getExpectedPopulationResult()
       MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
@@ -745,8 +801,35 @@ class MeasurementConsumerSimulator(
     TODO("Not yet implemented")
   }
 
-  private fun getExpectedImpressionResult(): Result {
-    TODO("Not yet implemented")
+  /** Gets the expected result of total impression. */
+  private fun getExpectedImpressionResult(measurementInfo: MeasurementInfo): Result {
+    return result {
+      impression =
+        MeasurementKt.ResultKt.impression {
+          value =
+            MeasurementResults.computeImpression(
+              measurementInfo.sampledVids.asIterable(),
+              measurementInfo.measurementSpec.impression.maximumFrequencyPerUser
+            )
+        }
+    }
+  }
+
+  /** Gets the expected result of impression from a specific data provider. */
+  private fun getExpectedImpressionResultByDataProvider(
+    measurementInfo: MeasurementInfo,
+    targetDataProviderId: String
+  ): Result {
+    return result {
+      impression =
+        MeasurementKt.ResultKt.impression {
+          value =
+            MeasurementResults.computeImpression(
+              measurementInfo.sampleVidsByDataProvider(targetDataProviderId).asIterable(),
+              measurementInfo.measurementSpec.impression.maximumFrequencyPerUser
+            )
+        }
+    }
   }
 
   private fun getExpectedPopulationResult(): Result {
@@ -859,7 +942,11 @@ class MeasurementConsumerSimulator(
       measurementPublicKey = packedMeasurementPublicKey
       impression = impression {
         privacyParams = outputDpParams
-        maximumFrequencyPerUser = 1
+        maximumFrequencyPerUser = 10
+      }
+      vidSamplingInterval = vidSamplingInterval {
+        start = 0.0f
+        width = 1.0f
       }
       this.nonceHashes += nonceHashes
     }
