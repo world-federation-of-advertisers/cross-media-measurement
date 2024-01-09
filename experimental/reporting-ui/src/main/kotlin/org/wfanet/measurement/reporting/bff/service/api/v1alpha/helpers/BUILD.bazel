@@ -19,6 +19,7 @@ kt_jvm_library(
     deps = [
         ":helpers",
         "//experimental/reporting-ui/src/main/kotlin/org/wfanet/measurement/reporting/bff/service/api/v1alpha/data:edp_cumulative_data",
+        "//experimental/reporting-ui/src/main/kotlin/org/wfanet/measurement/reporting/bff/service/api/v1alpha/data:edp_unique_data",
         "//experimental/reporting-ui/src/main/kotlin/org/wfanet/measurement/reporting/bff/service/api/v1alpha/data:union_data",
         "//src/main/proto/wfa/measurement/reporting/bff/v1alpha:reports_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:reports_service_kt_jvm_grpc_proto",

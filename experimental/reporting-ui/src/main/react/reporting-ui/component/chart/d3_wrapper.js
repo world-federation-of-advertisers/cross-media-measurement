@@ -175,6 +175,10 @@ export const createMultiLineChart = (cardId, data, dimensions, margins, colorMap
     const groups = d3.rollup(points, v => Object.assign(v, {z: v[0][2]}), d => d[2]);
 
     drawMultiLines(svg, groups, colorMap);
+
+    const svgLegend = initializeGraph(cardId, {width: 200});
+    const keys = new Set(data.map(x => x.group));
+    addLegend(svgLegend, keys, colorMap)
 }
 
 export const createPercentMultiLineChart = (cardId, data, dimensions, margins, colorMap) => { 
@@ -205,4 +209,32 @@ export const createBarChart = (cardId, data, dimensions, margins, colorMap) => {
     const y = setUpLinearYScale(svg, data, dimensions, margins, false)
 
     drawBar(svg, data, x, y, colorMap);
+
+    const svgLegend = initializeGraph(cardId, {width: 200});
+    const keys = new Set(data.map(x => x.group));
+    addLegend(svgLegend, keys, colorMap)
+}
+
+const addLegend = (svg, keys, colorMap) => {
+    var size = 20
+    svg.selectAll("mydots")
+        .data(keys)
+        .enter()
+        .append("rect")
+            .attr("x", 0)
+            .attr("y", function(d,i){ return  i*(size+5)}) // 100 is where the first dot appears. 25 is the distance between dots
+            .attr("width", size)
+            .attr("height", size)
+            .style("fill", function(d){ return colorMap[d]})
+        
+    svg.selectAll("mylabels")
+        .data(keys)
+        .enter()
+        .append("text")
+        .attr("x", size*1.2)
+        .attr("y", function(d,i){ return i*(size+5) + (size/2)}) // 100 is where the first dot appears. 25 is the distance between dots
+        .style("fill", function(d){ return colorMap[d]})
+        .text(function(d){ return d})
+        .attr("text-anchor", "left")
+        .style("alignment-baseline", "middle")
 }

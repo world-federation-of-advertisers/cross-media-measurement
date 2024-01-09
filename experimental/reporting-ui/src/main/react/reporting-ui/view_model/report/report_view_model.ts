@@ -68,6 +68,12 @@ const getReaches = (report: Report): Reaches => {
           date: new Date(ti.timeInterval.startTime),
         })
       })
+
+      totalReach.push({
+        value: fixNumber(db.unionSource.reach),
+        group: `${db.unionSource.sourceName}|${db.demoCategoryName}`,
+        date: new Date(ti.timeInterval.startTime),
+      })
     });
   });
 
@@ -111,9 +117,9 @@ const getImpressionsAndFrequencies = (report: Report): iAndF => {
             averageFrequency: 0,
           }
         }
-        dict[pps.sourceName].impressions += fixNumber(pps.impressionCount.count);
-        dict[pps.sourceName].reach += fixNumber(pps.reach);
-        dict[pps.sourceName].uniqueReach += fixNumber(pps.uniqueReach)
+        dict[pps.sourceName].impressions = fixNumber(pps.impressionCount.count);
+        dict[pps.sourceName].reach = fixNumber(pps.reach);
+        dict[pps.sourceName].uniqueReach = fixNumber(pps.uniqueReach)
 
         // Just get the impressions
         impressions.push({
@@ -131,12 +137,34 @@ const getImpressionsAndFrequencies = (report: Report): iAndF => {
             test.set(groupName, new Map([[binLabel, value]]))
           } else {
             const runningTotal = group.get(binLabel)
-            group.set(binLabel, !runningTotal ? value : runningTotal + value);
+            // group.set(binLabel, !runningTotal ? value : runningTotal + value);
+            group.set(binLabel, value);
           }
         });
       })
-      overview.totalImpressions += fixNumber(db.unionSource.impressionCount.count);
-      overview.totalReach += fixNumber(db.unionSource.reach);
+      
+      // Get Union Impressions
+      impressions.push({
+        group: `${db.unionSource.sourceName}|${db.demoCategoryName}`,
+        value: fixNumber(db.unionSource.impressionCount.count),
+        date: new Date(ti.timeInterval.startTime),
+      });
+
+      // Get Union Frequencies
+      Object.entries(db.unionSource.frequencyHistogram).forEach(([key, value]) => {
+        const groupName = `${db.unionSource.sourceName}|${db.demoCategoryName}`
+        const group = test.get(groupName);
+        const binLabel = `${key}+`;
+        if (!group) {
+          test.set(groupName, new Map([[binLabel, value]]))
+        } else {
+          const runningTotal = group.get(binLabel)
+          // group.set(binLabel, !runningTotal ? value : runningTotal + value);
+          group.set(binLabel, value);        }
+      });
+      
+      overview.totalImpressions = fixNumber(db.unionSource.impressionCount.count);
+      overview.totalReach = fixNumber(db.unionSource.reach);
       overview.totalAverageFrequency = overview.totalImpressions / overview.totalReach;
     });
   });

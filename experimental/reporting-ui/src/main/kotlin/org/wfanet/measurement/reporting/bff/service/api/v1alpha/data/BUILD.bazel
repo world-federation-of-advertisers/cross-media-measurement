@@ -22,6 +22,24 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "edp_unique_data",
+    srcs = [
+        "Edp1-Unique_cumulative.kt",
+        "Edp2-Unique_cumulative.kt",
+        "Edp3-Unique_cumulative.kt",
+        "Edp1-Unique_non_cumulative.kt",
+        "Edp2-Unique_non_cumulative.kt",
+        "Edp3-Unique_non_cumulative.kt",
+    ],
+    visibility = [
+        "//experimental/reporting-ui/src/main/kotlin/org/wfanet/measurement/reporting/bff/service:__subpackages__",
+    ],
+    deps = [
+        "//experimental/reporting-ui/src/main/kotlin/org/wfanet/measurement/reporting/bff/service/api/v1alpha/helpers:helpers",
+    ]
+)
+
+kt_jvm_library(
     name = "union_data",
     srcs = [
         "Union_cumulative.kt",
