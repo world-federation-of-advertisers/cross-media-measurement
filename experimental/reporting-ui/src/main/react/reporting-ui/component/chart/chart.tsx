@@ -76,7 +76,7 @@ export function Chart({cardId, title, data, config, type}: props) {
     if (refContainer.current) {
       setDimensions({
         width: refContainer.current.offsetWidth,
-        height: refContainer.current.offsetWidth * 0.6,
+        height: Math.min(refContainer.current.offsetWidth * 0.6, 300),
       });
     }
   }, []);

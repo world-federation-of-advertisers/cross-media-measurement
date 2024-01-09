@@ -19,7 +19,7 @@ import './d3_wrapper.css';
 const initializeGraph = (cardId, dimensions) => {
     // Specify the chart’s dimensions.
     const width = dimensions.width;
-    const height = dimensions.width * 0.6; // TODO: check with UX on how we want to make this reactive
+    const height = dimensions.height; // TODO: check with UX on how we want to make this reactive
 
     // Create the SVG container.
     const svg = d3.select(`#${cardId}-line`).append('svg')
