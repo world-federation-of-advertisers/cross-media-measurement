@@ -206,7 +206,6 @@ const getImpressionsAndFrequencies = (report: Report): iAndF => {
     });
   });
 
-  console.log('test', test)
   for (let [pub, bins] of test) {
     for (let [label, value] of bins) {
       frequencies.push({

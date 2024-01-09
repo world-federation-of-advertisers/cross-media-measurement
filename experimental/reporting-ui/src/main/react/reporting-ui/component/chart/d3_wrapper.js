@@ -16,6 +16,10 @@ import * as d3 from 'd3';
 import { formatNumberWithMagnitude } from '../../util/formatting';
 import './d3_wrapper.css';
 
+export const removeGraph = (cardId) => {
+    d3.select(`#${cardId}-line`).selectAll("*").remove();
+}
+
 const initializeGraph = (cardId, dimensions) => {
     // Specify the chart’s dimensions.
     const width = dimensions.width;

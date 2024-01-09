@@ -17,7 +17,7 @@ import Card from 'react-bootstrap/Card';
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 import { FilterChartIcon, OptionsIcon } from '../../public/asset/icon';
-import { createMultiLineChart, createBarChart, createPercentBarChart, createPercentMultiLineChart } from './d3_wrapper';
+import { createMultiLineChart, createBarChart, createPercentBarChart, createPercentMultiLineChart, removeGraph } from './d3_wrapper';
 
 export enum ChartType {
   percentMultiLine,
@@ -79,6 +79,26 @@ export function Chart({cardId, title, data, config, type}: props) {
         height: Math.min(refContainer.current.offsetWidth * 0.6, 300),
       });
     }
+
+    function handleResize() {
+      // Delete and re-create the whole charts.
+      // Even when using 'responsive svg', the fonts don't change.
+      removeGraph(cardId);
+      if (refContainer.current) {
+        setDimensions({
+          width: refContainer.current.offsetWidth,
+          height: Math.min(refContainer.current.offsetWidth * 0.6, 300),
+        });
+      }
+    }
+
+    // Attach the event listener to the window object
+    window.addEventListener('resize', handleResize);
+
+    // Remove the event listener when the component unmounts
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
   }, []);
 
   return (
