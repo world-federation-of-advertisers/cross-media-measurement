@@ -256,6 +256,7 @@ class MetricCalculationSpecsService(
               InternalMetricCalculationSpecKt.grouping { predicates += grouping.predicatesList }
             }
           cumulative = source.cumulative
+          tags.putAll(source.tagsMap)
         }
     }
   }
@@ -352,6 +353,7 @@ class MetricCalculationSpecsService(
             MetricCalculationSpecKt.grouping { predicates += grouping.predicatesList }
           }
         cumulative = source.details.cumulative
+        tags.putAll(source.details.tagsMap)
       }
     }
   }

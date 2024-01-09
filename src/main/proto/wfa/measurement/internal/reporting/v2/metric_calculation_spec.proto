@@ -38,6 +38,9 @@ message MetricCalculationSpec {
     repeated Grouping groupings = 3;
     bool cumulative = 4;
     string filter = 5;
+    // A map of arbitrary key-value pairs to support tagging of
+    // `MetricCalculationSpec`s for upstream use by UIs and other rich clients.
+    map<string, string> tags = 6;
   }
   Details details = 3;
 }

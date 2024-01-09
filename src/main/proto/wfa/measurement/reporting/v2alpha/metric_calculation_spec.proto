@@ -76,4 +76,8 @@ message MetricCalculationSpec {
   // `time` in `Report`) is cumulative with those of previous time intervals.
   // Only supported when using `PeriodicTimeInterval` in a `Report`.
   bool cumulative = 6 [(google.api.field_behavior) = IMMUTABLE];
+
+  // A map of arbitrary key-value pairs to support tagging of
+  // `MetricCalculationSpec`s for upstream use by UIs and other rich clients.
+  map<string, string> tags = 7 [(google.api.field_behavior) = IMMUTABLE];
 }
