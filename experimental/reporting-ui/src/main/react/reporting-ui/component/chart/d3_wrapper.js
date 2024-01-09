@@ -23,7 +23,7 @@ export const removeGraph = (cardId) => {
 const initializeGraph = (cardId, dimensions) => {
     // Specify the chart’s dimensions.
     const width = dimensions.width;
-    const height = dimensions.height; // TODO: check with UX on how we want to make this reactive
+    const height = dimensions.height;
 
     // Create the SVG container.
     const svg = d3.select(`#${cardId}-line`).append('svg')
@@ -180,7 +180,11 @@ export const createMultiLineChart = (cardId, data, dimensions, margins, colorMap
 
     drawMultiLines(svg, groups, colorMap);
 
-    const svgLegend = initializeGraph(cardId, {width: 200});
+    const legendDimensions = {
+        width: 100,
+        height: 100,
+    }
+    const svgLegend = initializeGraph(cardId, legendDimensions);
     const keys = new Set(data.map(x => x.group));
     addLegend(svgLegend, keys, colorMap)
 }
@@ -214,7 +218,14 @@ export const createBarChart = (cardId, data, dimensions, margins, colorMap) => {
 
     drawBar(svg, data, x, y, colorMap);
 
-    const svgLegend = initializeGraph(cardId, {width: 200});
+    // TODO: Can calculate width based on longest length of string plus icon plus padding
+    // TODO: Can calculate height based on number of strings plus icon plus padding
+    // TODO: Can display legend horizontally based on container sizing
+    const legendDimensions = {
+        width: 100,
+        height: 100,
+    }
+    const svgLegend = initializeGraph(cardId, legendDimensions);
     const keys = new Set(data.map(x => x.group));
     addLegend(svgLegend, keys, colorMap)
 }

@@ -26,16 +26,13 @@ type ReportTotalsProps = {
 export function ReportOverviewStats({reportOverview}: ReportTotalsProps) {
   return (
     <Row id="report-overview">
-      <Col>
+      <Col className='mb-3' sm={4}>
         <ReportOverviewCard id='report-overview-impressions-card' title='Impressions' value={reportOverview.totalImpressions}/>
       </Col>
-      <Col>
+      <Col className='mb-3' sm={4}>
         <ReportOverviewCard id='report-overview-total-reach-card' title='Reach' value={reportOverview.totalReach}/>
       </Col>
-      {/* <Col>
-        <ReportOverviewCard id='report-overview-target-reach-card' title='On Target Reach' value={reportOverview.totalOnTargetReach}/>
-      </Col> */}
-      <Col>
+      <Col className='mb-3' sm={4}>
         <ReportOverviewCard id='report-overview-frequency-card' title='Average Frequency' value={reportOverview.totalAverageFrequency}/>
       </Col>
     </Row>

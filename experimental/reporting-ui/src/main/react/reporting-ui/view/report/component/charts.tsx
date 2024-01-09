@@ -14,6 +14,7 @@
 
 import React from 'react';
 import Col from 'react-bootstrap/Col';
+import Container from 'react-bootstrap/Container';
 import Row from 'react-bootstrap/Row';
 import { TotalReach } from '../../../component/chart/total_reach/total_reach';
 import { UniqueReqchByPlat } from '../../../component/chart/unique_reach_by_plat/unique_reach_by_plat';
@@ -40,35 +41,30 @@ export function Charts({
   frequencies,
   pubColors,
 }: ChartProps) {
+  const smSize = 6;
     return (
       <React.Fragment>
         <Row className="report-charts">
-          <Col className="report-chart">
+          <Col className="report-chart mb-3" sm={smSize}>
             <Impressions id={'impressions'} impressions={impressions} pubColors={pubColors} />
           </Col>
-          <Col className="report-chart">
+          <Col className="report-chart mb-3" sm={smSize}>
             <Impressions id={'impressions-cumulative'} title={'Cumulative Impressions'} impressions={cumulativeImpressions} pubColors={pubColors} />
           </Col>
-        </Row>
-        <Row className="report-charts">
-          <Col className="report-chart">
+          <Col className="report-chart mb-3" sm={smSize}>
             <TotalReach id={'total-reach'} reach={totalReach} pubColors={pubColors} />
           </Col>
-          <Col className="report-chart">
+          <Col className="report-chart mb-3" sm={smSize}>
             <TotalReach id={'total-reach-cumulative'} title={'Total Cumulative Reach'} reach={totalCumulativeReach} pubColors={pubColors} />
           </Col>
-        </Row>
-        <Row className="report-charts">
-          <Col className="report-chart">
+          <Col className="report-chart mb-3" sm={12}>
             <UniqueReqchByPlat
               id={'uniqueReach'}
               reach={uniqueReach}
               pubColors={pubColors}
             />
           </Col>
-        </Row>
-        <Row className="report-charts">
-          <Col className="report-chart">
+          <Col className="report-chart mb-3" sm={12}>
             <Frequencies id={'frequencies'} frequencies={frequencies} pubColors={pubColors} />
           </Col>
         </Row>
