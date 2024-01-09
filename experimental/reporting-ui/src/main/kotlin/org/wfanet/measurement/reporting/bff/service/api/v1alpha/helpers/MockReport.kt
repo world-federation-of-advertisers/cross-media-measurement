@@ -60,7 +60,7 @@ class GenerateMockReport() {
                 Temp(edp1_non_cumulative_reportingSet, edp1_non_cumulative_data, edp1_non_cumulative_iscumulative),
                 Temp(edp2_non_cumulative_reportingSet, edp2_non_cumulative_data, edp2_non_cumulative_iscumulative),
                 Temp(edp3_non_cumulative_reportingSet, edp3_non_cumulative_data, edp3_non_cumulative_iscumulative),
-                // Temp(union_non_cumulative_reportingSet, union_non_cumulative_data, union_non_cumulative_iscumulative),
+                Temp(union_non_cumulative_reportingSet, union_non_cumulative_data, union_non_cumulative_iscumulative),
 
                 // Temp(edp1_unique_non_cumulative_reportingSet, edp1_unique_non_cumulative_data, edp1_unique_non_cumulative_iscumulative),
                 // Temp(edp2_unique_non_cumulative_reportingSet, edp2_unique_non_cumulative_data, edp2_unique_non_cumulative_iscumulative),

@@ -83,9 +83,11 @@ const getReaches = (report: Report): Reaches => {
         })
       })
 
-      const arr = db.unionSource.cumulative ? totalCumulativeReach : totalReach;
-      const imp = getReachGroup(db.unionSource, ti.timeInterval.startTime, db.demoCategoryName);
-      arr.push(imp);
+      db.unionSource.forEach(us => {
+        const arr = us.cumulative ? totalCumulativeReach : totalReach;
+        const imp = getReachGroup(us, ti.timeInterval.startTime, db.demoCategoryName);
+        arr.push(imp);
+      })
     });
   });
 
@@ -172,31 +174,35 @@ const getImpressionsAndFrequencies = (report: Report): iAndF => {
         }
       })
       
-      // Get Union Impressions
-      const arr = db.unionSource.cumulative ? cumulativeImpressions : impressions;
-      const imp = getImpressionGroup(db.unionSource, ti.timeInterval.startTime, db.demoCategoryName);
-      arr.push(imp);
+      db.unionSource.forEach(us => {
+        // Get Union Impressions
+        const arr = us.cumulative ? cumulativeImpressions : impressions;
+        const imp = getImpressionGroup(us, ti.timeInterval.startTime, db.demoCategoryName);
+        arr.push(imp);
 
-      // Get Union Frequencies
-      if (db.unionSource.cumulative) {
-        Object.entries(db.unionSource.frequencyHistogram).forEach(([key, value]) => {
-          const groupName = `${db.unionSource.sourceName}|${db.demoCategoryName}`
-          const group = test.get(groupName);
-          const binLabel = `${key}+`;
-          if (!group) {
-            test.set(groupName, new Map([[binLabel, value]]))
-          } else {
-            const runningTotal = group.get(binLabel)
-            // group.set(binLabel, !runningTotal ? value : runningTotal + value);
-            group.set(binLabel, value);        }
-        });
-      } else {
-        // TODO: Handle if there are both or no union
-      }
-      
-      overview.totalImpressions = fixNumber(db.unionSource.impressionCount.count);
-      overview.totalReach = fixNumber(db.unionSource.reach);
-      overview.totalAverageFrequency = overview.totalImpressions / overview.totalReach;
+        // Get Union Frequencies
+        if (us.cumulative) {
+          Object.entries(us.frequencyHistogram).forEach(([key, value]) => {
+            const groupName = `${us.sourceName}|${db.demoCategoryName}`
+            const group = test.get(groupName);
+            const binLabel = `${key}+`;
+            if (!group) {
+              test.set(groupName, new Map([[binLabel, value]]))
+            } else {
+              const runningTotal = group.get(binLabel)
+              // group.set(binLabel, !runningTotal ? value : runningTotal + value);
+              group.set(binLabel, value);        }
+          });
+        } else {
+          // TODO: Handle if there are both or no union
+        }
+        if(us.cumulative) {
+          overview.totalImpressions = fixNumber(us.impressionCount.count);
+          overview.totalReach = fixNumber(us.reach);
+          overview.totalAverageFrequency = overview.totalImpressions / overview.totalReach;
+        }
+      });
+
     });
   });
 

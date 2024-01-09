@@ -109,7 +109,7 @@ message Report {
           [(google.api.field_behavior) = OUTPUT_ONLY];
 
       // Full union metric set.
-      SourceMetrics union_source = 3
+      repeated SourceMetrics union_source = 3
           [(google.api.field_behavior) = OUTPUT_ONLY];
     }
 

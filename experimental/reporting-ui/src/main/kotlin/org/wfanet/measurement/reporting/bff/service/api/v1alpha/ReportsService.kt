@@ -246,7 +246,7 @@ class ReportsService(
                 }
 
                 if (isUnion) {
-                  unionSource = metrics
+                  unionSource += metrics
                 } else {
                   perPublisherSource += metrics
                 }

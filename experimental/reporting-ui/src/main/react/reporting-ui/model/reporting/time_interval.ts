@@ -29,7 +29,7 @@ export type Metric = {
 export type Bucket = {
   demoCategoryName: string,
   perPublisherSource: Metric[],
-  unionSource: Metric,
+  unionSource: Metric[],
 };
 
 export type Interval = {
