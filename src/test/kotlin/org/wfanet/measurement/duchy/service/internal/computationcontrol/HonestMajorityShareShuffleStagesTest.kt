@@ -1,4 +1,4 @@
-// Copyright 2023 The Cross-Media Measurement Authors
+// Copyright 2024 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ private val SEED = "my seed".toByteStringUtf8()
 private val PEER_SEED = "peer seed".toByteStringUtf8()
 private val SHUFFLE_PHASE_INPUT = computationStageInput {
   honestMajorityShareShuffleShufflePhaseInput =
-    HonestMajorityShareShuffleKt.shufflePhaseInput { this.commonRandomSeed = PEER_SEED }
+    HonestMajorityShareShuffleKt.shufflePhaseInput { this.peerRandomSeed = PEER_SEED }
 }
 
 private val WAIT_ON_SHUFFLE_INPUT_TOKEN = computationToken {

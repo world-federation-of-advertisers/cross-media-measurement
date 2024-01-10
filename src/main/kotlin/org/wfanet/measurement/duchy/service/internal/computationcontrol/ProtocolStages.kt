@@ -373,14 +373,14 @@ class HonestMajorityShareShuffleStages() :
     input: ComputationStageInput
   ): ComputationDetails {
     require(details.hasHonestMajorityShareShuffle())
-    require(!input.honestMajorityShareShuffleShufflePhaseInput.commonRandomSeed.isEmpty)
+    require(!input.honestMajorityShareShuffleShufflePhaseInput.peerRandomSeed.isEmpty)
     return details.copy {
       honestMajorityShareShuffle =
         honestMajorityShareShuffle.copy {
           seeds =
             seeds.copy {
               commonRandomSeedFromPeer =
-                input.honestMajorityShareShuffleShufflePhaseInput.commonRandomSeed
+                input.honestMajorityShareShuffleShufflePhaseInput.peerRandomSeed
             }
         }
     }

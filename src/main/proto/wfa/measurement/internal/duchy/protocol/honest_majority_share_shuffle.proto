@@ -113,8 +113,10 @@ message HonestMajorityShareShuffle {
     repeated string participants = 4;
   }
 
+  // The input message containing the random seed from the peer worker.
   message ShufflePhaseInput {
-    bytes common_random_seed = 1;
+    // Random seed in bytes.
+    bytes peer_random_seed = 1;
   }
 
   // Details about a particular attempt of running a stage of the

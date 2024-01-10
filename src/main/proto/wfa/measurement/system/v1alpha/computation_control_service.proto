@@ -131,8 +131,9 @@ message HonestMajorityShareShuffle {
   // The input for shuffle phase.
   // Only set for description with SHUFFLE_PHASE_INPUT.
   message ShufflePhaseInput {
-    // The random seed to generate noise share and permutation share.
-    bytes common_random_seed = 1;
+    // The random seed from the peer worker to generate noise share and
+    // permutation.
+    bytes peer_random_seed = 1;
   }
   // The input for shuffle phase.
   ShufflePhaseInput shuffle_phase_input = 2;

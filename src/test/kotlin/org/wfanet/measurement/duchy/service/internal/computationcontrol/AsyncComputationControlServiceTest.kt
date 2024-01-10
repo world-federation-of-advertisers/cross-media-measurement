@@ -461,7 +461,7 @@ class AsyncComputationControlServiceTest {
         computationStage = HmssStage.WAIT_ON_SHUFFLE_INPUT.toProtocolStage()
         computationStageInput = computationStageInput {
           honestMajorityShareShuffleShufflePhaseInput =
-            HonestMajorityShareShuffleKt.shufflePhaseInput { commonRandomSeed = PEER_COMMON_SEED }
+            HonestMajorityShareShuffleKt.shufflePhaseInput { peerRandomSeed = PEER_COMMON_SEED }
         }
       }
     )
@@ -529,7 +529,7 @@ class AsyncComputationControlServiceTest {
   fun `advanceComputation records seed but doee not advance for HMSS WAIT_ON_SHUFFLE_INPUT`() =
     runBlocking {
       verifyHmssAdvanceComputationToShuffleStage(
-        initStage = HmssStage.SETUP_PHASE,
+        initStage = HmssStage.WAIT_ON_SHUFFLE_INPUT,
         requisitionFulfilled = false,
         supposedToAdvance = false
       )
