@@ -251,7 +251,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val primitiveReportingSet2 = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group == ${Person.AgeGroup.YEARS_55_PLUS_VALUE}"
+      filter = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[1].cmmsEventGroup }
     }
 
@@ -796,8 +796,11 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
+    // val eventRange2 =
+    //   OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 18)..LocalDate.of(2021, 3, 19))
+    
     val eventRange2 =
-      OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 18)..LocalDate.of(2021, 3, 19))
+      OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2024, 1, 5)..LocalDate.of(2024, 1, 6))
 
     val createdMetricCalculationSpec =
       publicMetricCalculationSpecsClient
@@ -1956,7 +1959,10 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       )
 
     private val EVENT_RANGE =
-      OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 15)..LocalDate.of(2021, 3, 17))
+      OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2024, 1, 1)..LocalDate.of(2024, 1, 3))
+
+    // private val EVENT_RANGE =
+    //   OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 15)..LocalDate.of(2021, 3, 17))
 
     private val DP_PARAMS =
       MetricSpecKt.differentialPrivacyParams {
