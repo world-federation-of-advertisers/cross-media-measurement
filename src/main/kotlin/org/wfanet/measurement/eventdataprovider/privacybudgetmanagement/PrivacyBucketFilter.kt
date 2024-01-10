@@ -17,7 +17,6 @@ import java.time.Clock
 import java.time.ZoneOffset
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.rangeTo
-import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 class PrivacyBucketFilter(
   private val privacyBucketMapper: PrivacyBucketMapper,
@@ -84,12 +83,7 @@ class PrivacyBucketFilter(
                   vidsIntervalStartPoint,
                   PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
                 )
-              if (
-                EventFilters.matches(
-                  privacyBucketMapper.toEventMessage(privacyBucketGroup),
-                  program
-                )
-              ) {
+              if (privacyBucketMapper.matches(privacyBucketGroup, program)) {
                 yield(privacyBucketGroup)
               }
             }
