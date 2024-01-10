@@ -100,13 +100,15 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
     val initialMeasurementState = Measurement.State.PENDING_REQUISITION_PARAMS
 
     val requiredExternalDuchyIds =
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields are never null.
       when (createMeasurementRequest.measurement.details.protocolConfig.protocolCase) {
         ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2 -> Llv2ProtocolConfig.requiredExternalDuchyIds
         ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
           RoLlv2ProtocolConfig.requiredExternalDuchyIds
         ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
           HmssProtocolConfig.requiredExternalDuchyIds
-        else -> emptySet()
+        ProtocolConfig.ProtocolCase.DIRECT,
+        ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid protocol.")
       }
     val requiredDuchyIds =
       requiredExternalDuchyIds +
@@ -121,6 +123,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       }
     }
     val minimumNumberOfRequiredDuchies =
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields are never null.
       when (createMeasurementRequest.measurement.details.protocolConfig.protocolCase) {
         ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2 ->
           Llv2ProtocolConfig.minimumNumberOfRequiredDuchies
@@ -128,7 +131,8 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
           RoLlv2ProtocolConfig.minimumNumberOfRequiredDuchies
         ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
           HmssProtocolConfig.requiredExternalDuchyIds.size
-        else -> 0
+        ProtocolConfig.ProtocolCase.DIRECT,
+        ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid protocol.")
       }
 
     val includedDuchyEntries =
