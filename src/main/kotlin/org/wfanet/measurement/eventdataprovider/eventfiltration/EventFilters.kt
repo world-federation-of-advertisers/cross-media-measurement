@@ -44,7 +44,8 @@ object EventFilters {
    *   operation. If provided, [celExpr] is normalized to operative negation normal form by bubbling
    *   down all the negation operations to the leafs by applying De Morgan's laws recursively and by
    *   setting all the leaf comparison nodes (e.g. x == 47 ) that contain any field other than the
-   *   operative fields to true.
+   *   operative fields to true. If not provided or empty, the normalization operation will not be
+   *   performed.
    * @throws [EventFilterValidationException] if [celExpr] is not valid.
    */
   fun compileProgram(
