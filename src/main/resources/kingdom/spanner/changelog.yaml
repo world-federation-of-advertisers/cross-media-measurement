@@ -60,3 +60,6 @@ databaseChangeLog:
 - include:
     file: add-result-api-version.sql
     relativeToChangeLogFile: true
+- include:
+    file: update-requisitions-by-data-provider-id-index.sql
+    relativeToChangeLogFile: true

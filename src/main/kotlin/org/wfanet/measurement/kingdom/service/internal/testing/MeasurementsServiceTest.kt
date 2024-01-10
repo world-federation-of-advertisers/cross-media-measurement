@@ -535,6 +535,21 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         Measurement.ETAG_FIELD_NUMBER,
       )
       .isEqualTo(measurement.copy { state = Measurement.State.PENDING_REQUISITION_PARAMS })
+
+    val requisitions: List<Requisition> =
+      requisitionsService
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter =
+              StreamRequisitionsRequestKt.filter {
+                externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
+                externalMeasurementId = createdMeasurement.externalMeasurementId
+              }
+          }
+        )
+        .toList()
+
+    assertThat(requisitions.size).isEqualTo(createdMeasurement.dataProvidersCount * 2)
   }
 
   @Test
@@ -667,6 +682,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           )
           .toList()
 
+      assertThat(requisitions.size).isEqualTo(createdMeasurement.dataProvidersCount)
       requisitions.forEach { assertThat(it.state).isEqualTo(Requisition.State.PENDING_PARAMS) }
     }
 

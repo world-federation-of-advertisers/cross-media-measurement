@@ -100,13 +100,15 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
     val initialMeasurementState = Measurement.State.PENDING_REQUISITION_PARAMS
 
     val requiredExternalDuchyIds =
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields are never null.
       when (createMeasurementRequest.measurement.details.protocolConfig.protocolCase) {
         ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2 -> Llv2ProtocolConfig.requiredExternalDuchyIds
         ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
           RoLlv2ProtocolConfig.requiredExternalDuchyIds
         ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
           HmssProtocolConfig.requiredExternalDuchyIds
-        else -> emptySet()
+        ProtocolConfig.ProtocolCase.DIRECT,
+        ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid protocol,")
       }
     val requiredDuchyIds =
       requiredExternalDuchyIds +
@@ -121,6 +123,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       }
     }
     val minimumNumberOfRequiredDuchies =
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields are never null.
       when (createMeasurementRequest.measurement.details.protocolConfig.protocolCase) {
         ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2 ->
           Llv2ProtocolConfig.minimumNumberOfRequiredDuchies
@@ -128,7 +131,8 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
           RoLlv2ProtocolConfig.minimumNumberOfRequiredDuchies
         ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
           HmssProtocolConfig.requiredExternalDuchyIds.size
-        else -> 0
+        ProtocolConfig.ProtocolCase.DIRECT,
+        ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid protocol,")
       }
 
     val includedDuchyEntries =
@@ -157,20 +161,38 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       initialMeasurementState
     )
 
-    // Insert into Requisitions for each EDP
-    insertRequisitions(
-      measurementConsumerId,
-      measurementId,
-      createMeasurementRequest.measurement.dataProvidersMap,
-      Requisition.State.PENDING_PARAMS
-    )
-
     includedDuchyEntries.forEach { entry ->
       insertComputationParticipant(
         measurementConsumerId,
         measurementId,
         InternalId(entry.internalDuchyId),
       )
+    }
+
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields are never null.
+    when (createMeasurementRequest.measurement.details.protocolConfig.protocolCase) {
+      ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2,
+      ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
+        // For each EDP, insert a Requisition.
+        insertRequisitions(
+          measurementConsumerId,
+          measurementId,
+          createMeasurementRequest.measurement.dataProvidersMap,
+          Requisition.State.PENDING_PARAMS
+        )
+      }
+      ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+        // For each EDP, insert a Requisitions for each non-aggregator.
+        insertHmssRequisitions(
+          measurementConsumerId,
+          measurementId,
+          createMeasurementRequest.measurement.dataProvidersMap,
+          Requisition.State.PENDING_PARAMS,
+          includedDuchyEntries.map { InternalId(it.internalDuchyId) }.drop(1)
+        )
+      }
+      ProtocolConfig.ProtocolCase.DIRECT,
+      ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid protocol,")
     }
 
     return createMeasurementRequest.measurement.copy {
@@ -287,12 +309,34 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
     }
   }
 
+  private suspend fun TransactionScope.insertHmssRequisitions(
+    measurementConsumerId: InternalId,
+    measurementId: InternalId,
+    dataProvidersMap: Map<Long, Measurement.DataProviderValue>,
+    initialRequisitionState: Requisition.State,
+    duchyIds: List<InternalId>
+  ) {
+    for ((externalDataProviderId, dataProviderValue) in dataProvidersMap) {
+      for (duchyId in duchyIds) {
+        insertRequisition(
+          measurementConsumerId,
+          measurementId,
+          ExternalId(externalDataProviderId),
+          dataProviderValue,
+          initialRequisitionState,
+          duchyId
+        )
+      }
+    }
+  }
+
   private suspend fun TransactionScope.insertRequisition(
     measurementConsumerId: InternalId,
     measurementId: InternalId,
     externalDataProviderId: ExternalId,
     dataProviderValue: Measurement.DataProviderValue,
-    initialRequisitionState: Requisition.State
+    initialRequisitionState: Requisition.State,
+    duchyId: InternalId? = null
   ) {
     val dataProviderId =
       DataProviderReader.readDataProviderId(transactionContext, externalDataProviderId)
@@ -335,6 +379,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       set("ExternalRequisitionId" to externalRequisitionId)
       set("DataProviderCertificateId" to dataProviderCertificateId)
       set("State" to initialRequisitionState)
+      duchyId?.let { set("FulfillingDuchyId" to it) }
       set("RequisitionDetails" to details)
       setJson("RequisitionDetailsJson" to details)
     }
