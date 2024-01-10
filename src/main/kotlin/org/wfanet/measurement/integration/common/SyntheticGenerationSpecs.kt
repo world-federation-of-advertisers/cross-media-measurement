@@ -36,6 +36,22 @@ object SyntheticGenerationSpecs {
       SyntheticPopulationSpec.getDefaultInstance()
     )
   }
+    
+  val POPULATION_SPEC_TEST: SyntheticPopulationSpec by lazy {
+    loadTestData(
+      "synthetic_population_spec_test.textproto",
+      SyntheticPopulationSpec.getDefaultInstance()
+    )
+  }
+
+
+  /** EventGroup spec for testing based on [POPULATION_SPEC]. */
+  val TEST_SYNTHETIC_DATA_SPEC: SyntheticEventGroupSpec by lazy {
+    loadTestData(
+      "synthetic_event_group_spec_test.textproto",
+      SyntheticEventGroupSpec.getDefaultInstance()
+    )
+  }
 
   /** EventGroup specs for synthetic generation based on [POPULATION_SPEC]. */
   val SYNTHETIC_DATA_SPECS: List<SyntheticEventGroupSpec> by lazy {

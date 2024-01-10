@@ -21,6 +21,9 @@ import com.google.type.date
 import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneOffset
+import kotlin.math.exp
+import kotlin.math.pow
+import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -42,6 +45,41 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.video
 import org.wfanet.measurement.common.LocalDateProgression
 import org.wfanet.measurement.common.rangeTo
 import org.wfanet.measurement.common.toProtoDuration
+
+class ZeroTruncatedPoisson(val nonZeroMean: Double) {
+  val lambda: Double
+
+  init {
+    require(nonZeroMean > 0.0) { "nonZeroMeant be positive" }
+    lambda = zeroTruncatedMean(nonZeroMean)
+  }
+
+  private fun zeroTruncatedMean(nonZeroMean: Double): Double {
+    var a = 0.0
+    var b = nonZeroMean
+    while (a < b - 0.001) {
+      var c = (a + b) / 2
+      var f = c / (1 - exp(-c))
+      if (f < nonZeroMean) {
+        a = c
+      } else {
+        b = c
+      }
+    }
+    return a
+  }
+
+  fun probability(x: Int): Double {
+    require(x > 0) { "X must be positive" }
+    return (lambda.pow(x) * exp(-lambda)) / factorial(x)
+  }
+
+  private fun factorial(n: Int): Double {
+    return if (n == 0) 1.0 else n * factorial(n - 1)
+  }
+}
+
+const val KAPPA = 0.5f
 
 @RunWith(JUnit4::class)
 class SyntheticDataGenerationTest {
@@ -631,25 +669,25 @@ class SyntheticDataGenerationTest {
         }
     }
     // val syntheticEventGroupSpec =
-    //   createSyntheticEventGroupSpec("event group 1", populationSize, 3_000_000, 1_500_000L)
-    
+    //   createSyntheticEventGroupSpec("event group 1", populationSize, 3_000_000)
+
     // val syntheticEventGroupSpec =
-    //   createSyntheticEventGroupSpec("event group 2", populationSize, 10_000_000, 5_000_000L)
-    
+    //   createSyntheticEventGroupSpec("event group 2", populationSize, 10_000_000)
+
     val syntheticEventGroupSpec =
-      createSyntheticEventGroupSpec("event group 3", populationSize, 7_000_000, 3_000_000L)
+      createSyntheticEventGroupSpec("event group 3", populationSize, 7_000_000)
     println(syntheticEventGroupSpec)
   }
 
   private fun createSyntheticEventGroupSpec(
     eventGroupName: String,
     populationSize: Long,
-    dailyImpressions: Long, 
-    dailyReach : Long
+    dailyImpressions: Long,
   ): SyntheticEventGroupSpec {
+    println(eventGroupName)
     val end = populationSize
-    val allInterval = LongRange(0L, populationSize)
-    val intervalSize = 100_000L
+    val allInterval = LongRange(1L, populationSize)
+    val intervalSize = 50_000L
 
     val eventGroupSpec = syntheticEventGroupSpec {
       description = eventGroupName
@@ -657,6 +695,12 @@ class SyntheticDataGenerationTest {
       val endDate = LocalDate.of(2024, 1, 30)
       val localDateRange: LocalDateProgression = startDate..endDate
       for (thisDate in localDateRange) {
+
+        val impressionsToday = dailyImpressions * randomFloat(0.8f, 1.2f)
+        val reachToday =
+          (populationSize * KAPPA * impressionsToday) /
+            ((KAPPA * impressionsToday) + populationSize)
+        val distribution = ZeroTruncatedPoisson(impressionsToday.toDouble() / reachToday.toDouble())
 
         var avaliableVidRanges =
           allInterval
@@ -689,14 +733,28 @@ class SyntheticDataGenerationTest {
 
             val numFreq = 10
             for (i in 1..numFreq) {
-
-              // val reachForFreqBucket = dailyImpressions / (numFreq.toFloat() * i)
-              val reachForFreqBucket = dailyReach
-              // println("reachForFreqBucketreachForFreqBucketreachForFreqBucket $reachForFreqBucket")
+              val reachForFreqBucket = distribution.probability(i) * reachToday
+              // println("reachForFreqBucketreachForFreqBucket $i :  $reachForFreqBucket")
+              // println("reachForFreqBucketreachForFreqBucketreachForFreqBucket
+              // $reachForFreqBucket")
               val numRangesToUse = (reachForFreqBucket / intervalSize.toFloat()).toInt()
               // println("numRangesToUsenumRangesToUse $numRangesToUse")
-              val rangesToUse = avaliableVidRanges.take(numRangesToUse)
-              avaliableVidRanges = avaliableVidRanges.drop(numRangesToUse)
+              val rangesToUse =
+                if (numRangesToUse == 0) {
+                  val largeRange = avaliableVidRanges.take(1).get(0)
+                  avaliableVidRanges = avaliableVidRanges.drop(1)
+                  listOf(
+                    vidRange {
+                      start = largeRange.start
+                      endExclusive = largeRange.start + reachForFreqBucket.toLong()
+                    }
+                  )
+                } else {
+                  val usedRanges = avaliableVidRanges.take(numRangesToUse)
+                  avaliableVidRanges = avaliableVidRanges.drop(numRangesToUse)
+                  usedRanges
+                }
+
               // println(rangesToUse)
               frequencySpecs +=
                 SyntheticEventGroupSpecKt.frequencySpec {
@@ -721,5 +779,10 @@ class SyntheticDataGenerationTest {
         }
       }
       .toList()
+  }
+
+  private fun randomFloat(min: Float, max: Float): Float {
+    val random = Random(System.currentTimeMillis())
+    return random.nextFloat() * (max - min) + min
   }
 }

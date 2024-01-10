@@ -1,13 +1,10 @@
 # proto-file: wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto
 # proto-message: SyntheticPopulationSpec
 
-# UK population by sex, age, and social grade.
-#
-# See https://www.ons.gov.uk/peoplepopulationandcommunity/birthsdeathsandmarriages/families/adhocs/005317ct05672011censussexbyagesyoabyapproximatedsocialgradenationaltocountry
 
 vid_range {
   start: 1
-  end_exclusive: 300000000  # Age 18-64 with known social grade.
+  end_exclusive: 300000000 
 }
 event_message_type_url: "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
 population_fields: "person.gender"

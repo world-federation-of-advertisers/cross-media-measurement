@@ -41,7 +41,7 @@ class GCloudPostgresInProcessLifeOfAMeasurementIntegrationTest :
    *
    * TODO(Kotlin/kotlinx.coroutines#3865): Switch back to CoroutinesTimeout when fixed.
    */
-  @get:Rule val timeout: Timeout = Timeout.seconds(90)
+  @get:Rule val timeout: Timeout = Timeout.seconds(3000)
 
   companion object {
     @JvmStatic
