@@ -53,7 +53,7 @@ export const TerminalReport = ({
 }: TerminalReportProps) => {
   // Assign a color to each publisher
   const pubIds = summaries.map(x => x.id);
-  const pubColors = {'Union': 'black'};
+  const pubColors = {'All EDPs': '#7d7b7b'};
   pubIds.forEach((pub_id, index) => pubColors[pub_id] = COLORS[index]);
 
   return (
@@ -61,7 +61,7 @@ export const TerminalReport = ({
       <div className='sticky'>
         <Header reportName={name} />
         <Alert variant='warning' dismissible>
-          This is a prototype UI meant to demonstrate some basic Halo features. Local Market Solution UIs will differ.
+          This prototype illustrates basic outputs available by using the Halo framework. Local market level outputs and interfaces will vary.
         </Alert>
       </div>
       <ReportOverviewStats reportOverview={overview} />

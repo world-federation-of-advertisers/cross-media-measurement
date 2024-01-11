@@ -30,7 +30,7 @@ export function Frequencies({id, frequencies, pubColors}: FrequenciesProps) {
     return (
         <Chart
             cardId={id}
-            title='Average Frequency'
+            title='K+ Reach'
             data={frequencies}
             config={config}
             type={ChartType.bar}

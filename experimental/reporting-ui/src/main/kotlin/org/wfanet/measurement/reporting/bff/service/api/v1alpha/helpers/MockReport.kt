@@ -69,7 +69,7 @@ class GenerateMockReport() {
             val dates = edp1_cumulative_data.groupBy{Pair(it.start, it.end)}.keys
 
             return report {
-                name = "Fake Report"
+                name = "measurementConsumers/VCTqwV_vFXw/Fake_Report"
                 state = Report.State.SUCCEEDED
                 for (rs in reportingSets) {
                     reportingMetricEntries += reportingMetricEntry {
@@ -85,6 +85,7 @@ class GenerateMockReport() {
                     }
                 }
                 tags.put("ui.halo-cmm.org", "1")
+                tags.put("ui.halo-cmm.org/display_name", "Fake Report")
                 for (rs in reportingSets) {
                     metricCalculationResults += metricCalculationResult {
                         reportingSet = rs.reportingSet

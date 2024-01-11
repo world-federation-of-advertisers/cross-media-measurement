@@ -40,10 +40,17 @@ import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt as BackendReportsG
 import org.wfanet.measurement.reporting.v2alpha.report as backendReport
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
+import org.wfanet.measurement.reporting.v2alpha.listReportsResponse as backendListReportsResponse
 import org.wfanet.measurement.reporting.v2alpha.MetricResult.ResultCase
 import com.google.type.interval
 import org.wfanet.measurement.common.toProtoTime
 import java.time.Instant
+
+val UNIQUE_TYPE_TAG = "unique"
+val UNION_TYPE_TAG = "union"
+val ID_TAG = "ui.halo-cmm.org/reporting_set_id"
+val TYPE_TAG = "ui.halo-cmm.org/reporting_set_type"
+val DISPLAY_NAME_TAG = "ui.halo-cmm.org/display_name"
 
 class ReportingSetGroup(
   var baseSet: String? = null,
@@ -68,40 +75,46 @@ class ReportsService(
       pageSize = 1000
     }
 
-    val resp = backendReportsStub.listReports(backendRequest)
+    // Actual Api Call
+    // val resp = backendReportsStub.listReports(backendRequest)
 
-    // if (resp.nextPageToken.isNotEmpty()) {
-    //   logger.warning { "Additional ListReport items. Not Loopping through additional pages." }
-    // }
-
-    // val view =
-    //   if (request.view == ReportView.REPORT_VIEW_UNSPECIFIED) ReportView.REPORT_VIEW_BASIC
-    //   else request.view
-    // val results = listReportsResponse {
-    //   resp.reportsList
-    //     // .filter { it.tagsMap.containsKey("ui.halo-cmm.org") }
-    //     .forEach { reports += it.toBffReport(view) }
-    // }
-    val results = listReportsResponse {
-      reports += report{
-        name = "TESTREPORT"
-        reportId = "TESTREPORT"
-        state = Report.State.SUCCEEDED
+    // Faked Api Call
+    val resp = backendListReportsResponse {
+      reports += backendReport{
+        name = "measurementConsumers/VCTqwV_vFXw/reports/TESTREPORT"
+        state = BackendReport.State.SUCCEEDED
+        tags.put("ui.halo-cmm.org", "true")
       }
     }
+
+    if (resp.nextPageToken.isNotEmpty()) {
+      logger.warning { "Additional ListReport items. Not Loopping through additional pages." }
+    }
+
+    val view =
+      if (request.view == ReportView.REPORT_VIEW_UNSPECIFIED) ReportView.REPORT_VIEW_BASIC
+      else request.view
+    val results = listReportsResponse {
+      resp.reportsList
+        .filter { it.tagsMap.containsKey("ui.halo-cmm.org") }
+        .forEach { reports += it.toBffReport(view) }
+    }
+
     return results
   }
 
   override suspend fun getReport(request: GetReportRequest): Report {
     // Normal Call
     // val backendRequest = getReportRequest { name = request.name }
-
-    // Harcode to our report
-    // val backendRequest = getReportRequest { name = "measurementConsumers/VCTqwV_vFXw/reports/ui-report-non-cumulative-non-uniq-6" }
     // val resp = backendReportsStub.getReport(backendRequest)
 
     // Mock Report
     val resp = GenerateMockReport.GenerateReport()
+
+    if (!resp.tagsMap.containsKey("ui.halo-cmm.org")) {
+      throw Status.INVALID_ARGUMENT.withDescription("Not a supported UI report")
+        .asRuntimeException()
+    }
 
     val view =
       if (request.view == ReportView.REPORT_VIEW_UNSPECIFIED) ReportView.REPORT_VIEW_FULL
@@ -127,119 +140,134 @@ class ReportsService(
     val source = this
 
     return report {
-      reportId = source.name
+      reportId = source.name.substring(source.name.lastIndexOf("/") + 1)
       name = source.name
       state = source.state.toBffState()
     }
   }
 
-  private fun capNumber(num: Double): Double {
-    if (num.isNaN() || num < 0) {
+  private fun Double.capNumber(): Double {
+    val source = this
+    if (source.isNaN() || source < 0) {
       return 0.0;
     } else {
-      return num;
+      return source;
     }
   }
 
-  private fun capNumber(num: Long): Long {
-    if (num < 0) {
+  private fun Long.capNumber(): Long {
+    val source = this
+    if (source < 0) {
       return 0L;
     } else {
-      return num;
+      return source;
     }
   }
+
+  val DEMOGRAPHIC_CODE_TO_STRING = mapOf(
+    "person.gender == 1" to "Male",
+    "person.gender == 2" to "Female",
+    "person.age_group == 1" to "18-35",
+    "person.age_group == 2" to "36-54",
+    "person.age_group == 3" to "55+",
+  )
 
   private suspend fun BackendReport.toFullReport(): Report {
     val source = this
 
-    val demoMap = mapOf(
-      "person.gender == 1" to "Male",
-      "person.gender == 2" to "Female",
-      "person.age_group == 1" to "18-35",
-      "person.age_group == 2" to "36-54",
-      "person.age_group == 3" to "55+",
-    )
-
     // Get Reporting Sets from Reporting Metric Entries
     //  Need to get both the individual and unique reporting sets
     //  to map them to a single result later.
-    val req = ListReportingSetsRequest("measurementConsumers/VCTqwV_vFXw", 1000)
+    // TODO: Probably want to add get reporting set to ensure we don't have to paginate
+    //  and to make the list more manageable as lots of reporting sets get created.
+    val measurementConsumerName = source.name.substring(0, source.name.indexOf("/", source.name.indexOf("/")))
+    val req = ListReportingSetsRequest(measurementConsumerName, 1000)
     val reportingSets = reportingSetsService.ListReportingSets(req)
 
+    // Build the BFF report from the Backend report
     val rep = report {
       reportId = source.name
-      name = source.name
+      name = if(source.tagsMap.containsKey(DISPLAY_NAME_TAG)) source.tagsMap[DISPLAY_NAME_TAG]!! else source.name
+      println(source.tagsMap)
       state = source.state.toBffState()
 
-      val timeIntervals = source.timeIntervals.timeIntervalsList.map{"${it.startTime.seconds}|${it.endTime.seconds}"}
-
       // Go through each time Interval...
-      for (ti in timeIntervals) {
-        val (start, end) = ti.split('|')
+      for (ti in source.timeIntervals.timeIntervalsList) {
         timeInterval += demographicMetricsByTimeInterval {
           timeInterval = interval {
-            startTime = Instant.ofEpochSecond(start.toLong()).toProtoTime()
-            endTime = Instant.ofEpochSecond(end.toLong()).toProtoTime()
+            startTime = ti.startTime
+            endTime = ti.endTime
           }
 
           // Go through each metric calcualtion result
-          // Stop here instead of flattening to get the reporting sets
+          // Stop here instead of flattening to pair the reporting sets
           demoBucket += demoBucket {
             for (mcr in source.metricCalculationResultsList) {
+              // Get and inspect the related reporting set: individual, unique, or union
               val reportingSetName = mcr.reportingSet
-              val reportingSetDisplayName = reportingSets.find{it.name == reportingSetName}!!.displayName
-              val isUnique = reportingSets.find{it.name == reportingSetName}!!.tagsMap["ui.halo-cmm.org/reporting_set_type"] == "unique"
+              val matchingReportingSet = reportingSets.find{it.name == reportingSetName}
+              if (matchingReportingSet == null) continue // TODO: Maybe throw error instead since the report wasn't made correctly
+              val reportingSetDisplayName = matchingReportingSet.displayName
+              val isUnique = matchingReportingSet.tagsMap[TYPE_TAG] == UNIQUE_TYPE_TAG
+              // Unique sets will be paired later
               if (isUnique) continue
-              val isUnion = reportingSets.find{it.name == reportingSetName}!!.tagsMap["ui.halo-cmm.org/reporting_set_type"] == "union"
-
-              // Make sure to also add the unique reach from the other Metric Calculation Result
+              val isUnion = matchingReportingSet.tagsMap[TYPE_TAG] == UNION_TYPE_TAG
               var groups = listOf(mcr);
+              // Don't add unions, they will be handled separately
               if (!isUnion) {
+                // TODO: Should change the tag id to the full name instead of just the last part
                 val lastId = reportingSetName.split("/").last()
-                val rsPair = reportingSets.find{it.tagsMap["ui.halo-cmm.org/reporting_set_type"] == "unique" && it.tagsMap["ui.halo-cmm.org/reporting_set_id"] == lastId}
+                val rsPair = reportingSets.find{it.tagsMap[TYPE_TAG] == UNIQUE_TYPE_TAG && it.tagsMap[ID_TAG] == lastId}
                 
                 val metricResult = source.metricCalculationResultsList.find{it.reportingSet == rsPair?.name}
                 if(metricResult != null) groups += metricResult
               }
-              // Get all the result attributes filtered by the time interval and grouped by the grouping predicate
+
+              // Get all the result attributes filtered by the time interval and grouped by the grouping predicate (ie. demo category)
               val resultAttributesList = groups
                 .map{it.resultAttributesList}
                 .flatten()
-                .filter{"${it.timeInterval.startTime.seconds}|${it.timeInterval.endTime.seconds}" == ti}
+                .filter{"${it.timeInterval.startTime.seconds}|${it.timeInterval.endTime.seconds}" == "${ti.startTime.seconds}|${ti.endTime.seconds}"}
                 .groupBy{
                     it.groupingPredicatesList
-                      .map{demoMap[it]}
+                      .map{DEMOGRAPHIC_CODE_TO_STRING[it]}
                       .joinToString(prefix = "", postfix = "", separator = ";")
                   }
 
-              for (ras in resultAttributesList) {
-                demoCategoryName = ras.key
+              for (resultAttributesByGroup in resultAttributesList) {
+                demoCategoryName = resultAttributesByGroup.key
 
                 val metrics = sourceMetrics {
                   cumulative = mcr.cumulative
-                  for (resultAttribute in ras.value) {
+                  // Each result attribute will have one metric spec
+                  // The metric spec could be of different types, so we'll go through each one
+                  // and add it to the appropriate field.
+                  // We have already grouped by time and metric calculation spec (ie. reporting set)
+                  // so all these result attributes fall into the right bucket.
+                  for (resultAttribute in resultAttributesByGroup.value) {
                     sourceName = reportingSetDisplayName
 
                     val oneOfCase = resultAttribute.metricResult.getResultCase()
                     when(oneOfCase) {
                       ResultCase.IMPRESSION_COUNT -> {
                         impressionCount = impressionCountResult {
-                          count = capNumber(resultAttribute.metricResult.impressionCount.value)
+                          count = resultAttribute.metricResult.impressionCount.value.capNumber()
                           standardDeviation = resultAttribute.metricResult.impressionCount.univariateStatistics.standardDeviation
                         }
                       }
                       ResultCase.REACH_AND_FREQUENCY -> {
-                        reach = capNumber(resultAttribute.metricResult.reachAndFrequency.reach.value)
+                        reach = resultAttribute.metricResult.reachAndFrequency.reach.value.capNumber()
                         val bins = resultAttribute.metricResult.reachAndFrequency.frequencyHistogram.binsList.sortedBy{it.label.toInt()}.reversed()
                         var runningCount = 0.0
                         for (bin in bins) {
-                          runningCount = runningCount + capNumber(bin.binResult.value)
+                          runningCount = runningCount + bin.binResult.value.capNumber()
                           frequencyHistogram[bin.label.toInt()] = runningCount
                         }
                       }
                       ResultCase.REACH -> {
                         uniqueReach = resultAttribute.metricResult.reach.value
                       }
+                      // TODO: If the report was built right, we should never hit the else case, maybe throw an error?
                       else -> println("error when processing result attribute")
                     }
                   }
@@ -256,6 +284,7 @@ class ReportsService(
         }
       }
     }
+    println(rep.name)
     return rep
   }
 

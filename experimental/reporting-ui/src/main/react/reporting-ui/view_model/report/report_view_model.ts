@@ -128,7 +128,7 @@ const getImpressionsAndFrequencies = (report: Report): iAndF => {
   // Don't add the complements or union
   const dict: { [id: string] : SummaryPublisherData; } = {};
 
-  report.timeInterval.forEach(ti => {
+  report.timeInterval.forEach((ti, intervalIndex) => {
     ti.demoBucket.forEach(db => {
       db.perPublisherSource.forEach(pps => {
         if (!Object.keys(dict).includes(pps.sourceName)) {
@@ -156,7 +156,7 @@ const getImpressionsAndFrequencies = (report: Report): iAndF => {
         arr.push(imp);
 
         // Add up the frequencies over every day.
-        if (pps.cumulative) {
+        if (pps.cumulative && intervalIndex == report.timeInterval.length - 1) {
           Object.entries(pps.frequencyHistogram).forEach(([key, value]) => {
             const groupName = `${pps.sourceName}|${db.demoCategoryName}`
             const group = test.get(groupName);

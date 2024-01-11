@@ -1,0 +1,1 @@
+const APP_TITLE = "Reporting UI Demo - Halo"
