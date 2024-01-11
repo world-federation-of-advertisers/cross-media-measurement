@@ -131,6 +131,15 @@ message ProtocolConfig {
     NoiseMechanism noise_mechanism = 5;
   }
 
+  // Configuration for Honest Majority Share Shuffle protocols.
+  message HonestMajorityShareShuffle {
+    // Parameters for sketches.
+    ShareShuffleSketchParams sketch_params = 1;
+
+    // The mechanism to generate noise by MPC nodes during computation.
+    NoiseMechanism noise_mechanism = 2;
+  }
+
   // Configuration for the specific protocol.
   oneof protocol {
     // Liquid Legions v2 config.
@@ -145,6 +154,9 @@ message ProtocolConfig {
 
     // Direct protocol.
     Direct direct = 5;
+
+    // Honest Majority Share Shuffle protocol.
+    HonestMajorityShareShuffle honest_majority_share_shuffle = 6;
   }
 }
 
@@ -159,4 +171,16 @@ message LiquidLegionsSketchParams {
   // The size of the distribution of the sampling indicator value.
   // Reach-Only Liquid Legions protocol ignores this field.
   int64 sampling_indicator_size = 3;
+}
+
+// Parameters for a honest majority share shuffle sketch.
+message ShareShuffleSketchParams {
+  // The number of registers in the sketch.
+  int64 register_count = 1;
+
+  // Length of each register in bytes.
+  int32 bytes_per_register = 2;
+
+  // Secret share modulus.
+  uint32 ring_modulus = 3;
 }
