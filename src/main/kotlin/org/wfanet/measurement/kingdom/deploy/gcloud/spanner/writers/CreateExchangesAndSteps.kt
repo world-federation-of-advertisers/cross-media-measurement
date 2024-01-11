@@ -17,7 +17,6 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import com.google.cloud.spanner.Value
 import com.google.type.Date
 import kotlinx.coroutines.flow.singleOrNull
-import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.gcloud.common.toCloudDate
@@ -27,17 +26,17 @@ import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
+import org.wfanet.measurement.internal.common.Provider
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeDetails
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.PROVIDER_PARAM
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.providerFilter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RecurringExchangeReader
 
-class CreateExchangesAndSteps(
-  private val party: ExchangeWorkflow.Party,
-  private val externalPartyId: ExternalId
-) : SimpleSpannerWriter<Unit>() {
+class CreateExchangesAndSteps(private val provider: Provider) : SimpleSpannerWriter<Unit>() {
 
   override suspend fun TransactionScope.runTransaction() {
     val recurringExchangeResult: RecurringExchangeReader.Result = getRecurringExchange() ?: return
@@ -82,40 +81,26 @@ class CreateExchangesAndSteps(
   private suspend fun TransactionScope.getRecurringExchange(): RecurringExchangeReader.Result? {
     return RecurringExchangeReader()
       .fillStatementBuilder {
-        val conjuncts =
-          mutableListOf(
-            "State = @${Params.RECURRING_EXCHANGE_STATE}",
-            "NextExchangeDate <= CURRENT_DATE('+0')",
-            """
-            @${Params.EXCHANGE_STATE} NOT IN (
+        appendClause(
+          """
+          WHERE State = @recurringExchangeState
+            AND NextExchangeDate <= CURRENT_DATE("+0")
+            AND ${providerFilter(provider)}
+            AND @exchangeState NOT IN (
               SELECT Exchanges.State
               FROM Exchanges
               WHERE Exchanges.RecurringExchangeId = RecurringExchanges.RecurringExchangeId
               ORDER BY Exchanges.Date DESC
               LIMIT 1
             )
-            """
-              .trimIndent(),
-          )
-        bind(Params.RECURRING_EXCHANGE_STATE to RecurringExchange.State.ACTIVE)
-        bind(Params.EXCHANGE_STATE to Exchange.State.FAILED)
-
-        when (party) {
-          ExchangeWorkflow.Party.MODEL_PROVIDER -> {
-            conjuncts.add("ModelProviders.ExternalModelProviderId = @${Params.EXTERNAL_PARTY_ID}")
-          }
-          ExchangeWorkflow.Party.DATA_PROVIDER -> {
-            conjuncts.add("DataProviders.ExternalDataProviderId = @${Params.EXTERNAL_PARTY_ID}")
-          }
-          ExchangeWorkflow.Party.PARTY_UNSPECIFIED,
-          ExchangeWorkflow.Party.UNRECOGNIZED -> error("Invalid party $party")
-        }
-        bind(Params.EXTERNAL_PARTY_ID to externalPartyId)
-
-        appendClause("WHERE")
-        appendClause(conjuncts.joinToString(" AND "))
-        appendClause("ORDER BY NextExchangeDate")
-        appendClause("LIMIT 1")
+          ORDER BY NextExchangeDate
+          LIMIT 1
+          """
+            .trimIndent()
+        )
+        bind("recurringExchangeState" to RecurringExchange.State.ACTIVE)
+        bind(PROVIDER_PARAM to provider.externalId)
+        bind("exchangeState" to Exchange.State.FAILED)
       }
       .execute(transactionContext)
       .singleOrNull()
@@ -179,11 +164,5 @@ class CreateExchangesAndSteps(
       "@yearly" -> this.toLocalDate().plusYears(1).toProtoDate()
       else -> error("Cannot support this.")
     }
-  }
-
-  private object Params {
-    const val RECURRING_EXCHANGE_STATE = "recurringExchangeState"
-    const val EXCHANGE_STATE = "exchangeState"
-    const val EXTERNAL_PARTY_ID = "externalPartyId"
   }
 }
