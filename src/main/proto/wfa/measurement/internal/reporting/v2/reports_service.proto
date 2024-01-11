@@ -36,8 +36,13 @@ message CreateReportRequest {
   Report report = 1;
   string external_report_id = 2;
   string request_id = 3;
+
+  message ReportScheduleInfo {
+    string external_report_schedule_id = 1;
+    google.protobuf.Timestamp next_report_creation_time = 2;
+  }
   // Only set if `Report` should be associated with a `ReportSchedule`.
-  string external_report_schedule_id = 4;
+  ReportScheduleInfo report_schedule_info = 4;
 }
 
 message GetReportRequest {
