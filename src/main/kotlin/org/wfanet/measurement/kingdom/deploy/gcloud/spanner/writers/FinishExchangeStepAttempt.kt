@@ -144,12 +144,37 @@ class FinishExchangeStepAttempt(
     return updateExchangeStepAttempt(ExchangeStepAttempt.State.SUCCEEDED)
   }
 
-  private fun TransactionScope.temporarilyFail(): ExchangeStepAttempt {
-    updateExchangeStepState(
-      exchangeStep = exchangeStep,
-      recurringExchangeId = recurringExchangeId.value,
-      state = ExchangeStep.State.READY_FOR_RETRY
-    )
+  private suspend fun TransactionScope.getMaxAttemptIndex(): Long {
+    val sql =
+      """
+      SELECT IFNULL(MAX(AttemptIndex), 0) AS MaxAttemptIndex
+      FROM ExchangeStepAttempts
+      WHERE ExchangeStepAttempts.RecurringExchangeId = @recurring_exchange_id
+        AND ExchangeStepAttempts.Date = @date
+        AND ExchangeStepAttempts.StepIndex = @step_index
+      """
+        .trimIndent()
+
+    val statement: Statement =
+      statement(sql) {
+        bind("recurring_exchange_id").to(recurringExchangeId.value)
+        bind("date").to(exchangeDate.toCloudDate())
+        bind("step_index").to(stepIndex)
+      }
+
+    val row: Struct = transactionContext.executeQuery(statement).single()
+
+    return row.getLong("MaxAttemptIndex")
+  }
+
+  private suspend fun TransactionScope.temporarilyFail(): ExchangeStepAttempt {
+    if (getMaxAttemptIndex() == exchangeStepAttempt.attemptNumber.toLong()) {
+      updateExchangeStepState(
+        exchangeStep = exchangeStep,
+        recurringExchangeId = recurringExchangeId.value,
+        state = ExchangeStep.State.READY_FOR_RETRY
+      )
+    }
     return updateExchangeStepAttempt(ExchangeStepAttempt.State.FAILED)
   }
 
