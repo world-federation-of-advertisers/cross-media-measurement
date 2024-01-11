@@ -116,6 +116,8 @@ MAVEN_ARTIFACTS_DICT = dict(common_jvm_maven_artifacts_dict().items() + {
     "software.amazon.awssdk:acmpca": AWS_JAVA_SDK_VERSION,
     "com.google.crypto.tink:tink-gcpkms": "1.9.0",
     "com.google.crypto.tink:tink-awskms": "1.9.1",
+    "com.google.apis:google-api-services-storage": "v1-rev20240105-2.0.0",
+    "com.google.apis:google-api-services-sqladmin": "v1-rev20240101-2.0.0",
 }.items())
 
 EXCLUDED_MAVEN_ARTIFACTS = [x for x in COMMON_JVM_EXCLUDED_ARTIFACTS if x != "org.slf4j:slf4j-log4j12"] + ["org.apache.beam:beam-sdks-java-io-kafka"]

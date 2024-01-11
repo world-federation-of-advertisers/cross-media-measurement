@@ -21,6 +21,6 @@
 # * https://cloud.google.com/dataflow/docs/support/sdk-version-support-status#apache-beam-2.x-sdks
 # * https://beam.apache.org/documentation/runners/flink/#flink-version-compatibility
 # * https://docs.aws.amazon.com/kinesisanalytics/latest/java/earlier.html
-APACHE_BEAM_VERSION = "2.38.0"
+APACHE_BEAM_VERSION = "2.40.0"
 
 K8S_CLIENT_VERSION = "16.0.0"
