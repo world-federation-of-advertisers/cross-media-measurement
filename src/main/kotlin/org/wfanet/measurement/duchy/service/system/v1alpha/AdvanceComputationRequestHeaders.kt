@@ -137,7 +137,7 @@ private fun HonestMajorityShareShuffle.computationStageInput(): ComputationStage
     HonestMajorityShareShuffle.Description.SHUFFLE_PHASE_INPUT ->
       computationStageInput {
         honestMajorityShareShuffleShufflePhaseInput = internalShufflePhaseInput {
-          commonRandomSeed = shufflePhaseInput.commonRandomSeed
+          peerRandomSeed = shufflePhaseInput.peerRandomSeed
         }
       }
     else -> failGrpc { "Unknown ReachOnlyLiquidLegionsV2 payload description '$description'." }
@@ -193,6 +193,6 @@ fun advanceComputationHeader(
     name = ComputationKey(globalComputationId).toName()
     honestMajorityShareShuffle = honestMajorityShareShuffle {
       description = honestMajorityShareShuffleContentDescription
-      shufflePhaseInput = shufflePhaseInput { commonRandomSeed = seed }
+      shufflePhaseInput = shufflePhaseInput { peerRandomSeed = seed }
     }
   }

@@ -447,7 +447,7 @@ class ComputationControlServiceTest {
             HonestMajorityShareShuffleProtocol.Stage.WAIT_ON_SHUFFLE_INPUT.toProtocolStage()
           computationStageInput = computationStageInput {
             honestMajorityShareShuffleShufflePhaseInput = shufflePhaseInput {
-              commonRandomSeed = SEED
+              peerRandomSeed = SEED
             }
           }
         }
