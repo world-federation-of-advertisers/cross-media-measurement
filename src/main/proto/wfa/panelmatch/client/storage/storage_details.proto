@@ -54,9 +54,7 @@ message StorageDetails {
     string region = 2;
 
     // By default, the daemon uses the default AWS role credentials found in the
-    // environment variables. These fields allow a specific connection to
-    // generate short-lived credentials if a different role is required or there
-    // are no default credentials in the environment.
+    // environment variables. Specify, if a different role is required.
     message AwsRole {
       // Role ARN
       string role_arn = 1;
@@ -65,24 +63,6 @@ message StorageDetails {
       string role_external_id = 2;
       // An identifier for the assumed role session.
       string role_session_name = 3;
-
-      // In some cases it is less secure to keep AWS credentials available for
-      // workers. For the providers below, it is possible to generate short-lived
-      // credentials, removing the requirement to download and pass credentials in
-      // the environment. Required on GCP.
-      message WebIdentity {
-        enum ProviderPlatform {
-          // Default. No provider known/specified. Will cause an error if set.
-          UNKNOWN = 0;
-          // Use GCP default credentials to assume the role in this message.
-          GCP = 1;
-        }
-      }
-
-      // Only used if not running on AWS. Some identities, like service accounts
-      // for other cloud providers, are trusted by AWS as "web identities" and
-      // can be used to assume IAM roles they are granted access to.
-      WebIdentity web_identity_provider = 4;
     }
 
     // The AWS Role to assume.

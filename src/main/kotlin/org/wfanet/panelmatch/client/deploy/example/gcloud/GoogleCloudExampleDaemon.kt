@@ -164,7 +164,8 @@ private class GoogleCloudExampleDaemon : ExampleDaemon() {
     private set
 
   override fun makePipelineOptions(): PipelineOptions {
-    return PipelineOptionsFactory.`as`(BeamOptions::class.java).apply {
+    val baseOptions =
+      PipelineOptionsFactory.`as`(BeamOptions::class.java).apply {
         runner = DataflowRunner::class.java
         project = dataflowProjectId
         region = dataflowRegion
@@ -176,6 +177,21 @@ private class GoogleCloudExampleDaemon : ExampleDaemon() {
         defaultWorkerLogLevel = dataflowWorkerLoggingOptionsLevel
         defaultSdkHarnessLogLevel = sdkHarnessOptionsLogLevel
       }
+    return if (!s3FromBeam) {
+      baseOptions
+    } else {
+      // aws-sdk-java-v2 casts responses to AwsSessionCredentials if its assumed you need a
+      // sessionToken
+      val awsCredentials =
+        DefaultCredentialsProvider.create().resolveCredentials() as AwsSessionCredentials
+      // TODO: Encrypt using KMS or store in Secrets
+      // Think about moving this logic to a CredentialsProvider
+      baseOptions.apply {
+        awsAccessKey = awsCredentials.accessKeyId()
+        awsSecretAccessKey = awsCredentials.secretAccessKey()
+        awsSessionToken = awsCredentials.sessionToken()
+      }
+    }
   }
 
   override val rootStorageClient: StorageClient by lazy {

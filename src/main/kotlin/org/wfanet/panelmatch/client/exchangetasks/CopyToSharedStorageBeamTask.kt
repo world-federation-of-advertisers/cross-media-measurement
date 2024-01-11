@@ -59,8 +59,9 @@ private class CopyManifestToSharedDoFn(
 
   @DoFn.ProcessElement
   fun processElement(@Element manifest: ByteString, context: ProcessContext) {
+    val pipelineOptions = context.getPipelineOptions()
     runBlocking(Dispatchers.IO) {
-      destination.writeBlob(destinationManifestBlobKey, manifest)
+      destination.writeBlob(destinationManifestBlobKey, manifest, pipelineOptions)
     }
     context.output(manifest)
   }
@@ -73,11 +74,12 @@ private class ReadFilesDoFn(
 
   @DoFn.ProcessElement
   fun processElement(@Element shardName: String, context: ProcessContext) {
+    val pipelineOptions = context.getPipelineOptions()
     runBlocking(Dispatchers.IO) {
-      val source: StorageClient = sourceFactory.build()
+      val source: StorageClient = sourceFactory.build(pipelineOptions)
       val sourceBlob: Blob =
         requireNotNull(source.getBlob(shardName)) { "Missing blob with key $shardName" }
-      destination.writeBlob(shardName, sourceBlob.read())
+      destination.writeBlob(shardName, sourceBlob.read(), pipelineOptions)
     }
     context.output(shardName)
   }

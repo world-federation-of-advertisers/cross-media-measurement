@@ -46,8 +46,8 @@ class VerifyingStorageClient(
    * [VerifiedBlob] is collected.
    */
   @Throws(BlobNotFoundException::class)
-  suspend fun getBlob(blobKey: String): VerifiedBlob {
-    val sharedStorage: StorageClient = sharedStorageFactory.build()
+  suspend fun getBlob(blobKey: String, pipelineOptions: PipelineOptions? = null): VerifiedBlob {
+    val sharedStorage: StorageClient = sharedStorageFactory.build(pipelineOptions)
     val sourceBlob: Blob = sharedStorage.getBlob(blobKey) ?: throw BlobNotFoundException(blobKey)
     val namedSignature: NamedSignature = sharedStorage.getBlobSignature(blobKey)
 
