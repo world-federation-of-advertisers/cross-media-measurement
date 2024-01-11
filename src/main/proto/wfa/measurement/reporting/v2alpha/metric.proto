@@ -247,7 +247,7 @@ message MetricResult {
   }
 
   // List of resource names representing `Measurement`s from the CMMS public
-  // api that were used to calculate the `result` in this `MetricResult`.
+  // API that were used to calculate the `result` in this `MetricResult`.
   repeated string cmms_measurements = 8 [
     (google.api.resource_reference).type = "halo.wfanet.org/Measurement",
     (google.api.field_behavior) = OUTPUT_ONLY
