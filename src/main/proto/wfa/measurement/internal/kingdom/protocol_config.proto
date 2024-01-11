@@ -1,4 +1,4 @@
-// Copyright 2024 The Cross-Media Measurement Authors
+// Copyright 2021 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -181,6 +181,6 @@ message ShareShuffleSketchParams {
   // Length of each register in bytes.
   int32 bytes_per_register = 2;
 
-  // Modulus for computations whose ring is not Z_{2^k}.
+  // Secret share modulus.
   uint32 ring_modulus = 3;
 }
