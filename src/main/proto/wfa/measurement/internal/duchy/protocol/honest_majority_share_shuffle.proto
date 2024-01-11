@@ -40,12 +40,14 @@ message HonestMajorityShareShuffle {
 
     // Computation is created by the non-aggregator.
     //
-    // Non-aggregators are ready to accept requisitions. The randomness seed is
-    // sampled and stored.
+    // Non-aggregators are ready to accept requisition fulfillments. The
+    // randomness seed is sampled and stored. Peer's random seed can be accepted
+    // at this stage.
     INITIALIZED = 1;
 
     // Non-aggregator reads the randomness seed, then sends it to the peer.
-    // Seeds are used for generating either noise or permutation.
+    // Seeds are used for generating either noise or permutation. Peer's random
+    // seed can be accepted at this stage.
     SETUP_PHASE = 2;
 
     // The non-aggregators only stage waiting for input of seeds from the peer
@@ -113,8 +115,10 @@ message HonestMajorityShareShuffle {
     repeated string participants = 4;
   }
 
+  // The input message containing the random seed from the peer worker.
   message ShufflePhaseInput {
-    bytes common_random_seed = 1;
+    // Random seed in bytes.
+    bytes peer_random_seed = 1;
   }
 
   // Details about a particular attempt of running a stage of the

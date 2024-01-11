@@ -122,13 +122,13 @@ object HonestMajorityShareShuffleProtocol {
       ): Int {
         return when (stage) {
           SETUP_PHASE,
-          WAIT_ON_SHUFFLE_INPUT -> 0
-          SHUFFLE_PHASE,
+          WAIT_ON_SHUFFLE_INPUT,
+          SHUFFLE_PHASE -> 0
+          WAIT_ON_AGGREGATION_INPUT -> 2
           AGGREGATION_PHASE ->
             // The output is the intermediate computation result either received from another duchy
             // or computed locally.
             1
-          WAIT_ON_AGGREGATION_INPUT -> 2
           // Mill have nothing to do for this stage.
           COMPLETE -> error("Computation should be ended with call to endComputation(...)")
           // Stages that we can't transition to ever.
