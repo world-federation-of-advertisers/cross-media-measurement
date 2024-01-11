@@ -16,13 +16,6 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
-import org.wfanet.measurement.internal.reporting.v2.CreateReportRequest as InternalCreateReportRequest
-import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec as InternalMetricCalculationSpec
-import org.wfanet.measurement.internal.reporting.v2.Report as InternalReport
-import org.wfanet.measurement.internal.reporting.v2.ReportKt as InternalReportKt
-import org.wfanet.measurement.internal.reporting.v2.createReportRequest as internalCreateReportRequest
-import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internalGetReportRequest
-import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import com.google.protobuf.Timestamp
 import com.google.protobuf.util.Timestamps
 import com.google.type.Date
@@ -55,12 +48,19 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
+import org.wfanet.measurement.internal.reporting.v2.CreateReportRequest as InternalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.v2.CreateReportRequestKt
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec as InternalMetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.Report as InternalReport
+import org.wfanet.measurement.internal.reporting.v2.ReportKt as InternalReportKt
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetMetricCalculationSpecsRequest
+import org.wfanet.measurement.internal.reporting.v2.createReportRequest as internalCreateReportRequest
+import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internalGetReportRequest
+import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withPrincipalName
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.reportScheduleInfoFromCurrentContext
@@ -518,7 +518,7 @@ class ReportsService(
     externalIdToMetricCalculationMap: Map<String, InternalMetricCalculationSpec>,
   ): List<Report.MetricCalculationResult> {
     return internalReportingMetricEntries.flatMap {
-        (reportingSetId, reportingMetricCalculationSpec),
+      (reportingSetId, reportingMetricCalculationSpec),
       ->
       val reportingSetName = ReportingSetKey(cmmsMeasurementConsumerId, reportingSetId).toName()
 
@@ -603,10 +603,11 @@ class ReportsService(
             details = InternalReportKt.details { tags.putAll(request.report.tagsMap) }
           }
           Report.TimeCase.REPORTING_INTERVAL -> {
-            details = InternalReportKt.details {
-              tags.putAll(request.report.tagsMap)
-              reportingInterval = request.report.reportingInterval.toInternal()
-            }
+            details =
+              InternalReportKt.details {
+                tags.putAll(request.report.tagsMap)
+                reportingInterval = request.report.reportingInterval.toInternal()
+              }
           }
           Report.TimeCase.TIME_NOT_SET ->
             failGrpc(Status.INVALID_ARGUMENT) { "The time in Report is not specified." }
@@ -645,7 +646,12 @@ class ReportsService(
     val measurementConsumerKey = checkNotNull(MeasurementConsumerKey.fromName(request.parent))
     val createReportInfo =
       if (request.report.hasTimeIntervals()) {
-        CreateReportInfo(request.parent, request.requestId, request.report.timeIntervals.timeIntervalsList, null)
+        CreateReportInfo(
+          request.parent,
+          request.requestId,
+          request.report.timeIntervals.timeIntervalsList,
+          null
+        )
       } else {
         CreateReportInfo(request.parent, request.requestId, null, request.report.reportingInterval)
       }
@@ -709,11 +715,12 @@ class ReportsService(
         if (!internalMetricCalculationSpec.details.hasFrequencySpec()) {
           generateTimeIntervals(checkNotNull(createReportInfo.reportingInterval), null, null)
         } else {
-          val generatedTimeIntervals: List<Interval> = generateTimeIntervals(
-            checkNotNull(createReportInfo.reportingInterval),
-            internalMetricCalculationSpec.details.frequencySpec,
-            internalMetricCalculationSpec.details.window
-          )
+          val generatedTimeIntervals: List<Interval> =
+            generateTimeIntervals(
+              checkNotNull(createReportInfo.reportingInterval),
+              internalMetricCalculationSpec.details.frequencySpec,
+              internalMetricCalculationSpec.details.window
+            )
           grpcRequire(generatedTimeIntervals.isNotEmpty()) {
             "No time intervals can be generated from the combination of the reporting_interval and metric_calculation_spec ${
               MetricCalculationSpecKey(
@@ -865,7 +872,7 @@ private fun ListReportsRequest.toListReportsPageToken(): ListReportsPageToken {
   }
 }
 
-/** Validate [Report] time fields. Throws grpc exception if error found.*/
+/** Validate [Report] time fields. Throws grpc exception if error found. */
 private fun validateTime(report: Report) {
   if (report.hasTimeIntervals()) {
     grpcRequire(report.timeIntervals.timeIntervalsList.isNotEmpty()) {
@@ -885,9 +892,7 @@ private fun validateTime(report: Report) {
       }
     }
   } else if (report.hasReportingInterval()) {
-    grpcRequire(report.reportingInterval.hasReportStart()) {
-      "report_start is missing."
-    }
+    grpcRequire(report.reportingInterval.hasReportStart()) { "report_start is missing." }
     val reportStart = report.reportingInterval.reportStart
     grpcRequire(
       reportStart.year > 0 &&
@@ -898,9 +903,7 @@ private fun validateTime(report: Report) {
       "report_start missing either year, month, day, or time_offset."
     }
 
-    grpcRequire(report.reportingInterval.hasReportEnd()) {
-      "report_end is missing."
-    }
+    grpcRequire(report.reportingInterval.hasReportEnd()) { "report_end is missing." }
     val reportEnd = report.reportingInterval.reportEnd
     grpcRequire(reportEnd.year > 0 && reportEnd.month > 0 && reportEnd.day > 0) {
       "report_end not a full date."
@@ -908,10 +911,10 @@ private fun validateTime(report: Report) {
 
     grpcRequire(
       date {
-        year = reportStart.year
-        month = reportStart.month
-        day = reportStart.day
-      }
+          year = reportStart.year
+          month = reportStart.month
+          day = reportStart.day
+        }
         .isBefore(reportEnd)
     ) {
       "report_end be after report_start."
@@ -929,17 +932,18 @@ private fun Date.isBefore(other: Date): Boolean {
 /**
  * Generate a list of time intervals using the [Report.ReportingInterval], the
  * [MetricCalculationSpec.FrequencySpec], and the [MetricCalculationSpec.Window].
- * */
+ */
 private fun generateTimeIntervals(
   reportingInterval: Report.ReportingInterval,
   frequencySpec: MetricCalculationSpec.FrequencySpec?,
   window: MetricCalculationSpec.Window?,
 ): List<Interval> {
-  val reportEndDateTime = reportingInterval.reportStart.copy {
-    year = reportingInterval.reportEnd.year
-    month = reportingInterval.reportEnd.month
-    day = reportingInterval.reportEnd.day
-  }
+  val reportEndDateTime =
+    reportingInterval.reportStart.copy {
+      year = reportingInterval.reportEnd.year
+      month = reportingInterval.reportEnd.month
+      day = reportingInterval.reportEnd.day
+    }
 
   return if (reportingInterval.reportStart.hasUtcOffset()) {
     val offsetDateTime =
@@ -947,15 +951,17 @@ private fun generateTimeIntervals(
         reportingInterval.reportStart.toOffsetDateTime()
       } catch (e: DateTimeException) {
         throw Status.INVALID_ARGUMENT.withDescription(
-          "report_start.utc_offset is not in valid range."
-        )
+            "report_start.utc_offset is not in valid range."
+          )
           .asRuntimeException()
       }
     if (frequencySpec == null && window == null) {
-      listOf(interval {
-        startTime = offsetDateTime.toInstant().toProtoTime()
-        endTime = reportEndDateTime.toOffsetDateTime().toInstant().toProtoTime()
-      })
+      listOf(
+        interval {
+          startTime = offsetDateTime.toInstant().toProtoTime()
+          endTime = reportEndDateTime.toOffsetDateTime().toInstant().toProtoTime()
+        }
+      )
     } else {
       generateTimeIntervals(
         offsetDateTime,
@@ -973,10 +979,12 @@ private fun generateTimeIntervals(
           .asRuntimeException()
       }
     if (frequencySpec == null && window == null) {
-      listOf(interval {
-        startTime = zonedDateTime.toInstant().toProtoTime()
-        endTime = reportEndDateTime.toZonedDateTime().toInstant().toProtoTime()
-      })
+      listOf(
+        interval {
+          startTime = zonedDateTime.toInstant().toProtoTime()
+          endTime = reportEndDateTime.toZonedDateTime().toInstant().toProtoTime()
+        }
+      )
     } else {
       generateTimeIntervals(
         zonedDateTime,
@@ -1009,20 +1017,28 @@ private fun generateTimeIntervals(
         val lastDayOfMonth = lastDayOfMonthTemporal.get(ChronoField.DAY_OF_MONTH)
         if (
           frequencySpec.monthly.dayOfMonth <= lastDayOfMonth &&
-          reportStartTemporal.get(ChronoField.DAY_OF_MONTH) <= frequencySpec.monthly.dayOfMonth
+            reportStartTemporal.get(ChronoField.DAY_OF_MONTH) <= frequencySpec.monthly.dayOfMonth
         ) {
-          reportStartTemporal.with(TemporalAdjusters.ofDateAdjuster { date: LocalDate ->
-            date.withDayOfMonth(frequencySpec.monthly.dayOfMonth)
-          })
+          reportStartTemporal.with(
+            TemporalAdjusters.ofDateAdjuster { date: LocalDate ->
+              date.withDayOfMonth(frequencySpec.monthly.dayOfMonth)
+            }
+          )
         } else if (frequencySpec.monthly.dayOfMonth > lastDayOfMonth) {
           lastDayOfMonthTemporal
         } else {
           val nextMonthEndTemporal =
             reportStartTemporal.plus(Period.ofMonths(1)).with(TemporalAdjusters.lastDayOfMonth())
-          nextMonthEndTemporal
-            .with(TemporalAdjusters.ofDateAdjuster { date: LocalDate ->
-              date.withDayOfMonth(minOf(nextMonthEndTemporal.get(ChronoField.DAY_OF_MONTH), frequencySpec.monthly.dayOfMonth))
-            })
+          nextMonthEndTemporal.with(
+            TemporalAdjusters.ofDateAdjuster { date: LocalDate ->
+              date.withDayOfMonth(
+                minOf(
+                  nextMonthEndTemporal.get(ChronoField.DAY_OF_MONTH),
+                  frequencySpec.monthly.dayOfMonth
+                )
+              )
+            }
+          )
         }
       }
       MetricCalculationSpec.FrequencySpec.FrequencyCase.FREQUENCY_NOT_SET -> {
@@ -1050,7 +1066,7 @@ private fun generateTimeIntervals(
           break
         }
 
-          val nextTimeIntervalStartTimestamp: Timestamp =
+        val nextTimeIntervalStartTimestamp: Timestamp =
           if (isWindowReportStart) {
             reportStartTimestamp
           } else {
@@ -1058,21 +1074,19 @@ private fun generateTimeIntervals(
               buildReportTimeIntervalStartTimestamp(window, nextTimeIntervalEndTemporal)
 
             // The start of any interval to be created is bounded by the report start.
-            if (Timestamps.compare(
-                reportStartTimestamp,
-                newTimestamp
-              ) >= 0
-            ) {
+            if (Timestamps.compare(reportStartTimestamp, newTimestamp) >= 0) {
               reportStartTimestamp
             } else {
               newTimestamp
             }
           }
 
-        add(interval {
-          startTime = nextTimeIntervalStartTimestamp
-          endTime = nextTimeIntervalEndTimestamp
-        })
+        add(
+          interval {
+            startTime = nextTimeIntervalStartTimestamp
+            endTime = nextTimeIntervalEndTimestamp
+          }
+        )
       }
 
       nextTimeIntervalEndTemporal =
@@ -1081,30 +1095,29 @@ private fun generateTimeIntervals(
           MetricCalculationSpec.FrequencySpec.FrequencyCase.DAILY -> {
             nextTimeIntervalEndTemporal.plus(Period.ofDays(1))
           }
-
           MetricCalculationSpec.FrequencySpec.FrequencyCase.WEEKLY -> {
             nextTimeIntervalEndTemporal.with(
               TemporalAdjusters.next(
-                java.time.DayOfWeek.valueOf(
-                  frequencySpec.weekly.dayOfWeek.name
-                )
+                java.time.DayOfWeek.valueOf(frequencySpec.weekly.dayOfWeek.name)
               )
             )
           }
-
           MetricCalculationSpec.FrequencySpec.FrequencyCase.MONTHLY -> {
-            val nextMonthEndTemporal = nextTimeIntervalEndTemporal.plus(Period.ofMonths(1))
-              .with(TemporalAdjusters.lastDayOfMonth())
-            nextMonthEndTemporal.with(TemporalAdjusters.ofDateAdjuster { date: LocalDate ->
-              date.withDayOfMonth(
-                minOf(
-                  nextMonthEndTemporal.get(ChronoField.DAY_OF_MONTH),
-                  frequencySpec.monthly.dayOfMonth
+            val nextMonthEndTemporal =
+              nextTimeIntervalEndTemporal
+                .plus(Period.ofMonths(1))
+                .with(TemporalAdjusters.lastDayOfMonth())
+            nextMonthEndTemporal.with(
+              TemporalAdjusters.ofDateAdjuster { date: LocalDate ->
+                date.withDayOfMonth(
+                  minOf(
+                    nextMonthEndTemporal.get(ChronoField.DAY_OF_MONTH),
+                    frequencySpec.monthly.dayOfMonth
+                  )
                 )
-              )
-            })
+              }
+            )
           }
-
           MetricCalculationSpec.FrequencySpec.FrequencyCase.FREQUENCY_NOT_SET -> {
             throw Status.FAILED_PRECONDITION.withDescription("frequency is not set")
               .asRuntimeException()
@@ -1132,8 +1145,7 @@ private fun buildReportTimeIntervalStartTimestamp(
     MetricCalculationSpec.Window.TrailingWindow.Increment.MONTH ->
       intervalEndTemporal.minus(Period.ofMonths(trailingWindow.count))
     MetricCalculationSpec.Window.TrailingWindow.Increment.INCREMENT_UNSPECIFIED,
-    MetricCalculationSpec.Window.TrailingWindow.Increment.UNRECOGNIZED,
-    ->
+    MetricCalculationSpec.Window.TrailingWindow.Increment.UNRECOGNIZED, ->
       error("trailing_window missing increment")
   }.toTimestamp()
 }
@@ -1143,13 +1155,13 @@ private fun Temporal.toTimestamp(): Timestamp {
     is OffsetDateTime -> {
       source.toInstant().toProtoTime()
     }
-
     is ZonedDateTime -> {
       source.toInstant().toProtoTime()
     }
-
     else -> {
-      throw Status.UNKNOWN.withDescription("Error encountered when generating time intervals from reporting_interval.")
+      throw Status.UNKNOWN.withDescription(
+          "Error encountered when generating time intervals from reporting_interval."
+        )
         .asRuntimeException()
     }
   }

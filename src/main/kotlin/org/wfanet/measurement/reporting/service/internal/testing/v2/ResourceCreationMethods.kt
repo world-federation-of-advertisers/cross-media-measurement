@@ -104,15 +104,18 @@ suspend fun createMetricCalculationSpec(
         }
         groupings += MetricCalculationSpecKt.grouping { predicates += "age > 10" }
         filter = "filter"
-        frequencySpec = MetricCalculationSpecKt.frequencySpec {
-          daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
-        }
-        window = MetricCalculationSpecKt.window {
-          trailingWindow = MetricCalculationSpecKt.WindowKt.trailingWindow {
-            count = 2
-            increment = MetricCalculationSpec.Window.TrailingWindow.Increment.DAY
+        frequencySpec =
+          MetricCalculationSpecKt.frequencySpec {
+            daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
           }
-        }
+        window =
+          MetricCalculationSpecKt.window {
+            trailingWindow =
+              MetricCalculationSpecKt.WindowKt.trailingWindow {
+                count = 2
+                increment = MetricCalculationSpec.Window.TrailingWindow.Increment.DAY
+              }
+          }
       }
   }
   return metricCalculationSpecsService.createMetricCalculationSpec(

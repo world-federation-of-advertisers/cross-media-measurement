@@ -1528,9 +1528,7 @@ class ReportSchedulingJobTest {
       state = Report.State.RUNNING
       timeIntervals = timeIntervals {
         timeIntervals += interval {
-          startTime = timestamp {
-            seconds = 100
-          }
+          startTime = timestamp { seconds = 100 }
           endTime = timestamp { seconds = 200 }
         }
       }

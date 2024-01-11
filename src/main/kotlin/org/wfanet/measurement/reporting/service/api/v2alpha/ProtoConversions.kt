@@ -16,7 +16,14 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import com.google.type.DateTime
 import io.grpc.Status
+import java.time.DateTimeException
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
+import java.time.zone.ZoneRulesException
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodology
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
@@ -72,13 +79,6 @@ import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals as internalTimeIntervals
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
 import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval as StatsVidSamplingInterval
-import com.google.type.DateTime
-import java.time.DateTimeException
-import java.time.OffsetDateTime
-import java.time.ZoneId
-import java.time.ZoneOffset
-import java.time.ZonedDateTime
-import java.time.zone.ZoneRulesException
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageToken
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsPageToken
@@ -717,7 +717,9 @@ fun InternalReport.Details.ReportingInterval.toReportingInterval(): Report.Repor
   }
 }
 
-/** Converts a public [Report.ReportingInterval] to an [InternalReport.Details.ReportingInterval]. */
+/**
+ * Converts a public [Report.ReportingInterval] to an [InternalReport.Details.ReportingInterval].
+ */
 fun Report.ReportingInterval.toInternal(): InternalReport.Details.ReportingInterval {
   val source = this
   return InternalReportKt.DetailsKt.reportingInterval {

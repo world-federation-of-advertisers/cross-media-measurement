@@ -55,7 +55,6 @@ import org.wfanet.measurement.common.testing.CommandLineTesting
 import org.wfanet.measurement.common.testing.CommandLineTesting.assertThat
 import org.wfanet.measurement.common.testing.ExitInterceptingSecurityManager
 import org.wfanet.measurement.common.testing.verifyProtoArgument
-import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsResponse
@@ -434,24 +433,23 @@ class ReportingTest {
                 textFormatReportingMetricEntryFile,
                 Report.ReportingMetricEntry.getDefaultInstance()
               )
-            reportingInterval = ReportKt.reportingInterval {
-              reportStart = dateTime {
-                year = 2017
-                month = 1
-                day = 15
-                hours = 1
-                minutes = 30
-                seconds = 15
-                this.utcOffset = duration {
-                  seconds = 8 * 60 * 60
+            reportingInterval =
+              ReportKt.reportingInterval {
+                reportStart = dateTime {
+                  year = 2017
+                  month = 1
+                  day = 15
+                  hours = 1
+                  minutes = 30
+                  seconds = 15
+                  this.utcOffset = duration { seconds = 8 * 60 * 60 }
+                }
+                reportEnd = date {
+                  year = 2017
+                  month = 2
+                  day = 15
                 }
               }
-              reportEnd = date {
-                year = 2017
-                month = 2
-                day = 15
-              }
-            }
           }
         }
       )
@@ -499,24 +497,23 @@ class ReportingTest {
                 textFormatReportingMetricEntryFile,
                 Report.ReportingMetricEntry.getDefaultInstance()
               )
-            reportingInterval = ReportKt.reportingInterval {
-              reportStart = dateTime {
-                year = 2017
-                month = 1
-                day = 15
-                hours = 1
-                minutes = 30
-                seconds = 15
-                this.timeZone = timeZone {
-                  id = "America/Los_Angeles"
+            reportingInterval =
+              ReportKt.reportingInterval {
+                reportStart = dateTime {
+                  year = 2017
+                  month = 1
+                  day = 15
+                  hours = 1
+                  minutes = 30
+                  seconds = 15
+                  this.timeZone = timeZone { id = "America/Los_Angeles" }
+                }
+                reportEnd = date {
+                  year = 2017
+                  month = 2
+                  day = 15
                 }
               }
-              reportEnd = date {
-                year = 2017
-                month = 2
-                day = 15
-              }
-            }
           }
         }
       )

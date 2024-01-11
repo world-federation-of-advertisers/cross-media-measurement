@@ -22,6 +22,7 @@ import com.google.protobuf.util.Timestamps
 import com.google.type.DateTime
 import com.google.type.TimeZone
 import com.google.type.copy
+import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
 import java.time.LocalDateTime
@@ -53,7 +54,6 @@ import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpc
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub as InternalReportSchedulesCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
-import com.google.type.interval
 import org.wfanet.measurement.internal.reporting.v2.listReportSchedulesRequest
 import org.wfanet.measurement.internal.reporting.v2.reportScheduleIteration
 import org.wfanet.measurement.internal.reporting.v2.setReportScheduleIterationStateRequest

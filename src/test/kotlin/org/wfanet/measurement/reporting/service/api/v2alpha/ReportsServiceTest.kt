@@ -21,8 +21,12 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.duration
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.Durations
+import com.google.type.DayOfWeek
 import com.google.type.Interval
+import com.google.type.date
+import com.google.type.dateTime
 import com.google.type.interval
+import com.google.type.timeZone
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Duration
@@ -56,7 +60,9 @@ import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.metricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.BatchGetMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.CreateReportRequestKt
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt as InternalMetricCalculationSpecKt
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec as InternalMetricSpec
@@ -75,12 +81,6 @@ import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetric
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals as internalTimeIntervals
-import com.google.type.DayOfWeek
-import com.google.type.date
-import com.google.type.dateTime
-import com.google.type.timeZone
-import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
-import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.withReportScheduleInfoAndMeasurementConsumerPrincipal
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsRequest
@@ -558,14 +558,46 @@ class ReportsServiceTest {
   @Test
   fun `createReport returns report when reporting interval but no metric calc spec frequency`() =
     runBlocking {
-      val reportingInterval = ReportKt.reportingInterval {
+      val reportingInterval =
+        ReportKt.reportingInterval {
+          reportStart = dateTime {
+            year = 2024
+            month = 1
+            day = 1
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          reportEnd = date {
+            year = 2024
+            month = 1
+            day = 3
+          }
+        }
+
+      val timeIntervals: List<Interval> = buildList {
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1704268800 // January 3, 2024 at 12:00 AM, America/Los_Angeles
+            }
+          }
+        )
+      }
+
+      assertReportCreatedWithReportingInterval(reportingInterval, timeIntervals, null, null)
+    }
+
+  @Test
+  fun `createReport returns report when metric calc spec freq daily`() = runBlocking {
+    val reportingInterval =
+      ReportKt.reportingInterval {
         reportStart = dateTime {
           year = 2024
           month = 1
           day = 1
-          timeZone = timeZone {
-            id = "America/Los_Angeles"
-          }
+          timeZone = timeZone { id = "America/Los_Angeles" }
         }
         reportEnd = date {
           year = 2024
@@ -574,72 +606,42 @@ class ReportsServiceTest {
         }
       }
 
-      val timeIntervals: List<Interval> = buildList {
-        add(interval {
+    val timeIntervals: List<Interval> = buildList {
+      add(
+        interval {
           startTime = timestamp {
             seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
           }
           endTime = timestamp {
+            seconds = 1704182400 // January 2, 2024 at 12:00 AM, America/Los_Angeles
+          }
+        }
+      )
+      add(
+        interval {
+          startTime = timestamp {
+            seconds = 1704182400 // January 2, 2024 at 12:00 AM, America/Los_Angeles
+          }
+          endTime = timestamp {
             seconds = 1704268800 // January 3, 2024 at 12:00 AM, America/Los_Angeles
           }
-        })
-      }
-
-      assertReportCreatedWithReportingInterval(
-        reportingInterval,
-        timeIntervals,
-        null,
-        null
+        }
       )
     }
 
-  @Test
-  fun `createReport returns report when metric calc spec freq daily`() = runBlocking {
-    val reportingInterval = ReportKt.reportingInterval {
-      reportStart = dateTime {
-        year = 2024
-        month = 1
-        day = 1
-        timeZone = timeZone {
-          id = "America/Los_Angeles"
-        }
+    val frequencySpec =
+      MetricCalculationSpecKt.frequencySpec {
+        daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
       }
-      reportEnd = date {
-        year = 2024
-        month = 1
-        day = 3
+
+    val window =
+      MetricCalculationSpecKt.window {
+        trailingWindow =
+          MetricCalculationSpecKt.WindowKt.trailingWindow {
+            count = 1
+            increment = MetricCalculationSpec.Window.TrailingWindow.Increment.DAY
+          }
       }
-    }
-
-    val timeIntervals: List<Interval> = buildList {
-      add(interval {
-        startTime = timestamp {
-          seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
-        }
-        endTime = timestamp {
-          seconds = 1704182400 // January 2, 2024 at 12:00 AM, America/Los_Angeles
-        }
-      })
-      add(interval {
-        startTime = timestamp {
-          seconds = 1704182400 // January 2, 2024 at 12:00 AM, America/Los_Angeles
-        }
-        endTime = timestamp {
-          seconds = 1704268800 // January 3, 2024 at 12:00 AM, America/Los_Angeles
-        }
-      })
-    }
-
-    val frequencySpec = MetricCalculationSpecKt.frequencySpec {
-      daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
-    }
-
-    val window = MetricCalculationSpecKt.window {
-      trailingWindow = MetricCalculationSpecKt.WindowKt.trailingWindow {
-        count = 1
-        increment = MetricCalculationSpec.Window.TrailingWindow.Increment.DAY
-      }
-    }
 
     assertReportCreatedWithReportingInterval(
       reportingInterval,
@@ -652,53 +654,57 @@ class ReportsServiceTest {
   @Test
   fun `createReport returns report when metric calc spec freq weekly and day is start`() =
     runBlocking {
-      val reportingInterval = ReportKt.reportingInterval {
-        reportStart = dateTime {
-          year = 2024
-          month = 1
-          day = 1
-          timeZone = timeZone {
-            id = "America/Los_Angeles"
+      val reportingInterval =
+        ReportKt.reportingInterval {
+          reportStart = dateTime {
+            year = 2024
+            month = 1
+            day = 1
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          reportEnd = date {
+            year = 2024
+            month = 1
+            day = 15
           }
         }
-        reportEnd = date {
-          year = 2024
-          month = 1
-          day = 15
-        }
-      }
 
       val timeIntervals: List<Interval> = buildList {
-        add(interval {
-          startTime = timestamp {
-            seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1704700800 // January 8, 2024 at 12:00 AM, America/Los_Angeles
+            }
           }
-          endTime = timestamp {
-            seconds = 1704700800 // January 8, 2024 at 12:00 AM, America/Los_Angeles
+        )
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1704700800 // January 8, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1705305600 // January 15, 2024 at 12:00 AM, America/Los_Angeles
+            }
           }
-        })
-        add(interval {
-          startTime = timestamp {
-            seconds = 1704700800 // January 8, 2024 at 12:00 AM, America/Los_Angeles
-          }
-          endTime = timestamp {
-            seconds = 1705305600 // January 15, 2024 at 12:00 AM, America/Los_Angeles
-          }
-        })
+        )
       }
 
-      val frequencySpec = MetricCalculationSpecKt.frequencySpec {
-        weekly = MetricCalculationSpecKt.FrequencySpecKt.weekly {
-          dayOfWeek = DayOfWeek.MONDAY
+      val frequencySpec =
+        MetricCalculationSpecKt.frequencySpec {
+          weekly = MetricCalculationSpecKt.FrequencySpecKt.weekly { dayOfWeek = DayOfWeek.MONDAY }
         }
-      }
 
-      val window = MetricCalculationSpecKt.window {
-        trailingWindow = MetricCalculationSpecKt.WindowKt.trailingWindow {
-          count = 1
-          increment = MetricCalculationSpec.Window.TrailingWindow.Increment.WEEK
+      val window =
+        MetricCalculationSpecKt.window {
+          trailingWindow =
+            MetricCalculationSpecKt.WindowKt.trailingWindow {
+              count = 1
+              increment = MetricCalculationSpec.Window.TrailingWindow.Increment.WEEK
+            }
         }
-      }
 
       assertReportCreatedWithReportingInterval(
         reportingInterval,
@@ -711,61 +717,67 @@ class ReportsServiceTest {
   @Test
   fun `createReport returns report when metric calc spec freq weekly and day after start`() =
     runBlocking {
-      val reportingInterval = ReportKt.reportingInterval {
-        reportStart = dateTime {
-          year = 2024
-          month = 1
-          day = 1
-          timeZone = timeZone {
-            id = "America/Los_Angeles"
+      val reportingInterval =
+        ReportKt.reportingInterval {
+          reportStart = dateTime {
+            year = 2024
+            month = 1
+            day = 1
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          reportEnd = date {
+            year = 2024
+            month = 1
+            day = 18
           }
         }
-        reportEnd = date {
-          year = 2024
-          month = 1
-          day = 18
-        }
-      }
 
       val timeIntervals: List<Interval> = buildList {
-        add(interval {
-          startTime = timestamp {
-            seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1704182400 // January 2, 2024 at 12:00 AM, America/Los_Angeles
+            }
           }
-          endTime = timestamp {
-            seconds = 1704182400 // January 2, 2024 at 12:00 AM, America/Los_Angeles
+        )
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1704182400 // January 2, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1704787200 // January 9, 2024 at 12:00 AM, America/Los_Angeles
+            }
           }
-        })
-        add(interval {
-          startTime = timestamp {
-            seconds = 1704182400 // January 2, 2024 at 12:00 AM, America/Los_Angeles
+        )
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1704787200 // January 9, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1705392000 // January 16, 2024 at 12:00 AM, America/Los_Angeles
+            }
           }
-          endTime = timestamp {
-            seconds = 1704787200 // January 9, 2024 at 12:00 AM, America/Los_Angeles
-          }
-        })
-        add(interval {
-          startTime = timestamp {
-            seconds = 1704787200 // January 9, 2024 at 12:00 AM, America/Los_Angeles
-          }
-          endTime = timestamp {
-            seconds = 1705392000 // January 16, 2024 at 12:00 AM, America/Los_Angeles
-          }
-        })
+        )
       }
 
-      val frequencySpec = MetricCalculationSpecKt.frequencySpec {
-        weekly = MetricCalculationSpecKt.FrequencySpecKt.weekly {
-          dayOfWeek = DayOfWeek.TUESDAY
+      val frequencySpec =
+        MetricCalculationSpecKt.frequencySpec {
+          weekly = MetricCalculationSpecKt.FrequencySpecKt.weekly { dayOfWeek = DayOfWeek.TUESDAY }
         }
-      }
 
-      val window = MetricCalculationSpecKt.window {
-        trailingWindow = MetricCalculationSpecKt.WindowKt.trailingWindow {
-          count = 1
-          increment = MetricCalculationSpec.Window.TrailingWindow.Increment.WEEK
+      val window =
+        MetricCalculationSpecKt.window {
+          trailingWindow =
+            MetricCalculationSpecKt.WindowKt.trailingWindow {
+              count = 1
+              increment = MetricCalculationSpec.Window.TrailingWindow.Increment.WEEK
+            }
         }
-      }
 
       assertReportCreatedWithReportingInterval(
         reportingInterval,
@@ -778,53 +790,57 @@ class ReportsServiceTest {
   @Test
   fun `createReport returns report when metric calc spec freq monthly and day is start`() =
     runBlocking {
-      val reportingInterval = ReportKt.reportingInterval {
-        reportStart = dateTime {
-          year = 2024
-          month = 1
-          day = 1
-          timeZone = timeZone {
-            id = "America/Los_Angeles"
+      val reportingInterval =
+        ReportKt.reportingInterval {
+          reportStart = dateTime {
+            year = 2024
+            month = 1
+            day = 1
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          reportEnd = date {
+            year = 2024
+            month = 3
+            day = 1
           }
         }
-        reportEnd = date {
-          year = 2024
-          month = 3
-          day = 1
-        }
-      }
 
       val timeIntervals: List<Interval> = buildList {
-        add(interval {
-          startTime = timestamp {
-            seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1706774400 // February 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
           }
-          endTime = timestamp {
-            seconds = 1706774400 // February 1, 2024 at 12:00 AM, America/Los_Angeles
+        )
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1706774400 // February 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1709280000 // March 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
           }
-        })
-        add(interval {
-          startTime = timestamp {
-            seconds = 1706774400 // February 1, 2024 at 12:00 AM, America/Los_Angeles
-          }
-          endTime = timestamp {
-            seconds = 1709280000 // March 1, 2024 at 12:00 AM, America/Los_Angeles
-          }
-        })
+        )
       }
 
-      val frequencySpec = MetricCalculationSpecKt.frequencySpec {
-        monthly = MetricCalculationSpecKt.FrequencySpecKt.monthly {
-          dayOfMonth = 1
+      val frequencySpec =
+        MetricCalculationSpecKt.frequencySpec {
+          monthly = MetricCalculationSpecKt.FrequencySpecKt.monthly { dayOfMonth = 1 }
         }
-      }
 
-      val window = MetricCalculationSpecKt.window {
-        trailingWindow = MetricCalculationSpecKt.WindowKt.trailingWindow {
-          count = 1
-          increment = MetricCalculationSpec.Window.TrailingWindow.Increment.MONTH
+      val window =
+        MetricCalculationSpecKt.window {
+          trailingWindow =
+            MetricCalculationSpecKt.WindowKt.trailingWindow {
+              count = 1
+              increment = MetricCalculationSpec.Window.TrailingWindow.Increment.MONTH
+            }
         }
-      }
 
       assertReportCreatedWithReportingInterval(
         reportingInterval,
@@ -837,53 +853,57 @@ class ReportsServiceTest {
   @Test
   fun `createReport returns report when metric calc spec freq monthly and day after start`() =
     runBlocking {
-      val reportingInterval = ReportKt.reportingInterval {
-        reportStart = dateTime {
-          year = 2024
-          month = 1
-          day = 5
-          timeZone = timeZone {
-            id = "America/Los_Angeles"
+      val reportingInterval =
+        ReportKt.reportingInterval {
+          reportStart = dateTime {
+            year = 2024
+            month = 1
+            day = 5
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          reportEnd = date {
+            year = 2024
+            month = 3
+            day = 5
           }
         }
-        reportEnd = date {
-          year = 2024
-          month = 3
-          day = 5
-        }
-      }
 
       val timeIntervals: List<Interval> = buildList {
-        add(interval {
-          startTime = timestamp {
-            seconds = 1704441600 // January 5, 2024 at 12:00 AM, America/Los_Angeles
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1704441600 // January 5, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1706774400 // February 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
           }
-          endTime = timestamp {
-            seconds = 1706774400 // February 1, 2024 at 12:00 AM, America/Los_Angeles
+        )
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1706774400 // February 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1709280000 // March 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
           }
-        })
-        add(interval {
-          startTime = timestamp {
-            seconds = 1706774400 // February 1, 2024 at 12:00 AM, America/Los_Angeles
-          }
-          endTime = timestamp {
-            seconds = 1709280000 // March 1, 2024 at 12:00 AM, America/Los_Angeles
-          }
-        })
+        )
       }
 
-      val frequencySpec = MetricCalculationSpecKt.frequencySpec {
-        monthly = MetricCalculationSpecKt.FrequencySpecKt.monthly {
-          dayOfMonth = 1
+      val frequencySpec =
+        MetricCalculationSpecKt.frequencySpec {
+          monthly = MetricCalculationSpecKt.FrequencySpecKt.monthly { dayOfMonth = 1 }
         }
-      }
 
-      val window = MetricCalculationSpecKt.window {
-        trailingWindow = MetricCalculationSpecKt.WindowKt.trailingWindow {
-          count = 1
-          increment = MetricCalculationSpec.Window.TrailingWindow.Increment.MONTH
+      val window =
+        MetricCalculationSpecKt.window {
+          trailingWindow =
+            MetricCalculationSpecKt.WindowKt.trailingWindow {
+              count = 1
+              increment = MetricCalculationSpec.Window.TrailingWindow.Increment.MONTH
+            }
         }
-      }
 
       assertReportCreatedWithReportingInterval(
         reportingInterval,
@@ -896,61 +916,67 @@ class ReportsServiceTest {
   @Test
   fun `createReport returns report when metric calc spec freq monthly and day in same month`() =
     runBlocking {
-      val reportingInterval = ReportKt.reportingInterval {
-        reportStart = dateTime {
-          year = 2024
-          month = 1
-          day = 1
-          timeZone = timeZone {
-            id = "America/Los_Angeles"
+      val reportingInterval =
+        ReportKt.reportingInterval {
+          reportStart = dateTime {
+            year = 2024
+            month = 1
+            day = 1
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          reportEnd = date {
+            year = 2024
+            month = 3
+            day = 5
           }
         }
-        reportEnd = date {
-          year = 2024
-          month = 3
-          day = 5
-        }
-      }
 
       val timeIntervals: List<Interval> = buildList {
-        add(interval {
-          startTime = timestamp {
-            seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1704441600 // January 5, 2024 at 12:00 AM, America/Los_Angeles
+            }
           }
-          endTime = timestamp {
-            seconds = 1704441600 // January 5, 2024 at 12:00 AM, America/Los_Angeles
+        )
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1704441600 // January 5, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1707120000 // February 5, 2024 at 12:00 AM, America/Los_Angeles
+            }
           }
-        })
-        add(interval {
-          startTime = timestamp {
-            seconds = 1704441600 // January 5, 2024 at 12:00 AM, America/Los_Angeles
+        )
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1707120000 // February 5, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1709625600 // March 5, 2024 at 12:00 AM, America/Los_Angeles
+            }
           }
-          endTime = timestamp {
-            seconds = 1707120000 // February 5, 2024 at 12:00 AM, America/Los_Angeles
-          }
-        })
-        add(interval {
-          startTime = timestamp {
-            seconds = 1707120000 // February 5, 2024 at 12:00 AM, America/Los_Angeles
-          }
-          endTime = timestamp {
-            seconds = 1709625600 // March 5, 2024 at 12:00 AM, America/Los_Angeles
-          }
-        })
+        )
       }
 
-      val frequencySpec = MetricCalculationSpecKt.frequencySpec {
-        monthly = MetricCalculationSpecKt.FrequencySpecKt.monthly {
-          dayOfMonth = 5
+      val frequencySpec =
+        MetricCalculationSpecKt.frequencySpec {
+          monthly = MetricCalculationSpecKt.FrequencySpecKt.monthly { dayOfMonth = 5 }
         }
-      }
 
-      val window = MetricCalculationSpecKt.window {
-        trailingWindow = MetricCalculationSpecKt.WindowKt.trailingWindow {
-          count = 1
-          increment = MetricCalculationSpec.Window.TrailingWindow.Increment.MONTH
+      val window =
+        MetricCalculationSpecKt.window {
+          trailingWindow =
+            MetricCalculationSpecKt.WindowKt.trailingWindow {
+              count = 1
+              increment = MetricCalculationSpec.Window.TrailingWindow.Increment.MONTH
+            }
         }
-      }
 
       assertReportCreatedWithReportingInterval(
         reportingInterval,
@@ -961,16 +987,14 @@ class ReportsServiceTest {
     }
 
   @Test
-  fun `createReport returns report when metric calc spec window 2 weeks`() =
-    runBlocking {
-      val reportingInterval = ReportKt.reportingInterval {
+  fun `createReport returns report when metric calc spec window 2 weeks`() = runBlocking {
+    val reportingInterval =
+      ReportKt.reportingInterval {
         reportStart = dateTime {
           year = 2024
           month = 1
           day = 1
-          timeZone = timeZone {
-            id = "America/Los_Angeles"
-          }
+          timeZone = timeZone { id = "America/Los_Angeles" }
         }
         reportEnd = date {
           year = 2024
@@ -979,94 +1003,105 @@ class ReportsServiceTest {
         }
       }
 
-      val timeIntervals: List<Interval> = buildList {
-        add(interval {
+    val timeIntervals: List<Interval> = buildList {
+      add(
+        interval {
           startTime = timestamp {
             seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
           }
           endTime = timestamp {
             seconds = 1705305600 // January 15, 2024 at 12:00 AM, America/Los_Angeles
           }
-        })
-        add(interval {
+        }
+      )
+      add(
+        interval {
           startTime = timestamp {
             seconds = 1706774400 // February 1, 2024 at 12:00 AM, America/Los_Angeles
           }
           endTime = timestamp {
             seconds = 1707984000 // February 15, 2024 at 12:00 AM, America/Los_Angeles
           }
-        })
-      }
-
-      val frequencySpec = MetricCalculationSpecKt.frequencySpec {
-        monthly = MetricCalculationSpecKt.FrequencySpecKt.monthly {
-          dayOfMonth = 15
         }
-      }
-
-      val window = MetricCalculationSpecKt.window {
-        trailingWindow = MetricCalculationSpecKt.WindowKt.trailingWindow {
-          count = 2
-          increment = MetricCalculationSpec.Window.TrailingWindow.Increment.WEEK
-        }
-      }
-
-      assertReportCreatedWithReportingInterval(
-        reportingInterval,
-        timeIntervals,
-        frequencySpec,
-        window
       )
     }
+
+    val frequencySpec =
+      MetricCalculationSpecKt.frequencySpec {
+        monthly = MetricCalculationSpecKt.FrequencySpecKt.monthly { dayOfMonth = 15 }
+      }
+
+    val window =
+      MetricCalculationSpecKt.window {
+        trailingWindow =
+          MetricCalculationSpecKt.WindowKt.trailingWindow {
+            count = 2
+            increment = MetricCalculationSpec.Window.TrailingWindow.Increment.WEEK
+          }
+      }
+
+    assertReportCreatedWithReportingInterval(
+      reportingInterval,
+      timeIntervals,
+      frequencySpec,
+      window
+    )
+  }
 
   @Test
   fun `createReport returns report when metric calc spec window creates interval before start`() =
     runBlocking {
-      val reportingInterval = ReportKt.reportingInterval {
-        reportStart = dateTime {
-          year = 2024
-          month = 1
-          day = 1
-          timeZone = timeZone {
-            id = "America/Los_Angeles"
+      val reportingInterval =
+        ReportKt.reportingInterval {
+          reportStart = dateTime {
+            year = 2024
+            month = 1
+            day = 1
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          reportEnd = date {
+            year = 2024
+            month = 1
+            day = 3
           }
         }
-        reportEnd = date {
-          year = 2024
-          month = 1
-          day = 3
-        }
-      }
 
       val timeIntervals: List<Interval> = buildList {
-        add(interval {
-          startTime = timestamp {
-            seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1704182400 // January 2, 2024 at 12:00 AM, America/Los_Angeles
+            }
           }
-          endTime = timestamp {
-            seconds = 1704182400 // January 2, 2024 at 12:00 AM, America/Los_Angeles
+        )
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1704268800 // January 3, 2024 at 12:00 AM, America/Los_Angeles
+            }
           }
-        })
-        add(interval {
-          startTime = timestamp {
-            seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
-          }
-          endTime = timestamp {
-            seconds = 1704268800 // January 3, 2024 at 12:00 AM, America/Los_Angeles
-          }
-        })
+        )
       }
 
-      val frequencySpec = MetricCalculationSpecKt.frequencySpec {
-        daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
-      }
-
-      val window = MetricCalculationSpecKt.window {
-        trailingWindow = MetricCalculationSpecKt.WindowKt.trailingWindow {
-          count = 1
-          increment = MetricCalculationSpec.Window.TrailingWindow.Increment.WEEK
+      val frequencySpec =
+        MetricCalculationSpecKt.frequencySpec {
+          daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
         }
-      }
+
+      val window =
+        MetricCalculationSpecKt.window {
+          trailingWindow =
+            MetricCalculationSpecKt.WindowKt.trailingWindow {
+              count = 1
+              increment = MetricCalculationSpec.Window.TrailingWindow.Increment.WEEK
+            }
+        }
 
       assertReportCreatedWithReportingInterval(
         reportingInterval,
@@ -1079,50 +1114,50 @@ class ReportsServiceTest {
   @Test
   fun `createReport returns report when metric calculation spec window report_start`() =
     runBlocking {
-      val reportingInterval = ReportKt.reportingInterval {
-        reportStart = dateTime {
-          year = 2024
-          month = 1
-          day = 1
-          utcOffset = duration {
-            seconds = 60 * 60 * -8
+      val reportingInterval =
+        ReportKt.reportingInterval {
+          reportStart = dateTime {
+            year = 2024
+            month = 1
+            day = 1
+            utcOffset = duration { seconds = 60 * 60 * -8 }
+          }
+          reportEnd = date {
+            year = 2024
+            month = 3
+            day = 5
           }
         }
-        reportEnd = date {
-          year = 2024
-          month = 3
-          day = 5
-        }
-      }
 
       val timeIntervals: List<Interval> = buildList {
-        add(interval {
-          startTime = timestamp {
-            seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1705305600 // January 15, 2024 at 12:00 AM, America/Los_Angeles
+            }
           }
-          endTime = timestamp {
-            seconds = 1705305600 // January 15, 2024 at 12:00 AM, America/Los_Angeles
+        )
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1707984000 // February 15, 2024 at 12:00 AM, America/Los_Angeles
+            }
           }
-        })
-        add(interval {
-          startTime = timestamp {
-            seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
-          }
-          endTime = timestamp {
-            seconds = 1707984000 // February 15, 2024 at 12:00 AM, America/Los_Angeles
-          }
-        })
+        )
       }
 
-      val frequencySpec = MetricCalculationSpecKt.frequencySpec {
-        monthly = MetricCalculationSpecKt.FrequencySpecKt.monthly {
-          dayOfMonth = 15
+      val frequencySpec =
+        MetricCalculationSpecKt.frequencySpec {
+          monthly = MetricCalculationSpecKt.FrequencySpecKt.monthly { dayOfMonth = 15 }
         }
-      }
 
-      val window = MetricCalculationSpecKt.window {
-        reportStartTime = true
-      }
+      val window = MetricCalculationSpecKt.window { reportStartTime = true }
 
       assertReportCreatedWithReportingInterval(
         reportingInterval,
@@ -2104,12 +2139,11 @@ class ReportsServiceTest {
           InternalMetricCalculationSpecKt.details {
             displayName = DISPLAY_NAME
             metricSpecs += INTERNAL_REACH_METRIC_SPEC
-            frequencySpec = InternalMetricCalculationSpecKt.frequencySpec {
-              daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
-            }
-            window = InternalMetricCalculationSpecKt.window {
-              reportStartTime = true
-            }
+            frequencySpec =
+              InternalMetricCalculationSpecKt.frequencySpec {
+                daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
+              }
+            window = InternalMetricCalculationSpecKt.window { reportStartTime = true }
           }
       }
       whenever(internalMetricCalculationSpecsMock.batchGetMetricCalculationSpecs(any()))
@@ -2124,18 +2158,17 @@ class ReportsServiceTest {
       val intervalCount = BATCH_CREATE_METRICS_LIMIT + 1
 
       var endSec = startSec
-      val intervals: List<Interval> =
-        buildList {
-          for (i in 1.. intervalCount) {
-            endSec += incrementSec
-            add(
-              interval {
-                startTime = timestamp { seconds = startSec }
-                endTime = timestamp { seconds = endSec }
-              }
-            )
-          }
+      val intervals: List<Interval> = buildList {
+        for (i in 1..intervalCount) {
+          endSec += incrementSec
+          add(
+            interval {
+              startTime = timestamp { seconds = startSec }
+              endTime = timestamp { seconds = endSec }
+            }
+          )
         }
+      }
 
       val reportingMetrics =
         intervals.map { timeInterval ->
@@ -2143,22 +2176,24 @@ class ReportsServiceTest {
         }
 
       val internalRequestingReport = internalReport {
-        details = InternalReportKt.details {
-          tags.putAll(REPORT_TAGS)
-          reportingInterval = InternalReportKt.DetailsKt.reportingInterval {
-            reportStart = dateTime {
-              year = 2024
-              month = 1
-              day = 1
-              utcOffset = duration { seconds = 60 * 60 * -8 }
-            }
-            reportEnd = date {
-              year = 2026
-              month = 9
-              day = 28
-            }
+        details =
+          InternalReportKt.details {
+            tags.putAll(REPORT_TAGS)
+            reportingInterval =
+              InternalReportKt.DetailsKt.reportingInterval {
+                reportStart = dateTime {
+                  year = 2024
+                  month = 1
+                  day = 1
+                  utcOffset = duration { seconds = 60 * 60 * -8 }
+                }
+                reportEnd = date {
+                  year = 2026
+                  month = 9
+                  day = 28
+                }
+              }
           }
-        }
         cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
         reportingMetricEntries.putAll(
           buildInternalReportingMetricEntryWithOneMetricCalculationSpec(
@@ -2209,8 +2244,7 @@ class ReportsServiceTest {
           )
         }
 
-      whenever(internalReportsMock.createReport(any()))
-        .thenReturn(internalInitialReport)
+      whenever(internalReportsMock.createReport(any())).thenReturn(internalInitialReport)
 
       whenever(
           internalReportsMock.getReport(
@@ -2264,19 +2298,20 @@ class ReportsServiceTest {
                       .toName()
                 }
             }
-          reportingInterval = ReportKt.reportingInterval {
-            reportStart = dateTime {
-              year = 2024
-              month = 1
-              day = 1
-              utcOffset = duration { seconds = 60 * 60 * -8 }
+          reportingInterval =
+            ReportKt.reportingInterval {
+              reportStart = dateTime {
+                year = 2024
+                month = 1
+                day = 1
+                utcOffset = duration { seconds = 60 * 60 * -8 }
+              }
+              reportEnd = date {
+                year = 2026
+                month = 9
+                day = 28
+              }
             }
-            reportEnd = date {
-              year = 2026
-              month = 9
-              day = 28
-            }
-          }
         }
       }
 
@@ -2285,10 +2320,12 @@ class ReportsServiceTest {
       }
 
       verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::createReport)
-        .isEqualTo(internalCreateReportRequest {
-          report = internalRequestingReport
-          externalReportId = internalInitialReport.externalReportId
-        })
+        .isEqualTo(
+          internalCreateReportRequest {
+            report = internalRequestingReport
+            externalReportId = internalInitialReport.externalReportId
+          }
+        )
 
       val batchCreateMetricsCaptor: KArgumentCaptor<BatchCreateMetricsRequest> = argumentCaptor()
       verifyBlocking(metricsMock, times(2)) {
@@ -2512,13 +2549,16 @@ class ReportsServiceTest {
       whenever(internalMetricCalculationSpecsMock.batchGetMetricCalculationSpecs(any()))
         .thenReturn(
           batchGetMetricCalculationSpecsResponse {
-            metricCalculationSpecs += INTERNAL_REACH_METRIC_CALCULATION_SPEC.copy {
-              details = INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.copy {
-                frequencySpec = MetricCalculationSpecKt.frequencySpec {
-                  daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
-                }
+            metricCalculationSpecs +=
+              INTERNAL_REACH_METRIC_CALCULATION_SPEC.copy {
+                details =
+                  INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.copy {
+                    frequencySpec =
+                      MetricCalculationSpecKt.frequencySpec {
+                        daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
+                      }
+                  }
               }
-            }
           }
         )
     }
@@ -2554,13 +2594,14 @@ class ReportsServiceTest {
           clearTime()
           clearCreateTime()
           clearState()
-          reportingInterval = ReportKt.reportingInterval {
-            reportEnd = date {
-              year = 2024
-              month = 1
-              day = 1
+          reportingInterval =
+            ReportKt.reportingInterval {
+              reportEnd = date {
+                year = 2024
+                month = 1
+                day = 1
+              }
             }
-          }
         }
       reportId = "report-id"
     }
@@ -2585,20 +2626,19 @@ class ReportsServiceTest {
           clearTime()
           clearCreateTime()
           clearState()
-          reportingInterval = ReportKt.reportingInterval {
-            reportStart = dateTime {
-              year = 2023
-              month = 1
-              timeZone = timeZone {
-                id = "America/Los_Angeles"
+          reportingInterval =
+            ReportKt.reportingInterval {
+              reportStart = dateTime {
+                year = 2023
+                month = 1
+                timeZone = timeZone { id = "America/Los_Angeles" }
+              }
+              reportEnd = date {
+                year = 2024
+                month = 1
+                day = 1
               }
             }
-            reportEnd = date {
-              year = 2024
-              month = 1
-              day = 1
-            }
-          }
         }
       reportId = "report-id"
     }
@@ -2623,18 +2663,19 @@ class ReportsServiceTest {
           clearTime()
           clearCreateTime()
           clearState()
-          reportingInterval = ReportKt.reportingInterval {
-            reportStart = dateTime {
-              year = 2023
-              month = 1
-              day = 1
+          reportingInterval =
+            ReportKt.reportingInterval {
+              reportStart = dateTime {
+                year = 2023
+                month = 1
+                day = 1
+              }
+              reportEnd = date {
+                year = 2024
+                month = 1
+                day = 1
+              }
             }
-            reportEnd = date {
-              year = 2024
-              month = 1
-              day = 1
-            }
-          }
         }
       reportId = "report-id"
     }
@@ -2655,19 +2696,24 @@ class ReportsServiceTest {
       whenever(internalMetricCalculationSpecsMock.batchGetMetricCalculationSpecs(any()))
         .thenReturn(
           batchGetMetricCalculationSpecsResponse {
-            metricCalculationSpecs += INTERNAL_REACH_METRIC_CALCULATION_SPEC.copy {
-              details = INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.copy {
-                frequencySpec = MetricCalculationSpecKt.frequencySpec {
-                  daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
-                }
-                window = MetricCalculationSpecKt.window {
-                  trailingWindow = MetricCalculationSpecKt.WindowKt.trailingWindow {
-                    count = 1
-                    increment = MetricCalculationSpec.Window.TrailingWindow.Increment.DAY
+            metricCalculationSpecs +=
+              INTERNAL_REACH_METRIC_CALCULATION_SPEC.copy {
+                details =
+                  INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.copy {
+                    frequencySpec =
+                      MetricCalculationSpecKt.frequencySpec {
+                        daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
+                      }
+                    window =
+                      MetricCalculationSpecKt.window {
+                        trailingWindow =
+                          MetricCalculationSpecKt.WindowKt.trailingWindow {
+                            count = 1
+                            increment = MetricCalculationSpec.Window.TrailingWindow.Increment.DAY
+                          }
+                      }
                   }
-                }
               }
-            }
           }
         )
     }
@@ -2680,21 +2726,20 @@ class ReportsServiceTest {
           clearTime()
           clearCreateTime()
           clearState()
-          reportingInterval = ReportKt.reportingInterval {
-            reportStart = dateTime {
-              year = 2023
-              month = 1
-              day = 1
-              timeZone = timeZone {
-                id = "America/New_New_York"
+          reportingInterval =
+            ReportKt.reportingInterval {
+              reportStart = dateTime {
+                year = 2023
+                month = 1
+                day = 1
+                timeZone = timeZone { id = "America/New_New_York" }
+              }
+              reportEnd = date {
+                year = 2024
+                month = 1
+                day = 1
               }
             }
-            reportEnd = date {
-              year = 2024
-              month = 1
-              day = 1
-            }
-          }
         }
       reportId = "report-id"
     }
@@ -2715,19 +2760,24 @@ class ReportsServiceTest {
       whenever(internalMetricCalculationSpecsMock.batchGetMetricCalculationSpecs(any()))
         .thenReturn(
           batchGetMetricCalculationSpecsResponse {
-            metricCalculationSpecs += INTERNAL_REACH_METRIC_CALCULATION_SPEC.copy {
-              details = INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.copy {
-                frequencySpec = MetricCalculationSpecKt.frequencySpec {
-                  daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
-                }
-                window = MetricCalculationSpecKt.window {
-                  trailingWindow = MetricCalculationSpecKt.WindowKt.trailingWindow {
-                    count = 1
-                    increment = MetricCalculationSpec.Window.TrailingWindow.Increment.DAY
+            metricCalculationSpecs +=
+              INTERNAL_REACH_METRIC_CALCULATION_SPEC.copy {
+                details =
+                  INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.copy {
+                    frequencySpec =
+                      MetricCalculationSpecKt.frequencySpec {
+                        daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
+                      }
+                    window =
+                      MetricCalculationSpecKt.window {
+                        trailingWindow =
+                          MetricCalculationSpecKt.WindowKt.trailingWindow {
+                            count = 1
+                            increment = MetricCalculationSpec.Window.TrailingWindow.Increment.DAY
+                          }
+                      }
                   }
-                }
               }
-            }
           }
         )
     }
@@ -2740,19 +2790,20 @@ class ReportsServiceTest {
           clearTime()
           clearCreateTime()
           clearState()
-          reportingInterval = ReportKt.reportingInterval {
-            reportStart = dateTime {
-              year = 2023
-              month = 1
-              day = 1
-              utcOffset = duration { seconds = 999999 }
+          reportingInterval =
+            ReportKt.reportingInterval {
+              reportStart = dateTime {
+                year = 2023
+                month = 1
+                day = 1
+                utcOffset = duration { seconds = 999999 }
+              }
+              reportEnd = date {
+                year = 2024
+                month = 1
+                day = 1
+              }
             }
-            reportEnd = date {
-              year = 2024
-              month = 1
-              day = 1
-            }
-          }
         }
       reportId = "report-id"
     }
@@ -2773,21 +2824,25 @@ class ReportsServiceTest {
       whenever(internalMetricCalculationSpecsMock.batchGetMetricCalculationSpecs(any()))
         .thenReturn(
           batchGetMetricCalculationSpecsResponse {
-            metricCalculationSpecs += INTERNAL_REACH_METRIC_CALCULATION_SPEC.copy {
-              details = INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.copy {
-                frequencySpec = MetricCalculationSpecKt.frequencySpec {
-                  monthly = MetricCalculationSpecKt.FrequencySpecKt.monthly {
-                    dayOfMonth = 15
+            metricCalculationSpecs +=
+              INTERNAL_REACH_METRIC_CALCULATION_SPEC.copy {
+                details =
+                  INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.copy {
+                    frequencySpec =
+                      MetricCalculationSpecKt.frequencySpec {
+                        monthly =
+                          MetricCalculationSpecKt.FrequencySpecKt.monthly { dayOfMonth = 15 }
+                      }
+                    window =
+                      MetricCalculationSpecKt.window {
+                        trailingWindow =
+                          MetricCalculationSpecKt.WindowKt.trailingWindow {
+                            count = 1
+                            increment = MetricCalculationSpec.Window.TrailingWindow.Increment.WEEK
+                          }
+                      }
                   }
-                }
-                window = MetricCalculationSpecKt.window {
-                  trailingWindow = MetricCalculationSpecKt.WindowKt.trailingWindow {
-                    count = 1
-                    increment = MetricCalculationSpec.Window.TrailingWindow.Increment.WEEK
-                  }
-                }
               }
-            }
           }
         )
     }
@@ -2800,19 +2855,20 @@ class ReportsServiceTest {
           clearTime()
           clearCreateTime()
           clearState()
-          reportingInterval = ReportKt.reportingInterval {
-            reportStart = dateTime {
-              year = 2023
-              month = 1
-              day = 1
-              utcOffset = duration { seconds = 60 * 60 * -8 }
+          reportingInterval =
+            ReportKt.reportingInterval {
+              reportStart = dateTime {
+                year = 2023
+                month = 1
+                day = 1
+                utcOffset = duration { seconds = 60 * 60 * -8 }
+              }
+              reportEnd = date {
+                year = 2023
+                month = 1
+                day = 5
+              }
             }
-            reportEnd = date {
-              year = 2023
-              month = 1
-              day = 5
-            }
-          }
         }
       reportId = "report-id"
     }
@@ -2837,21 +2893,20 @@ class ReportsServiceTest {
           clearTime()
           clearCreateTime()
           clearState()
-          reportingInterval = ReportKt.reportingInterval {
-            reportStart = dateTime {
-              year = 3000
-              month = 1
-              day = 1
-              timeZone = timeZone {
-                id = "America/Los_Angeles"
+          reportingInterval =
+            ReportKt.reportingInterval {
+              reportStart = dateTime {
+                year = 3000
+                month = 1
+                day = 1
+                timeZone = timeZone { id = "America/Los_Angeles" }
+              }
+              reportEnd = date {
+                year = 2024
+                month = 1
+                day = 1
               }
             }
-            reportEnd = date {
-              year = 2024
-              month = 1
-              day = 1
-            }
-          }
         }
       reportId = "report-id"
     }
@@ -2876,20 +2931,19 @@ class ReportsServiceTest {
           clearTime()
           clearCreateTime()
           clearState()
-          reportingInterval = ReportKt.reportingInterval {
-            reportStart = dateTime {
-              year = 2023
-              month = 1
-              day = 1
-              timeZone = timeZone {
-                id = "America/Los_Angeles"
+          reportingInterval =
+            ReportKt.reportingInterval {
+              reportStart = dateTime {
+                year = 2023
+                month = 1
+                day = 1
+                timeZone = timeZone { id = "America/Los_Angeles" }
+              }
+              reportEnd = date {
+                year = 2024
+                day = 1
               }
             }
-            reportEnd = date {
-              year = 2024
-              day = 1
-            }
-          }
         }
       reportId = "report-id"
     }
@@ -3350,18 +3404,17 @@ class ReportsServiceTest {
     val intervalCount = BATCH_GET_METRICS_LIMIT + 1
 
     var endSec = startSec
-    val intervals: List<Interval> =
-      buildList {
-        for (i in 1.. intervalCount) {
-          endSec += incrementSec
-          add(
-            interval {
-              startTime = timestamp { seconds = startSec }
-              endTime = timestamp { seconds = endSec }
-            }
-          )
-        }
+    val intervals: List<Interval> = buildList {
+      for (i in 1..intervalCount) {
+        endSec += incrementSec
+        add(
+          interval {
+            startTime = timestamp { seconds = startSec }
+            endTime = timestamp { seconds = endSec }
+          }
+        )
       }
+    }
 
     val reportingMetrics =
       intervals.map { timeInterval ->
@@ -3385,26 +3438,26 @@ class ReportsServiceTest {
       )
 
     val internalPendingReport = internalReport {
-      details = InternalReportKt.details {
-        tags.putAll(REPORT_TAGS)
-        reportingInterval = InternalReportKt.DetailsKt.reportingInterval {
-          reportStart = dateTime {
-            year = 2024
-            month = 1
-            day = 1
-            utcOffset = duration { seconds = 60 * 60 * -8 }
-          }
-          reportEnd = date {
-            year = 2026
-            month = 9
-            day = 28
-          }
+      details =
+        InternalReportKt.details {
+          tags.putAll(REPORT_TAGS)
+          reportingInterval =
+            InternalReportKt.DetailsKt.reportingInterval {
+              reportStart = dateTime {
+                year = 2024
+                month = 1
+                day = 1
+                utcOffset = duration { seconds = 60 * 60 * -8 }
+              }
+              reportEnd = date {
+                year = 2026
+                month = 9
+                day = 28
+              }
+            }
         }
-      }
       cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
-      timeIntervals = internalTimeIntervals {
-        timeIntervals += intervals
-      }
+      timeIntervals = internalTimeIntervals { timeIntervals += intervals }
       externalReportId = "report-id"
       createTime = Instant.now().toProtoTime()
 
@@ -4087,11 +4140,13 @@ class ReportsServiceTest {
       )
 
     val initialReportingMetrics: List<InternalReport.ReportingMetric> =
-      timeIntervals.map { interval ->
-        predicates.map { predicate ->
-          buildInitialReportingMetric(interval, INTERNAL_REACH_METRIC_SPEC, listOf(predicate))
+      timeIntervals
+        .map { interval ->
+          predicates.map { predicate ->
+            buildInitialReportingMetric(interval, INTERNAL_REACH_METRIC_SPEC, listOf(predicate))
+          }
         }
-      }.flatten()
+        .flatten()
 
     val (internalRequestingReport, internalInitialReport, internalPendingReport) =
       buildInternalReports(
@@ -4100,39 +4155,41 @@ class ReportsServiceTest {
         reportingSetId = targetReportingSet.resourceId,
         reportingMetrics = initialReportingMetrics,
         metricCalculationSpecId = internalMetricCalculationSpec.externalMetricCalculationSpecId,
-        reportingInterval = InternalReportKt.DetailsKt.reportingInterval {
-          reportStart = reportingInterval.reportStart
-          reportEnd = reportingInterval.reportEnd
-        }
+        reportingInterval =
+          InternalReportKt.DetailsKt.reportingInterval {
+            reportStart = reportingInterval.reportStart
+            reportEnd = reportingInterval.reportEnd
+          }
       )
 
-    whenever(internalReportsMock.createReport(any()))
-      .thenReturn(internalInitialReport)
+    whenever(internalReportsMock.createReport(any())).thenReturn(internalInitialReport)
 
     whenever(
-      internalReportsMock.getReport(
-        eq(
-          internalGetReportRequest {
-            cmmsMeasurementConsumerId = internalInitialReport.cmmsMeasurementConsumerId
-            externalReportId = internalInitialReport.externalReportId
-          }
+        internalReportsMock.getReport(
+          eq(
+            internalGetReportRequest {
+              cmmsMeasurementConsumerId = internalInitialReport.cmmsMeasurementConsumerId
+              externalReportId = internalInitialReport.externalReportId
+            }
+          )
         )
       )
-    )
       .thenReturn(internalPendingReport)
 
     val requestingMetrics: List<Metric> =
-      timeIntervals.map {interval ->
-        predicates.map { predicate ->
-          metric {
-            reportingSet = targetReportingSet.name
-            timeInterval = interval
-            metricSpec = REACH_METRIC_SPEC
-            this.filters += predicate
-            this.filters += filter
+      timeIntervals
+        .map { interval ->
+          predicates.map { predicate ->
+            metric {
+              reportingSet = targetReportingSet.name
+              timeInterval = interval
+              metricSpec = REACH_METRIC_SPEC
+              this.filters += predicate
+              this.filters += filter
+            }
           }
         }
-      }.flatten()
+        .flatten()
 
     whenever(metricsMock.batchCreateMetrics(any()))
       .thenReturn(
@@ -4142,9 +4199,9 @@ class ReportsServiceTest {
               metric.copy {
                 name =
                   MetricKey(
-                    MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                    ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value
-                  )
+                      MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
+                      ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value
+                    )
                     .toName()
                 state = Metric.State.RUNNING
                 createTime = Instant.now().toProtoTime()
@@ -4162,9 +4219,9 @@ class ReportsServiceTest {
             ReportKt.reportingMetricCalculationSpec {
               metricCalculationSpecs +=
                 MetricCalculationSpecKey(
-                  MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                  internalMetricCalculationSpec.externalMetricCalculationSpecId
-                )
+                    MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
+                    internalMetricCalculationSpec.externalMetricCalculationSpecId
+                  )
                   .toName()
             }
         }
@@ -4260,12 +4317,13 @@ class ReportsServiceTest {
     ): InternalReports {
       // Internal reports of reach
       val internalRequestingReport = internalReport {
-        details = InternalReportKt.details {
-          tags.putAll(REPORT_TAGS)
-          if (reportingInterval != null) {
-            this.reportingInterval = reportingInterval
+        details =
+          InternalReportKt.details {
+            tags.putAll(REPORT_TAGS)
+            if (reportingInterval != null) {
+              this.reportingInterval = reportingInterval
+            }
           }
-        }
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
         if (timeIntervals != null) {
           this.timeIntervals = internalTimeIntervals { this.timeIntervals += timeIntervals }

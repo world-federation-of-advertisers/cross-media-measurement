@@ -21,7 +21,10 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.Timestamps
 import com.google.type.Interval
+import com.google.type.date
+import com.google.type.dateTime
 import com.google.type.interval
+import com.google.type.timeZone
 import java.io.File
 import java.nio.file.Paths
 import java.time.LocalDate
@@ -46,9 +49,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
-import com.google.type.date
-import com.google.type.dateTime
-import com.google.type.timeZone
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
@@ -914,16 +914,19 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                     vidSamplingInterval = VID_SAMPLING_INTERVAL
                   }
                   .withDefaults(reportingServer.metricSpecConfig)
-              frequencySpec = MetricCalculationSpecKt.frequencySpec {
-                daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
-              }
-
-              window = MetricCalculationSpecKt.window {
-                trailingWindow = MetricCalculationSpecKt.WindowKt.trailingWindow {
-                  count = 1
-                  increment = MetricCalculationSpec.Window.TrailingWindow.Increment.DAY
+              frequencySpec =
+                MetricCalculationSpecKt.frequencySpec {
+                  daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
                 }
-              }
+
+              window =
+                MetricCalculationSpecKt.window {
+                  trailingWindow =
+                    MetricCalculationSpecKt.WindowKt.trailingWindow {
+                      count = 1
+                      increment = MetricCalculationSpec.Window.TrailingWindow.Increment.DAY
+                    }
+                }
             }
             metricCalculationSpecId = "fed"
           }
@@ -938,21 +941,20 @@ abstract class InProcessLifeOfAReportIntegrationTest(
               metricCalculationSpecs += createdMetricCalculationSpec.name
             }
         }
-      reportingInterval = ReportKt.reportingInterval {
-        reportStart = dateTime {
-          year = 2021
-          month = 3
-          day = 15
-          timeZone = timeZone {
-            id = "America/Los_Angeles"
+      reportingInterval =
+        ReportKt.reportingInterval {
+          reportStart = dateTime {
+            year = 2021
+            month = 3
+            day = 15
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          reportEnd = date {
+            year = 2021
+            month = 3
+            day = 17
           }
         }
-        reportEnd = date {
-          year = 2021
-          month = 3
-          day = 17
-        }
-      }
     }
 
     val createdReport =

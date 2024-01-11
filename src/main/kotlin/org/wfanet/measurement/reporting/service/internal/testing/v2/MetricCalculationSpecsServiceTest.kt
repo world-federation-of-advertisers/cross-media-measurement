@@ -400,11 +400,12 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
         .metricCalculationSpecsList
 
     assertThat(retrievedMetricCalculationSpecs).hasSize(3)
-    assertThat(retrievedMetricCalculationSpecs).containsExactly(
-      createdMetricCalculationSpec,
-      createdMetricCalculationSpec2,
-      createdMetricCalculationSpec3
-    )
+    assertThat(retrievedMetricCalculationSpecs)
+      .containsExactly(
+        createdMetricCalculationSpec,
+        createdMetricCalculationSpec2,
+        createdMetricCalculationSpec3
+      )
   }
 
   @Test
@@ -471,15 +472,18 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
                 }
             }
             groupings += MetricCalculationSpecKt.grouping { predicates += "age > 10" }
-            frequencySpec = MetricCalculationSpecKt.frequencySpec {
-              daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
-            }
-            window = MetricCalculationSpecKt.window {
-              trailingWindow = MetricCalculationSpecKt.WindowKt.trailingWindow {
-                count = 2
-                increment = MetricCalculationSpec.Window.TrailingWindow.Increment.DAY
+            frequencySpec =
+              MetricCalculationSpecKt.frequencySpec {
+                daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
               }
-            }
+            window =
+              MetricCalculationSpecKt.window {
+                trailingWindow =
+                  MetricCalculationSpecKt.WindowKt.trailingWindow {
+                    count = 2
+                    increment = MetricCalculationSpec.Window.TrailingWindow.Increment.DAY
+                  }
+              }
             tags["year"] = "2024"
           }
       }

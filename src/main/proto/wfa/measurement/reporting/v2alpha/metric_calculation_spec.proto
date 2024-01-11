@@ -82,8 +82,8 @@ message MetricCalculationSpec {
     message Daily {}
 
     // When Weekly is selected the first Metrics are calculated on the first
-    // occurrence of the specified day of week on or after the report_start field
-    // in the Report.
+    // occurrence of the specified day of week on or after the report_start
+    // field in the Report.
     // For example, if day_of_week is Tuesday and the start time is a Tuesday
     // then the first Metrics are calculated for the day specified in
     // start_time. But if day_of_wek is Monday and the start time is a Tuesday

@@ -57,6 +57,7 @@ import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.internal.reporting.v2.BatchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.ListReportSchedulesRequestKt as InternalListReportSchedulesRequestKt
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec as InternalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt as InternalMetricSpecKt
@@ -83,7 +84,6 @@ import org.wfanet.measurement.internal.reporting.v2.reportSchedule as internalRe
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.stopReportScheduleRequest as internalStopReportScheduleRequest
 import org.wfanet.measurement.reporting.v2alpha.ListReportSchedulesPageTokenKt
-import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportKt
 import org.wfanet.measurement.reporting.v2alpha.ReportSchedule
@@ -2743,15 +2743,18 @@ class ReportSchedulesServiceTest {
         MetricCalculationSpecKt.details {
           displayName = "display"
           metricSpecs += INTERNAL_METRIC_SPEC
-          frequencySpec = MetricCalculationSpecKt.frequencySpec {
-            daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
-          }
-          window = MetricCalculationSpecKt.window {
-            trailingWindow = MetricCalculationSpecKt.WindowKt.trailingWindow {
-              count = 5
-              increment = MetricCalculationSpec.Window.TrailingWindow.Increment.DAY
+          frequencySpec =
+            MetricCalculationSpecKt.frequencySpec {
+              daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
             }
-          }
+          window =
+            MetricCalculationSpecKt.window {
+              trailingWindow =
+                MetricCalculationSpecKt.WindowKt.trailingWindow {
+                  count = 5
+                  increment = MetricCalculationSpec.Window.TrailingWindow.Increment.DAY
+                }
+            }
         }
     }
 

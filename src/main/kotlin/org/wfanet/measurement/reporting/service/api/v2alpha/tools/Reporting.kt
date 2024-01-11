@@ -379,13 +379,13 @@ class CreateReportCommand : Runnable {
               seconds = reportingInterval.reportingIntervalReportStartTime.second
 
               if (reportingInterval.reportingIntervalReportStartTimeOffset.utcOffset != null) {
-                val utcOffset = checkNotNull(reportingInterval.reportingIntervalReportStartTimeOffset.utcOffset)
+                val utcOffset =
+                  checkNotNull(reportingInterval.reportingIntervalReportStartTimeOffset.utcOffset)
                 this.utcOffset = utcOffset.toProtoDuration()
               } else {
-                val timeZone = checkNotNull(reportingInterval.reportingIntervalReportStartTimeOffset.timeZone)
-                this.timeZone = timeZone {
-                  id = timeZone
-                }
+                val timeZone =
+                  checkNotNull(reportingInterval.reportingIntervalReportStartTimeOffset.timeZone)
+                this.timeZone = timeZone { id = timeZone }
               }
             }
 

@@ -136,22 +136,24 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
             endTime = timestamp { seconds = 400 }
           }
         }
-        details = ReportKt.details {
-          tags.putAll(REPORT_TAGS)
-          reportingInterval = ReportKt.DetailsKt.reportingInterval {
-            reportStart = dateTime {
-              year = 2024
-              month = 1
-              day = 1
-              timeZone = timeZone { id = "America/Los_Angeles" }
-            }
-            reportEnd = date {
-              year = 2024
-              month = 2
-              day = 1
-            }
+        details =
+          ReportKt.details {
+            tags.putAll(REPORT_TAGS)
+            reportingInterval =
+              ReportKt.DetailsKt.reportingInterval {
+                reportStart = dateTime {
+                  year = 2024
+                  month = 1
+                  day = 1
+                  timeZone = timeZone { id = "America/Los_Angeles" }
+                }
+                reportEnd = date {
+                  year = 2024
+                  month = 2
+                  day = 1
+                }
+              }
           }
-        }
       }
 
     val createdReport =
@@ -162,8 +164,8 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         }
       )
 
-    assertThat(baseReport).
-      ignoringFields(
+    assertThat(baseReport)
+      .ignoringFields(
         Report.EXTERNAL_REPORT_ID_FIELD_NUMBER,
         Report.CREATE_TIME_FIELD_NUMBER,
         Report.REPORTING_METRIC_ENTRIES_FIELD_NUMBER
@@ -297,12 +299,12 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         }
       )
 
-    assertThat(report).
-    ignoringFields(
-      Report.EXTERNAL_REPORT_ID_FIELD_NUMBER,
-      Report.CREATE_TIME_FIELD_NUMBER,
-      Report.REPORTING_METRIC_ENTRIES_FIELD_NUMBER
-    )
+    assertThat(report)
+      .ignoringFields(
+        Report.EXTERNAL_REPORT_ID_FIELD_NUMBER,
+        Report.CREATE_TIME_FIELD_NUMBER,
+        Report.REPORTING_METRIC_ENTRIES_FIELD_NUMBER
+      )
       .isEqualTo(createdReport)
     assertThat(createdReport.externalReportId).isNotEmpty()
     assertThat(createdReport.hasCreateTime()).isTrue()
@@ -410,12 +412,12 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         }
       )
 
-    assertThat(report).
-    ignoringFields(
-      Report.EXTERNAL_REPORT_ID_FIELD_NUMBER,
-      Report.CREATE_TIME_FIELD_NUMBER,
-      Report.REPORTING_METRIC_ENTRIES_FIELD_NUMBER
-    )
+    assertThat(report)
+      .ignoringFields(
+        Report.EXTERNAL_REPORT_ID_FIELD_NUMBER,
+        Report.CREATE_TIME_FIELD_NUMBER,
+        Report.REPORTING_METRIC_ENTRIES_FIELD_NUMBER
+      )
       .isEqualTo(createdReport)
     assertThat(createdReport.externalReportId).isNotEmpty()
     assertThat(createdReport.hasCreateTime()).isTrue()
@@ -499,13 +501,13 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         }
       )
 
-    assertThat(baseReport).
-    ignoringFields(
-      Report.EXTERNAL_REPORT_ID_FIELD_NUMBER,
-      Report.CREATE_TIME_FIELD_NUMBER,
-      Report.REPORTING_METRIC_ENTRIES_FIELD_NUMBER,
-      Report.EXTERNAL_REPORT_SCHEDULE_ID_FIELD_NUMBER
-    )
+    assertThat(baseReport)
+      .ignoringFields(
+        Report.EXTERNAL_REPORT_ID_FIELD_NUMBER,
+        Report.CREATE_TIME_FIELD_NUMBER,
+        Report.REPORTING_METRIC_ENTRIES_FIELD_NUMBER,
+        Report.EXTERNAL_REPORT_SCHEDULE_ID_FIELD_NUMBER
+      )
       .isEqualTo(createdReport)
     assertThat(createdReport.externalReportId).isNotEmpty()
     assertThat(createdReport.externalReportScheduleId)
@@ -994,12 +996,11 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
       val baseReport = createReportForRequest(createdReportingSet, createdMetricCalculationSpec)
 
-      val report = baseReport.copy {
-        timeIntervals = TimeIntervals.getDefaultInstance()
-        details = baseReport.details.copy {
-          clearReportingInterval()
+      val report =
+        baseReport.copy {
+          timeIntervals = TimeIntervals.getDefaultInstance()
+          details = baseReport.details.copy { clearReportingInterval() }
         }
-      }
 
       val exception =
         assertFailsWith<StatusRuntimeException> {
@@ -1149,20 +1150,14 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
   fun `getReport returns report when 0 time intervals`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val createdReportingSet =
-      createReportingSet(
-        CMMS_MEASUREMENT_CONSUMER_ID,
-        reportingSetsService,
-        "reporting-set"
-      )
+      createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService, "reporting-set")
     val createdMetricCalculationSpec =
       createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
     val report = createReportForRequest(createdReportingSet, createdMetricCalculationSpec)
     val createdReport =
       service.createReport(
         createReportRequest {
-          this.report = report.copy {
-            clearTimeIntervals()
-          }
+          this.report = report.copy { clearTimeIntervals() }
           this.externalReportId = "report-id"
         }
       )
@@ -1285,22 +1280,24 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
             endTime = timestamp { seconds = 400 }
           }
         }
-        details = ReportKt.details {
-          tags.putAll(REPORT_TAGS)
-          reportingInterval = ReportKt.DetailsKt.reportingInterval {
-            reportStart = dateTime {
-              year = 2024
-              month = 1
-              day = 1
-              timeZone = timeZone { id = "America/Los_Angeles" }
-            }
-            reportEnd = date {
-              year = 2024
-              month = 2
-              day = 1
-            }
+        details =
+          ReportKt.details {
+            tags.putAll(REPORT_TAGS)
+            reportingInterval =
+              ReportKt.DetailsKt.reportingInterval {
+                reportStart = dateTime {
+                  year = 2024
+                  month = 1
+                  day = 1
+                  timeZone = timeZone { id = "America/Los_Angeles" }
+                }
+                reportEnd = date {
+                  year = 2024
+                  month = 2
+                  day = 1
+                }
+              }
           }
-        }
       }
 
       val createdReport =
@@ -1374,22 +1371,24 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
           endTime = timestamp { seconds = 200 }
         }
       }
-      details = ReportKt.details {
-        tags.putAll(REPORT_TAGS)
-        reportingInterval = ReportKt.DetailsKt.reportingInterval {
-          reportStart = dateTime {
-            year = 2024
-            month = 1
-            day = 1
-            timeZone = timeZone { id = "America/Los_Angeles" }
-          }
-          reportEnd = date {
-            year = 2024
-            month = 2
-            day = 1
-          }
+      details =
+        ReportKt.details {
+          tags.putAll(REPORT_TAGS)
+          reportingInterval =
+            ReportKt.DetailsKt.reportingInterval {
+              reportStart = dateTime {
+                year = 2024
+                month = 1
+                day = 1
+                timeZone = timeZone { id = "America/Los_Angeles" }
+              }
+              reportEnd = date {
+                year = 2024
+                month = 2
+                day = 1
+              }
+            }
         }
-      }
     }
 
     val createdReport =
@@ -1772,22 +1771,24 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
             endTime = timestamp { seconds = 400 }
           }
         }
-        details = ReportKt.details {
-          tags.putAll(REPORT_TAGS)
-          reportingInterval = ReportKt.DetailsKt.reportingInterval {
-            reportStart = dateTime {
-              year = 2024
-              month = 1
-              day = 1
-              timeZone = timeZone { id = "America/Los_Angeles" }
-            }
-            reportEnd = date {
-              year = 2024
-              month = 2
-              day = 1
-            }
+        details =
+          ReportKt.details {
+            tags.putAll(REPORT_TAGS)
+            reportingInterval =
+              ReportKt.DetailsKt.reportingInterval {
+                reportStart = dateTime {
+                  year = 2024
+                  month = 1
+                  day = 1
+                  timeZone = timeZone { id = "America/Los_Angeles" }
+                }
+                reportEnd = date {
+                  year = 2024
+                  month = 2
+                  day = 1
+                }
+              }
           }
-        }
       }
     }
 
@@ -1847,22 +1848,24 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
             endTime = timestamp { seconds = 300 }
           }
         }
-        details = ReportKt.details {
-          tags.putAll(REPORT_TAGS)
-          reportingInterval = ReportKt.DetailsKt.reportingInterval {
-            reportStart = dateTime {
-              year = 2024
-              month = 1
-              day = 1
-              timeZone = timeZone { id = "America/Los_Angeles" }
-            }
-            reportEnd = date {
-              year = 2024
-              month = 2
-              day = 1
-            }
+        details =
+          ReportKt.details {
+            tags.putAll(REPORT_TAGS)
+            reportingInterval =
+              ReportKt.DetailsKt.reportingInterval {
+                reportStart = dateTime {
+                  year = 2024
+                  month = 1
+                  day = 1
+                  timeZone = timeZone { id = "America/Los_Angeles" }
+                }
+                reportEnd = date {
+                  year = 2024
+                  month = 2
+                  day = 1
+                }
+              }
           }
-        }
       }
 
       return reportsService.createReport(
