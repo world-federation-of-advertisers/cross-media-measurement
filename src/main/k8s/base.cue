@@ -448,7 +448,10 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_envVars:     #EnvVarMap
 	_javaOptions: #JavaOptions
 
-	_envVars: "JAVA_TOOL_OPTIONS": value: strings.Join(_javaOptions.options, " ")
+	_envVars: {
+		"JAVA_TOOL_OPTIONS": value: strings.Join(_javaOptions.options, " ")
+		"MALLOC_ARENA_MAX": value:  _ | *"2"
+	}
 
 	name:   string
 	image?: string
