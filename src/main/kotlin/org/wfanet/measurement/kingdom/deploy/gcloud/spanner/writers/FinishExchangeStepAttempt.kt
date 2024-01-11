@@ -156,7 +156,7 @@ class FinishExchangeStepAttempt(
   }
 
   private suspend fun TransactionScope.temporarilyFail(): ExchangeStepAttempt {
-    if(getMaxAttemptIndex() == exchangeStepAttempt.attemptNumber.toLong()) {
+    if (getMaxAttemptIndex() == exchangeStepAttempt.attemptNumber.toLong()) {
       updateExchangeStepState(
         exchangeStep = exchangeStep,
         recurringExchangeId = recurringExchangeId.value,
