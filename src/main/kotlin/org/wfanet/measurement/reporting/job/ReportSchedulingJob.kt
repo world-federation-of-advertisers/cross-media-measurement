@@ -53,6 +53,7 @@ import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpc
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub as InternalReportSchedulesCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
+import com.google.type.interval
 import org.wfanet.measurement.internal.reporting.v2.listReportSchedulesRequest
 import org.wfanet.measurement.internal.reporting.v2.reportScheduleIteration
 import org.wfanet.measurement.internal.reporting.v2.setReportScheduleIterationStateRequest
@@ -65,7 +66,7 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.toPublic
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
-import org.wfanet.measurement.reporting.v2alpha.periodicTimeInterval
+import org.wfanet.measurement.reporting.v2alpha.timeIntervals
 
 class ReportSchedulingJob(
   private val measurementConsumerConfigs: MeasurementConsumerConfigs,
@@ -227,11 +228,11 @@ class ReportSchedulingJob(
                       reportId = "a" + reportScheduleIteration.createReportRequestId
                       report =
                         publicReportSchedule.reportTemplate.copy {
-                          periodicTimeInterval = periodicTimeInterval {
-                            startTime = windowStart
-                            increment =
-                              Timestamps.between(windowStart, reportSchedule.nextReportCreationTime)
-                            intervalCount = 1
+                          timeIntervals = timeIntervals {
+                            timeIntervals += interval {
+                              startTime = windowStart
+                              endTime = reportSchedule.nextReportCreationTime
+                            }
                           }
                         }
                     }

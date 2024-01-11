@@ -18,11 +18,13 @@ package org.wfanet.measurement.reporting.service.internal.testing.v2
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.duration
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.Timestamps
 import com.google.type.Interval
+import com.google.type.date
+import com.google.type.dateTime
 import com.google.type.interval
+import com.google.type.timeZone
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
@@ -56,6 +58,7 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequestKt
+import org.wfanet.measurement.internal.reporting.v2.TimeIntervals
 import org.wfanet.measurement.internal.reporting.v2.batchCreateMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest
@@ -65,7 +68,6 @@ import org.wfanet.measurement.internal.reporting.v2.getReportScheduleRequest
 import org.wfanet.measurement.internal.reporting.v2.measurement
 import org.wfanet.measurement.internal.reporting.v2.metric
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
-import org.wfanet.measurement.internal.reporting.v2.periodicTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.report
 import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals
@@ -110,7 +112,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
   }
 
   @Test
-  fun `createReport succeeds when timeIntervals set`() = runBlocking {
+  fun `createReport with details set succeeds`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val createdReportingSet =
       createReportingSet(
@@ -134,47 +136,21 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
             endTime = timestamp { seconds = 400 }
           }
         }
-      }
-
-    val createdReport =
-      service.createReport(
-        createReportRequest {
-          this.report = report
-          this.externalReportId = "external-report-id"
-        }
-      )
-
-    assertThat(createdReport.externalReportId).isNotEmpty()
-    assertThat(createdReport.hasCreateTime()).isTrue()
-    for (reportingMetricCalculationSpec in createdReport.reportingMetricEntriesMap.values) {
-      for (metricCalculationSpecReportingMetrics in
-        reportingMetricCalculationSpec.metricCalculationSpecReportingMetricsList) {
-        for (reportingMetric in metricCalculationSpecReportingMetrics.reportingMetricsList) {
-          assertThat(reportingMetric.createMetricRequestId).isNotEmpty()
-        }
-      }
-    }
-  }
-
-  @Test
-  fun `createReport succeeds when periodicTimeInterval set`() = runBlocking {
-    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-    val createdReportingSet =
-      createReportingSet(
-        CMMS_MEASUREMENT_CONSUMER_ID,
-        reportingSetsService,
-        "reporting-set-for-report-schedule"
-      )
-    val createdMetricCalculationSpec =
-      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
-    val baseReport = createReportForRequest(createdReportingSet, createdMetricCalculationSpec)
-
-    val report =
-      baseReport.copy {
-        periodicTimeInterval = periodicTimeInterval {
-          startTime = timestamp { seconds = 100 }
-          increment = duration { seconds = 50 }
-          intervalCount = 3
+        details = ReportKt.details {
+          tags.putAll(REPORT_TAGS)
+          reportingInterval = ReportKt.DetailsKt.reportingInterval {
+            reportStart = dateTime {
+              year = 2024
+              month = 1
+              day = 1
+              timeZone = timeZone { id = "America/Los_Angeles" }
+            }
+            reportEnd = date {
+              year = 2024
+              month = 2
+              day = 1
+            }
+          }
         }
       }
 
@@ -186,6 +162,13 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         }
       )
 
+    assertThat(baseReport).
+      ignoringFields(
+        Report.EXTERNAL_REPORT_ID_FIELD_NUMBER,
+        Report.CREATE_TIME_FIELD_NUMBER,
+        Report.REPORTING_METRIC_ENTRIES_FIELD_NUMBER
+      )
+      .isEqualTo(createdReport)
     assertThat(createdReport.externalReportId).isNotEmpty()
     assertThat(createdReport.hasCreateTime()).isTrue()
     for (reportingMetricCalculationSpec in createdReport.reportingMetricEntriesMap.values) {
@@ -314,6 +297,13 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         }
       )
 
+    assertThat(report).
+    ignoringFields(
+      Report.EXTERNAL_REPORT_ID_FIELD_NUMBER,
+      Report.CREATE_TIME_FIELD_NUMBER,
+      Report.REPORTING_METRIC_ENTRIES_FIELD_NUMBER
+    )
+      .isEqualTo(createdReport)
     assertThat(createdReport.externalReportId).isNotEmpty()
     assertThat(createdReport.hasCreateTime()).isTrue()
     for (entry in createdReport.reportingMetricEntriesMap.entries) {
@@ -420,6 +410,13 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         }
       )
 
+    assertThat(report).
+    ignoringFields(
+      Report.EXTERNAL_REPORT_ID_FIELD_NUMBER,
+      Report.CREATE_TIME_FIELD_NUMBER,
+      Report.REPORTING_METRIC_ENTRIES_FIELD_NUMBER
+    )
+      .isEqualTo(createdReport)
     assertThat(createdReport.externalReportId).isNotEmpty()
     assertThat(createdReport.hasCreateTime()).isTrue()
     for (entry in createdReport.reportingMetricEntriesMap.entries) {
@@ -502,6 +499,14 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         }
       )
 
+    assertThat(baseReport).
+    ignoringFields(
+      Report.EXTERNAL_REPORT_ID_FIELD_NUMBER,
+      Report.CREATE_TIME_FIELD_NUMBER,
+      Report.REPORTING_METRIC_ENTRIES_FIELD_NUMBER,
+      Report.EXTERNAL_REPORT_SCHEDULE_ID_FIELD_NUMBER
+    )
+      .isEqualTo(createdReport)
     assertThat(createdReport.externalReportId).isNotEmpty()
     assertThat(createdReport.externalReportScheduleId)
       .isEqualTo(createdReportSchedule.externalReportScheduleId)
@@ -793,10 +798,11 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
                 }
             }
         }
-      periodicTimeInterval = periodicTimeInterval {
-        startTime = timestamp { seconds = 100 }
-        increment = duration { seconds = 50 }
-        intervalCount = 3
+      timeIntervals = timeIntervals {
+        timeIntervals += interval {
+          startTime = timestamp { seconds = 100 }
+          endTime = timestamp { seconds = 200 }
+        }
       }
       details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
@@ -888,10 +894,11 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       reportingMetricEntries[createdReportingSet.externalReportingSetId] =
         reportingMetricCalculationSpec
       reportingMetricEntries["1234"] = reportingMetricCalculationSpec
-      periodicTimeInterval = periodicTimeInterval {
-        startTime = timestamp { seconds = 100 }
-        increment = duration { seconds = 50 }
-        intervalCount = 3
+      timeIntervals = timeIntervals {
+        timeIntervals += interval {
+          startTime = timestamp { seconds = 100 }
+          endTime = timestamp { seconds = 200 }
+        }
       }
       details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
@@ -950,10 +957,11 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
                 }
             }
         }
-      periodicTimeInterval = periodicTimeInterval {
-        startTime = timestamp { seconds = 100 }
-        increment = duration { seconds = 50 }
-        intervalCount = 3
+      timeIntervals = timeIntervals {
+        timeIntervals += interval {
+          startTime = timestamp { seconds = 100 }
+          endTime = timestamp { seconds = 200 }
+        }
       }
       details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
@@ -973,33 +981,39 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
   }
 
   @Test
-  fun `createReport throws INVALID_ARGUMENT when time not set`() = runBlocking {
-    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-    val createdReportingSet =
-      createReportingSet(
-        CMMS_MEASUREMENT_CONSUMER_ID,
-        reportingSetsService,
-        "reporting-set-for-report-schedule"
-      )
-    val createdMetricCalculationSpec =
-      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
-    val baseReport = createReportForRequest(createdReportingSet, createdMetricCalculationSpec)
-
-    val report = baseReport.copy { clearTime() }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.createReport(
-          createReportRequest {
-            this.report = report
-            externalReportId = "external-report-id"
-          }
+  fun `createReport throws INVALID_ARGUMENT when time intervals and reporting interval not set`() =
+    runBlocking {
+      createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+      val createdReportingSet =
+        createReportingSet(
+          CMMS_MEASUREMENT_CONSUMER_ID,
+          reportingSetsService,
+          "reporting-set-for-report-schedule"
         )
+      val createdMetricCalculationSpec =
+        createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
+      val baseReport = createReportForRequest(createdReportingSet, createdMetricCalculationSpec)
+
+      val report = baseReport.copy {
+        timeIntervals = TimeIntervals.getDefaultInstance()
+        details = baseReport.details.copy {
+          clearReportingInterval()
+        }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.message).contains("missing time")
-  }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.createReport(
+            createReportRequest {
+              this.report = report
+              externalReportId = "external-report-id"
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.message).contains("missing time_intervals")
+    }
 
   @Test
   fun `createReport throws INVALID_ARGUMENT when no reporting metric entries`() = runBlocking {
@@ -1007,10 +1021,11 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
 
     val report = report {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      periodicTimeInterval = periodicTimeInterval {
-        startTime = timestamp { seconds = 100 }
-        increment = duration { seconds = 50 }
-        intervalCount = 3
+      timeIntervals = timeIntervals {
+        timeIntervals += interval {
+          startTime = timestamp { seconds = 100 }
+          endTime = timestamp { seconds = 200 }
+        }
       }
       details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
@@ -1091,58 +1106,6 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
   }
 
   @Test
-  fun `getReport returns report with timeIntervals set`() = runBlocking {
-    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-    val createdReportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-    val createdMetricCalculationSpec =
-      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
-    val createdReport =
-      createReport(
-        CMMS_MEASUREMENT_CONSUMER_ID,
-        service,
-        usePeriodicTimeInterval = false,
-        createdReportingSet,
-        createdMetricCalculationSpec
-      )
-
-    val retrievedReport =
-      service.getReport(
-        getReportRequest {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          externalReportId = createdReport.externalReportId
-        }
-      )
-
-    assertThat(createdReport).ignoringRepeatedFieldOrder().isEqualTo(retrievedReport)
-  }
-
-  @Test
-  fun `getReport returns report with periodicTimeInterval set`() = runBlocking {
-    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-    val createdReportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-    val createdMetricCalculationSpec =
-      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
-    val createdReport =
-      createReport(
-        CMMS_MEASUREMENT_CONSUMER_ID,
-        service,
-        usePeriodicTimeInterval = true,
-        createdReportingSet,
-        createdMetricCalculationSpec
-      )
-
-    val retrievedReport =
-      service.getReport(
-        getReportRequest {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          externalReportId = createdReport.externalReportId
-        }
-      )
-
-    assertThat(createdReport).ignoringRepeatedFieldOrder().isEqualTo(retrievedReport)
-  }
-
-  @Test
   fun `getReport returns report with external_report_schedule_id set`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val createdReportingSet =
@@ -1164,7 +1127,6 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       createReport(
         CMMS_MEASUREMENT_CONSUMER_ID,
         service,
-        true,
         createdReportingSet,
         createdMetricCalculationSpec,
         createdReportSchedule
@@ -1181,6 +1143,40 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
     assertThat(createdReport).ignoringRepeatedFieldOrder().isEqualTo(retrievedReport)
     assertThat(retrievedReport.externalReportScheduleId)
       .isEqualTo(createdReportSchedule.externalReportScheduleId)
+  }
+
+  @Test
+  fun `getReport returns report when 0 time intervals`() = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val createdReportingSet =
+      createReportingSet(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        reportingSetsService,
+        "reporting-set"
+      )
+    val createdMetricCalculationSpec =
+      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
+    val report = createReportForRequest(createdReportingSet, createdMetricCalculationSpec)
+    val createdReport =
+      service.createReport(
+        createReportRequest {
+          this.report = report.copy {
+            clearTimeIntervals()
+          }
+          this.externalReportId = "report-id"
+        }
+      )
+
+    val retrievedReport =
+      service.getReport(
+        getReportRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportId = createdReport.externalReportId
+        }
+      )
+
+    assertThat(createdReport).ignoringRepeatedFieldOrder().isEqualTo(retrievedReport)
+    assertThat(retrievedReport.hasTimeIntervals()).isFalse()
   }
 
   @Test
@@ -1289,7 +1285,22 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
             endTime = timestamp { seconds = 400 }
           }
         }
-        details = ReportKt.details { tags.putAll(REPORT_TAGS) }
+        details = ReportKt.details {
+          tags.putAll(REPORT_TAGS)
+          reportingInterval = ReportKt.DetailsKt.reportingInterval {
+            reportStart = dateTime {
+              year = 2024
+              month = 1
+              day = 1
+              timeZone = timeZone { id = "America/Los_Angeles" }
+            }
+            reportEnd = date {
+              year = 2024
+              month = 2
+              day = 1
+            }
+          }
+        }
       }
 
       val createdReport =
@@ -1363,7 +1374,22 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
           endTime = timestamp { seconds = 200 }
         }
       }
-      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
+      details = ReportKt.details {
+        tags.putAll(REPORT_TAGS)
+        reportingInterval = ReportKt.DetailsKt.reportingInterval {
+          reportStart = dateTime {
+            year = 2024
+            month = 1
+            day = 1
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          reportEnd = date {
+            year = 2024
+            month = 2
+            day = 1
+          }
+        }
+      }
     }
 
     val createdReport =
@@ -1419,7 +1445,6 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       createReport(
         CMMS_MEASUREMENT_CONSUMER_ID,
         service,
-        usePeriodicTimeInterval = false,
         createdReportingSet,
         createdMetricCalculationSpec
       )
@@ -1448,7 +1473,6 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       createReport(
         CMMS_MEASUREMENT_CONSUMER_ID,
         service,
-        usePeriodicTimeInterval = false,
         createdReportingSet,
         createdMetricCalculationSpec,
         null,
@@ -1458,7 +1482,6 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       createReport(
         CMMS_MEASUREMENT_CONSUMER_ID,
         service,
-        usePeriodicTimeInterval = true,
         createdReportingSet,
         createdMetricCalculationSpec,
         null,
@@ -1511,7 +1534,6 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       createReport(
         CMMS_MEASUREMENT_CONSUMER_ID,
         service,
-        usePeriodicTimeInterval = false,
         createdReportingSet,
         createdMetricCalculationSpec,
         null,
@@ -1521,7 +1543,6 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
     createReport(
       otherMcId,
       service,
-      usePeriodicTimeInterval = true,
       createdReportingSet2,
       createdMetricCalculationSpec2,
       null,
@@ -1556,7 +1577,6 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         createReport(
           CMMS_MEASUREMENT_CONSUMER_ID,
           service,
-          usePeriodicTimeInterval = false,
           createdReportingSet,
           createdMetricCalculationSpec,
           null,
@@ -1566,7 +1586,6 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         createReport(
           CMMS_MEASUREMENT_CONSUMER_ID,
           service,
-          usePeriodicTimeInterval = false,
           createdReportingSet,
           createdMetricCalculationSpec,
           null,
@@ -1606,7 +1625,6 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         createReport(
           CMMS_MEASUREMENT_CONSUMER_ID,
           service,
-          usePeriodicTimeInterval = false,
           createdReportingSet,
           createdMetricCalculationSpec,
           null,
@@ -1616,7 +1634,6 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         createReport(
           CMMS_MEASUREMENT_CONSUMER_ID,
           service,
-          usePeriodicTimeInterval = false,
           createdReportingSet,
           createdMetricCalculationSpec,
           null,
@@ -1650,7 +1667,6 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
     createReport(
       CMMS_MEASUREMENT_CONSUMER_ID,
       service,
-      usePeriodicTimeInterval = false,
       createdReportingSet,
       createdMetricCalculationSpec,
       null,
@@ -1660,7 +1676,6 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       createReport(
         CMMS_MEASUREMENT_CONSUMER_ID,
         service,
-        usePeriodicTimeInterval = false,
         createdReportingSet,
         createdMetricCalculationSpec,
         null,
@@ -1692,7 +1707,6 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
     createReport(
       CMMS_MEASUREMENT_CONSUMER_ID,
       service,
-      usePeriodicTimeInterval = false,
       createdReportingSet,
       createdMetricCalculationSpec
     )
@@ -1758,14 +1772,28 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
             endTime = timestamp { seconds = 400 }
           }
         }
-        details = ReportKt.details { tags.putAll(REPORT_TAGS) }
+        details = ReportKt.details {
+          tags.putAll(REPORT_TAGS)
+          reportingInterval = ReportKt.DetailsKt.reportingInterval {
+            reportStart = dateTime {
+              year = 2024
+              month = 1
+              day = 1
+              timeZone = timeZone { id = "America/Los_Angeles" }
+            }
+            reportEnd = date {
+              year = 2024
+              month = 2
+              day = 1
+            }
+          }
+        }
       }
     }
 
     private suspend fun createReport(
       cmmsMeasurementConsumerId: String,
       reportsService: ReportsCoroutineImplBase,
-      usePeriodicTimeInterval: Boolean,
       reportingSet: ReportingSet,
       metricCalculationSpec: MetricCalculationSpec,
       reportSchedule: ReportSchedule? = null,
@@ -1809,25 +1837,32 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       val report = report {
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
         reportingMetricEntries[reportingSet.externalReportingSetId] = reportingMetricCalculationSpec
-        if (usePeriodicTimeInterval) {
-          periodicTimeInterval = periodicTimeInterval {
+        timeIntervals = timeIntervals {
+          timeIntervals += interval {
             startTime = timestamp { seconds = 100 }
-            increment = duration { seconds = 50 }
-            intervalCount = 3
+            endTime = timestamp { seconds = 200 }
           }
-        } else {
-          timeIntervals = timeIntervals {
-            timeIntervals += interval {
-              startTime = timestamp { seconds = 100 }
-              endTime = timestamp { seconds = 200 }
+          timeIntervals += interval {
+            startTime = timestamp { seconds = 200 }
+            endTime = timestamp { seconds = 300 }
+          }
+        }
+        details = ReportKt.details {
+          tags.putAll(REPORT_TAGS)
+          reportingInterval = ReportKt.DetailsKt.reportingInterval {
+            reportStart = dateTime {
+              year = 2024
+              month = 1
+              day = 1
+              timeZone = timeZone { id = "America/Los_Angeles" }
             }
-            timeIntervals += interval {
-              startTime = timestamp { seconds = 200 }
-              endTime = timestamp { seconds = 300 }
+            reportEnd = date {
+              year = 2024
+              month = 2
+              day = 1
             }
           }
         }
-        details = ReportKt.details { tags.putAll(REPORT_TAGS) }
       }
 
       return reportsService.createReport(

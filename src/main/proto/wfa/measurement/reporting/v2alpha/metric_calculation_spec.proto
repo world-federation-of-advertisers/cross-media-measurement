@@ -18,6 +18,7 @@ package wfa.measurement.reporting.v2alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
+import "google/type/dayofweek.proto";
 import "wfa/measurement/reporting/v2alpha/metric.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
@@ -32,6 +33,8 @@ message MetricCalculationSpec {
     type: "reporting.halo-cmm.org/MetricCalculationSpec"
     pattern: "measurementConsumers/{measurement_consumer}/metricCalculationSpecs/{metric_calculation_spec}"
   };
+
+  reserved 6;
 
   // Resource name.
   string name = 1;
@@ -72,10 +75,70 @@ message MetricCalculationSpec {
   // time interval. Predicates must be unique.
   repeated Grouping groupings = 5 [(google.api.field_behavior) = IMMUTABLE];
 
-  // Whether the results for a given time interval (time intervals are from
-  // `time` in `Report`) is cumulative with those of previous time intervals.
-  // Only supported when using `PeriodicTimeInterval` in a `Report`.
-  bool cumulative = 6 [(google.api.field_behavior) = IMMUTABLE];
+  // Describes the frequencies at which results are generated.
+  message FrequencySpec {
+    // When Daily is selected the time specified by the report_start field in
+    // the Report is used to anchor the start time for each day.
+    message Daily {}
+
+    // When Weekly is selected the first Metrics are calculated on the first
+    // occurrence of the specified day of week on or after the report_start field
+    // in the Report.
+    // For example, if day_of_week is Tuesday and the start time is a Tuesday
+    // then the first Metrics are calculated for the day specified in
+    // start_time. But if day_of_wek is Monday and the start time is a Tuesday
+    // then the first Metrics are calculated for the first Monday after the
+    // start time.
+    message Weekly {
+      google.type.DayOfWeek day_of_week = 1
+          [(google.api.field_behavior) = REQUIRED];
+    }
+
+    // When Monthly is selected the first Metrics are calculated on the first
+    // occurrence of the specified day of month on or after the report_start
+    // field in the Report. This behavior is similar to that of Weekly.
+    message Monthly {
+      // If this represents a date that is greater than the end of the month,
+      // then it will be coerced to the end of the month. Cannot be less than 1.
+      int32 day_of_month = 1 [(google.api.field_behavior) = REQUIRED];
+    }
+
+    // The frequency at which the time interval is divided.
+    oneof frequency {
+      Daily daily = 1;
+      Weekly weekly = 2;
+      Monthly monthly = 3;
+    }
+  }
+  // If this is set, window needs to be set too.
+  FrequencySpec frequency_spec = 8;
+
+  message Window {
+    message TrailingWindow {
+      // Represents how much of the `increment` to go back.
+      int32 count = 1 [(google.api.field_behavior) = REQUIRED];
+
+      enum Increment {
+        // Default value if the increment is omitted. Must not be used.
+        INCREMENT_UNSPECIFIED = 0;
+        DAY = 1;
+        WEEK = 2;
+        MONTH = 3;
+      }
+      Increment increment = 2 [(google.api.field_behavior) = REQUIRED];
+    }
+
+    // How far back the Metrics at each period (as defined by the Frequency)
+    // cover. Required.
+    oneof window {
+      // The amount of time to look back for a Metric.
+      TrailingWindow trailing_window = 1;
+      // Metrics start from the report start time as specified in the Report.
+      // If set, must be true.
+      bool report_start_time = 2;
+    }
+  }
+  Window window = 9;
 
   // A map of arbitrary key-value pairs to support tagging of
   // `MetricCalculationSpec`s for upstream use by UIs and other rich clients.

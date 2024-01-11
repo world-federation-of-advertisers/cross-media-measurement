@@ -16,9 +16,6 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
-import com.google.protobuf.util.Timestamps
-import com.google.type.Interval
-import com.google.type.interval
 import io.grpc.Status
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodology
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
@@ -45,14 +42,13 @@ import org.wfanet.measurement.internal.reporting.v2.LiquidLegionsDistribution as
 import org.wfanet.measurement.internal.reporting.v2.LiquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
-import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec as InternalMetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec as InternalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt as InternalMetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.NoiseMechanism as InternalNoiseMechanism
 import org.wfanet.measurement.internal.reporting.v2.NoiseMechanism
-import org.wfanet.measurement.internal.reporting.v2.PeriodicTimeInterval as InternalPeriodicTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.ReachOnlyLiquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.Report as InternalReport
+import org.wfanet.measurement.internal.reporting.v2.ReportKt as InternalReportKt
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedule as InternalReportSchedule
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequest
@@ -68,7 +64,6 @@ import org.wfanet.measurement.internal.reporting.v2.liquidLegionsDistribution
 import org.wfanet.measurement.internal.reporting.v2.liquidLegionsSketchParams
 import org.wfanet.measurement.internal.reporting.v2.liquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetricSpec
-import org.wfanet.measurement.internal.reporting.v2.periodicTimeInterval as internalPeriodicTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
@@ -77,15 +72,19 @@ import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals as internalTimeIntervals
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
 import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval as StatsVidSamplingInterval
+import com.google.type.DateTime
+import java.time.DateTimeException
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
+import java.time.zone.ZoneRulesException
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageToken
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsPageToken
 import org.wfanet.measurement.reporting.v2alpha.ListReportsPageToken
-import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
-import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
-import org.wfanet.measurement.reporting.v2alpha.PeriodicTimeInterval
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportKt
 import org.wfanet.measurement.reporting.v2alpha.ReportSchedule
@@ -95,9 +94,7 @@ import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.TimeIntervals
 import org.wfanet.measurement.reporting.v2alpha.createMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.metric
-import org.wfanet.measurement.reporting.v2alpha.metricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.metricSpec
-import org.wfanet.measurement.reporting.v2alpha.periodicTimeInterval
 import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportSchedule
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
@@ -263,19 +260,6 @@ fun MetricSpec.DifferentialPrivacyParams.toInternal():
     }
     if (source.hasDelta()) {
       this.delta = source.delta
-    }
-  }
-}
-
-/** Convert an [PeriodicTimeInterval] to a list of [Interval]s. */
-fun PeriodicTimeInterval.toTimeIntervalsList(): List<Interval> {
-  val source = this
-  var startTime = checkNotNull(source.startTime)
-  return (0 until source.intervalCount).map {
-    interval {
-      this.startTime = startTime
-      this.endTime = Timestamps.add(startTime, source.increment)
-      startTime = this.endTime
     }
   }
 }
@@ -712,32 +696,6 @@ fun ListReportingSetsPageToken.toStreamReportingSetsRequest(): StreamReportingSe
   }
 }
 
-/** Converts an [InternalMetricCalculationSpec] to a [MetricCalculationSpec]. */
-fun InternalMetricCalculationSpec.toMetricCalculationSpec(): MetricCalculationSpec {
-  val source = this
-
-  return metricCalculationSpec {
-    displayName = source.details.displayName
-    metricSpecs += source.details.metricSpecsList.map(InternalMetricSpec::toMetricSpec)
-    groupings +=
-      source.details.groupingsList.map { grouping ->
-        MetricCalculationSpecKt.grouping { predicates += grouping.predicatesList }
-      }
-    filter = source.details.filter
-    cumulative = source.details.cumulative
-  }
-}
-
-/** Converts an [InternalPeriodicTimeInterval] to a [PeriodicTimeInterval]. */
-fun InternalPeriodicTimeInterval.toPeriodicTimeInterval(): PeriodicTimeInterval {
-  val source = this
-  return periodicTimeInterval {
-    startTime = source.startTime
-    increment = source.increment
-    intervalCount = source.intervalCount
-  }
-}
-
 /** Converts an [InternalTimeIntervals] to a [TimeIntervals]. */
 fun InternalTimeIntervals.toTimeIntervals(): TimeIntervals {
   val source = this
@@ -750,13 +708,21 @@ fun TimeIntervals.toInternal(): InternalTimeIntervals {
   return internalTimeIntervals { this.timeIntervals += source.timeIntervalsList }
 }
 
-/** Converts a public [PeriodicTimeInterval] to an [InternalPeriodicTimeInterval]. */
-fun PeriodicTimeInterval.toInternal(): InternalPeriodicTimeInterval {
+/** Converts an [InternalReport.Details.ReportingInterval] to a [Report.ReportingInterval]. */
+fun InternalReport.Details.ReportingInterval.toReportingInterval(): Report.ReportingInterval {
   val source = this
-  return internalPeriodicTimeInterval {
-    startTime = source.startTime
-    increment = source.increment
-    intervalCount = source.intervalCount
+  return ReportKt.reportingInterval {
+    reportStart = source.reportStart
+    reportEnd = source.reportEnd
+  }
+}
+
+/** Converts a public [Report.ReportingInterval] to an [InternalReport.Details.ReportingInterval]. */
+fun Report.ReportingInterval.toInternal(): InternalReport.Details.ReportingInterval {
+  val source = this
+  return InternalReportKt.DetailsKt.reportingInterval {
+    reportStart = source.reportStart
+    reportEnd = source.reportEnd
   }
 }
 
@@ -1073,4 +1039,47 @@ private fun InternalReportSchedule.ReportWindow.toPublic(): ReportSchedule.Repor
       throw Status.FAILED_PRECONDITION.withDescription("ReportSchedule missing report_window")
         .asRuntimeException()
   }
+}
+
+/**
+ * Converts a proto [DateTime] to an [OffsetDateTime].
+ *
+ * @throws
+ * * [DateTimeException] when values in DateTime are invalid.
+ */
+fun DateTime.toOffsetDateTime(): OffsetDateTime {
+  val source = this
+  val offset = ZoneOffset.ofTotalSeconds(source.utcOffset.seconds.toInt())
+  return OffsetDateTime.of(
+    source.year,
+    source.month,
+    source.day,
+    source.hours,
+    source.minutes,
+    source.seconds,
+    source.nanos,
+    offset
+  )
+}
+
+/**
+ * Converts a proto [DateTime] to a [ZonedDateTime].
+ *
+ * @throws
+ * * [DateTimeException] when values in DateTime are invalid.
+ * * [ZoneRulesException] when time zone id is invalid.
+ */
+fun DateTime.toZonedDateTime(): ZonedDateTime {
+  val source = this
+  val id = ZoneId.of(source.timeZone.id)
+  return ZonedDateTime.of(
+    source.year,
+    source.month,
+    source.day,
+    source.hours,
+    source.minutes,
+    source.seconds,
+    source.nanos,
+    id
+  )
 }

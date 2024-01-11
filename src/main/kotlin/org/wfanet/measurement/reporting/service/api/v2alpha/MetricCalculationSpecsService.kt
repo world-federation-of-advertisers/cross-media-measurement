@@ -36,6 +36,7 @@ import org.wfanet.measurement.internal.reporting.v2.createMetricCalculationSpecR
 import org.wfanet.measurement.internal.reporting.v2.getMetricCalculationSpecRequest
 import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec as internalMetricCalculationSpec
+import com.google.type.DayOfWeek
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.GetMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.ListMetricCalculationSpecsPageToken
@@ -230,6 +231,10 @@ class MetricCalculationSpecsService(
   ): InternalMetricCalculationSpec {
     val source = this
 
+    grpcRequire (source.hasFrequencySpec() == source.hasWindow()) {
+      "frequency_spec and window must both be set or both be not set"
+    }
+
     val internalMetricSpecs =
       source.metricSpecsList.map { metricSpec ->
         try {
@@ -255,7 +260,12 @@ class MetricCalculationSpecsService(
             source.groupingsList.map { grouping ->
               InternalMetricCalculationSpecKt.grouping { predicates += grouping.predicatesList }
             }
-          cumulative = source.cumulative
+          if (source.hasFrequencySpec()) {
+            frequencySpec = source.frequencySpec.toInternal()
+          }
+          if (source.hasWindow()) {
+            window = source.window.toInternal()
+          }
           tags.putAll(source.tagsMap)
         }
     }
@@ -334,6 +344,89 @@ class MetricCalculationSpecsService(
       }
     }
 
+    /**
+     * Converts a public [MetricCalculationSpec.FrequencySpec] to an internal
+     * [InternalMetricCalculationSpec.FrequencySpec].
+     */
+    private fun MetricCalculationSpec.FrequencySpec.toInternal(): InternalMetricCalculationSpec.FrequencySpec {
+      val source = this
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+      return InternalMetricCalculationSpecKt.frequencySpec {
+        when (source.frequencyCase) {
+          MetricCalculationSpec.FrequencySpec.FrequencyCase.DAILY -> {
+            daily = InternalMetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
+          }
+          MetricCalculationSpec.FrequencySpec.FrequencyCase.WEEKLY -> {
+            grpcRequire(
+              source.weekly.dayOfWeek != DayOfWeek.DAY_OF_WEEK_UNSPECIFIED &&
+                source.weekly.dayOfWeek != DayOfWeek.UNRECOGNIZED
+            ) {
+              "day_of_week in weekly frequency is unspecified or invalid."
+            }
+            weekly =
+              InternalMetricCalculationSpecKt.FrequencySpecKt.weekly {
+                dayOfWeek = source.weekly.dayOfWeek
+              }
+          }
+          MetricCalculationSpec.FrequencySpec.FrequencyCase.MONTHLY -> {
+            grpcRequire(source.monthly.dayOfMonth > 0) {
+              "day_of_month in monthly frequency is unspecified or invalid."
+            }
+            monthly =
+              InternalMetricCalculationSpecKt.FrequencySpecKt.monthly {
+                dayOfMonth = source.monthly.dayOfMonth
+              }
+          }
+          MetricCalculationSpec.FrequencySpec.FrequencyCase.FREQUENCY_NOT_SET -> {}
+        }
+      }
+    }
+
+    /**
+     * Converts a public [MetricCalculationSpec.Window] to an internal
+     * [InternalMetricCalculationSpec.Window].
+     */
+    private fun MetricCalculationSpec.Window.toInternal(): InternalMetricCalculationSpec.Window {
+      val source = this
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+      return InternalMetricCalculationSpecKt.window {
+        when (source.windowCase) {
+          MetricCalculationSpec.Window.WindowCase.TRAILING_WINDOW -> {
+            grpcRequire(source.trailingWindow.count >= 1) {
+              "count in trailing_window must be greater than 0."
+            }
+            trailingWindow =
+              InternalMetricCalculationSpecKt.WindowKt.trailingWindow {
+                count = source.trailingWindow.count
+                increment =
+                  when (source.trailingWindow.increment) {
+                    MetricCalculationSpec.Window.TrailingWindow.Increment.DAY ->
+                      InternalMetricCalculationSpec.Window.TrailingWindow.Increment.DAY
+                    MetricCalculationSpec.Window.TrailingWindow.Increment.WEEK ->
+                      InternalMetricCalculationSpec.Window.TrailingWindow.Increment.WEEK
+                    MetricCalculationSpec.Window.TrailingWindow.Increment.MONTH ->
+                      InternalMetricCalculationSpec.Window.TrailingWindow.Increment.MONTH
+                    MetricCalculationSpec.Window.TrailingWindow.Increment.UNRECOGNIZED,
+                    MetricCalculationSpec.Window.TrailingWindow.Increment.INCREMENT_UNSPECIFIED ->
+                      throw Status.INVALID_ARGUMENT.withDescription(
+                        "increment in trailing_window is not specified."
+                      )
+                        .asRuntimeException()
+                  }
+              }
+          }
+          MetricCalculationSpec.Window.WindowCase.REPORT_START_TIME -> {
+            if (source.reportStartTime) {
+              reportStartTime = true
+            } else {
+              failGrpc { "report_start_time is false" }
+            }
+          }
+          MetricCalculationSpec.Window.WindowCase.WINDOW_NOT_SET -> {}
+        }
+      }
+    }
+
     /** Converts an internal [InternalMetricCalculationSpec] to a public [MetricCalculationSpec]. */
     private fun InternalMetricCalculationSpec.toPublic(): MetricCalculationSpec {
       val source = this
@@ -352,8 +445,78 @@ class MetricCalculationSpecsService(
           source.details.groupingsList.map { grouping ->
             MetricCalculationSpecKt.grouping { predicates += grouping.predicatesList }
           }
-        cumulative = source.details.cumulative
+        if (source.details.hasFrequencySpec()) {
+          frequencySpec = source.details.frequencySpec.toPublic()
+        }
+        if (source.details.hasWindow()) {
+          window = source.details.window.toPublic()
+        }
         tags.putAll(source.details.tagsMap)
+      }
+    }
+
+    /**
+     * Converts an internal [InternalMetricCalculationSpec.FrequencySpec] to a public
+     * [MetricCalculationSpec.FrequencySpec].
+     */
+    private fun InternalMetricCalculationSpec.FrequencySpec.toPublic(): MetricCalculationSpec.FrequencySpec {
+      val source = this
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+      return MetricCalculationSpecKt.frequencySpec {
+        when (source.frequencyCase) {
+          InternalMetricCalculationSpec.FrequencySpec.FrequencyCase.DAILY -> {
+            daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
+          }
+          InternalMetricCalculationSpec.FrequencySpec.FrequencyCase.WEEKLY -> {
+            weekly =
+              MetricCalculationSpecKt.FrequencySpecKt.weekly {
+                dayOfWeek = source.weekly.dayOfWeek
+              }
+          }
+          InternalMetricCalculationSpec.FrequencySpec.FrequencyCase.MONTHLY -> {
+            monthly =
+              MetricCalculationSpecKt.FrequencySpecKt.monthly {
+                dayOfMonth = source.monthly.dayOfMonth
+              }
+          }
+          InternalMetricCalculationSpec.FrequencySpec.FrequencyCase.FREQUENCY_NOT_SET -> {}
+        }
+      }
+    }
+
+    /**
+     * Converts an internal [InternalMetricCalculationSpec.Window] to a public
+     * [MetricCalculationSpec.Window].
+     */
+    private fun InternalMetricCalculationSpec.Window.toPublic(): MetricCalculationSpec.Window {
+      val source = this
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+      return MetricCalculationSpecKt.window {
+        when (source.windowCase) {
+          InternalMetricCalculationSpec.Window.WindowCase.TRAILING_WINDOW -> {
+            trailingWindow =
+              MetricCalculationSpecKt.WindowKt.trailingWindow {
+                count = source.trailingWindow.count
+                increment =
+                  when (source.trailingWindow.increment) {
+                    InternalMetricCalculationSpec.Window.TrailingWindow.Increment.DAY ->
+                      MetricCalculationSpec.Window.TrailingWindow.Increment.DAY
+                    InternalMetricCalculationSpec.Window.TrailingWindow.Increment.WEEK ->
+                      MetricCalculationSpec.Window.TrailingWindow.Increment.WEEK
+                    InternalMetricCalculationSpec.Window.TrailingWindow.Increment.MONTH ->
+                      MetricCalculationSpec.Window.TrailingWindow.Increment.MONTH
+                    InternalMetricCalculationSpec.Window.TrailingWindow.Increment.UNRECOGNIZED,
+                    InternalMetricCalculationSpec.Window.TrailingWindow.Increment.INCREMENT_UNSPECIFIED ->
+                      throw Status.FAILED_PRECONDITION.withDescription("MetricCalculationSpec trailing_window missing increment")
+                        .asRuntimeException()
+                  }
+              }
+          }
+          InternalMetricCalculationSpec.Window.WindowCase.REPORT_START_TIME -> {
+            reportStartTime = source.reportStartTime
+          }
+          InternalMetricCalculationSpec.Window.WindowCase.WINDOW_NOT_SET -> {}
+        }
       }
     }
   }

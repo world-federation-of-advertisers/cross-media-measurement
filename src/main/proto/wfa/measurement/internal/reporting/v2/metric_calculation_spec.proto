@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.v2;
 
+import "google/type/dayofweek.proto";
 import "wfa/measurement/internal/reporting/v2/metric.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
@@ -31,16 +32,54 @@ message MetricCalculationSpec {
     repeated string predicates = 1;
   }
 
+  message FrequencySpec {
+    message Daily {}
+
+    message Weekly {
+      google.type.DayOfWeek day_of_week = 1;
+    }
+
+    message Monthly {
+      int32 day_of_month = 1;
+    }
+
+    oneof frequency {
+      Daily daily = 1;
+      Weekly weekly = 2;
+      Monthly monthly = 3;
+    }
+  }
+
+  message Window {
+    message TrailingWindow {
+      int32 count = 1;
+
+      enum Increment {
+        INCREMENT_UNSPECIFIED = 0;
+        DAY = 1;
+        WEEK = 2;
+        MONTH = 3;
+      }
+      Increment increment = 2;
+    }
+
+    oneof window {
+      TrailingWindow trailing_window = 1;
+      bool report_start_time = 2;
+    }
+  }
+
   message Details {
     string display_name = 1;
     // At least 1 `MetricSpec` required.
     repeated MetricSpec metric_specs = 2;
     repeated Grouping groupings = 3;
-    bool cumulative = 4;
     string filter = 5;
     // A map of arbitrary key-value pairs to support tagging of
     // `MetricCalculationSpec`s for upstream use by UIs and other rich clients.
     map<string, string> tags = 6;
+    FrequencySpec frequency_spec = 7;
+    Window window = 8;
   }
   Details details = 3;
 }

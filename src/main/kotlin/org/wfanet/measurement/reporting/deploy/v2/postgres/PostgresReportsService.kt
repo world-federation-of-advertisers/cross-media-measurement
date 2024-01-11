@@ -44,8 +44,8 @@ class PostgresReportsService(
 ) : ReportsGrpcKt.ReportsCoroutineImplBase() {
   override suspend fun createReport(request: CreateReportRequest): Report {
     grpcRequire(request.externalReportId.isNotEmpty()) { "External report ID is not set." }
-    grpcRequire(request.report.hasTimeIntervals() || request.report.hasPeriodicTimeInterval()) {
-      "Report is missing time."
+    grpcRequire(request.report.timeIntervals.timeIntervalsList.isNotEmpty() || request.report.details.hasReportingInterval()) {
+      "Report is missing time_intervals or reporting_interval."
     }
 
     grpcRequire(request.report.reportingMetricEntriesCount > 0) {

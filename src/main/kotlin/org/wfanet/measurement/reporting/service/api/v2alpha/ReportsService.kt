@@ -16,10 +16,32 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import org.wfanet.measurement.internal.reporting.v2.CreateReportRequest as InternalCreateReportRequest
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec as InternalMetricCalculationSpec
+import org.wfanet.measurement.internal.reporting.v2.Report as InternalReport
+import org.wfanet.measurement.internal.reporting.v2.ReportKt as InternalReportKt
+import org.wfanet.measurement.internal.reporting.v2.createReportRequest as internalCreateReportRequest
+import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internalGetReportRequest
+import org.wfanet.measurement.internal.reporting.v2.report as internalReport
+import com.google.protobuf.Timestamp
+import com.google.protobuf.util.Timestamps
+import com.google.type.Date
 import com.google.type.Interval
 import com.google.type.copy
+import com.google.type.date
+import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
+import java.time.DateTimeException
+import java.time.LocalDate
+import java.time.OffsetDateTime
+import java.time.Period
+import java.time.ZonedDateTime
+import java.time.temporal.ChronoField
+import java.time.temporal.ChronoUnit
+import java.time.temporal.Temporal
+import java.time.temporal.TemporalAdjusters
+import java.time.zone.ZoneRulesException
 import kotlin.math.min
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
@@ -31,19 +53,14 @@ import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
-import org.wfanet.measurement.internal.reporting.v2.CreateReportRequest as InternalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.v2.CreateReportRequestKt
-import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec as InternalMetricCalculationSpec
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2.Report as InternalReport
-import org.wfanet.measurement.internal.reporting.v2.ReportKt as InternalReportKt
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetMetricCalculationSpecsRequest
-import org.wfanet.measurement.internal.reporting.v2.createReportRequest as internalCreateReportRequest
-import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internalGetReportRequest
-import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withPrincipalName
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.reportScheduleInfoFromCurrentContext
@@ -85,16 +102,11 @@ class ReportsService(
   private val metricSpecConfig: MetricSpecConfig,
 ) : ReportsCoroutineImplBase() {
 
-  private data class InternalTimeRange(
-    val canBeCumulative: Boolean,
-    val timeIntervals: List<Interval>,
-    val cumulativeTimeIntervals: List<Interval>
-  )
-
   private data class CreateReportInfo(
     val parent: String,
     val requestId: String,
-    val internalTimeRange: InternalTimeRange,
+    val timeIntervals: List<Interval>?,
+    val reportingInterval: Report.ReportingInterval?,
   )
 
   override suspend fun listReports(request: ListReportsRequest): ListReportsResponse {
@@ -287,6 +299,8 @@ class ReportsService(
       "No ReportingMetricEntry is specified."
     }
 
+    validateTime(request.report)
+
     val externalMetricCalculationSpecIds: List<String> =
       request.report.reportingMetricEntriesList.flatMap { reportingMetricEntry ->
         reportingMetricEntry.value.metricCalculationSpecsList.map {
@@ -401,7 +415,7 @@ class ReportsService(
   /** Returns a map of external IDs to [InternalMetricCalculationSpec]. */
   private suspend fun createExternalIdToMetricCalculationSpecMap(
     cmmsMeasurementConsumerId: String,
-    externalMetricCalculationSpecIds: List<String>
+    externalMetricCalculationSpecIds: List<String>,
   ): Map<String, InternalMetricCalculationSpec> {
     return try {
       internalMetricCalculationSpecsStub
@@ -449,14 +463,10 @@ class ReportsService(
           )
         }
 
-      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-      when (internalReport.timeCase) {
-        InternalReport.TimeCase.TIME_INTERVALS ->
-          this.timeIntervals = internalReport.timeIntervals.toTimeIntervals()
-        InternalReport.TimeCase.PERIODIC_TIME_INTERVAL ->
-          this.periodicTimeInterval = internalReport.periodicTimeInterval.toPeriodicTimeInterval()
-        InternalReport.TimeCase.TIME_NOT_SET ->
-          error("The time in the internal report should've been set.")
+      if (internalReport.details.hasReportingInterval()) {
+        reportingInterval = internalReport.details.reportingInterval.toReportingInterval()
+      } else {
+        this.timeIntervals = internalReport.timeIntervals.toTimeIntervals()
       }
 
       val metrics: List<Metric> =
@@ -507,7 +517,8 @@ class ReportsService(
     externalIdToMetricMap: Map<String, Metric>,
     externalIdToMetricCalculationMap: Map<String, InternalMetricCalculationSpec>,
   ): List<Report.MetricCalculationResult> {
-    return internalReportingMetricEntries.flatMap { (reportingSetId, reportingMetricCalculationSpec)
+    return internalReportingMetricEntries.flatMap {
+        (reportingSetId, reportingMetricCalculationSpec),
       ->
       val reportingSetName = ReportingSetKey(cmmsMeasurementConsumerId, reportingSetId).toName()
 
@@ -526,7 +537,6 @@ class ReportsService(
               .toName()
           displayName = metricCalculationSpec.details.displayName
           reportingSet = reportingSetName
-          cumulative = metricCalculationSpec.details.cumulative
           resultAttributes +=
             metricCalculationSpecReportingMetrics.reportingMetricsList.map { reportingMetric ->
               val metric =
@@ -552,7 +562,7 @@ class ReportsService(
   /** Creates a batch of [Metric]s. */
   private suspend fun batchCreateMetrics(
     parent: String,
-    createMetricRequests: List<CreateMetricRequest>
+    createMetricRequests: List<CreateMetricRequest>,
   ): BatchCreateMetricsResponse {
     return try {
       metricsStub
@@ -576,65 +586,6 @@ class ReportsService(
     }
   }
 
-  /** Converts a [Report] to an [InternalTimeRange]. */
-  private fun Report.internalTimeRange(): InternalTimeRange {
-    val source = this
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-    return when (source.timeCase) {
-      Report.TimeCase.TIME_INTERVALS -> {
-        grpcRequire(source.timeIntervals.timeIntervalsList.isNotEmpty()) {
-          "TimeIntervals timeIntervalsList is empty."
-        }
-        source.timeIntervals.timeIntervalsList.forEach {
-          grpcRequire(it.startTime.seconds > 0 || it.startTime.nanos > 0) {
-            "TimeInterval startTime is unspecified."
-          }
-          grpcRequire(it.endTime.seconds > 0 || it.endTime.nanos > 0) {
-            "TimeInterval endTime is unspecified."
-          }
-          grpcRequire(
-            it.endTime.seconds > it.startTime.seconds || it.endTime.nanos > it.startTime.nanos
-          ) {
-            "TimeInterval endTime is not later than startTime."
-          }
-        }
-
-        InternalTimeRange(
-          false,
-          source.timeIntervals.timeIntervalsList,
-          listOf(),
-        )
-      }
-      Report.TimeCase.PERIODIC_TIME_INTERVAL -> {
-        grpcRequire(
-          source.periodicTimeInterval.startTime.seconds > 0 ||
-            source.periodicTimeInterval.startTime.nanos > 0
-        ) {
-          "PeriodicTimeInterval startTime is unspecified."
-        }
-        grpcRequire(
-          source.periodicTimeInterval.increment.seconds > 0 ||
-            source.periodicTimeInterval.increment.nanos > 0
-        ) {
-          "PeriodicTimeInterval increment is unspecified."
-        }
-        grpcRequire(source.periodicTimeInterval.intervalCount > 0) {
-          "PeriodicTimeInterval intervalCount is unspecified."
-        }
-
-        val timeIntervals = source.periodicTimeInterval.toTimeIntervalsList()
-        val cumulativeTimeIntervals =
-          timeIntervals.map { timeInterval ->
-            timeInterval.copy { startTime = timeIntervals.first().startTime }
-          }
-        InternalTimeRange(true, timeIntervals, cumulativeTimeIntervals)
-      }
-      Report.TimeCase.TIME_NOT_SET -> {
-        failGrpc(Status.INVALID_ARGUMENT) { "Time in the report is not set." }
-      }
-    }
-  }
-
   /** Builds an [InternalCreateReportRequest]. */
   private fun buildInternalCreateReportRequest(
     request: CreateReportRequest,
@@ -645,23 +596,26 @@ class ReportsService(
 
     return internalCreateReportRequest {
       report = internalReport {
-        this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-        reportingMetricEntries.putAll(
-          buildInternalReportingMetricEntries(request, externalIdToMetricCalculationMap)
-        )
-
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
         when (request.report.timeCase) {
           Report.TimeCase.TIME_INTERVALS -> {
             this.timeIntervals = request.report.timeIntervals.toInternal()
+            details = InternalReportKt.details { tags.putAll(request.report.tagsMap) }
           }
-          Report.TimeCase.PERIODIC_TIME_INTERVAL -> {
-            this.periodicTimeInterval = request.report.periodicTimeInterval.toInternal()
+          Report.TimeCase.REPORTING_INTERVAL -> {
+            details = InternalReportKt.details {
+              tags.putAll(request.report.tagsMap)
+              reportingInterval = request.report.reportingInterval.toInternal()
+            }
           }
           Report.TimeCase.TIME_NOT_SET ->
             failGrpc(Status.INVALID_ARGUMENT) { "The time in Report is not specified." }
         }
-        details = InternalReportKt.details { tags.putAll(request.report.tagsMap) }
+
+        this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+        reportingMetricEntries.putAll(
+          buildInternalReportingMetricEntries(request, externalIdToMetricCalculationMap)
+        )
       }
       requestId = request.requestId
       externalReportId = request.reportId
@@ -688,9 +642,13 @@ class ReportsService(
     request: CreateReportRequest,
     externalIdToMetricCalculationMap: Map<String, InternalMetricCalculationSpec>,
   ): InternalReportingMetricEntries {
-    val internalTimeRange: InternalTimeRange = request.report.internalTimeRange()
     val measurementConsumerKey = checkNotNull(MeasurementConsumerKey.fromName(request.parent))
-    val createReportInfo = CreateReportInfo(request.parent, request.requestId, internalTimeRange)
+    val createReportInfo =
+      if (request.report.hasTimeIntervals()) {
+        CreateReportInfo(request.parent, request.requestId, request.report.timeIntervals.timeIntervalsList, null)
+      } else {
+        CreateReportInfo(request.parent, request.requestId, null, request.report.reportingInterval)
+      }
 
     return request.report.reportingMetricEntriesList.associate { reportingMetricEntry ->
       val reportingSetKey =
@@ -742,13 +700,30 @@ class ReportsService(
     createReportInfo: CreateReportInfo,
   ): InternalReport.MetricCalculationSpecReportingMetrics {
     val timeIntervals: List<Interval> =
-      if (internalMetricCalculationSpec.details.cumulative) {
-        grpcRequire(createReportInfo.internalTimeRange.canBeCumulative) {
-          "Cumulative can only be used with PeriodicTimeInterval."
+      if (createReportInfo.timeIntervals != null) {
+        grpcRequire(!internalMetricCalculationSpec.details.hasFrequencySpec()) {
+          "metric_calculation_spec with frequency_spec set not allowed when time_intervals is set."
         }
-        createReportInfo.internalTimeRange.cumulativeTimeIntervals
+        createReportInfo.timeIntervals
       } else {
-        createReportInfo.internalTimeRange.timeIntervals
+        if (!internalMetricCalculationSpec.details.hasFrequencySpec()) {
+          generateTimeIntervals(checkNotNull(createReportInfo.reportingInterval), null, null)
+        } else {
+          val generatedTimeIntervals: List<Interval> = generateTimeIntervals(
+            checkNotNull(createReportInfo.reportingInterval),
+            internalMetricCalculationSpec.details.frequencySpec,
+            internalMetricCalculationSpec.details.window
+          )
+          grpcRequire(generatedTimeIntervals.isNotEmpty()) {
+            "No time intervals can be generated from the combination of the reporting_interval and metric_calculation_spec ${
+              MetricCalculationSpecKey(
+                internalMetricCalculationSpec.cmmsMeasurementConsumerId,
+                internalMetricCalculationSpec.externalMetricCalculationSpecId
+              ).toName()
+            }"
+          }
+          generatedTimeIntervals
+        }
       }
 
     // Expand groupings to predicate groups in Cartesian product
@@ -886,6 +861,296 @@ private fun ListReportsRequest.toListReportsPageToken(): ListReportsPageToken {
           else -> source.pageSize
         }
       this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+    }
+  }
+}
+
+/** Validate [Report] time fields. Throws grpc exception if error found.*/
+private fun validateTime(report: Report) {
+  if (report.hasTimeIntervals()) {
+    grpcRequire(report.timeIntervals.timeIntervalsList.isNotEmpty()) {
+      "TimeIntervals timeIntervalsList is empty."
+    }
+    report.timeIntervals.timeIntervalsList.forEach {
+      grpcRequire(it.startTime.seconds > 0 || it.startTime.nanos > 0) {
+        "TimeInterval startTime is unspecified."
+      }
+      grpcRequire(it.endTime.seconds > 0 || it.endTime.nanos > 0) {
+        "TimeInterval endTime is unspecified."
+      }
+      grpcRequire(
+        it.endTime.seconds > it.startTime.seconds || it.endTime.nanos > it.startTime.nanos
+      ) {
+        "TimeInterval endTime is not later than startTime."
+      }
+    }
+  } else if (report.hasReportingInterval()) {
+    grpcRequire(report.reportingInterval.hasReportStart()) {
+      "report_start is missing."
+    }
+    val reportStart = report.reportingInterval.reportStart
+    grpcRequire(
+      reportStart.year > 0 &&
+        reportStart.month > 0 &&
+        reportStart.day > 0 &&
+        (reportStart.hasUtcOffset() || reportStart.hasTimeZone())
+    ) {
+      "report_start missing either year, month, day, or time_offset."
+    }
+
+    grpcRequire(report.reportingInterval.hasReportEnd()) {
+      "report_end is missing."
+    }
+    val reportEnd = report.reportingInterval.reportEnd
+    grpcRequire(reportEnd.year > 0 && reportEnd.month > 0 && reportEnd.day > 0) {
+      "report_end not a full date."
+    }
+
+    grpcRequire(
+      date {
+        year = reportStart.year
+        month = reportStart.month
+        day = reportStart.day
+      }
+        .isBefore(reportEnd)
+    ) {
+      "report_end be after report_start."
+    }
+  } else {
+    failGrpc { "time is not set." }
+  }
+}
+
+private fun Date.isBefore(other: Date): Boolean {
+  return LocalDate.of(this.year, this.month, this.day)
+    .isBefore(LocalDate.of(other.year, other.month, other.day))
+}
+
+/**
+ * Generate a list of time intervals using the [Report.ReportingInterval], the
+ * [MetricCalculationSpec.FrequencySpec], and the [MetricCalculationSpec.Window].
+ * */
+private fun generateTimeIntervals(
+  reportingInterval: Report.ReportingInterval,
+  frequencySpec: MetricCalculationSpec.FrequencySpec?,
+  window: MetricCalculationSpec.Window?,
+): List<Interval> {
+  val reportEndDateTime = reportingInterval.reportStart.copy {
+    year = reportingInterval.reportEnd.year
+    month = reportingInterval.reportEnd.month
+    day = reportingInterval.reportEnd.day
+  }
+
+  return if (reportingInterval.reportStart.hasUtcOffset()) {
+    val offsetDateTime =
+      try {
+        reportingInterval.reportStart.toOffsetDateTime()
+      } catch (e: DateTimeException) {
+        throw Status.INVALID_ARGUMENT.withDescription(
+          "report_start.utc_offset is not in valid range."
+        )
+          .asRuntimeException()
+      }
+    if (frequencySpec == null && window == null) {
+      listOf(interval {
+        startTime = offsetDateTime.toInstant().toProtoTime()
+        endTime = reportEndDateTime.toOffsetDateTime().toInstant().toProtoTime()
+      })
+    } else {
+      generateTimeIntervals(
+        offsetDateTime,
+        reportEndDateTime.toOffsetDateTime(),
+        checkNotNull(frequencySpec),
+        checkNotNull(window)
+      )
+    }
+  } else {
+    val zonedDateTime =
+      try {
+        reportingInterval.reportStart.toZonedDateTime()
+      } catch (e: ZoneRulesException) {
+        throw Status.INVALID_ARGUMENT.withDescription("report_start.time_zone.id is invalid")
+          .asRuntimeException()
+      }
+    if (frequencySpec == null && window == null) {
+      listOf(interval {
+        startTime = zonedDateTime.toInstant().toProtoTime()
+        endTime = reportEndDateTime.toZonedDateTime().toInstant().toProtoTime()
+      })
+    } else {
+      generateTimeIntervals(
+        zonedDateTime,
+        reportEndDateTime.toZonedDateTime(),
+        checkNotNull(frequencySpec),
+        checkNotNull(window)
+      )
+    }
+  }
+}
+
+private fun generateTimeIntervals(
+  reportStartTemporal: Temporal,
+  reportEndTemporal: Temporal,
+  frequencySpec: MetricCalculationSpec.FrequencySpec,
+  window: MetricCalculationSpec.Window,
+): List<Interval> {
+  val firstTimeIntervalEndTemporal: Temporal =
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+    when (frequencySpec.frequencyCase) {
+      MetricCalculationSpec.FrequencySpec.FrequencyCase.DAILY -> reportStartTemporal
+      MetricCalculationSpec.FrequencySpec.FrequencyCase.WEEKLY ->
+        reportStartTemporal.with(
+          TemporalAdjusters.nextOrSame(
+            java.time.DayOfWeek.valueOf(frequencySpec.weekly.dayOfWeek.name)
+          )
+        )
+      MetricCalculationSpec.FrequencySpec.FrequencyCase.MONTHLY -> {
+        val lastDayOfMonthTemporal = reportStartTemporal.with(TemporalAdjusters.lastDayOfMonth())
+        val lastDayOfMonth = lastDayOfMonthTemporal.get(ChronoField.DAY_OF_MONTH)
+        if (
+          frequencySpec.monthly.dayOfMonth <= lastDayOfMonth &&
+          reportStartTemporal.get(ChronoField.DAY_OF_MONTH) <= frequencySpec.monthly.dayOfMonth
+        ) {
+          reportStartTemporal.with(TemporalAdjusters.ofDateAdjuster { date: LocalDate ->
+            date.withDayOfMonth(frequencySpec.monthly.dayOfMonth)
+          })
+        } else if (frequencySpec.monthly.dayOfMonth > lastDayOfMonth) {
+          lastDayOfMonthTemporal
+        } else {
+          val nextMonthEndTemporal =
+            reportStartTemporal.plus(Period.ofMonths(1)).with(TemporalAdjusters.lastDayOfMonth())
+          nextMonthEndTemporal
+            .with(TemporalAdjusters.ofDateAdjuster { date: LocalDate ->
+              date.withDayOfMonth(minOf(nextMonthEndTemporal.get(ChronoField.DAY_OF_MONTH), frequencySpec.monthly.dayOfMonth))
+            })
+        }
+      }
+      MetricCalculationSpec.FrequencySpec.FrequencyCase.FREQUENCY_NOT_SET -> {
+        throw Status.INVALID_ARGUMENT.withDescription("frequency is not set").asRuntimeException()
+      }
+    }
+
+  val isWindowReportStart =
+    window.windowCase == MetricCalculationSpec.Window.WindowCase.REPORT_START_TIME
+
+  val reportStartTimestamp = reportStartTemporal.toTimestamp()
+  val reportEndTimestamp = reportEndTemporal.toTimestamp()
+
+  return buildList {
+    var nextTimeIntervalEndTemporal = firstTimeIntervalEndTemporal
+    // Set a cap to prevent an infinite loop in case of an error.
+    val maxNumTimeIntervals = ChronoUnit.DAYS.between(reportStartTemporal, reportEndTemporal) + 1
+    for (i in 1..maxNumTimeIntervals) {
+      // An interval is only created if there is a period of time between the report start and the
+      // potential end of the interval.
+      if (ChronoUnit.SECONDS.between(reportStartTemporal, nextTimeIntervalEndTemporal) > 0L) {
+        val nextTimeIntervalEndTimestamp = nextTimeIntervalEndTemporal.toTimestamp()
+
+        if (Timestamps.compare(nextTimeIntervalEndTimestamp, reportEndTimestamp) > 0) {
+          break
+        }
+
+          val nextTimeIntervalStartTimestamp: Timestamp =
+          if (isWindowReportStart) {
+            reportStartTimestamp
+          } else {
+            val newTimestamp =
+              buildReportTimeIntervalStartTimestamp(window, nextTimeIntervalEndTemporal)
+
+            // The start of any interval to be created is bounded by the report start.
+            if (Timestamps.compare(
+                reportStartTimestamp,
+                newTimestamp
+              ) >= 0
+            ) {
+              reportStartTimestamp
+            } else {
+              newTimestamp
+            }
+          }
+
+        add(interval {
+          startTime = nextTimeIntervalStartTimestamp
+          endTime = nextTimeIntervalEndTimestamp
+        })
+      }
+
+      nextTimeIntervalEndTemporal =
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+        when (frequencySpec.frequencyCase) {
+          MetricCalculationSpec.FrequencySpec.FrequencyCase.DAILY -> {
+            nextTimeIntervalEndTemporal.plus(Period.ofDays(1))
+          }
+
+          MetricCalculationSpec.FrequencySpec.FrequencyCase.WEEKLY -> {
+            nextTimeIntervalEndTemporal.with(
+              TemporalAdjusters.next(
+                java.time.DayOfWeek.valueOf(
+                  frequencySpec.weekly.dayOfWeek.name
+                )
+              )
+            )
+          }
+
+          MetricCalculationSpec.FrequencySpec.FrequencyCase.MONTHLY -> {
+            val nextMonthEndTemporal = nextTimeIntervalEndTemporal.plus(Period.ofMonths(1))
+              .with(TemporalAdjusters.lastDayOfMonth())
+            nextMonthEndTemporal.with(TemporalAdjusters.ofDateAdjuster { date: LocalDate ->
+              date.withDayOfMonth(
+                minOf(
+                  nextMonthEndTemporal.get(ChronoField.DAY_OF_MONTH),
+                  frequencySpec.monthly.dayOfMonth
+                )
+              )
+            })
+          }
+
+          MetricCalculationSpec.FrequencySpec.FrequencyCase.FREQUENCY_NOT_SET -> {
+            throw Status.FAILED_PRECONDITION.withDescription("frequency is not set")
+              .asRuntimeException()
+          }
+        }
+    }
+  }
+}
+
+/**
+ * Given a [MetricCalculationSpec.Window] and a [Temporal] that represents the end of the interval,
+ * create a [Timestamp] that represents the start of the interval.
+ */
+private fun buildReportTimeIntervalStartTimestamp(
+  window: MetricCalculationSpec.Window,
+  intervalEndTemporal: Temporal,
+): Timestamp {
+  val trailingWindow = window.trailingWindow
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf case fields cannot be null.
+  return when (trailingWindow.increment) {
+    MetricCalculationSpec.Window.TrailingWindow.Increment.DAY ->
+      intervalEndTemporal.minus(Period.ofDays(trailingWindow.count))
+    MetricCalculationSpec.Window.TrailingWindow.Increment.WEEK ->
+      intervalEndTemporal.minus(Period.ofWeeks(trailingWindow.count))
+    MetricCalculationSpec.Window.TrailingWindow.Increment.MONTH ->
+      intervalEndTemporal.minus(Period.ofMonths(trailingWindow.count))
+    MetricCalculationSpec.Window.TrailingWindow.Increment.INCREMENT_UNSPECIFIED,
+    MetricCalculationSpec.Window.TrailingWindow.Increment.UNRECOGNIZED,
+    ->
+      error("trailing_window missing increment")
+  }.toTimestamp()
+}
+
+private fun Temporal.toTimestamp(): Timestamp {
+  return when (val source = this) {
+    is OffsetDateTime -> {
+      source.toInstant().toProtoTime()
+    }
+
+    is ZonedDateTime -> {
+      source.toInstant().toProtoTime()
+    }
+
+    else -> {
+      throw Status.UNKNOWN.withDescription("Error encountered when generating time intervals from reporting_interval.")
+        .asRuntimeException()
     }
   }
 }

@@ -18,7 +18,6 @@ package org.wfanet.measurement.reporting.job
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.timestamp
-import com.google.protobuf.util.Timestamps
 import com.google.type.DayOfWeek
 import com.google.type.date
 import com.google.type.dateTime
@@ -90,8 +89,8 @@ import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineIm
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
-import org.wfanet.measurement.reporting.v2alpha.periodicTimeInterval
 import org.wfanet.measurement.reporting.v2alpha.report
+import org.wfanet.measurement.reporting.v2alpha.timeIntervals
 
 @RunWith(JUnit4::class)
 class ReportSchedulingJobTest {
@@ -210,13 +209,13 @@ class ReportSchedulingJobTest {
           requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
           report =
             publicReportSchedule.reportTemplate.copy {
-              periodicTimeInterval = periodicTimeInterval {
-                startTime = timestamp {
-                  seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+              timeIntervals = timeIntervals {
+                timeIntervals += interval {
+                  startTime = timestamp {
+                    seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+                  }
+                  endTime = INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
                 }
-                increment =
-                  Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
-                intervalCount = 1
               }
             }
         }
@@ -309,16 +308,13 @@ class ReportSchedulingJobTest {
             requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
             report =
               publicReportSchedule.reportTemplate.copy {
-                periodicTimeInterval = periodicTimeInterval {
-                  startTime = timestamp {
-                    seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+                timeIntervals = timeIntervals {
+                  timeIntervals += interval {
+                    startTime = timestamp {
+                      seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+                    }
+                    endTime = INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
                   }
-                  increment =
-                    Timestamps.between(
-                      startTime,
-                      INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
-                    )
-                  intervalCount = 1
                 }
               }
           }
@@ -413,13 +409,13 @@ class ReportSchedulingJobTest {
         requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
         report =
           publicReportSchedule.reportTemplate.copy {
-            periodicTimeInterval = periodicTimeInterval {
-              startTime = timestamp {
-                seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+            timeIntervals = timeIntervals {
+              timeIntervals += interval {
+                startTime = timestamp {
+                  seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+                }
+                endTime = INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
               }
-              increment =
-                Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
-              intervalCount = 1
             }
           }
       }
@@ -504,13 +500,13 @@ class ReportSchedulingJobTest {
         requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
         report =
           publicReportSchedule.reportTemplate.copy {
-            periodicTimeInterval = periodicTimeInterval {
-              startTime = timestamp {
-                seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+            timeIntervals = timeIntervals {
+              timeIntervals += interval {
+                startTime = timestamp {
+                  seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+                }
+                endTime = INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
               }
-              increment =
-                Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
-              intervalCount = 1
             }
           }
       }
@@ -600,13 +596,13 @@ class ReportSchedulingJobTest {
         requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
         report =
           publicReportSchedule.reportTemplate.copy {
-            periodicTimeInterval = periodicTimeInterval {
-              startTime = timestamp {
-                seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+            timeIntervals = timeIntervals {
+              timeIntervals += interval {
+                startTime = timestamp {
+                  seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+                }
+                endTime = INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
               }
-              increment =
-                Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
-              intervalCount = 1
             }
           }
       }
@@ -698,13 +694,13 @@ class ReportSchedulingJobTest {
         requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
         report =
           publicReportSchedule.reportTemplate.copy {
-            periodicTimeInterval = periodicTimeInterval {
-              startTime = timestamp {
-                seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+            timeIntervals = timeIntervals {
+              timeIntervals += interval {
+                startTime = timestamp {
+                  seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+                }
+                endTime = INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
               }
-              increment =
-                Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
-              intervalCount = 1
             }
           }
       }
@@ -1205,16 +1201,13 @@ class ReportSchedulingJobTest {
             requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
             report =
               publicReportSchedule.reportTemplate.copy {
-                periodicTimeInterval = periodicTimeInterval {
-                  startTime = timestamp {
-                    seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+                timeIntervals = timeIntervals {
+                  timeIntervals += interval {
+                    startTime = timestamp {
+                      seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+                    }
+                    endTime = INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
                   }
-                  increment =
-                    Timestamps.between(
-                      startTime,
-                      INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
-                    )
-                  intervalCount = 1
                 }
               }
           }
@@ -1267,13 +1260,13 @@ class ReportSchedulingJobTest {
           requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
           report =
             publicReportSchedule.reportTemplate.copy {
-              periodicTimeInterval = periodicTimeInterval {
-                startTime = timestamp {
-                  seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+              timeIntervals = timeIntervals {
+                timeIntervals += interval {
+                  startTime = timestamp {
+                    seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+                  }
+                  endTime = INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
                 }
-                increment =
-                  Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
-                intervalCount = 1
               }
             }
         }
@@ -1326,13 +1319,13 @@ class ReportSchedulingJobTest {
           requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
           report =
             publicReportSchedule.reportTemplate.copy {
-              periodicTimeInterval = periodicTimeInterval {
-                startTime = timestamp {
-                  seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+              timeIntervals = timeIntervals {
+                timeIntervals += interval {
+                  startTime = timestamp {
+                    seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+                  }
+                  endTime = INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
                 }
-                increment =
-                  Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
-                intervalCount = 1
               }
             }
         }
@@ -1533,10 +1526,13 @@ class ReportSchedulingJobTest {
             }
         }
       state = Report.State.RUNNING
-      periodicTimeInterval = periodicTimeInterval {
-        startTime = timestamp { seconds = 100 }
-        increment = Timestamps.between(startTime, timestamp { seconds = 200 })
-        intervalCount = 1
+      timeIntervals = timeIntervals {
+        timeIntervals += interval {
+          startTime = timestamp {
+            seconds = 100
+          }
+          endTime = timestamp { seconds = 200 }
+        }
       }
       createTime = timestamp { seconds = 50 }
       reportSchedule = REPORT_SCHEDULE_NAME

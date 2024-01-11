@@ -19,7 +19,6 @@ package org.wfanet.measurement.integration.common.reporting.v2
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.timestamp
-import com.google.protobuf.util.Durations
 import com.google.protobuf.util.Timestamps
 import com.google.type.Interval
 import com.google.type.interval
@@ -47,6 +46,9 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
+import com.google.type.date
+import com.google.type.dateTime
+import com.google.type.timeZone
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
@@ -59,7 +61,6 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.toInterval
-import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.keyPair
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.principalKeyPairs
@@ -82,6 +83,7 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.withDefaults
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.Metric
+import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec.VidSamplingInterval
@@ -106,7 +108,6 @@ import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
 import org.wfanet.measurement.reporting.v2alpha.metric
 import org.wfanet.measurement.reporting.v2alpha.metricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.metricSpec
-import org.wfanet.measurement.reporting.v2alpha.periodicTimeInterval
 import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
 import org.wfanet.measurement.reporting.v2alpha.timeIntervals
@@ -877,7 +878,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   }
 
   @Test
-  fun `report with periodic time interval has the expected result`() = runBlocking {
+  fun `report with reporting interval has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
     val eventGroup = eventGroups[0]
@@ -913,6 +914,16 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                     vidSamplingInterval = VID_SAMPLING_INTERVAL
                   }
                   .withDefaults(reportingServer.metricSpecConfig)
+              frequencySpec = MetricCalculationSpecKt.frequencySpec {
+                daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
+              }
+
+              window = MetricCalculationSpecKt.window {
+                trailingWindow = MetricCalculationSpecKt.WindowKt.trailingWindow {
+                  count = 1
+                  increment = MetricCalculationSpec.Window.TrailingWindow.Increment.DAY
+                }
+              }
             }
             metricCalculationSpecId = "fed"
           }
@@ -927,10 +938,20 @@ abstract class InProcessLifeOfAReportIntegrationTest(
               metricCalculationSpecs += createdMetricCalculationSpec.name
             }
         }
-      periodicTimeInterval = periodicTimeInterval {
-        startTime = EVENT_RANGE.start.toProtoTime()
-        increment = Durations.fromDays(1L)
-        intervalCount = 2
+      reportingInterval = ReportKt.reportingInterval {
+        reportStart = dateTime {
+          year = 2021
+          month = 3
+          day = 15
+          timeZone = timeZone {
+            id = "America/Los_Angeles"
+          }
+        }
+        reportEnd = date {
+          year = 2021
+          month = 3
+          day = 17
+        }
       }
     }
 
@@ -974,100 +995,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       } else {
         assertThat(actualResult).reachValue().isWithinPercent(500.0).of(1)
       }
-    }
-  }
-
-  @Test
-  fun `report with cumulative has the expected result`() = runBlocking {
-    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
-    val eventGroups = listEventGroups()
-    val eventGroup = eventGroups[0]
-
-    val primitiveReportingSet = reportingSet {
-      displayName = "primitive"
-      filter = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
-      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
-    }
-
-    val createdPrimitiveReportingSet =
-      publicReportingSetsClient
-        .withPrincipalName(measurementConsumerData.name)
-        .createReportingSet(
-          createReportingSetRequest {
-            parent = measurementConsumerData.name
-            reportingSet = primitiveReportingSet
-            reportingSetId = "abc"
-          }
-        )
-
-    val createdMetricCalculationSpec =
-      publicMetricCalculationSpecsClient
-        .withPrincipalName(measurementConsumerData.name)
-        .createMetricCalculationSpec(
-          createMetricCalculationSpecRequest {
-            parent = measurementConsumerData.name
-            metricCalculationSpec = metricCalculationSpec {
-              displayName = "union reach"
-              metricSpecs +=
-                metricSpec {
-                    reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-                    vidSamplingInterval = VID_SAMPLING_INTERVAL
-                  }
-                  .withDefaults(reportingServer.metricSpecConfig)
-            }
-            metricCalculationSpecId = "fed"
-          }
-        )
-
-    val report = report {
-      reportingMetricEntries +=
-        ReportKt.reportingMetricEntry {
-          key = createdPrimitiveReportingSet.name
-          value =
-            ReportKt.reportingMetricCalculationSpec {
-              metricCalculationSpecs += createdMetricCalculationSpec.name
-            }
-        }
-      periodicTimeInterval = periodicTimeInterval {
-        startTime = EVENT_RANGE.start.toProtoTime()
-        increment = Durations.fromDays(1L)
-        intervalCount = 2
-      }
-    }
-
-    val createdReport =
-      publicReportsClient
-        .withPrincipalName(measurementConsumerData.name)
-        .createReport(
-          createReportRequest {
-            parent = measurementConsumerData.name
-            this.report = report
-            reportId = "report"
-          }
-        )
-
-    val retrievedReport = pollForCompletedReport(measurementConsumerData.name, createdReport.name)
-    assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
-
-    for (resultAttribute in retrievedReport.metricCalculationResultsList[0].resultAttributesList) {
-      val vids =
-        SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
-          eventGroup,
-          primitiveReportingSet.filter,
-          resultAttribute.timeInterval
-        )
-      val sampledVids =
-        vids.calculateSampledVids(
-          createdMetricCalculationSpec.metricSpecsList[0].vidSamplingInterval
-        )
-      val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
-
-      val actualResult =
-        MeasurementKt.result {
-          reach = MeasurementKt.ResultKt.reach { value = resultAttribute.metricResult.reach.value }
-        }
-      // TODO(@tristanvuong2021): Assert using variance
-      assertThat(actualResult).reachValue().isWithinPercent(0.5).of(expectedResult.reach.value)
     }
   }
 
