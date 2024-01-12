@@ -1740,10 +1740,11 @@ class ReportsServiceTest {
 
       val internalRequestingReport = internalReport {
         cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
-        details = InternalReportKt.details {
-          tags.putAll(REPORT_TAGS)
-          timeIntervals = internalTimeIntervals { timeIntervals += interval }
-        }
+        details =
+          InternalReportKt.details {
+            tags.putAll(REPORT_TAGS)
+            timeIntervals = internalTimeIntervals { timeIntervals += interval }
+          }
         reportingSetToCreateMetricRequestMap.forEach { (reportingSet, reportingMetric) ->
           val initialReportingMetrics = listOf(reportingMetric)
           reportingMetricEntries.putAll(
@@ -1956,10 +1957,11 @@ class ReportsServiceTest {
           reportingMetrics += internalReportingMetric
         }
       val internalRequestingReport = internalReport {
-        details = InternalReportKt.details {
-          tags.putAll(REPORT_TAGS)
-          timeIntervals = internalTimeIntervals { timeIntervals += interval }
-        }
+        details =
+          InternalReportKt.details {
+            tags.putAll(REPORT_TAGS)
+            timeIntervals = internalTimeIntervals { timeIntervals += interval }
+          }
         cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
         reportingMetricEntries.putAll(
           mapOf(
