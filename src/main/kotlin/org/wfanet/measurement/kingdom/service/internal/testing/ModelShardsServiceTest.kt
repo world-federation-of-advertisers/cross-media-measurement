@@ -41,7 +41,6 @@ import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoro
 import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamModelShardsRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.StreamModelShardsRequestKt.filter
-import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.deleteModelShardRequest
 import org.wfanet.measurement.internal.kingdom.modelShard
 import org.wfanet.measurement.internal.kingdom.modelSuite
@@ -102,7 +101,8 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
   fun `createModelShard succeeds`() = runBlocking {
     val dataProvider = population.createDataProvider(dataProvidersService)
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
-    val createdPopulation = population.createPopulation(dataProvidersService, populationsService)
+    val populationDataProvider = population.createDataProvider(dataProvidersService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
@@ -184,7 +184,8 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
   fun `createModelShard fails when Model Suite is not found`() = runBlocking {
     val dataProvider = population.createDataProvider(dataProvidersService)
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
-    val createdPopulation = population.createPopulation(dataProvidersService, populationsService)
+    val populationDataProvider = population.createDataProvider(dataProvidersService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
@@ -233,7 +234,8 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
   fun `deleteModelShard succeeds`() = runBlocking {
     val dataProvider = population.createDataProvider(dataProvidersService)
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
-    val createdPopulation = population.createPopulation(dataProvidersService, populationsService)
+    val populationDataProvider = population.createDataProvider(dataProvidersService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
@@ -278,7 +280,8 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
       val dataProvider = population.createDataProvider(dataProvidersService)
       val modelSuite1 = population.createModelSuite(modelProvidersService, modelSuitesService)
       val modelSuite2 = population.createModelSuite(modelProvidersService, modelSuitesService)
-      val createdPopulation = population.createPopulation(dataProvidersService, populationsService)
+      val populationDataProvider = population.createDataProvider(dataProvidersService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
 
       val modelRelease =
         population.createModelRelease(
@@ -378,7 +381,8 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
   fun `streamModelShards returns all model shards`(): Unit = runBlocking {
     val dataProvider = population.createDataProvider(dataProvidersService)
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
-    val createdPopulation = population.createPopulation(dataProvidersService, populationsService)
+    val populationDataProvider = population.createDataProvider(dataProvidersService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
@@ -420,7 +424,8 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
     val dataProvider = population.createDataProvider(dataProvidersService)
     val modelSuite1 = population.createModelSuite(modelProvidersService, modelSuitesService)
     val modelSuite2 = population.createModelSuite(modelProvidersService, modelSuitesService)
-    val createdPopulation = population.createPopulation(dataProvidersService, populationsService)
+    val populationDataProvider = population.createDataProvider(dataProvidersService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease1 =
       population.createModelRelease(
         modelSuite {
@@ -479,7 +484,8 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
   fun `streamModelShards can get one page at a time`(): Unit = runBlocking {
     val dataProvider = population.createDataProvider(dataProvidersService)
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
-    val createdPopulation = population.createPopulation(dataProvidersService, populationsService)
+    val populationDataProvider = population.createDataProvider(dataProvidersService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
@@ -539,7 +545,8 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
   fun `streamModelShards fails for missing after filter fields`(): Unit = runBlocking {
     val dataProvider = population.createDataProvider(dataProvidersService)
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
-    val createdPopulation = population.createPopulation(dataProvidersService, populationsService)
+    val populationDataProvider = population.createDataProvider(dataProvidersService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {

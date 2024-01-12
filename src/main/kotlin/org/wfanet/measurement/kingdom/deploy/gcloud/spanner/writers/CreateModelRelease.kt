@@ -19,10 +19,9 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
-import io.grpc.Status
 import kotlinx.coroutines.flow.singleOrNull
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
@@ -36,20 +35,28 @@ class CreateModelRelease(private val modelRelease: ModelRelease) :
 
   override suspend fun TransactionScope.runTransaction(): ModelRelease {
 
+    val externalModelProviderId = modelRelease.externalModelProviderId
+    val externalModelSuiteId = modelRelease.externalModelSuiteId
     val modelSuiteData: Struct =
       readModelSuiteData(
-        ExternalId(modelRelease.externalModelProviderId),
-        ExternalId(modelRelease.externalModelSuiteId)
+        ExternalId(externalModelProviderId),
+        ExternalId(externalModelSuiteId)
       )
         ?: throw ModelSuiteNotFoundException(
-          ExternalId(modelRelease.externalModelProviderId),
-          ExternalId(modelRelease.externalModelSuiteId)
+          ExternalId(externalModelProviderId),
+          ExternalId(externalModelSuiteId)
         )
+
+    val externalDataProviderId = modelRelease.externalDataProviderId
+    val externalPopulationId = modelRelease.externalPopulationId
     val populationData: Struct =
       readPopulationData(
-        ExternalId(modelRelease.externalDataProviderId),
-        ExternalId(modelRelease.externalPopulationId)
-      ) ?: failGrpc(Status.NOT_FOUND) { "Population not found" }
+        ExternalId(externalDataProviderId),
+        ExternalId(externalPopulationId)
+      ) ?: throw ModelSuiteNotFoundException(
+        ExternalId(externalDataProviderId),
+        ExternalId(externalPopulationId)
+      )
 
     val internalModelReleaseId = idGenerator.generateInternalId()
     val externalModelReleaseId = idGenerator.generateExternalId()
@@ -110,7 +117,7 @@ class CreateModelRelease(private val modelRelease: ModelRelease) :
         bind("externalDataProviderId" to externalDataProviderId.value)
       }
 
-    return transactionContext.executeQuery(statement).singleOrNull()
+    return transactionContext.executeQuery(statement).singleOrNullIfEmpty()
   }
 
   override fun ResultScope<ModelRelease>.buildResult(): ModelRelease {

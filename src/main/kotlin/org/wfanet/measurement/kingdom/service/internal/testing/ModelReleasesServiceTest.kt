@@ -26,6 +26,7 @@ import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -42,11 +43,14 @@ import org.wfanet.measurement.internal.kingdom.StreamModelReleasesRequestKt.filt
 import org.wfanet.measurement.internal.kingdom.getModelReleaseRequest
 import org.wfanet.measurement.internal.kingdom.modelRelease
 import org.wfanet.measurement.internal.kingdom.streamModelReleasesRequest
+import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1
 
 @RunWith(JUnit4::class)
 abstract class ModelReleasesServiceTest<T : ModelReleasesCoroutineImplBase> {
+  @get:Rule
+  val duchyIdSetter = DuchyIdSetter(Population.DUCHIES)
 
   protected data class Services<T>(
     val modelReleasesService: T,
@@ -54,7 +58,7 @@ abstract class ModelReleasesServiceTest<T : ModelReleasesCoroutineImplBase> {
     val modelProvidersService: ModelProvidersCoroutineImplBase,
     val dataProvidersService: DataProvidersCoroutineImplBase,
     val populationsService: PopulationsCoroutineImplBase,
-  )
+    )
 
   protected val clock: Clock = Clock.systemUTC()
   protected val idGenerator = RandomIdGenerator(clock, Random(RANDOM_SEED))
@@ -90,12 +94,13 @@ abstract class ModelReleasesServiceTest<T : ModelReleasesCoroutineImplBase> {
   @Test
   fun `createModelRelease succeeds`() = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
-    val population = population.createPopulation(dataProvidersService, populationsService)
+    val populationDataProvider = population.createDataProvider(dataProvidersService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease = modelRelease {
       externalModelProviderId = modelSuite.externalModelProviderId
       externalModelSuiteId = modelSuite.externalModelSuiteId
-      externalDataProviderId = population.externalDataProviderId
-      externalPopulationId = population.externalPopulationId
+      externalDataProviderId = createdPopulation.externalDataProviderId
+      externalPopulationId = createdPopulation.externalPopulationId
     }
     val createdModelRelease = modelReleasesService.createModelRelease(modelRelease)
 
@@ -128,12 +133,13 @@ abstract class ModelReleasesServiceTest<T : ModelReleasesCoroutineImplBase> {
   @Test
   fun `getModelRelease returns created model release`() = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
-    val population = population.createPopulation(dataProvidersService, populationsService)
+    val populationDataProvider = population.createDataProvider(dataProvidersService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease = modelRelease {
       externalModelProviderId = modelSuite.externalModelProviderId
       externalModelSuiteId = modelSuite.externalModelSuiteId
-      externalDataProviderId = population.externalDataProviderId
-      externalPopulationId = population.externalPopulationId
+      externalDataProviderId = createdPopulation.externalDataProviderId
+      externalPopulationId = createdPopulation.externalPopulationId
     }
     val createdModelRelease = modelReleasesService.createModelRelease(modelRelease)
 
@@ -169,15 +175,15 @@ abstract class ModelReleasesServiceTest<T : ModelReleasesCoroutineImplBase> {
   @Test
   fun `streamModelReleases returns all model releases`(): Unit = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
-    val population = population.createPopulation(dataProvidersService, populationsService)
-
+    val populationDataProvider = population.createDataProvider(dataProvidersService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease1 =
       modelReleasesService.createModelRelease(
         modelRelease {
           externalModelProviderId = modelSuite.externalModelProviderId
           externalModelSuiteId = modelSuite.externalModelSuiteId
-          externalDataProviderId = population.externalDataProviderId
-          externalPopulationId = population.externalPopulationId
+          externalDataProviderId = createdPopulation.externalDataProviderId
+          externalPopulationId = createdPopulation.externalPopulationId
         }
       )
 
@@ -186,8 +192,8 @@ abstract class ModelReleasesServiceTest<T : ModelReleasesCoroutineImplBase> {
         modelRelease {
           externalModelProviderId = modelSuite.externalModelProviderId
           externalModelSuiteId = modelSuite.externalModelSuiteId
-          externalDataProviderId = population.externalDataProviderId
-          externalPopulationId = population.externalPopulationId
+          externalDataProviderId = createdPopulation.externalDataProviderId
+          externalPopulationId = createdPopulation.externalPopulationId
         }
       )
 
@@ -196,8 +202,8 @@ abstract class ModelReleasesServiceTest<T : ModelReleasesCoroutineImplBase> {
         modelRelease {
           externalModelProviderId = modelSuite.externalModelProviderId
           externalModelSuiteId = modelSuite.externalModelSuiteId
-          externalDataProviderId = population.externalDataProviderId
-          externalPopulationId = population.externalPopulationId
+          externalDataProviderId = createdPopulation.externalDataProviderId
+          externalPopulationId = createdPopulation.externalPopulationId
         }
       )
 
@@ -222,15 +228,15 @@ abstract class ModelReleasesServiceTest<T : ModelReleasesCoroutineImplBase> {
   @Test
   fun `streamModelReleases can get one page at a time`(): Unit = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
-    val population = population.createPopulation(dataProvidersService, populationsService)
-
+    val populationDataProvider = population.createDataProvider(dataProvidersService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease1 =
       modelReleasesService.createModelRelease(
         modelRelease {
           externalModelProviderId = modelSuite.externalModelProviderId
           externalModelSuiteId = modelSuite.externalModelSuiteId
-          externalDataProviderId = population.externalDataProviderId
-          externalPopulationId = population.externalPopulationId
+          externalDataProviderId = createdPopulation.externalDataProviderId
+          externalPopulationId = createdPopulation.externalPopulationId
         }
       )
 
@@ -239,8 +245,8 @@ abstract class ModelReleasesServiceTest<T : ModelReleasesCoroutineImplBase> {
         modelRelease {
           externalModelProviderId = modelSuite.externalModelProviderId
           externalModelSuiteId = modelSuite.externalModelSuiteId
-          externalDataProviderId = population.externalDataProviderId
-          externalPopulationId = population.externalPopulationId
+          externalDataProviderId = createdPopulation.externalDataProviderId
+          externalPopulationId = createdPopulation.externalPopulationId
         }
       )
 
@@ -285,14 +291,14 @@ abstract class ModelReleasesServiceTest<T : ModelReleasesCoroutineImplBase> {
   @Test
   fun `streamModelReleases fails for missing after filter fields`(): Unit = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
-    val population = population.createPopulation(dataProvidersService, populationsService)
-
+    val populationDataProvider = population.createDataProvider(dataProvidersService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     modelReleasesService.createModelRelease(
       modelRelease {
         externalModelProviderId = modelSuite.externalModelProviderId
         externalModelSuiteId = modelSuite.externalModelSuiteId
-        externalDataProviderId = population.externalDataProviderId
-        externalPopulationId = population.externalPopulationId
+        externalDataProviderId = createdPopulation.externalDataProviderId
+        externalPopulationId = createdPopulation.externalPopulationId
       }
     )
 
@@ -300,8 +306,8 @@ abstract class ModelReleasesServiceTest<T : ModelReleasesCoroutineImplBase> {
       modelRelease {
         externalModelProviderId = modelSuite.externalModelProviderId
         externalModelSuiteId = modelSuite.externalModelSuiteId
-        externalDataProviderId = population.externalDataProviderId
-        externalPopulationId = population.externalPopulationId
+        externalDataProviderId = createdPopulation.externalDataProviderId
+        externalPopulationId = createdPopulation.externalPopulationId
       }
     )
 

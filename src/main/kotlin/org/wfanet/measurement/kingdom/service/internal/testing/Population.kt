@@ -223,24 +223,9 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
   }
 
   suspend fun createPopulation(
-    dataProvidersService: DataProvidersCoroutineImplBase,
+    dataProvider: DataProvider,
     populationsService: PopulationsGrpcKt.PopulationsCoroutineImplBase
   ): Population {
-    val DATA_PROVIDER = dataProvider {
-      certificate {
-        notValidBefore = timestamp { seconds = 12345 }
-        notValidAfter = timestamp { seconds = 23456 }
-        details =
-          CertificateKt.details { x509Der = ByteString.copyFromUtf8("This is a certificate der.") }
-      }
-      details =
-        DataProviderKt.details {
-          apiVersion = "v2alpha"
-          publicKey = ByteString.copyFromUtf8("This is a  public key.")
-          publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
-        }
-    }
-    val dataProvider = dataProvidersService.createDataProvider(DATA_PROVIDER)
     val population =
       populationsService.createPopulation(
         population {
