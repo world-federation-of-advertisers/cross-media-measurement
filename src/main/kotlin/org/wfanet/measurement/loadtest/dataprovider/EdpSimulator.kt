@@ -139,8 +139,8 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Referenc
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getDirectAcdpQuery
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getDpQuery
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getLiquidLegionsV2AcdpQuery
+import org.wfanet.measurement.loadtest.common.sampleVids
 import org.wfanet.measurement.loadtest.config.TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
-import org.wfanet.measurement.loadtest.config.VidSampling
 import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults.computeImpression
 
 data class EdpData(
@@ -1173,33 +1173,13 @@ class EdpSimulator(
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
     vidSamplingInterval: MeasurementSpec.VidSamplingInterval,
   ): Iterable<Long> {
-    val vidSamplingIntervalStart = vidSamplingInterval.start
-    val vidSamplingIntervalWidth = vidSamplingInterval.width
-
-    require(vidSamplingIntervalWidth > 0 && vidSamplingIntervalWidth <= 1.0) {
-      "Invalid vidSamplingIntervalWidth $vidSamplingIntervalWidth"
-    }
-    require(
-      vidSamplingIntervalStart < 1 &&
-        vidSamplingIntervalStart >= 0 &&
-        vidSamplingIntervalWidth > 0 &&
-        vidSamplingIntervalStart + vidSamplingIntervalWidth <= 1
-    ) {
-      "Invalid vidSamplingInterval: $vidSamplingInterval"
-    }
-
     return try {
-      eventGroupSpecs
-        .asSequence()
-        .flatMap { eventQuery.getUserVirtualIds(it) }
-        .filter { vid ->
-          VidSampling.sampler.vidIsInSamplingBucket(
-            vid,
-            vidSamplingIntervalStart,
-            vidSamplingIntervalWidth
-          )
-        }
-        .asIterable()
+      sampleVids(
+        eventQuery,
+        eventGroupSpecs,
+        vidSamplingInterval.start,
+        vidSamplingInterval.width,
+      )
     } catch (e: EventFilterValidationException) {
       logger.log(
         Level.WARNING,
