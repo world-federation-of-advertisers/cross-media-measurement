@@ -49,6 +49,8 @@ import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.listEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
+import org.wfanet.measurement.api.v2alpha.signedMessage
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.api.ChildResourceKey
 import org.wfanet.measurement.common.api.ResourceKey
@@ -480,6 +482,13 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
               Version.V2_ALPHA -> ProtoReflection.getTypeUrl(EncryptionPublicKey.getDescriptor())
             }
         }
+        // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this
+        // field.
+        signedMeasurementConsumerPublicKey = signedMessage {
+          message = this@eventGroup.measurementConsumerPublicKey
+          signature = details.measurementConsumerPublicKeySignature
+          signatureAlgorithmOid = details.measurementConsumerPublicKeySignatureAlgorithmOid
+        }
       }
       vidModelLines += details.vidModelLinesList
       eventTemplates.addAll(
@@ -495,6 +504,9 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
               Version.V2_ALPHA -> ProtoReflection.getTypeUrl(EventGroup.Metadata.getDescriptor())
             }
         }
+        // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this
+        // field.
+        serializedEncryptedMetadata = details.encryptedMetadata
       }
       if (details.hasDataAvailabilityInterval()) {
         dataAvailabilityInterval = details.dataAvailabilityInterval
@@ -525,14 +537,32 @@ private fun EventGroup.toInternal(
     providedEventGroupId = source.eventGroupReferenceId
     details = details {
       apiVersion = Version.V2_ALPHA.string
-      measurementConsumerPublicKey = source.measurementConsumerPublicKey.value
+      // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop reading this
+      // field.
+      if (source.hasSignedMeasurementConsumerPublicKey()) {
+        measurementConsumerPublicKeySignature = source.signedMeasurementConsumerPublicKey.signature
+        measurementConsumerPublicKeySignatureAlgorithmOid =
+          source.signedMeasurementConsumerPublicKey.signatureAlgorithmOid
+      }
+      if (source.hasMeasurementConsumerPublicKey()) {
+        measurementConsumerPublicKey = source.measurementConsumerPublicKey.value
+      } else if (source.hasSignedMeasurementConsumerPublicKey()) {
+        measurementConsumerPublicKey = source.signedMeasurementConsumerPublicKey.unpack()
+      }
+
       vidModelLines += source.vidModelLinesList
       eventTemplates.addAll(
         source.eventTemplatesList.map { event ->
           internalEventTemplate { fullyQualifiedType = event.type }
         }
       )
-      encryptedMetadata = source.encryptedMetadata.ciphertext
+      if (source.hasEncryptedMetadata()) {
+        encryptedMetadata = source.encryptedMetadata.ciphertext
+      } else if (!source.serializedEncryptedMetadata.isEmpty) {
+        // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop reading this
+        // field.
+        encryptedMetadata = source.serializedEncryptedMetadata
+      }
       if (source.hasDataAvailabilityInterval()) {
         dataAvailabilityInterval = source.dataAvailabilityInterval
       }
