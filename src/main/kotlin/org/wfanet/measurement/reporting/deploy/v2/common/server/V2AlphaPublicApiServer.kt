@@ -71,6 +71,7 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingPrincipal
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
+import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub
 import picocli.CommandLine
 
@@ -153,6 +154,7 @@ private fun run(
     CelEnvCacheProvider(
       KingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomChannel)
         .withAuthenticationKey(apiKey),
+      EventGroup.getDescriptor(),
       reportingApiServerFlags.eventGroupMetadataDescriptorCacheDuration,
       Dispatchers.Default,
     )
