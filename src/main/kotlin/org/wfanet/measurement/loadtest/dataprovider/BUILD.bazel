@@ -135,6 +135,7 @@ kt_jvm_library(
     name = "edp_simulator",
     srcs = ["EdpSimulator.kt"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/common:sample_vids",
         ":event_query",
         ":measurement_results",
         ":sketch_encrypter",

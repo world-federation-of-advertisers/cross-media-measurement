@@ -72,6 +72,7 @@ import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.integration.common.reporting.v2.identity.withPrincipalName
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
+import org.wfanet.measurement.loadtest.common.sampleVids
 import org.wfanet.measurement.loadtest.config.VidSampling
 import org.wfanet.measurement.loadtest.dataprovider.EventQuery
 import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults
@@ -232,39 +233,33 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
 
-    val primitiveReportingSet = reportingSet {
-      displayName = "primitive"
-      filter = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
-      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
-    }
+    val eventGroupEntries: Map<EventGroup, String> =
+      mapOf(
+        eventGroups[0] to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
+        eventGroups[1] to "person.age_group == ${Person.AgeGroup.YEARS_55_PLUS_VALUE}"
+      )
 
-    val createdPrimitiveReportingSet =
-      publicReportingSetsClient
-        .withPrincipalName(measurementConsumerData.name)
-        .createReportingSet(
-          createReportingSetRequest {
-            parent = measurementConsumerData.name
-            reportingSet = primitiveReportingSet
-            reportingSetId = "abc"
-          }
-        )
+    val primitiveReportingSets: List<ReportingSet> =
+      eventGroupEntries.entries.mapIndexed { index, (eventGroup, filterExp) ->
+        reportingSet {
+          displayName = "primitive$index"
+          filter = filterExp
+          primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
+        }
+      }
 
-    val primitiveReportingSet2 = reportingSet {
-      displayName = "primitive"
-      filter = "person.age_group == ${Person.AgeGroup.YEARS_55_PLUS_VALUE}"
-      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[1].cmmsEventGroup }
-    }
-
-    val createdPrimitiveReportingSet2 =
-      publicReportingSetsClient
-        .withPrincipalName(measurementConsumerData.name)
-        .createReportingSet(
-          createReportingSetRequest {
-            parent = measurementConsumerData.name
-            reportingSet = primitiveReportingSet2
-            reportingSetId = "abc2"
-          }
-        )
+    val createdPrimitiveReportingSets =
+      primitiveReportingSets.mapIndexed { index, primitiveReportingSet ->
+        publicReportingSetsClient
+          .withPrincipalName(measurementConsumerData.name)
+          .createReportingSet(
+            createReportingSetRequest {
+              parent = measurementConsumerData.name
+              reportingSet = primitiveReportingSet
+              reportingSetId = "abc$index"
+            }
+          )
+      }
 
     val compositeReportingSet = reportingSet {
       displayName = "composite"
@@ -275,11 +270,11 @@ abstract class InProcessLifeOfAReportIntegrationTest(
               operation = ReportingSet.SetExpression.Operation.UNION
               lhs =
                 ReportingSetKt.SetExpressionKt.operand {
-                  reportingSet = createdPrimitiveReportingSet.name
+                  reportingSet = createdPrimitiveReportingSets[0].name
                 }
               rhs =
                 ReportingSetKt.SetExpressionKt.operand {
-                  reportingSet = createdPrimitiveReportingSet2.name
+                  reportingSet = createdPrimitiveReportingSets[1].name
                 }
             }
         }
@@ -341,30 +336,29 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val retrievedReport = pollForCompletedReport(measurementConsumerData.name, createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
 
-    val vids =
-      SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
-        eventGroups[0],
-        "(${primitiveReportingSet.filter}) || (${primitiveReportingSet2.filter})",
-        EVENT_RANGE.toInterval()
-      )
+    val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
+      eventGroupEntries.entries.map { (eventGroup, filter) ->
+        buildEventGroupSpec(eventGroup, filter, EVENT_RANGE.toInterval())
+      }
     val sampledVids =
-      vids.calculateSampledVids(createdMetricCalculationSpec.metricSpecsList[0].vidSamplingInterval)
+      sampleVids(
+        eventGroupSpecs,
+        createdMetricCalculationSpec.metricSpecsList.single().vidSamplingInterval
+      )
     val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
 
+    val reachResult =
+      retrievedReport.metricCalculationResultsList
+        .single()
+        .resultAttributesList
+        .single()
+        .metricResult
+        .reach
     val actualResult =
-      MeasurementKt.result {
-        reach =
-          MeasurementKt.ResultKt.reach {
-            value =
-              retrievedReport.metricCalculationResultsList[0]
-                .resultAttributesList[0]
-                .metricResult
-                .reach
-                .value
-          }
-      }
-    // TODO(@tristanvuong2021): Assert using variance
-    assertThat(actualResult).reachValue().isWithinPercent(10.0).of(expectedResult.reach.value)
+      MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = reachResult.value } }
+    val tolerance = computeErrorMargin(reachResult.univariateStatistics.standardDeviation)
+
+    assertThat(actualResult).reachValue().isWithin(tolerance).of(expectedResult.reach.value)
   }
 
   @Test
@@ -1889,6 +1883,31 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     }
   }
 
+  private fun buildEventGroupSpec(
+    eventGroup: EventGroup,
+    filter: String,
+    collectionInterval: Interval
+  ): EventQuery.EventGroupSpec {
+    val cmmsMetadata =
+      CmmsEventGroupKt.metadata {
+        eventGroupMetadataDescriptor = eventGroup.metadata.eventGroupMetadataDescriptor
+        metadata = eventGroup.metadata.metadata
+      }
+    val encryptedCmmsMetadata =
+      encryptMetadata(cmmsMetadata, InProcessCmmsComponents.MC_ENTITY_CONTENT.encryptionPublicKey)
+    val cmmsEventGroup = cmmsEventGroup { encryptedMetadata = encryptedCmmsMetadata }
+
+    val eventFilter = RequisitionSpecKt.eventFilter { expression = filter }
+
+    return EventQuery.EventGroupSpec(
+      cmmsEventGroup,
+      RequisitionSpecKt.EventGroupEntryKt.value {
+        this.collectionInterval = collectionInterval
+        this.filter = eventFilter
+      }
+    )
+  }
+
   private fun SyntheticGeneratorEventQuery.getUserVirtualIds(
     eventGroup: EventGroup,
     filter: String,
@@ -1916,6 +1935,19 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     )
   }
 
+  private fun sampleVids(
+    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
+    vidSamplingInterval: VidSamplingInterval,
+  ): Sequence<Long> {
+    return sampleVids(
+        SYNTHETIC_EVENT_QUERY,
+        eventGroupSpecs,
+        vidSamplingInterval.start,
+        vidSamplingInterval.width
+      )
+      .asSequence()
+  }
+
   private fun Sequence<Long>.calculateSampledVids(
     vidSamplingInterval: VidSamplingInterval
   ): Sequence<Long> {
@@ -1926,6 +1958,11 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         vidSamplingInterval.width
       )
     }
+  }
+
+  /** Computes the margin of error, i.e. half width, of a 99.9% confidence interval. */
+  private fun computeErrorMargin(standardDeviation: Double): Double {
+    return CONFIDENCE_INTERVAL_MULTIPLIER * standardDeviation
   }
 
   companion object {
@@ -1969,6 +2006,9 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         start = 0.0f
         width = 1.0f
       }
+
+    // For a 99.9% Confidence Interval.
+    private const val CONFIDENCE_INTERVAL_MULTIPLIER = 3.291
 
     @BeforeClass
     @JvmStatic

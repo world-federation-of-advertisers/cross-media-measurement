@@ -2,10 +2,24 @@ load("@wfa_common_jvm//build/rules_kotlin:defs.bzl", "kt_jvm_library")
 
 package(
     default_testonly = True,
-    default_visibility = ["//src/main/kotlin/org/wfanet/measurement/loadtest:__subpackages__"],
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting:__subpackages__",
+    ],
 )
 
 kt_jvm_library(
     name = "output",
     srcs = ["Output.kt"],
+)
+
+kt_jvm_library(
+    name = "sample_vids",
+    srcs = ["SampleVids.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:vid_sampling",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:event_query",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
+    ],
 )

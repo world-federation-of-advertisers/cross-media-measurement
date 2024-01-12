@@ -35,6 +35,7 @@ kt_jvm_library(
     name = "simulator",
     srcs = ["MeasurementConsumerSimulator.kt"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/common:sample_vids",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
