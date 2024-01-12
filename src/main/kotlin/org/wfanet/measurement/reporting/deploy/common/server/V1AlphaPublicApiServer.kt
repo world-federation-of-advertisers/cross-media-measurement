@@ -51,6 +51,7 @@ import org.wfanet.measurement.reporting.service.api.v1alpha.ReportingPrincipal
 import org.wfanet.measurement.reporting.service.api.v1alpha.ReportingSetsService
 import org.wfanet.measurement.reporting.service.api.v1alpha.ReportsService
 import org.wfanet.measurement.reporting.service.api.v1alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
+import org.wfanet.measurement.reporting.v1alpha.EventGroup
 import picocli.CommandLine
 
 private const val SERVER_NAME = "V1AlphaPublicApiServer"
@@ -108,6 +109,7 @@ private fun run(
     CelEnvCacheProvider(
       KingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomChannel)
         .withAuthenticationKey(apiKey),
+      EventGroup.getDescriptor(),
       reportingApiServerFlags.eventGroupMetadataDescriptorCacheDuration,
       Dispatchers.Default,
     )

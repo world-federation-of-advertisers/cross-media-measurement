@@ -71,6 +71,7 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.MetricCalculationSpe
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
+import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub as PublicMetricsCoroutineStub
 
 /** TestRule that starts and stops all Reporting Server gRPC services. */
@@ -184,6 +185,7 @@ class InProcessReportingServer(
             publicKingdomEventGroupMetadataDescriptorsClient.withAuthenticationKey(
               measurementConsumerConfig.apiKey
             ),
+            EventGroup.getDescriptor(),
             Duration.ofSeconds(5),
             Dispatchers.Default,
           )

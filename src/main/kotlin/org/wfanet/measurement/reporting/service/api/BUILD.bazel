@@ -18,7 +18,6 @@ kt_jvm_library(
         "//imports/java/org/projectnessie/cel",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_metadata_descriptor_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_metadata_descriptors_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/reporting/v1alpha:event_group_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:jdk8",

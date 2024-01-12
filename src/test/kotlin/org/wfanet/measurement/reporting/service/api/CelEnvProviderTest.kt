@@ -96,6 +96,7 @@ class CelEnvProviderTest {
           EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
             grpcTestServerRule.channel
           ),
+          REPORTING_EVENT_GROUP_DESCRIPTOR,
           Duration.ofMinutes(5),
           coroutineContext
         )
@@ -132,6 +133,7 @@ class CelEnvProviderTest {
           EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
             grpcTestServerRule.channel
           ),
+          REPORTING_EVENT_GROUP_DESCRIPTOR,
           Duration.ofMinutes(5),
           coroutineContext,
           1
@@ -171,6 +173,7 @@ class CelEnvProviderTest {
               EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
                 grpcTestServerRule.channel
               ),
+              REPORTING_EVENT_GROUP_DESCRIPTOR,
               Duration.ofMinutes(5),
               coroutineContext,
               numRetries
@@ -201,6 +204,7 @@ class CelEnvProviderTest {
               EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
                 grpcTestServerRule.channel
               ),
+              REPORTING_EVENT_GROUP_DESCRIPTOR,
               Duration.ofMinutes(5),
               coroutineContext,
               numRetries
@@ -245,6 +249,7 @@ class CelEnvProviderTest {
             EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
               grpcTestServerRule.channel
             ),
+            REPORTING_EVENT_GROUP_DESCRIPTOR,
             cacheRefreshInterval,
             coroutineContext
           )
@@ -270,6 +275,8 @@ class CelEnvProviderTest {
   }
 
   companion object {
+    private val REPORTING_EVENT_GROUP_DESCRIPTOR = EventGroup.getDescriptor()
+
     private fun verifyTypeRegistryAndEnv(typeRegistryAndEnv: CelEnvProvider.TypeRegistryAndEnv) {
       val eventGroup = eventGroup {
         metadata =
