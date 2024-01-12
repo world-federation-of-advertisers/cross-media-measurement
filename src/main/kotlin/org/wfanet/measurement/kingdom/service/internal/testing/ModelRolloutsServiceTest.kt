@@ -107,7 +107,8 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
 
   @Test
   fun `createModelRollout succeeds`() = runBlocking {
-    val modelLine = population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+    val modelLine =
+      population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
     val createdPopulation = population.createPopulation(dataProvidersService, populationsService)
     val modelRelease =
       population.createModelRelease(
