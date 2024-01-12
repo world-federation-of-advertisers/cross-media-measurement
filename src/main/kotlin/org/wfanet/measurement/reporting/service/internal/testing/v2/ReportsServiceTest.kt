@@ -126,16 +126,6 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
 
     val report =
       baseReport.copy {
-        timeIntervals = timeIntervals {
-          timeIntervals += interval {
-            startTime = timestamp { seconds = 100 }
-            endTime = timestamp { seconds = 200 }
-          }
-          timeIntervals += interval {
-            startTime = timestamp { seconds = 300 }
-            endTime = timestamp { seconds = 400 }
-          }
-        }
         details =
           ReportKt.details {
             tags.putAll(REPORT_TAGS)
@@ -278,17 +268,19 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         reportingMetricCalculationSpec
       reportingMetricEntries[createdReportingSet2.externalReportingSetId] =
         reportingMetricCalculationSpec2
-      timeIntervals = timeIntervals {
-        timeIntervals += interval {
-          startTime = timestamp { seconds = 100 }
-          endTime = timestamp { seconds = 200 }
-        }
-        timeIntervals += interval {
-          startTime = timestamp { seconds = 300 }
-          endTime = timestamp { seconds = 400 }
+      details = ReportKt.details {
+        tags.putAll(REPORT_TAGS)
+        timeIntervals = timeIntervals {
+          timeIntervals += interval {
+            startTime = timestamp { seconds = 100 }
+            endTime = timestamp { seconds = 200 }
+          }
+          timeIntervals += interval {
+            startTime = timestamp { seconds = 300 }
+            endTime = timestamp { seconds = 400 }
+          }
         }
       }
-      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
 
     val createdReport =
@@ -395,13 +387,15 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       reportingMetricEntries[createdReportingSet.externalReportingSetId] =
         reportingMetricCalculationSpec
-      timeIntervals = timeIntervals {
-        timeIntervals += interval {
-          startTime = timestamp { seconds = 100 }
-          endTime = timestamp { seconds = 200 }
+      details = ReportKt.details {
+        tags.putAll(REPORT_TAGS)
+        timeIntervals = timeIntervals {
+          timeIntervals += interval {
+            startTime = timestamp { seconds = 100 }
+            endTime = timestamp { seconds = 200 }
+          }
         }
       }
-      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
 
     val createdReport =
@@ -564,7 +558,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
 
     val groupingPredicatesList = List(3) { listOf("predicate1", "predicate2") }
 
-    val timeIntervals: List<Interval> =
+    val intervals: List<Interval> =
       listOf(
         interval {
           startTime = timestamp { seconds = 100 }
@@ -582,7 +576,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
 
     val reportingMetrics =
       groupingPredicatesList.flatMap { groupingPredicates ->
-        timeIntervals.map { timeInterval ->
+        intervals.map { interval ->
           ReportKt.reportingMetric {
             details =
               ReportKt.ReportingMetricKt.details {
@@ -601,7 +595,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
                       width = 0.5f
                     }
                 }
-                this.timeInterval = timeInterval
+                this.timeInterval = interval
                 this.groupingPredicates += groupingPredicates
               }
           }
@@ -623,8 +617,12 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
           }
         }
       )
-      this.timeIntervals = timeIntervals { this.timeIntervals += timeIntervals }
-      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
+      details = ReportKt.details {
+        tags.putAll(REPORT_TAGS)
+        timeIntervals = timeIntervals {
+          this.timeIntervals += intervals
+        }
+      }
     }
 
     val createdReport =
@@ -800,13 +798,15 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
                 }
             }
         }
-      timeIntervals = timeIntervals {
-        timeIntervals += interval {
-          startTime = timestamp { seconds = 100 }
-          endTime = timestamp { seconds = 200 }
+      details = ReportKt.details {
+        tags.putAll(REPORT_TAGS)
+        timeIntervals = timeIntervals {
+          timeIntervals += interval {
+            startTime = timestamp { seconds = 100 }
+            endTime = timestamp { seconds = 200 }
+          }
         }
       }
-      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
 
     val exception =
@@ -896,13 +896,15 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       reportingMetricEntries[createdReportingSet.externalReportingSetId] =
         reportingMetricCalculationSpec
       reportingMetricEntries["1234"] = reportingMetricCalculationSpec
-      timeIntervals = timeIntervals {
-        timeIntervals += interval {
-          startTime = timestamp { seconds = 100 }
-          endTime = timestamp { seconds = 200 }
+      details = ReportKt.details {
+        tags.putAll(REPORT_TAGS)
+        timeIntervals = timeIntervals {
+          timeIntervals += interval {
+            startTime = timestamp { seconds = 100 }
+            endTime = timestamp { seconds = 200 }
+          }
         }
       }
-      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
 
     val exception =
@@ -959,13 +961,15 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
                 }
             }
         }
-      timeIntervals = timeIntervals {
-        timeIntervals += interval {
-          startTime = timestamp { seconds = 100 }
-          endTime = timestamp { seconds = 200 }
+      details = ReportKt.details {
+        tags.putAll(REPORT_TAGS)
+        timeIntervals = timeIntervals {
+          timeIntervals += interval {
+            startTime = timestamp { seconds = 100 }
+            endTime = timestamp { seconds = 200 }
+          }
         }
       }
-      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
 
     val exception =
@@ -998,8 +1002,46 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
 
       val report =
         baseReport.copy {
-          timeIntervals = TimeIntervals.getDefaultInstance()
-          details = baseReport.details.copy { clearReportingInterval() }
+          details = baseReport.details.copy {
+            clearReportingInterval()
+            clearTimeIntervals()
+          }
+        }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.createReport(
+            createReportRequest {
+              this.report = report
+              externalReportId = "external-report-id"
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.message).contains("missing time_intervals")
+    }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when time intervals empty`() =
+    runBlocking {
+      createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+      val createdReportingSet =
+        createReportingSet(
+          CMMS_MEASUREMENT_CONSUMER_ID,
+          reportingSetsService,
+          "reporting-set-for-report-schedule"
+        )
+      val createdMetricCalculationSpec =
+        createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
+      val baseReport = createReportForRequest(createdReportingSet, createdMetricCalculationSpec)
+
+      val report =
+        baseReport.copy {
+          details = baseReport.details.copy {
+            clearReportingInterval()
+            timeIntervals = TimeIntervals.getDefaultInstance()
+          }
         }
 
       val exception =
@@ -1022,13 +1064,15 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
 
     val report = report {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      timeIntervals = timeIntervals {
-        timeIntervals += interval {
-          startTime = timestamp { seconds = 100 }
-          endTime = timestamp { seconds = 200 }
+      details = ReportKt.details {
+        tags.putAll(REPORT_TAGS)
+        timeIntervals = timeIntervals {
+          timeIntervals += interval {
+            startTime = timestamp { seconds = 100 }
+            endTime = timestamp { seconds = 200 }
+          }
         }
       }
-      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
 
     val exception =
@@ -1147,34 +1191,6 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
   }
 
   @Test
-  fun `getReport returns report when 0 time intervals`() = runBlocking {
-    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-    val createdReportingSet =
-      createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService, "reporting-set")
-    val createdMetricCalculationSpec =
-      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
-    val report = createReportForRequest(createdReportingSet, createdMetricCalculationSpec)
-    val createdReport =
-      service.createReport(
-        createReportRequest {
-          this.report = report.copy { clearTimeIntervals() }
-          this.externalReportId = "report-id"
-        }
-      )
-
-    val retrievedReport =
-      service.getReport(
-        getReportRequest {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          externalReportId = createdReport.externalReportId
-        }
-      )
-
-    assertThat(createdReport).ignoringRepeatedFieldOrder().isEqualTo(retrievedReport)
-    assertThat(retrievedReport.hasTimeIntervals()).isFalse()
-  }
-
-  @Test
   fun `getReport returns report when report has two reporting metric calculation specs`() =
     runBlocking {
       createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
@@ -1270,16 +1286,6 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
           reportingMetricCalculationSpec
         reportingMetricEntries[createdReportingSet2.externalReportingSetId] =
           reportingMetricCalculationSpec2
-        timeIntervals = timeIntervals {
-          timeIntervals += interval {
-            startTime = timestamp { seconds = 100 }
-            endTime = timestamp { seconds = 200 }
-          }
-          timeIntervals += interval {
-            startTime = timestamp { seconds = 300 }
-            endTime = timestamp { seconds = 400 }
-          }
-        }
         details =
           ReportKt.details {
             tags.putAll(REPORT_TAGS)
@@ -1365,12 +1371,6 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       reportingMetricEntries[createdReportingSet.externalReportingSetId] =
         reportingMetricCalculationSpec
-      timeIntervals = timeIntervals {
-        timeIntervals += interval {
-          startTime = timestamp { seconds = 100 }
-          endTime = timestamp { seconds = 200 }
-        }
-      }
       details =
         ReportKt.details {
           tags.putAll(REPORT_TAGS)
@@ -1761,16 +1761,6 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
                   }
               }
           }
-        timeIntervals = timeIntervals {
-          timeIntervals += interval {
-            startTime = timestamp { seconds = 100 }
-            endTime = timestamp { seconds = 200 }
-          }
-          timeIntervals += interval {
-            startTime = timestamp { seconds = 300 }
-            endTime = timestamp { seconds = 400 }
-          }
-        }
         details =
           ReportKt.details {
             tags.putAll(REPORT_TAGS)
@@ -1838,16 +1828,6 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       val report = report {
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
         reportingMetricEntries[reportingSet.externalReportingSetId] = reportingMetricCalculationSpec
-        timeIntervals = timeIntervals {
-          timeIntervals += interval {
-            startTime = timestamp { seconds = 100 }
-            endTime = timestamp { seconds = 200 }
-          }
-          timeIntervals += interval {
-            startTime = timestamp { seconds = 200 }
-            endTime = timestamp { seconds = 300 }
-          }
-        }
         details =
           ReportKt.details {
             tags.putAll(REPORT_TAGS)

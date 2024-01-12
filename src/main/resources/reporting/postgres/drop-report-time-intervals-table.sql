@@ -33,8 +33,7 @@
 --       │   └── MeasurementPrimitiveReportingSetBases
 --       ├── MetricCalculationSpecs
 --       └── Reports
---           ├── ReportTimeIntervals
 --           └── MetricCalculationSpecReportingMetrics
 
--- changeset tristanvuong2021:drop-periodic-column-reports-table dbms:postgresql
-ALTER TABLE Reports DROP COLUMN periodic;
+-- changeset tristanvuong2021:drop-report-time-intervals-table dbms:postgresql
+DROP TABLE ReportTimeIntervals;

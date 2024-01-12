@@ -1740,8 +1740,10 @@ class ReportsServiceTest {
 
       val internalRequestingReport = internalReport {
         cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
-        timeIntervals = internalTimeIntervals { timeIntervals += interval }
-        details = InternalReportKt.details { tags.putAll(REPORT_TAGS) }
+        details = InternalReportKt.details {
+          tags.putAll(REPORT_TAGS)
+          timeIntervals = internalTimeIntervals { timeIntervals += interval }
+        }
         reportingSetToCreateMetricRequestMap.forEach { (reportingSet, reportingMetric) ->
           val initialReportingMetrics = listOf(reportingMetric)
           reportingMetricEntries.putAll(
@@ -1954,9 +1956,11 @@ class ReportsServiceTest {
           reportingMetrics += internalReportingMetric
         }
       val internalRequestingReport = internalReport {
-        details = InternalReportKt.details { tags.putAll(REPORT_TAGS) }
+        details = InternalReportKt.details {
+          tags.putAll(REPORT_TAGS)
+          timeIntervals = internalTimeIntervals { timeIntervals += interval }
+        }
         cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
-        timeIntervals = internalTimeIntervals { timeIntervals += interval }
         reportingMetricEntries.putAll(
           mapOf(
             targetReportingSet.resourceId to
@@ -3460,7 +3464,6 @@ class ReportsServiceTest {
             }
         }
       cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
-      timeIntervals = internalTimeIntervals { timeIntervals += intervals }
       externalReportId = "report-id"
       createTime = Instant.now().toProtoTime()
 
@@ -4323,14 +4326,14 @@ class ReportsServiceTest {
         details =
           InternalReportKt.details {
             tags.putAll(REPORT_TAGS)
+            if (timeIntervals != null) {
+              this.timeIntervals = internalTimeIntervals { this.timeIntervals += timeIntervals }
+            }
             if (reportingInterval != null) {
               this.reportingInterval = reportingInterval
             }
           }
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-        if (timeIntervals != null) {
-          this.timeIntervals = internalTimeIntervals { this.timeIntervals += timeIntervals }
-        }
 
         reportingMetricEntries.putAll(
           buildInternalReportingMetricEntryWithOneMetricCalculationSpec(

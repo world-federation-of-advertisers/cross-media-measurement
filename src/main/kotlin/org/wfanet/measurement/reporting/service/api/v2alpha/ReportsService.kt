@@ -464,7 +464,7 @@ class ReportsService(
       if (internalReport.details.hasReportingInterval()) {
         reportingInterval = internalReport.details.reportingInterval.toReportingInterval()
       } else {
-        this.timeIntervals = internalReport.timeIntervals.toTimeIntervals()
+        timeIntervals = internalReport.details.timeIntervals.toTimeIntervals()
       }
 
       val metrics: List<Metric> =
@@ -597,8 +597,10 @@ class ReportsService(
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
         when (request.report.timeCase) {
           Report.TimeCase.TIME_INTERVALS -> {
-            this.timeIntervals = request.report.timeIntervals.toInternal()
-            details = InternalReportKt.details { tags.putAll(request.report.tagsMap) }
+            details = InternalReportKt.details {
+              tags.putAll(request.report.tagsMap)
+              timeIntervals = request.report.timeIntervals.toInternal()
+            }
           }
           Report.TimeCase.REPORTING_INTERVAL -> {
             details =

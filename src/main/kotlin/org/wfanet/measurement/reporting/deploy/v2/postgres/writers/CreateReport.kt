@@ -207,24 +207,6 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
         bind("$7", report.details.toJson())
       }
 
-    val reportTimeIntervalsStatement =
-      boundStatement(
-        """
-      INSERT INTO ReportTimeIntervals
-        (
-          MeasurementConsumerId,
-          ReportId,
-          TimeIntervalStart,
-          TimeIntervalEndExclusive
-        )
-        VALUES ($1, $2, $3, $4)
-      """
-      ) {
-        createReportTimeIntervalsBindings(measurementConsumerId, reportId, report).forEach {
-          addBinding(it)
-        }
-      }
-
     val reportingMetricEntriesAndBinders =
       createMetricCalculationSpecBindings(
         measurementConsumerId,
@@ -259,11 +241,6 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
 
     transactionContext.run {
       executeStatement(statement)
-
-      if (request.report.timeIntervals.timeIntervalsList.isNotEmpty()) {
-        executeStatement(reportTimeIntervalsStatement)
-      }
-
       executeStatement(metricCalculationSpecReportingMetricsStatement)
 
       if (request.hasReportScheduleInfo()) {
@@ -325,25 +302,6 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
       reportingMetricEntries.clear()
       reportingMetricEntries.putAll(reportingMetricEntriesAndBinders.updatedReportingMetricEntries)
     }
-  }
-
-  private fun createReportTimeIntervalsBindings(
-    measurementConsumerId: InternalId,
-    reportId: InternalId,
-    report: Report,
-  ): List<BoundStatement.Binder.() -> Unit> {
-    val reportTimeIntervalsBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
-
-    report.timeIntervals.timeIntervalsList.forEach {
-      reportTimeIntervalsBinders.add {
-        bind("$1", measurementConsumerId)
-        bind("$2", reportId)
-        bind("$3", it.startTime.toInstant().atOffset(ZoneOffset.UTC))
-        bind("$4", it.endTime.toInstant().atOffset(ZoneOffset.UTC))
-      }
-    }
-
-    return reportTimeIntervalsBinders
   }
 
   private fun TransactionScope.createMetricCalculationSpecBindings(

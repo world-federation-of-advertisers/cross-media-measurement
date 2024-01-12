@@ -75,8 +75,6 @@ message Report {
   // Map of `external_reporting_set_id` to `ReportingMetricCalculationSpec`.
   map<string, ReportingMetricCalculationSpec> reporting_metric_entries = 4;
 
-  TimeIntervals time_intervals = 5;
-
   // Only set if `Report` is associated with a `ReportSchedule`.
   string external_report_schedule_id = 7;
 
@@ -89,8 +87,11 @@ message Report {
       google.type.DateTime report_start = 1;
       google.type.Date report_end = 2;
     }
-    // Only set if `time_intervals` derived from this.
-    ReportingInterval reporting_interval = 2;
+
+    oneof time {
+      TimeIntervals time_intervals = 2;
+      ReportingInterval reporting_interval = 3;
+    }
   }
   Details details = 8;
 }
