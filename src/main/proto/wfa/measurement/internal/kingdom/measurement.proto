@@ -187,7 +187,7 @@ message Requisition {
   State state = 7;
 
   // The human-friendly external ID of the Duchy that marked this `Requisition`
-  // as `FULFILLED`.
+  // as `FULFILLED` or being assigned to fulfill.
   string external_fulfilling_duchy_id = 8;
 
   message Refusal {

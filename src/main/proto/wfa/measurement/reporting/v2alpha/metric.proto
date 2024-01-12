@@ -245,6 +245,13 @@ message MetricResult {
     // Population result.
     PopulationCountResult population_count = 7;
   }
+
+  // List of resource names representing `Measurement`s from the CMMS public
+  // API that were used to calculate the `result` in this `MetricResult`.
+  repeated string cmms_measurements = 8 [
+    (google.api.resource_reference).type = "halo.wfanet.org/Measurement",
+    (google.api.field_behavior) = OUTPUT_ONLY
+  ];
 }
 
 // A resource that will calculate a particular quantity as defined by

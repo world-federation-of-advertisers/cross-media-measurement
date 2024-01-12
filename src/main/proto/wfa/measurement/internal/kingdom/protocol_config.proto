@@ -179,8 +179,8 @@ message ShareShuffleSketchParams {
   int64 register_count = 1;
 
   // Length of each register in bytes.
-  //
-  // The product of `maximum_frequency` and the `number_of_edps` should be no
-  // more than 2 ^ (`bytes_per_register` * 8).
   int32 bytes_per_register = 2;
+
+  // Secret share modulus.
+  uint32 ring_modulus = 3;
 }

@@ -108,7 +108,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
           HmssProtocolConfig.requiredExternalDuchyIds
         ProtocolConfig.ProtocolCase.DIRECT,
-        ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid protocol,")
+        ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid protocol.")
       }
     val requiredDuchyIds =
       requiredExternalDuchyIds +
@@ -132,7 +132,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
           HmssProtocolConfig.requiredExternalDuchyIds.size
         ProtocolConfig.ProtocolCase.DIRECT,
-        ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid protocol,")
+        ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid protocol.")
       }
 
     val includedDuchyEntries =

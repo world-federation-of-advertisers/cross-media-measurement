@@ -65,7 +65,7 @@ message Requisition {
   State state = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // Resource name of the `ComputationParticipant` that marked this
-  // `Requisition` as `FULFILLED`.
+  // `Requisition` as `FULFILLED` or being assigned to fulfill.
   string fulfilling_computation_participant = 5 [
     (google.api.resource_reference).type =
         "halo-system.wfanet.org/ComputationParticipant",

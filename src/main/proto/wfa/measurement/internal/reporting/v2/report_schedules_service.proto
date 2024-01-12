@@ -16,7 +16,6 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.v2;
 
-import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/reporting/v2/report_schedule.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
@@ -53,6 +52,8 @@ message ListReportSchedulesRequest {
     string cmms_measurement_consumer_id = 1;
     // Skips to results with an external id greater than this.
     string external_report_schedule_id_after = 2;
+    // If set, include only the state this is set to.
+    ReportSchedule.State state = 3;
   }
   Filter filter = 1;
 

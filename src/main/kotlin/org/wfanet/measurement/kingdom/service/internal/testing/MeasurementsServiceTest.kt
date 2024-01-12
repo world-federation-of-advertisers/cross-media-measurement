@@ -505,7 +505,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-  fun `createMeasurement for duchy HMSS measurement succeeds`() = runBlocking {
+  fun `createMeasurement for duchy HMSS measurement succeeds`(): Unit = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider = population.createDataProvider(dataProvidersService)
@@ -550,6 +550,11 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         .toList()
 
     assertThat(requisitions.size).isEqualTo(createdMeasurement.dataProvidersCount * 2)
+    assertThat(requisitions.map { it.externalFulfillingDuchyId })
+      .containsExactly(
+        Population.WORKER1_DUCHY.externalDuchyId,
+        Population.WORKER2_DUCHY.externalDuchyId
+      )
   }
 
   @Test

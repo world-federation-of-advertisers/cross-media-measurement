@@ -17,12 +17,8 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import io.grpc.Context
-import org.wfanet.measurement.reporting.v2alpha.ReportSchedule
 
 object ContextKeys {
   /** This is the context key for the authenticated [ReportingPrincipal]. */
   val PRINCIPAL_CONTEXT_KEY: Context.Key<ReportingPrincipal> = Context.key("principal")
-
-  /** This is the context key for the resource name for a [ReportSchedule]. */
-  val REPORT_SCHEDULE_NAME_CONTEXT_KEY: Context.Key<String> = Context.key("report_schedule_name")
 }
