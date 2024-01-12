@@ -113,6 +113,7 @@ import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval as StatsVidSamplingInterval
+import org.wfanet.measurement.common.toInterval
 
 data class MeasurementConsumerData(
   // The MC's public API resource name
@@ -138,6 +139,8 @@ class MeasurementConsumerSimulator(
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   private val eventQuery: EventQuery<Message>,
   private val expectedDirectNoiseMechanism: NoiseMechanism,
+  private val filterExpression: String = DEFAULT_FILTER_EXPRESSION,
+  private val eventRange: OpenEndTimeRange = DEFAULT_EVENT_RANGE,
 ) {
   /** Cache of resource name to [Certificate]. */
   private val certificateCache = mutableMapOf<String, Certificate>()
@@ -923,11 +926,8 @@ class MeasurementConsumerSimulator(
               key = eventGroup.name
               value =
                 RequisitionSpecKt.EventGroupEntryKt.value {
-                  collectionInterval = interval {
-                    startTime = EVENT_RANGE.start.toProtoTime()
-                    endTime = EVENT_RANGE.endExclusive.toProtoTime()
-                  }
-                  filter = eventFilter { expression = FILTER_EXPRESSION }
+                  collectionInterval = eventRange.toInterval()
+                  filter = eventFilter { expression = filterExpression }
                 }
             }
           }
@@ -989,16 +989,12 @@ class MeasurementConsumerSimulator(
   }
 
   companion object {
-    private const val FILTER_EXPRESSION =
+    private const val DEFAULT_FILTER_EXPRESSION =
       "person.gender == ${Person.Gender.MALE_VALUE} && " +
         "(video_ad.viewed_fraction > 0.25 || video_ad.viewed_fraction == 0.25)"
 
-    /**
-     * Date range for events.
-     *
-     * TODO(@SanjayVas): Make this configurable.
-     */
-    private val EVENT_RANGE =
+    /** Default time range for events. */
+    private val DEFAULT_EVENT_RANGE =
       OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 15)..LocalDate.of(2021, 3, 17))
 
     // For a 99.9% Confidence Interval.
