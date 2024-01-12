@@ -464,6 +464,7 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
             }
             groupings += MetricCalculationSpecKt.grouping { predicates += "age > 10" }
             cumulative = false
+            tags["year"] = "2024"
           }
       }
     }
