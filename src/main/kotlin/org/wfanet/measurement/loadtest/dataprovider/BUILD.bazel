@@ -144,6 +144,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/api/v2alpha:privacy_query_mapper",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/common:sample_vids",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:privacy_budgets",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:test_identifiers",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:vid_sampling",

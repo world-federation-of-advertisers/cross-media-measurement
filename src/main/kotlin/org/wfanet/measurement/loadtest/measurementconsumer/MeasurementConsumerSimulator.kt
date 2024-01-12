@@ -98,8 +98,8 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurement
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams as NoiserDpParams
+import org.wfanet.measurement.loadtest.common.sampleVids
 import org.wfanet.measurement.loadtest.config.TestIdentifiers
-import org.wfanet.measurement.loadtest.config.VidSampling
 import org.wfanet.measurement.loadtest.dataprovider.EventQuery
 import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults
 import org.wfanet.measurement.measurementconsumer.stats.DeterministicMethodology
@@ -164,50 +164,51 @@ class MeasurementConsumerSimulator(
 
   private val MeasurementInfo.sampledVids: Sequence<Long>
     get() {
-      return requisitions.asSequence().flatMap {
-        val eventGroupsMap: Map<String, RequisitionSpec.EventGroupEntry.Value> =
-          it.requisitionSpec.eventGroupsMap
-        it.eventGroups.flatMap { eventGroup ->
-          sampleVids(
-            EventQuery.EventGroupSpec(eventGroup, eventGroupsMap.getValue(eventGroup.name)),
-            measurementSpec.vidSamplingInterval
-          )
-        }
-      }
+      val eventGroupSpecs =
+        requisitions
+          .flatMap {
+            val eventGroupsMap: Map<String, RequisitionSpec.EventGroupEntry.Value> =
+              it.requisitionSpec.eventGroupsMap
+            it.eventGroups.map { eventGroup ->
+              EventQuery.EventGroupSpec(eventGroup, eventGroupsMap.getValue(eventGroup.name))
+            }
+          }
+          .asIterable()
+      return sampleVids(eventGroupSpecs, measurementSpec.vidSamplingInterval)
     }
 
   private fun MeasurementInfo.sampleVidsByDataProvider(
     targetDataProviderId: String
   ): Sequence<Long> {
-    return requisitions.asSequence().flatMap { requisitionInfo ->
-      val eventGroupsMap: Map<String, RequisitionSpec.EventGroupEntry.Value> =
-        requisitionInfo.requisitionSpec.eventGroupsMap
-
-      requisitionInfo.eventGroups
-        .filter { eventGroup ->
-          targetDataProviderId ==
-            requireNotNull(EventGroupKey.fromName(eventGroup.name)).dataProviderId
+    val eventGroupSpecs =
+      requisitions
+        .flatMap { requisitionInfo ->
+          val eventGroupsMap: Map<String, RequisitionSpec.EventGroupEntry.Value> =
+            requisitionInfo.requisitionSpec.eventGroupsMap
+          requisitionInfo.eventGroups
+            .filter { eventGroup ->
+              targetDataProviderId ==
+                requireNotNull(EventGroupKey.fromName(eventGroup.name)).dataProviderId
+            }
+            .map { eventGroup ->
+              EventQuery.EventGroupSpec(eventGroup, eventGroupsMap.getValue(eventGroup.name))
+            }
         }
-        .flatMap { eventGroup ->
-          sampleVids(
-            EventQuery.EventGroupSpec(eventGroup, eventGroupsMap.getValue(eventGroup.name)),
-            measurementSpec.vidSamplingInterval
-          )
-        }
-    }
+        .asIterable()
+    return sampleVids(eventGroupSpecs, measurementSpec.vidSamplingInterval)
   }
 
   private fun sampleVids(
-    eventGroupSpec: EventQuery.EventGroupSpec,
+    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
     vidSamplingInterval: VidSamplingInterval,
   ): Sequence<Long> {
-    return eventQuery.getUserVirtualIds(eventGroupSpec).filter { vid ->
-      VidSampling.sampler.vidIsInSamplingBucket(
-        vid,
+    return sampleVids(
+        eventQuery,
+        eventGroupSpecs,
         vidSamplingInterval.start,
         vidSamplingInterval.width
       )
-    }
+      .asSequence()
   }
 
   data class ExecutionResult(
@@ -350,7 +351,7 @@ class MeasurementConsumerSimulator(
   }
 
   /** A sequence of operations done in the simulator involving a direct reach measurement. */
-  suspend fun testDirectReach(runId: String) {
+  suspend fun testDirectReachOnly(runId: String) {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     val measurementInfo =
@@ -380,6 +381,7 @@ class MeasurementConsumerSimulator(
 
     assertThat(reachResult.reach.hasDeterministicCountDistinct()).isTrue()
     assertThat(reachResult.reach.noiseMechanism).isEqualTo(expectedDirectNoiseMechanism)
+    assertThat(reachResult.hasFrequency()).isFalse()
 
     logger.info("Direct reach result is equal to the expected result")
   }
