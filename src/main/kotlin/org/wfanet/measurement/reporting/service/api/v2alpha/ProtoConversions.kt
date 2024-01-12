@@ -79,6 +79,9 @@ import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals as internalTimeIntervals
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
 import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval as StatsVidSamplingInterval
+import com.google.protobuf.Timestamp
+import java.time.temporal.Temporal
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageToken
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsPageToken
@@ -1084,4 +1087,19 @@ fun DateTime.toZonedDateTime(): ZonedDateTime {
     source.nanos,
     id
   )
+}
+
+/**
+ * Converts an [OffsetDateTime] or a [ZonedDateTime] to a [Timestamp].
+ */
+fun Temporal.toTimestamp(): Timestamp {
+  return when (val source = this) {
+    is OffsetDateTime -> {
+      source.toInstant().toProtoTime()
+    }
+    is ZonedDateTime -> {
+      source.toInstant().toProtoTime()
+    }
+    else -> throw IllegalArgumentException("Temporal is not the right type.")
+  }
 }

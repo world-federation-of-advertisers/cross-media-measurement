@@ -2743,9 +2743,9 @@ class ReportSchedulesServiceTest {
         MetricCalculationSpecKt.details {
           displayName = "display"
           metricSpecs += INTERNAL_METRIC_SPEC
-          frequencySpec =
-            MetricCalculationSpecKt.frequencySpec {
-              daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
+          resultFrequencySpec =
+            MetricCalculationSpecKt.resultFrequencySpec {
+              daily = MetricCalculationSpec.ResultFrequencySpec.Daily.getDefaultInstance()
             }
           window =
             MetricCalculationSpecKt.window {

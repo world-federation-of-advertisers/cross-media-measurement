@@ -76,42 +76,43 @@ message MetricCalculationSpec {
   repeated Grouping groupings = 5 [(google.api.field_behavior) = IMMUTABLE];
 
   // Describes the frequencies at which results are generated.
-  message FrequencySpec {
-    // When Daily is selected the time specified by the report_start field in
-    // the Report is used to anchor the start time for each day.
+  message ResultFrequencySpec {
+    // Specification for a daily frequency.
     message Daily {}
 
-    // When Weekly is selected the first Metrics are calculated on the first
-    // occurrence of the specified day of week on or after the report_start
-    // field in the Report.
-    // For example, if day_of_week is Tuesday and the start time is a Tuesday
-    // then the first Metrics are calculated for the day specified in
-    // start_time. But if day_of_wek is Monday and the start time is a Tuesday
-    // then the first Metrics are calculated for the first Monday after the
-    // start time.
+    // Specification for a weekly frequency.
     message Weekly {
       google.type.DayOfWeek day_of_week = 1
           [(google.api.field_behavior) = REQUIRED];
     }
 
-    // When Monthly is selected the first Metrics are calculated on the first
-    // occurrence of the specified day of month on or after the report_start
-    // field in the Report. This behavior is similar to that of Weekly.
+    // Specification for a monthly frequency.
     message Monthly {
-      // If this represents a date that is greater than the end of the month,
-      // then it will be coerced to the end of the month. Cannot be less than 1.
+      // Cannot be less than 1.
       int32 day_of_month = 1 [(google.api.field_behavior) = REQUIRED];
     }
 
-    // The frequency at which the time interval is divided.
+    // The frequency at which time intervals are created. Anchored by the
+    // time in `reporting_interval.report_start` in a `Report`.
     oneof frequency {
+      // A time interval is created for each day.
       Daily daily = 1;
+      // A time interval is created for each week, starting on the first
+      // occurrence of the `day_of_week`. If `report_start` date is Monday and
+      // `day_of_week` is Tuesday, the first time interval will be created for
+      // the following day.
       Weekly weekly = 2;
+      // A time interval is created for each month, starting on the first
+      // occurrence of the `day_of_month`. If `report_start` date is the 1st of
+      // the month and `day_of_month` is 14, the first time interval will be
+      // created starting with the 14th of that month. If 'day_of_month` is
+      // larger than the amount of days the month has, a time interval will be
+      // created for the end of the month.
       Monthly monthly = 3;
     }
   }
   // If this is set, window needs to be set too.
-  FrequencySpec frequency_spec = 8;
+  ResultFrequencySpec result_frequency_spec = 8;
 
   message Window {
     message TrailingWindow {
@@ -128,13 +129,13 @@ message MetricCalculationSpec {
       Increment increment = 2 [(google.api.field_behavior) = REQUIRED];
     }
 
-    // How far back the Metrics at each period (as defined by the Frequency)
-    // cover. Required.
+    // How far back the Metrics at each period (as defined by
+    // `result_frequency_spec) cover. Required.
     oneof window {
       // The amount of time to look back for a Metric.
       TrailingWindow trailing_window = 1;
-      // Metrics start from the report start time as specified in the Report.
-      // If set, must be true.
+      // Metrics start from `report_start` in the `Report`. If set, must be
+      // true.
       bool report_start_time = 2;
     }
   }

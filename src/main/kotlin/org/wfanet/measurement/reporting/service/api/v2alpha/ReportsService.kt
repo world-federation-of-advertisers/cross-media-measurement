@@ -707,18 +707,18 @@ class ReportsService(
   ): InternalReport.MetricCalculationSpecReportingMetrics {
     val timeIntervals: List<Interval> =
       if (createReportInfo.timeIntervals != null) {
-        grpcRequire(!internalMetricCalculationSpec.details.hasFrequencySpec()) {
-          "metric_calculation_spec with frequency_spec set not allowed when time_intervals is set."
+        grpcRequire(!internalMetricCalculationSpec.details.hasResultFrequencySpec()) {
+          "metric_calculation_spec with result_frequency_spec set not allowed when time_intervals is set."
         }
         createReportInfo.timeIntervals
       } else {
-        if (!internalMetricCalculationSpec.details.hasFrequencySpec()) {
+        if (!internalMetricCalculationSpec.details.hasResultFrequencySpec()) {
           generateTimeIntervals(checkNotNull(createReportInfo.reportingInterval), null, null)
         } else {
           val generatedTimeIntervals: List<Interval> =
             generateTimeIntervals(
               checkNotNull(createReportInfo.reportingInterval),
-              internalMetricCalculationSpec.details.frequencySpec,
+              internalMetricCalculationSpec.details.resultFrequencySpec,
               internalMetricCalculationSpec.details.window
             )
           grpcRequire(generatedTimeIntervals.isNotEmpty()) {
@@ -931,11 +931,11 @@ private fun Date.isBefore(other: Date): Boolean {
 
 /**
  * Generate a list of time intervals using the [Report.ReportingInterval], the
- * [MetricCalculationSpec.FrequencySpec], and the [MetricCalculationSpec.Window].
+ * [MetricCalculationSpec.ResultFrequencySpec], and the [MetricCalculationSpec.Window].
  */
 private fun generateTimeIntervals(
   reportingInterval: Report.ReportingInterval,
-  frequencySpec: MetricCalculationSpec.FrequencySpec?,
+  frequencySpec: MetricCalculationSpec.ResultFrequencySpec?,
   window: MetricCalculationSpec.Window?,
 ): List<Interval> {
   val reportEndDateTime =
@@ -999,20 +999,20 @@ private fun generateTimeIntervals(
 private fun generateTimeIntervals(
   reportStartTemporal: Temporal,
   reportEndTemporal: Temporal,
-  frequencySpec: MetricCalculationSpec.FrequencySpec,
+  frequencySpec: MetricCalculationSpec.ResultFrequencySpec,
   window: MetricCalculationSpec.Window,
 ): List<Interval> {
   val firstTimeIntervalEndTemporal: Temporal =
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
     when (frequencySpec.frequencyCase) {
-      MetricCalculationSpec.FrequencySpec.FrequencyCase.DAILY -> reportStartTemporal
-      MetricCalculationSpec.FrequencySpec.FrequencyCase.WEEKLY ->
+      MetricCalculationSpec.ResultFrequencySpec.FrequencyCase.DAILY -> reportStartTemporal
+      MetricCalculationSpec.ResultFrequencySpec.FrequencyCase.WEEKLY ->
         reportStartTemporal.with(
           TemporalAdjusters.nextOrSame(
             java.time.DayOfWeek.valueOf(frequencySpec.weekly.dayOfWeek.name)
           )
         )
-      MetricCalculationSpec.FrequencySpec.FrequencyCase.MONTHLY -> {
+      MetricCalculationSpec.ResultFrequencySpec.FrequencyCase.MONTHLY -> {
         val lastDayOfMonthTemporal = reportStartTemporal.with(TemporalAdjusters.lastDayOfMonth())
         val lastDayOfMonth = lastDayOfMonthTemporal.get(ChronoField.DAY_OF_MONTH)
         if (
@@ -1041,7 +1041,7 @@ private fun generateTimeIntervals(
           )
         }
       }
-      MetricCalculationSpec.FrequencySpec.FrequencyCase.FREQUENCY_NOT_SET -> {
+      MetricCalculationSpec.ResultFrequencySpec.FrequencyCase.FREQUENCY_NOT_SET -> {
         throw Status.INVALID_ARGUMENT.withDescription("frequency is not set").asRuntimeException()
       }
     }
@@ -1092,17 +1092,17 @@ private fun generateTimeIntervals(
       nextTimeIntervalEndTemporal =
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
         when (frequencySpec.frequencyCase) {
-          MetricCalculationSpec.FrequencySpec.FrequencyCase.DAILY -> {
+          MetricCalculationSpec.ResultFrequencySpec.FrequencyCase.DAILY -> {
             nextTimeIntervalEndTemporal.plus(Period.ofDays(1))
           }
-          MetricCalculationSpec.FrequencySpec.FrequencyCase.WEEKLY -> {
+          MetricCalculationSpec.ResultFrequencySpec.FrequencyCase.WEEKLY -> {
             nextTimeIntervalEndTemporal.with(
               TemporalAdjusters.next(
                 java.time.DayOfWeek.valueOf(frequencySpec.weekly.dayOfWeek.name)
               )
             )
           }
-          MetricCalculationSpec.FrequencySpec.FrequencyCase.MONTHLY -> {
+          MetricCalculationSpec.ResultFrequencySpec.FrequencyCase.MONTHLY -> {
             val nextMonthEndTemporal =
               nextTimeIntervalEndTemporal
                 .plus(Period.ofMonths(1))
@@ -1118,7 +1118,7 @@ private fun generateTimeIntervals(
               }
             )
           }
-          MetricCalculationSpec.FrequencySpec.FrequencyCase.FREQUENCY_NOT_SET -> {
+          MetricCalculationSpec.ResultFrequencySpec.FrequencyCase.FREQUENCY_NOT_SET -> {
             throw Status.FAILED_PRECONDITION.withDescription("frequency is not set")
               .asRuntimeException()
           }
@@ -1148,21 +1148,4 @@ private fun buildReportTimeIntervalStartTimestamp(
     MetricCalculationSpec.Window.TrailingWindow.Increment.UNRECOGNIZED, ->
       error("trailing_window missing increment")
   }.toTimestamp()
-}
-
-private fun Temporal.toTimestamp(): Timestamp {
-  return when (val source = this) {
-    is OffsetDateTime -> {
-      source.toInstant().toProtoTime()
-    }
-    is ZonedDateTime -> {
-      source.toInstant().toProtoTime()
-    }
-    else -> {
-      throw Status.UNKNOWN.withDescription(
-          "Error encountered when generating time intervals from reporting_interval."
-        )
-        .asRuntimeException()
-    }
-  }
 }

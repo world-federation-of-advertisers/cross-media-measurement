@@ -22,7 +22,6 @@ import com.google.protobuf.util.Timestamps
 import com.google.type.DateTime
 import com.google.type.TimeZone
 import com.google.type.copy
-import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
 import java.time.LocalDateTime
@@ -54,6 +53,11 @@ import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpc
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub as InternalReportSchedulesCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
+import com.google.type.date
+import java.time.LocalDate
+import java.time.Period
+import java.time.temporal.ChronoField
+import java.time.temporal.Temporal
 import org.wfanet.measurement.internal.reporting.v2.listReportSchedulesRequest
 import org.wfanet.measurement.internal.reporting.v2.reportScheduleIteration
 import org.wfanet.measurement.internal.reporting.v2.setReportScheduleIterationStateRequest
@@ -63,10 +67,11 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoSe
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.withReportScheduleInfo
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportSchedulesService
 import org.wfanet.measurement.reporting.service.api.v2alpha.toPublic
+import org.wfanet.measurement.reporting.service.api.v2alpha.toTimestamp
+import org.wfanet.measurement.reporting.v2alpha.ReportKt
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
-import org.wfanet.measurement.reporting.v2alpha.timeIntervals
 
 class ReportSchedulingJob(
   private val measurementConsumerConfigs: MeasurementConsumerConfigs,
@@ -228,10 +233,19 @@ class ReportSchedulingJob(
                       reportId = "a" + reportScheduleIteration.createReportRequestId
                       report =
                         publicReportSchedule.reportTemplate.copy {
-                          timeIntervals = timeIntervals {
-                            timeIntervals += interval {
-                              startTime = windowStart
-                              endTime = reportSchedule.nextReportCreationTime
+                          reportingInterval = ReportKt.reportingInterval {
+                            val windowStartTemporal = windowStart.toTemporal(reportSchedule.details.eventStart)
+                            val nextReportCreationTemporal = reportSchedule.nextReportCreationTime.toTemporal(reportSchedule.details.eventStart)
+
+                            reportStart = reportSchedule.details.eventStart.copy {
+                              year = windowStartTemporal.get(ChronoField.YEAR)
+                              month = windowStartTemporal.get(ChronoField.MONTH_OF_YEAR)
+                              day = windowStartTemporal.get(ChronoField.DAY_OF_MONTH)
+                            }
+                            reportEnd = date {
+                              year = nextReportCreationTemporal.get(ChronoField.YEAR)
+                              month = nextReportCreationTemporal.get(ChronoField.MONTH_OF_YEAR)
+                              day = nextReportCreationTemporal.get(ChronoField.DAY_OF_MONTH)
                             }
                           }
                         }
@@ -415,72 +429,45 @@ class ReportSchedulingJob(
       return ZonedDateTime.ofInstant(source.toInstant(), id)
     }
 
-    private fun getNextReportCreationTime(
-      offsetDateTime: OffsetDateTime,
-      frequency: ReportSchedule.Frequency
-    ): Timestamp {
-      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-      return when (frequency.frequencyCase) {
-        ReportSchedule.Frequency.FrequencyCase.DAILY -> {
-          offsetDateTime.plusDays(1).toInstant().toProtoTime()
-        }
-        ReportSchedule.Frequency.FrequencyCase.WEEKLY -> {
-          offsetDateTime
-            .with(
-              TemporalAdjusters.next(java.time.DayOfWeek.valueOf(frequency.weekly.dayOfWeek.name))
-            )
-            .toInstant()
-            .toProtoTime()
-        }
-        ReportSchedule.Frequency.FrequencyCase.MONTHLY -> {
-          val offsetDateTimeNextMonthEnd =
-            offsetDateTime.plusMonths(1).with(TemporalAdjusters.lastDayOfMonth())
-          offsetDateTimeNextMonthEnd
-            .withDayOfMonth(
-              minOf(offsetDateTimeNextMonthEnd.dayOfMonth, frequency.monthly.dayOfMonth)
-            )
-            .toInstant()
-            .toProtoTime()
-        }
-        ReportSchedule.Frequency.FrequencyCase.FREQUENCY_NOT_SET -> {
-          throw Status.FAILED_PRECONDITION.withDescription("frequency is not set")
-            .asRuntimeException()
-        }
+    private fun Timestamp.toTemporal(dateTime: DateTime): Temporal {
+      val source = this
+      return if (dateTime.hasUtcOffset()) {
+        source.toOffsetDateTime(dateTime.utcOffset)
+      } else {
+        source.toZonedDateTime(dateTime.timeZone)
       }
     }
 
     private fun getNextReportCreationTime(
-      zonedDateTime: ZonedDateTime,
+      temporal: Temporal,
       frequency: ReportSchedule.Frequency
     ): Timestamp {
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       return when (frequency.frequencyCase) {
         ReportSchedule.Frequency.FrequencyCase.DAILY -> {
-          zonedDateTime.plusDays(1).toInstant().toProtoTime()
+          temporal.plus(Period.ofDays(1))
         }
         ReportSchedule.Frequency.FrequencyCase.WEEKLY -> {
-          zonedDateTime
+          temporal
             .with(
               TemporalAdjusters.next(java.time.DayOfWeek.valueOf(frequency.weekly.dayOfWeek.name))
             )
-            .toInstant()
-            .toProtoTime()
         }
         ReportSchedule.Frequency.FrequencyCase.MONTHLY -> {
-          val zonedDateTimeNextMonthEnd =
-            zonedDateTime.plusMonths(1).with(TemporalAdjusters.lastDayOfMonth())
-          zonedDateTimeNextMonthEnd
-            .withDayOfMonth(
-              minOf(zonedDateTimeNextMonthEnd.dayOfMonth, frequency.monthly.dayOfMonth)
+          val nextMonthEndTemporal =
+            temporal.plus(Period.ofMonths(1)).with(TemporalAdjusters.lastDayOfMonth())
+          nextMonthEndTemporal.with(
+          TemporalAdjusters.ofDateAdjuster { date: LocalDate ->
+            date.withDayOfMonth(
+              minOf(nextMonthEndTemporal.get(ChronoField.DAY_OF_MONTH), frequency.monthly.dayOfMonth)
             )
-            .toInstant()
-            .toProtoTime()
+          })
         }
         ReportSchedule.Frequency.FrequencyCase.FREQUENCY_NOT_SET -> {
           throw Status.FAILED_PRECONDITION.withDescription("frequency is not set")
             .asRuntimeException()
         }
-      }
+      }.toTimestamp()
     }
 
     private fun DateTime.toTimestamp(): Timestamp {

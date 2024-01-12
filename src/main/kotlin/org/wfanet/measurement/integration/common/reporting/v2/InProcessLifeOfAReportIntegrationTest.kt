@@ -914,9 +914,9 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                     vidSamplingInterval = VID_SAMPLING_INTERVAL
                   }
                   .withDefaults(reportingServer.metricSpecConfig)
-              frequencySpec =
-                MetricCalculationSpecKt.frequencySpec {
-                  daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
+              resultFrequencySpec =
+                MetricCalculationSpecKt.resultFrequencySpec {
+                  daily = MetricCalculationSpec.ResultFrequencySpec.Daily.getDefaultInstance()
                 }
 
               window =

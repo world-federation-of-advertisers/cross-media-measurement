@@ -472,9 +472,9 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
                 }
             }
             groupings += MetricCalculationSpecKt.grouping { predicates += "age > 10" }
-            frequencySpec =
-              MetricCalculationSpecKt.frequencySpec {
-                daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
+            resultFrequencySpec =
+              MetricCalculationSpecKt.resultFrequencySpec {
+                daily = MetricCalculationSpec.ResultFrequencySpec.Daily.getDefaultInstance()
               }
             window =
               MetricCalculationSpecKt.window {

@@ -630,8 +630,8 @@ class ReportsServiceTest {
     }
 
     val frequencySpec =
-      MetricCalculationSpecKt.frequencySpec {
-        daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
+      MetricCalculationSpecKt.resultFrequencySpec {
+        daily = MetricCalculationSpec.ResultFrequencySpec.Daily.getDefaultInstance()
       }
 
     val window =
@@ -693,8 +693,8 @@ class ReportsServiceTest {
       }
 
       val frequencySpec =
-        MetricCalculationSpecKt.frequencySpec {
-          weekly = MetricCalculationSpecKt.FrequencySpecKt.weekly { dayOfWeek = DayOfWeek.MONDAY }
+        MetricCalculationSpecKt.resultFrequencySpec {
+          weekly = MetricCalculationSpecKt.ResultFrequencySpecKt.weekly { dayOfWeek = DayOfWeek.MONDAY }
         }
 
       val window =
@@ -766,8 +766,8 @@ class ReportsServiceTest {
       }
 
       val frequencySpec =
-        MetricCalculationSpecKt.frequencySpec {
-          weekly = MetricCalculationSpecKt.FrequencySpecKt.weekly { dayOfWeek = DayOfWeek.TUESDAY }
+        MetricCalculationSpecKt.resultFrequencySpec {
+          weekly = MetricCalculationSpecKt.ResultFrequencySpecKt.weekly { dayOfWeek = DayOfWeek.TUESDAY }
         }
 
       val window =
@@ -829,8 +829,8 @@ class ReportsServiceTest {
       }
 
       val frequencySpec =
-        MetricCalculationSpecKt.frequencySpec {
-          monthly = MetricCalculationSpecKt.FrequencySpecKt.monthly { dayOfMonth = 1 }
+        MetricCalculationSpecKt.resultFrequencySpec {
+          monthly = MetricCalculationSpecKt.ResultFrequencySpecKt.monthly { dayOfMonth = 1 }
         }
 
       val window =
@@ -892,8 +892,8 @@ class ReportsServiceTest {
       }
 
       val frequencySpec =
-        MetricCalculationSpecKt.frequencySpec {
-          monthly = MetricCalculationSpecKt.FrequencySpecKt.monthly { dayOfMonth = 1 }
+        MetricCalculationSpecKt.resultFrequencySpec {
+          monthly = MetricCalculationSpecKt.ResultFrequencySpecKt.monthly { dayOfMonth = 1 }
         }
 
       val window =
@@ -965,8 +965,8 @@ class ReportsServiceTest {
       }
 
       val frequencySpec =
-        MetricCalculationSpecKt.frequencySpec {
-          monthly = MetricCalculationSpecKt.FrequencySpecKt.monthly { dayOfMonth = 5 }
+        MetricCalculationSpecKt.resultFrequencySpec {
+          monthly = MetricCalculationSpecKt.ResultFrequencySpecKt.monthly { dayOfMonth = 5 }
         }
 
       val window =
@@ -1027,8 +1027,8 @@ class ReportsServiceTest {
     }
 
     val frequencySpec =
-      MetricCalculationSpecKt.frequencySpec {
-        monthly = MetricCalculationSpecKt.FrequencySpecKt.monthly { dayOfMonth = 15 }
+      MetricCalculationSpecKt.resultFrequencySpec {
+        monthly = MetricCalculationSpecKt.ResultFrequencySpecKt.monthly { dayOfMonth = 15 }
       }
 
     val window =
@@ -1090,8 +1090,8 @@ class ReportsServiceTest {
       }
 
       val frequencySpec =
-        MetricCalculationSpecKt.frequencySpec {
-          daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
+        MetricCalculationSpecKt.resultFrequencySpec {
+          daily = MetricCalculationSpec.ResultFrequencySpec.Daily.getDefaultInstance()
         }
 
       val window =
@@ -1153,8 +1153,8 @@ class ReportsServiceTest {
       }
 
       val frequencySpec =
-        MetricCalculationSpecKt.frequencySpec {
-          monthly = MetricCalculationSpecKt.FrequencySpecKt.monthly { dayOfMonth = 15 }
+        MetricCalculationSpecKt.resultFrequencySpec {
+          monthly = MetricCalculationSpecKt.ResultFrequencySpecKt.monthly { dayOfMonth = 15 }
         }
 
       val window = MetricCalculationSpecKt.window { reportStartTime = true }
@@ -2139,9 +2139,9 @@ class ReportsServiceTest {
           InternalMetricCalculationSpecKt.details {
             displayName = DISPLAY_NAME
             metricSpecs += INTERNAL_REACH_METRIC_SPEC
-            frequencySpec =
-              InternalMetricCalculationSpecKt.frequencySpec {
-                daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
+            resultFrequencySpec =
+              InternalMetricCalculationSpecKt.resultFrequencySpec {
+                daily = MetricCalculationSpec.ResultFrequencySpec.Daily.getDefaultInstance()
               }
             window = InternalMetricCalculationSpecKt.window { reportStartTime = true }
           }
@@ -2553,9 +2553,9 @@ class ReportsServiceTest {
               INTERNAL_REACH_METRIC_CALCULATION_SPEC.copy {
                 details =
                   INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.copy {
-                    frequencySpec =
-                      MetricCalculationSpecKt.frequencySpec {
-                        daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
+                    resultFrequencySpec =
+                      MetricCalculationSpecKt.resultFrequencySpec {
+                        daily = MetricCalculationSpec.ResultFrequencySpec.Daily.getDefaultInstance()
                       }
                   }
               }
@@ -2581,7 +2581,7 @@ class ReportsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.message).contains("metric_calculation_spec with frequency_spec set not")
+    assertThat(exception.message).contains("metric_calculation_spec with result_frequency_spec set not")
   }
 
   @Test
@@ -2700,9 +2700,9 @@ class ReportsServiceTest {
               INTERNAL_REACH_METRIC_CALCULATION_SPEC.copy {
                 details =
                   INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.copy {
-                    frequencySpec =
-                      MetricCalculationSpecKt.frequencySpec {
-                        daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
+                    resultFrequencySpec =
+                      MetricCalculationSpecKt.resultFrequencySpec {
+                        daily = MetricCalculationSpec.ResultFrequencySpec.Daily.getDefaultInstance()
                       }
                     window =
                       MetricCalculationSpecKt.window {
@@ -2764,9 +2764,9 @@ class ReportsServiceTest {
               INTERNAL_REACH_METRIC_CALCULATION_SPEC.copy {
                 details =
                   INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.copy {
-                    frequencySpec =
-                      MetricCalculationSpecKt.frequencySpec {
-                        daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
+                    resultFrequencySpec =
+                      MetricCalculationSpecKt.resultFrequencySpec {
+                        daily = MetricCalculationSpec.ResultFrequencySpec.Daily.getDefaultInstance()
                       }
                     window =
                       MetricCalculationSpecKt.window {
@@ -2828,10 +2828,10 @@ class ReportsServiceTest {
               INTERNAL_REACH_METRIC_CALCULATION_SPEC.copy {
                 details =
                   INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.copy {
-                    frequencySpec =
-                      MetricCalculationSpecKt.frequencySpec {
+                    resultFrequencySpec =
+                      MetricCalculationSpecKt.resultFrequencySpec {
                         monthly =
-                          MetricCalculationSpecKt.FrequencySpecKt.monthly { dayOfMonth = 15 }
+                          MetricCalculationSpecKt.ResultFrequencySpecKt.monthly { dayOfMonth = 15 }
                       }
                     window =
                       MetricCalculationSpecKt.window {
@@ -4109,7 +4109,7 @@ class ReportsServiceTest {
   private fun assertReportCreatedWithReportingInterval(
     reportingInterval: ReportingInterval,
     timeIntervals: List<Interval>,
-    metricCalculationSpecFrequency: MetricCalculationSpec.FrequencySpec?,
+    metricCalculationSpecFrequency: MetricCalculationSpec.ResultFrequencySpec?,
     metricCalculationSpecWindow: MetricCalculationSpec.Window?
   ) = runBlocking {
     val targetReportingSet = PRIMITIVE_REPORTING_SETS.first()
@@ -4126,7 +4126,7 @@ class ReportsServiceTest {
           groupings += InternalMetricCalculationSpecKt.grouping { this.predicates += predicates }
           this.filter = filter
           if (metricCalculationSpecFrequency != null && metricCalculationSpecWindow != null) {
-            frequencySpec = metricCalculationSpecFrequency
+            resultFrequencySpec = metricCalculationSpecFrequency
             window = metricCalculationSpecWindow
           }
         }

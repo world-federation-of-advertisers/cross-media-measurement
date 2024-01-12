@@ -104,9 +104,9 @@ suspend fun createMetricCalculationSpec(
         }
         groupings += MetricCalculationSpecKt.grouping { predicates += "age > 10" }
         filter = "filter"
-        frequencySpec =
-          MetricCalculationSpecKt.frequencySpec {
-            daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
+        resultFrequencySpec =
+          MetricCalculationSpecKt.resultFrequencySpec {
+            daily = MetricCalculationSpec.ResultFrequencySpec.Daily.getDefaultInstance()
           }
         window =
           MetricCalculationSpecKt.window {

@@ -115,9 +115,10 @@ message Report {
     TimeIntervals time_intervals = 3;
     // A single time interval specifying the start and end time of the report.
     // If this is specified, then for each MetricCalculationSpec,
-    // frequency_spec and window will be used to divide the interval. Any
-    // interval created will have a lower bound of report_start. If no
-    // frequency_spec is specified then the entire interval is reported on.
+    // `result_frequency_spec` and `window` will be used to divide the interval.
+    // Any interval created will have a lower bound of report_start. If no
+    // `result_frequency_spec` is specified then the entire interval is reported
+    // on.
     ReportingInterval reporting_interval = 10;
   }
 

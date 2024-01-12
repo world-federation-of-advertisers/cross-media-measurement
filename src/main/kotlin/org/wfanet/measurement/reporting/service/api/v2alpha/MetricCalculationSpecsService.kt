@@ -231,8 +231,8 @@ class MetricCalculationSpecsService(
   ): InternalMetricCalculationSpec {
     val source = this
 
-    grpcRequire(source.hasFrequencySpec() == source.hasWindow()) {
-      "frequency_spec and window must both be set or both be not set"
+    grpcRequire(source.hasResultFrequencySpec() == source.hasWindow()) {
+      "result_frequency_spec and window must both be set or both be not set"
     }
 
     val internalMetricSpecs =
@@ -260,8 +260,8 @@ class MetricCalculationSpecsService(
             source.groupingsList.map { grouping ->
               InternalMetricCalculationSpecKt.grouping { predicates += grouping.predicatesList }
             }
-          if (source.hasFrequencySpec()) {
-            frequencySpec = source.frequencySpec.toInternal()
+          if (source.hasResultFrequencySpec()) {
+            resultFrequencySpec = source.resultFrequencySpec.toInternal()
           }
           if (source.hasWindow()) {
             window = source.window.toInternal()
@@ -345,19 +345,19 @@ class MetricCalculationSpecsService(
     }
 
     /**
-     * Converts a public [MetricCalculationSpec.FrequencySpec] to an internal
-     * [InternalMetricCalculationSpec.FrequencySpec].
+     * Converts a public [MetricCalculationSpec.ResultFrequencySpec] to an internal
+     * [InternalMetricCalculationSpec.ResultFrequencySpec].
      */
-    private fun MetricCalculationSpec.FrequencySpec.toInternal():
-      InternalMetricCalculationSpec.FrequencySpec {
+    private fun MetricCalculationSpec.ResultFrequencySpec.toInternal():
+      InternalMetricCalculationSpec.ResultFrequencySpec {
       val source = this
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-      return InternalMetricCalculationSpecKt.frequencySpec {
+      return InternalMetricCalculationSpecKt.resultFrequencySpec {
         when (source.frequencyCase) {
-          MetricCalculationSpec.FrequencySpec.FrequencyCase.DAILY -> {
-            daily = InternalMetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
+          MetricCalculationSpec.ResultFrequencySpec.FrequencyCase.DAILY -> {
+            daily = InternalMetricCalculationSpec.ResultFrequencySpec.Daily.getDefaultInstance()
           }
-          MetricCalculationSpec.FrequencySpec.FrequencyCase.WEEKLY -> {
+          MetricCalculationSpec.ResultFrequencySpec.FrequencyCase.WEEKLY -> {
             grpcRequire(
               source.weekly.dayOfWeek != DayOfWeek.DAY_OF_WEEK_UNSPECIFIED &&
                 source.weekly.dayOfWeek != DayOfWeek.UNRECOGNIZED
@@ -365,20 +365,20 @@ class MetricCalculationSpecsService(
               "day_of_week in weekly frequency is unspecified or invalid."
             }
             weekly =
-              InternalMetricCalculationSpecKt.FrequencySpecKt.weekly {
+              InternalMetricCalculationSpecKt.ResultFrequencySpecKt.weekly {
                 dayOfWeek = source.weekly.dayOfWeek
               }
           }
-          MetricCalculationSpec.FrequencySpec.FrequencyCase.MONTHLY -> {
+          MetricCalculationSpec.ResultFrequencySpec.FrequencyCase.MONTHLY -> {
             grpcRequire(source.monthly.dayOfMonth > 0) {
               "day_of_month in monthly frequency is unspecified or invalid."
             }
             monthly =
-              InternalMetricCalculationSpecKt.FrequencySpecKt.monthly {
+              InternalMetricCalculationSpecKt.ResultFrequencySpecKt.monthly {
                 dayOfMonth = source.monthly.dayOfMonth
               }
           }
-          MetricCalculationSpec.FrequencySpec.FrequencyCase.FREQUENCY_NOT_SET -> {}
+          MetricCalculationSpec.ResultFrequencySpec.FrequencyCase.FREQUENCY_NOT_SET -> {}
         }
       }
     }
@@ -446,8 +446,8 @@ class MetricCalculationSpecsService(
           source.details.groupingsList.map { grouping ->
             MetricCalculationSpecKt.grouping { predicates += grouping.predicatesList }
           }
-        if (source.details.hasFrequencySpec()) {
-          frequencySpec = source.details.frequencySpec.toPublic()
+        if (source.details.hasResultFrequencySpec()) {
+          resultFrequencySpec = source.details.resultFrequencySpec.toPublic()
         }
         if (source.details.hasWindow()) {
           window = source.details.window.toPublic()
@@ -457,29 +457,29 @@ class MetricCalculationSpecsService(
     }
 
     /**
-     * Converts an internal [InternalMetricCalculationSpec.FrequencySpec] to a public
-     * [MetricCalculationSpec.FrequencySpec].
+     * Converts an internal [InternalMetricCalculationSpec.ResultFrequencySpec] to a public
+     * [MetricCalculationSpec.ResultFrequencySpec].
      */
-    private fun InternalMetricCalculationSpec.FrequencySpec.toPublic():
-      MetricCalculationSpec.FrequencySpec {
+    private fun InternalMetricCalculationSpec.ResultFrequencySpec.toPublic():
+      MetricCalculationSpec.ResultFrequencySpec {
       val source = this
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-      return MetricCalculationSpecKt.frequencySpec {
+      return MetricCalculationSpecKt.resultFrequencySpec {
         when (source.frequencyCase) {
-          InternalMetricCalculationSpec.FrequencySpec.FrequencyCase.DAILY -> {
-            daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
+          InternalMetricCalculationSpec.ResultFrequencySpec.FrequencyCase.DAILY -> {
+            daily = MetricCalculationSpec.ResultFrequencySpec.Daily.getDefaultInstance()
           }
-          InternalMetricCalculationSpec.FrequencySpec.FrequencyCase.WEEKLY -> {
+          InternalMetricCalculationSpec.ResultFrequencySpec.FrequencyCase.WEEKLY -> {
             weekly =
-              MetricCalculationSpecKt.FrequencySpecKt.weekly { dayOfWeek = source.weekly.dayOfWeek }
+              MetricCalculationSpecKt.ResultFrequencySpecKt.weekly { dayOfWeek = source.weekly.dayOfWeek }
           }
-          InternalMetricCalculationSpec.FrequencySpec.FrequencyCase.MONTHLY -> {
+          InternalMetricCalculationSpec.ResultFrequencySpec.FrequencyCase.MONTHLY -> {
             monthly =
-              MetricCalculationSpecKt.FrequencySpecKt.monthly {
+              MetricCalculationSpecKt.ResultFrequencySpecKt.monthly {
                 dayOfMonth = source.monthly.dayOfMonth
               }
           }
-          InternalMetricCalculationSpec.FrequencySpec.FrequencyCase.FREQUENCY_NOT_SET -> {}
+          InternalMetricCalculationSpec.ResultFrequencySpec.FrequencyCase.FREQUENCY_NOT_SET -> {}
         }
       }
     }

@@ -205,7 +205,7 @@ class MetricCalculationSpecsServiceTest {
         INTERNAL_METRIC_CALCULATION_SPEC.copy {
           details =
             details.copy {
-              clearFrequencySpec()
+              clearResultFrequencySpec()
               clearWindow()
             }
         }
@@ -215,7 +215,7 @@ class MetricCalculationSpecsServiceTest {
 
       val metricCalculationSpec =
         METRIC_CALCULATION_SPEC.copy {
-          clearFrequencySpec()
+          clearResultFrequencySpec()
           clearWindow()
         }
       val request = createMetricCalculationSpecRequest {
@@ -252,10 +252,10 @@ class MetricCalculationSpecsServiceTest {
         INTERNAL_METRIC_CALCULATION_SPEC.copy {
           details =
             details.copy {
-              frequencySpec =
-                InternalMetricCalculationSpecKt.frequencySpec {
+              resultFrequencySpec =
+                InternalMetricCalculationSpecKt.resultFrequencySpec {
                   weekly =
-                    InternalMetricCalculationSpecKt.FrequencySpecKt.weekly { dayOfWeek = monday }
+                    InternalMetricCalculationSpecKt.ResultFrequencySpecKt.weekly { dayOfWeek = monday }
                 }
             }
         }
@@ -265,9 +265,9 @@ class MetricCalculationSpecsServiceTest {
 
       val metricCalculationSpec =
         METRIC_CALCULATION_SPEC.copy {
-          frequencySpec =
-            MetricCalculationSpecKt.frequencySpec {
-              weekly = MetricCalculationSpecKt.FrequencySpecKt.weekly { dayOfWeek = monday }
+          resultFrequencySpec =
+            MetricCalculationSpecKt.resultFrequencySpec {
+              weekly = MetricCalculationSpecKt.ResultFrequencySpecKt.weekly { dayOfWeek = monday }
             }
         }
       val request = createMetricCalculationSpecRequest {
@@ -304,10 +304,10 @@ class MetricCalculationSpecsServiceTest {
         INTERNAL_METRIC_CALCULATION_SPEC.copy {
           details =
             details.copy {
-              frequencySpec =
-                InternalMetricCalculationSpecKt.frequencySpec {
+              resultFrequencySpec =
+                InternalMetricCalculationSpecKt.resultFrequencySpec {
                   monthly =
-                    InternalMetricCalculationSpecKt.FrequencySpecKt.monthly { dayOfMonth = first }
+                    InternalMetricCalculationSpecKt.ResultFrequencySpecKt.monthly { dayOfMonth = first }
                 }
             }
         }
@@ -317,9 +317,9 @@ class MetricCalculationSpecsServiceTest {
 
       val metricCalculationSpec =
         METRIC_CALCULATION_SPEC.copy {
-          frequencySpec =
-            MetricCalculationSpecKt.frequencySpec {
-              monthly = MetricCalculationSpecKt.FrequencySpecKt.monthly { dayOfMonth = first }
+          resultFrequencySpec =
+            MetricCalculationSpecKt.resultFrequencySpec {
+              monthly = MetricCalculationSpecKt.ResultFrequencySpecKt.monthly { dayOfMonth = first }
             }
         }
       val request = createMetricCalculationSpecRequest {
@@ -639,7 +639,7 @@ class MetricCalculationSpecsServiceTest {
   @Test
   fun `createMetricCalculationSpec throws INVALID_ARGUMENT when no frequency but window set`() =
     runBlocking {
-      val metricCalculationSpec = METRIC_CALCULATION_SPEC.copy { clearFrequencySpec() }
+      val metricCalculationSpec = METRIC_CALCULATION_SPEC.copy { clearResultFrequencySpec() }
       val request = createMetricCalculationSpecRequest {
         parent = MEASUREMENT_CONSUMER_NAME
         this.metricCalculationSpec = metricCalculationSpec
@@ -661,9 +661,9 @@ class MetricCalculationSpecsServiceTest {
     runBlocking {
       val metricCalculationSpec =
         METRIC_CALCULATION_SPEC.copy {
-          frequencySpec =
-            MetricCalculationSpecKt.frequencySpec {
-              weekly = MetricCalculationSpec.FrequencySpec.Weekly.getDefaultInstance()
+          resultFrequencySpec =
+            MetricCalculationSpecKt.resultFrequencySpec {
+              weekly = MetricCalculationSpec.ResultFrequencySpec.Weekly.getDefaultInstance()
             }
         }
       val request = createMetricCalculationSpecRequest {
@@ -688,9 +688,9 @@ class MetricCalculationSpecsServiceTest {
     runBlocking {
       val metricCalculationSpec =
         METRIC_CALCULATION_SPEC.copy {
-          frequencySpec =
-            MetricCalculationSpecKt.frequencySpec {
-              monthly = MetricCalculationSpec.FrequencySpec.Monthly.getDefaultInstance()
+          resultFrequencySpec =
+            MetricCalculationSpecKt.resultFrequencySpec {
+              monthly = MetricCalculationSpec.ResultFrequencySpec.Monthly.getDefaultInstance()
             }
         }
       val request = createMetricCalculationSpecRequest {
@@ -715,9 +715,9 @@ class MetricCalculationSpecsServiceTest {
     runBlocking {
       val metricCalculationSpec =
         METRIC_CALCULATION_SPEC.copy {
-          frequencySpec =
-            MetricCalculationSpecKt.frequencySpec {
-              monthly = MetricCalculationSpecKt.FrequencySpecKt.monthly { dayOfMonth = 0 }
+          resultFrequencySpec =
+            MetricCalculationSpecKt.resultFrequencySpec {
+              monthly = MetricCalculationSpecKt.ResultFrequencySpecKt.monthly { dayOfMonth = 0 }
             }
         }
       val request = createMetricCalculationSpecRequest {
@@ -1460,9 +1460,9 @@ class MetricCalculationSpecsServiceTest {
             predicates += listOf("age == 18_34", "age == 55_PLUS")
           }
         )
-      frequencySpec =
-        MetricCalculationSpecKt.frequencySpec {
-          daily = MetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
+      resultFrequencySpec =
+        MetricCalculationSpecKt.resultFrequencySpec {
+          daily = MetricCalculationSpec.ResultFrequencySpec.Daily.getDefaultInstance()
         }
       window =
         MetricCalculationSpecKt.window {
@@ -1506,9 +1506,9 @@ class MetricCalculationSpecsServiceTest {
               METRIC_CALCULATION_SPEC.groupingsList.map {
                 InternalMetricCalculationSpecKt.grouping { predicates += it.predicatesList }
               }
-            frequencySpec =
-              InternalMetricCalculationSpecKt.frequencySpec {
-                daily = InternalMetricCalculationSpec.FrequencySpec.Daily.getDefaultInstance()
+            resultFrequencySpec =
+              InternalMetricCalculationSpecKt.resultFrequencySpec {
+                daily = InternalMetricCalculationSpec.ResultFrequencySpec.Daily.getDefaultInstance()
               }
             window =
               InternalMetricCalculationSpecKt.window {
