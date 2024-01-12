@@ -1,9 +1,9 @@
-# proto-file: src/main/proto/wfa/measurement/internal/kingdom/protocol_config_config.proto
+# proto-file: wfa/measurement/internal/kingdom/protocol_config_config.proto
 # proto-message: Llv2ProtocolConfigConfig
 protocol_config {
   sketch_params {
-    decay_rate: 7.75
-    max_size: 100000
+    decay_rate: 5.6
+    max_size: 1000000
     sampling_indicator_size: 10000000
   }
   data_provider_noise {

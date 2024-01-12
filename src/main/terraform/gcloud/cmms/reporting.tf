@@ -35,7 +35,7 @@ module "reporting_default_node_pool" {
   cluster         = data.google_container_cluster.reporting
   service_account = module.common.cluster_service_account
   machine_type    = "e2-small"
-  max_node_count  = 4
+  max_node_count  = 8
 }
 
 module "reporting" {
