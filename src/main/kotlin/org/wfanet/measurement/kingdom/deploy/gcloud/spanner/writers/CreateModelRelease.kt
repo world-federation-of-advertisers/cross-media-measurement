@@ -49,8 +49,7 @@ class CreateModelRelease(private val modelRelease: ModelRelease) :
       readPopulationData(
         ExternalId(modelRelease.externalDataProviderId),
         ExternalId(modelRelease.externalPopulationId)
-      )
-        ?: failGrpc(Status.NOT_FOUND) { "Population not found" }
+      ) ?: failGrpc(Status.NOT_FOUND) { "Population not found" }
 
     val internalModelReleaseId = idGenerator.generateInternalId()
     val externalModelReleaseId = idGenerator.generateExternalId()
