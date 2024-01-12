@@ -471,7 +471,9 @@ class MetricCalculationSpecsService(
           }
           InternalMetricCalculationSpec.ResultFrequencySpec.FrequencyCase.WEEKLY -> {
             weekly =
-              MetricCalculationSpecKt.ResultFrequencySpecKt.weekly { dayOfWeek = source.weekly.dayOfWeek }
+              MetricCalculationSpecKt.ResultFrequencySpecKt.weekly {
+                dayOfWeek = source.weekly.dayOfWeek
+              }
           }
           InternalMetricCalculationSpec.ResultFrequencySpec.FrequencyCase.MONTHLY -> {
             monthly =

@@ -255,7 +255,9 @@ class MetricCalculationSpecsServiceTest {
               resultFrequencySpec =
                 InternalMetricCalculationSpecKt.resultFrequencySpec {
                   weekly =
-                    InternalMetricCalculationSpecKt.ResultFrequencySpecKt.weekly { dayOfWeek = monday }
+                    InternalMetricCalculationSpecKt.ResultFrequencySpecKt.weekly {
+                      dayOfWeek = monday
+                    }
                 }
             }
         }
@@ -307,7 +309,9 @@ class MetricCalculationSpecsServiceTest {
               resultFrequencySpec =
                 InternalMetricCalculationSpecKt.resultFrequencySpec {
                   monthly =
-                    InternalMetricCalculationSpecKt.ResultFrequencySpecKt.monthly { dayOfMonth = first }
+                    InternalMetricCalculationSpecKt.ResultFrequencySpecKt.monthly {
+                      dayOfMonth = first
+                    }
                 }
             }
         }

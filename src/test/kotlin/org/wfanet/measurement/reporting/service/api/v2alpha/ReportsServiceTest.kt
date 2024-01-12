@@ -694,7 +694,8 @@ class ReportsServiceTest {
 
       val frequencySpec =
         MetricCalculationSpecKt.resultFrequencySpec {
-          weekly = MetricCalculationSpecKt.ResultFrequencySpecKt.weekly { dayOfWeek = DayOfWeek.MONDAY }
+          weekly =
+            MetricCalculationSpecKt.ResultFrequencySpecKt.weekly { dayOfWeek = DayOfWeek.MONDAY }
         }
 
       val window =
@@ -767,7 +768,8 @@ class ReportsServiceTest {
 
       val frequencySpec =
         MetricCalculationSpecKt.resultFrequencySpec {
-          weekly = MetricCalculationSpecKt.ResultFrequencySpecKt.weekly { dayOfWeek = DayOfWeek.TUESDAY }
+          weekly =
+            MetricCalculationSpecKt.ResultFrequencySpecKt.weekly { dayOfWeek = DayOfWeek.TUESDAY }
         }
 
       val window =
@@ -2581,7 +2583,8 @@ class ReportsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.message).contains("metric_calculation_spec with result_frequency_spec set not")
+    assertThat(exception.message)
+      .contains("metric_calculation_spec with result_frequency_spec set not")
   }
 
   @Test

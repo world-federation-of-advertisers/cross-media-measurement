@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import com.google.protobuf.Timestamp
 import com.google.type.DateTime
 import io.grpc.Status
 import java.time.DateTimeException
@@ -23,6 +24,7 @@ import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
+import java.time.temporal.Temporal
 import java.time.zone.ZoneRulesException
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodology
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
@@ -36,6 +38,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec.VidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams as NoiserDpParams
 import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodology as InternalCustomDirectMethodology
@@ -79,9 +82,6 @@ import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals as internalTimeIntervals
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
 import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval as StatsVidSamplingInterval
-import com.google.protobuf.Timestamp
-import java.time.temporal.Temporal
-import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageToken
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsPageToken
@@ -1089,9 +1089,7 @@ fun DateTime.toZonedDateTime(): ZonedDateTime {
   )
 }
 
-/**
- * Converts an [OffsetDateTime] or a [ZonedDateTime] to a [Timestamp].
- */
+/** Converts an [OffsetDateTime] or a [ZonedDateTime] to a [Timestamp]. */
 fun Temporal.toTimestamp(): Timestamp {
   return when (val source = this) {
     is OffsetDateTime -> {

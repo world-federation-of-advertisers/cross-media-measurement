@@ -208,22 +208,21 @@ class ReportSchedulingJobTest {
           requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
           report =
             publicReportSchedule.reportTemplate.copy {
-              reportingInterval = ReportKt.reportingInterval {
-                reportStart = dateTime {
-                  year = 2022
-                  month = 1
-                  day = 1
-                  hours = 13
-                  timeZone = timeZone {
-                    id = "America/Los_Angeles"
+              reportingInterval =
+                ReportKt.reportingInterval {
+                  reportStart = dateTime {
+                    year = 2022
+                    month = 1
+                    day = 1
+                    hours = 13
+                    timeZone = timeZone { id = "America/Los_Angeles" }
+                  }
+                  reportEnd = date {
+                    year = 2022
+                    month = 1
+                    day = 2
                   }
                 }
-                reportEnd = date {
-                  year = 2022
-                  month = 1
-                  day = 2
-                }
-              }
             }
         }
       )
@@ -323,22 +322,21 @@ class ReportSchedulingJobTest {
             requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
             report =
               publicReportSchedule.reportTemplate.copy {
-                reportingInterval = ReportKt.reportingInterval {
-                  reportStart = dateTime {
-                    year = 2022
-                    month = 1
-                    day = 1
-                    hours = 13
-                    timeZone = timeZone {
-                      id = "America/Los_Angeles"
+                reportingInterval =
+                  ReportKt.reportingInterval {
+                    reportStart = dateTime {
+                      year = 2022
+                      month = 1
+                      day = 1
+                      hours = 13
+                      timeZone = timeZone { id = "America/Los_Angeles" }
+                    }
+                    reportEnd = date {
+                      year = 2022
+                      month = 1
+                      day = 2
                     }
                   }
-                  reportEnd = date {
-                    year = 2022
-                    month = 1
-                    day = 2
-                  }
-                }
               }
           }
         )
@@ -432,22 +430,21 @@ class ReportSchedulingJobTest {
         requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
         report =
           publicReportSchedule.reportTemplate.copy {
-            reportingInterval = ReportKt.reportingInterval {
-              reportStart = dateTime {
-                year = 2022
-                month = 1
-                day = 1
-                hours = 13
-                timeZone = timeZone {
-                  id = "America/Los_Angeles"
+            reportingInterval =
+              ReportKt.reportingInterval {
+                reportStart = dateTime {
+                  year = 2022
+                  month = 1
+                  day = 1
+                  hours = 13
+                  timeZone = timeZone { id = "America/Los_Angeles" }
+                }
+                reportEnd = date {
+                  year = 2022
+                  month = 1
+                  day = 2
                 }
               }
-              reportEnd = date {
-                year = 2022
-                month = 1
-                day = 2
-              }
-            }
           }
       }
       assertThat(createReportCaptor.allValues)
@@ -531,22 +528,21 @@ class ReportSchedulingJobTest {
         requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
         report =
           publicReportSchedule.reportTemplate.copy {
-            reportingInterval = ReportKt.reportingInterval {
-              reportStart = dateTime {
-                year = 2022
-                month = 1
-                day = 1
-                hours = 13
-                timeZone = timeZone {
-                  id = "America/Los_Angeles"
+            reportingInterval =
+              ReportKt.reportingInterval {
+                reportStart = dateTime {
+                  year = 2022
+                  month = 1
+                  day = 1
+                  hours = 13
+                  timeZone = timeZone { id = "America/Los_Angeles" }
+                }
+                reportEnd = date {
+                  year = 2022
+                  month = 1
+                  day = 2
                 }
               }
-              reportEnd = date {
-                year = 2022
-                month = 1
-                day = 2
-              }
-            }
           }
       }
       assertThat(createReportCaptor.allValues)
@@ -635,22 +631,21 @@ class ReportSchedulingJobTest {
         requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
         report =
           publicReportSchedule.reportTemplate.copy {
-            reportingInterval = ReportKt.reportingInterval {
-              reportStart = dateTime {
-                year = 2022
-                month = 1
-                day = 1
-                hours = 13
-                timeZone = timeZone {
-                  id = "America/Los_Angeles"
+            reportingInterval =
+              ReportKt.reportingInterval {
+                reportStart = dateTime {
+                  year = 2022
+                  month = 1
+                  day = 1
+                  hours = 13
+                  timeZone = timeZone { id = "America/Los_Angeles" }
+                }
+                reportEnd = date {
+                  year = 2022
+                  month = 1
+                  day = 2
                 }
               }
-              reportEnd = date {
-                year = 2022
-                month = 1
-                day = 2
-              }
-            }
           }
       }
       assertThat(createReportCaptor.allValues)
@@ -741,22 +736,21 @@ class ReportSchedulingJobTest {
         requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
         report =
           publicReportSchedule.reportTemplate.copy {
-            reportingInterval = ReportKt.reportingInterval {
-              reportStart = dateTime {
-                year = 2022
-                month = 1
-                day = 1
-                hours = 13
-                timeZone = timeZone {
-                  id = "America/Los_Angeles"
+            reportingInterval =
+              ReportKt.reportingInterval {
+                reportStart = dateTime {
+                  year = 2022
+                  month = 1
+                  day = 1
+                  hours = 13
+                  timeZone = timeZone { id = "America/Los_Angeles" }
+                }
+                reportEnd = date {
+                  year = 2022
+                  month = 1
+                  day = 2
                 }
               }
-              reportEnd = date {
-                year = 2022
-                month = 1
-                day = 2
-              }
-            }
           }
       }
       assertThat(createReportCaptor.allValues)
@@ -1256,22 +1250,21 @@ class ReportSchedulingJobTest {
             requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
             report =
               publicReportSchedule.reportTemplate.copy {
-                reportingInterval = ReportKt.reportingInterval {
-                  reportStart = dateTime {
-                    year = 2022
-                    month = 1
-                    day = 1
-                    hours = 13
-                    timeZone = timeZone {
-                      id = "America/Los_Angeles"
+                reportingInterval =
+                  ReportKt.reportingInterval {
+                    reportStart = dateTime {
+                      year = 2022
+                      month = 1
+                      day = 1
+                      hours = 13
+                      timeZone = timeZone { id = "America/Los_Angeles" }
+                    }
+                    reportEnd = date {
+                      year = 2022
+                      month = 1
+                      day = 2
                     }
                   }
-                  reportEnd = date {
-                    year = 2022
-                    month = 1
-                    day = 2
-                  }
-                }
               }
           }
         )
@@ -1323,22 +1316,21 @@ class ReportSchedulingJobTest {
           requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
           report =
             publicReportSchedule.reportTemplate.copy {
-              reportingInterval = ReportKt.reportingInterval {
-                reportStart = dateTime {
-                  year = 2022
-                  month = 1
-                  day = 1
-                  hours = 13
-                  timeZone = timeZone {
-                    id = "America/Los_Angeles"
+              reportingInterval =
+                ReportKt.reportingInterval {
+                  reportStart = dateTime {
+                    year = 2022
+                    month = 1
+                    day = 1
+                    hours = 13
+                    timeZone = timeZone { id = "America/Los_Angeles" }
+                  }
+                  reportEnd = date {
+                    year = 2022
+                    month = 1
+                    day = 2
                   }
                 }
-                reportEnd = date {
-                  year = 2022
-                  month = 1
-                  day = 2
-                }
-              }
             }
         }
       )
@@ -1390,22 +1382,21 @@ class ReportSchedulingJobTest {
           requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
           report =
             publicReportSchedule.reportTemplate.copy {
-              reportingInterval = ReportKt.reportingInterval {
-                reportStart = dateTime {
-                  year = 2022
-                  month = 1
-                  day = 1
-                  hours = 13
-                  timeZone = timeZone {
-                    id = "America/Los_Angeles"
+              reportingInterval =
+                ReportKt.reportingInterval {
+                  reportStart = dateTime {
+                    year = 2022
+                    month = 1
+                    day = 1
+                    hours = 13
+                    timeZone = timeZone { id = "America/Los_Angeles" }
+                  }
+                  reportEnd = date {
+                    year = 2022
+                    month = 1
+                    day = 2
                   }
                 }
-                reportEnd = date {
-                  year = 2022
-                  month = 1
-                  day = 2
-                }
-              }
             }
         }
       )
@@ -1605,22 +1596,21 @@ class ReportSchedulingJobTest {
             }
         }
       state = Report.State.RUNNING
-      reportingInterval = ReportKt.reportingInterval {
-        reportStart = dateTime {
-          year = 2022
-          month = 1
-          day = 1
-          hours = 13
-          timeZone = timeZone {
-            id = "America/Los_Angeles"
+      reportingInterval =
+        ReportKt.reportingInterval {
+          reportStart = dateTime {
+            year = 2022
+            month = 1
+            day = 1
+            hours = 13
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          reportEnd = date {
+            year = 2022
+            month = 1
+            day = 2
           }
         }
-        reportEnd = date {
-          year = 2022
-          month = 1
-          day = 2
-        }
-      }
       createTime = timestamp { seconds = 50 }
       reportSchedule = REPORT_SCHEDULE_NAME
     }
