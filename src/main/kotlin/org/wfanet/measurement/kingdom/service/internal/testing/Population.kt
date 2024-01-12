@@ -210,11 +210,14 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
 
   suspend fun createModelRelease(
     modelSuite: ModelSuite,
+    population: Population,
     modelReleasesService: ModelReleasesCoroutineImplBase
   ): ModelRelease {
     val modelRelease = modelRelease {
       externalModelProviderId = modelSuite.externalModelProviderId
       externalModelSuiteId = modelSuite.externalModelSuiteId
+      externalDataProviderId = population.externalDataProviderId
+      externalPopulationId = population.externalPopulationId
     }
     return modelReleasesService.createModelRelease(modelRelease)
   }
@@ -238,14 +241,15 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
         }
     }
     val dataProvider = dataProvidersService.createDataProvider(DATA_PROVIDER)
-    val population = populationsService.createPopulation(
-      population {
-        externalDataProviderId = dataProvider.externalDataProviderId
-        description = "DESCRIPTION"
-        populationBlob = PopulationKt.populationBlob { modelBlobUri = "BLOB_URI" }
-        eventTemplate = eventTemplate { fullyQualifiedType = "TYPE" }
-      }
-    )
+    val population =
+      populationsService.createPopulation(
+        population {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          description = "DESCRIPTION"
+          populationBlob = PopulationKt.populationBlob { modelBlobUri = "BLOB_URI" }
+          eventTemplate = eventTemplate { fullyQualifiedType = "TYPE" }
+        }
+      )
     return population
   }
 
