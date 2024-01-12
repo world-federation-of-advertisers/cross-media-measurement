@@ -33,6 +33,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
@@ -40,6 +41,7 @@ import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleases
 import org.wfanet.measurement.internal.kingdom.ModelRollout
 import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequestKt.rolloutPeriod
@@ -60,6 +62,8 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
     val modelSuitesService: ModelSuitesCoroutineImplBase,
     val modelLinesService: ModelLinesCoroutineImplBase,
     val modelReleasesService: ModelReleasesCoroutineImplBase,
+    val populationsService: PopulationsCoroutineImplBase,
+    val dataProvidersService: DataProvidersCoroutineImplBase
   )
 
   protected val testClock: Clock = Clock.systemUTC()
@@ -78,6 +82,12 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
   protected lateinit var modelReleasesService: ModelReleasesCoroutineImplBase
     private set
 
+  protected lateinit var populationsService: PopulationsCoroutineImplBase
+    private set
+
+  protected lateinit var dataProvidersService: DataProvidersCoroutineImplBase
+    private set
+
   protected lateinit var modelRolloutsService: T
     private set
 
@@ -91,18 +101,21 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
     modelSuitesService = services.modelSuitesService
     modelLinesService = services.modelLinesService
     modelReleasesService = services.modelReleasesService
+    populationsService = services.populationsService
   }
 
   @Test
   fun `createModelRollout succeeds`() = runBlocking {
     val modelLine =
       population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+    val createdPopulation = population.createPopulation(dataProvidersService, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
           externalModelProviderId = modelLine.externalModelProviderId
           externalModelSuiteId = modelLine.externalModelSuiteId
         },
+        createdPopulation,
         modelReleasesService
       )
 
@@ -131,12 +144,14 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
     runBlocking {
       val modelLine =
         population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+      val createdPopulation = population.createPopulation(dataProvidersService, populationsService)
       val modelRelease =
         population.createModelRelease(
           modelSuite {
             externalModelProviderId = modelLine.externalModelProviderId
             externalModelSuiteId = modelLine.externalModelSuiteId
           },
+          createdPopulation,
           modelReleasesService
         )
 
@@ -164,12 +179,14 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
   fun `createModelRollout correctly sets previous model rollout`() = runBlocking {
     val modelLine =
       population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+    val createdPopulation = population.createPopulation(dataProvidersService, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
           externalModelProviderId = modelLine.externalModelProviderId
           externalModelSuiteId = modelLine.externalModelSuiteId
         },
+        createdPopulation,
         modelReleasesService
       )
 
@@ -203,12 +220,14 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
     runBlocking {
       val modelLine =
         population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+      val createdPopulation = population.createPopulation(dataProvidersService, populationsService)
       val modelRelease =
         population.createModelRelease(
           modelSuite {
             externalModelProviderId = modelLine.externalModelProviderId
             externalModelSuiteId = modelLine.externalModelSuiteId
           },
+          createdPopulation,
           modelReleasesService
         )
 
@@ -242,12 +261,14 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
   fun `createModelRollout fails when rollout period start time is missing`() = runBlocking {
     val modelLine =
       population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+    val createdPopulation = population.createPopulation(dataProvidersService, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
           externalModelProviderId = modelLine.externalModelProviderId
           externalModelSuiteId = modelLine.externalModelSuiteId
         },
+        createdPopulation,
         modelReleasesService
       )
 
@@ -274,12 +295,14 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
   fun `createModelRollout fails when rollout period end time is missing`() = runBlocking {
     val modelLine =
       population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+    val createdPopulation = population.createPopulation(dataProvidersService, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
           externalModelProviderId = modelLine.externalModelProviderId
           externalModelSuiteId = modelLine.externalModelSuiteId
         },
+        createdPopulation,
         modelReleasesService
       )
 
@@ -349,12 +372,14 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
   fun `createModelRollout fails when rollout period start time is in the past`() = runBlocking {
     val modelLine =
       population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+    val createdPopulation = population.createPopulation(dataProvidersService, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
           externalModelProviderId = modelLine.externalModelProviderId
           externalModelSuiteId = modelLine.externalModelSuiteId
         },
+        createdPopulation,
         modelReleasesService
       )
 
@@ -381,12 +406,14 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
     runBlocking {
       val modelLine =
         population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+      val createdPopulation = population.createPopulation(dataProvidersService, populationsService)
       val modelRelease =
         population.createModelRelease(
           modelSuite {
             externalModelProviderId = modelLine.externalModelProviderId
             externalModelSuiteId = modelLine.externalModelSuiteId
           },
+          createdPopulation,
           modelReleasesService
         )
 
@@ -436,12 +463,14 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
   fun `scheduleModelRolloutFreeze succeeds`() = runBlocking {
     val modelLine =
       population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+    val createdPopulation = population.createPopulation(dataProvidersService, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
           externalModelProviderId = modelLine.externalModelProviderId
           externalModelSuiteId = modelLine.externalModelSuiteId
         },
+        createdPopulation,
         modelReleasesService
       )
 
@@ -486,12 +515,14 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
   fun `scheduleModelRolloutFreeze fails when freeze time is in the past`() = runBlocking {
     val modelLine =
       population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+    val createdPopulation = population.createPopulation(dataProvidersService, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
           externalModelProviderId = modelLine.externalModelProviderId
           externalModelSuiteId = modelLine.externalModelSuiteId
         },
+        createdPopulation,
         modelReleasesService
       )
 
@@ -526,12 +557,14 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
     runBlocking {
       val modelLine =
         population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+      val createdPopulation = population.createPopulation(dataProvidersService, populationsService)
       val modelRelease =
         population.createModelRelease(
           modelSuite {
             externalModelProviderId = modelLine.externalModelProviderId
             externalModelSuiteId = modelLine.externalModelSuiteId
           },
+          createdPopulation,
           modelReleasesService
         )
 
@@ -568,12 +601,14 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
     runBlocking {
       val modelLine =
         population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+      val createdPopulation = population.createPopulation(dataProvidersService, populationsService)
       val modelRelease =
         population.createModelRelease(
           modelSuite {
             externalModelProviderId = modelLine.externalModelProviderId
             externalModelSuiteId = modelLine.externalModelSuiteId
           },
+          createdPopulation,
           modelReleasesService
         )
 
@@ -628,12 +663,14 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
   fun `deleteModelRollout succeeds`() = runBlocking {
     val modelLine =
       population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+    val createdPopulation = population.createPopulation(dataProvidersService, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
           externalModelProviderId = modelLine.externalModelProviderId
           externalModelSuiteId = modelLine.externalModelSuiteId
         },
+        createdPopulation,
         modelReleasesService
       )
 
@@ -761,12 +798,14 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
   fun `streamModelRollouts returns all model rollouts`(): Unit = runBlocking {
     val modelLine =
       population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+    val createdPopulation = population.createPopulation(dataProvidersService, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
           externalModelProviderId = modelLine.externalModelProviderId
           externalModelSuiteId = modelLine.externalModelSuiteId
         },
+        createdPopulation,
         modelReleasesService
       )
 
@@ -809,12 +848,14 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
   fun `streamModelRollouts can get one page at a time`(): Unit = runBlocking {
     val modelLine =
       population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+    val createdPopulation = population.createPopulation(dataProvidersService, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
           externalModelProviderId = modelLine.externalModelProviderId
           externalModelSuiteId = modelLine.externalModelSuiteId
         },
+        createdPopulation,
         modelReleasesService
       )
 
@@ -879,12 +920,14 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
   fun `streamModelRollouts fails for missing after filter fields`(): Unit = runBlocking {
     val modelLine =
       population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+    val createdPopulation = population.createPopulation(dataProvidersService, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
           externalModelProviderId = modelLine.externalModelProviderId
           externalModelSuiteId = modelLine.externalModelSuiteId
         },
+        createdPopulation,
         modelReleasesService
       )
 
@@ -967,12 +1010,14 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
   fun `streamModelRollouts filter by rollout period interval`(): Unit = runBlocking {
     val modelLine =
       population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+    val createdPopulation = population.createPopulation(dataProvidersService, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
           externalModelProviderId = modelLine.externalModelProviderId
           externalModelSuiteId = modelLine.externalModelSuiteId
         },
+        createdPopulation,
         modelReleasesService
       )
 
@@ -1052,12 +1097,14 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
   fun `createModelRollout succeeds with multiple model rollouts`() = runBlocking {
     val modelLine =
       population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+    val createdPopulation = population.createPopulation(dataProvidersService, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
           externalModelProviderId = modelLine.externalModelProviderId
           externalModelSuiteId = modelLine.externalModelSuiteId
         },
+        createdPopulation,
         modelReleasesService
       )
 
@@ -1100,12 +1147,14 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
     runBlocking {
       val modelLine =
         population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+      val createdPopulation = population.createPopulation(dataProvidersService, populationsService)
       val modelRelease =
         population.createModelRelease(
           modelSuite {
             externalModelProviderId = modelLine.externalModelProviderId
             externalModelSuiteId = modelLine.externalModelSuiteId
           },
+          createdPopulation,
           modelReleasesService
         )
 
