@@ -19,7 +19,9 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
+import io.grpc.Status
 import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
@@ -43,6 +45,12 @@ class CreateModelRelease(private val modelRelease: ModelRelease) :
           ExternalId(modelRelease.externalModelProviderId),
           ExternalId(modelRelease.externalModelSuiteId)
         )
+    val populationData: Struct =
+      readPopulationData(
+        ExternalId(modelRelease.externalDataProviderId),
+        ExternalId(modelRelease.externalPopulationId)
+      )
+        ?: failGrpc(Status.NOT_FOUND) { "Population not found" }
 
     val internalModelReleaseId = idGenerator.generateInternalId()
     val externalModelReleaseId = idGenerator.generateExternalId()
@@ -52,8 +60,8 @@ class CreateModelRelease(private val modelRelease: ModelRelease) :
       set("ModelSuiteId" to modelSuiteData.getLong("ModelSuiteId"))
       set("ModelReleaseId" to internalModelReleaseId)
       set("ExternalModelReleaseId" to externalModelReleaseId)
-      set("PopulationDataProviderId" to modelRelease.externalDataProviderId)
-      set("PopulationId" to modelRelease.externalPopulationId)
+      set("PopulationDataProviderId" to populationData.getLong("DataProviderId"))
+      set("PopulationId" to populationData.getLong("PopulationId"))
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
     }
 
@@ -78,6 +86,29 @@ class CreateModelRelease(private val modelRelease: ModelRelease) :
       statement(sql) {
         bind("externalModelSuiteId" to externalModelSuiteId.value)
         bind("externalModelProviderId" to externalModelProviderId.value)
+      }
+
+    return transactionContext.executeQuery(statement).singleOrNull()
+  }
+
+  private suspend fun TransactionScope.readPopulationData(
+    externalDataProviderId: ExternalId,
+    externalPopulationId: ExternalId
+  ): Struct? {
+    val sql =
+      """
+    SELECT
+    Populations.PopulationId,
+    Populations.DataProviderId
+    FROM Populations JOIN DataProviders USING(DataProviderId)
+    WHERE ExternalPopulationId = @externalPopulationId AND ExternalDataProviderId = @externalDataProviderId
+    """
+        .trimIndent()
+
+    val statement: Statement =
+      statement(sql) {
+        bind("externalPopulationId" to externalPopulationId.value)
+        bind("externalDataProviderId" to externalDataProviderId.value)
       }
 
     return transactionContext.executeQuery(statement).singleOrNull()
