@@ -52,6 +52,7 @@ import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairSto
 import org.wfanet.measurement.reporting.service.api.v1alpha.EventGroupsService
 import org.wfanet.measurement.reporting.service.api.v1alpha.ReportingSetsService
 import org.wfanet.measurement.reporting.service.api.v1alpha.ReportsService
+import org.wfanet.measurement.reporting.v1alpha.EventGroup
 
 /** TestRule that starts and stops all Reporting Server gRPC services. */
 class InProcessReportingServer(
@@ -123,6 +124,7 @@ class InProcessReportingServer(
           publicKingdomEventGroupMetadataDescriptorsClient.withAuthenticationKey(
             measurementConsumerConfig.apiKey
           ),
+          EventGroup.getDescriptor(),
           Duration.ofSeconds(5),
           Dispatchers.Default,
         )
