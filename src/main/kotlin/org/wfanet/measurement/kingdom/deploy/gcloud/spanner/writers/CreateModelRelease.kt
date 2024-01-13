@@ -35,28 +35,17 @@ class CreateModelRelease(private val modelRelease: ModelRelease) :
 
   override suspend fun TransactionScope.runTransaction(): ModelRelease {
 
-    val externalModelProviderId = modelRelease.externalModelProviderId
-    val externalModelSuiteId = modelRelease.externalModelSuiteId
+    val externalModelProviderId = ExternalId(modelRelease.externalModelProviderId)
+    val externalModelSuiteId = ExternalId(modelRelease.externalModelSuiteId)
     val modelSuiteData: Struct =
-      readModelSuiteData(
-        ExternalId(externalModelProviderId),
-        ExternalId(externalModelSuiteId)
-      )
-        ?: throw ModelSuiteNotFoundException(
-          ExternalId(externalModelProviderId),
-          ExternalId(externalModelSuiteId)
-        )
+      readModelSuiteData(externalModelProviderId, externalModelSuiteId)
+        ?: throw ModelSuiteNotFoundException(externalModelProviderId, externalModelSuiteId)
 
-    val externalDataProviderId = modelRelease.externalDataProviderId
-    val externalPopulationId = modelRelease.externalPopulationId
+    val externalDataProviderId = ExternalId(modelRelease.externalDataProviderId)
+    val externalPopulationId = ExternalId(modelRelease.externalPopulationId)
     val populationData: Struct =
-      readPopulationData(
-        ExternalId(externalDataProviderId),
-        ExternalId(externalPopulationId)
-      ) ?: throw ModelSuiteNotFoundException(
-        ExternalId(externalDataProviderId),
-        ExternalId(externalPopulationId)
-      )
+      readPopulationData(externalDataProviderId, externalPopulationId)
+        ?: throw ModelSuiteNotFoundException(externalDataProviderId, externalPopulationId)
 
     val internalModelReleaseId = idGenerator.generateInternalId()
     val externalModelReleaseId = idGenerator.generateExternalId()
