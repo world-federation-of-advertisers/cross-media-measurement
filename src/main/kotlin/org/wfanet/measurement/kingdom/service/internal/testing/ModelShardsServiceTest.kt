@@ -281,7 +281,7 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
       val modelSuite1 = population.createModelSuite(modelProvidersService, modelSuitesService)
       val modelSuite2 = population.createModelSuite(modelProvidersService, modelSuitesService)
       val populationDataProvider = population.createDataProvider(dataProvidersService)
-    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
+      val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
 
       val modelRelease =
         population.createModelRelease(

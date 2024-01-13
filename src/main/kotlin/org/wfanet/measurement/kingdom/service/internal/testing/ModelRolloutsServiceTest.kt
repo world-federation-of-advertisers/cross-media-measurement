@@ -113,8 +113,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
     val modelLine =
       population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
     val populationDataProvider = population.createDataProvider(dataProvidersService)
-    val createdPopulation =
-      population.createPopulation(populationDataProvider, populationsService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
@@ -188,8 +187,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
     val modelLine =
       population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
     val populationDataProvider = population.createDataProvider(dataProvidersService)
-    val createdPopulation =
-      population.createPopulation(populationDataProvider, populationsService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
@@ -274,8 +272,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
     val modelLine =
       population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
     val populationDataProvider = population.createDataProvider(dataProvidersService)
-    val createdPopulation =
-      population.createPopulation(populationDataProvider, populationsService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
@@ -310,8 +307,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
     val modelLine =
       population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
     val populationDataProvider = population.createDataProvider(dataProvidersService)
-    val createdPopulation =
-      population.createPopulation(populationDataProvider, populationsService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
@@ -389,8 +385,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
     val modelLine =
       population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
     val populationDataProvider = population.createDataProvider(dataProvidersService)
-    val createdPopulation =
-      population.createPopulation(populationDataProvider, populationsService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
@@ -484,8 +479,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
     val modelLine =
       population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
     val populationDataProvider = population.createDataProvider(dataProvidersService)
-    val createdPopulation =
-      population.createPopulation(populationDataProvider, populationsService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
@@ -538,8 +532,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
     val modelLine =
       population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
     val populationDataProvider = population.createDataProvider(dataProvidersService)
-    val createdPopulation =
-      population.createPopulation(populationDataProvider, populationsService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
@@ -692,8 +685,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
     val modelLine =
       population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
     val populationDataProvider = population.createDataProvider(dataProvidersService)
-    val createdPopulation =
-      population.createPopulation(populationDataProvider, populationsService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
@@ -829,8 +821,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
     val modelLine =
       population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
     val populationDataProvider = population.createDataProvider(dataProvidersService)
-    val createdPopulation =
-      population.createPopulation(populationDataProvider, populationsService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
@@ -881,8 +872,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
     val modelLine =
       population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
     val populationDataProvider = population.createDataProvider(dataProvidersService)
-    val createdPopulation =
-      population.createPopulation(populationDataProvider, populationsService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
@@ -955,8 +945,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
     val modelLine =
       population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
     val populationDataProvider = population.createDataProvider(dataProvidersService)
-    val createdPopulation =
-      population.createPopulation(populationDataProvider, populationsService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
@@ -1047,8 +1036,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
     val modelLine =
       population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
     val populationDataProvider = population.createDataProvider(dataProvidersService)
-    val createdPopulation =
-      population.createPopulation(populationDataProvider, populationsService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
@@ -1136,8 +1124,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
     val modelLine =
       population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
     val populationDataProvider = population.createDataProvider(dataProvidersService)
-    val createdPopulation =
-      population.createPopulation(populationDataProvider, populationsService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
@@ -1188,8 +1175,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
       val modelLine =
         population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
       val populationDataProvider = population.createDataProvider(dataProvidersService)
-      val createdPopulation =
-        population.createPopulation(populationDataProvider, populationsService)
+      val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
       val modelRelease =
         population.createModelRelease(
           modelSuite {
