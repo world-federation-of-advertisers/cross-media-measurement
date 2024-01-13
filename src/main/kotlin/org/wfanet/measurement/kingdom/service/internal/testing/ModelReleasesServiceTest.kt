@@ -49,8 +49,7 @@ private const val RANDOM_SEED = 1
 
 @RunWith(JUnit4::class)
 abstract class ModelReleasesServiceTest<T : ModelReleasesCoroutineImplBase> {
-  @get:Rule
-  val duchyIdSetter = DuchyIdSetter(Population.DUCHIES)
+  @get:Rule val duchyIdSetter = DuchyIdSetter(Population.DUCHIES)
 
   protected data class Services<T>(
     val modelReleasesService: T,
@@ -58,7 +57,7 @@ abstract class ModelReleasesServiceTest<T : ModelReleasesCoroutineImplBase> {
     val modelProvidersService: ModelProvidersCoroutineImplBase,
     val dataProvidersService: DataProvidersCoroutineImplBase,
     val populationsService: PopulationsCoroutineImplBase,
-    )
+  )
 
   protected val clock: Clock = Clock.systemUTC()
   protected val idGenerator = RandomIdGenerator(clock, Random(RANDOM_SEED))
