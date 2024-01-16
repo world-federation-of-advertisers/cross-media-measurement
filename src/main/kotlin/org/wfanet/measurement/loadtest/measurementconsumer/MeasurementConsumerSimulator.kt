@@ -19,7 +19,6 @@ import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
 import com.google.protobuf.Message
 import com.google.protobuf.util.Durations
-import com.google.type.interval
 import io.grpc.StatusException
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
@@ -92,7 +91,7 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.identity.apiIdToExternalId
-import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.common.toInterval
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
@@ -138,6 +137,8 @@ class MeasurementConsumerSimulator(
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   private val eventQuery: EventQuery<Message>,
   private val expectedDirectNoiseMechanism: NoiseMechanism,
+  private val filterExpression: String = DEFAULT_FILTER_EXPRESSION,
+  private val eventRange: OpenEndTimeRange = DEFAULT_EVENT_RANGE,
 ) {
   /** Cache of resource name to [Certificate]. */
   private val certificateCache = mutableMapOf<String, Certificate>()
@@ -923,11 +924,8 @@ class MeasurementConsumerSimulator(
               key = eventGroup.name
               value =
                 RequisitionSpecKt.EventGroupEntryKt.value {
-                  collectionInterval = interval {
-                    startTime = EVENT_RANGE.start.toProtoTime()
-                    endTime = EVENT_RANGE.endExclusive.toProtoTime()
-                  }
-                  filter = eventFilter { expression = FILTER_EXPRESSION }
+                  collectionInterval = eventRange.toInterval()
+                  filter = eventFilter { expression = filterExpression }
                 }
             }
           }
@@ -989,16 +987,12 @@ class MeasurementConsumerSimulator(
   }
 
   companion object {
-    private const val FILTER_EXPRESSION =
+    private const val DEFAULT_FILTER_EXPRESSION =
       "person.gender == ${Person.Gender.MALE_VALUE} && " +
         "(video_ad.viewed_fraction > 0.25 || video_ad.viewed_fraction == 0.25)"
 
-    /**
-     * Date range for events.
-     *
-     * TODO(@SanjayVas): Make this configurable.
-     */
-    private val EVENT_RANGE =
+    /** Default time range for events. */
+    private val DEFAULT_EVENT_RANGE =
       OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 15)..LocalDate.of(2021, 3, 17))
 
     // For a 99.9% Confidence Interval.
