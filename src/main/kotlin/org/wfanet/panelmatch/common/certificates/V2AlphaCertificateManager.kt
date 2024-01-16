@@ -48,7 +48,8 @@ class V2AlphaCertificateManager(
   private val privateKeys: MutableSecretMap,
   private val algorithm: String,
   private val certificateAuthority: CertificateAuthority,
-  private val localName: String
+  private val localName: String,
+  private val privateKeyPath: String? = null,
 ) : CertificateManager {
 
   private val x509CertCache = ConcurrentHashMap<String, X509Certificate>()
@@ -78,7 +79,9 @@ class V2AlphaCertificateManager(
   }
 
   override suspend fun getExchangeKeyPair(exchange: ExchangeDateKey): KeyPair {
-    val signingKeys = requireNotNull(getSigningKeys(exchange.path)) { "Missing keys for $exchange" }
+    val keyPath =
+      if (privateKeyPath !== null && privateKeyPath.isNotEmpty()) privateKeyPath else exchange.path
+    val signingKeys = requireNotNull(getSigningKeys(keyPath)) { "Missing keys for $keyPath" }
     val x509Certificate = getCertificate(exchange, localName, signingKeys.certResourceName)
     val privateKey = parsePrivateKey(signingKeys.privateKey)
     return KeyPair(x509Certificate, privateKey, signingKeys.certResourceName)
