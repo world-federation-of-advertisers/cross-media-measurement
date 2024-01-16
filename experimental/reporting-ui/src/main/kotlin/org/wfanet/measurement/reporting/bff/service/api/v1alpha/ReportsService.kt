@@ -80,11 +80,7 @@ class ReportsService(
 
     // Faked Api Call
     val resp = backendListReportsResponse {
-      reports += backendReport{
-        name = "measurementConsumers/VCTqwV_vFXw/reports/TESTREPORT"
-        state = BackendReport.State.SUCCEEDED
-        tags.put("ui.halo-cmm.org", "true")
-      }
+      reports += GenerateMockReport.GenerateReport()
     }
 
     if (resp.nextPageToken.isNotEmpty()) {
@@ -181,53 +177,52 @@ class ReportsService(
     // TODO: Probably want to add get reporting set to ensure we don't have to paginate
     //  and to make the list more manageable as lots of reporting sets get created.
     val measurementConsumerName = source.name.substring(0, source.name.indexOf("/", source.name.indexOf("/")))
-    val req = ListReportingSetsRequest(measurementConsumerName, 1000)
-    val reportingSets = reportingSetsService.ListReportingSets(req)
+    val reportingSetsRequest = ListReportingSetsRequest(measurementConsumerName, 1000)
+    val reportingSets = reportingSetsService.ListReportingSets(reportingSetsRequest)
 
     // Build the BFF report from the Backend report
     val rep = report {
       reportId = source.name
       name = if(source.tagsMap.containsKey(DISPLAY_NAME_TAG)) source.tagsMap[DISPLAY_NAME_TAG]!! else source.name
-      println(source.tagsMap)
       state = source.state.toBffState()
 
       // Go through each time Interval...
-      for (ti in source.timeIntervals.timeIntervalsList) {
+      for (sourceTimeInterval in source.timeIntervals.timeIntervalsList) {
         timeInterval += demographicMetricsByTimeInterval {
           timeInterval = interval {
-            startTime = ti.startTime
-            endTime = ti.endTime
+            startTime = sourceTimeInterval.startTime
+            endTime = sourceTimeInterval.endTime
           }
 
           // Go through each metric calcualtion result
-          // Stop here instead of flattening to pair the reporting sets
+          // Stop here instead of flattening so pairing the reporting sets is easy
           demoBucket += demoBucket {
-            for (mcr in source.metricCalculationResultsList) {
+            for (metricCalculationResult in source.metricCalculationResultsList) {
               // Get and inspect the related reporting set: individual, unique, or union
-              val reportingSetName = mcr.reportingSet
+              // 1. There must be a matching reporting set but maybe we didn't paginate enough
+              // 2. Unique sets will be paired later, so don't process them
+              // 3. If it's not a union, there should be a paired reporting set (the complement)
+              val reportingSetName = metricCalculationResult.reportingSet
               val matchingReportingSet = reportingSets.find{it.name == reportingSetName}
               if (matchingReportingSet == null) continue // TODO: Maybe throw error instead since the report wasn't made correctly
+
               val reportingSetDisplayName = matchingReportingSet.displayName
               val isUnique = matchingReportingSet.tagsMap[TYPE_TAG] == UNIQUE_TYPE_TAG
-              // Unique sets will be paired later
               if (isUnique) continue
+
               val isUnion = matchingReportingSet.tagsMap[TYPE_TAG] == UNION_TYPE_TAG
-              var groups = listOf(mcr);
-              // Don't add unions, they will be handled separately
+              var individualAndUnique = listOf(metricCalculationResult);
               if (!isUnion) {
-                // TODO: Should change the tag id to the full name instead of just the last part
-                val lastId = reportingSetName.split("/").last()
-                val rsPair = reportingSets.find{it.tagsMap[TYPE_TAG] == UNIQUE_TYPE_TAG && it.tagsMap[ID_TAG] == lastId}
-                
+                val rsPair = reportingSets.find{it.tagsMap[TYPE_TAG] == UNIQUE_TYPE_TAG && it.tagsMap[ID_TAG] == reportingSetName}
                 val metricResult = source.metricCalculationResultsList.find{it.reportingSet == rsPair?.name}
-                if(metricResult != null) groups += metricResult
+                if(metricResult != null) individualAndUnique += metricResult
               }
 
               // Get all the result attributes filtered by the time interval and grouped by the grouping predicate (ie. demo category)
-              val resultAttributesList = groups
+              val resultAttributesList = individualAndUnique
                 .map{it.resultAttributesList}
                 .flatten()
-                .filter{"${it.timeInterval.startTime.seconds}|${it.timeInterval.endTime.seconds}" == "${ti.startTime.seconds}|${ti.endTime.seconds}"}
+                .filter{"${it.timeInterval.startTime.seconds}|${it.timeInterval.endTime.seconds}" == "${sourceTimeInterval.startTime.seconds}|${sourceTimeInterval.endTime.seconds}"}
                 .groupBy{
                     it.groupingPredicatesList
                       .map{DEMOGRAPHIC_CODE_TO_STRING[it]}
@@ -238,7 +233,7 @@ class ReportsService(
                 demoCategoryName = resultAttributesByGroup.key
 
                 val metrics = sourceMetrics {
-                  cumulative = mcr.cumulative
+                  cumulative = metricCalculationResult.cumulative
                   // Each result attribute will have one metric spec
                   // The metric spec could be of different types, so we'll go through each one
                   // and add it to the appropriate field.
@@ -284,7 +279,6 @@ class ReportsService(
         }
       }
     }
-    println(rep.name)
     return rep
   }
 

@@ -53,7 +53,7 @@ export const TerminalReport = ({
 }: TerminalReportProps) => {
   // Assign a color to each publisher
   const pubIds = summaries.map(x => x.id);
-  const pubColors = {'All EDPs': '#7d7b7b'};
+  const pubColors = {'All EDPs': '#363636'};
   pubIds.forEach((pub_id, index) => pubColors[pub_id] = COLORS[index]);
 
   return (

@@ -114,6 +114,9 @@ const getImpressionsAndFrequencies = (report: Report): iAndF => {
     totalAverageFrequency: 0,
     totalOnTargetReach: 0,
     totalUniqueReach: 0,
+    // TODO: Get these from the report after changes are finished
+    startDate: new Date(2024, 0, 1).toLocaleDateString(),
+    endDate: new Date(2024, 0, 30).toLocaleDateString(),
   }
 
   const getImpressionGroup = (source: Metric, startTime: Date, demoCategoryName: string): ChartGroup => {
