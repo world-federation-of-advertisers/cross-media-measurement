@@ -56,7 +56,7 @@ object SyntheticDataGeneration {
             frequencySpec.vidRangeSpecsList) {
             val subPopulation: SubPopulation =
               vidRangeSpec.vidRange.findSubPopulation(subPopulations)
-                ?: throw IllegalArgumentException()
+                ?: throw IllegalArgumentException("${vidRangeSpec.vidRange}")
 
             val builder: Message.Builder = messageInstance.newBuilderForType()
 

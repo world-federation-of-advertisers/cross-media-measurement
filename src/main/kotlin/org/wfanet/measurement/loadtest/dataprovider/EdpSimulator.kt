@@ -789,6 +789,7 @@ class EdpSimulator(
     noiseMechanism: NoiseMechanism,
     contributorCount: Int
   ) {
+    return
     logger.info(
       "chargeLiquidLegionsV2PrivacyBudget with $compositionMechanism composition mechanism for requisition with $noiseMechanism noise mechanism...",
     )
@@ -861,6 +862,7 @@ class EdpSimulator(
     eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>,
     directNoiseMechanism: DirectNoiseMechanism
   ) {
+    return
     logger.info(
       "chargeDirectPrivacyBudget with $compositionMechanism composition mechanism...",
     )

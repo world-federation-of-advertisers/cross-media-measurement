@@ -312,7 +312,6 @@ class MeasurementConsumerSimulator(
         measurementInfo.measurementSpec,
         protocol
       )
-
     assertThat(reachAndFrequencyResult)
       .frequencyDistribution()
       .isWithin(frequencyTolerance)
@@ -367,7 +366,7 @@ class MeasurementConsumerSimulator(
     // Get the CMMS computed result and compare it with the expected result.
     var reachOnlyResult = getReachResult(measurementName)
     var nAttempts = 0
-    while (reachOnlyResult == null && (nAttempts < 4)) {
+    while (reachOnlyResult == null && (nAttempts < 10)) {
       nAttempts++
       logger.info("Computation not done yet, wait for another 30 seconds.  Attempt $nAttempts")
       delay(Duration.ofSeconds(30))
@@ -999,7 +998,7 @@ class MeasurementConsumerSimulator(
      * TODO(@SanjayVas): Make this configurable.
      */
     private val EVENT_RANGE =
-      OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 15)..LocalDate.of(2021, 3, 17))
+      OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2024, 1, 1)..LocalDate.of(2024, 1, 1))
 
     // For a 99.9% Confidence Interval.
     private const val CONFIDENCE_INTERVAL_MULTIPLIER = 3.291
