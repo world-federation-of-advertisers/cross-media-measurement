@@ -57,6 +57,9 @@ import org.wfanet.measurement.internal.kingdom.ModelRelease
 import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelSuite
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.Population
+import org.wfanet.measurement.internal.kingdom.PopulationKt
+import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.account
@@ -67,6 +70,7 @@ import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.createMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
+import org.wfanet.measurement.internal.kingdom.eventTemplate
 import org.wfanet.measurement.internal.kingdom.generateOpenIdRequestParamsRequest
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.measurementConsumer
@@ -74,6 +78,7 @@ import org.wfanet.measurement.internal.kingdom.modelLine
 import org.wfanet.measurement.internal.kingdom.modelProvider
 import org.wfanet.measurement.internal.kingdom.modelRelease
 import org.wfanet.measurement.internal.kingdom.modelSuite
+import org.wfanet.measurement.internal.kingdom.population
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 
@@ -203,13 +208,32 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
 
   suspend fun createModelRelease(
     modelSuite: ModelSuite,
+    population: Population,
     modelReleasesService: ModelReleasesCoroutineImplBase
   ): ModelRelease {
     val modelRelease = modelRelease {
       externalModelProviderId = modelSuite.externalModelProviderId
       externalModelSuiteId = modelSuite.externalModelSuiteId
+      externalDataProviderId = population.externalDataProviderId
+      externalPopulationId = population.externalPopulationId
     }
     return modelReleasesService.createModelRelease(modelRelease)
+  }
+
+  suspend fun createPopulation(
+    dataProvider: DataProvider,
+    populationsService: PopulationsGrpcKt.PopulationsCoroutineImplBase
+  ): Population {
+    val population =
+      populationsService.createPopulation(
+        population {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          description = "DESCRIPTION"
+          populationBlob = PopulationKt.populationBlob { modelBlobUri = "BLOB_URI" }
+          eventTemplate = eventTemplate { fullyQualifiedType = "TYPE" }
+        }
+      )
+    return population
   }
 
   suspend fun createModelLine(
