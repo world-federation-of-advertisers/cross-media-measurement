@@ -37,7 +37,9 @@ class SpannerModelReleasesServiceTest : ModelReleasesServiceTest<SpannerModelRel
     return Services(
       spannerServices.modelReleasesService as SpannerModelReleasesService,
       spannerServices.modelSuitesService,
-      spannerServices.modelProvidersService
+      spannerServices.modelProvidersService,
+      spannerServices.dataProvidersService,
+      spannerServices.populationsService,
     )
   }
 }

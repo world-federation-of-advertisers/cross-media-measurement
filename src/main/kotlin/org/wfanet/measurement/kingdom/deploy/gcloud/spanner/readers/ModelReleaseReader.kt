@@ -34,14 +34,20 @@ class ModelReleaseReader : SpannerReader<ModelReleaseReader.Result>() {
     SELECT
       ModelReleases.ModelReleaseId,
       ModelReleases.ExternalModelReleaseId,
+      ModelReleases.PopulationDataProviderId,
+      ModelReleases.PopulationId,
       ModelReleases.CreateTime,
       ModelSuites.ExternalModelSuiteId,
       ModelSuites.ModelProviderId,
       ModelSuites.ModelSuiteId,
       ModelProviders.ExternalModelProviderId,
+      DataProviders.ExternalDataProviderId as ExternalPopulationDataProviderId,
+      Populations.ExternalPopulationId
       FROM ModelReleases
       JOIN ModelSuites USING (ModelProviderId, ModelSuiteId)
       JOIN ModelProviders USING (ModelProviderId)
+      JOIN DataProviders ON (ModelReleases.PopulationDataProviderId = DataProviders.DataProviderId)
+      JOIN Populations USING (PopulationId)
     """
       .trimIndent()
 
@@ -52,6 +58,8 @@ class ModelReleaseReader : SpannerReader<ModelReleaseReader.Result>() {
     externalModelReleaseId = struct.getLong("ExternalModelReleaseId")
     externalModelSuiteId = struct.getLong("ExternalModelSuiteId")
     externalModelProviderId = struct.getLong("ExternalModelProviderId")
+    externalDataProviderId = struct.getLong("ExternalPopulationDataProviderId")
+    externalPopulationId = struct.getLong("ExternalPopulationId")
     createTime = struct.getTimestamp("CreateTime").toProto()
   }
 

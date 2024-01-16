@@ -713,3 +713,16 @@ class ExchangeNotFoundException(
         "date" to date.toString(),
       )
 }
+
+class PopulationNotFoundException(
+  val externalDataProviderId: ExternalId,
+  val externalPopulationId: ExternalId,
+  provideDescription: () -> String = { "Population not found" }
+) : KingdomInternalException(ErrorCode.POPULATION_NOT_FOUND, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_data_provider_id" to externalDataProviderId.toString(),
+        "external_population_id" to externalPopulationId.toString()
+      )
+}

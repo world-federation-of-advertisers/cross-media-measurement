@@ -42,7 +42,8 @@ class SpannerModelShardsServiceTest : ModelShardsServiceTest<SpannerModelShardsS
       spannerServices.dataProvidersService,
       spannerServices.modelProvidersService,
       spannerServices.modelSuitesService,
-      spannerServices.modelReleasesService
+      spannerServices.modelReleasesService,
+      spannerServices.populationsService
     )
   }
 }
