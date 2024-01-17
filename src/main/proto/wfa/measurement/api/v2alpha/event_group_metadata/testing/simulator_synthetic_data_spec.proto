@@ -107,9 +107,13 @@ message SyntheticEventGroupSpec {
       // A range of VIDs within a single `SubPopulation`.
       VidRange vid_range = 1;
 
+      // Number of vids sampled uniformly without replacement from vid_range.
+      // If this is 0, no sampling is done and all the vids in range are taken.
+      int32 sample_size = 2;
+
       // A map of `non_population_fields` from `SyntheticPopulationSpec` to
       // their values.
-      map<string, FieldValue> non_population_field_values = 2;
+      map<string, FieldValue> non_population_field_values = 3;
     }
     // The VID ranges should be non-overlapping sub-ranges of SubPopulations.
     repeated VidRangeSpec vid_range_specs = 2;

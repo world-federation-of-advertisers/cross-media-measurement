@@ -19,9 +19,11 @@ package org.wfanet.measurement.loadtest.dataprovider
 import com.google.protobuf.Descriptors.FieldDescriptor
 import com.google.protobuf.Message
 import java.time.ZoneOffset
+import kotlin.random.Random
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SimulatorSyntheticDataSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec.SubPopulation
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.VidRange
@@ -44,7 +46,8 @@ object SyntheticDataGeneration {
   fun <T : Message> generateEvents(
     messageInstance: T,
     populationSpec: SyntheticPopulationSpec,
-    syntheticEventGroupSpec: SyntheticEventGroupSpec
+    syntheticEventGroupSpec: SyntheticEventGroupSpec,
+    randomSeed: Long = 0L,
   ): Sequence<LabeledEvent<T>> {
     val subPopulations = populationSpec.subPopulationsList
 
@@ -52,8 +55,10 @@ object SyntheticDataGeneration {
       for (dateSpec: SyntheticEventGroupSpec.DateSpec in syntheticEventGroupSpec.dateSpecsList) {
         val dateProgression = dateSpec.dateRange.toProgression()
         for (frequencySpec: SyntheticEventGroupSpec.FrequencySpec in dateSpec.frequencySpecsList) {
-          for (vidRangeSpec: SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec in
-            frequencySpec.vidRangeSpecsList) {
+
+          check(!frequencySpec.hasOverlaps()) { "The VID ranges should be non-overlapping." }
+
+          for (vidRangeSpec: VidRangeSpec in frequencySpec.vidRangeSpecsList) {
             val subPopulation: SubPopulation =
               vidRangeSpec.vidRange.findSubPopulation(subPopulations)
                 ?: throw IllegalArgumentException()
@@ -77,9 +82,10 @@ object SyntheticDataGeneration {
             @Suppress("UNCHECKED_CAST") // Safe per protobuf API.
             val message = builder.build() as T
 
-            for (vid in vidRangeSpec.vidRange.start until vidRangeSpec.vidRange.endExclusive) {
-              for (date in dateProgression) {
-                for (i in 0 until frequencySpec.frequency) {
+            for (date in dateProgression) {
+              for (i in 0 until frequencySpec.frequency) {
+                val sampledVids = sampleVids(vidRangeSpec, date.toEpochDay() + randomSeed)
+                for (vid in sampledVids) {
                   yield(LabeledEvent(date.atStartOfDay().toInstant(ZoneOffset.UTC), vid, message))
                 }
               }
@@ -88,6 +94,31 @@ object SyntheticDataGeneration {
         }
       }
     }
+  }
+
+  /**
+   * Returns the sampled Vids from [vidRangeSpec]. Given the same [vidRangeSpec] and [randomSeed],
+   * returns the same vids. Returns all of the vids if sample size is 0.
+   */
+  private fun sampleVids(vidRangeSpec: VidRangeSpec, randomSeed: Long): Sequence<Long> {
+    val vidRangeSequence =
+      (vidRangeSpec.vidRange.start until vidRangeSpec.vidRange.endExclusive).asSequence()
+    if (vidRangeSpec.sampleSize == 0) {
+      return vidRangeSequence
+    }
+
+    // This step ensures given the same seed and the same vidRangeSpec, sample vids are the same.
+    // This is required because the EDP should respond by querying the same data for the same
+    // requisition.
+    val random =
+      Random(
+        vidRangeSpec.vidRange.start +
+          vidRangeSpec.vidRange.endExclusive +
+          vidRangeSpec.sampleSize.toLong() +
+          randomSeed
+      )
+
+    return vidRangeSequence.shuffled(random).take(vidRangeSpec.sampleSize)
   }
 
   /**
@@ -154,3 +185,19 @@ object SyntheticDataGeneration {
 private fun SyntheticEventGroupSpec.DateSpec.DateRange.toProgression(): LocalDateProgression {
   return start.toLocalDate()..endExclusive.toLocalDate().minusDays(1)
 }
+
+private fun SyntheticEventGroupSpec.FrequencySpec.hasOverlaps(): Boolean {
+  return this.vidRangeSpecsList
+    .toList()
+    .flatMap { vidRangeSpec: VidRangeSpec ->
+      listOf(
+        RangePoint(vidRangeSpec.vidRange.start, true),
+        RangePoint(vidRangeSpec.vidRange.endExclusive - 1, false)
+      )
+    }
+    .sortedBy { it.x }
+    .zipWithNext { first, second -> first.isStart && second.isStart }
+    .any { it }
+}
+
+private data class RangePoint(val x: Long, val isStart: Boolean)
