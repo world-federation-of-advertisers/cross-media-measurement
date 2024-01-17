@@ -40,7 +40,9 @@ class SpannerModelRolloutsServiceTest : ModelRolloutsServiceTest<SpannerModelRol
       spannerServices.modelProvidersService,
       spannerServices.modelSuitesService,
       spannerServices.modelLinesService,
-      spannerServices.modelReleasesService
+      spannerServices.modelReleasesService,
+      spannerServices.populationsService,
+      spannerServices.dataProvidersService
     )
   }
 }
