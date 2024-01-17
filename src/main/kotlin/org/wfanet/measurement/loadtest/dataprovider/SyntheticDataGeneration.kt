@@ -19,6 +19,8 @@ package org.wfanet.measurement.loadtest.dataprovider
 import com.google.protobuf.Descriptors.FieldDescriptor
 import com.google.protobuf.Message
 import java.time.ZoneOffset
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.random.Random
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SimulatorSyntheticDataSpec
@@ -48,7 +50,7 @@ object SyntheticDataGeneration {
     messageInstance: T,
     populationSpec: SyntheticPopulationSpec,
     syntheticEventGroupSpec: SyntheticEventGroupSpec,
-    random: Random = Random(0L),
+    random: Random = Random(),
   ): Sequence<LabeledEvent<T>> {
     val subPopulations = populationSpec.subPopulationsList
 
@@ -182,5 +184,8 @@ private fun SyntheticEventGroupSpec.FrequencySpec.hasOverlaps() =
   vidRangeSpecsList
     .map { it.vidRange }
     .sortedBy { it.start }
-    .zipWithNext { first, second -> first.endExclusive > second.start }
-    .any { it }
+    .zipWithNext()
+    .any { (first, second) -> first.overlaps(second) }
+
+private fun VidRange.overlaps(other: VidRange) =
+  max(start, other.start) < min(endExclusive, other.endExclusive)
