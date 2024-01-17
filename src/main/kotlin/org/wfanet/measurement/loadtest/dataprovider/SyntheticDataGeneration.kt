@@ -42,6 +42,7 @@ object SyntheticDataGeneration {
    * @param messageInstance an instance of the event message type [T]
    * @param populationSpec specification of the synthetic population
    * @param syntheticEventGroupSpec specification of the synthetic event group
+   * @param random object to be used in sampling vids when sampleSize is provided in specification
    */
   fun <T : Message> generateEvents(
     messageInstance: T,
@@ -176,7 +177,7 @@ private fun SyntheticEventGroupSpec.DateSpec.DateRange.toProgression(): LocalDat
 }
 
 // Sort the ranges by their start. If there are any consecutive ranges where
-// the previous has a larger end than the latter's start, then there is an overlap
+// the previous has a larger end than the latter's start, then there is an overlap.
 private fun SyntheticEventGroupSpec.FrequencySpec.hasOverlaps() =
   vidRangeSpecsList
     .map { it.vidRange }
