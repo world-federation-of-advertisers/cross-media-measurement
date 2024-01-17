@@ -21,6 +21,7 @@ import com.google.type.date
 import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneOffset
+import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -383,7 +384,7 @@ class SyntheticDataGenerationTest {
     assertThat(labeledEvents.size).isEqualTo(expectedNumberOfEvents)
   }
 
-  fun `generateEvents fails when overlapping vidRanges exist`() {
+  fun `generateEvents throws IllegalArgumentException when vid ranges overlap`() {
     val population = syntheticPopulationSpec {
       vidRange = vidRange {
         start = 0L
@@ -481,7 +482,8 @@ class SyntheticDataGenerationTest {
       SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           population,
-          eventGroupSpec
+          eventGroupSpec,
+          Random(42L),
         )
         .toList()
     }

@@ -47,7 +47,7 @@ object SyntheticDataGeneration {
     messageInstance: T,
     populationSpec: SyntheticPopulationSpec,
     syntheticEventGroupSpec: SyntheticEventGroupSpec,
-    randomSeed: Long = 0L,
+    random: Random = Random(0L),
   ): Sequence<LabeledEvent<T>> {
     val subPopulations = populationSpec.subPopulationsList
 
@@ -84,7 +84,7 @@ object SyntheticDataGeneration {
 
             for (date in dateProgression) {
               for (i in 0 until frequencySpec.frequency) {
-                val sampledVids = sampleVids(vidRangeSpec, date.toEpochDay() + randomSeed)
+                val sampledVids = sampleVids(vidRangeSpec, random)
                 for (vid in sampledVids) {
                   yield(LabeledEvent(date.atStartOfDay().toInstant(ZoneOffset.UTC), vid, message))
                 }
@@ -100,23 +100,12 @@ object SyntheticDataGeneration {
    * Returns the sampled Vids from [vidRangeSpec]. Given the same [vidRangeSpec] and [randomSeed],
    * returns the same vids. Returns all of the vids if sample size is 0.
    */
-  private fun sampleVids(vidRangeSpec: VidRangeSpec, randomSeed: Long): Sequence<Long> {
+  private fun sampleVids(vidRangeSpec: VidRangeSpec, random: Random): Sequence<Long> {
     val vidRangeSequence =
       (vidRangeSpec.vidRange.start until vidRangeSpec.vidRange.endExclusive).asSequence()
     if (vidRangeSpec.sampleSize == 0) {
       return vidRangeSequence
     }
-
-    // This step ensures given the same seed and the same vidRangeSpec, sample vids are the same.
-    // This is required because the EDP should respond by querying the same data for the same
-    // requisition.
-    val random =
-      Random(
-        vidRangeSpec.vidRange.start +
-          vidRangeSpec.vidRange.endExclusive +
-          vidRangeSpec.sampleSize.toLong() +
-          randomSeed
-      )
 
     return vidRangeSequence.shuffled(random).take(vidRangeSpec.sampleSize)
   }
@@ -186,18 +175,11 @@ private fun SyntheticEventGroupSpec.DateSpec.DateRange.toProgression(): LocalDat
   return start.toLocalDate()..endExclusive.toLocalDate().minusDays(1)
 }
 
-private fun SyntheticEventGroupSpec.FrequencySpec.hasOverlaps(): Boolean {
-  return this.vidRangeSpecsList
-    .toList()
-    .flatMap { vidRangeSpec: VidRangeSpec ->
-      listOf(
-        RangePoint(vidRangeSpec.vidRange.start, true),
-        RangePoint(vidRangeSpec.vidRange.endExclusive - 1, false)
-      )
-    }
-    .sortedBy { it.x }
-    .zipWithNext { first, second -> first.isStart && second.isStart }
+// Sort the ranges by their start. If there are any consecutive ranges where
+// the previous has a larger end than the latter's start, then there is an overlap
+private fun SyntheticEventGroupSpec.FrequencySpec.hasOverlaps() =
+  vidRangeSpecsList
+    .map { it.vidRange }
+    .sortedBy { it.start }
+    .zipWithNext { first, second -> first.endExclusive > second.start }
     .any { it }
-}
-
-private data class RangePoint(val x: Long, val isStart: Boolean)
