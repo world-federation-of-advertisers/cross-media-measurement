@@ -40,7 +40,10 @@ abstract class EdpSimulatorRunner : Runnable {
   protected lateinit var flags: EdpSimulatorFlags
     private set
 
-  protected fun run(eventQuery: EventQuery<Message>, eventGroupMetadata: Message) {
+  protected fun run(
+    eventQuery: EventQuery<Message>,
+    metadataByReferenceIdSuffix: Map<String, Message>
+  ) {
     val clientCerts =
       SigningCerts.fromPemFiles(
         certificateFile = flags.tlsFlags.certFile,
@@ -108,7 +111,7 @@ abstract class EdpSimulatorRunner : Runnable {
         compositionMechanism = flags.compositionMechanism,
       )
     runBlocking {
-      edpSimulator.ensureEventGroup(eventGroupMetadata)
+      edpSimulator.ensureEventGroups(metadataByReferenceIdSuffix)
       edpSimulator.run()
     }
   }
