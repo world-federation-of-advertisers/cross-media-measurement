@@ -1958,10 +1958,13 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     private val EVENT_RANGE =
       OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 15)..LocalDate.of(2021, 3, 17))
 
+    // Set epsilon and delta higher without exceeding privacy budget so the noise is smaller in the
+    // integration test. Check sample values in CompositionTest.kt.
+    // TODO(@iverson52000): Update to realistic values once test assertion is using variance.
     private val DP_PARAMS =
       MetricSpecKt.differentialPrivacyParams {
         epsilon = 1.0
-        delta = 1.0
+        delta = 1e-5
       }
 
     private val VID_SAMPLING_INTERVAL =
