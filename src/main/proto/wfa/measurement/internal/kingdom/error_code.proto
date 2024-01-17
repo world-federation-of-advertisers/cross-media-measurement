@@ -106,4 +106,6 @@ enum ErrorCode {
   EXCHANGE_NOT_FOUND = 40;
   /** ModelShard args are invalid. */
   MODEL_SHARD_INVALID_ARGS = 41;
+  /** Population could not be found. */
+  POPULATION_NOT_FOUND = 42;
 }

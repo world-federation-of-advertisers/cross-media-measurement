@@ -1783,6 +1783,8 @@ private val SUCCEEDED_INCREMENTAL_REACH_METRIC =
           value = INCREMENTAL_REACH_VALUE
           univariateStatistics = univariateStatistics { standardDeviation = sqrt(VARIANCE_VALUE) }
         }
+      cmmsMeasurements += PENDING_UNION_ALL_REACH_MEASUREMENT.name
+      cmmsMeasurements += PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.name
     }
   }
 
@@ -1830,6 +1832,7 @@ private val SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC =
   PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
     state = Metric.State.SUCCEEDED
     result = metricResult {
+      cmmsMeasurements += PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.name
       reachAndFrequency =
         MetricResultKt.reachAndFrequencyResult {
           reach =
@@ -1921,6 +1924,7 @@ private val SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC =
           value = IMPRESSION_VALUE
           univariateStatistics = univariateStatistics { standardDeviation = sqrt(VARIANCE_VALUE) }
         }
+      cmmsMeasurements += PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name
     }
   }
 
@@ -1970,6 +1974,7 @@ private val SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC =
             standardDeviation = sqrt(WATCH_DURATION_LIST.sumOf { VARIANCE_VALUE })
           }
         }
+      cmmsMeasurements += PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.name
     }
   }
 
@@ -2001,6 +2006,7 @@ val SUCCEEDED_POPULATION_METRIC =
     state = Metric.State.SUCCEEDED
     result = metricResult {
       populationCount = MetricResultKt.populationCountResult { value = TOTAL_POPULATION_VALUE }
+      cmmsMeasurements += PENDING_POPULATION_MEASUREMENT.name
     }
   }
 
@@ -5266,6 +5272,8 @@ class MetricsServiceTest {
           SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
             this.result = metricResult {
               reach = MetricResultKt.reachResult { value = INCREMENTAL_REACH_VALUE }
+              cmmsMeasurements += PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.name
+              cmmsMeasurements += PENDING_UNION_ALL_REACH_MEASUREMENT.name
             }
           }
         )
@@ -5350,6 +5358,8 @@ class MetricsServiceTest {
           SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
             this.result = metricResult {
               reach = MetricResultKt.reachResult { value = INCREMENTAL_REACH_VALUE }
+              cmmsMeasurements += PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.name
+              cmmsMeasurements += PENDING_UNION_ALL_REACH_MEASUREMENT.name
             }
           }
         )
@@ -5415,6 +5425,8 @@ class MetricsServiceTest {
           SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
             this.result = metricResult {
               reach = MetricResultKt.reachResult { value = INCREMENTAL_REACH_VALUE }
+              cmmsMeasurements += PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.name
+              cmmsMeasurements += PENDING_UNION_ALL_REACH_MEASUREMENT.name
             }
           }
         )
@@ -6824,8 +6836,14 @@ class MetricsServiceTest {
           internalBatchGetMetricsResponse {
             metrics +=
               INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+                weightedMeasurements.clear()
                 weightedMeasurements += weightedMeasurement {
                   weight = -1
+                  binaryRepresentation = 1
+                  measurement = INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+                }
+                weightedMeasurements += weightedMeasurement {
+                  weight = 1
                   binaryRepresentation = 1
                   measurement = INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
                 }
@@ -6884,6 +6902,8 @@ class MetricsServiceTest {
           SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
             this.result = metricResult {
               impressionCount = MetricResultKt.impressionCountResult { value = 0L }
+              cmmsMeasurements += PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name
+              cmmsMeasurements += PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name
             }
           }
         )
@@ -7166,6 +7186,12 @@ class MetricsServiceTest {
           internalBatchGetMetricsResponse {
             metrics +=
               INTERNAL_SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
+                weightedMeasurements.clear()
+                weightedMeasurements += weightedMeasurement {
+                  weight = 1
+                  binaryRepresentation = 1
+                  measurement = INTERNAL_SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT
+                }
                 weightedMeasurements += weightedMeasurement {
                   weight = -1
                   binaryRepresentation = 1
@@ -7187,6 +7213,8 @@ class MetricsServiceTest {
           SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
             this.result = metricResult {
               watchDuration = MetricResultKt.watchDurationResult { value = 0.0 }
+              cmmsMeasurements += PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.name
+              cmmsMeasurements += PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.name
             }
           }
         )

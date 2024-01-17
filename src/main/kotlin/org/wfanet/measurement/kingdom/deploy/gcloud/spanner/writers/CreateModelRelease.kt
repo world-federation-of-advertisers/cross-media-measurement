@@ -21,6 +21,7 @@ import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
@@ -34,15 +35,17 @@ class CreateModelRelease(private val modelRelease: ModelRelease) :
 
   override suspend fun TransactionScope.runTransaction(): ModelRelease {
 
+    val externalModelProviderId = ExternalId(modelRelease.externalModelProviderId)
+    val externalModelSuiteId = ExternalId(modelRelease.externalModelSuiteId)
     val modelSuiteData: Struct =
-      readModelSuiteData(
-        ExternalId(modelRelease.externalModelProviderId),
-        ExternalId(modelRelease.externalModelSuiteId)
-      )
-        ?: throw ModelSuiteNotFoundException(
-          ExternalId(modelRelease.externalModelProviderId),
-          ExternalId(modelRelease.externalModelSuiteId)
-        )
+      readModelSuiteData(externalModelProviderId, externalModelSuiteId)
+        ?: throw ModelSuiteNotFoundException(externalModelProviderId, externalModelSuiteId)
+
+    val externalDataProviderId = ExternalId(modelRelease.externalDataProviderId)
+    val externalPopulationId = ExternalId(modelRelease.externalPopulationId)
+    val populationData: Struct =
+      readPopulationData(externalDataProviderId, externalPopulationId)
+        ?: throw ModelSuiteNotFoundException(externalDataProviderId, externalPopulationId)
 
     val internalModelReleaseId = idGenerator.generateInternalId()
     val externalModelReleaseId = idGenerator.generateExternalId()
@@ -52,6 +55,8 @@ class CreateModelRelease(private val modelRelease: ModelRelease) :
       set("ModelSuiteId" to modelSuiteData.getLong("ModelSuiteId"))
       set("ModelReleaseId" to internalModelReleaseId)
       set("ExternalModelReleaseId" to externalModelReleaseId)
+      set("PopulationDataProviderId" to populationData.getLong("DataProviderId"))
+      set("PopulationId" to populationData.getLong("PopulationId"))
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
     }
 
@@ -79,6 +84,29 @@ class CreateModelRelease(private val modelRelease: ModelRelease) :
       }
 
     return transactionContext.executeQuery(statement).singleOrNull()
+  }
+
+  private suspend fun TransactionScope.readPopulationData(
+    externalDataProviderId: ExternalId,
+    externalPopulationId: ExternalId
+  ): Struct? {
+    val sql =
+      """
+    SELECT
+    Populations.PopulationId,
+    Populations.DataProviderId
+    FROM Populations JOIN DataProviders USING(DataProviderId)
+    WHERE ExternalPopulationId = @externalPopulationId AND ExternalDataProviderId = @externalDataProviderId
+    """
+        .trimIndent()
+
+    val statement: Statement =
+      statement(sql) {
+        bind("externalPopulationId" to externalPopulationId.value)
+        bind("externalDataProviderId" to externalDataProviderId.value)
+      }
+
+    return transactionContext.executeQuery(statement).singleOrNullIfEmpty()
   }
 
   override fun ResultScope<ModelRelease>.buildResult(): ModelRelease {
