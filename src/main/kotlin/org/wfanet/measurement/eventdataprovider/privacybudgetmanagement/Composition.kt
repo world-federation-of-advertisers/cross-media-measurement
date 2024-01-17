@@ -127,7 +127,8 @@ object Composition {
    * Computes total DP delta parameter after applying ACDP composition with given target Epsilon
    *
    * @param acdpCharges The privacy ACDP charge(rho, theta) of queries.
-   * @param targetEpsilon The maximum total Epsilon.
+   * @param targetEpsilon The maximum total Epsilon specified from Privacy Budget Manager.
+   *   Recommended value is below 10.
    * @return totalDelta such that, under ACDP composition, the result is still (totalEpsilon,
    *   totalDelta)-DP.
    */
