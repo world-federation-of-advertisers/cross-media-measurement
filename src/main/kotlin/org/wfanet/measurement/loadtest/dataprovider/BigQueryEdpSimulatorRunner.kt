@@ -71,7 +71,7 @@ class BigQueryEdpSimulatorRunner : EdpSimulatorRunner() {
         publisherId
       )
 
-    run(eventQuery, EventGroupMetadata.testMetadata(publisherId))
+    run(eventQuery, mapOf("" to EventGroupMetadata.testMetadata(publisherId)))
   }
 }
 

@@ -47,7 +47,7 @@ class CsvEdpSimulatorRunner : EdpSimulatorRunner() {
 
   override fun run() {
     val eventQuery = CsvEventQuery(publisherId, eventsCsv)
-    run(eventQuery, EventGroupMetadata.testMetadata(publisherId))
+    run(eventQuery, mapOf("" to EventGroupMetadata.testMetadata(publisherId)))
   }
 }
 
