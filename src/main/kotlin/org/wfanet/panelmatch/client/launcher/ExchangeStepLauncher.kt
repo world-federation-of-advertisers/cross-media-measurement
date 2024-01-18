@@ -14,11 +14,14 @@
 
 package org.wfanet.panelmatch.client.launcher
 
+import java.util.logging.Level
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.panelmatch.client.launcher.InvalidExchangeStepException.FailureType.PERMANENT
 import org.wfanet.panelmatch.client.launcher.InvalidExchangeStepException.FailureType.TRANSIENT
+import org.wfanet.panelmatch.client.logger.addToTaskLog
+import org.wfanet.panelmatch.common.loggerFor
 
 /** Finds an [ExchangeStep], validates it, and starts executing the work. */
 class ExchangeStepLauncher(
@@ -43,6 +46,9 @@ class ExchangeStepLauncher(
   }
 
   private suspend fun invalidateAttempt(attemptKey: ExchangeStepAttemptKey, exception: Exception) {
+    logger.addToTaskLog("Exception caught in findAndRunExchangeStep().")
+    logger.addToTaskLog(exception, Level.SEVERE)
+
     val state =
       when (exception) {
         is InvalidExchangeStepException ->
@@ -56,5 +62,9 @@ class ExchangeStepLauncher(
     // TODO: log an error or retry a few times if this fails.
     // TODO: add API-level support for some type of justification about what went wrong.
     apiClient.finishExchangeStepAttempt(attemptKey, state, listOfNotNull(exception.message))
+  }
+
+  companion object {
+    private val logger by loggerFor()
   }
 }
