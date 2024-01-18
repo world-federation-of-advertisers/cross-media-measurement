@@ -119,9 +119,8 @@ private class AwsExampleDaemon : ExampleDaemon() {
     DaemonStorageClientDefaults(
       rootStorageClient,
       tinkKeyUri,
-      // Is the underlying code thread-safe? Set to 1 for testing, the idea being this should be
-      // a special view just for encrypt/decrypt.
-      TinkKeyStorageProvider(Dispatchers.IO.limitedParallelism(1), s3Bucket))
+      // The 1 for testing, the idea being this should be a special view just for encrypt/decrypt.
+      TinkKeyStorageProvider(Dispatchers.IO.limitedParallelism(1)))
   }
 
   /** This can be customized per deployment. */
@@ -160,7 +159,7 @@ private class AwsExampleDaemon : ExampleDaemon() {
         privateStorageSelector = privateStorageSelector,
         exchangeTaskMapper = exchangeTaskMapper
       )
-    CoroutineLauncher(stepExecutor = stepExecutor, maxCoroutines = 1)
+    CoroutineLauncher(stepExecutor = stepExecutor, apiClient = apiClient, maxCoroutines = 1)
   }
 }
 
