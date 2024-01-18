@@ -40,6 +40,7 @@ import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpc
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub as InternalReportSchedulesCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
+import kotlin.system.exitProcess
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.reporting.deploy.v2.common.EncryptionKeyPairMap
 import org.wfanet.measurement.reporting.deploy.v2.common.InProcessServersMethods.startInProcessServerWithService
@@ -152,6 +153,8 @@ private fun run(
     )
 
   runBlocking { reportSchedulingJob.execute() }
+  // Ensures process is completed so any container running this can mark it as completed.
+  exitProcess(0)
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)
