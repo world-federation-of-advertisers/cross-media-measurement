@@ -21,6 +21,7 @@ import kotlin.random.Random
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
@@ -63,6 +64,7 @@ abstract class EdpSimulatorRunner : Runnable {
       EventGroupMetadataDescriptorsCoroutineStub(v2AlphaPublicApiChannel)
     val measurementConsumersStub = MeasurementConsumersCoroutineStub(v2AlphaPublicApiChannel)
     val certificatesStub = CertificatesCoroutineStub(v2AlphaPublicApiChannel)
+    val dataProvidersStub = DataProvidersCoroutineStub(v2AlphaPublicApiChannel)
 
     val requisitionFulfillmentStub =
       RequisitionFulfillmentCoroutineStub(
@@ -99,6 +101,7 @@ abstract class EdpSimulatorRunner : Runnable {
         flags.mcResourceName,
         measurementConsumersStub,
         certificatesStub,
+        dataProvidersStub,
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,

@@ -41,11 +41,14 @@ import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
 import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
 import org.wfanet.anysketch.crypto.elGamalPublicKey as anySketchElGamalPublicKey
+import com.google.protobuf.timestamp
+import com.google.type.interval
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt.variance
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DeterministicCountDistinct
 import org.wfanet.measurement.api.v2alpha.DeterministicDistribution
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
@@ -100,6 +103,7 @@ import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.v2alpha.updateEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
@@ -160,6 +164,7 @@ class EdpSimulator(
   private val measurementConsumerName: String,
   private val measurementConsumersStub: MeasurementConsumersCoroutineStub,
   private val certificatesStub: CertificatesCoroutineStub,
+  private val dataProvidersStub: DataProvidersCoroutineStub,
   private val eventGroupsStub: EventGroupsCoroutineStub,
   private val eventGroupMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub,
   private val requisitionsStub: RequisitionsCoroutineStub,
@@ -176,6 +181,17 @@ class EdpSimulator(
 
   /** A sequence of operations done in the simulator. */
   suspend fun run() {
+    dataProvidersStub.replaceDataAvailabilityInterval(replaceDataAvailabilityIntervalRequest {
+      name = edpData.name
+      dataAvailabilityInterval = interval {
+        startTime = timestamp {
+          seconds = 1577865600 // January 1, 2020 12:00:00 AM, America/Los_Angeles
+        }
+        endTime = timestamp {
+          seconds = 2209017600 // January 1, 2040 12:00:00 AM, America/Los_Angeles
+        }
+      }
+    })
     throttler.loopOnReady { executeRequisitionFulfillingWorkflow() }
   }
 

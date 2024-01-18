@@ -17,8 +17,6 @@ package org.wfanet.measurement.loadtest.resourcesetup
 import com.google.protobuf.ByteString
 import com.google.protobuf.TextFormat
 import com.google.protobuf.kotlin.toByteString
-import com.google.protobuf.timestamp
-import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
 import java.io.File
@@ -264,14 +262,6 @@ class ResourceSetup(
               publicKey = signedPublicKey.message.value
               publicKeySignature = signedPublicKey.signature
               publicKeySignatureAlgorithmOid = signedPublicKey.signatureAlgorithmOid
-              dataAvailabilityInterval = interval {
-                startTime = timestamp {
-                  seconds = 1641024000
-                } // January 1, 2022 at 12:00:00 AM, America/Los_Angeles
-                endTime = timestamp {
-                  seconds = 1735718400
-                } // January 1, 2025 at 12:00:00 AM, America/Los_Angeles
-              }
             }
           requiredExternalDuchyIds += requiredDuchies
         }
