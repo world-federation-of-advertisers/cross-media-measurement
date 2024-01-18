@@ -54,6 +54,12 @@ import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpc
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub as InternalReportSchedulesCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
+import java.time.Duration
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
+import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.reporting.deploy.v2.common.EncryptionKeyPairMap
@@ -183,15 +189,26 @@ private fun run(
       Dispatchers.IO
     )
 
+  val executorService: ExecutorService =
+    ThreadPoolExecutor(
+      1,
+      commonServerFlags.threadPoolSize,
+      60L,
+      TimeUnit.SECONDS,
+      LinkedBlockingQueue()
+    )
+
   val inProcessServerName = InProcessServerBuilder.generateName()
   val inProcessServer: Server =
     startInProcessServerWithService(
       inProcessServerName,
+      executorService,
       commonServerFlags,
       metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs)
     )
   val inProcessChannel =
-    InProcessChannelBuilder.forName(inProcessServerName).directExecutor().build()
+    InProcessChannelBuilder.forName(inProcessServerName).directExecutor().build().withShutdownTimeout(
+      Duration.ofSeconds(30))
 
   val services: List<ServerServiceDefinition> =
     listOf(
@@ -233,8 +250,11 @@ private fun run(
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
     )
   CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
+  inProcessChannel.shutdown()
   inProcessServer.shutdown()
+  executorService.shutdown()
   inProcessServer.awaitTermination()
+  executorService.awaitTermination(30, TimeUnit.SECONDS)
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)

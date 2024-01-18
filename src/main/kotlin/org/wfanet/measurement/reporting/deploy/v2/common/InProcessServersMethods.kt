@@ -20,9 +20,6 @@ import io.grpc.Server
 import io.grpc.ServerServiceDefinition
 import io.grpc.inprocess.InProcessServerBuilder
 import java.util.concurrent.ExecutorService
-import java.util.concurrent.LinkedBlockingQueue
-import java.util.concurrent.ThreadPoolExecutor
-import java.util.concurrent.TimeUnit
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.ErrorLoggingServerInterceptor
 import org.wfanet.measurement.common.grpc.LoggingServerInterceptor
@@ -30,21 +27,15 @@ import org.wfanet.measurement.common.grpc.LoggingServerInterceptor
 object InProcessServersMethods {
   fun startInProcessServerWithService(
     serverName: String,
+    executorService: ExecutorService?,
     commonServerFlags: CommonServer.Flags,
     service: ServerServiceDefinition
   ): Server {
-    val executor: ExecutorService =
-      ThreadPoolExecutor(
-        1,
-        commonServerFlags.threadPoolSize,
-        60L,
-        TimeUnit.SECONDS,
-        LinkedBlockingQueue()
-      )
-
     return InProcessServerBuilder.forName(serverName)
       .apply {
-        executor(executor)
+        if (executorService != null) {
+          executor(executorService)
+        }
         addService(service)
         if (commonServerFlags.debugVerboseGrpcLogging) {
           intercept(LoggingServerInterceptor)
