@@ -162,7 +162,7 @@ Reporting \
     }
   ' \
   --metric-spec='
-    impression {
+    impression_count {
       privacy_params {
         epsilon: 0.0041
         delta: 1.0E-12
@@ -172,9 +172,9 @@ Reporting \
       width: 0.01
     }
   ' \
-  --filter='gender == MALE' \
-  --grouping='gender == MALE,gender == FEMALE' \
-  --grouping='age == 18_34,age == 55_PLUS' \
+  --filter='person.gender == 1' \
+  --grouping='person.gender == 1,person.gender == 2' \
+  --grouping='person.age_group == 1,person.age_group == 2' \
   --cumulative=true
 ```
 

@@ -572,9 +572,9 @@ class ReportingTest {
     val textFormatMetricSpecFile = TEXTPROTO_DIR.resolve("metric_spec.textproto").toFile()
 
     val displayName = "display"
-    val filter = "gender == MALE"
-    val grouping1 = "gender == MALE,gender == FEMALE"
-    val grouping2 = "age == 18_34,age == 55_PLUS"
+    val filter = "person.gender == 1"
+    val grouping1 = "person.gender == 1,person.gender == 2"
+    val grouping2 = "person.age_group == 1,person.age_group == 2"
     val cumulative = true
 
     val args =
@@ -634,9 +634,9 @@ class ReportingTest {
         "--parent=$MEASUREMENT_CONSUMER_NAME",
         "--id=$METRIC_CALCULATION_SPEC_ID",
         "--display-name=display",
-        "--filter='gender == MALE'",
-        "--grouping='gender == MALE,gender == FEMALE'",
-        "--grouping='age == 18_34,age == 55_PLUS'",
+        "--filter='person.gender == 1'",
+        "--grouping='person.gender == 1,person.gender == 2'",
+        "--grouping='person.age_group == 1,person.age_group == 2'",
         "--cumulative=true",
       )
 
