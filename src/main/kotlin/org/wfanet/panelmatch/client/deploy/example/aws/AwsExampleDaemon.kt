@@ -119,7 +119,9 @@ private class AwsExampleDaemon : ExampleDaemon() {
     DaemonStorageClientDefaults(
       rootStorageClient,
       tinkKeyUri,
-      TinkKeyStorageProvider(Dispatchers.IO, s3Bucket))
+      // Is the underlying code thread-safe? Set to 1 for testing, the idea being this should be
+      // a special view just for encrypt/decrypt.
+      TinkKeyStorageProvider(Dispatchers.IO.limitedParallelism(1), s3Bucket))
   }
 
   /** This can be customized per deployment. */
