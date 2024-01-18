@@ -30,7 +30,7 @@ object InProcessServersMethods {
     commonServerFlags: CommonServer.Flags,
     service: ServerServiceDefinition,
     executorService: ExecutorService? = null
-    ): Server {
+  ): Server {
     return InProcessServerBuilder.forName(serverName)
       .apply {
         if (executorService != null) {
