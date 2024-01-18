@@ -17,6 +17,7 @@ package org.wfanet.panelmatch.client.deploy.example.aws
 import com.google.crypto.tink.integration.awskms.AwsKmsClient
 import java.util.Optional
 import kotlin.properties.Delegates
+import kotlinx.coroutines.Dispatchers
 import org.apache.beam.runners.direct.DirectRunner
 import org.apache.beam.sdk.options.PipelineOptions
 import org.apache.beam.sdk.options.PipelineOptionsFactory
@@ -115,7 +116,10 @@ private class AwsExampleDaemon : ExampleDaemon() {
   private val defaults by lazy {
     // Register AwsKmsClient before setting storage folders.
     AwsKmsClient.register(Optional.of(tinkKeyUri), Optional.empty())
-    DaemonStorageClientDefaults(rootStorageClient, tinkKeyUri, TinkKeyStorageProvider())
+    DaemonStorageClientDefaults(
+      rootStorageClient,
+      tinkKeyUri,
+      TinkKeyStorageProvider(Dispatchers.IO, s3Bucket))
   }
 
   /** This can be customized per deployment. */

@@ -24,11 +24,18 @@ MEASUREMENT_SYSTEM_REPO = "https://github.com/world-federation-of-advertisers/cr
 def wfa_measurement_system_repositories():
     """Imports all direct dependencies for wfa_measurement_system."""
 
-    wfa_repo_archive(
+# TODO(jmolle): Update this to a release that supports passing
+#               associated context.
+#   wfa_repo_archive(
+    http_archive(
         name = "wfa_common_jvm",
-        repo = "common-jvm",
-        sha256 = "c0e39569064363ed61b9b780bf2aa37b99d0c81933a7a434b6b320c2e81063b4",
-        version = "0.65.0",
+#        repo = "common-jvm",
+        sha256 = "07caf8d5180e4aa00ebfb973f583c93cbc0fa4c25796746ddca28c0b348b01fd",
+        strip_prefix = "common-jvm-d54bd4eecf5d996ad3467a5e39ba4b84eaf2b04b",
+        # current branch of stevenwarejones_kms_storage_client_logging
+        url = "https://github.com/world-federation-of-advertisers/common-jvm/archive/d54bd4eecf5d996ad3467a5e39ba4b84eaf2b04b.zip",
+#        sha256 = "c0e39569064363ed61b9b780bf2aa37b99d0c81933a7a434b6b320c2e81063b4",
+#        version = "0.65.0",
     )
 
     wfa_repo_archive(
