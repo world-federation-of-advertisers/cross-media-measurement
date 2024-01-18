@@ -17,6 +17,8 @@ package org.wfanet.measurement.loadtest.resourcesetup
 import com.google.protobuf.ByteString
 import com.google.protobuf.TextFormat
 import com.google.protobuf.kotlin.toByteString
+import com.google.protobuf.timestamp
+import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
 import java.io.File
@@ -66,7 +68,6 @@ import org.wfanet.measurement.internal.kingdom.account as internalAccount
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
-import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.kingdom.service.api.v2alpha.fillCertificateFromDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.parseCertificateDer
 import org.wfanet.measurement.loadtest.common.ConsoleOutput
@@ -263,6 +264,14 @@ class ResourceSetup(
               publicKey = signedPublicKey.message.value
               publicKeySignature = signedPublicKey.signature
               publicKeySignatureAlgorithmOid = signedPublicKey.signatureAlgorithmOid
+              dataAvailabilityInterval = interval {
+                startTime = timestamp {
+                  seconds = 1641024000
+                }
+                endTime = timestamp {
+                  seconds = 1735718400
+                }
+              }
             }
           requiredExternalDuchyIds += requiredDuchies
         }
