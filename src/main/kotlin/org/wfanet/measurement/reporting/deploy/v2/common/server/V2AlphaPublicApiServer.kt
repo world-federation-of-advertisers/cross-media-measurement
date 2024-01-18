@@ -51,6 +51,9 @@ import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpc
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub as InternalReportSchedulesCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
+import io.grpc.Server
+import io.grpc.inprocess.InProcessChannelBuilder
+import io.grpc.inprocess.InProcessServerBuilder
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.reporting.deploy.v2.common.EncryptionKeyPairMap
@@ -180,11 +183,14 @@ private fun run(
       Dispatchers.IO
     )
 
-  val inProcessChannel =
+  val inProcessServerName = InProcessServerBuilder.generateName()
+  val inProcessServer: Server =
     startInProcessServerWithService(
+      inProcessServerName,
       commonServerFlags,
       metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs)
     )
+  val inProcessChannel = InProcessChannelBuilder.forName(inProcessServerName).directExecutor().build()
 
   val services: List<ServerServiceDefinition> =
     listOf(
@@ -226,6 +232,8 @@ private fun run(
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
     )
   CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
+  inProcessServer.shutdown()
+  inProcessServer.awaitTermination()
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)

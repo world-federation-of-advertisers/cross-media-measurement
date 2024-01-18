@@ -18,7 +18,6 @@ package org.wfanet.measurement.reporting.deploy.v2.common.job
 
 import io.grpc.Channel
 import java.security.SecureRandom
-import kotlin.system.exitProcess
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as KingdomCertificatesCoroutineStub
@@ -41,6 +40,9 @@ import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpc
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub as InternalReportSchedulesCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
+import io.grpc.Server
+import io.grpc.inprocess.InProcessChannelBuilder
+import io.grpc.inprocess.InProcessServerBuilder
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.reporting.deploy.v2.common.EncryptionKeyPairMap
 import org.wfanet.measurement.reporting.deploy.v2.common.InProcessServersMethods.startInProcessServerWithService
@@ -119,11 +121,14 @@ private fun run(
       Dispatchers.IO
     )
 
-  val inProcessMetricsChannel =
+  val inProcessMetricsServerName = InProcessServerBuilder.generateName()
+  val inProcessMetricsServer: Server =
     startInProcessServerWithService(
+      inProcessMetricsServerName,
       commonServerFlags,
       metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs)
     )
+  val inProcessMetricsChannel = InProcessChannelBuilder.forName(inProcessMetricsServerName).directExecutor().build()
 
   val reportsService =
     ReportsService(
@@ -133,13 +138,16 @@ private fun run(
       metricSpecConfig
     )
 
-  val inProcessReportsChannel =
+  val inProcessReportsServerName = InProcessServerBuilder.generateName()
+  val inProcessReportsServer: Server =
     startInProcessServerWithService(
+      inProcessReportsServerName,
       commonServerFlags,
       reportsService
         .withMetadataPrincipalIdentities(measurementConsumerConfigs)
         .withReportScheduleInfoInterceptor()
     )
+  val inProcessReportsChannel = InProcessChannelBuilder.forName(inProcessReportsServerName).directExecutor().build()
 
   val reportSchedulingJob =
     ReportSchedulingJob(
@@ -153,8 +161,10 @@ private fun run(
     )
 
   runBlocking { reportSchedulingJob.execute() }
-  // Ensures process is completed so any container running this can mark it as completed.
-  exitProcess(0)
+  inProcessMetricsServer.shutdown()
+  inProcessReportsServer.shutdown()
+  inProcessMetricsServer.awaitTermination()
+  inProcessReportsServer.awaitTermination()
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)

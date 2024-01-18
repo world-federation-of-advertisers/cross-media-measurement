@@ -16,9 +16,8 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.common
 
-import io.grpc.Channel
+import io.grpc.Server
 import io.grpc.ServerServiceDefinition
-import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.inprocess.InProcessServerBuilder
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.LinkedBlockingQueue
@@ -30,11 +29,10 @@ import org.wfanet.measurement.common.grpc.LoggingServerInterceptor
 
 object InProcessServersMethods {
   fun startInProcessServerWithService(
+    serverName: String,
     commonServerFlags: CommonServer.Flags,
     service: ServerServiceDefinition
-  ): Channel {
-    val inProcessServerName = InProcessServerBuilder.generateName()
-
+  ): Server {
     val executor: ExecutorService =
       ThreadPoolExecutor(
         1,
@@ -44,7 +42,7 @@ object InProcessServersMethods {
         LinkedBlockingQueue()
       )
 
-    InProcessServerBuilder.forName(inProcessServerName)
+    return InProcessServerBuilder.forName(serverName)
       .apply {
         executor(executor)
         addService(service)
@@ -56,7 +54,5 @@ object InProcessServersMethods {
       }
       .build()
       .start()
-
-    return InProcessChannelBuilder.forName(inProcessServerName).directExecutor().build()
   }
 }
