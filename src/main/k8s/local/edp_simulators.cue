@@ -71,7 +71,7 @@ edpSimulators: {
 			_kingdom_public_api_target: #KingdomPublicApiTarget
 			_additional_args: [
 				"--population-spec=\(_populationSpec)",
-				"--event-group-spec=\(edpConfig.eventGroupSpec)",
+				"--event-group-spec==\(edpConfig.eventGroupSpec)",
 			]
 
 			deployment: spec: template: spec: {

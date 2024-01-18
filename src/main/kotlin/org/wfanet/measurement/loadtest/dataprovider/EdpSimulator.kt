@@ -172,6 +172,7 @@ class EdpSimulator(
   private val random: Random = Random,
   private val compositionMechanism: CompositionMechanism,
 ) {
+  val eventGroupReferenceIdPrefix = getEventGroupReferenceIdPrefix(edpData.displayName)
 
   /** A sequence of operations done in the simulator. */
   suspend fun run() {
@@ -179,12 +180,28 @@ class EdpSimulator(
   }
 
   /**
-   * Ensures that an appropriate [EventGroup] with an appropriate [EventGroupMetadataDescriptor]
-   * exists for the [MeasurementConsumer].
-   *
-   * TODO(@SanjayVas): Create multiple EventGroups with different synthetic data specs.
+   * Ensures that an appropriate [EventGroup] with appropriate [EventGroupMetadataDescriptor] exists
+   * for the [MeasurementConsumer].
    */
   suspend fun ensureEventGroup(eventGroupMetadata: Message): EventGroup {
+    return ensureEventGroups(mapOf("" to eventGroupMetadata)).single()
+  }
+
+  /**
+   * Ensures that appropriate [EventGroup]s with appropriate [EventGroupMetadataDescriptor] exists
+   * for the [MeasurementConsumer].
+   */
+  suspend fun ensureEventGroups(
+    metadataByReferenceIdSuffix: Map<String, Message>
+  ): List<EventGroup> {
+    require(metadataByReferenceIdSuffix.isNotEmpty())
+
+    val metadataDescriptor: Descriptors.Descriptor =
+      metadataByReferenceIdSuffix.values.first().descriptorForType
+    require(metadataByReferenceIdSuffix.values.all { it.descriptorForType == metadataDescriptor }) {
+      "All metadata messages must have the same type"
+    }
+
     val measurementConsumer: MeasurementConsumer =
       try {
         measurementConsumersStub.getMeasurementConsumer(
@@ -200,15 +217,11 @@ class EdpSimulator(
     )
 
     val descriptorResource: EventGroupMetadataDescriptor =
-      ensureMetadataDescriptor(eventGroupMetadata.descriptorForType)
-
-    val eventGroupReferenceId = "$SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX-${edpData.displayName}"
-    return ensureEventGroup(
-      measurementConsumer,
-      eventGroupReferenceId,
-      eventGroupMetadata,
-      descriptorResource
-    )
+      ensureMetadataDescriptor(metadataDescriptor)
+    return metadataByReferenceIdSuffix.map { (suffix, metadata) ->
+      val eventGroupReferenceId = eventGroupReferenceIdPrefix + suffix
+      ensureEventGroup(measurementConsumer, eventGroupReferenceId, metadata, descriptorResource)
+    }
   }
 
   /**
@@ -1596,6 +1609,15 @@ class EdpSimulator(
     private const val UNFULFILLABLE_EVENT_GROUP_ID = "unfulfillable"
     // Resource ID for EventGroup that fails Requisitions with DECLINED if used.
     private const val DECLINED_EVENT_GROUP_ID = "declined"
+
+    private fun getEventGroupReferenceIdPrefix(edpDisplayName: String): String {
+      return "$SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX-${edpDisplayName}"
+    }
+
+    fun getEventGroupReferenceIdSuffix(eventGroup: EventGroup, edpDisplayName: String): String {
+      val prefix = getEventGroupReferenceIdPrefix(edpDisplayName)
+      return eventGroup.eventGroupReferenceId.removePrefix(prefix)
+    }
   }
 }
 

@@ -31,6 +31,7 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.random.Random
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -43,6 +44,7 @@ import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.crypto.ElGamalPublicKey
@@ -471,6 +473,94 @@ class EdpSimulatorTest {
       )
     assertThat(updateRequest.eventGroupMetadataDescriptor.descriptorSet)
       .isEqualTo(ProtoReflection.buildFileDescriptorSet(SyntheticEventGroupSpec.getDescriptor()))
+  }
+
+  @Test
+  fun `ensureEventGroups creates multiple EventGroups`() {
+    val edpSimulator =
+      EdpSimulator(
+        EDP_DATA,
+        MEASUREMENT_CONSUMER_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        InMemoryEventQuery(emptyList()),
+        dummyThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        compositionMechanism = COMPOSITION_MECHANISM
+      )
+    val metadataByReferenceIdSuffix =
+      mapOf(
+        "-foo" to SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS[0],
+        "-bar" to SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS[1]
+      )
+
+    runBlocking { edpSimulator.ensureEventGroups(metadataByReferenceIdSuffix) }
+
+    // Verify metadata descriptor set contains synthetic data spec.
+    val createDescriptorRequest: CreateEventGroupMetadataDescriptorRequest =
+      verifyAndCapture(
+        eventGroupMetadataDescriptorsServiceMock,
+        EventGroupMetadataDescriptorsCoroutineImplBase::createEventGroupMetadataDescriptor
+      )
+    val descriptors =
+      ProtoReflection.buildDescriptors(
+        listOf(createDescriptorRequest.eventGroupMetadataDescriptor.descriptorSet)
+      )
+    assertThat(descriptors.map { it.fullName })
+      .contains(SyntheticEventGroupSpec.getDescriptor().fullName)
+
+    // Verify EventGroup metadata.
+    val createRequests: List<CreateEventGroupRequest> =
+      verifyAndCapture(
+        eventGroupsServiceMock,
+        EventGroupsCoroutineImplBase::createEventGroup,
+        times(2)
+      )
+    for (createRequest in createRequests) {
+      val metadata: EventGroup.Metadata =
+        decryptMetadata(createRequest.eventGroup.encryptedMetadata, MC_PRIVATE_KEY)
+      assertThat(metadata.eventGroupMetadataDescriptor)
+        .isEqualTo(EVENT_GROUP_METADATA_DESCRIPTOR_NAME)
+      assertThat(metadata.metadata.unpack(SyntheticEventGroupSpec::class.java))
+        .isEqualTo(
+          metadataByReferenceIdSuffix.getValue(
+            EdpSimulator.getEventGroupReferenceIdSuffix(createRequest.eventGroup, EDP_DISPLAY_NAME)
+          )
+        )
+    }
+  }
+
+  @Test
+  fun `ensureEventGroups throws IllegalArgumentException when metadata message types mismatch`() {
+    val edpSimulator =
+      EdpSimulator(
+        EDP_DATA,
+        MEASUREMENT_CONSUMER_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        InMemoryEventQuery(emptyList()),
+        dummyThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        compositionMechanism = COMPOSITION_MECHANISM
+      )
+    val metadataByReferenceIdSuffix = mapOf("-foo" to SYNTHETIC_DATA_SPEC, "-bar" to TEST_METADATA)
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        runBlocking { edpSimulator.ensureEventGroups(metadataByReferenceIdSuffix) }
+      }
+
+    assertThat(exception).hasMessageThat().contains("type")
   }
 
   @Test
