@@ -87,7 +87,8 @@ class CreateReportScheduleIteration(private val reportScheduleIteration: ReportS
         """
         UPDATE ReportSchedules SET LatestReportScheduleIterationId = $1
         WHERE MeasurementConsumerId = $2 AND ReportScheduleId = $3
-        """.trimIndent()
+        """
+          .trimIndent()
       ) {
         bind("$1", reportScheduleIterationId)
         bind("$2", reportScheduleResult.measurementConsumerId)

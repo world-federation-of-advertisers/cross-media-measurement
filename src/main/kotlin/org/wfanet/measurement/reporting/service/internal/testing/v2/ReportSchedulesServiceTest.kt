@@ -39,9 +39,9 @@ import org.wfanet.measurement.internal.reporting.v2.ListReportSchedulesRequestKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
-import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpcKt.ReportScheduleIterationsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportKt
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedule
+import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpcKt.ReportScheduleIterationsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportScheduleKt
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
@@ -514,14 +514,15 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
     }
     val createdReportSchedule = service.createReportSchedule(createRequest)
 
-    val createdReportScheduleIteration = reportScheduleIterationsService.createReportScheduleIteration(
-      reportScheduleIteration {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        externalReportScheduleId = createdReportSchedule.externalReportScheduleId
-        createReportRequestId = "123"
-        reportEventTime = timestamp { seconds = 100 }
-      }
-    )
+    val createdReportScheduleIteration =
+      reportScheduleIterationsService.createReportScheduleIteration(
+        reportScheduleIteration {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportScheduleId = createdReportSchedule.externalReportScheduleId
+          createReportRequestId = "123"
+          reportEventTime = timestamp { seconds = 100 }
+        }
+      )
 
     val retrievedReportSchedule =
       service.getReportSchedule(
@@ -544,9 +545,7 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
         ReportSchedule.EXTERNAL_REPORT_SCHEDULE_ID_FIELD_NUMBER,
         ReportSchedule.STATE_FIELD_NUMBER
       )
-      .isEqualTo(reportSchedule.copy {
-        latestIteration = createdReportScheduleIteration
-      })
+      .isEqualTo(reportSchedule.copy { latestIteration = createdReportScheduleIteration })
   }
 
   @Test
