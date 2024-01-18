@@ -17,6 +17,9 @@
 package org.wfanet.measurement.reporting.deploy.v2.common.job
 
 import io.grpc.Channel
+import io.grpc.Server
+import io.grpc.inprocess.InProcessChannelBuilder
+import io.grpc.inprocess.InProcessServerBuilder
 import java.security.SecureRandom
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -40,9 +43,6 @@ import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpc
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub as InternalReportSchedulesCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
-import io.grpc.Server
-import io.grpc.inprocess.InProcessChannelBuilder
-import io.grpc.inprocess.InProcessServerBuilder
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.reporting.deploy.v2.common.EncryptionKeyPairMap
 import org.wfanet.measurement.reporting.deploy.v2.common.InProcessServersMethods.startInProcessServerWithService
@@ -128,7 +128,8 @@ private fun run(
       commonServerFlags,
       metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs)
     )
-  val inProcessMetricsChannel = InProcessChannelBuilder.forName(inProcessMetricsServerName).directExecutor().build()
+  val inProcessMetricsChannel =
+    InProcessChannelBuilder.forName(inProcessMetricsServerName).directExecutor().build()
 
   val reportsService =
     ReportsService(
@@ -147,7 +148,8 @@ private fun run(
         .withMetadataPrincipalIdentities(measurementConsumerConfigs)
         .withReportScheduleInfoInterceptor()
     )
-  val inProcessReportsChannel = InProcessChannelBuilder.forName(inProcessReportsServerName).directExecutor().build()
+  val inProcessReportsChannel =
+    InProcessChannelBuilder.forName(inProcessReportsServerName).directExecutor().build()
 
   val reportSchedulingJob =
     ReportSchedulingJob(

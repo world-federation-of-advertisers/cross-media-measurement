@@ -18,9 +18,12 @@ package org.wfanet.measurement.reporting.deploy.v2.common.server
 
 import com.google.protobuf.ByteString
 import io.grpc.Channel
+import io.grpc.Server
 import io.grpc.ServerServiceDefinition
 import io.grpc.Status
 import io.grpc.StatusException
+import io.grpc.inprocess.InProcessChannelBuilder
+import io.grpc.inprocess.InProcessServerBuilder
 import java.io.File
 import java.security.SecureRandom
 import kotlinx.coroutines.Dispatchers
@@ -51,9 +54,6 @@ import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpc
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub as InternalReportSchedulesCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
-import io.grpc.Server
-import io.grpc.inprocess.InProcessChannelBuilder
-import io.grpc.inprocess.InProcessServerBuilder
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.reporting.deploy.v2.common.EncryptionKeyPairMap
@@ -190,7 +190,8 @@ private fun run(
       commonServerFlags,
       metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs)
     )
-  val inProcessChannel = InProcessChannelBuilder.forName(inProcessServerName).directExecutor().build()
+  val inProcessChannel =
+    InProcessChannelBuilder.forName(inProcessServerName).directExecutor().build()
 
   val services: List<ServerServiceDefinition> =
     listOf(
