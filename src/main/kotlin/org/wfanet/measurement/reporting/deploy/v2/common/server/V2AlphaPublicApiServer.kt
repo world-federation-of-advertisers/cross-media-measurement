@@ -189,7 +189,7 @@ private fun run(
       Dispatchers.IO
     )
 
-  val executorService: ExecutorService =
+  val inProcessExecutorService: ExecutorService =
     ThreadPoolExecutor(
       1,
       commonServerFlags.threadPoolSize,
@@ -202,9 +202,9 @@ private fun run(
   val inProcessServer: Server =
     startInProcessServerWithService(
       inProcessServerName,
-      executorService,
       commonServerFlags,
-      metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs)
+      metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs),
+      inProcessExecutorService
     )
   val inProcessChannel =
     InProcessChannelBuilder.forName(inProcessServerName)
@@ -254,9 +254,9 @@ private fun run(
   CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
   inProcessChannel.shutdown()
   inProcessServer.shutdown()
-  executorService.shutdown()
+  inProcessExecutorService.shutdown()
   inProcessServer.awaitTermination()
-  executorService.awaitTermination(30, TimeUnit.SECONDS)
+  inProcessExecutorService.awaitTermination(30, TimeUnit.SECONDS)
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)

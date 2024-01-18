@@ -129,7 +129,6 @@ private fun run(
   val inProcessMetricsServer: Server =
     startInProcessServerWithService(
       inProcessMetricsServerName,
-      null,
       commonServerFlags,
       metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs)
     )
@@ -151,7 +150,6 @@ private fun run(
   val inProcessReportsServer: Server =
     startInProcessServerWithService(
       inProcessReportsServerName,
-      null,
       commonServerFlags,
       reportsService
         .withMetadataPrincipalIdentities(measurementConsumerConfigs)

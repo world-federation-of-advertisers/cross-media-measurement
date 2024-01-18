@@ -27,10 +27,10 @@ import org.wfanet.measurement.common.grpc.LoggingServerInterceptor
 object InProcessServersMethods {
   fun startInProcessServerWithService(
     serverName: String,
-    executorService: ExecutorService?,
     commonServerFlags: CommonServer.Flags,
-    service: ServerServiceDefinition
-  ): Server {
+    service: ServerServiceDefinition,
+    executorService: ExecutorService? = null
+    ): Server {
     return InProcessServerBuilder.forName(serverName)
       .apply {
         if (executorService != null) {
