@@ -35,6 +35,8 @@ object InProcessServersMethods {
       .apply {
         if (executorService != null) {
           executor(executorService)
+        } else {
+          directExecutor()
         }
         addService(service)
         if (commonServerFlags.debugVerboseGrpcLogging) {
