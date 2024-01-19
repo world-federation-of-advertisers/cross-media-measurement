@@ -515,8 +515,7 @@ class ReportsService(
     externalIdToMetricMap: Map<String, Metric>,
     externalIdToMetricCalculationMap: Map<String, InternalMetricCalculationSpec>,
   ): List<Report.MetricCalculationResult> {
-    return internalReportingMetricEntries.flatMap {
-      (reportingSetId, reportingMetricCalculationSpec)
+    return internalReportingMetricEntries.flatMap { (reportingSetId, reportingMetricCalculationSpec)
       ->
       val reportingSetName = ReportingSetKey(cmmsMeasurementConsumerId, reportingSetId).toName()
 
@@ -595,19 +594,20 @@ class ReportsService(
     return internalCreateReportRequest {
       report = internalReport {
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-        details = InternalReportKt.details {
-          tags.putAll(request.report.tagsMap)
-          when (request.report.timeCase) {
-            Report.TimeCase.TIME_INTERVALS -> {
-              timeIntervals = request.report.timeIntervals.toInternal()
+        details =
+          InternalReportKt.details {
+            tags.putAll(request.report.tagsMap)
+            when (request.report.timeCase) {
+              Report.TimeCase.TIME_INTERVALS -> {
+                timeIntervals = request.report.timeIntervals.toInternal()
+              }
+              Report.TimeCase.REPORTING_INTERVAL -> {
+                reportingInterval = request.report.reportingInterval.toInternal()
+              }
+              Report.TimeCase.TIME_NOT_SET ->
+                failGrpc(Status.INVALID_ARGUMENT) { "The time in Report is not specified." }
             }
-            Report.TimeCase.REPORTING_INTERVAL -> {
-              reportingInterval = request.report.reportingInterval.toInternal()
-            }
-            Report.TimeCase.TIME_NOT_SET ->
-              failGrpc(Status.INVALID_ARGUMENT) { "The time in Report is not specified." }
           }
-        }
 
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
         reportingMetricEntries.putAll(

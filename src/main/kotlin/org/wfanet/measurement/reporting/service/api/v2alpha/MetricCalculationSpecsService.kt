@@ -232,7 +232,10 @@ class MetricCalculationSpecsService(
     val source = this
 
     if (source.hasMetricFrequencySpecAndWindow()) {
-      grpcRequire(source.metricFrequencySpecAndWindow.hasMetricFrequencySpec() && source.metricFrequencySpecAndWindow.hasWindow()) {
+      grpcRequire(
+        source.metricFrequencySpecAndWindow.hasMetricFrequencySpec() &&
+          source.metricFrequencySpecAndWindow.hasWindow()
+      ) {
         "metric_frequency_spec and window must both be set"
       }
     }
@@ -263,7 +266,8 @@ class MetricCalculationSpecsService(
               InternalMetricCalculationSpecKt.grouping { predicates += grouping.predicatesList }
             }
           if (source.hasMetricFrequencySpecAndWindow()) {
-            metricFrequencySpec = source.metricFrequencySpecAndWindow.metricFrequencySpec.toInternal()
+            metricFrequencySpec =
+              source.metricFrequencySpecAndWindow.metricFrequencySpec.toInternal()
             window = source.metricFrequencySpecAndWindow.window.toInternal()
           }
           tags.putAll(source.tagsMap)
@@ -417,9 +421,7 @@ class MetricCalculationSpecsService(
               }
           }
           MetricCalculationSpec.Window.WindowCase.REPORT_START_TIME -> {
-            grpcRequire(source.reportStartTime) {
-              "report_start_time is false"
-            }
+            grpcRequire(source.reportStartTime) { "report_start_time is false" }
             reportStartTime = true
           }
           MetricCalculationSpec.Window.WindowCase.WINDOW_NOT_SET -> {}
@@ -446,10 +448,11 @@ class MetricCalculationSpecsService(
             MetricCalculationSpecKt.grouping { predicates += grouping.predicatesList }
           }
         if (source.details.hasMetricFrequencySpec() && source.details.hasWindow()) {
-          metricFrequencySpecAndWindow = MetricCalculationSpecKt.metricFrequencySpecAndWindow {
-            metricFrequencySpec = source.details.metricFrequencySpec.toPublic()
-            window = source.details.window.toPublic()
-          }
+          metricFrequencySpecAndWindow =
+            MetricCalculationSpecKt.metricFrequencySpecAndWindow {
+              metricFrequencySpec = source.details.metricFrequencySpec.toPublic()
+              window = source.details.window.toPublic()
+            }
         }
         tags.putAll(source.details.tagsMap)
       }
