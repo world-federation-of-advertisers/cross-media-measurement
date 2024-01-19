@@ -43,6 +43,8 @@ import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
 import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
 import org.wfanet.anysketch.crypto.elGamalPublicKey as anySketchElGamalPublicKey
+import java.time.Instant
+import java.time.ZoneOffset
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt.variance
@@ -116,6 +118,7 @@ import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.NonceMismatchException
 import org.wfanet.measurement.consent.client.common.PublicKeyMismatchException
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
@@ -188,9 +191,7 @@ class EdpSimulator(
           startTime = timestamp {
             seconds = 1577865600 // January 1, 2020 12:00:00 AM, America/Los_Angeles
           }
-          endTime = timestamp {
-            seconds = 2209017600 // January 1, 2040 12:00:00 AM, America/Los_Angeles
-          }
+          endTime = Instant.now().plusSeconds(60 * 60 * 24 * 5).toProtoTime() // Approximately 5 days after the current time.
         }
       }
     )
