@@ -113,7 +113,7 @@ class CreateExchangesAndSteps(
         bind(Params.EXTERNAL_PARTY_ID to externalPartyId)
 
         appendClause("WHERE")
-        append(conjuncts.joinToString(" AND "))
+        appendClause(conjuncts.joinToString(" AND "))
         appendClause("ORDER BY NextExchangeDate")
         appendClause("LIMIT 1")
       }
