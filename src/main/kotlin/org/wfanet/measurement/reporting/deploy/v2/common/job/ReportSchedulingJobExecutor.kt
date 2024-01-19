@@ -17,7 +17,11 @@
 package org.wfanet.measurement.reporting.deploy.v2.common.job
 
 import io.grpc.Channel
+import io.grpc.Server
+import io.grpc.inprocess.InProcessChannelBuilder
+import io.grpc.inprocess.InProcessServerBuilder
 import java.security.SecureRandom
+import java.time.Duration
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as KingdomCertificatesCoroutineStub
@@ -29,6 +33,7 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
@@ -81,6 +86,7 @@ private fun run(
         clientCerts,
         reportingApiServerFlags.internalApiFlags.certHost
       )
+      .withShutdownTimeout(Duration.ofSeconds(5))
       .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
 
   val kingdomChannel: Channel =
@@ -89,6 +95,7 @@ private fun run(
         clientCerts = clientCerts,
         hostName = kingdomApiFlags.certHost
       )
+      .withShutdownTimeout(Duration.ofSeconds(5))
       .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
 
   val measurementConsumerConfigs =
@@ -118,11 +125,18 @@ private fun run(
       Dispatchers.IO
     )
 
-  val inProcessMetricsChannel =
+  val inProcessMetricsServerName = InProcessServerBuilder.generateName()
+  val inProcessMetricsServer: Server =
     startInProcessServerWithService(
+      inProcessMetricsServerName,
       commonServerFlags,
       metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs)
     )
+  val inProcessMetricsChannel =
+    InProcessChannelBuilder.forName(inProcessMetricsServerName)
+      .directExecutor()
+      .build()
+      .withShutdownTimeout(Duration.ofSeconds(5))
 
   val reportsService =
     ReportsService(
@@ -132,13 +146,20 @@ private fun run(
       metricSpecConfig
     )
 
-  val inProcessReportsChannel =
+  val inProcessReportsServerName = InProcessServerBuilder.generateName()
+  val inProcessReportsServer: Server =
     startInProcessServerWithService(
+      inProcessReportsServerName,
       commonServerFlags,
       reportsService
         .withMetadataPrincipalIdentities(measurementConsumerConfigs)
         .withReportScheduleInfoInterceptor()
     )
+  val inProcessReportsChannel =
+    InProcessChannelBuilder.forName(inProcessReportsServerName)
+      .directExecutor()
+      .build()
+      .withShutdownTimeout(Duration.ofSeconds(5))
 
   val reportSchedulingJob =
     ReportSchedulingJob(
@@ -152,6 +173,12 @@ private fun run(
     )
 
   runBlocking { reportSchedulingJob.execute() }
+  inProcessMetricsChannel.shutdown()
+  inProcessReportsChannel.shutdown()
+  inProcessMetricsServer.shutdown()
+  inProcessReportsServer.shutdown()
+  inProcessMetricsServer.awaitTermination()
+  inProcessReportsServer.awaitTermination()
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)
