@@ -269,8 +269,7 @@ class MetricCalculationSpecsServiceTest {
         METRIC_CALCULATION_SPEC.copy {
           metricFrequencySpec =
             MetricCalculationSpecKt.metricFrequencySpec {
-              weekly =
-                MetricCalculationSpecKt.MetricFrequencySpecKt.weekly { dayOfWeek = monday }
+              weekly = MetricCalculationSpecKt.MetricFrequencySpecKt.weekly { dayOfWeek = monday }
             }
         }
       val request = createMetricCalculationSpecRequest {
@@ -324,8 +323,7 @@ class MetricCalculationSpecsServiceTest {
         METRIC_CALCULATION_SPEC.copy {
           metricFrequencySpec =
             MetricCalculationSpecKt.metricFrequencySpec {
-              monthly =
-                MetricCalculationSpecKt.MetricFrequencySpecKt.monthly { dayOfMonth = first }
+              monthly = MetricCalculationSpecKt.MetricFrequencySpecKt.monthly { dayOfMonth = first }
             }
         }
       val request = createMetricCalculationSpecRequest {
@@ -410,20 +408,12 @@ class MetricCalculationSpecsServiceTest {
   fun `createMetricCalculationSpec returns metric calculation spec when window report start`() =
     runBlocking {
       val internalMetricCalculationSpec =
-        INTERNAL_METRIC_CALCULATION_SPEC.copy {
-          details =
-            details.copy {
-              clearTrailingWindow()
-            }
-        }
+        INTERNAL_METRIC_CALCULATION_SPEC.copy { details = details.copy { clearTrailingWindow() } }
 
       whenever(internalMetricCalculationSpecsMock.createMetricCalculationSpec(any()))
         .thenReturn(internalMetricCalculationSpec)
 
-      val metricCalculationSpec =
-        METRIC_CALCULATION_SPEC.copy {
-          clearTrailingWindow()
-        }
+      val metricCalculationSpec = METRIC_CALCULATION_SPEC.copy { clearTrailingWindow() }
       val request = createMetricCalculationSpecRequest {
         parent = MEASUREMENT_CONSUMER_NAME
         this.metricCalculationSpec = metricCalculationSpec
@@ -639,10 +629,7 @@ class MetricCalculationSpecsServiceTest {
   @Test
   fun `createMetricCalculationSpec throws INVALID_ARGUMENT when no frequency but window set`() =
     runBlocking {
-      val metricCalculationSpec =
-        METRIC_CALCULATION_SPEC.copy {
-          clearMetricFrequencySpec()
-        }
+      val metricCalculationSpec = METRIC_CALCULATION_SPEC.copy { clearMetricFrequencySpec() }
       val request = createMetricCalculationSpecRequest {
         parent = MEASUREMENT_CONSUMER_NAME
         this.metricCalculationSpec = metricCalculationSpec

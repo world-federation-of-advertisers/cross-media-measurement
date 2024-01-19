@@ -111,9 +111,8 @@ message MetricCalculationSpec {
       Monthly monthly = 3;
     }
   }
-  MetricFrequencySpec metric_frequency_spec = 8 [
-    (google.api.field_behavior) = IMMUTABLE
-  ];
+  MetricFrequencySpec metric_frequency_spec = 8
+    [(google.api.field_behavior) = IMMUTABLE];
 
   // How far back the Metrics at each period (as defined by
   // `metric_frequency_spec`) cover. The time covered is lower bounded by

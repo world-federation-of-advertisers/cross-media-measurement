@@ -389,12 +389,11 @@ class MetricCalculationSpecsService(
      * Converts a public [MetricCalculationSpec.TrailingWindow] to an internal
      * [InternalMetricCalculationSpec.TrailingWindow].
      */
-    private fun MetricCalculationSpec.TrailingWindow.toInternal(): InternalMetricCalculationSpec.TrailingWindow {
+    private fun MetricCalculationSpec.TrailingWindow.toInternal():
+      InternalMetricCalculationSpec.TrailingWindow {
       val source = this
 
-      grpcRequire(source.count >= 1) {
-        "count in trailing_window must be greater than 0."
-      }
+      grpcRequire(source.count >= 1) { "count in trailing_window must be greater than 0." }
 
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       return InternalMetricCalculationSpecKt.trailingWindow {
@@ -479,7 +478,8 @@ class MetricCalculationSpecsService(
      * Converts an internal [InternalMetricCalculationSpec.TrailingWindow] to a public
      * [MetricCalculationSpec.TrailingWindow].
      */
-    private fun InternalMetricCalculationSpec.TrailingWindow.toPublic(): MetricCalculationSpec.TrailingWindow {
+    private fun InternalMetricCalculationSpec.TrailingWindow.toPublic():
+      MetricCalculationSpec.TrailingWindow {
       val source = this
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       return MetricCalculationSpecKt.trailingWindow {
@@ -493,8 +493,7 @@ class MetricCalculationSpecsService(
             InternalMetricCalculationSpec.TrailingWindow.Increment.MONTH ->
               MetricCalculationSpec.TrailingWindow.Increment.MONTH
             InternalMetricCalculationSpec.TrailingWindow.Increment.UNRECOGNIZED,
-            InternalMetricCalculationSpec.TrailingWindow.Increment
-              .INCREMENT_UNSPECIFIED ->
+            InternalMetricCalculationSpec.TrailingWindow.Increment.INCREMENT_UNSPECIFIED ->
               throw Status.FAILED_PRECONDITION.withDescription(
                   "MetricCalculationSpec trailing_window missing increment"
                 )

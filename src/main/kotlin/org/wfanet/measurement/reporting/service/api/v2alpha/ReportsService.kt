@@ -712,7 +712,7 @@ class ReportsService(
           generateTimeIntervals(checkNotNull(createReportInfo.reportingInterval), null, null)
         } else {
           val trailingWindow: InternalMetricCalculationSpec.TrailingWindow? =
-            if(internalMetricCalculationSpec.details.hasTrailingWindow()) {
+            if (internalMetricCalculationSpec.details.hasTrailingWindow()) {
               internalMetricCalculationSpec.details.trailingWindow
             } else {
               null
@@ -1048,8 +1048,7 @@ private fun generateTimeIntervals(
       }
     }
 
-  val isWindowReportStart =
-    trailingWindow == null
+  val isWindowReportStart = trailingWindow == null
 
   val reportStartTimestamp = reportStartTemporal.toTimestamp()
   val reportEndTimestamp = reportEndTemporal.toTimestamp()
@@ -1073,7 +1072,10 @@ private fun generateTimeIntervals(
             reportStartTimestamp
           } else {
             val newTimestamp =
-              buildReportTimeIntervalStartTimestamp(checkNotNull(trailingWindow), nextTimeIntervalEndTemporal)
+              buildReportTimeIntervalStartTimestamp(
+                checkNotNull(trailingWindow),
+                nextTimeIntervalEndTemporal
+              )
 
             // The start of any interval to be created is bounded by the report start.
             if (Timestamps.compare(reportStartTimestamp, newTimestamp) >= 0) {
@@ -1130,8 +1132,8 @@ private fun generateTimeIntervals(
 }
 
 /**
- * Given a [MetricCalculationSpec.TrailingWindow] and a [Temporal] that represents the end of the interval,
- * create a [Timestamp] that represents the start of the interval.
+ * Given a [MetricCalculationSpec.TrailingWindow] and a [Temporal] that represents the end of the
+ * interval, create a [Timestamp] that represents the start of the interval.
  */
 private fun buildReportTimeIntervalStartTimestamp(
   trailingWindow: MetricCalculationSpec.TrailingWindow,

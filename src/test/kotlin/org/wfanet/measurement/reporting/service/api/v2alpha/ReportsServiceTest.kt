@@ -1135,11 +1135,7 @@ class ReportsServiceTest {
           monthly = MetricCalculationSpecKt.MetricFrequencySpecKt.monthly { dayOfMonth = 15 }
         }
 
-      assertReportCreatedWithReportingInterval(
-        reportingInterval,
-        timeIntervals,
-        frequencySpec
-      )
+      assertReportCreatedWithReportingInterval(reportingInterval, timeIntervals, frequencySpec)
     }
 
   @Test
@@ -2685,11 +2681,11 @@ class ReportsServiceTest {
                       MetricCalculationSpecKt.metricFrequencySpec {
                         daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
                       }
-                      trailingWindow =
-                        MetricCalculationSpecKt.trailingWindow {
-                          count = 1
-                          increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
-                        }
+                    trailingWindow =
+                      MetricCalculationSpecKt.trailingWindow {
+                        count = 1
+                        increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
+                      }
                   }
               }
           }
@@ -2746,11 +2742,11 @@ class ReportsServiceTest {
                       MetricCalculationSpecKt.metricFrequencySpec {
                         daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
                       }
-                      trailingWindow =
-                        MetricCalculationSpecKt.trailingWindow {
-                          count = 1
-                          increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
-                        }
+                    trailingWindow =
+                      MetricCalculationSpecKt.trailingWindow {
+                        count = 1
+                        increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
+                      }
                   }
               }
           }
@@ -2808,11 +2804,11 @@ class ReportsServiceTest {
                         monthly =
                           MetricCalculationSpecKt.MetricFrequencySpecKt.monthly { dayOfMonth = 15 }
                       }
-                      trailingWindow =
-                        MetricCalculationSpecKt.trailingWindow {
-                          count = 1
-                          increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
-                        }
+                    trailingWindow =
+                      MetricCalculationSpecKt.trailingWindow {
+                        count = 1
+                        increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+                      }
                   }
               }
           }

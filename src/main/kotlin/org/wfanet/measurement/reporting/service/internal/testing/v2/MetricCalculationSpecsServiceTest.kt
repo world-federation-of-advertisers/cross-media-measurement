@@ -478,8 +478,8 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
               }
             trailingWindow =
               MetricCalculationSpecKt.trailingWindow {
-                  count = 2
-                  increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
+                count = 2
+                increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
               }
             tags["year"] = "2024"
           }
