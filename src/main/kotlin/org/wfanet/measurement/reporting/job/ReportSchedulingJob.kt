@@ -237,15 +237,23 @@ class ReportSchedulingJob(
                             ReportKt.reportingInterval {
                               val windowStartTemporal: Temporal =
                                 if (reportSchedule.details.eventStart.hasUtcOffset()) {
-                                  windowStart.toOffsetDateTime(reportSchedule.details.eventStart.utcOffset)
+                                  windowStart.toOffsetDateTime(
+                                    reportSchedule.details.eventStart.utcOffset
+                                  )
                                 } else {
-                                  windowStart.toZonedDateTime(reportSchedule.details.eventStart.timeZone)
+                                  windowStart.toZonedDateTime(
+                                    reportSchedule.details.eventStart.timeZone
+                                  )
                                 }
                               val nextReportCreationTemporal: Temporal =
                                 if (reportSchedule.details.eventStart.hasUtcOffset()) {
-                                  reportSchedule.nextReportCreationTime.toOffsetDateTime(reportSchedule.details.eventStart.utcOffset)
+                                  reportSchedule.nextReportCreationTime.toOffsetDateTime(
+                                    reportSchedule.details.eventStart.utcOffset
+                                  )
                                 } else {
-                                  reportSchedule.nextReportCreationTime.toZonedDateTime(reportSchedule.details.eventStart.timeZone)
+                                  reportSchedule.nextReportCreationTime.toZonedDateTime(
+                                    reportSchedule.details.eventStart.timeZone
+                                  )
                                 }
 
                               reportStart =
