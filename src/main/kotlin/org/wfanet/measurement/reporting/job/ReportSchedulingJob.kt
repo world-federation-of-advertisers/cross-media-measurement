@@ -235,12 +235,18 @@ class ReportSchedulingJob(
                         publicReportSchedule.reportTemplate.copy {
                           reportingInterval =
                             ReportKt.reportingInterval {
-                              val windowStartTemporal =
-                                windowStart.toTemporal(reportSchedule.details.eventStart)
-                              val nextReportCreationTemporal =
-                                reportSchedule.nextReportCreationTime.toTemporal(
-                                  reportSchedule.details.eventStart
-                                )
+                              val windowStartTemporal: Temporal =
+                                if (reportSchedule.details.eventStart.hasUtcOffset()) {
+                                  windowStart.toOffsetDateTime(reportSchedule.details.eventStart.utcOffset)
+                                } else {
+                                  windowStart.toZonedDateTime(reportSchedule.details.eventStart.timeZone)
+                                }
+                              val nextReportCreationTemporal: Temporal =
+                                if (reportSchedule.details.eventStart.hasUtcOffset()) {
+                                  reportSchedule.nextReportCreationTime.toOffsetDateTime(reportSchedule.details.eventStart.utcOffset)
+                                } else {
+                                  reportSchedule.nextReportCreationTime.toZonedDateTime(reportSchedule.details.eventStart.timeZone)
+                                }
 
                               reportStart =
                                 reportSchedule.details.eventStart.copy {
@@ -433,15 +439,6 @@ class ReportSchedulingJob(
       val id = ZoneId.of(timeZone.id)
 
       return ZonedDateTime.ofInstant(source.toInstant(), id)
-    }
-
-    private fun Timestamp.toTemporal(dateTime: DateTime): Temporal {
-      val source = this
-      return if (dateTime.hasUtcOffset()) {
-        source.toOffsetDateTime(dateTime.utcOffset)
-      } else {
-        source.toZonedDateTime(dateTime.timeZone)
-      }
     }
 
     private fun getNextReportCreationTime(

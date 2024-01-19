@@ -111,12 +111,21 @@ message MetricCalculationSpec {
       Monthly monthly = 3;
     }
   }
+
+  // The `MetricFrequencySpec` for this `MetricCalculationSpec`. Used by a
+  // `Report` to determine what the time intervals are when using this
+  // `MetricCalculationSpec`.
+  //
+  // If set, the combination of this and `trailing_window` will be used to
+  // determine the time intervals for a `Report` using this
+  // `MetricCalculationSpec`.
+  // If not set, the time intervals in a `Report` will be completely up to the
+  // `Report.
   MetricFrequencySpec metric_frequency_spec = 8
       [(google.api.field_behavior) = IMMUTABLE];
 
-  // How far back the Metrics at each period (as defined by
-  // `metric_frequency_spec`) cover. The time covered is lower bounded by
-  // `ReportingInterval.report_start`.
+  // How far back the `Metric`s at each period (as defined by
+  // `metric_frequency_spec`) cover.
   message TrailingWindow {
     // Represents how much of the `increment` to go back.
     int32 count = 1 [(google.api.field_behavior) = REQUIRED];
@@ -130,8 +139,19 @@ message MetricCalculationSpec {
     }
     Increment increment = 2 [(google.api.field_behavior) = REQUIRED];
   }
-  // If not set, metrics will start from `ReportingInterval.report_start`. If
-  // set, but `metric_frequency_spec` is not, an error will be thrown.
+
+  // The `TrailingWindow` for this `MetricCalculationSpec`. The beginning of the
+  // time covered is bounded by `ReportingInterval.report_start`.
+  //
+  // If set, but `metric_frequency_spec` is not, an error will be thrown.
+  // If set and `metric_frequency_spec` is also set, the combination of this
+  // and `metric_frequency_spec` will be used to determine the time intervals
+  // for a `Report` using this `MetricCalculationSpec`.
+  // If not set and `metric_frequency_spec` is set, the time intervals for a
+  // `Report` using this `MetricCalculationSpec` will all start from
+  // `ReportingInterval.report_start`.
+  // If not set and `metric_frequency_spec` is also not set, then this is not
+  // used for determining the time intervals for a `Report`.
   TrailingWindow trailing_window = 9 [(google.api.field_behavior) = IMMUTABLE];
 
   // A map of arbitrary key-value pairs to support tagging of
