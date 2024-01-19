@@ -41,6 +41,7 @@ import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportKt
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedule
+import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpcKt.ReportScheduleIterationsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportScheduleKt
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
@@ -51,6 +52,7 @@ import org.wfanet.measurement.internal.reporting.v2.getReportScheduleRequest
 import org.wfanet.measurement.internal.reporting.v2.listReportSchedulesRequest
 import org.wfanet.measurement.internal.reporting.v2.report
 import org.wfanet.measurement.internal.reporting.v2.reportSchedule
+import org.wfanet.measurement.internal.reporting.v2.reportScheduleIteration
 import org.wfanet.measurement.internal.reporting.v2.stopReportScheduleRequest
 
 @RunWith(JUnit4::class)
@@ -61,7 +63,8 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
     val reportSchedulesService: T,
     val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
     val reportingSetsService: ReportingSetsCoroutineImplBase,
-    val metricCalculationSpecsService: MetricCalculationSpecsCoroutineImplBase
+    val metricCalculationSpecsService: MetricCalculationSpecsCoroutineImplBase,
+    val reportScheduleIterationsService: ReportScheduleIterationsCoroutineImplBase,
   )
 
   /** Instance of the service under test. */
@@ -70,6 +73,7 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
   private lateinit var measurementConsumersService: MeasurementConsumersCoroutineImplBase
   private lateinit var reportingSetsService: ReportingSetsCoroutineImplBase
   private lateinit var metricCalculationSpecsService: MetricCalculationSpecsCoroutineImplBase
+  private lateinit var reportScheduleIterationsService: ReportScheduleIterationsCoroutineImplBase
 
   /** Constructs the services being tested. */
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
@@ -81,6 +85,7 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
     measurementConsumersService = services.measurementConsumersService
     reportingSetsService = services.reportingSetsService
     metricCalculationSpecsService = services.metricCalculationSpecsService
+    reportScheduleIterationsService = services.reportScheduleIterationsService
   }
 
   @Test
@@ -494,6 +499,53 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
         ReportSchedule.STATE_FIELD_NUMBER
       )
       .isEqualTo(reportSchedule)
+  }
+
+  @Test
+  fun `getReportSchedule succeeds after report schedules iteration is created`() = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val metricCalculationSpec =
+      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
+    val reportSchedule = createReportScheduleForRequest(reportingSet, metricCalculationSpec)
+    val createRequest = createReportScheduleRequest {
+      this.reportSchedule = reportSchedule
+      externalReportScheduleId = "external-report-schedule-id"
+    }
+    val createdReportSchedule = service.createReportSchedule(createRequest)
+
+    val createdReportScheduleIteration =
+      reportScheduleIterationsService.createReportScheduleIteration(
+        reportScheduleIteration {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportScheduleId = createdReportSchedule.externalReportScheduleId
+          createReportRequestId = "123"
+          reportEventTime = timestamp { seconds = 100 }
+        }
+      )
+
+    val retrievedReportSchedule =
+      service.getReportSchedule(
+        getReportScheduleRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportScheduleId = createdReportSchedule.externalReportScheduleId
+        }
+      )
+
+    assertThat(retrievedReportSchedule.externalReportScheduleId)
+      .isEqualTo(createRequest.externalReportScheduleId)
+    assertThat(retrievedReportSchedule.createTime.seconds).isGreaterThan(0)
+    assertThat(retrievedReportSchedule.updateTime.seconds).isGreaterThan(0)
+    assertThat(retrievedReportSchedule.createTime).isEqualTo(retrievedReportSchedule.updateTime)
+    assertThat(retrievedReportSchedule.state).isEqualTo(ReportSchedule.State.ACTIVE)
+    assertThat(retrievedReportSchedule)
+      .ignoringFields(
+        ReportSchedule.CREATE_TIME_FIELD_NUMBER,
+        ReportSchedule.UPDATE_TIME_FIELD_NUMBER,
+        ReportSchedule.EXTERNAL_REPORT_SCHEDULE_ID_FIELD_NUMBER,
+        ReportSchedule.STATE_FIELD_NUMBER
+      )
+      .isEqualTo(reportSchedule.copy { latestIteration = createdReportScheduleIteration })
   }
 
   @Test
