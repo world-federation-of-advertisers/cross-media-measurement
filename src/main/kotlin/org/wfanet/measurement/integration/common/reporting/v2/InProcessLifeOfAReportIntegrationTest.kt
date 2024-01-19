@@ -85,7 +85,6 @@ import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCor
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
-import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt.metricFrequencySpecAndWindow
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec.VidSamplingInterval
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
@@ -915,21 +914,15 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                     vidSamplingInterval = VID_SAMPLING_INTERVAL
                   }
                   .withDefaults(reportingServer.metricSpecConfig)
-              metricFrequencySpecAndWindow = metricFrequencySpecAndWindow {
-                metricFrequencySpec =
-                  MetricCalculationSpecKt.metricFrequencySpec {
-                    daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
-                  }
-
-                window =
-                  MetricCalculationSpecKt.window {
-                    trailingWindow =
-                      MetricCalculationSpecKt.WindowKt.trailingWindow {
-                        count = 1
-                        increment = MetricCalculationSpec.Window.TrailingWindow.Increment.DAY
-                      }
-                  }
-              }
+              metricFrequencySpec =
+                MetricCalculationSpecKt.metricFrequencySpec {
+                  daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
+                }
+              trailingWindow =
+                MetricCalculationSpecKt.trailingWindow {
+                  count = 1
+                  increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
+                }
             }
             metricCalculationSpecId = "fed"
           }

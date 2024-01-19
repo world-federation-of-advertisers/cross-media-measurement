@@ -634,20 +634,17 @@ class ReportsServiceTest {
         daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
       }
 
-    val window =
-      MetricCalculationSpecKt.window {
-        trailingWindow =
-          MetricCalculationSpecKt.WindowKt.trailingWindow {
-            count = 1
-            increment = MetricCalculationSpec.Window.TrailingWindow.Increment.DAY
-          }
+    val trailingWindow =
+      MetricCalculationSpecKt.trailingWindow {
+        count = 1
+        increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
       }
 
     assertReportCreatedWithReportingInterval(
       reportingInterval,
       timeIntervals,
       frequencySpec,
-      window
+      trailingWindow
     )
   }
 
@@ -698,20 +695,17 @@ class ReportsServiceTest {
             MetricCalculationSpecKt.MetricFrequencySpecKt.weekly { dayOfWeek = DayOfWeek.MONDAY }
         }
 
-      val window =
-        MetricCalculationSpecKt.window {
-          trailingWindow =
-            MetricCalculationSpecKt.WindowKt.trailingWindow {
-              count = 1
-              increment = MetricCalculationSpec.Window.TrailingWindow.Increment.WEEK
-            }
+      val trailingWindow =
+        MetricCalculationSpecKt.trailingWindow {
+          count = 1
+          increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
         }
 
       assertReportCreatedWithReportingInterval(
         reportingInterval,
         timeIntervals,
         frequencySpec,
-        window
+        trailingWindow
       )
     }
 
@@ -772,20 +766,17 @@ class ReportsServiceTest {
             MetricCalculationSpecKt.MetricFrequencySpecKt.weekly { dayOfWeek = DayOfWeek.TUESDAY }
         }
 
-      val window =
-        MetricCalculationSpecKt.window {
-          trailingWindow =
-            MetricCalculationSpecKt.WindowKt.trailingWindow {
-              count = 1
-              increment = MetricCalculationSpec.Window.TrailingWindow.Increment.WEEK
-            }
+      val trailingWindow =
+        MetricCalculationSpecKt.trailingWindow {
+          count = 1
+          increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
         }
 
       assertReportCreatedWithReportingInterval(
         reportingInterval,
         timeIntervals,
         frequencySpec,
-        window
+        trailingWindow
       )
     }
 
@@ -835,20 +826,17 @@ class ReportsServiceTest {
           monthly = MetricCalculationSpecKt.MetricFrequencySpecKt.monthly { dayOfMonth = 1 }
         }
 
-      val window =
-        MetricCalculationSpecKt.window {
-          trailingWindow =
-            MetricCalculationSpecKt.WindowKt.trailingWindow {
-              count = 1
-              increment = MetricCalculationSpec.Window.TrailingWindow.Increment.MONTH
-            }
+      val trailingWindow =
+        MetricCalculationSpecKt.trailingWindow {
+          count = 1
+          increment = MetricCalculationSpec.TrailingWindow.Increment.MONTH
         }
 
       assertReportCreatedWithReportingInterval(
         reportingInterval,
         timeIntervals,
         frequencySpec,
-        window
+        trailingWindow
       )
     }
 
@@ -898,20 +886,17 @@ class ReportsServiceTest {
           monthly = MetricCalculationSpecKt.MetricFrequencySpecKt.monthly { dayOfMonth = 1 }
         }
 
-      val window =
-        MetricCalculationSpecKt.window {
-          trailingWindow =
-            MetricCalculationSpecKt.WindowKt.trailingWindow {
-              count = 1
-              increment = MetricCalculationSpec.Window.TrailingWindow.Increment.MONTH
-            }
+      val trailingWindow =
+        MetricCalculationSpecKt.trailingWindow {
+          count = 1
+          increment = MetricCalculationSpec.TrailingWindow.Increment.MONTH
         }
 
       assertReportCreatedWithReportingInterval(
         reportingInterval,
         timeIntervals,
         frequencySpec,
-        window
+        trailingWindow
       )
     }
 
@@ -971,20 +956,17 @@ class ReportsServiceTest {
           monthly = MetricCalculationSpecKt.MetricFrequencySpecKt.monthly { dayOfMonth = 5 }
         }
 
-      val window =
-        MetricCalculationSpecKt.window {
-          trailingWindow =
-            MetricCalculationSpecKt.WindowKt.trailingWindow {
-              count = 1
-              increment = MetricCalculationSpec.Window.TrailingWindow.Increment.MONTH
-            }
+      val trailingWindow =
+        MetricCalculationSpecKt.trailingWindow {
+          count = 1
+          increment = MetricCalculationSpec.TrailingWindow.Increment.MONTH
         }
 
       assertReportCreatedWithReportingInterval(
         reportingInterval,
         timeIntervals,
         frequencySpec,
-        window
+        trailingWindow
       )
     }
 
@@ -1033,20 +1015,17 @@ class ReportsServiceTest {
         monthly = MetricCalculationSpecKt.MetricFrequencySpecKt.monthly { dayOfMonth = 15 }
       }
 
-    val window =
-      MetricCalculationSpecKt.window {
-        trailingWindow =
-          MetricCalculationSpecKt.WindowKt.trailingWindow {
-            count = 2
-            increment = MetricCalculationSpec.Window.TrailingWindow.Increment.WEEK
-          }
+    val trailingWindow =
+      MetricCalculationSpecKt.trailingWindow {
+        count = 2
+        increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
       }
 
     assertReportCreatedWithReportingInterval(
       reportingInterval,
       timeIntervals,
       frequencySpec,
-      window
+      trailingWindow
     )
   }
 
@@ -1096,20 +1075,17 @@ class ReportsServiceTest {
           daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
         }
 
-      val window =
-        MetricCalculationSpecKt.window {
-          trailingWindow =
-            MetricCalculationSpecKt.WindowKt.trailingWindow {
-              count = 1
-              increment = MetricCalculationSpec.Window.TrailingWindow.Increment.WEEK
-            }
+      val trailingWindow =
+        MetricCalculationSpecKt.trailingWindow {
+          count = 1
+          increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
         }
 
       assertReportCreatedWithReportingInterval(
         reportingInterval,
         timeIntervals,
         frequencySpec,
-        window
+        trailingWindow
       )
     }
 
@@ -1159,13 +1135,10 @@ class ReportsServiceTest {
           monthly = MetricCalculationSpecKt.MetricFrequencySpecKt.monthly { dayOfMonth = 15 }
         }
 
-      val window = MetricCalculationSpecKt.window { reportStartTime = true }
-
       assertReportCreatedWithReportingInterval(
         reportingInterval,
         timeIntervals,
-        frequencySpec,
-        window
+        frequencySpec
       )
     }
 
@@ -2151,7 +2124,6 @@ class ReportsServiceTest {
               InternalMetricCalculationSpecKt.metricFrequencySpec {
                 daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
               }
-            window = InternalMetricCalculationSpecKt.window { reportStartTime = true }
           }
       }
       whenever(internalMetricCalculationSpecsMock.batchGetMetricCalculationSpecs(any()))
@@ -2590,7 +2562,7 @@ class ReportsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.message)
-      .contains("metric_calculation_spec with metric_frequency_spec_and_window set not")
+      .contains("metric_calculation_spec with metric_frequency_spec set not")
   }
 
   @Test
@@ -2713,14 +2685,11 @@ class ReportsServiceTest {
                       MetricCalculationSpecKt.metricFrequencySpec {
                         daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
                       }
-                    window =
-                      MetricCalculationSpecKt.window {
-                        trailingWindow =
-                          MetricCalculationSpecKt.WindowKt.trailingWindow {
-                            count = 1
-                            increment = MetricCalculationSpec.Window.TrailingWindow.Increment.DAY
-                          }
-                      }
+                      trailingWindow =
+                        MetricCalculationSpecKt.trailingWindow {
+                          count = 1
+                          increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
+                        }
                   }
               }
           }
@@ -2777,14 +2746,11 @@ class ReportsServiceTest {
                       MetricCalculationSpecKt.metricFrequencySpec {
                         daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
                       }
-                    window =
-                      MetricCalculationSpecKt.window {
-                        trailingWindow =
-                          MetricCalculationSpecKt.WindowKt.trailingWindow {
-                            count = 1
-                            increment = MetricCalculationSpec.Window.TrailingWindow.Increment.DAY
-                          }
-                      }
+                      trailingWindow =
+                        MetricCalculationSpecKt.trailingWindow {
+                          count = 1
+                          increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
+                        }
                   }
               }
           }
@@ -2842,14 +2808,11 @@ class ReportsServiceTest {
                         monthly =
                           MetricCalculationSpecKt.MetricFrequencySpecKt.monthly { dayOfMonth = 15 }
                       }
-                    window =
-                      MetricCalculationSpecKt.window {
-                        trailingWindow =
-                          MetricCalculationSpecKt.WindowKt.trailingWindow {
-                            count = 1
-                            increment = MetricCalculationSpec.Window.TrailingWindow.Increment.WEEK
-                          }
-                      }
+                      trailingWindow =
+                        MetricCalculationSpecKt.trailingWindow {
+                          count = 1
+                          increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+                        }
                   }
               }
           }
@@ -4118,7 +4081,7 @@ class ReportsServiceTest {
     reportingInterval: ReportingInterval,
     timeIntervals: List<Interval>,
     metricCalculationSpecFrequency: MetricCalculationSpec.MetricFrequencySpec?,
-    metricCalculationSpecWindow: MetricCalculationSpec.Window?
+    metricCalculationSpecTrailingWindow: MetricCalculationSpec.TrailingWindow? = null
   ) = runBlocking {
     val targetReportingSet = PRIMITIVE_REPORTING_SETS.first()
     val predicates = listOf("gender == MALE", "gender == FEMALE")
@@ -4133,9 +4096,11 @@ class ReportsServiceTest {
           metricSpecs += INTERNAL_REACH_METRIC_SPEC
           groupings += InternalMetricCalculationSpecKt.grouping { this.predicates += predicates }
           this.filter = filter
-          if (metricCalculationSpecFrequency != null && metricCalculationSpecWindow != null) {
+          if (metricCalculationSpecFrequency != null) {
             metricFrequencySpec = metricCalculationSpecFrequency
-            window = metricCalculationSpecWindow
+          }
+          if (metricCalculationSpecTrailingWindow != null) {
+            trailingWindow = metricCalculationSpecTrailingWindow
           }
         }
     }

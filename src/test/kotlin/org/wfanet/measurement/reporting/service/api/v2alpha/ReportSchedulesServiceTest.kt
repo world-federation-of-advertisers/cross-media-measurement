@@ -2747,13 +2747,10 @@ class ReportSchedulesServiceTest {
             MetricCalculationSpecKt.metricFrequencySpec {
               daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
             }
-          window =
-            MetricCalculationSpecKt.window {
-              trailingWindow =
-                MetricCalculationSpecKt.WindowKt.trailingWindow {
-                  count = 5
-                  increment = MetricCalculationSpec.Window.TrailingWindow.Increment.DAY
-                }
+          trailingWindow =
+            MetricCalculationSpecKt.trailingWindow {
+              count = 5
+              increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
             }
         }
     }

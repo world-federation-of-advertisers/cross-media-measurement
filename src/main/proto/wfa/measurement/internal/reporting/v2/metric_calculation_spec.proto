@@ -50,23 +50,16 @@ message MetricCalculationSpec {
     }
   }
 
-  message Window {
-    message TrailingWindow {
-      int32 count = 1;
+  message TrailingWindow {
+    int32 count = 1;
 
-      enum Increment {
-        INCREMENT_UNSPECIFIED = 0;
-        DAY = 1;
-        WEEK = 2;
-        MONTH = 3;
-      }
-      Increment increment = 2;
+    enum Increment {
+      INCREMENT_UNSPECIFIED = 0;
+      DAY = 1;
+      WEEK = 2;
+      MONTH = 3;
     }
-
-    oneof window {
-      TrailingWindow trailing_window = 1;
-      bool report_start_time = 2;
-    }
+    Increment increment = 2;
   }
 
   message Details {
@@ -79,7 +72,7 @@ message MetricCalculationSpec {
     // `MetricCalculationSpec`s for upstream use by UIs and other rich clients.
     map<string, string> tags = 6;
     MetricFrequencySpec metric_frequency_spec = 7;
-    Window window = 8;
+    TrailingWindow trailing_window = 8;
   }
   Details details = 3;
 }

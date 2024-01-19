@@ -231,12 +231,9 @@ class MetricCalculationSpecsService(
   ): InternalMetricCalculationSpec {
     val source = this
 
-    if (source.hasMetricFrequencySpecAndWindow()) {
-      grpcRequire(
-        source.metricFrequencySpecAndWindow.hasMetricFrequencySpec() &&
-          source.metricFrequencySpecAndWindow.hasWindow()
-      ) {
-        "metric_frequency_spec and window must both be set"
+    if (source.hasTrailingWindow()) {
+      grpcRequire(source.hasMetricFrequencySpec()) {
+        "metric_frequency_spec must be set if trailing_window is set"
       }
     }
 
@@ -265,10 +262,11 @@ class MetricCalculationSpecsService(
             source.groupingsList.map { grouping ->
               InternalMetricCalculationSpecKt.grouping { predicates += grouping.predicatesList }
             }
-          if (source.hasMetricFrequencySpecAndWindow()) {
-            metricFrequencySpec =
-              source.metricFrequencySpecAndWindow.metricFrequencySpec.toInternal()
-            window = source.metricFrequencySpecAndWindow.window.toInternal()
+          if (source.hasMetricFrequencySpec()) {
+            metricFrequencySpec = source.metricFrequencySpec.toInternal()
+          }
+          if (source.hasTrailingWindow()) {
+            trailingWindow = source.trailingWindow.toInternal()
           }
           tags.putAll(source.tagsMap)
         }
@@ -388,44 +386,34 @@ class MetricCalculationSpecsService(
     }
 
     /**
-     * Converts a public [MetricCalculationSpec.Window] to an internal
-     * [InternalMetricCalculationSpec.Window].
+     * Converts a public [MetricCalculationSpec.TrailingWindow] to an internal
+     * [InternalMetricCalculationSpec.TrailingWindow].
      */
-    private fun MetricCalculationSpec.Window.toInternal(): InternalMetricCalculationSpec.Window {
+    private fun MetricCalculationSpec.TrailingWindow.toInternal(): InternalMetricCalculationSpec.TrailingWindow {
       val source = this
+
+      grpcRequire(source.count >= 1) {
+        "count in trailing_window must be greater than 0."
+      }
+
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-      return InternalMetricCalculationSpecKt.window {
-        when (source.windowCase) {
-          MetricCalculationSpec.Window.WindowCase.TRAILING_WINDOW -> {
-            grpcRequire(source.trailingWindow.count >= 1) {
-              "count in trailing_window must be greater than 0."
-            }
-            trailingWindow =
-              InternalMetricCalculationSpecKt.WindowKt.trailingWindow {
-                count = source.trailingWindow.count
-                increment =
-                  when (source.trailingWindow.increment) {
-                    MetricCalculationSpec.Window.TrailingWindow.Increment.DAY ->
-                      InternalMetricCalculationSpec.Window.TrailingWindow.Increment.DAY
-                    MetricCalculationSpec.Window.TrailingWindow.Increment.WEEK ->
-                      InternalMetricCalculationSpec.Window.TrailingWindow.Increment.WEEK
-                    MetricCalculationSpec.Window.TrailingWindow.Increment.MONTH ->
-                      InternalMetricCalculationSpec.Window.TrailingWindow.Increment.MONTH
-                    MetricCalculationSpec.Window.TrailingWindow.Increment.UNRECOGNIZED,
-                    MetricCalculationSpec.Window.TrailingWindow.Increment.INCREMENT_UNSPECIFIED ->
-                      throw Status.INVALID_ARGUMENT.withDescription(
-                          "increment in trailing_window is not specified."
-                        )
-                        .asRuntimeException()
-                  }
-              }
+      return InternalMetricCalculationSpecKt.trailingWindow {
+        count = source.count
+        increment =
+          when (source.increment) {
+            MetricCalculationSpec.TrailingWindow.Increment.DAY ->
+              InternalMetricCalculationSpec.TrailingWindow.Increment.DAY
+            MetricCalculationSpec.TrailingWindow.Increment.WEEK ->
+              InternalMetricCalculationSpec.TrailingWindow.Increment.WEEK
+            MetricCalculationSpec.TrailingWindow.Increment.MONTH ->
+              InternalMetricCalculationSpec.TrailingWindow.Increment.MONTH
+            MetricCalculationSpec.TrailingWindow.Increment.UNRECOGNIZED,
+            MetricCalculationSpec.TrailingWindow.Increment.INCREMENT_UNSPECIFIED ->
+              throw Status.INVALID_ARGUMENT.withDescription(
+                  "increment in trailing_window is not specified."
+                )
+                .asRuntimeException()
           }
-          MetricCalculationSpec.Window.WindowCase.REPORT_START_TIME -> {
-            grpcRequire(source.reportStartTime) { "report_start_time is false" }
-            reportStartTime = true
-          }
-          MetricCalculationSpec.Window.WindowCase.WINDOW_NOT_SET -> {}
-        }
       }
     }
 
@@ -447,12 +435,11 @@ class MetricCalculationSpecsService(
           source.details.groupingsList.map { grouping ->
             MetricCalculationSpecKt.grouping { predicates += grouping.predicatesList }
           }
-        if (source.details.hasMetricFrequencySpec() && source.details.hasWindow()) {
-          metricFrequencySpecAndWindow =
-            MetricCalculationSpecKt.metricFrequencySpecAndWindow {
-              metricFrequencySpec = source.details.metricFrequencySpec.toPublic()
-              window = source.details.window.toPublic()
-            }
+        if (source.details.hasMetricFrequencySpec()) {
+          metricFrequencySpec = source.details.metricFrequencySpec.toPublic()
+        }
+        if (source.details.hasTrailingWindow()) {
+          trailingWindow = source.details.trailingWindow.toPublic()
         }
         tags.putAll(source.details.tagsMap)
       }
@@ -489,41 +476,30 @@ class MetricCalculationSpecsService(
     }
 
     /**
-     * Converts an internal [InternalMetricCalculationSpec.Window] to a public
-     * [MetricCalculationSpec.Window].
+     * Converts an internal [InternalMetricCalculationSpec.TrailingWindow] to a public
+     * [MetricCalculationSpec.TrailingWindow].
      */
-    private fun InternalMetricCalculationSpec.Window.toPublic(): MetricCalculationSpec.Window {
+    private fun InternalMetricCalculationSpec.TrailingWindow.toPublic(): MetricCalculationSpec.TrailingWindow {
       val source = this
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-      return MetricCalculationSpecKt.window {
-        when (source.windowCase) {
-          InternalMetricCalculationSpec.Window.WindowCase.TRAILING_WINDOW -> {
-            trailingWindow =
-              MetricCalculationSpecKt.WindowKt.trailingWindow {
-                count = source.trailingWindow.count
-                increment =
-                  when (source.trailingWindow.increment) {
-                    InternalMetricCalculationSpec.Window.TrailingWindow.Increment.DAY ->
-                      MetricCalculationSpec.Window.TrailingWindow.Increment.DAY
-                    InternalMetricCalculationSpec.Window.TrailingWindow.Increment.WEEK ->
-                      MetricCalculationSpec.Window.TrailingWindow.Increment.WEEK
-                    InternalMetricCalculationSpec.Window.TrailingWindow.Increment.MONTH ->
-                      MetricCalculationSpec.Window.TrailingWindow.Increment.MONTH
-                    InternalMetricCalculationSpec.Window.TrailingWindow.Increment.UNRECOGNIZED,
-                    InternalMetricCalculationSpec.Window.TrailingWindow.Increment
-                      .INCREMENT_UNSPECIFIED ->
-                      throw Status.FAILED_PRECONDITION.withDescription(
-                          "MetricCalculationSpec trailing_window missing increment"
-                        )
-                        .asRuntimeException()
-                  }
-              }
+      return MetricCalculationSpecKt.trailingWindow {
+        count = source.count
+        increment =
+          when (source.increment) {
+            InternalMetricCalculationSpec.TrailingWindow.Increment.DAY ->
+              MetricCalculationSpec.TrailingWindow.Increment.DAY
+            InternalMetricCalculationSpec.TrailingWindow.Increment.WEEK ->
+              MetricCalculationSpec.TrailingWindow.Increment.WEEK
+            InternalMetricCalculationSpec.TrailingWindow.Increment.MONTH ->
+              MetricCalculationSpec.TrailingWindow.Increment.MONTH
+            InternalMetricCalculationSpec.TrailingWindow.Increment.UNRECOGNIZED,
+            InternalMetricCalculationSpec.TrailingWindow.Increment
+              .INCREMENT_UNSPECIFIED ->
+              throw Status.FAILED_PRECONDITION.withDescription(
+                  "MetricCalculationSpec trailing_window missing increment"
+                )
+                .asRuntimeException()
           }
-          InternalMetricCalculationSpec.Window.WindowCase.REPORT_START_TIME -> {
-            reportStartTime = source.reportStartTime
-          }
-          InternalMetricCalculationSpec.Window.WindowCase.WINDOW_NOT_SET -> {}
-        }
       }
     }
   }

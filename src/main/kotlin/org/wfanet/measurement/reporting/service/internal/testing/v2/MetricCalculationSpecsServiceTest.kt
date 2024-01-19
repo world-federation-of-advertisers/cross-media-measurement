@@ -476,13 +476,10 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
               MetricCalculationSpecKt.metricFrequencySpec {
                 daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
               }
-            window =
-              MetricCalculationSpecKt.window {
-                trailingWindow =
-                  MetricCalculationSpecKt.WindowKt.trailingWindow {
-                    count = 2
-                    increment = MetricCalculationSpec.Window.TrailingWindow.Increment.DAY
-                  }
+            trailingWindow =
+              MetricCalculationSpecKt.trailingWindow {
+                  count = 2
+                  increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
               }
             tags["year"] = "2024"
           }

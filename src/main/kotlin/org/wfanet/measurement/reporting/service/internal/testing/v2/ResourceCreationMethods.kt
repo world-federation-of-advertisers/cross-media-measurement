@@ -108,13 +108,10 @@ suspend fun createMetricCalculationSpec(
           MetricCalculationSpecKt.metricFrequencySpec {
             daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
           }
-        window =
-          MetricCalculationSpecKt.window {
-            trailingWindow =
-              MetricCalculationSpecKt.WindowKt.trailingWindow {
-                count = 2
-                increment = MetricCalculationSpec.Window.TrailingWindow.Increment.DAY
-              }
+        trailingWindow =
+          MetricCalculationSpecKt.trailingWindow {
+            count = 2
+            increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
           }
       }
   }

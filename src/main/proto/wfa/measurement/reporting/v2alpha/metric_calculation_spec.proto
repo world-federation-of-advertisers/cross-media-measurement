@@ -111,47 +111,29 @@ message MetricCalculationSpec {
       Monthly monthly = 3;
     }
   }
+  MetricFrequencySpec metric_frequency_spec = 8 [
+    (google.api.field_behavior) = IMMUTABLE
+  ];
 
-  // Describes the time intervals that the metrics cover.
-  message Window {
-    message TrailingWindow {
-      // Represents how much of the `increment` to go back.
-      int32 count = 1 [(google.api.field_behavior) = REQUIRED];
+  // How far back the Metrics at each period (as defined by
+  // `metric_frequency_spec`) cover. The time covered is lower bounded by
+  // `ReportingInterval.report_start`.
+  message TrailingWindow {
+    // Represents how much of the `increment` to go back.
+    int32 count = 1 [(google.api.field_behavior) = REQUIRED];
 
-      enum Increment {
-        // Default value if the increment is omitted. Must not be used.
-        INCREMENT_UNSPECIFIED = 0;
-        DAY = 1;
-        WEEK = 2;
-        MONTH = 3;
-      }
-      Increment increment = 2 [(google.api.field_behavior) = REQUIRED];
+    enum Increment {
+      // Default value if the increment is omitted. Must not be used.
+      INCREMENT_UNSPECIFIED = 0;
+      DAY = 1;
+      WEEK = 2;
+      MONTH = 3;
     }
-
-    // How far back the Metrics at each period (as defined by
-    // `metric_frequency_spec`) cover. The time covered is lower bounded by
-    // `ReportingInterval.report_start`. Required.
-    oneof window {
-      // The amount of time to look back for a Metric.
-      TrailingWindow trailing_window = 1;
-      // Metrics start from `ReportingInterval.report_start` in the `Report`.
-      // If set, must be true.
-      bool report_start_time = 2;
-    }
+    Increment increment = 2 [(google.api.field_behavior) = REQUIRED];
   }
-
-  message MetricFrequencySpecAndWindow {
-    MetricFrequencySpec metric_frequency_spec = 1 [
-      (google.api.field_behavior) = REQUIRED,
-      (google.api.field_behavior) = IMMUTABLE
-    ];
-
-    Window window = 2 [
-      (google.api.field_behavior) = REQUIRED,
-      (google.api.field_behavior) = IMMUTABLE
-    ];
-  }
-  MetricFrequencySpecAndWindow metric_frequency_spec_and_window = 8;
+  // If not set, metrics will start from `ReportingInterval.report_start`. If
+  // set, but `metric_frequency_spec` is not, an error will be thrown.
+  TrailingWindow trailing_window = 9 [(google.api.field_behavior) = IMMUTABLE];
 
   // A map of arbitrary key-value pairs to support tagging of
   // `MetricCalculationSpec`s for upstream use by UIs and other rich clients.

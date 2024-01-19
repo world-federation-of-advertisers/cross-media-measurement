@@ -704,18 +704,24 @@ class ReportsService(
     val timeIntervals: List<Interval> =
       if (createReportInfo.timeIntervals != null) {
         grpcRequire(!internalMetricCalculationSpec.details.hasMetricFrequencySpec()) {
-          "metric_calculation_spec with metric_frequency_spec_and_window set not allowed when time_intervals is set."
+          "metric_calculation_spec with metric_frequency_spec set not allowed when time_intervals is set."
         }
         createReportInfo.timeIntervals
       } else {
         if (!internalMetricCalculationSpec.details.hasMetricFrequencySpec()) {
           generateTimeIntervals(checkNotNull(createReportInfo.reportingInterval), null, null)
         } else {
+          val trailingWindow: InternalMetricCalculationSpec.TrailingWindow? =
+            if(internalMetricCalculationSpec.details.hasTrailingWindow()) {
+              internalMetricCalculationSpec.details.trailingWindow
+            } else {
+              null
+            }
           val generatedTimeIntervals: List<Interval> =
             generateTimeIntervals(
               checkNotNull(createReportInfo.reportingInterval),
               internalMetricCalculationSpec.details.metricFrequencySpec,
-              internalMetricCalculationSpec.details.window
+              trailingWindow
             )
           grpcRequire(generatedTimeIntervals.isNotEmpty()) {
             "No time intervals can be generated from the combination of the reporting_interval and metric_calculation_spec ${
@@ -927,12 +933,12 @@ private fun Date.isBefore(other: Date): Boolean {
 
 /**
  * Generate a list of time intervals using the [Report.ReportingInterval], the
- * [MetricCalculationSpec.MetricFrequencySpec], and the [MetricCalculationSpec.Window].
+ * [MetricCalculationSpec.MetricFrequencySpec], and the [MetricCalculationSpec.TrailingWindow].
  */
 private fun generateTimeIntervals(
   reportingInterval: Report.ReportingInterval,
   frequencySpec: MetricCalculationSpec.MetricFrequencySpec?,
-  window: MetricCalculationSpec.Window?,
+  trailingWindow: MetricCalculationSpec.TrailingWindow? = null,
 ): List<Interval> {
   val reportEndDateTime =
     reportingInterval.reportStart.copy {
@@ -951,7 +957,7 @@ private fun generateTimeIntervals(
           )
           .asRuntimeException()
       }
-    if (frequencySpec == null && window == null) {
+    if (frequencySpec == null) {
       listOf(
         interval {
           startTime = offsetDateTime.toInstant().toProtoTime()
@@ -963,7 +969,7 @@ private fun generateTimeIntervals(
         offsetDateTime,
         reportEndDateTime.toOffsetDateTime(),
         checkNotNull(frequencySpec),
-        checkNotNull(window)
+        trailingWindow
       )
     }
   } else {
@@ -974,7 +980,7 @@ private fun generateTimeIntervals(
         throw Status.INVALID_ARGUMENT.withDescription("report_start.time_zone.id is invalid")
           .asRuntimeException()
       }
-    if (frequencySpec == null && window == null) {
+    if (frequencySpec == null) {
       listOf(
         interval {
           startTime = zonedDateTime.toInstant().toProtoTime()
@@ -986,7 +992,7 @@ private fun generateTimeIntervals(
         zonedDateTime,
         reportEndDateTime.toZonedDateTime(),
         checkNotNull(frequencySpec),
-        checkNotNull(window)
+        trailingWindow
       )
     }
   }
@@ -996,7 +1002,7 @@ private fun generateTimeIntervals(
   reportStartTemporal: Temporal,
   reportEndTemporal: Temporal,
   frequencySpec: MetricCalculationSpec.MetricFrequencySpec,
-  window: MetricCalculationSpec.Window,
+  trailingWindow: MetricCalculationSpec.TrailingWindow? = null,
 ): List<Interval> {
   val firstTimeIntervalEndTemporal: Temporal =
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
@@ -1043,7 +1049,7 @@ private fun generateTimeIntervals(
     }
 
   val isWindowReportStart =
-    window.windowCase == MetricCalculationSpec.Window.WindowCase.REPORT_START_TIME
+    trailingWindow == null
 
   val reportStartTimestamp = reportStartTemporal.toTimestamp()
   val reportEndTimestamp = reportEndTemporal.toTimestamp()
@@ -1067,7 +1073,7 @@ private fun generateTimeIntervals(
             reportStartTimestamp
           } else {
             val newTimestamp =
-              buildReportTimeIntervalStartTimestamp(window, nextTimeIntervalEndTemporal)
+              buildReportTimeIntervalStartTimestamp(checkNotNull(trailingWindow), nextTimeIntervalEndTemporal)
 
             // The start of any interval to be created is bounded by the report start.
             if (Timestamps.compare(reportStartTimestamp, newTimestamp) >= 0) {
@@ -1124,24 +1130,23 @@ private fun generateTimeIntervals(
 }
 
 /**
- * Given a [MetricCalculationSpec.Window] and a [Temporal] that represents the end of the interval,
+ * Given a [MetricCalculationSpec.TrailingWindow] and a [Temporal] that represents the end of the interval,
  * create a [Timestamp] that represents the start of the interval.
  */
 private fun buildReportTimeIntervalStartTimestamp(
-  window: MetricCalculationSpec.Window,
+  trailingWindow: MetricCalculationSpec.TrailingWindow,
   intervalEndTemporal: Temporal,
 ): Timestamp {
-  val trailingWindow = window.trailingWindow
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf case fields cannot be null.
   return when (trailingWindow.increment) {
-    MetricCalculationSpec.Window.TrailingWindow.Increment.DAY ->
+    MetricCalculationSpec.TrailingWindow.Increment.DAY ->
       intervalEndTemporal.minus(Period.ofDays(trailingWindow.count))
-    MetricCalculationSpec.Window.TrailingWindow.Increment.WEEK ->
+    MetricCalculationSpec.TrailingWindow.Increment.WEEK ->
       intervalEndTemporal.minus(Period.ofWeeks(trailingWindow.count))
-    MetricCalculationSpec.Window.TrailingWindow.Increment.MONTH ->
+    MetricCalculationSpec.TrailingWindow.Increment.MONTH ->
       intervalEndTemporal.minus(Period.ofMonths(trailingWindow.count))
-    MetricCalculationSpec.Window.TrailingWindow.Increment.INCREMENT_UNSPECIFIED,
-    MetricCalculationSpec.Window.TrailingWindow.Increment.UNRECOGNIZED, ->
+    MetricCalculationSpec.TrailingWindow.Increment.INCREMENT_UNSPECIFIED,
+    MetricCalculationSpec.TrailingWindow.Increment.UNRECOGNIZED, ->
       error("trailing_window missing increment")
   }.toTimestamp()
 }
