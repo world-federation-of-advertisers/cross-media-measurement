@@ -18,11 +18,19 @@ package org.wfanet.measurement.reporting.deploy.v2.common.server
 
 import com.google.protobuf.ByteString
 import io.grpc.Channel
+import io.grpc.Server
 import io.grpc.ServerServiceDefinition
 import io.grpc.Status
 import io.grpc.StatusException
+import io.grpc.inprocess.InProcessChannelBuilder
+import io.grpc.inprocess.InProcessServerBuilder
 import java.io.File
 import java.security.SecureRandom
+import java.time.Duration
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as KingdomCertificatesCoroutineStub
@@ -39,6 +47,7 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
@@ -180,11 +189,28 @@ private fun run(
       Dispatchers.IO
     )
 
-  val inProcessChannel =
-    startInProcessServerWithService(
-      commonServerFlags,
-      metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs)
+  val inProcessExecutorService: ExecutorService =
+    ThreadPoolExecutor(
+      1,
+      commonServerFlags.threadPoolSize,
+      60L,
+      TimeUnit.SECONDS,
+      LinkedBlockingQueue()
     )
+
+  val inProcessServerName = InProcessServerBuilder.generateName()
+  val inProcessServer: Server =
+    startInProcessServerWithService(
+      inProcessServerName,
+      commonServerFlags,
+      metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs),
+      inProcessExecutorService
+    )
+  val inProcessChannel =
+    InProcessChannelBuilder.forName(inProcessServerName)
+      .directExecutor()
+      .build()
+      .withShutdownTimeout(Duration.ofSeconds(30))
 
   val services: List<ServerServiceDefinition> =
     listOf(
@@ -226,6 +252,11 @@ private fun run(
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
     )
   CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
+  inProcessChannel.shutdown()
+  inProcessServer.shutdown()
+  inProcessExecutorService.shutdown()
+  inProcessServer.awaitTermination()
+  inProcessExecutorService.awaitTermination(30, TimeUnit.SECONDS)
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)
