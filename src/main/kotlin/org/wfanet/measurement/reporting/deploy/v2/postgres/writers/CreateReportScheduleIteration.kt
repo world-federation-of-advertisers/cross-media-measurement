@@ -82,7 +82,23 @@ class CreateReportScheduleIteration(private val reportScheduleIteration: ReportS
         bind("$10", createTime)
       }
 
-    transactionContext.run { executeStatement(statement) }
+    val reportScheduleUpdateStatement =
+      boundStatement(
+        """
+        UPDATE ReportSchedules SET LatestReportScheduleIterationId = $1
+        WHERE MeasurementConsumerId = $2 AND ReportScheduleId = $3
+        """
+          .trimIndent()
+      ) {
+        bind("$1", reportScheduleIterationId)
+        bind("$2", reportScheduleResult.measurementConsumerId)
+        bind("$3", reportScheduleResult.reportScheduleId)
+      }
+
+    transactionContext.run {
+      executeStatement(statement)
+      executeStatement(reportScheduleUpdateStatement)
+    }
 
     return reportScheduleIteration.copy {
       this.externalReportScheduleIterationId = externalReportScheduleIterationId
