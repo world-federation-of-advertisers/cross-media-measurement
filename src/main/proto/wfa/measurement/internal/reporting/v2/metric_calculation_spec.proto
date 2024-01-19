@@ -32,7 +32,7 @@ message MetricCalculationSpec {
     repeated string predicates = 1;
   }
 
-  message ResultFrequencySpec {
+  message MetricFrequencySpec {
     message Daily {}
 
     message Weekly {
@@ -78,7 +78,7 @@ message MetricCalculationSpec {
     // A map of arbitrary key-value pairs to support tagging of
     // `MetricCalculationSpec`s for upstream use by UIs and other rich clients.
     map<string, string> tags = 6;
-    ResultFrequencySpec result_frequency_spec = 7;
+    MetricFrequencySpec metric_frequency_spec = 7;
     Window window = 8;
   }
   Details details = 3;

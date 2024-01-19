@@ -231,8 +231,10 @@ class MetricCalculationSpecsService(
   ): InternalMetricCalculationSpec {
     val source = this
 
-    grpcRequire(source.hasResultFrequencySpec() == source.hasWindow()) {
-      "result_frequency_spec and window must both be set or both be not set"
+    if (source.hasMetricFrequencySpecAndWindow()) {
+      grpcRequire(source.metricFrequencySpecAndWindow.hasMetricFrequencySpec() && source.metricFrequencySpecAndWindow.hasWindow()) {
+        "metric_frequency_spec and window must both be set"
+      }
     }
 
     val internalMetricSpecs =
@@ -260,11 +262,9 @@ class MetricCalculationSpecsService(
             source.groupingsList.map { grouping ->
               InternalMetricCalculationSpecKt.grouping { predicates += grouping.predicatesList }
             }
-          if (source.hasResultFrequencySpec()) {
-            resultFrequencySpec = source.resultFrequencySpec.toInternal()
-          }
-          if (source.hasWindow()) {
-            window = source.window.toInternal()
+          if (source.hasMetricFrequencySpecAndWindow()) {
+            metricFrequencySpec = source.metricFrequencySpecAndWindow.metricFrequencySpec.toInternal()
+            window = source.metricFrequencySpecAndWindow.window.toInternal()
           }
           tags.putAll(source.tagsMap)
         }
@@ -345,19 +345,19 @@ class MetricCalculationSpecsService(
     }
 
     /**
-     * Converts a public [MetricCalculationSpec.ResultFrequencySpec] to an internal
-     * [InternalMetricCalculationSpec.ResultFrequencySpec].
+     * Converts a public [MetricCalculationSpec.MetricFrequencySpec] to an internal
+     * [InternalMetricCalculationSpec.MetricFrequencySpec].
      */
-    private fun MetricCalculationSpec.ResultFrequencySpec.toInternal():
-      InternalMetricCalculationSpec.ResultFrequencySpec {
+    private fun MetricCalculationSpec.MetricFrequencySpec.toInternal():
+      InternalMetricCalculationSpec.MetricFrequencySpec {
       val source = this
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-      return InternalMetricCalculationSpecKt.resultFrequencySpec {
+      return InternalMetricCalculationSpecKt.metricFrequencySpec {
         when (source.frequencyCase) {
-          MetricCalculationSpec.ResultFrequencySpec.FrequencyCase.DAILY -> {
-            daily = InternalMetricCalculationSpec.ResultFrequencySpec.Daily.getDefaultInstance()
+          MetricCalculationSpec.MetricFrequencySpec.FrequencyCase.DAILY -> {
+            daily = InternalMetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
           }
-          MetricCalculationSpec.ResultFrequencySpec.FrequencyCase.WEEKLY -> {
+          MetricCalculationSpec.MetricFrequencySpec.FrequencyCase.WEEKLY -> {
             grpcRequire(
               source.weekly.dayOfWeek != DayOfWeek.DAY_OF_WEEK_UNSPECIFIED &&
                 source.weekly.dayOfWeek != DayOfWeek.UNRECOGNIZED
@@ -365,20 +365,20 @@ class MetricCalculationSpecsService(
               "day_of_week in weekly frequency is unspecified or invalid."
             }
             weekly =
-              InternalMetricCalculationSpecKt.ResultFrequencySpecKt.weekly {
+              InternalMetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
                 dayOfWeek = source.weekly.dayOfWeek
               }
           }
-          MetricCalculationSpec.ResultFrequencySpec.FrequencyCase.MONTHLY -> {
+          MetricCalculationSpec.MetricFrequencySpec.FrequencyCase.MONTHLY -> {
             grpcRequire(source.monthly.dayOfMonth > 0) {
               "day_of_month in monthly frequency is unspecified or invalid."
             }
             monthly =
-              InternalMetricCalculationSpecKt.ResultFrequencySpecKt.monthly {
+              InternalMetricCalculationSpecKt.MetricFrequencySpecKt.monthly {
                 dayOfMonth = source.monthly.dayOfMonth
               }
           }
-          MetricCalculationSpec.ResultFrequencySpec.FrequencyCase.FREQUENCY_NOT_SET -> {}
+          MetricCalculationSpec.MetricFrequencySpec.FrequencyCase.FREQUENCY_NOT_SET -> {}
         }
       }
     }
@@ -417,11 +417,10 @@ class MetricCalculationSpecsService(
               }
           }
           MetricCalculationSpec.Window.WindowCase.REPORT_START_TIME -> {
-            if (source.reportStartTime) {
-              reportStartTime = true
-            } else {
-              failGrpc { "report_start_time is false" }
+            grpcRequire(source.reportStartTime) {
+              "report_start_time is false"
             }
+            reportStartTime = true
           }
           MetricCalculationSpec.Window.WindowCase.WINDOW_NOT_SET -> {}
         }
@@ -446,42 +445,42 @@ class MetricCalculationSpecsService(
           source.details.groupingsList.map { grouping ->
             MetricCalculationSpecKt.grouping { predicates += grouping.predicatesList }
           }
-        if (source.details.hasResultFrequencySpec()) {
-          resultFrequencySpec = source.details.resultFrequencySpec.toPublic()
-        }
-        if (source.details.hasWindow()) {
-          window = source.details.window.toPublic()
+        if (source.details.hasMetricFrequencySpec() && source.details.hasWindow()) {
+          metricFrequencySpecAndWindow = MetricCalculationSpecKt.metricFrequencySpecAndWindow {
+            metricFrequencySpec = source.details.metricFrequencySpec.toPublic()
+            window = source.details.window.toPublic()
+          }
         }
         tags.putAll(source.details.tagsMap)
       }
     }
 
     /**
-     * Converts an internal [InternalMetricCalculationSpec.ResultFrequencySpec] to a public
-     * [MetricCalculationSpec.ResultFrequencySpec].
+     * Converts an internal [InternalMetricCalculationSpec.MetricFrequencySpec] to a public
+     * [MetricCalculationSpec.MetricFrequencySpec].
      */
-    private fun InternalMetricCalculationSpec.ResultFrequencySpec.toPublic():
-      MetricCalculationSpec.ResultFrequencySpec {
+    private fun InternalMetricCalculationSpec.MetricFrequencySpec.toPublic():
+      MetricCalculationSpec.MetricFrequencySpec {
       val source = this
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-      return MetricCalculationSpecKt.resultFrequencySpec {
+      return MetricCalculationSpecKt.metricFrequencySpec {
         when (source.frequencyCase) {
-          InternalMetricCalculationSpec.ResultFrequencySpec.FrequencyCase.DAILY -> {
-            daily = MetricCalculationSpec.ResultFrequencySpec.Daily.getDefaultInstance()
+          InternalMetricCalculationSpec.MetricFrequencySpec.FrequencyCase.DAILY -> {
+            daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
           }
-          InternalMetricCalculationSpec.ResultFrequencySpec.FrequencyCase.WEEKLY -> {
+          InternalMetricCalculationSpec.MetricFrequencySpec.FrequencyCase.WEEKLY -> {
             weekly =
-              MetricCalculationSpecKt.ResultFrequencySpecKt.weekly {
+              MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
                 dayOfWeek = source.weekly.dayOfWeek
               }
           }
-          InternalMetricCalculationSpec.ResultFrequencySpec.FrequencyCase.MONTHLY -> {
+          InternalMetricCalculationSpec.MetricFrequencySpec.FrequencyCase.MONTHLY -> {
             monthly =
-              MetricCalculationSpecKt.ResultFrequencySpecKt.monthly {
+              MetricCalculationSpecKt.MetricFrequencySpecKt.monthly {
                 dayOfMonth = source.monthly.dayOfMonth
               }
           }
-          InternalMetricCalculationSpec.ResultFrequencySpec.FrequencyCase.FREQUENCY_NOT_SET -> {}
+          InternalMetricCalculationSpec.MetricFrequencySpec.FrequencyCase.FREQUENCY_NOT_SET -> {}
         }
       }
     }

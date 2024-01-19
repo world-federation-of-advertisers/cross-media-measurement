@@ -75,8 +75,8 @@ message MetricCalculationSpec {
   // time interval. Predicates must be unique.
   repeated Grouping groupings = 5 [(google.api.field_behavior) = IMMUTABLE];
 
-  // Describes the frequencies at which results are generated.
-  message ResultFrequencySpec {
+  // Describes the frequencies at which metrics are generated.
+  message MetricFrequencySpec {
     // Specification for a daily frequency.
     message Daily {}
 
@@ -93,7 +93,7 @@ message MetricCalculationSpec {
     }
 
     // The frequency at which time intervals are created. Anchored by the
-    // time in `reporting_interval.report_start` in a `Report`.
+    // time in `reporting_interval.report_start` in a `Report`. Required.
     oneof frequency {
       // A time interval is created for each day.
       Daily daily = 1;
@@ -111,9 +111,8 @@ message MetricCalculationSpec {
       Monthly monthly = 3;
     }
   }
-  // If this is set, window needs to be set too.
-  ResultFrequencySpec result_frequency_spec = 8;
 
+  // Describes the time intervals that the metrics cover.
   message Window {
     message TrailingWindow {
       // Represents how much of the `increment` to go back.
@@ -130,16 +129,29 @@ message MetricCalculationSpec {
     }
 
     // How far back the Metrics at each period (as defined by
-    // `result_frequency_spec) cover. Required.
+    // `metric_frequency_spec`) cover. The time covered is lower bounded by
+    // `ReportingInterval.report_start`. Required.
     oneof window {
       // The amount of time to look back for a Metric.
       TrailingWindow trailing_window = 1;
-      // Metrics start from `report_start` in the `Report`. If set, must be
-      // true.
+      // Metrics start from `ReportingInterval.report_start` in the `Report`.
+      // If set, must be true.
       bool report_start_time = 2;
     }
   }
-  Window window = 9;
+
+  message MetricFrequencySpecAndWindow {
+    MetricFrequencySpec metric_frequency_spec = 1 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.field_behavior) = IMMUTABLE
+    ];
+
+    Window window = 2 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.field_behavior) = IMMUTABLE
+    ];
+  }
+  MetricFrequencySpecAndWindow metric_frequency_spec_and_window = 8;
 
   // A map of arbitrary key-value pairs to support tagging of
   // `MetricCalculationSpec`s for upstream use by UIs and other rich clients.
