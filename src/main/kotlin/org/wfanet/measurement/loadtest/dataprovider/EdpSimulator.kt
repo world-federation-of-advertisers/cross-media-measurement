@@ -27,6 +27,7 @@ import java.security.GeneralSecurityException
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
+import java.time.Instant
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.math.log2
@@ -43,8 +44,6 @@ import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
 import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
 import org.wfanet.anysketch.crypto.elGamalPublicKey as anySketchElGamalPublicKey
-import java.time.Instant
-import java.time.ZoneOffset
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt.variance
@@ -191,7 +190,10 @@ class EdpSimulator(
           startTime = timestamp {
             seconds = 1577865600 // January 1, 2020 12:00:00 AM, America/Los_Angeles
           }
-          endTime = Instant.now().plusSeconds(60 * 60 * 24 * 5).toProtoTime() // Approximately 5 days after the current time.
+          endTime =
+            Instant.now()
+              .plusSeconds(60 * 60 * 24 * 5)
+              .toProtoTime() // Approximately 5 days after the current time.
         }
       }
     )
