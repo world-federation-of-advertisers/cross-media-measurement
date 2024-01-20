@@ -190,10 +190,7 @@ class EdpSimulator(
           startTime = timestamp {
             seconds = 1577865600 // January 1, 2020 12:00:00 AM, America/Los_Angeles
           }
-          endTime =
-            Instant.now()
-              .plusSeconds(60 * 60 * 24 * 5)
-              .toProtoTime() // Approximately 5 days after the current time.
+          endTime = Instant.now().toProtoTime()
         }
       }
     )
