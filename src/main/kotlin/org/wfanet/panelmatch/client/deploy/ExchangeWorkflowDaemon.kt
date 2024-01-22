@@ -15,13 +15,16 @@
 package org.wfanet.panelmatch.client.deploy
 
 import java.time.Clock
+import java.util.logging.Level
+import java.util.logging.Logger
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
+import kotlinx.coroutines.supervisorScope
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.panelmatch.client.common.Identity
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 import org.wfanet.panelmatch.client.launcher.ApiClient
-import org.wfanet.panelmatch.client.launcher.CoroutineLauncher
 import org.wfanet.panelmatch.client.launcher.ExchangeStepLauncher
 import org.wfanet.panelmatch.client.launcher.ExchangeStepValidatorImpl
 import org.wfanet.panelmatch.client.launcher.ExchangeTaskExecutor
@@ -91,35 +94,45 @@ abstract class ExchangeWorkflowDaemon : Runnable {
     SharedStorageSelector(certificateManager, sharedStorageFactories, sharedStorageInfo)
   }
 
-  private val launcher by lazy {
-    val stepExecutor =
-      ExchangeTaskExecutor(
-        apiClient = apiClient,
-        timeout = taskTimeout,
-        privateStorageSelector = privateStorageSelector,
-        exchangeTaskMapper = exchangeTaskMapper,
-      )
-    CoroutineLauncher(stepExecutor = stepExecutor)
+  private val taskExecutor by lazy {
+    ExchangeTaskExecutor(
+      apiClient = apiClient,
+      timeout = taskTimeout,
+      privateStorageSelector = privateStorageSelector,
+      exchangeTaskMapper = exchangeTaskMapper,
+    )
   }
 
   override fun run() = runBlocking { runSuspending() }
 
   suspend fun runSuspending() {
-
     val exchangeStepLauncher =
       ExchangeStepLauncher(
         apiClient = apiClient,
         validator = ExchangeStepValidatorImpl(identity.party, validExchangeWorkflows, clock),
-        jobLauncher = launcher,
+        stepExecutor = taskExecutor,
       )
     runDaemon(exchangeStepLauncher)
   }
 
   /** Runs [exchangeStepLauncher] in an infinite loop. */
   protected open suspend fun runDaemon(exchangeStepLauncher: ExchangeStepLauncher) {
-    throttler.loopOnReady {
-      // All errors thrown inside the loop should be suppressed such that the daemon doesn't crash.
-      logAndSuppressExceptionSuspend { exchangeStepLauncher.findAndRunExchangeStep() }
+    supervisorScope {
+      throttler.loopOnReady {
+        // All errors thrown inside the loop should be suppressed such that the daemon doesn't
+        // crash.
+        launch {
+          try {
+            exchangeStepLauncher.findAndRunExchangeStep()
+          } catch (e: Exception) {
+            logger.log(Level.SEVERE, e) { "Error finding and running exchange step" }
+          }
+        }
+      }
     }
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
