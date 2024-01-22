@@ -593,39 +593,42 @@ class ReportsServiceTest {
         )
 
       whenever(
-        internalReportsMock.createReport(
-          eq(
-            internalCreateReportRequest {
-              report = internalRequestingReport
-              externalReportId = "report-id"
-            }
+          internalReportsMock.createReport(
+            eq(
+              internalCreateReportRequest {
+                report = internalRequestingReport
+                externalReportId = "report-id"
+              }
+            )
           )
         )
-      )
         .thenThrow(Status.ALREADY_EXISTS.asRuntimeException())
 
       whenever(
-        internalReportsMock.getReport(
-          eq(
-            internalGetReportRequest {
-              cmmsMeasurementConsumerId = internalInitialReport.cmmsMeasurementConsumerId
-              externalReportId = internalInitialReport.externalReportId
-            }
+          internalReportsMock.getReport(
+            eq(
+              internalGetReportRequest {
+                cmmsMeasurementConsumerId = internalInitialReport.cmmsMeasurementConsumerId
+                externalReportId = internalInitialReport.externalReportId
+              }
+            )
           )
         )
-      )
-        .thenReturn(internalPendingReport.copy {
-          val reportingMetricCalculationSpec = reportingMetricEntries.entries.first().value
-          reportingMetricEntries[reportingMetricEntries.entries.first().key] =
-            reportingMetricCalculationSpec.copy {
-              metricCalculationSpecReportingMetrics[0] =
-                reportingMetricCalculationSpec.metricCalculationSpecReportingMetricsList[0].copy {
-                  reportingMetrics[0] = reportingMetricCalculationSpec.metricCalculationSpecReportingMetricsList[0].reportingMetricsList[0].copy {
-                    clearExternalMetricId()
+        .thenReturn(
+          internalPendingReport.copy {
+            val reportingMetricCalculationSpec = reportingMetricEntries.entries.first().value
+            reportingMetricEntries[reportingMetricEntries.entries.first().key] =
+              reportingMetricCalculationSpec.copy {
+                metricCalculationSpecReportingMetrics[0] =
+                  reportingMetricCalculationSpec.metricCalculationSpecReportingMetricsList[0].copy {
+                    reportingMetrics[0] =
+                      reportingMetricCalculationSpec.metricCalculationSpecReportingMetricsList[0]
+                        .reportingMetricsList[0]
+                        .copy { clearExternalMetricId() }
                   }
-                }
-            }
-        })
+              }
+          }
+        )
         .thenReturn(internalPendingReport)
 
       val requestingMetrics: List<Metric> =
@@ -645,9 +648,9 @@ class ReportsServiceTest {
                 metric.copy {
                   name =
                     MetricKey(
-                      MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                      ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value
-                    )
+                        MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
+                        ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value
+                      )
                       .toName()
                   state = Metric.State.RUNNING
                   createTime = Instant.now().toProtoTime()
