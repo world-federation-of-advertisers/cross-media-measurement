@@ -63,10 +63,11 @@ class ReportsService(
       pageSize = 1000
     }
 
-    val resp = try {
-      backendReportsStub.listReports(backendRequest)
-    } catch (e: StatusException) {
-      throw when (e.status.code) {
+    val resp =
+      try {
+        backendReportsStub.listReports(backendRequest)
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
             Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
             Status.Code.CANCELLED -> Status.CANCELLED
             else -> Status.UNKNOWN
@@ -74,7 +75,7 @@ class ReportsService(
           .withCause(e)
           .withDescription("Unable to list Reports.")
           .asRuntimeException()
-    }
+      }
 
     if (resp.nextPageToken.isNotEmpty()) {
       logger.warning { "Additional ListReport items. Not Loopping through additional pages." }
@@ -86,17 +87,18 @@ class ReportsService(
     val results = listReportsResponse {
       resp.reportsList
         .filter { it.tagsMap.containsKey("ui.halo-cmm.org") }
-        .forEach { reports +=
-          when (view) {
-            ReportView.REPORT_VIEW_BASIC -> it.toBasicReport()
-            ReportView.REPORT_VIEW_FULL -> {
-              val listReportingSetsResponse = listReportingSets(request.parent)
-              it.toFullReport(listReportingSetsResponse)
+        .forEach {
+          reports +=
+            when (view) {
+              ReportView.REPORT_VIEW_BASIC -> it.toBasicReport()
+              ReportView.REPORT_VIEW_FULL -> {
+                val listReportingSetsResponse = listReportingSets(request.parent)
+                it.toFullReport(listReportingSetsResponse)
+              }
+              else ->
+                throw Status.INVALID_ARGUMENT.withDescription("View type must be specified")
+                  .asRuntimeException()
             }
-            else ->
-              throw Status.INVALID_ARGUMENT.withDescription("View type must be specified")
-                .asRuntimeException()
-          }
         }
     }
 
@@ -106,10 +108,11 @@ class ReportsService(
   override suspend fun getReport(request: GetReportRequest): Report {
     val backendRequest = getReportRequest { name = request.name }
 
-    val resp = try {
-      backendReportsStub.getReport(backendRequest)
-    } catch (e: StatusException) {
-      throw when (e.status.code) {
+    val resp =
+      try {
+        backendReportsStub.getReport(backendRequest)
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
             Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
             Status.Code.CANCELLED -> Status.CANCELLED
             else -> Status.UNKNOWN
@@ -117,7 +120,7 @@ class ReportsService(
           .withCause(e)
           .withDescription("Unable to get Report.")
           .asRuntimeException()
-    }
+      }
 
     if (!resp.tagsMap.containsKey("ui.halo-cmm.org")) {
       throw Status.INVALID_ARGUMENT.withDescription("Not a supported UI report")
@@ -128,16 +131,17 @@ class ReportsService(
       if (request.view == ReportView.REPORT_VIEW_UNSPECIFIED) ReportView.REPORT_VIEW_FULL
       else request.view
 
-    val result = when (view) {
-      ReportView.REPORT_VIEW_BASIC -> resp.toBasicReport()
-      ReportView.REPORT_VIEW_FULL -> {
-        val listReportingSetsResponse = listReportingSets(request.parent)
-        resp.toFullReport(listReportingSetsResponse)
+    val result =
+      when (view) {
+        ReportView.REPORT_VIEW_BASIC -> resp.toBasicReport()
+        ReportView.REPORT_VIEW_FULL -> {
+          val listReportingSetsResponse = listReportingSets(request.parent)
+          resp.toFullReport(listReportingSetsResponse)
+        }
+        else ->
+          throw Status.INVALID_ARGUMENT.withDescription("View type must be specified")
+            .asRuntimeException()
       }
-      else ->
-        throw Status.INVALID_ARGUMENT.withDescription("View type must be specified")
-          .asRuntimeException()
-    }
     return result
   }
 
@@ -173,16 +177,17 @@ class ReportsService(
 
   // TODO(@bdomen-ggl): Probably want to add get reporting set to ensure we don't have to paginate
   //  and to make the list more manageable as lots of reporting sets get created.
-  private suspend fun listReportingSets(reportParent: String): List<ReportingSet>  {
+  private suspend fun listReportingSets(reportParent: String): List<ReportingSet> {
     val backendRequest = listReportingSetsRequest {
       parent = reportParent
       pageSize = 1000
     }
 
-    val resp = try {
-      reportingSetsServiceStub.listReportingSets(backendRequest)
-    } catch (e: StatusException) {
-      throw when (e.status.code) {
+    val resp =
+      try {
+        reportingSetsServiceStub.listReportingSets(backendRequest)
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
             Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
             Status.Code.CANCELLED -> Status.CANCELLED
             else -> Status.UNKNOWN
@@ -190,7 +195,7 @@ class ReportsService(
           .withCause(e)
           .withDescription("Unable to list Reporting Sets.")
           .asRuntimeException()
-    }
+      }
 
     return resp.reportingSetsList
   }
