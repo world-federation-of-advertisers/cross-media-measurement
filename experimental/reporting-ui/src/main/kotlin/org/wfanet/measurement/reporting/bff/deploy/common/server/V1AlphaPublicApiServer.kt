@@ -57,7 +57,7 @@ private fun run(
     listOf(
       ReportsService(
           HaloReportsGrpcKt.ReportsCoroutineStub(channel),
-          HaloReportingSetsGrpcKt.ReportingSetsCoroutineStub(channel)
+          HaloReportingSetsGrpcKt.ReportingSetsCoroutineStub(channel),
         )
         .bindService()
     )
