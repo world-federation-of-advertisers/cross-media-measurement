@@ -85,9 +85,9 @@ private val CLAIMED_EXCHANGE_STEP = ClaimedExchangeStep(EXCHANGE_STEP, EXCHANGE_
 @RunWith(JUnit4::class)
 class ExchangeStepLauncherTest {
   private val apiClient: ApiClient = mock()
-  private val jobLauncher: JobLauncher = mock()
+  private val stepExecutor: ExchangeStepExecutor = mock()
   private val validator: ExchangeStepValidator = mock()
-  private val launcher = ExchangeStepLauncher(apiClient, validator, jobLauncher)
+  private val launcher = ExchangeStepLauncher(apiClient, validator, stepExecutor)
 
   @Test
   fun noExchangeTask() = runBlockingTest {
@@ -96,7 +96,7 @@ class ExchangeStepLauncherTest {
     launcher.findAndRunExchangeStep()
 
     verifyBlocking(apiClient) { claimExchangeStep() }
-    verifyZeroInteractions(jobLauncher, validator)
+    verifyZeroInteractions(stepExecutor, validator)
   }
 
   @Test
@@ -106,7 +106,7 @@ class ExchangeStepLauncherTest {
 
     launcher.findAndRunExchangeStep()
 
-    verifyBlocking(jobLauncher) {
+    verifyBlocking(stepExecutor) {
       val stepCaptor = argumentCaptor<ValidatedExchangeStep>()
       val attemptCaptor = argumentCaptor<CanonicalExchangeStepAttemptKey>()
 
@@ -150,7 +150,7 @@ class ExchangeStepLauncherTest {
       assertThat(messagesCaptor.firstValue).containsExactly(message)
     }
 
-    verifyZeroInteractions(jobLauncher)
+    verifyZeroInteractions(stepExecutor)
   }
 
   @Test
@@ -178,7 +178,7 @@ class ExchangeStepLauncherTest {
       assertThat(messagesCaptor.firstValue).containsExactly(message)
     }
 
-    verifyZeroInteractions(jobLauncher)
+    verifyZeroInteractions(stepExecutor)
   }
 
   @Test
@@ -187,7 +187,7 @@ class ExchangeStepLauncherTest {
     whenever(validator.validate(any())).thenReturn(VALIDATED_EXCHANGE_STEP)
 
     val message = "some-message"
-    whenever(jobLauncher.execute(any(), any())).thenThrow(RuntimeException(message))
+    whenever(stepExecutor.execute(any(), any())).thenThrow(RuntimeException(message))
 
     launcher.findAndRunExchangeStep()
 

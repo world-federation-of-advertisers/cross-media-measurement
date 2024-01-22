@@ -24,7 +24,7 @@ import org.wfanet.panelmatch.client.launcher.InvalidExchangeStepException.Failur
 class ExchangeStepLauncher(
   private val apiClient: ApiClient,
   private val validator: ExchangeStepValidator,
-  private val jobLauncher: JobLauncher
+  private val stepExecutor: ExchangeStepExecutor,
 ) {
 
   /**
@@ -34,17 +34,19 @@ class ExchangeStepLauncher(
   suspend fun findAndRunExchangeStep() {
     val (exchangeStep, attemptKey) = apiClient.claimExchangeStep() ?: return
 
-    try {
-      val validatedExchangeStep = validator.validate(exchangeStep)
-      jobLauncher.execute(validatedExchangeStep, attemptKey)
-    } catch (e: Exception) {
-      invalidateAttempt(attemptKey, e)
-    }
+    val validatedExchangeStep =
+      try {
+        validator.validate(exchangeStep)
+      } catch (e: Exception) {
+        invalidateAttempt(attemptKey, e)
+        return
+      }
+    stepExecutor.execute(validatedExchangeStep, attemptKey)
   }
 
   private suspend fun invalidateAttempt(
     attemptKey: CanonicalExchangeStepAttemptKey,
-    exception: Exception
+    exception: Exception,
   ) {
     val state =
       when (exception) {
