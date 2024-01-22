@@ -42,10 +42,7 @@ object AcdpParamsConverter {
    * @param contributorCount Number of Duchies.
    * @return ACDP charge(rho, theta).
    */
-  fun getLlv2AcdpCharge(
-    privacyParams: DpParams,
-    contributorCount: Int,
-  ): AcdpCharge {
+  fun getLlv2AcdpCharge(privacyParams: DpParams, contributorCount: Int): AcdpCharge {
     require(privacyParams.epsilon > 0 && privacyParams.delta > 0 && contributorCount > 0) {
       "Epsilon, delta, and contributor count must be positive, but got: epsilon=${privacyParams.epsilon} delta=${privacyParams.delta} contributorCount=$contributorCount"
     }
@@ -64,10 +61,7 @@ object AcdpParamsConverter {
    * @param sensitivity Sensitivity parameter in ACDP conversion formulas.
    * @return ACDP charge(rho, theta).
    */
-  fun getDirectAcdpCharge(
-    privacyParams: DpParams,
-    sensitivity: Double,
-  ): AcdpCharge {
+  fun getDirectAcdpCharge(privacyParams: DpParams, sensitivity: Double): AcdpCharge {
     require(privacyParams.epsilon > 0 && privacyParams.delta > 0) {
       "Epsilon and delta must be positive, but got: epsilon=${privacyParams.epsilon} delta=${privacyParams.delta}"
     }
@@ -87,7 +81,7 @@ object AcdpParamsConverter {
 
   fun computeLlv2SigmaDistributedDiscreteGaussian(
     privacyParams: DpParams,
-    contributorCount: Int
+    contributorCount: Int,
   ): Double {
     // The sigma calculation formula is a closed-form formula from The Algorithmic
     // Foundations of Differential Privacy p.265 Theorem A.1
@@ -110,7 +104,7 @@ object AcdpParamsConverter {
   private fun computeLlv2MuDiscreteGaussian(
     privacyParams: DpParams,
     sigmaDistributed: Double,
-    contributorCount: Int
+    contributorCount: Int,
   ): Double {
     // The sum of delta1 and delta2 should be delta.
     // The selection of these two parameters have the following effect: setting delta2 larger
@@ -156,7 +150,4 @@ private data class Llv2AcdpParamsConversionKey(
   val contributorCount: Int,
 )
 
-private data class MpcDeltas(
-  val delta1: Double,
-  val delta2: Double,
-)
+private data class MpcDeltas(val delta1: Double, val delta2: Double)

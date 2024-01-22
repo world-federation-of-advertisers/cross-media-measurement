@@ -20,7 +20,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.StateTransit
 
 class StreamStateTransitionMeasurementLogEntries(
   externalMeasurementId: ExternalId,
-  externalMeasurementConsumerId: ExternalId
+  externalMeasurementConsumerId: ExternalId,
 ) : SimpleSpannerQuery<StateTransitionMeasurementLogEntryReader.Result>() {
 
   override val reader =

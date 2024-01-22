@@ -141,7 +141,7 @@ class ReportSchedulingJob(
               ReportSchedulesService.getInternalReportingSets(
                 publicReportSchedule.reportTemplate,
                 measurementConsumerId,
-                internalReportingSetsStub
+                internalReportingSetsStub,
               )
 
             val eventGroupKeys: List<ReportingSet.Primitive.EventGroupKey> =
@@ -152,7 +152,7 @@ class ReportSchedulingJob(
             val windowStart: Timestamp =
               ReportSchedulesService.buildReportWindowStartTimestamp(
                 publicReportSchedule,
-                reportSchedule.nextReportCreationTime
+                reportSchedule.nextReportCreationTime,
               )
 
             val isDataAvailable: Boolean =
@@ -164,7 +164,7 @@ class ReportSchedulingJob(
                 dataProvidersMap,
                 eventGroupsStub,
                 eventGroupsMap,
-                measurementConsumerConfig.value.apiKey
+                measurementConsumerConfig.value.apiKey,
               )
 
             if (isDataAvailable) {
@@ -223,7 +223,7 @@ class ReportSchedulingJob(
                   .withReportScheduleInfo(
                     ReportScheduleInfoServerInterceptor.ReportScheduleInfo(
                       publicReportSchedule.name,
-                      nextReportCreationTime
+                      nextReportCreationTime,
                     )
                   )
                   .createReport(
@@ -329,7 +329,7 @@ class ReportSchedulingJob(
         val eventGroupName =
           EventGroupKey(
               dataProviderId = eventGroupKey.cmmsDataProviderId,
-              eventGroupId = eventGroupKey.cmmsEventGroupId
+              eventGroupId = eventGroupKey.cmmsEventGroupId,
             )
             .toName()
         val eventGroup =
@@ -387,7 +387,7 @@ class ReportSchedulingJob(
           if (
             Timestamps.compare(
               dataProvider!!.dataAvailabilityInterval.startTime,
-              eventGroup!!.dataAvailabilityInterval.startTime
+              eventGroup!!.dataAvailabilityInterval.startTime,
             ) >= 0
           ) {
             dataProvider.dataAvailabilityInterval.startTime
@@ -404,7 +404,7 @@ class ReportSchedulingJob(
             if (
               Timestamps.compare(
                 dataProvider.dataAvailabilityInterval.endTime,
-                eventGroup.dataAvailabilityInterval.endTime
+                eventGroup.dataAvailabilityInterval.endTime,
               ) < 0
             ) {
               dataProvider.dataAvailabilityInterval.endTime
@@ -497,7 +497,7 @@ class ReportSchedulingJob(
             source.minutes,
             source.seconds,
             source.nanos,
-            offset
+            offset,
           )
         offsetDateTime.toInstant().toProtoTime()
       } else {
@@ -511,7 +511,7 @@ class ReportSchedulingJob(
             source.minutes,
             source.seconds,
             source.nanos,
-            id
+            id,
           )
         zonedDateTime.toInstant().toProtoTime()
       }

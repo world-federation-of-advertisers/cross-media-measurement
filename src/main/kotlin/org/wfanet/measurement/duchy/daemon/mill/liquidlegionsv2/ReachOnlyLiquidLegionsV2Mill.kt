@@ -138,7 +138,7 @@ class ReachOnlyLiquidLegionsV2Mill(
     openTelemetry,
     requestChunkSizeBytes,
     maximumAttempts,
-    clock
+    clock,
   ) {
   private val meter: Meter = openTelemetry.getMeter(ReachOnlyLiquidLegionsV2Mill::class.java.name)
 
@@ -188,7 +188,7 @@ class ReachOnlyLiquidLegionsV2Mill(
         Version.V2_ALPHA ->
           signElgamalPublicKey(
             rollv2ComputationDetails.localElgamalKey.publicKey.toV2AlphaElGamalPublicKey(),
-            signingKey
+            signingKey,
           )
       }
 
@@ -237,7 +237,7 @@ class ReachOnlyLiquidLegionsV2Mill(
           token,
           CRYPTO_LIB_CPU_DURATION,
           cryptoResult.elapsedCpuTimeMillis,
-          initializationPhaseCryptoCpuTimeDurationHistogram
+          initializationPhaseCryptoCpuTimeDurationHistogram,
         )
 
         // Updates the newly generated localElgamalKey to the ComputationDetails.
@@ -266,7 +266,7 @@ class ReachOnlyLiquidLegionsV2Mill(
 
     return dataClients.transitionComputationToStage(
       nextToken,
-      stage = Stage.WAIT_REQUISITIONS_AND_KEY_SET.toProtocolStage()
+      stage = Stage.WAIT_REQUISITIONS_AND_KEY_SET.toProtocolStage(),
     )
   }
 
@@ -299,7 +299,7 @@ class ReachOnlyLiquidLegionsV2Mill(
           fullParticipantList
             .subList(
               fullParticipantList.indexOfFirst { it.duchyId == duchyId } + 1,
-              fullParticipantList.size
+              fullParticipantList.size,
             )
             .map { it.publicKey }
             .toCombinedPublicKey(rollv2Details.parameters.ellipticCurveId)
@@ -356,7 +356,7 @@ class ReachOnlyLiquidLegionsV2Mill(
           NON_AGGREGATOR -> Stage.WAIT_TO_START.toProtocolStage()
           else ->
             error("Unknown role: ${latestToken.computationDetails.reachOnlyLiquidLegionsV2.role}")
-        }
+        },
     )
   }
 
@@ -391,7 +391,7 @@ class ReachOnlyLiquidLegionsV2Mill(
             .toCompleteSetupPhaseAtAggregatorRequest(
               rollv2Details,
               token.requisitionsCount,
-              token.participantCount
+              token.participantCount,
             )
         val cryptoResult: CompleteReachOnlySetupPhaseResponse =
           cryptoWorker.completeReachOnlySetupPhaseAtAggregator(request)
@@ -399,7 +399,7 @@ class ReachOnlyLiquidLegionsV2Mill(
           token,
           CRYPTO_LIB_CPU_DURATION,
           cryptoResult.elapsedCpuTimeMillis,
-          setupPhaseCryptoCpuTimeDurationHistogram
+          setupPhaseCryptoCpuTimeDurationHistogram,
         )
         // The nextToken consists of the CRV and the noise ciphertext.
         cryptoResult.combinedRegisterVector.concat(cryptoResult.serializedExcessiveNoiseCiphertext)
@@ -409,16 +409,16 @@ class ReachOnlyLiquidLegionsV2Mill(
       header =
         advanceComputationHeader(
           ReachOnlyLiquidLegionsV2.Description.EXECUTION_PHASE_INPUT,
-          token.globalComputationId
+          token.globalComputationId,
         ),
       content = addLoggingHook(token, bytes),
-      stub = nextDuchyStub(rollv2Details.participantList)
+      stub = nextDuchyStub(rollv2Details.participantList),
     )
 
     return dataClients.transitionComputationToStage(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
-      stage = Stage.WAIT_EXECUTION_PHASE_INPUTS.toProtocolStage()
+      stage = Stage.WAIT_EXECUTION_PHASE_INPUTS.toProtocolStage(),
     )
   }
 
@@ -433,7 +433,7 @@ class ReachOnlyLiquidLegionsV2Mill(
             .toCompleteReachOnlySetupPhaseRequest(
               rollv2Details,
               token.requisitionsCount,
-              token.participantCount
+              token.participantCount,
             )
         val cryptoResult: CompleteReachOnlySetupPhaseResponse =
           cryptoWorker.completeReachOnlySetupPhase(request)
@@ -441,7 +441,7 @@ class ReachOnlyLiquidLegionsV2Mill(
           token,
           CRYPTO_LIB_CPU_DURATION,
           cryptoResult.elapsedCpuTimeMillis,
-          setupPhaseCryptoCpuTimeDurationHistogram
+          setupPhaseCryptoCpuTimeDurationHistogram,
         )
         // The nextToken consists of the CRV and the noise ciphertext.
         cryptoResult.combinedRegisterVector.concat(cryptoResult.serializedExcessiveNoiseCiphertext)
@@ -451,16 +451,16 @@ class ReachOnlyLiquidLegionsV2Mill(
       header =
         advanceComputationHeader(
           ReachOnlyLiquidLegionsV2.Description.SETUP_PHASE_INPUT,
-          token.globalComputationId
+          token.globalComputationId,
         ),
       content = addLoggingHook(token, bytes),
-      stub = aggregatorDuchyStub(rollv2Details.participantList.last().duchyId)
+      stub = aggregatorDuchyStub(rollv2Details.participantList.last().duchyId),
     )
 
     return dataClients.transitionComputationToStage(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
-      stage = Stage.WAIT_EXECUTION_PHASE_INPUTS.toProtocolStage()
+      stage = Stage.WAIT_EXECUTION_PHASE_INPUTS.toProtocolStage(),
     )
   }
 
@@ -519,7 +519,7 @@ class ReachOnlyLiquidLegionsV2Mill(
           token,
           CRYPTO_LIB_CPU_DURATION,
           cryptoResult.elapsedCpuTimeMillis,
-          executionPhaseCryptoCpuTimeDurationHistogram
+          executionPhaseCryptoCpuTimeDurationHistogram,
         )
         sendResultToKingdom(token, ReachResult(cryptoResult.reach))
         ByteString.EMPTY
@@ -556,7 +556,7 @@ class ReachOnlyLiquidLegionsV2Mill(
           token,
           CRYPTO_LIB_CPU_DURATION,
           cryptoResult.elapsedCpuTimeMillis,
-          executionPhaseCryptoCpuTimeDurationHistogram
+          executionPhaseCryptoCpuTimeDurationHistogram,
         )
         cryptoResult.combinedRegisterVector.concat(cryptoResult.serializedExcessiveNoiseCiphertext)
       }
@@ -566,10 +566,10 @@ class ReachOnlyLiquidLegionsV2Mill(
       header =
         advanceComputationHeader(
           ReachOnlyLiquidLegionsV2.Description.EXECUTION_PHASE_INPUT,
-          token.globalComputationId
+          token.globalComputationId,
         ),
       content = addLoggingHook(token, bytes),
-      stub = nextDuchyStub(rollv2Details.participantList)
+      stub = nextDuchyStub(rollv2Details.participantList),
     )
 
     return completeComputation(nextToken, CompletedReason.SUCCEEDED)
@@ -640,7 +640,7 @@ class ReachOnlyLiquidLegionsV2Mill(
   /** Reads all input blobs and combines all the bytes together. */
   private suspend fun readAndCombineAllInputBlobsSetupPhaseAtAggregator(
     token: ComputationToken,
-    count: Int
+    count: Int,
   ): ByteString {
     val blobMap: Map<BlobRef, ByteString> = dataClients.readInputBlobs(token)
     if (blobMap.size != count) {

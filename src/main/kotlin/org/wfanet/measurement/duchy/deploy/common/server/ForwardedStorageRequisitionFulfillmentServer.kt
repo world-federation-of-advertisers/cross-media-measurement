@@ -23,7 +23,7 @@ import picocli.CommandLine
   name = "ForwardedStorageRequisitionFulfillmentServer",
   description = ["Server daemon for ${RequisitionFulfillmentServer.SERVICE_NAME} service."],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 class ForwardedStorageRequisitionFulfillmentServer : RequisitionFulfillmentServer() {
   @CommandLine.Mixin private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags

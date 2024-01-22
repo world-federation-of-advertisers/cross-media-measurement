@@ -30,7 +30,7 @@ fun buildKingdomSpannerEmulatorDatabaseRule(): SpannerEmulatorDatabaseRule {
 fun buildSpannerInProcessKingdom(
   databaseRule: SpannerEmulatorDatabaseRule,
   clock: Clock = Clock.systemUTC(),
-  verboseGrpcLogging: Boolean = false
+  verboseGrpcLogging: Boolean = false,
 ): InProcessKingdom {
   return InProcessKingdom(
     dataServicesProvider = {

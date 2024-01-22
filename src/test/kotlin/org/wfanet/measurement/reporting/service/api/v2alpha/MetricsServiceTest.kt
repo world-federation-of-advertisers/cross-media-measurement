@@ -339,14 +339,7 @@ private val METRIC_SPEC_CONFIG = metricSpecConfig {
 
 private val SECRETS_DIR =
   getRuntimePath(
-      Paths.get(
-        "wfa_measurement_system",
-        "src",
-        "main",
-        "k8s",
-        "testing",
-        "secretfiles",
-      )
+      Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
     )!!
     .toFile()
 
@@ -358,7 +351,7 @@ private const val API_AUTHENTICATION_KEY = "nR5QPN7ptx"
 private val AGGREGATOR_SIGNING_KEY: SigningKeyHandle by lazy {
   loadSigningKey(
     SECRETS_DIR.resolve("aggregator_cs_cert.der"),
-    SECRETS_DIR.resolve("aggregator_cs_private.der")
+    SECRETS_DIR.resolve("aggregator_cs_private.der"),
   )
 }
 private val AGGREGATOR_CERTIFICATE = certificate {
@@ -388,7 +381,7 @@ private val MEASUREMENT_CONSUMERS: Map<MeasurementConsumerKey, MeasurementConsum
     val certificateKey =
       MeasurementConsumerCertificateKey(
         measurementConsumerKey.measurementConsumerId,
-        ExternalId(it + 120L).apiId.value
+        ExternalId(it + 120L).apiId.value,
       )
     measurementConsumerKey to
       measurementConsumer {
@@ -398,7 +391,7 @@ private val MEASUREMENT_CONSUMERS: Map<MeasurementConsumerKey, MeasurementConsum
         publicKey =
           signEncryptionPublicKey(
             MEASUREMENT_CONSUMER_PUBLIC_KEY,
-            MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
+            MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE,
           )
       }
   }
@@ -418,7 +411,7 @@ private val ENCRYPTION_KEY_PAIR_STORE =
         listOf(
           it.publicKey.unpack<EncryptionPublicKey>().data to MEASUREMENT_CONSUMER_PRIVATE_KEY_HANDLE
         )
-      }
+      },
     )
   )
 
@@ -431,7 +424,7 @@ private val DATA_PROVIDER_PRIVATE_KEY_HANDLE =
 private val DATA_PROVIDER_SIGNING_KEY =
   loadSigningKey(
     SECRETS_DIR.resolve("edp1_cs_cert.der"),
-    SECRETS_DIR.resolve("edp1_cs_private.der")
+    SECRETS_DIR.resolve("edp1_cs_private.der"),
   )
 private val DATA_PROVIDER_ROOT_CERTIFICATE = readCertificate(SECRETS_DIR.resolve("edp1_root.pem"))
 
@@ -516,7 +509,7 @@ private val INTERNAL_SINGLE_PUBLISHER_REPORTING_SET = internalReportingSet {
           .map { index ->
             CmmsEventGroupKey(
               DATA_PROVIDERS.keys.first().dataProviderId,
-              ExternalId(index + 670L).apiId.value
+              ExternalId(index + 670L).apiId.value,
             )
           }
           .map { it.toInternal() }
@@ -618,7 +611,7 @@ private val REQUISITION_SPECS: Map<DataProviderKey, RequisitionSpec> =
                 }
             }
         }
-      }
+      },
     )
     .mapValues {
       requisitionSpec {
@@ -641,7 +634,7 @@ private val DATA_PROVIDER_ENTRIES =
           encryptedRequisitionSpec =
             encryptRequisitionSpec(
               signRequisitionSpec(requisitionSpec, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE),
-              dataProvider.publicKey.unpack()
+              dataProvider.publicKey.unpack(),
             )
           nonceHash = Hashing.hashSha256(requisitionSpec.nonce)
         }
@@ -912,7 +905,7 @@ private val UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC = measurementSpe
     listOf(
       Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG),
       Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG),
-      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG)
+      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG),
     )
 
   reach =
@@ -953,7 +946,7 @@ private val REQUESTING_UNION_ALL_REACH_MEASUREMENT =
         UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC.copy {
           nonceHashes += Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG)
         },
-        MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
+        MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE,
       )
     measurementReferenceId =
       INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.cmmsCreateMeasurementRequestId
@@ -965,7 +958,7 @@ private val REQUESTING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
     measurementSpec =
       signMeasurementSpec(
         UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC,
-        MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
+        MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE,
       )
     measurementReferenceId =
       INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.cmmsCreateMeasurementRequestId
@@ -976,7 +969,7 @@ private val PENDING_UNION_ALL_REACH_MEASUREMENT =
     name =
       MeasurementKey(
           MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
-          INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.cmmsMeasurementId
+          INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.cmmsMeasurementId,
         )
         .toName()
     protocolConfig = REACH_PROTOCOL_CONFIG
@@ -987,7 +980,7 @@ private val PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
     name =
       MeasurementKey(
           MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
-          INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.cmmsMeasurementId
+          INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.cmmsMeasurementId,
         )
         .toName()
     protocolConfig = REACH_PROTOCOL_CONFIG
@@ -1058,7 +1051,7 @@ private val REACH_FREQUENCY_PROTOCOL_CONFIG: ProtocolConfig = protocolConfig {
             listOf(
               ProtocolConfig.NoiseMechanism.NONE,
               ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE,
-              ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+              ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
             )
           deterministicCount = ProtocolConfig.Direct.DeterministicCount.getDefaultInstance()
           liquidLegionsDistribution =
@@ -1074,7 +1067,7 @@ private val REQUESTING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT =
     measurementSpec =
       signMeasurementSpec(
         SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT_SPEC,
-        MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
+        MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE,
       )
     measurementReferenceId =
       INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.cmmsCreateMeasurementRequestId
@@ -1085,7 +1078,7 @@ private val PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT =
     name =
       MeasurementKey(
           MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
-          INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.cmmsMeasurementId
+          INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.cmmsMeasurementId,
         )
         .toName()
     protocolConfig = REACH_FREQUENCY_PROTOCOL_CONFIG
@@ -1152,7 +1145,7 @@ private val IMPRESSION_PROTOCOL_CONFIG: ProtocolConfig = protocolConfig {
             listOf(
               ProtocolConfig.NoiseMechanism.NONE,
               ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE,
-              ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+              ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
             )
           deterministicCount = ProtocolConfig.Direct.DeterministicCount.getDefaultInstance()
         }
@@ -1166,7 +1159,7 @@ private val REQUESTING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
     measurementSpec =
       signMeasurementSpec(
         SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC,
-        MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
+        MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE,
       )
     measurementReferenceId =
       INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsCreateMeasurementRequestId
@@ -1177,7 +1170,7 @@ private val PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
     name =
       MeasurementKey(
           MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
-          INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementId
+          INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementId,
         )
         .toName()
     protocolConfig = IMPRESSION_PROTOCOL_CONFIG
@@ -1211,7 +1204,7 @@ private val UNION_ALL_WATCH_DURATION_MEASUREMENT_SPEC = measurementSpec {
     listOf(
       Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG),
       Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG),
-      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG)
+      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG),
     )
 
   duration =
@@ -1243,7 +1236,7 @@ private val WATCH_DURATION_PROTOCOL_CONFIG: ProtocolConfig = protocolConfig {
             listOf(
               ProtocolConfig.NoiseMechanism.NONE,
               ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE,
-              ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+              ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
             )
           deterministicSum = ProtocolConfig.Direct.DeterministicSum.getDefaultInstance()
         }
@@ -1259,7 +1252,7 @@ private val REQUESTING_UNION_ALL_WATCH_DURATION_MEASUREMENT =
         UNION_ALL_WATCH_DURATION_MEASUREMENT_SPEC.copy {
           nonceHashes += Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG)
         },
-        MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
+        MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE,
       )
   }
 
@@ -1268,7 +1261,7 @@ private val PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT =
     name =
       MeasurementKey(
           MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
-          INTERNAL_PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.cmmsMeasurementId
+          INTERNAL_PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.cmmsMeasurementId,
         )
         .toName()
     protocolConfig = WATCH_DURATION_PROTOCOL_CONFIG
@@ -1295,7 +1288,7 @@ private val SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT =
           encryptedResult =
             encryptResult(
               signResult(result, DATA_PROVIDER_SIGNING_KEY),
-              MEASUREMENT_CONSUMER_PUBLIC_KEY
+              MEASUREMENT_CONSUMER_PUBLIC_KEY,
             )
           certificate = dataProvider.certificate
         }
@@ -1310,7 +1303,7 @@ private val POPULATION_MEASUREMENT_SPEC = measurementSpec {
     listOf(
       Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG),
       Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG),
-      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG)
+      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG),
     )
 
   population = MeasurementSpec.Population.getDefaultInstance()
@@ -1333,7 +1326,7 @@ private val PENDING_POPULATION_MEASUREMENT =
     name =
       MeasurementKey(
           MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
-          INTERNAL_PENDING_POPULATION_MEASUREMENT.cmmsMeasurementId
+          INTERNAL_PENDING_POPULATION_MEASUREMENT.cmmsMeasurementId,
         )
         .toName()
     state = Measurement.State.COMPUTING
@@ -1745,7 +1738,7 @@ private val PENDING_INCREMENTAL_REACH_METRIC =
     name =
       MetricKey(
           MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
-          INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId
+          INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId,
         )
         .toName()
     state = Metric.State.RUNNING
@@ -1801,7 +1794,7 @@ private val PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC =
     name =
       MetricKey(
           MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
-          INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.externalMetricId
+          INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.externalMetricId,
         )
         .toName()
     metricSpec = metricSpec {
@@ -1890,7 +1883,7 @@ private val PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC =
     name =
       MetricKey(
           MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
-          INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
+          INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId,
         )
         .toName()
     metricSpec = metricSpec {
@@ -1941,7 +1934,7 @@ private val PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC =
     name =
       MetricKey(
           MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
-          INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.externalMetricId
+          INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.externalMetricId,
         )
         .toName()
     metricSpec = metricSpec {
@@ -1991,7 +1984,7 @@ val PENDING_POPULATION_METRIC =
     name =
       MetricKey(
           MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
-          INTERNAL_PENDING_POPULATION_METRIC.externalMetricId
+          INTERNAL_PENDING_POPULATION_METRIC.externalMetricId,
         )
         .toName()
     state = Metric.State.RUNNING
@@ -2014,10 +2007,7 @@ val SUCCEEDED_POPULATION_METRIC =
 class MetricsServiceTest {
 
   private val internalMetricsMock: MetricsCoroutineImplBase = mockService {
-    onBlocking { createMetric(any()) }
-      .thenReturn(
-        INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC,
-      )
+    onBlocking { createMetric(any()) }.thenReturn(INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC)
     onBlocking { batchCreateMetrics(any()) }
       .thenReturn(
         internalBatchCreateMetricsResponse {
@@ -2029,7 +2019,7 @@ class MetricsServiceTest {
       .thenReturn(
         flowOf(
           INTERNAL_PENDING_INCREMENTAL_REACH_METRIC,
-          INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
+          INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC,
         )
       )
     onBlocking { batchGetMetrics(any()) }
@@ -2104,7 +2094,7 @@ class MetricsServiceTest {
               PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT,
             PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.name to
               PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT,
-            PENDING_POPULATION_MEASUREMENT.name to PENDING_POPULATION_MEASUREMENT
+            PENDING_POPULATION_MEASUREMENT.name to PENDING_POPULATION_MEASUREMENT,
           )
         batchGetMeasurementsResponse {
           measurements +=
@@ -2125,7 +2115,7 @@ class MetricsServiceTest {
             INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
               .cmmsCreateMeasurementRequestId to PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT,
             INTERNAL_PENDING_POPULATION_MEASUREMENT.cmmsCreateMeasurementRequestId to
-              PENDING_POPULATION_MEASUREMENT
+              PENDING_POPULATION_MEASUREMENT,
           )
         batchCreateMeasurementsResponse {
           measurements +=
@@ -2186,7 +2176,7 @@ class MetricsServiceTest {
 
     override fun computeMeasurementVariance(
       methodology: Methodology,
-      measurementVarianceParams: ReachMeasurementVarianceParams
+      measurementVarianceParams: ReachMeasurementVarianceParams,
     ): Double = VARIANCE_VALUE
 
     override fun computeMetricVariance(params: FrequencyMetricVarianceParams): FrequencyVariances =
@@ -2194,7 +2184,7 @@ class MetricsServiceTest {
 
     override fun computeMeasurementVariance(
       methodology: Methodology,
-      measurementVarianceParams: FrequencyMeasurementVarianceParams
+      measurementVarianceParams: FrequencyMeasurementVarianceParams,
     ): FrequencyVariances = FrequencyVariances(mapOf(), mapOf(), mapOf(), mapOf())
 
     override fun computeMetricVariance(params: ImpressionMetricVarianceParams): Double =
@@ -2202,7 +2192,7 @@ class MetricsServiceTest {
 
     override fun computeMeasurementVariance(
       methodology: Methodology,
-      measurementVarianceParams: ImpressionMeasurementVarianceParams
+      measurementVarianceParams: ImpressionMeasurementVarianceParams,
     ): Double = VARIANCE_VALUE
 
     override fun computeMetricVariance(params: WatchDurationMetricVarianceParams): Double =
@@ -2210,7 +2200,7 @@ class MetricsServiceTest {
 
     override fun computeMeasurementVariance(
       methodology: Methodology,
-      measurementVarianceParams: WatchDurationMeasurementVarianceParams
+      measurementVarianceParams: WatchDurationMeasurementVarianceParams,
     ): Double = VARIANCE_VALUE
   }
 
@@ -2287,10 +2277,7 @@ class MetricsServiceTest {
     val capturedMeasurementRequests = measurementsCaptor.allValues
     assertThat(capturedMeasurementRequests)
       .ignoringRepeatedFieldOrder()
-      .ignoringFieldDescriptors(
-        MEASUREMENT_SPEC_FIELD,
-        ENCRYPTED_REQUISITION_SPEC_FIELD,
-      )
+      .ignoringFieldDescriptors(MEASUREMENT_SPEC_FIELD, ENCRYPTED_REQUISITION_SPEC_FIELD)
       .containsExactly(
         batchCreateMeasurementsRequest {
           parent = request.parent
@@ -2313,7 +2300,7 @@ class MetricsServiceTest {
       verifyMeasurementSpec(
         createMeasurementRequest.measurement.measurementSpec,
         MEASUREMENT_CONSUMER_CERTIFICATE,
-        TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+        TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
       )
 
       val dataProvidersList =
@@ -2334,7 +2321,7 @@ class MetricsServiceTest {
         val signedRequisitionSpec =
           decryptRequisitionSpec(
             dataProviderEntry.value.encryptedRequisitionSpec,
-            DATA_PROVIDER_PRIVATE_KEY_HANDLE
+            DATA_PROVIDER_PRIVATE_KEY_HANDLE,
           )
         val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
         verifyRequisitionSpec(
@@ -2342,7 +2329,7 @@ class MetricsServiceTest {
           requisitionSpec,
           measurementSpec,
           MEASUREMENT_CONSUMER_CERTIFICATE,
-          TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+          TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
         )
       }
     }
@@ -2350,7 +2337,7 @@ class MetricsServiceTest {
     // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementId
     verifyProtoArgument(
         internalMeasurementsMock,
-        InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds
+        InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds,
       )
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
@@ -2417,10 +2404,7 @@ class MetricsServiceTest {
       val capturedMeasurementRequests = measurementsCaptor.allValues
       assertThat(capturedMeasurementRequests)
         .ignoringRepeatedFieldOrder()
-        .ignoringFieldDescriptors(
-          MEASUREMENT_SPEC_FIELD,
-          ENCRYPTED_REQUISITION_SPEC_FIELD,
-        )
+        .ignoringFieldDescriptors(MEASUREMENT_SPEC_FIELD, ENCRYPTED_REQUISITION_SPEC_FIELD)
         .containsExactly(
           batchCreateMeasurementsRequest {
             parent = request.parent
@@ -2438,7 +2422,7 @@ class MetricsServiceTest {
         verifyMeasurementSpec(
           createMeasurementRequest.measurement.measurementSpec,
           MEASUREMENT_CONSUMER_CERTIFICATE,
-          TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+          TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
         )
 
         val dataProvidersList =
@@ -2452,7 +2436,7 @@ class MetricsServiceTest {
           val signedRequisitionSpec =
             decryptRequisitionSpec(
               dataProviderEntry.value.encryptedRequisitionSpec,
-              DATA_PROVIDER_PRIVATE_KEY_HANDLE
+              DATA_PROVIDER_PRIVATE_KEY_HANDLE,
             )
           val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
           verifyRequisitionSpec(
@@ -2460,7 +2444,7 @@ class MetricsServiceTest {
             requisitionSpec,
             measurementSpec,
             MEASUREMENT_CONSUMER_CERTIFICATE,
-            TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+            TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
           )
         }
       }
@@ -2468,7 +2452,7 @@ class MetricsServiceTest {
       // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds
       verifyProtoArgument(
           internalMeasurementsMock,
-          InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds
+          InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds,
         )
         .ignoringRepeatedFieldOrder()
         .isEqualTo(
@@ -2529,10 +2513,7 @@ class MetricsServiceTest {
     val capturedMeasurementRequests = measurementsCaptor.allValues
     assertThat(capturedMeasurementRequests)
       .ignoringRepeatedFieldOrder()
-      .ignoringFieldDescriptors(
-        MEASUREMENT_SPEC_FIELD,
-        ENCRYPTED_REQUISITION_SPEC_FIELD,
-      )
+      .ignoringFieldDescriptors(MEASUREMENT_SPEC_FIELD, ENCRYPTED_REQUISITION_SPEC_FIELD)
       .containsExactly(
         batchCreateMeasurementsRequest {
           parent = request.parent
@@ -2550,7 +2531,7 @@ class MetricsServiceTest {
       verifyMeasurementSpec(
         createMeasurementRequest.measurement.measurementSpec,
         MEASUREMENT_CONSUMER_CERTIFICATE,
-        TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+        TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
       )
 
       val dataProvidersList =
@@ -2564,7 +2545,7 @@ class MetricsServiceTest {
         val signedRequisitionSpec =
           decryptRequisitionSpec(
             dataProviderEntry.value.encryptedRequisitionSpec,
-            DATA_PROVIDER_PRIVATE_KEY_HANDLE
+            DATA_PROVIDER_PRIVATE_KEY_HANDLE,
           )
         val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
         verifyRequisitionSpec(
@@ -2572,7 +2553,7 @@ class MetricsServiceTest {
           requisitionSpec,
           measurementSpec,
           MEASUREMENT_CONSUMER_CERTIFICATE,
-          TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+          TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
         )
       }
     }
@@ -2580,7 +2561,7 @@ class MetricsServiceTest {
     // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds
     verifyProtoArgument(
         internalMeasurementsMock,
-        InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds
+        InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds,
       )
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
@@ -2735,10 +2716,7 @@ class MetricsServiceTest {
     val capturedMeasurementRequests = measurementsCaptor.allValues
     assertThat(capturedMeasurementRequests)
       .ignoringRepeatedFieldOrder()
-      .ignoringFieldDescriptors(
-        MEASUREMENT_SPEC_FIELD,
-        ENCRYPTED_REQUISITION_SPEC_FIELD,
-      )
+      .ignoringFieldDescriptors(MEASUREMENT_SPEC_FIELD, ENCRYPTED_REQUISITION_SPEC_FIELD)
       .containsExactly(
         batchCreateMeasurementsRequest {
           parent = request.parent
@@ -2756,7 +2734,7 @@ class MetricsServiceTest {
       verifyMeasurementSpec(
         createMeasurementRequest.measurement.measurementSpec,
         MEASUREMENT_CONSUMER_CERTIFICATE,
-        TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+        TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
       )
 
       val dataProvidersList =
@@ -2770,7 +2748,7 @@ class MetricsServiceTest {
         val signedRequisitionSpec =
           decryptRequisitionSpec(
             dataProviderEntry.value.encryptedRequisitionSpec,
-            DATA_PROVIDER_PRIVATE_KEY_HANDLE
+            DATA_PROVIDER_PRIVATE_KEY_HANDLE,
           )
         val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
         verifyRequisitionSpec(
@@ -2778,7 +2756,7 @@ class MetricsServiceTest {
           requisitionSpec,
           measurementSpec,
           MEASUREMENT_CONSUMER_CERTIFICATE,
-          TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+          TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
         )
       }
     }
@@ -2786,7 +2764,7 @@ class MetricsServiceTest {
     // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds
     verifyProtoArgument(
         internalMeasurementsMock,
-        InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds
+        InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds,
       )
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
@@ -2840,10 +2818,7 @@ class MetricsServiceTest {
     val capturedMeasurementRequests = measurementsCaptor.allValues
     assertThat(capturedMeasurementRequests)
       .ignoringRepeatedFieldOrder()
-      .ignoringFieldDescriptors(
-        MEASUREMENT_SPEC_FIELD,
-        ENCRYPTED_REQUISITION_SPEC_FIELD,
-      )
+      .ignoringFieldDescriptors(MEASUREMENT_SPEC_FIELD, ENCRYPTED_REQUISITION_SPEC_FIELD)
       .containsExactly(
         batchCreateMeasurementsRequest {
           parent = request.parent
@@ -2866,7 +2841,7 @@ class MetricsServiceTest {
       verifyMeasurementSpec(
         createMeasurementRequest.measurement.measurementSpec,
         MEASUREMENT_CONSUMER_CERTIFICATE,
-        TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+        TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
       )
 
       val dataProvidersList =
@@ -2887,7 +2862,7 @@ class MetricsServiceTest {
         val signedRequisitionSpec =
           decryptRequisitionSpec(
             dataProviderEntry.value.encryptedRequisitionSpec,
-            DATA_PROVIDER_PRIVATE_KEY_HANDLE
+            DATA_PROVIDER_PRIVATE_KEY_HANDLE,
           )
         val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
         verifyRequisitionSpec(
@@ -2895,7 +2870,7 @@ class MetricsServiceTest {
           requisitionSpec,
           measurementSpec,
           MEASUREMENT_CONSUMER_CERTIFICATE,
-          TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+          TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
         )
       }
     }
@@ -2903,7 +2878,7 @@ class MetricsServiceTest {
     // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds
     verifyProtoArgument(
         internalMeasurementsMock,
-        InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds
+        InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds,
       )
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
@@ -3023,7 +2998,7 @@ class MetricsServiceTest {
           val signedRequisitionSpec =
             decryptRequisitionSpec(
               dataProviderEntry.value.encryptedRequisitionSpec,
-              DATA_PROVIDER_PRIVATE_KEY_HANDLE
+              DATA_PROVIDER_PRIVATE_KEY_HANDLE,
             )
           val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
 
@@ -3119,7 +3094,7 @@ class MetricsServiceTest {
                   MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
                   externalIdToApiId(
                     100L + weightedMeasurement.measurement.cmmsCreateMeasurementRequestId.toLong()
-                  )
+                  ),
                 )
                 .toName()
           }
@@ -3161,7 +3136,7 @@ class MetricsServiceTest {
             (1 + BATCH_SET_CMMS_MEASUREMENT_IDS_LIMIT).toDouble() / BATCH_KINGDOM_MEASUREMENTS_LIMIT
           )
           .toInt()
-      )
+      ),
     ) {
       batchCreateMeasurements(batchCreateMeasurementsCaptor.capture())
     }
@@ -3763,7 +3738,7 @@ class MetricsServiceTest {
     val inaccessibleReportingSetName =
       ReportingSetKey(
           MEASUREMENT_CONSUMERS.keys.last().measurementConsumerId,
-          externalIdToApiId(241L)
+          externalIdToApiId(241L),
         )
         .toName()
 
@@ -4034,10 +4009,7 @@ class MetricsServiceTest {
     val capturedMeasurementRequests = measurementsCaptor.allValues
     assertThat(capturedMeasurementRequests)
       .ignoringRepeatedFieldOrder()
-      .ignoringFieldDescriptors(
-        MEASUREMENT_SPEC_FIELD,
-        ENCRYPTED_REQUISITION_SPEC_FIELD,
-      )
+      .ignoringFieldDescriptors(MEASUREMENT_SPEC_FIELD, ENCRYPTED_REQUISITION_SPEC_FIELD)
       .containsExactly(
         batchCreateMeasurementsRequest {
           parent = request.parent
@@ -4067,7 +4039,7 @@ class MetricsServiceTest {
       verifyMeasurementSpec(
         createMeasurementRequest.measurement.measurementSpec,
         MEASUREMENT_CONSUMER_CERTIFICATE,
-        TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+        TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
       )
 
       val dataProvidersList =
@@ -4090,7 +4062,7 @@ class MetricsServiceTest {
         val signedRequisitionSpec =
           decryptRequisitionSpec(
             dataProviderEntry.value.encryptedRequisitionSpec,
-            DATA_PROVIDER_PRIVATE_KEY_HANDLE
+            DATA_PROVIDER_PRIVATE_KEY_HANDLE,
           )
         val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
         verifyRequisitionSpec(
@@ -4098,7 +4070,7 @@ class MetricsServiceTest {
           requisitionSpec,
           measurementSpec,
           MEASUREMENT_CONSUMER_CERTIFICATE,
-          TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+          TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
         )
       }
     }
@@ -4106,7 +4078,7 @@ class MetricsServiceTest {
     // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementId
     verifyProtoArgument(
         internalMeasurementsMock,
-        InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds
+        InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds,
       )
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
@@ -4696,7 +4668,7 @@ class MetricsServiceTest {
       .thenReturn(
         flowOf(
           INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC,
-          INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
+          INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC,
         )
       )
     whenever(internalMetricsMock.batchGetMetrics(any()))
@@ -4768,7 +4740,7 @@ class MetricsServiceTest {
               message =
                 INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.details.failure.message
             }
-          }
+          },
       )
     whenever(measurementsMock.batchGetMeasurements(any())).thenAnswer {
       val batchGetMeasurementsRequest = it.arguments[0] as BatchGetMeasurementsRequest
@@ -4984,7 +4956,7 @@ class MetricsServiceTest {
           mapOf(
             SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.name to SUCCEEDED_UNION_ALL_REACH_MEASUREMENT,
             SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.name to
-              SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
+              SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT,
           )
         batchGetMeasurementsResponse {
           measurements +=
@@ -5045,7 +5017,7 @@ class MetricsServiceTest {
             SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.name to
               SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT,
             PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name to
-              PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+              PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT,
           )
         batchGetMeasurementsResponse {
           measurements +=
@@ -5080,11 +5052,11 @@ class MetricsServiceTest {
                       measurementPublicKey =
                         MEASUREMENT_CONSUMER_PUBLIC_KEY.copy { clearData() }.pack()
                     },
-                    MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
+                    MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE,
                   )
               },
             SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name to
-              SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+              SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT,
           )
         batchGetMeasurementsResponse {
           measurements +=
@@ -5117,7 +5089,7 @@ class MetricsServiceTest {
           SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.name to
             SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT,
           SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name to
-            SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+            SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT,
         )
       batchGetMeasurementsResponse {
         measurements +=
@@ -5478,7 +5450,7 @@ class MetricsServiceTest {
                       encryptedResult =
                         encryptResult(
                           signResult(result, DATA_PROVIDER_SIGNING_KEY),
-                          MEASUREMENT_CONSUMER_PUBLIC_KEY
+                          MEASUREMENT_CONSUMER_PUBLIC_KEY,
                         )
                       certificate = dataProvider.certificate
                     }
@@ -5557,7 +5529,7 @@ class MetricsServiceTest {
                       encryptedResult =
                         encryptResult(
                           signResult(result, DATA_PROVIDER_SIGNING_KEY),
-                          MEASUREMENT_CONSUMER_PUBLIC_KEY
+                          MEASUREMENT_CONSUMER_PUBLIC_KEY,
                         )
                       certificate = dataProvider.certificate
                     }
@@ -5735,7 +5707,7 @@ class MetricsServiceTest {
           val measurementName =
             MeasurementKey(
                 MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
-                weightedMeasurement.measurement.cmmsMeasurementId
+                weightedMeasurement.measurement.cmmsMeasurementId,
               )
               .toName()
 
@@ -5777,7 +5749,7 @@ class MetricsServiceTest {
                 BATCH_KINGDOM_MEASUREMENTS_LIMIT
             )
             .toInt()
-        )
+        ),
       ) {
         batchGetMeasurements(batchGetMeasurementsCaptor.capture())
       }
@@ -5810,7 +5782,7 @@ class MetricsServiceTest {
           val measurementName =
             MeasurementKey(
                 MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
-                weightedMeasurement.measurement.cmmsMeasurementId
+                weightedMeasurement.measurement.cmmsMeasurementId,
               )
               .toName()
 
@@ -5860,7 +5832,7 @@ class MetricsServiceTest {
                 BATCH_KINGDOM_MEASUREMENTS_LIMIT
             )
             .toInt()
-        )
+        ),
       ) {
         batchGetMeasurements(batchGetMeasurementsCaptor.capture())
       }
@@ -5928,7 +5900,7 @@ class MetricsServiceTest {
   fun `getMetric returns the metric with RUNNING when measurements are pending`() = runBlocking {
     whenever(internalMetricsMock.batchGetMetrics(any()))
       .thenReturn(
-        internalBatchGetMetricsResponse { metrics += INTERNAL_PENDING_INCREMENTAL_REACH_METRIC },
+        internalBatchGetMetricsResponse { metrics += INTERNAL_PENDING_INCREMENTAL_REACH_METRIC }
       )
 
     val request = getMetricRequest { name = PENDING_INCREMENTAL_REACH_METRIC.name }
@@ -6125,7 +6097,7 @@ class MetricsServiceTest {
                                     REACH_FREQUENCY_REACH_VALUE *
                                       REACH_FREQUENCY_FREQUENCY_VALUE.getOrDefault(
                                         frequency.toLong(),
-                                        0.0
+                                        0.0,
                                       )
                                 }
                             }
@@ -6215,7 +6187,7 @@ class MetricsServiceTest {
                                     REACH_FREQUENCY_REACH_VALUE *
                                       REACH_FREQUENCY_FREQUENCY_VALUE.getOrDefault(
                                         frequency.toLong(),
-                                        0.0
+                                        0.0,
                                       )
                                 }
                             }
@@ -6302,7 +6274,7 @@ class MetricsServiceTest {
                                     REACH_FREQUENCY_REACH_VALUE *
                                       REACH_FREQUENCY_FREQUENCY_VALUE.getOrDefault(
                                         frequency.toLong(),
-                                        0.0
+                                        0.0,
                                       )
                                 }
                             }
@@ -6401,7 +6373,7 @@ class MetricsServiceTest {
                                     REACH_FREQUENCY_REACH_VALUE *
                                       REACH_FREQUENCY_FREQUENCY_VALUE.getOrDefault(
                                         frequency.toLong(),
-                                        0.0
+                                        0.0,
                                       )
                                 }
                             }
@@ -6776,7 +6748,7 @@ class MetricsServiceTest {
         .thenReturn(
           internalBatchGetMetricsResponse {
             metrics += INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC
-          },
+          }
         )
 
       val request = getMetricRequest { name = PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.name }
@@ -6800,7 +6772,7 @@ class MetricsServiceTest {
               INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.cmmsMeasurementConsumerId
             externalMetricIds +=
               INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.externalMetricId
-          },
+          }
         )
 
       // Verify proto argument of MeasurementsCoroutineImplBase::batchGetMeasurements
@@ -6848,7 +6820,7 @@ class MetricsServiceTest {
                   measurement = INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
                 }
               }
-          },
+          }
         )
 
       val request = getMetricRequest { name = SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
@@ -6872,7 +6844,7 @@ class MetricsServiceTest {
               INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.cmmsMeasurementConsumerId
             externalMetricIds +=
               INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
-          },
+          }
         )
 
       // Verify proto argument of MeasurementsCoroutineImplBase::batchGetMeasurements
@@ -6938,7 +6910,7 @@ class MetricsServiceTest {
                     }
                 }
               }
-          },
+          }
         )
 
       val request = getMetricRequest { name = SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
@@ -6987,7 +6959,7 @@ class MetricsServiceTest {
                     }
                 }
               }
-          },
+          }
         )
 
       val request = getMetricRequest { name = SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
@@ -7048,7 +7020,7 @@ class MetricsServiceTest {
                     }
                 }
               }
-          },
+          }
         )
 
       val request = getMetricRequest { name = SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
@@ -7104,7 +7076,7 @@ class MetricsServiceTest {
                   }
               }
             }
-        },
+        }
       )
 
     val request = getMetricRequest { name = SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
@@ -7126,7 +7098,7 @@ class MetricsServiceTest {
         .thenReturn(
           internalBatchGetMetricsResponse {
             metrics += INTERNAL_SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC
-          },
+          }
         )
 
       val request = getMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
@@ -7150,7 +7122,7 @@ class MetricsServiceTest {
               INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.cmmsMeasurementConsumerId
             externalMetricIds +=
               INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.externalMetricId
-          },
+          }
         )
 
       // Verify proto argument of MeasurementsCoroutineImplBase::batchGetMeasurements
@@ -7496,9 +7468,9 @@ class MetricsServiceTest {
                       measurementPublicKey =
                         MEASUREMENT_CONSUMER_PUBLIC_KEY.copy { clearData() }.pack()
                     },
-                    MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
+                    MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE,
                   )
-              }
+              },
           )
         batchGetMeasurementsResponse {
           measurements +=
@@ -7574,7 +7546,7 @@ class MetricsServiceTest {
                   encryptedResult =
                     encryptResult(
                       signResult(result, AGGREGATOR_SIGNING_KEY),
-                      MEASUREMENT_CONSUMER_PUBLIC_KEY
+                      MEASUREMENT_CONSUMER_PUBLIC_KEY,
                     )
                   certificate = AGGREGATOR_CERTIFICATE.name
                 }
@@ -7774,10 +7746,7 @@ class MetricsServiceTest {
     val capturedMeasurementRequests = measurementsCaptor.allValues
     assertThat(capturedMeasurementRequests)
       .ignoringRepeatedFieldOrder()
-      .ignoringFieldDescriptors(
-        MEASUREMENT_SPEC_FIELD,
-        ENCRYPTED_REQUISITION_SPEC_FIELD,
-      )
+      .ignoringFieldDescriptors(MEASUREMENT_SPEC_FIELD, ENCRYPTED_REQUISITION_SPEC_FIELD)
       .containsExactly(
         batchCreateMeasurementsRequest {
           parent = request.parent
@@ -7786,14 +7755,14 @@ class MetricsServiceTest {
             measurement = REQUESTING_POPULATION_MEASUREMENT
             requestId = INTERNAL_PENDING_POPULATION_MEASUREMENT.cmmsCreateMeasurementRequestId
           }
-        },
+        }
       )
 
     val capturedMeasurementRequest = capturedMeasurementRequests.single().requestsList.first()
     verifyMeasurementSpec(
       capturedMeasurementRequest.measurement.measurementSpec,
       MEASUREMENT_CONSUMER_CERTIFICATE,
-      TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+      TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
     )
 
     val dataProvidersList =
@@ -7815,7 +7784,7 @@ class MetricsServiceTest {
       val signedRequisitionSpec =
         decryptRequisitionSpec(
           dataProviderEntry.value.encryptedRequisitionSpec,
-          DATA_PROVIDER_PRIVATE_KEY_HANDLE
+          DATA_PROVIDER_PRIVATE_KEY_HANDLE,
         )
       val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
       verifyRequisitionSpec(
@@ -7823,14 +7792,14 @@ class MetricsServiceTest {
         requisitionSpec,
         measurementSpec,
         MEASUREMENT_CONSUMER_CERTIFICATE,
-        TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+        TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
       )
     }
 
     // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementId
     verifyProtoArgument(
         internalMeasurementsMock,
-        InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds
+        InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds,
       )
       .ignoringRepeatedFieldOrder()
       .isEqualTo(

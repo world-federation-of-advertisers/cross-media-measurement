@@ -39,7 +39,7 @@ import org.wfanet.panelmatch.common.toDelimitedByteString
 /** Writes input messages into blobs. */
 class WriteShardedData<T : Message>(
   private val fileSpec: String,
-  private val storageFactory: StorageFactory
+  private val storageFactory: StorageFactory,
 ) : PTransform<PCollection<T>, WriteShardedData.WriteResult>() {
 
   /** [POutput] holding filenames written. */
@@ -53,7 +53,7 @@ class WriteShardedData<T : Message>(
     override fun finishSpecifyingOutput(
       transformName: String,
       input: PInput,
-      transform: PTransform<*, *>
+      transform: PTransform<*, *>,
     ) {}
 
     companion object {
@@ -73,7 +73,7 @@ class WriteShardedData<T : Message>(
       groupedData.pipeline.createSequence(
         name = "Missing Files Sequence",
         n = shardCount,
-        parallelism = 1000
+        parallelism = 1000,
       )
     val missingFiles =
       allShardIndices
@@ -93,7 +93,7 @@ class WriteShardedData<T : Message>(
 
 private class WriteFilesFn<T : Message>(
   private val fileSpec: String,
-  private val storageFactory: StorageFactory
+  private val storageFactory: StorageFactory,
 ) : DoFn<KV<Int, Iterable<@JvmWildcard T>>, String>() {
 
   @ProcessElement

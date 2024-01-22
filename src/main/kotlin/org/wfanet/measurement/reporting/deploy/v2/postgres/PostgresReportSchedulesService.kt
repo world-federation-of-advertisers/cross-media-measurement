@@ -60,7 +60,7 @@ class PostgresReportSchedulesService(
     } catch (e: MeasurementConsumerNotFoundException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Measurement Consumer not found."
+        "Measurement Consumer not found.",
       )
     } catch (e: ReportScheduleAlreadyExistsException) {
       throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS, "Report Schedule already exists")
@@ -81,7 +81,7 @@ class PostgresReportSchedulesService(
       ReportScheduleReader(readContext)
         .readReportScheduleByExternalId(
           request.cmmsMeasurementConsumerId,
-          request.externalReportScheduleId
+          request.externalReportScheduleId,
         )
         ?.reportSchedule
         ?: throw Status.NOT_FOUND.withDescription("Report Schedule not found.").asRuntimeException()
@@ -129,7 +129,7 @@ class PostgresReportSchedulesService(
     } catch (e: ReportScheduleStateInvalidException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Report Schedule State is not ACTIVE."
+        "Report Schedule State is not ACTIVE.",
       )
     }
   }

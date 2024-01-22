@@ -75,7 +75,7 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
 
   protected data class Services<T>(
     val measurementConsumersService: T,
-    val accountsService: AccountsGrpcKt.AccountsCoroutineImplBase
+    val accountsService: AccountsGrpcKt.AccountsCoroutineImplBase,
   )
 
   protected val clock: Clock = Clock.systemUTC()
@@ -83,7 +83,7 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
   protected val idGenerator =
     FixedIdGenerator(
       InternalId(FIXED_GENERATED_INTERNAL_ID),
-      ExternalId(FIXED_GENERATED_EXTERNAL_ID)
+      ExternalId(FIXED_GENERATED_EXTERNAL_ID),
     )
 
   private val population = Population(clock, idGenerator)
@@ -223,7 +223,7 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
         Certificate.getDescriptor()
           .findFieldByNumber(Certificate.EXTERNAL_MEASUREMENT_CONSUMER_ID_FIELD_NUMBER),
         Certificate.getDescriptor()
-          .findFieldByNumber(Certificate.EXTERNAL_CERTIFICATE_ID_FIELD_NUMBER)
+          .findFieldByNumber(Certificate.EXTERNAL_CERTIFICATE_ID_FIELD_NUMBER),
       )
       .isEqualTo(MEASUREMENT_CONSUMER)
     assertThat(createdMeasurementConsumer.externalMeasurementConsumerId).isNotEqualTo(0L)

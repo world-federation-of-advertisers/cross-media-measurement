@@ -23,7 +23,7 @@ import org.wfanet.panelmatch.common.storage.StorageFactory
 
 class FileSystemStorageFactory(
   private val storageDetails: StorageDetails,
-  private val exchangeDateKey: ExchangeDateKey
+  private val exchangeDateKey: ExchangeDateKey,
 ) : StorageFactory {
 
   override fun build(): StorageClient {

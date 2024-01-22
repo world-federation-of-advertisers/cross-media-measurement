@@ -91,11 +91,8 @@ interface Operand
 
 data class ReportingSet(val id: Int) : Operand
 
-data class SetOperationExpression(
-  val setOperator: Operator,
-  val lhs: Operand,
-  val rhs: Operand?,
-) : Operand
+data class SetOperationExpression(val setOperator: Operator, val lhs: Operand, val rhs: Operand?) :
+  Operand
 
 data class WeightedSubsetUnion(val reportingSetIds: List<Int>, val coefficient: Int)
 
@@ -120,7 +117,7 @@ class SetExpressionCompiler {
    */
   suspend fun compileSetExpression(
     setOperationExpression: SetOperationExpression,
-    numReportingSets: Int
+    numReportingSets: Int,
   ): List<WeightedSubsetUnion> {
     // Step 1 - Gets the primitive regions that form the set expression
     val primitiveRegions =
@@ -137,7 +134,7 @@ class SetExpressionCompiler {
   /** Converts a [UnionSetCoefficientMap] to [WeightedSubsetUnion]s. */
   private fun convertUnionSetToWeightedSubsetUnions(
     unionSetCoefficientMap: UnionSetCoefficientMap,
-    numReportingSets: Int
+    numReportingSets: Int,
   ): List<WeightedSubsetUnion> {
     return unionSetCoefficientMap.map { (unionSet, coefficient) ->
       // Find the reporting sets in the union-set.
@@ -156,7 +153,7 @@ class SetExpressionCompiler {
    */
   private suspend fun convertPrimitiveRegionsToUnionSetCoefficientMap(
     numReportingSets: Int,
-    primitiveRegions: Set<PrimitiveRegion>
+    primitiveRegions: Set<PrimitiveRegion>,
   ): UnionSetCoefficientMap {
 
     val primitiveRegionsToUnionSetCoefficients: PrimitiveRegionToUnionSetCoefficientMap =
@@ -175,7 +172,7 @@ class SetExpressionCompiler {
           convertSinglePrimitiveRegionToUnionSetCoefficientMap(
             numReportingSets,
             region,
-            primitiveRegionsToUnionSetCoefficients
+            primitiveRegionsToUnionSetCoefficients,
           )
         }
       }
@@ -224,7 +221,7 @@ class SetExpressionCompiler {
   private fun convertSinglePrimitiveRegionToUnionSetCoefficientMap(
     numReportingSets: Int,
     region: PrimitiveRegion,
-    primitiveRegionsToUnionSetCoefficients: PrimitiveRegionToUnionSetCoefficientMap
+    primitiveRegionsToUnionSetCoefficients: PrimitiveRegionToUnionSetCoefficientMap,
   ) {
     // For a given region, we first find which bit positions are set and which are not.
     val setBitPositions = mutableListOf<Int>()
@@ -289,7 +286,7 @@ class SetExpressionCompiler {
   private fun findComposingUnionSets(
     setBitPositions: MutableList<Int>,
     unsetBitPositions: MutableList<Int>,
-    size: Int
+    size: Int,
   ): MutableList<UnionSet> {
     val composingUnionSets = mutableListOf<UnionSet>()
 
@@ -310,7 +307,7 @@ class SetExpressionCompiler {
     start: Int,
     choices: MutableList<Int>,
     combination: MutableList<Int>,
-    result: MutableList<UnionSet>
+    result: MutableList<UnionSet>,
   ) {
     if (combination.size == size) {
       result.add(combination.sumOf { 1.toUnionSet() shl it })
@@ -329,7 +326,7 @@ class SetExpressionCompiler {
   /** Gets the set of the primitive regions that form the set from the set operation expression. */
   private fun setOperationExpressionToPrimitiveRegions(
     numReportingSets: Int,
-    setOperationExpression: SetOperationExpression
+    setOperationExpression: SetOperationExpression,
   ): Set<PrimitiveRegion> {
     val allPrimitiveRegionSetsList = buildAllPrimitiveRegions(numReportingSets)
     return setOperationExpression.decompose(allPrimitiveRegionSetsList)
@@ -404,7 +401,7 @@ private fun Operand?.decompose(
 private fun calculateBinarySetExpression(
   lhs: Set<PrimitiveRegion>,
   rhs: Set<PrimitiveRegion>,
-  operator: Operator
+  operator: Operator,
 ): Set<PrimitiveRegion> {
   return when (operator) {
     Operator.UNION -> lhs union rhs

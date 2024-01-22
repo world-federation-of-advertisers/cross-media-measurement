@@ -36,7 +36,7 @@ class ComputationsEnumHelperTest {
           ComputationProtocolStages.longValuesToComputationStageEnum(
             ComputationProtocolStages.computationStageEnumToLongValues(computationStage)
           ),
-          "protocolEnumToLong and longToProtocolEnum were not inverses for $stage"
+          "protocolEnumToLong and longToProtocolEnum were not inverses for $stage",
         )
       }
     }
@@ -54,7 +54,7 @@ class ComputationsEnumHelperTest {
           ComputationProtocolStages.longValuesToComputationStageEnum(
             ComputationProtocolStages.computationStageEnumToLongValues(computationStage)
           ),
-          "protocolEnumToLong and longToProtocolEnum were not inverses for $stage"
+          "protocolEnumToLong and longToProtocolEnum were not inverses for $stage",
         )
       }
     }
@@ -70,7 +70,7 @@ class ComputationsEnumHelperTest {
         ComputationProtocolStages.longValuesToComputationStageEnum(
           ComputationProtocolStages.computationStageEnumToLongValues(computationStage)
         ),
-        "protocolEnumToLong and longToProtocolEnum were not inverses for $stage"
+        "protocolEnumToLong and longToProtocolEnum were not inverses for $stage",
       )
     }
   }

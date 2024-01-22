@@ -39,7 +39,7 @@ class TestPrivacyBucketMapper : PrivacyBucketMapper {
     } catch (e: EventFilterValidationException) {
       throw PrivacyBudgetManagerException(
         PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER,
-        e
+        e,
       )
     }
 

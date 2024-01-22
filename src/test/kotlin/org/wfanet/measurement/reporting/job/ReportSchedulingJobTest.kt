@@ -111,7 +111,7 @@ class ReportSchedulingJobTest {
             INTERNAL_COMPOSITE_REPORTING_SET.externalReportingSetId to
               INTERNAL_COMPOSITE_REPORTING_SET,
             INTERNAL_PRIMITIVE_REPORTING_SET.externalReportingSetId to
-              INTERNAL_PRIMITIVE_REPORTING_SET
+              INTERNAL_PRIMITIVE_REPORTING_SET,
           )
         batchGetReportingSetsResponse {
           reportingSets +=
@@ -188,7 +188,7 @@ class ReportSchedulingJobTest {
 
     verifyProtoArgument(
         reportScheduleIterationsMock,
-        ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration
+        ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration,
       )
       .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
       .isEqualTo(
@@ -229,7 +229,7 @@ class ReportSchedulingJobTest {
 
     verifyProtoArgument(
         reportScheduleIterationsMock,
-        ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState
+        ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState,
       )
       .isEqualTo(
         setReportScheduleIterationStateRequest {
@@ -287,7 +287,7 @@ class ReportSchedulingJobTest {
 
       verifyProtoArgument(
           reportSchedulesMock,
-          ReportSchedulesCoroutineImplBase::listReportSchedules
+          ReportSchedulesCoroutineImplBase::listReportSchedules,
         )
         .isEqualTo(
           listReportSchedulesRequest {
@@ -302,7 +302,7 @@ class ReportSchedulingJobTest {
 
       verifyProtoArgument(
           reportScheduleIterationsMock,
-          ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration
+          ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration,
         )
         .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
         .isEqualTo(
@@ -351,7 +351,7 @@ class ReportSchedulingJobTest {
 
       verifyProtoArgument(
           reportScheduleIterationsMock,
-          ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState
+          ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState,
         )
         .isEqualTo(
           setReportScheduleIterationStateRequest {
@@ -384,7 +384,7 @@ class ReportSchedulingJobTest {
 
       verifyProtoArgument(
           reportSchedulesMock,
-          ReportSchedulesCoroutineImplBase::listReportSchedules
+          ReportSchedulesCoroutineImplBase::listReportSchedules,
         )
         .isEqualTo(
           listReportSchedulesRequest {
@@ -411,7 +411,7 @@ class ReportSchedulingJobTest {
         .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
         .containsExactly(
           reportScheduleIteration,
-          reportScheduleIteration.copy { externalReportScheduleId = otherReportScheduleId }
+          reportScheduleIteration.copy { externalReportScheduleId = otherReportScheduleId },
         )
 
       val getDataProviderCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
@@ -469,7 +469,7 @@ class ReportSchedulingJobTest {
           setReportScheduleIterationStateRequest,
           setReportScheduleIterationStateRequest.copy {
             externalReportScheduleId = otherReportScheduleId
-          }
+          },
         )
     }
 
@@ -509,7 +509,7 @@ class ReportSchedulingJobTest {
         .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
         .containsExactly(
           reportScheduleIteration,
-          reportScheduleIteration.copy { externalReportScheduleId = otherReportScheduleId }
+          reportScheduleIteration.copy { externalReportScheduleId = otherReportScheduleId },
         )
 
       val getDataProviderCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
@@ -572,7 +572,7 @@ class ReportSchedulingJobTest {
       assertThat(setReportScheduleIterationStateCaptor.allValues)
         .containsExactly(
           setReportScheduleIterationStateSuccessRequest,
-          setReportScheduleIterationStateFailureRequest
+          setReportScheduleIterationStateFailureRequest,
         )
     }
 
@@ -612,7 +612,7 @@ class ReportSchedulingJobTest {
         .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
         .containsExactly(
           reportScheduleIteration,
-          reportScheduleIteration.copy { externalReportScheduleId = otherReportScheduleId }
+          reportScheduleIteration.copy { externalReportScheduleId = otherReportScheduleId },
         )
 
       val getDataProviderCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
@@ -717,7 +717,7 @@ class ReportSchedulingJobTest {
           reportScheduleIteration,
           reportScheduleIteration.copy {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID_2
-          }
+          },
         )
 
       val getDataProviderCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
@@ -772,13 +772,13 @@ class ReportSchedulingJobTest {
                         metricCalculationSpecs +=
                           MetricCalculationSpecKey(
                               CMMS_MEASUREMENT_CONSUMER_ID_2,
-                              METRIC_CALCULATION_SPEC_ID
+                              METRIC_CALCULATION_SPEC_ID,
                             )
                             .toName()
                       }
                   }
               }
-          }
+          },
         )
 
       val setReportScheduleIterationStateCaptor:
@@ -799,7 +799,7 @@ class ReportSchedulingJobTest {
           setReportScheduleIterationStateRequest,
           setReportScheduleIterationStateRequest.copy {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID_2
-          }
+          },
         )
     }
 
@@ -841,7 +841,7 @@ class ReportSchedulingJobTest {
 
     verifyProtoArgument(
         reportScheduleIterationsMock,
-        ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration
+        ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration,
       )
       .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
       .isEqualTo(
@@ -904,7 +904,7 @@ class ReportSchedulingJobTest {
 
     verifyProtoArgument(
         reportScheduleIterationsMock,
-        ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration
+        ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration,
       )
       .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
       .isEqualTo(
@@ -967,7 +967,7 @@ class ReportSchedulingJobTest {
 
     verifyProtoArgument(
         reportScheduleIterationsMock,
-        ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration
+        ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration,
       )
       .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
       .isEqualTo(
@@ -1030,7 +1030,7 @@ class ReportSchedulingJobTest {
 
     verifyProtoArgument(
         reportScheduleIterationsMock,
-        ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration
+        ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration,
       )
       .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
       .isEqualTo(
@@ -1096,7 +1096,7 @@ class ReportSchedulingJobTest {
 
       verifyProtoArgument(
           reportScheduleIterationsMock,
-          ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration
+          ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration,
         )
         .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
         .isEqualTo(
@@ -1179,7 +1179,7 @@ class ReportSchedulingJobTest {
 
     verifyProtoArgument(
         reportScheduleIterationsMock,
-        ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState
+        ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState,
       )
       .isEqualTo(
         setReportScheduleIterationStateRequest {
@@ -1204,7 +1204,7 @@ class ReportSchedulingJobTest {
 
       verifyProtoArgument(
           reportScheduleIterationsMock,
-          ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState
+          ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState,
         )
         .isEqualTo(
           setReportScheduleIterationStateRequest {
@@ -1271,7 +1271,7 @@ class ReportSchedulingJobTest {
 
       verifyProtoArgument(
           reportScheduleIterationsMock,
-          ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState
+          ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState,
         )
         .isEqualTo(
           setReportScheduleIterationStateRequest {
@@ -1337,7 +1337,7 @@ class ReportSchedulingJobTest {
 
     verifyProtoArgument(
         reportScheduleIterationsMock,
-        ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState
+        ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState,
       )
       .isEqualTo(
         setReportScheduleIterationStateRequest {
@@ -1403,7 +1403,7 @@ class ReportSchedulingJobTest {
 
     verifyProtoArgument(
         reportScheduleIterationsMock,
-        ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState
+        ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState,
       )
       .isEqualTo(
         setReportScheduleIterationStateRequest {

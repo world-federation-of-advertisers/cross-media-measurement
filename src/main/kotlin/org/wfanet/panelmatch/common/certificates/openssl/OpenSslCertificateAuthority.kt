@@ -37,7 +37,7 @@ class OpenSslCertificateAuthority(
   private val context: CertificateAuthority.Context,
   private val rootPrivateKeyFile: File,
   private val rootCertificateFile: File,
-  private val baseDirectory: File
+  private val baseDirectory: File,
 ) : CertificateAuthority {
   init {
     require(baseDirectory.exists() && baseDirectory.isDirectory) {
@@ -63,7 +63,7 @@ private class GenerateKeyPair(
   private val rootPrivateKeyFile: File,
   private val rootCertificateFile: File,
   private val context: CertificateAuthority.Context,
-  private val baseDir: File
+  private val baseDir: File,
 ) {
   private val csrFile = File(baseDir, "csr")
   private val keyFile = File(baseDir, "key")
@@ -137,7 +137,7 @@ private class GenerateKeyPair(
       "-extfile",
       cnfFile.relativeTo(baseDir).path,
       "-extensions",
-      "usr_cert"
+      "usr_cert",
     )
   }
 }

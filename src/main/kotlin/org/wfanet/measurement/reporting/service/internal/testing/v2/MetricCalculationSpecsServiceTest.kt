@@ -49,7 +49,7 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
 
   protected data class Services<T>(
     val metricCalculationSpecsService: T,
-    val measurementConsumersService: MeasurementConsumersCoroutineImplBase
+    val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
   )
 
   /** Instance of the service under test. */

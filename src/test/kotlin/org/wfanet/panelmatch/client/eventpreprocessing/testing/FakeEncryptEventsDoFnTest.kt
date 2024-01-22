@@ -62,7 +62,7 @@ class FakeEncryptEventsDoFnTest : BeamTestBase() {
         HardCodedIdentifierHashPepperProvider(IDENTIFIER_HASH_PEPPER.toByteStringUtf8()),
         HardCodedHkdfPepperProvider(HKDF_HASH_PEPPER.toByteStringUtf8()),
         HardCodedDeterministicCommutativeCipherKeyProvider(CRYPTO_KEY.toByteStringUtf8()),
-        compressionParameters
+        compressionParameters,
       )
 
     assertThat(collection.apply(ParDo.of(doFn).withSideInputs(compressionParameters)))

@@ -25,7 +25,7 @@ import picocli.CommandLine
   name = "GcsRequisitionFulfillmentServer",
   description = ["Server daemon for ${RequisitionFulfillmentServer.SERVICE_NAME} service."],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 class GcsRequisitionFulfillmentServer : RequisitionFulfillmentServer() {
   @CommandLine.Mixin private lateinit var gcsFlags: GcsFromFlags.Flags

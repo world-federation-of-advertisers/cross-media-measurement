@@ -58,7 +58,7 @@ class CreateModelSuite(private val modelSuite: ModelSuite) :
         "ModelProviders",
         "ModelProvidersByExternalId",
         Key.of(externalModelProviderId.value),
-        column
+        column,
       )
       ?.let { struct -> InternalId(struct.getLong(column)) }
       ?: throw ModelProviderNotFoundException(externalModelProviderId) {

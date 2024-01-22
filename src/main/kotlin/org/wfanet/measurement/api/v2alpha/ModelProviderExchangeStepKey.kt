@@ -31,7 +31,7 @@ data class ModelProviderExchangeStepKey(
     exchangeStepId: String,
   ) : this(
     ModelProviderExchangeKey(modelProviderId, recurringExchangeId, exchangeId),
-    exchangeStepId
+    exchangeStepId,
   )
 
   val modelProviderId: String

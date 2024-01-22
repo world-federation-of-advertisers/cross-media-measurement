@@ -58,7 +58,7 @@ abstract class AbstractEvaluateQueriesEndToEndTest : BeamTestBase() {
           EvaluateQueriesParameters(
             numShards = numShards,
             numBucketsPerShard = numBucketsPerShard,
-            maxQueriesPerShard = 1000
+            maxQueriesPerShard = 1000,
           )
         runEndToEndTest(parameters)
       }
@@ -92,7 +92,7 @@ abstract class AbstractEvaluateQueriesEndToEndTest : BeamTestBase() {
     val bucketing =
       Bucketing(
         numShards = parameters.numShards,
-        numBucketsPerShard = parameters.numBucketsPerShard
+        numBucketsPerShard = parameters.numBucketsPerShard,
       )
     val bucketsAndShardsToQuery: List<Pair<Pair<ShardId, BucketId>, QueryId>> =
       rawQueries.map { bucketing.apply(it.first) to it.second }
@@ -118,7 +118,7 @@ abstract class AbstractEvaluateQueriesEndToEndTest : BeamTestBase() {
         pcollectionViewOf("Create SerializedPublicKey", helper.serializedPublicKey),
         pcollectionViewOf("Create Padding Nonces", paddingNonces, coder = paddingNonceMapCoder),
         parameters,
-        queryEvaluator
+        queryEvaluator,
       )
 
     assertThat(results).satisfies {

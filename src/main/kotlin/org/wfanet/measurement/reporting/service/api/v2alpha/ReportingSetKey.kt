@@ -28,7 +28,7 @@ data class ReportingSetKey(
 ) : ChildResourceKey {
   constructor(
     cmmsMeasurementConsumerId: String,
-    reportingSetId: String
+    reportingSetId: String,
   ) : this(MeasurementConsumerKey(cmmsMeasurementConsumerId), reportingSetId)
 
   val cmmsMeasurementConsumerId: String
@@ -51,7 +51,7 @@ data class ReportingSetKey(
       val idVars: Map<IdVariable, String> = parser.parseIdVars(resourceName) ?: return null
       return ReportingSetKey(
         idVars.getValue(IdVariable.MEASUREMENT_CONSUMER),
-        idVars.getValue(IdVariable.REPORTING_SET)
+        idVars.getValue(IdVariable.REPORTING_SET),
       )
     }
   }

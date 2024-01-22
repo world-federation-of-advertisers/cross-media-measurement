@@ -90,7 +90,7 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
         CMMS_MEASUREMENT_CONSUMER_ID,
         reportingSet,
         metricCalculationSpec,
-        reportSchedulesService
+        reportSchedulesService,
       )
     val reportScheduleIteration = reportScheduleIteration {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -141,7 +141,7 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
         CMMS_MEASUREMENT_CONSUMER_ID,
         reportingSet,
         metricCalculationSpec,
-        reportSchedulesService
+        reportSchedulesService,
       )
     val reportScheduleIteration = createReportScheduleIterationForRequest(reportSchedule)
 
@@ -171,7 +171,7 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
         ReportScheduleIteration.CREATE_TIME_FIELD_NUMBER,
         ReportScheduleIteration.UPDATE_TIME_FIELD_NUMBER,
         ReportScheduleIteration.EXTERNAL_REPORT_SCHEDULE_ITERATION_ID_FIELD_NUMBER,
-        ReportScheduleIteration.STATE_FIELD_NUMBER
+        ReportScheduleIteration.STATE_FIELD_NUMBER,
       )
       .isEqualTo(reportScheduleIteration)
   }
@@ -187,7 +187,7 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
         CMMS_MEASUREMENT_CONSUMER_ID,
         reportingSet,
         metricCalculationSpec,
-        reportSchedulesService
+        reportSchedulesService,
       )
 
     val exception =
@@ -267,7 +267,7 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
           CMMS_MEASUREMENT_CONSUMER_ID,
           reportingSet,
           metricCalculationSpec,
-          reportSchedulesService
+          reportSchedulesService,
         )
 
       val reportScheduleIteration =
@@ -300,7 +300,7 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
       assertThat(
           Timestamps.compare(
             retrievedReportScheduleIterations[0].reportEventTime,
-            retrievedReportScheduleIterations[1].reportEventTime
+            retrievedReportScheduleIterations[1].reportEventTime,
           )
         )
         .isGreaterThan(0)
@@ -319,7 +319,7 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
         CMMS_MEASUREMENT_CONSUMER_ID,
         reportingSet,
         metricCalculationSpec,
-        reportSchedulesService
+        reportSchedulesService,
       )
 
     val reportScheduleIteration =
@@ -365,7 +365,7 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
         CMMS_MEASUREMENT_CONSUMER_ID,
         reportingSet,
         metricCalculationSpec,
-        reportSchedulesService
+        reportSchedulesService,
       )
 
     val reportScheduleIteration =
@@ -424,7 +424,7 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
         CMMS_MEASUREMENT_CONSUMER_ID,
         reportingSet,
         metricCalculationSpec,
-        reportSchedulesService
+        reportSchedulesService,
       )
     val reportScheduleIteration = createReportScheduleIterationForRequest(reportSchedule)
     val createdReportScheduleIteration =
@@ -448,7 +448,7 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
     assertThat(
         Timestamps.compare(
           updatedReportScheduleIteration.updateTime,
-          updatedReportScheduleIteration.createTime
+          updatedReportScheduleIteration.createTime,
         )
       )
       .isGreaterThan(0)
@@ -469,7 +469,7 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
     assertThat(
         Timestamps.compare(
           retrievedReportScheduleIteration.updateTime,
-          retrievedReportScheduleIteration.createTime
+          retrievedReportScheduleIteration.createTime,
         )
       )
       .isGreaterThan(0)
@@ -486,7 +486,7 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
         CMMS_MEASUREMENT_CONSUMER_ID,
         reportingSet,
         metricCalculationSpec,
-        reportSchedulesService
+        reportSchedulesService,
       )
 
     val exception =
@@ -516,7 +516,7 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
           CMMS_MEASUREMENT_CONSUMER_ID,
           reportingSet,
           metricCalculationSpec,
-          reportSchedulesService
+          reportSchedulesService,
         )
       val reportScheduleIteration = createReportScheduleIterationForRequest(reportSchedule)
       val createdReportScheduleIteration =
@@ -595,7 +595,7 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
     private const val CMMS_MEASUREMENT_CONSUMER_ID = "1234"
 
     private fun createReportScheduleIterationForRequest(
-      reportSchedule: ReportSchedule,
+      reportSchedule: ReportSchedule
     ): ReportScheduleIteration {
       return reportScheduleIteration {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID

@@ -77,7 +77,7 @@ class InProcessKingdom(
   private val internalApiChannel by lazy {
     internalDataServer.channel.withDefaultDeadline(
       DEFAULT_INTERNAL_DEADLINE_MILLIS,
-      TimeUnit.MILLISECONDS
+      TimeUnit.MILLISECONDS,
     )
   }
   private val internalApiKeysClient by lazy { InternalApiKeysCoroutineStub(internalApiChannel) }
@@ -128,7 +128,7 @@ class InProcessKingdom(
           SystemComputationsService(internalMeasurementsClient),
           SystemComputationLogEntriesService(internalMeasurementLogEntriesClient),
           SystemComputationParticipantsService(internalComputationParticipantsClient),
-          SystemRequisitionsService(internalRequisitionsClient)
+          SystemRequisitionsService(internalRequisitionsClient),
         )
         .forEach { addService(it.withMetadataDuchyIdentities()) }
     }
@@ -154,7 +154,7 @@ class InProcessKingdom(
           MeasurementsService(
               internalMeasurementsClient,
               MEASUREMENT_NOISE_MECHANISMS,
-              reachOnlyLlV2Enabled = true
+              reachOnlyLlV2Enabled = true,
             )
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
@@ -176,7 +176,7 @@ class InProcessKingdom(
             .withMetadataPrincipalIdentities(),
           ExchangeStepAttemptsService(
               internalExchangeStepAttemptsClient,
-              internalExchangeStepsClient
+              internalExchangeStepsClient,
             )
             .withMetadataPrincipalIdentities(),
         )

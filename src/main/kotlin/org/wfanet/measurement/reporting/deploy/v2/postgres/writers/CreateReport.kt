@@ -120,7 +120,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
       MetricCalculationSpecReader(transactionContext)
         .batchReadByExternalIds(
           request.report.cmmsMeasurementConsumerId,
-          externalMetricCalculationSpecIds
+          externalMetricCalculationSpecIds,
         )
         .associateBy { it.metricCalculationSpec.externalMetricCalculationSpecId }
 
@@ -129,7 +129,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
         if (!metricCalculationSpecsByExternalId.containsKey(it)) {
           throw MetricCalculationSpecNotFoundException(
             cmmsMeasurementConsumerId = report.cmmsMeasurementConsumerId,
-            externalMetricCalculationSpecId = it
+            externalMetricCalculationSpecId = it,
           )
         }
       }
@@ -154,7 +154,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
               MetricReader.ReportingMetricKey(
                 reportingSetId,
                 metricCalculationSpecId,
-                reportingMetric.details.timeInterval
+                reportingMetric.details.timeInterval,
               )
             }
           }
@@ -170,7 +170,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
         .groupBy {
           MetricCalculationSpecReportingMetricKey(
             it.reportingMetricKey.reportingSetId,
-            it.reportingMetricKey.metricCalculationSpecId
+            it.reportingMetricKey.metricCalculationSpecId,
           )
         }
 
@@ -214,7 +214,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
         report,
         reportingSetIdsByExternalId,
         metricCalculationSpecsByExternalId,
-        reportingMetricMap
+        reportingMetricMap,
       )
 
     val metricCalculationSpecReportingMetricsStatement =
@@ -248,11 +248,11 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
           (ReportScheduleReader(transactionContext)
               .readReportScheduleByExternalId(
                 request.report.cmmsMeasurementConsumerId,
-                request.reportScheduleInfo.externalReportScheduleId
+                request.reportScheduleInfo.externalReportScheduleId,
               )
               ?: throw ReportScheduleNotFoundException(
                 cmmsMeasurementConsumerId = request.report.cmmsMeasurementConsumerId,
-                externalReportScheduleId = request.reportScheduleInfo.externalReportScheduleId
+                externalReportScheduleId = request.reportScheduleInfo.externalReportScheduleId,
               ))
             .reportScheduleId
 
@@ -285,7 +285,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
           ) {
             bind(
               "$1",
-              request.reportScheduleInfo.nextReportCreationTime.toInstant().atOffset(ZoneOffset.UTC)
+              request.reportScheduleInfo.nextReportCreationTime.toInstant().atOffset(ZoneOffset.UTC),
             )
             bind("$2", updateTime)
             bind("$3", measurementConsumerId)
@@ -311,7 +311,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
     reportingSetIdsByExternalId: Map<String, InternalId>,
     metricCalculationSpecsByExternalId: Map<String, MetricCalculationSpecReader.Result>,
     reportingMetricMap:
-      Map<MetricCalculationSpecReportingMetricKey, List<MetricReader.ReportingMetric>>
+      Map<MetricCalculationSpecReportingMetricKey, List<MetricReader.ReportingMetric>>,
   ): ReportingMetricEntriesAndBinders {
     val metricCalculationSpecReportingMetricsBinders =
       mutableListOf<BoundStatement.Binder.() -> Unit>()
@@ -331,7 +331,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
         val metricCalculationSpecReportingMetricKey =
           MetricCalculationSpecReportingMetricKey(
             reportingSetId,
-            metricCalculationSpecResult.metricCalculationSpecId
+            metricCalculationSpecResult.metricCalculationSpecId,
           )
         val updatedReportingMetricsList = mutableListOf<Report.ReportingMetric>()
 

@@ -186,10 +186,7 @@ class ReportsServiceTest {
       .thenReturn(INTERNAL_REACH_REPORTS.pendingReport)
     onBlocking { streamReports(any()) }
       .thenReturn(
-        flowOf(
-          INTERNAL_REACH_REPORTS.pendingReport,
-          INTERNAL_WATCH_DURATION_REPORTS.pendingReport,
-        )
+        flowOf(INTERNAL_REACH_REPORTS.pendingReport, INTERNAL_WATCH_DURATION_REPORTS.pendingReport)
       )
   }
 
@@ -203,7 +200,7 @@ class ReportsServiceTest {
         val metricsMap =
           mapOf(
             RUNNING_REACH_METRIC.name to RUNNING_REACH_METRIC,
-            RUNNING_WATCH_DURATION_METRIC.name to RUNNING_WATCH_DURATION_METRIC
+            RUNNING_WATCH_DURATION_METRIC.name to RUNNING_WATCH_DURATION_METRIC,
           )
         batchGetMetricsResponse {
           metrics += request.namesList.map { metricName -> metricsMap.getValue(metricName) }
@@ -221,7 +218,7 @@ class ReportsServiceTest {
               INTERNAL_REACH_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId to
                 INTERNAL_REACH_METRIC_CALCULATION_SPEC,
               INTERNAL_WATCH_DURATION_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId to
-                INTERNAL_WATCH_DURATION_METRIC_CALCULATION_SPEC
+                INTERNAL_WATCH_DURATION_METRIC_CALCULATION_SPEC,
             )
           batchGetMetricCalculationSpecsResponse {
             metricCalculationSpecs +=
@@ -248,7 +245,7 @@ class ReportsServiceTest {
         InternalReportsCoroutineStub(grpcTestServerRule.channel),
         InternalMetricCalculationSpecsCoroutineStub(grpcTestServerRule.channel),
         MetricsCoroutineStub(grpcTestServerRule.channel),
-        METRIC_SPEC_CONFIG
+        METRIC_SPEC_CONFIG,
       )
   }
 
@@ -343,7 +340,7 @@ class ReportsServiceTest {
     val reportScheduleName =
       ReportScheduleKey(
           INTERNAL_REACH_REPORTS.initialReport.cmmsMeasurementConsumerId,
-          externalReportScheduleId
+          externalReportScheduleId,
         )
         .toName()
 
@@ -351,10 +348,10 @@ class ReportsServiceTest {
       withReportScheduleInfoAndMeasurementConsumerPrincipal(
         ReportScheduleInfoServerInterceptor.ReportScheduleInfo(
           reportScheduleName,
-          nextReportCreationTime
+          nextReportCreationTime,
         ),
         MEASUREMENT_CONSUMER_KEYS.first().toName(),
-        CONFIG
+        CONFIG,
       ) {
         runBlocking { service.createReport(request) }
       }
@@ -425,7 +422,7 @@ class ReportsServiceTest {
           interval {
             startTime = END_TIME
             endTime = END_INSTANT.plus(Duration.ofDays(1)).toProtoTime()
-          }
+          },
         )
 
       val intervals =
@@ -437,7 +434,7 @@ class ReportsServiceTest {
           interval {
             startTime = END_TIME
             endTime = END_INSTANT.plus(Duration.ofDays(1)).toProtoTime()
-          }
+          },
         )
 
       val initialReportingMetrics: List<InternalReport.ReportingMetric> =
@@ -451,7 +448,7 @@ class ReportsServiceTest {
           timeIntervals = intervals,
           reportingSetId = targetReportingSet.resourceId,
           reportingMetrics = initialReportingMetrics,
-          metricCalculationSpecId = REACH_METRIC_CALCULATION_SPEC_ID
+          metricCalculationSpecId = REACH_METRIC_CALCULATION_SPEC_ID,
         )
 
       whenever(
@@ -496,7 +493,7 @@ class ReportsServiceTest {
                   name =
                     MetricKey(
                         MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                        ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value
+                        ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value,
                       )
                       .toName()
                   state = Metric.State.RUNNING
@@ -1188,7 +1185,7 @@ class ReportsServiceTest {
         timeIntervals = listOf(interval),
         reportingSetId = targetReportingSet.resourceId,
         reportingMetrics = initialReportingMetrics,
-        metricCalculationSpecId = internalMetricCalculationSpec.externalMetricCalculationSpecId
+        metricCalculationSpecId = internalMetricCalculationSpec.externalMetricCalculationSpecId,
       )
 
     whenever(
@@ -1235,7 +1232,7 @@ class ReportsServiceTest {
                 name =
                   MetricKey(
                       MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                      ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value
+                      ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value,
                     )
                     .toName()
                 state = Metric.State.RUNNING
@@ -1255,7 +1252,7 @@ class ReportsServiceTest {
               metricCalculationSpecs +=
                 MetricCalculationSpecKey(
                     MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                    internalMetricCalculationSpec.externalMetricCalculationSpecId
+                    internalMetricCalculationSpec.externalMetricCalculationSpecId,
                   )
                   .toName()
             }
@@ -1342,7 +1339,7 @@ class ReportsServiceTest {
           timeIntervals = listOf(interval),
           reportingSetId = targetReportingSet.resourceId,
           reportingMetrics = initialReportingMetrics,
-          metricCalculationSpecId = internalMetricCalculationSpec.externalMetricCalculationSpecId
+          metricCalculationSpecId = internalMetricCalculationSpec.externalMetricCalculationSpecId,
         )
 
       whenever(
@@ -1387,7 +1384,7 @@ class ReportsServiceTest {
                   name =
                     MetricKey(
                         MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                        ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value
+                        ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value,
                       )
                       .toName()
                   state = Metric.State.RUNNING
@@ -1407,7 +1404,7 @@ class ReportsServiceTest {
                 metricCalculationSpecs +=
                   MetricCalculationSpecKey(
                       MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                      internalMetricCalculationSpec.externalMetricCalculationSpecId
+                      internalMetricCalculationSpec.externalMetricCalculationSpecId,
                     )
                     .toName()
               }
@@ -1472,7 +1469,7 @@ class ReportsServiceTest {
           interval {
             startTime = END_TIME
             endTime = END_INSTANT.plus(Duration.ofDays(1)).toProtoTime()
-          }
+          },
         )
       val intervals =
         listOf(
@@ -1483,7 +1480,7 @@ class ReportsServiceTest {
           interval {
             startTime = END_TIME
             endTime = END_INSTANT.plus(Duration.ofDays(1)).toProtoTime()
-          }
+          },
         )
 
       // Groupings
@@ -1517,7 +1514,7 @@ class ReportsServiceTest {
         val reportingSet: String,
         val metricSpec: MetricSpec,
         val timeInterval: Interval,
-        val filters: List<String>
+        val filters: List<String>,
       )
       val metricConfigs =
         timeIntervalsList.flatMap { timeInterval ->
@@ -1532,7 +1529,7 @@ class ReportsServiceTest {
         val reportingSetId: String,
         val metricSpec: InternalMetricSpec,
         val timeInterval: Interval,
-        val filters: List<String>
+        val filters: List<String>,
       )
       val reportingMetricConfigs =
         intervals.flatMap { timeInterval ->
@@ -1542,7 +1539,7 @@ class ReportsServiceTest {
                 targetReportingSet.resourceId,
                 metricSpec,
                 timeInterval,
-                predicateGroup
+                predicateGroup,
               )
             }
           }
@@ -1553,7 +1550,7 @@ class ReportsServiceTest {
           buildInitialReportingMetric(
             reportingMetricConfig.timeInterval,
             reportingMetricConfig.metricSpec,
-            reportingMetricConfig.filters
+            reportingMetricConfig.filters,
           )
         }
 
@@ -1563,7 +1560,7 @@ class ReportsServiceTest {
           timeIntervals = intervals,
           reportingSetId = targetReportingSet.resourceId,
           reportingMetrics = initialReportingMetrics,
-          metricCalculationSpecId = internalMetricCalculationSpec.externalMetricCalculationSpecId
+          metricCalculationSpecId = internalMetricCalculationSpec.externalMetricCalculationSpecId,
         )
 
       whenever(
@@ -1610,7 +1607,7 @@ class ReportsServiceTest {
                   name =
                     MetricKey(
                         MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                        ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value
+                        ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value,
                       )
                       .toName()
                   state = Metric.State.RUNNING
@@ -1630,7 +1627,7 @@ class ReportsServiceTest {
                 metricCalculationSpecs +=
                   MetricCalculationSpecKey(
                       MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                      internalMetricCalculationSpec.externalMetricCalculationSpecId
+                      internalMetricCalculationSpec.externalMetricCalculationSpecId,
                     )
                     .toName()
               }
@@ -1721,7 +1718,7 @@ class ReportsServiceTest {
               reportingSetId = reportingSet.resourceId,
               reportingMetrics = initialReportingMetrics,
               metricCalculationSpecId =
-                internalMetricCalculationSpec.externalMetricCalculationSpecId
+                internalMetricCalculationSpec.externalMetricCalculationSpecId,
             )
           )
         }
@@ -1743,7 +1740,7 @@ class ReportsServiceTest {
                 reportingSetId = reportingSet.resourceId,
                 reportingMetrics = updatedReportingMetrics,
                 metricCalculationSpecId =
-                  internalMetricCalculationSpec.externalMetricCalculationSpecId
+                  internalMetricCalculationSpec.externalMetricCalculationSpecId,
               )
             )
           }
@@ -1768,7 +1765,7 @@ class ReportsServiceTest {
                 reportingSetId = reportingSet.resourceId,
                 reportingMetrics = updatedReportingMetrics,
                 metricCalculationSpecId =
-                  internalMetricCalculationSpec.externalMetricCalculationSpecId
+                  internalMetricCalculationSpec.externalMetricCalculationSpecId,
               )
             )
           }
@@ -1816,7 +1813,7 @@ class ReportsServiceTest {
                   name =
                     MetricKey(
                         MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                        ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value
+                        ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value,
                       )
                       .toName()
                   state = Metric.State.RUNNING
@@ -1837,7 +1834,7 @@ class ReportsServiceTest {
                   metricCalculationSpecs +=
                     MetricCalculationSpecKey(
                         MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                        internalMetricCalculationSpec.externalMetricCalculationSpecId
+                        internalMetricCalculationSpec.externalMetricCalculationSpecId,
                       )
                       .toName()
                 }
@@ -2040,7 +2037,7 @@ class ReportsServiceTest {
                   name =
                     MetricKey(
                         MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                        ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value
+                        ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value,
                       )
                       .toName()
                   state = Metric.State.RUNNING
@@ -2060,7 +2057,7 @@ class ReportsServiceTest {
                 val metricCalculationSpecName =
                   MetricCalculationSpecKey(
                       MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                      internalMetricCalculationSpec.externalMetricCalculationSpecId
+                      internalMetricCalculationSpec.externalMetricCalculationSpecId,
                     )
                     .toName()
                 metricCalculationSpecs += metricCalculationSpecName
@@ -2243,7 +2240,7 @@ class ReportsServiceTest {
                   name =
                     MetricKey(
                         MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                        ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value
+                        ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value,
                       )
                       .toName()
                   reportingSet = PRIMITIVE_REPORTING_SETS.first().name
@@ -2269,7 +2266,7 @@ class ReportsServiceTest {
                   metricCalculationSpecs +=
                     MetricCalculationSpecKey(
                         MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                        internalMetricCalculationSpec.externalMetricCalculationSpecId
+                        internalMetricCalculationSpec.externalMetricCalculationSpecId,
                       )
                       .toName()
                 }
@@ -3120,7 +3117,7 @@ class ReportsServiceTest {
     val reportingSetNameForOtherMC =
       ReportingSetKey(
           MEASUREMENT_CONSUMER_KEYS.last().measurementConsumerId,
-          ExternalId(120L).apiId.value
+          ExternalId(120L).apiId.value,
         )
         .toName()
     val request = createReportRequest {
@@ -3242,10 +3239,10 @@ class ReportsServiceTest {
         withReportScheduleInfoAndMeasurementConsumerPrincipal(
           ReportScheduleInfoServerInterceptor.ReportScheduleInfo(
             reportScheduleName,
-            nextReportCreationTime
+            nextReportCreationTime,
           ),
           measurementConsumerKey.toName(),
-          CONFIG
+          CONFIG,
         ) {
           runBlocking { service.createReport(request) }
         }
@@ -3272,10 +3269,10 @@ class ReportsServiceTest {
         withReportScheduleInfoAndMeasurementConsumerPrincipal(
           ReportScheduleInfoServerInterceptor.ReportScheduleInfo(
             "name123",
-            timestamp { seconds = 1000 }
+            timestamp { seconds = 1000 },
           ),
           MEASUREMENT_CONSUMER_KEYS.first().toName(),
-          CONFIG
+          CONFIG,
         ) {
           runBlocking { service.createReport(request) }
         }
@@ -3440,7 +3437,7 @@ class ReportsServiceTest {
         buildInternalReportingMetricEntryWithOneMetricCalculationSpec(
           reportingSetId = PRIMITIVE_REPORTING_SETS.first().resourceId,
           reportingMetrics = updatedReportingMetrics,
-          metricCalculationSpecId = internalMetricCalculationSpec.externalMetricCalculationSpecId
+          metricCalculationSpecId = internalMetricCalculationSpec.externalMetricCalculationSpecId,
         )
       )
     }
@@ -3466,7 +3463,7 @@ class ReportsServiceTest {
                 name =
                   MetricKey(
                       MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                      ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value
+                      ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value,
                     )
                     .toName()
                 reportingSet = PRIMITIVE_REPORTING_SETS.first().name
@@ -3817,7 +3814,7 @@ class ReportsServiceTest {
         val metricsMap =
           mapOf(
             SUCCEEDED_REACH_METRIC.name to SUCCEEDED_REACH_METRIC,
-            SUCCEEDED_WATCH_DURATION_METRIC.name to SUCCEEDED_WATCH_DURATION_METRIC
+            SUCCEEDED_WATCH_DURATION_METRIC.name to SUCCEEDED_WATCH_DURATION_METRIC,
           )
         batchGetMetricsResponse {
           metrics += request.namesList.map { metricName -> metricsMap.getValue(metricName) }
@@ -3877,7 +3874,7 @@ class ReportsServiceTest {
       val metricsMap =
         mapOf(
           failedReachMetric.name to failedReachMetric,
-          failedWatchDurationMetric.name to failedWatchDurationMetric
+          failedWatchDurationMetric.name to failedWatchDurationMetric,
         )
       batchGetMetricsResponse {
         metrics += request.namesList.map { metricName -> metricsMap.getValue(metricName) }
@@ -4302,7 +4299,7 @@ class ReportsServiceTest {
           buildInternalReportingMetricEntryWithOneMetricCalculationSpec(
             reportingSetId = reportingSetId,
             reportingMetrics = reportingMetrics,
-            metricCalculationSpecId = metricCalculationSpecId
+            metricCalculationSpecId = metricCalculationSpecId,
           )
         )
       }
@@ -4322,7 +4319,7 @@ class ReportsServiceTest {
             buildInternalReportingMetricEntryWithOneMetricCalculationSpec(
               reportingSetId = reportingSetId,
               reportingMetrics = initialReportingMetrics,
-              metricCalculationSpecId = metricCalculationSpecId
+              metricCalculationSpecId = metricCalculationSpecId,
             )
           )
         }
@@ -4340,7 +4337,7 @@ class ReportsServiceTest {
             buildInternalReportingMetricEntryWithOneMetricCalculationSpec(
               reportingSetId = reportingSetId,
               reportingMetrics = pendingReportingMetrics,
-              metricCalculationSpecId = metricCalculationSpecId
+              metricCalculationSpecId = metricCalculationSpecId,
             )
           )
         }
@@ -4360,7 +4357,7 @@ class ReportsServiceTest {
           name =
             ReportingSetKey(
                 MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                ExternalId(index + 110L).apiId.value
+                ExternalId(index + 110L).apiId.value,
               )
               .toName()
           filter = "AGE>18"
@@ -4566,7 +4563,7 @@ class ReportsServiceTest {
         name =
           MetricKey(
               MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-              ExternalId(REACH_METRIC_ID_BASE_LONG).apiId.value
+              ExternalId(REACH_METRIC_ID_BASE_LONG).apiId.value,
             )
             .toName()
         state = Metric.State.RUNNING
@@ -4583,7 +4580,7 @@ class ReportsServiceTest {
       name =
         MetricKey(
             MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-            ExternalId(WATCH_DURATION_METRIC_ID_BASE_LONG).apiId.value
+            ExternalId(WATCH_DURATION_METRIC_ID_BASE_LONG).apiId.value,
           )
           .toName()
       reportingSet = PRIMITIVE_REPORTING_SETS.first().name
@@ -4613,7 +4610,7 @@ class ReportsServiceTest {
           endTime = END_TIME
         },
         INTERNAL_REACH_METRIC_SPEC,
-        listOf()
+        listOf(),
       )
 
     private const val REACH_METRIC_CALCULATION_SPEC_ID = "R1234"
@@ -4642,7 +4639,7 @@ class ReportsServiceTest {
         reportingSetId = PRIMITIVE_REPORTING_SETS.first().resourceId,
         reportingMetrics = listOf(INITIAL_REACH_REPORTING_METRIC),
         metricCalculationSpecId = REACH_METRIC_CALCULATION_SPEC_ID,
-        reportIdBase = "reach-"
+        reportIdBase = "reach-",
       )
 
     private val INITIAL_WATCH_DURATION_REPORTING_METRIC =
@@ -4652,7 +4649,7 @@ class ReportsServiceTest {
           endTime = END_TIME
         },
         INTERNAL_WATCH_DURATION_METRIC_SPEC,
-        listOf()
+        listOf(),
       )
 
     private const val WATCH_DURATION_METRIC_CALCULATION_SPEC_ID = "W1234"
@@ -4682,7 +4679,7 @@ class ReportsServiceTest {
         reportingMetrics = listOf(INITIAL_WATCH_DURATION_REPORTING_METRIC),
         metricCalculationSpecId = WATCH_DURATION_METRIC_CALCULATION_SPEC_ID,
         reportIdBase = "duration-",
-        metricIdBaseLong = WATCH_DURATION_METRIC_ID_BASE_LONG
+        metricIdBaseLong = WATCH_DURATION_METRIC_ID_BASE_LONG,
       )
 
     // Public reports

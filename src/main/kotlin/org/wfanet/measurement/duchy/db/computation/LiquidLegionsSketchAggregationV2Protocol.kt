@@ -70,7 +70,7 @@ object LiquidLegionsSketchAggregationV2Protocol {
           WAIT_EXECUTION_PHASE_TWO_INPUTS to setOf(EXECUTION_PHASE_TWO),
           EXECUTION_PHASE_TWO to setOf(WAIT_EXECUTION_PHASE_THREE_INPUTS),
           WAIT_EXECUTION_PHASE_THREE_INPUTS to setOf(EXECUTION_PHASE_THREE),
-          EXECUTION_PHASE_THREE to setOf()
+          EXECUTION_PHASE_THREE to setOf(),
         )
         .withDefault { setOf() }
 
@@ -88,12 +88,12 @@ object LiquidLegionsSketchAggregationV2Protocol {
       ProtocolStageDetails<
         LiquidLegionsSketchAggregationV2.Stage,
         ComputationStageDetails,
-        LiquidLegionsSketchAggregationV2.ComputationDetails
+        LiquidLegionsSketchAggregationV2.ComputationDetails,
       > {
 
       override fun validateRoleForStage(
         stage: LiquidLegionsSketchAggregationV2.Stage,
-        details: LiquidLegionsSketchAggregationV2.ComputationDetails
+        details: LiquidLegionsSketchAggregationV2.ComputationDetails,
       ): Boolean {
         return when (stage) {
           WAIT_TO_START -> details.role == RoleInComputation.NON_AGGREGATOR
@@ -128,7 +128,7 @@ object LiquidLegionsSketchAggregationV2Protocol {
 
       override fun outputBlobNumbersForStage(
         stage: LiquidLegionsSketchAggregationV2.Stage,
-        computationDetails: LiquidLegionsSketchAggregationV2.ComputationDetails
+        computationDetails: LiquidLegionsSketchAggregationV2.ComputationDetails,
       ): Int {
         return when (stage) {
           WAIT_REQUISITIONS_AND_KEY_SET,
@@ -158,7 +158,7 @@ object LiquidLegionsSketchAggregationV2Protocol {
 
       override fun detailsFor(
         stage: LiquidLegionsSketchAggregationV2.Stage,
-        computationDetails: LiquidLegionsSketchAggregationV2.ComputationDetails
+        computationDetails: LiquidLegionsSketchAggregationV2.ComputationDetails,
       ): ComputationStageDetails {
         return when (stage) {
           WAIT_SETUP_PHASE_INPUTS ->
@@ -211,11 +211,11 @@ object LiquidLegionsSketchAggregationV2Protocol {
       ProtocolStageDetails<ComputationStage, ComputationStageDetails, ComputationDetails> {
       override fun validateRoleForStage(
         stage: ComputationStage,
-        details: ComputationDetails
+        details: ComputationDetails,
       ): Boolean {
         return EnumStages.Details.validateRoleForStage(
           stage.liquidLegionsSketchAggregationV2,
-          details.liquidLegionsV2
+          details.liquidLegionsV2,
         )
       }
 
@@ -225,21 +225,21 @@ object LiquidLegionsSketchAggregationV2Protocol {
 
       override fun outputBlobNumbersForStage(
         stage: ComputationStage,
-        computationDetails: ComputationDetails
+        computationDetails: ComputationDetails,
       ): Int {
         return EnumStages.Details.outputBlobNumbersForStage(
           stage.liquidLegionsSketchAggregationV2,
-          computationDetails.liquidLegionsV2
+          computationDetails.liquidLegionsV2,
         )
       }
 
       override fun detailsFor(
         stage: ComputationStage,
-        computationDetails: ComputationDetails
+        computationDetails: ComputationDetails,
       ): ComputationStageDetails =
         EnumStages.Details.detailsFor(
           stage.liquidLegionsSketchAggregationV2,
-          computationDetails.liquidLegionsV2
+          computationDetails.liquidLegionsV2,
         )
 
       override fun parseDetails(bytes: ByteArray): ComputationStageDetails =

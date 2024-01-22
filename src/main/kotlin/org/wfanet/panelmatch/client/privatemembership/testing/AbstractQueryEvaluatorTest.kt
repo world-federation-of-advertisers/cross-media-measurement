@@ -50,7 +50,7 @@ abstract class AbstractQueryEvaluatorTest {
     val database =
       listOf(
         databaseShardOf(shard = 100, buckets = listOf(0, 1, 2)),
-        databaseShardOf(shard = 101, buckets = listOf(3, 4, 5))
+        databaseShardOf(shard = 101, buckets = listOf(3, 4, 5)),
       )
     val queryBundles =
       listOf(
@@ -58,8 +58,8 @@ abstract class AbstractQueryEvaluatorTest {
         encryptedQueryBundleOf(shard = 100, queries = listOf(503 to 9)),
         encryptedQueryBundleOf(
           shard = 101,
-          queries = listOf(504 to 0, 505 to 1, 506 to 2, 507 to 3)
-        )
+          queries = listOf(504 to 0, 505 to 1, 506 to 2, 507 to 3),
+        ),
       )
     val paddingNonces = makePaddingNonces(500..507)
 
@@ -84,13 +84,13 @@ abstract class AbstractQueryEvaluatorTest {
     val database =
       listOf(
         databaseShardOf(shard = 100, buckets = listOf(1)),
-        databaseShardOf(shard = 101, buckets = listOf(1))
+        databaseShardOf(shard = 101, buckets = listOf(1)),
       )
 
     val queryBundles =
       listOf(
         encryptedQueryBundleOf(shard = 100, queries = listOf(500 to 1)),
-        encryptedQueryBundleOf(shard = 101, queries = listOf(501 to 1))
+        encryptedQueryBundleOf(shard = 101, queries = listOf(501 to 1)),
       )
     val paddingNonces = makePaddingNonces(listOf(500, 501))
 
@@ -99,17 +99,17 @@ abstract class AbstractQueryEvaluatorTest {
     assertThat(results.map { helper.decodeResult(it) })
       .containsExactly(
         DecodedResult(500, makeFakeBucketData(bucket = 1, shard = 100)),
-        DecodedResult(501, makeFakeBucketData(bucket = 1, shard = 101))
+        DecodedResult(501, makeFakeBucketData(bucket = 1, shard = 101)),
       )
   }
 
   private fun encryptedQueryBundleOf(
     shard: Int,
-    queries: List<Pair<Int, Int>>
+    queries: List<Pair<Int, Int>>,
   ): EncryptedQueryBundle {
     return helper.makeQueryBundle(
       shardIdOf(shard),
-      queries.map { queryIdOf(it.first) to bucketIdOf(it.second) }
+      queries.map { queryIdOf(it.first) to bucketIdOf(it.second) },
     )
   }
 }
@@ -121,7 +121,7 @@ private fun bucketOf(id: Int, data: ByteString): Bucket {
 private fun databaseShardOf(shard: Int, buckets: List<Int>): DatabaseShard {
   return databaseShardOf(
     shardIdOf(shard),
-    buckets.map { bucketOf(it, makeFakeBucketData(it, shard).itemsList.single()) }
+    buckets.map { bucketOf(it, makeFakeBucketData(it, shard).itemsList.single()) },
   )
 }
 

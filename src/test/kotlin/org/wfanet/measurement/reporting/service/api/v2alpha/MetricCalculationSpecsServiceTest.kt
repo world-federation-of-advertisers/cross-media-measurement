@@ -138,7 +138,7 @@ class MetricCalculationSpecsServiceTest {
           },
           MetricCalculationSpecKt.grouping {
             predicates += listOf("age == 18_34", "age == 55_PLUS")
-          }
+          },
         )
       tags["year"] = "2024"
     }
@@ -176,7 +176,7 @@ class MetricCalculationSpecsServiceTest {
 
     verifyProtoArgument(
         internalMetricCalculationSpecsMock,
-        MetricCalculationSpecsCoroutineImplBase::createMetricCalculationSpec
+        MetricCalculationSpecsCoroutineImplBase::createMetricCalculationSpec,
       )
       .isEqualTo(
         internalCreateMetricCalculationSpecRequest {
@@ -794,7 +794,7 @@ class MetricCalculationSpecsServiceTest {
 
     verifyProtoArgument(
         internalMetricCalculationSpecsMock,
-        MetricCalculationSpecsCoroutineImplBase::getMetricCalculationSpec
+        MetricCalculationSpecsCoroutineImplBase::getMetricCalculationSpec,
       )
       .isEqualTo(
         internalGetMetricCalculationSpecRequest {
@@ -919,7 +919,7 @@ class MetricCalculationSpecsServiceTest {
 
     verifyProtoArgument(
         internalMetricCalculationSpecsMock,
-        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs
+        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs,
       )
       .isEqualTo(
         internalListMetricCalculationSpecsRequest {
@@ -951,7 +951,7 @@ class MetricCalculationSpecsServiceTest {
 
     verifyProtoArgument(
         internalMetricCalculationSpecsMock,
-        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs
+        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs,
       )
       .isEqualTo(
         internalListMetricCalculationSpecsRequest {
@@ -995,7 +995,7 @@ class MetricCalculationSpecsServiceTest {
 
     verifyProtoArgument(
         internalMetricCalculationSpecsMock,
-        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs
+        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs,
       )
       .isEqualTo(
         internalListMetricCalculationSpecsRequest {
@@ -1028,7 +1028,7 @@ class MetricCalculationSpecsServiceTest {
 
     verifyProtoArgument(
         internalMetricCalculationSpecsMock,
-        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs
+        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs,
       )
       .isEqualTo(
         internalListMetricCalculationSpecsRequest {
@@ -1073,7 +1073,7 @@ class MetricCalculationSpecsServiceTest {
 
     verifyProtoArgument(
         internalMetricCalculationSpecsMock,
-        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs
+        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs,
       )
       .isEqualTo(
         internalListMetricCalculationSpecsRequest {
@@ -1102,7 +1102,7 @@ class MetricCalculationSpecsServiceTest {
 
     verifyProtoArgument(
         internalMetricCalculationSpecsMock,
-        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs
+        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs,
       )
       .isEqualTo(
         internalListMetricCalculationSpecsRequest {
@@ -1147,7 +1147,7 @@ class MetricCalculationSpecsServiceTest {
 
     verifyProtoArgument(
         internalMetricCalculationSpecsMock,
-        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs
+        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs,
       )
       .isEqualTo(
         internalListMetricCalculationSpecsRequest {
@@ -1180,7 +1180,7 @@ class MetricCalculationSpecsServiceTest {
 
     verifyProtoArgument(
         internalMetricCalculationSpecsMock,
-        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs
+        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs,
       )
       .isEqualTo(
         internalListMetricCalculationSpecsRequest {
@@ -1398,7 +1398,7 @@ class MetricCalculationSpecsServiceTest {
           },
           MetricCalculationSpecKt.grouping {
             predicates += listOf("age == 18_34", "age == 55_PLUS")
-          }
+          },
         )
       metricFrequencySpec =
         MetricCalculationSpecKt.metricFrequencySpec {

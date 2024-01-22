@@ -167,7 +167,7 @@ fun MetricSpec.toInternal(): InternalMetricSpec {
       MetricSpec.TypeCase.TYPE_NOT_SET ->
         throw MetricSpecDefaultsException(
           "Invalid metric spec type",
-          IllegalArgumentException("The metric type in Metric is not specified.")
+          IllegalArgumentException("The metric type in Metric is not specified."),
         )
     }
 
@@ -183,7 +183,7 @@ fun MetricSpec.WatchDurationParams.toInternal(): InternalMetricSpec.WatchDuratio
   if (!source.hasPrivacyParams()) {
     throw MetricSpecDefaultsException(
       "Invalid privacy params",
-      IllegalArgumentException("privacyParams in watch duration is not set.")
+      IllegalArgumentException("privacyParams in watch duration is not set."),
     )
   }
   return InternalMetricSpecKt.watchDurationParams {
@@ -202,7 +202,7 @@ fun MetricSpec.ImpressionCountParams.toInternal(): InternalMetricSpec.Impression
   if (!source.hasPrivacyParams()) {
     throw MetricSpecDefaultsException(
       "Invalid privacy params",
-      IllegalArgumentException("privacyParams in impression count is not set.")
+      IllegalArgumentException("privacyParams in impression count is not set."),
     )
   }
   return InternalMetricSpecKt.impressionCountParams {
@@ -222,13 +222,13 @@ fun MetricSpec.ReachAndFrequencyParams.toInternal(): InternalMetricSpec.ReachAnd
   if (!source.hasReachPrivacyParams()) {
     throw MetricSpecDefaultsException(
       "Invalid privacy params",
-      IllegalArgumentException("reachPrivacyParams in reach-and-frequency is not set.")
+      IllegalArgumentException("reachPrivacyParams in reach-and-frequency is not set."),
     )
   }
   if (!source.hasFrequencyPrivacyParams()) {
     throw MetricSpecDefaultsException(
       "Invalid privacy params",
-      IllegalArgumentException("frequencyPrivacyParams in reach-and-frequency is not set.")
+      IllegalArgumentException("frequencyPrivacyParams in reach-and-frequency is not set."),
     )
   }
   return InternalMetricSpecKt.reachAndFrequencyParams {
@@ -244,7 +244,7 @@ fun MetricSpec.ReachParams.toInternal(): InternalMetricSpec.ReachParams {
   if (!source.hasPrivacyParams()) {
     throw MetricSpecDefaultsException(
       "Invalid privacy params",
-      IllegalArgumentException("privacyParams in reach is not set.")
+      IllegalArgumentException("privacyParams in reach is not set."),
     )
   }
   return InternalMetricSpecKt.reachParams { privacyParams = source.privacyParams.toInternal() }
@@ -576,7 +576,7 @@ fun InternalReportingSet.toReportingSet(): ReportingSet {
     name =
       ReportingSetKey(
           cmmsMeasurementConsumerId = source.cmmsMeasurementConsumerId,
-          reportingSetId = source.externalReportingSetId
+          reportingSetId = source.externalReportingSetId,
         )
         .toName()
 
@@ -771,7 +771,7 @@ fun Map.Entry<String, InternalReport.ReportingMetricCalculationSpec>.toReporting
           source.value.metricCalculationSpecReportingMetricsList.map {
             MetricCalculationSpecKey(
                 cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
-                metricCalculationSpecId = it.externalMetricCalculationSpecId
+                metricCalculationSpecId = it.externalMetricCalculationSpecId,
               )
               .toName()
           }

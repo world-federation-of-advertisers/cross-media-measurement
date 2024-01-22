@@ -51,14 +51,14 @@ private val EXCHANGE_STEP_ATTEMPT_KEY: CanonicalExchangeStepAttemptKey =
     recurringExchangeId = RECURRING_EXCHANGE_ID,
     exchangeId = EXCHANGE_ID,
     exchangeStepId = EXCHANGE_STEP_ID,
-    exchangeStepAttemptId = EXCHANGE_STEP_ATTEMPT_ID
+    exchangeStepAttemptId = EXCHANGE_STEP_ATTEMPT_ID,
   )
 
 private val EXCHANGE_STEP_KEY =
   CanonicalExchangeStepKey(
     recurringExchangeId = RECURRING_EXCHANGE_ID,
     exchangeId = EXCHANGE_ID,
-    exchangeStepId = EXCHANGE_STEP_ID
+    exchangeStepId = EXCHANGE_STEP_ID,
   )
 
 private val DATE = LocalDate.now()
@@ -142,7 +142,7 @@ class ExchangeStepLauncherTest {
       finishExchangeStepAttempt(
         keyCaptor.capture(),
         stateCaptor.capture(),
-        messagesCaptor.capture()
+        messagesCaptor.capture(),
       )
 
       assertThat(keyCaptor.firstValue).isEqualTo(EXCHANGE_STEP_ATTEMPT_KEY)
@@ -170,7 +170,7 @@ class ExchangeStepLauncherTest {
       finishExchangeStepAttempt(
         keyCaptor.capture(),
         stateCaptor.capture(),
-        messagesCaptor.capture()
+        messagesCaptor.capture(),
       )
 
       assertThat(keyCaptor.firstValue).isEqualTo(EXCHANGE_STEP_ATTEMPT_KEY)
@@ -199,7 +199,7 @@ class ExchangeStepLauncherTest {
       finishExchangeStepAttempt(
         keyCaptor.capture(),
         stateCaptor.capture(),
-        messagesCaptor.capture()
+        messagesCaptor.capture(),
       )
 
       assertThat(keyCaptor.firstValue).isEqualTo(EXCHANGE_STEP_ATTEMPT_KEY)

@@ -24,7 +24,7 @@ import picocli.CommandLine
   name = "GcsLiquidLegionsV2MillDaemon",
   description = ["Liquid Legions V2 Mill daemon."],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 class GcsLiquidLegionsV2MillDaemon : LiquidLegionsV2MillDaemon() {
   @CommandLine.Mixin private lateinit var gcsFlags: GcsFromFlags.Flags

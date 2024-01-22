@@ -84,7 +84,7 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
     assertThat(response)
       .ignoringFields(
         Population.CREATE_TIME_FIELD_NUMBER,
-        Population.EXTERNAL_POPULATION_ID_FIELD_NUMBER
+        Population.EXTERNAL_POPULATION_ID_FIELD_NUMBER,
       )
       .isEqualTo(
         population {

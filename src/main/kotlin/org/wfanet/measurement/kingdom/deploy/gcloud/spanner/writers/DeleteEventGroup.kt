@@ -50,7 +50,7 @@ class DeleteEventGroup(private val request: DeleteEventGroupRequest) :
       throw EventGroupStateIllegalException(
         ExternalId(result.eventGroup.externalDataProviderId),
         externalEventGroupId,
-        result.eventGroup.state
+        result.eventGroup.state,
       )
     }
     transactionContext.bufferUpdateMutation("EventGroups") {

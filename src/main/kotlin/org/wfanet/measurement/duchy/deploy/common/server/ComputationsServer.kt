@@ -44,7 +44,10 @@ import picocli.CommandLine
 
 private typealias ComputationsDb =
   ComputationsDatabaseTransactor<
-    ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails
+    ComputationType,
+    ComputationStage,
+    ComputationStageDetails,
+    ComputationDetails,
   >
 
 /** gRPC server for Computations service. */
@@ -57,7 +60,10 @@ abstract class ComputationsServer : Runnable {
     ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
   abstract val computationProtocolStageDetails:
     ComputationProtocolStageDetailsHelper<
-      ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails
+      ComputationType,
+      ComputationStage,
+      ComputationStageDetails,
+      ComputationDetails,
     >
 
   protected fun run(
@@ -70,7 +76,7 @@ abstract class ComputationsServer : Runnable {
       SigningCerts.fromPemFiles(
         certificateFile = flags.server.tlsFlags.certFile,
         privateKeyFile = flags.server.tlsFlags.privateKeyFile,
-        trustedCertCollectionFile = flags.server.tlsFlags.certCollectionFile
+        trustedCertCollectionFile = flags.server.tlsFlags.certCollectionFile,
       )
     val channel: ManagedChannel =
       buildMutualTlsChannel(flags.systemApiFlags.target, clientCerts, flags.systemApiFlags.certHost)
@@ -86,7 +92,7 @@ abstract class ComputationsServer : Runnable {
         computationLogEntriesClient = computationLogEntriesClient,
         computationStore = ComputationStore(storageClient),
         requisitionStore = RequisitionStore(storageClient),
-        duchyName = flags.duchy.duchyName
+        duchyName = flags.duchy.duchyName,
       )
 
     CommonServer.fromFlags(
@@ -94,7 +100,7 @@ abstract class ComputationsServer : Runnable {
         javaClass.name,
         computationService,
         ComputationStatsService(computationsDatabase),
-        continuationTokensService
+        continuationTokensService,
       )
       .start()
       .blockUntilShutdown()
@@ -102,14 +108,15 @@ abstract class ComputationsServer : Runnable {
 
   private fun newComputationsDatabase(
     computationsDatabaseReader: ComputationsDatabaseReader,
-    computationDb: ComputationsDb
+    computationDb: ComputationsDb,
   ): ComputationsDatabase {
     return object :
       ComputationsDatabase,
       ComputationsDatabaseReader by computationsDatabaseReader,
       ComputationsDb by computationDb,
       ComputationProtocolStagesEnumHelper<
-        ComputationType, ComputationStage
+        ComputationType,
+        ComputationStage,
       > by protocolStageEnumHelper {}
   }
 
@@ -130,7 +137,7 @@ abstract class ComputationsServer : Runnable {
       names = ["--channel-shutdown-timeout"],
       defaultValue = "3s",
       description = ["How long to allow for the gRPC channel to shutdown."],
-      required = true
+      required = true,
     )
     lateinit var channelShutdownTimeout: Duration
       private set

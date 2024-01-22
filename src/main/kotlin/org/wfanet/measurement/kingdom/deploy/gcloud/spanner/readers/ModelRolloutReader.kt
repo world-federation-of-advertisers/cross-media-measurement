@@ -32,7 +32,7 @@ class ModelRolloutReader : SpannerReader<ModelRolloutReader.Result>() {
     val modelRolloutId: InternalId,
     val modelLineId: InternalId,
     val modelSuiteId: InternalId,
-    val modelProviderId: InternalId
+    val modelProviderId: InternalId,
   )
 
   override val baseSql: String =
@@ -76,7 +76,7 @@ class ModelRolloutReader : SpannerReader<ModelRolloutReader.Result>() {
       InternalId(struct.getLong("ModelRolloutId")),
       InternalId(struct.getLong("ModelLineId")),
       InternalId(struct.getLong("ModelSuiteId")),
-      InternalId(struct.getLong("ModelProviderId"))
+      InternalId(struct.getLong("ModelProviderId")),
     )
 
   private fun buildModelRollout(struct: Struct): ModelRollout = modelRollout {

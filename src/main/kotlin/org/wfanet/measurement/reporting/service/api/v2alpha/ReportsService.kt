@@ -100,7 +100,6 @@ class ReportsService(
   private val metricsStub: MetricsCoroutineStub,
   private val metricSpecConfig: MetricSpecConfig,
 ) : ReportsCoroutineImplBase() {
-
   private data class CreateReportInfo(
     val parent: String,
     val requestId: String,
@@ -184,7 +183,7 @@ class ReportsService(
           subResults.map { internalReport ->
             convertInternalReportToPublic(internalReport, externalIdToMetricMap)
           },
-          request.filter
+          request.filter,
         )
 
       if (nextPageToken != null) {
@@ -313,7 +312,7 @@ class ReportsService(
     val externalIdToMetricCalculationSpecMap: Map<String, InternalMetricCalculationSpec> =
       createExternalIdToMetricCalculationSpecMap(
         parentKey.measurementConsumerId,
-        externalMetricCalculationSpecIds
+        externalMetricCalculationSpecIds,
       )
 
     // Build an internal CreateReportRequest.
@@ -373,7 +372,7 @@ class ReportsService(
                 externalIdToMetricCalculationSpecMap
                   .getValue(metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId)
                   .details
-                  .filter
+                  .filter,
               )
             }
           }
@@ -486,7 +485,7 @@ class ReportsService(
         val externalIdToMetricCalculationMap: Map<String, InternalMetricCalculationSpec> =
           createExternalIdToMetricCalculationSpecMap(
             internalReport.cmmsMeasurementConsumerId,
-            externalMetricCalculationSpecIds
+            externalMetricCalculationSpecIds,
           )
 
         this.metricCalculationResults +=
@@ -502,7 +501,7 @@ class ReportsService(
         reportSchedule =
           ReportScheduleKey(
               internalReport.cmmsMeasurementConsumerId,
-              internalReport.externalReportScheduleId
+              internalReport.externalReportScheduleId,
             )
             .toName()
       }
@@ -530,7 +529,7 @@ class ReportsService(
           this.metricCalculationSpec =
             MetricCalculationSpecKey(
                 metricCalculationSpec.cmmsMeasurementConsumerId,
-                metricCalculationSpec.externalMetricCalculationSpecId
+                metricCalculationSpec.externalMetricCalculationSpecId,
               )
               .toName()
           displayName = metricCalculationSpec.details.displayName

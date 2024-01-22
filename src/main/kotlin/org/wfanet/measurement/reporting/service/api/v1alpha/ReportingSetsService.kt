@@ -178,7 +178,7 @@ private fun ListReportingSetsRequest.toListReportingSetsPageToken(): ListReporti
 
 /** Converts a public [ReportingSet] to an internal [InternalReportingSet]. */
 private fun ReportingSet.toInternal(
-  measurementConsumerKey: MeasurementConsumerKey,
+  measurementConsumerKey: MeasurementConsumerKey
 ): InternalReportingSet {
   val source = this
 
@@ -199,7 +199,7 @@ private fun ReportingSet.toInternal(
 
 /** Converts a public [EventGroupKey] to an internal [InternalEventGroupKey] */
 private fun EventGroupKey.toInternal(
-  measurementConsumerReferenceId: String,
+  measurementConsumerReferenceId: String
 ): InternalEventGroupKey {
   val source = this
   return internalEventGroupKey {
@@ -216,7 +216,7 @@ private fun InternalReportingSet.toReportingSet(): ReportingSet {
     name =
       ReportingSetKey(
           measurementConsumerId = source.measurementConsumerReferenceId,
-          reportingSetId = externalIdToApiId(source.externalReportingSetId)
+          reportingSetId = externalIdToApiId(source.externalReportingSetId),
         )
         .toName()
     eventGroups.addAll(
@@ -224,7 +224,7 @@ private fun InternalReportingSet.toReportingSet(): ReportingSet {
         EventGroupKey(
             measurementConsumerReferenceId = it.measurementConsumerReferenceId,
             dataProviderReferenceId = it.dataProviderReferenceId,
-            eventGroupReferenceId = it.eventGroupReferenceId
+            eventGroupReferenceId = it.eventGroupReferenceId,
           )
           .toName()
       }

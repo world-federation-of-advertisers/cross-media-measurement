@@ -35,7 +35,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreatePopula
 
 class SpannerPopulationsService(
   private val idGenerator: IdGenerator,
-  private val client: AsyncDatabaseClient
+  private val client: AsyncDatabaseClient,
 ) : PopulationsCoroutineImplBase() {
 
   override suspend fun createPopulation(request: Population): Population {
@@ -51,7 +51,7 @@ class SpannerPopulationsService(
       .readByExternalPopulationId(
         client.singleUse(),
         ExternalId(request.externalDataProviderId),
-        ExternalId(request.externalPopulationId)
+        ExternalId(request.externalPopulationId),
       )
       ?.population ?: failGrpc(Status.NOT_FOUND) { "Population not found" }
   }
@@ -64,11 +64,7 @@ class SpannerPopulationsService(
           request.filter.after.externalDataProviderId == 0L ||
           request.filter.after.externalPopulationId == 0L)
     ) {
-      failGrpc(
-        Status.INVALID_ARGUMENT,
-      ) {
-        "Missing After filter fields"
-      }
+      failGrpc(Status.INVALID_ARGUMENT) { "Missing After filter fields" }
     }
     return StreamPopulations(request.filter, request.limit).execute(client.singleUse()).map {
       it.population

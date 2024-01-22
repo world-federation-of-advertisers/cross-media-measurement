@@ -23,9 +23,7 @@ import org.wfanet.panelmatch.common.secrets.SecretMap
  * @param secretMap map from recurring exchange ids to serialized [StorageDetails] protos.
  * @param detailsType is a string used only for debugging strings.
  */
-class StorageDetailsProvider(
-  private val secretMap: MutableSecretMap,
-) {
+class StorageDetailsProvider(private val secretMap: MutableSecretMap) {
   suspend fun get(recurringExchangeId: String): StorageDetails {
     val serializedStorageDetails =
       secretMap.get(recurringExchangeId)

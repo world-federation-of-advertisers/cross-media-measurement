@@ -48,11 +48,11 @@ fun ApacheBeamContext.copyFromSharedStorage(
     pipeline
       .apply(
         "Start Copy from Storage From Beam",
-        Create.of(listOf(sourceManifestBlobKey).asIterable())
+        Create.of(listOf(sourceManifestBlobKey).asIterable()),
       )
       .apply(
         "Copy Manifest File",
-        ParDo.of(CopyManifestFromSharedDoFn(source, destinationFactory, destinationManifestBlobKey))
+        ParDo.of(CopyManifestFromSharedDoFn(source, destinationFactory, destinationManifestBlobKey)),
       )
       .flatMap("Generate Shard Names") { shardedFileName -> shardedFileName.fileNames.asIterable() }
   shardNames

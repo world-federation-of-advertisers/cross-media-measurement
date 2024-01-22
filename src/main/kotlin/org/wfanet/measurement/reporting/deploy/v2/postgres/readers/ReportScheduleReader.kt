@@ -35,7 +35,7 @@ class ReportScheduleReader(private val readContext: ReadContext) {
     val measurementConsumerId: InternalId,
     val reportScheduleId: InternalId,
     val createReportScheduleRequestId: String?,
-    val reportSchedule: ReportSchedule
+    val reportSchedule: ReportSchedule,
   )
 
   // TODO(@tristanvuong2021): Only do 2nd and 3rd joins if requested
@@ -75,7 +75,7 @@ class ReportScheduleReader(private val readContext: ReadContext) {
       row["MeasurementConsumerId"],
       row["ReportScheduleId"],
       row["CreateReportScheduleRequestId"],
-      buildReportSchedule(row)
+      buildReportSchedule(row),
     )
 
   suspend fun readReportScheduleByRequestId(

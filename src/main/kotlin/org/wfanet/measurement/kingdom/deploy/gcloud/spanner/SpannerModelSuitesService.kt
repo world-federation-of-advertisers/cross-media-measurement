@@ -35,7 +35,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelS
 
 class SpannerModelSuitesService(
   private val idGenerator: IdGenerator,
-  private val client: AsyncDatabaseClient
+  private val client: AsyncDatabaseClient,
 ) : ModelSuitesCoroutineImplBase() {
 
   override suspend fun createModelSuite(request: ModelSuite): ModelSuite {
@@ -52,7 +52,7 @@ class SpannerModelSuitesService(
       .readByExternalModelSuiteId(
         client.singleUse(),
         ExternalId(request.externalModelProviderId),
-        ExternalId(request.externalModelSuiteId)
+        ExternalId(request.externalModelSuiteId),
       )
       ?.modelSuite ?: failGrpc(Status.NOT_FOUND) { "ModelSuite not found" }
   }
@@ -65,11 +65,7 @@ class SpannerModelSuitesService(
           request.filter.after.externalModelSuiteId == 0L ||
           request.filter.after.externalModelProviderId == 0L)
     ) {
-      failGrpc(
-        Status.INVALID_ARGUMENT,
-      ) {
-        "Missing After filter fields"
-      }
+      failGrpc(Status.INVALID_ARGUMENT) { "Missing After filter fields" }
     }
     return StreamModelSuites(request.filter, request.limit).execute(client.singleUse()).map {
       it.modelSuite

@@ -36,7 +36,7 @@ fun loadLibraryFromResource(libraryName: String, resourcePathPrefix: String) {
     Paths.get(
         System.getProperty("java.io.tmpdir"),
         "org-wfanet-panelmatch-common-beam-LoadLibrary",
-        System.currentTimeMillis().toString()
+        System.currentTimeMillis().toString(),
       )
       .toAbsolutePath()
   check(tmpDir.toFile().mkdirs())

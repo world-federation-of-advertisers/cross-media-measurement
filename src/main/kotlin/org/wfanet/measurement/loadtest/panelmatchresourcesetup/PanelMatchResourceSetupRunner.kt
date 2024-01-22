@@ -37,20 +37,20 @@ private const val SCHEDULE = "@daily"
 @CommandLine.Command(
   name = "RunPanelMatchResourceSetupJob",
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 private fun run(@CommandLine.Mixin flags: PanelMatchResourceSetupFlags) {
   val clientCerts =
     SigningCerts.fromPemFiles(
       certificateFile = flags.tlsFlags.certFile,
       privateKeyFile = flags.tlsFlags.privateKeyFile,
-      trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
+      trustedCertCollectionFile = flags.tlsFlags.certCollectionFile,
     )
   val kingdomInternalApiChannel: ManagedChannel =
     buildMutualTlsChannel(
       flags.kingdomInternalApiTarget,
       clientCerts,
-      flags.kingdomInternalApiCertHost
+      flags.kingdomInternalApiCertHost,
     )
 
   val dataProviderContent =

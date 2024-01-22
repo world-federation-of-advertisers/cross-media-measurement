@@ -88,7 +88,7 @@ class PublicKeysServiceTest {
 
     verifyProtoArgument(
         internalPublicKeysMock,
-        PublicKeysGrpcKt.PublicKeysCoroutineImplBase::updatePublicKey
+        PublicKeysGrpcKt.PublicKeysCoroutineImplBase::updatePublicKey,
       )
       .isEqualTo(
         internalUpdatePublicKeyRequest {
@@ -116,7 +116,7 @@ class PublicKeysServiceTest {
 
     verifyProtoArgument(
         internalPublicKeysMock,
-        PublicKeysGrpcKt.PublicKeysCoroutineImplBase::updatePublicKey
+        PublicKeysGrpcKt.PublicKeysCoroutineImplBase::updatePublicKey,
       )
       .isEqualTo(
         internalUpdatePublicKeyRequest {

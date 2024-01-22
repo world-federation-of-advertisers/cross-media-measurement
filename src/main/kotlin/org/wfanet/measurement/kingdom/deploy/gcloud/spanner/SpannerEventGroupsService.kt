@@ -46,7 +46,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.UpdateEventG
 
 class SpannerEventGroupsService(
   private val idGenerator: IdGenerator,
-  private val client: AsyncDatabaseClient
+  private val client: AsyncDatabaseClient,
 ) : EventGroupsCoroutineImplBase() {
 
   override suspend fun createEventGroup(request: CreateEventGroupRequest): EventGroup {
@@ -55,19 +55,19 @@ class SpannerEventGroupsService(
     } catch (e: MeasurementConsumerNotFoundException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "MeasurementConsumer not found."
+        "MeasurementConsumer not found.",
       )
     } catch (e: DataProviderNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
     } catch (e: CertificateIsInvalidException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "MeasurementConsumer's Certificate is invalid."
+        "MeasurementConsumer's Certificate is invalid.",
       )
     } catch (e: MeasurementConsumerCertificateNotFoundException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "MeasurementConsumer's Certificate not found."
+        "MeasurementConsumer's Certificate not found.",
       )
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
@@ -84,17 +84,17 @@ class SpannerEventGroupsService(
     } catch (e: EventGroupInvalidArgsException) {
       throw e.asStatusRuntimeException(
         Status.Code.INVALID_ARGUMENT,
-        "EventGroup modification param is invalid."
+        "EventGroup modification param is invalid.",
       )
     } catch (e: CertificateIsInvalidException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "MeasurementConsumer's Certificate is invalid."
+        "MeasurementConsumer's Certificate is invalid.",
       )
     } catch (e: MeasurementConsumerCertificateNotFoundException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "MeasurementConsumer's Certificate not found."
+        "MeasurementConsumer's Certificate not found.",
       )
     } catch (e: EventGroupNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "EventGroup not found.")
@@ -132,11 +132,11 @@ class SpannerEventGroupsService(
         reader.readByMeasurementConsumer(
           client.singleUse(),
           externalMeasurementConsumerId,
-          externalEventGroupId
+          externalEventGroupId,
         )
           ?: throw EventGroupNotFoundByMeasurementConsumerException(
               externalMeasurementConsumerId,
-              externalEventGroupId
+              externalEventGroupId,
             )
             .asStatusRuntimeException(Status.Code.NOT_FOUND)
       }
