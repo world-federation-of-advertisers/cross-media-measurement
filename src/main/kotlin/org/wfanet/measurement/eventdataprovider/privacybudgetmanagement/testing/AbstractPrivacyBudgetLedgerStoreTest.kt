@@ -50,7 +50,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
         AgeGroup.RANGE_35_54,
         Gender.MALE,
         0.3f,
-        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
       )
 
     val bucket2 =
@@ -61,7 +61,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
         AgeGroup.RANGE_35_54,
         Gender.MALE,
         0.5f,
-        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
       )
 
     val bucket3 =
@@ -72,7 +72,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
         AgeGroup.RANGE_35_54,
         Gender.FEMALE,
         0.3f,
-        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
       )
 
     val bucket4 =
@@ -83,7 +83,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
         AgeGroup.RANGE_35_54,
         Gender.FEMALE,
         0.5f,
-        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
       )
 
     val dpCharge = DpCharge(0.01f, 0.0001f)
@@ -93,13 +93,13 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
     txContext1.addLedgerEntries(
       setOf(bucket1, bucket2, bucket3),
       setOf(dpCharge),
-      Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false)
+      Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false),
     )
 
     txContext1.addLedgerEntries(
       setOf(bucket1),
       setOf(dpCharge),
-      Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId2", false)
+      Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId2", false),
     )
     txContext1.commit()
     val txContext2 = backingStore.startTransaction()
@@ -124,14 +124,14 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
           AgeGroup.RANGE_35_54,
           Gender.MALE,
           0.3f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         )
       val dpCharge = DpCharge(0.01f, 0.0001f)
       backingStore.startTransaction().use { txContext: PrivacyBudgetLedgerTransactionContext ->
         txContext.addLedgerEntries(
           setOf(bucket1),
           setOf(dpCharge),
-          Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false)
+          Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false),
         )
         txContext.commit()
       }
@@ -144,7 +144,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
         txContext.addLedgerEntries(
           setOf(bucket1),
           setOf(dpCharge),
-          Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", true)
+          Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", true),
         )
         txContext.commit()
       }
@@ -170,7 +170,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
           AgeGroup.RANGE_35_54,
           Gender.MALE,
           0.3f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         )
       val bucketForOtherMC = bucket.copy(measurementConsumerId = otherMeasurementConsumerId)
       val dpCharge = DpCharge(0.01f, 0.0001f)
@@ -179,13 +179,13 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
           txContext.addLedgerEntries(
             setOf(bucket),
             setOf(dpCharge),
-            Reference(MEASUREMENT_CONSUMER_ID, requisitionId, false)
+            Reference(MEASUREMENT_CONSUMER_ID, requisitionId, false),
           )
 
           txContext.addLedgerEntries(
             setOf(bucketForOtherMC),
             setOf(dpCharge),
-            Reference(otherMeasurementConsumerId, requisitionId, false)
+            Reference(otherMeasurementConsumerId, requisitionId, false),
           )
           txContext.commit()
         }
@@ -230,14 +230,14 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
         AgeGroup.RANGE_35_54,
         Gender.MALE,
         0.3f,
-        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
       )
 
     val dpCharge = DpCharge(0.01f, 0.0001f)
     txContext.addLedgerEntries(
       setOf(bucket1),
       setOf(dpCharge),
-      Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false)
+      Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false),
     )
 
     val newBackingStore = createBackingStore()
@@ -268,7 +268,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
           AgeGroup.RANGE_35_54,
           Gender.MALE,
           0.3f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         )
 
       val dpCharge = DpCharge(0.01f, 0.0001f)
@@ -276,7 +276,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
       txContext1.addLedgerEntries(
         setOf(bucket1),
         setOf(dpCharge),
-        Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false)
+        Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false),
       )
 
       txContext1.commit()
@@ -298,7 +298,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
       txContext2.addLedgerEntries(
         setOf(bucket1),
         setOf(dpCharge),
-        Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", true)
+        Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", true),
       )
       txContext2.commit()
       val txContext3 = backingStore.startTransaction()
@@ -325,7 +325,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
           AgeGroup.RANGE_35_54,
           Gender.MALE,
           0.3f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         )
 
       val dpCharge = DpCharge(0.01f, 0.0001f)
@@ -333,7 +333,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
       txContext1.addLedgerEntries(
         setOf(bucket1),
         setOf(dpCharge),
-        Reference(MEASUREMENT_CONSUMER_ID, requisitionId, false)
+        Reference(MEASUREMENT_CONSUMER_ID, requisitionId, false),
       )
 
       txContext1.commit()
@@ -365,7 +365,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
           AgeGroup.RANGE_35_54,
           Gender.MALE,
           0.3f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         )
 
       val backingStore = createBackingStore()
@@ -391,7 +391,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
           AgeGroup.RANGE_35_54,
           Gender.MALE,
           0.3f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         )
 
       val bucket2 =
@@ -402,7 +402,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
           AgeGroup.RANGE_35_54,
           Gender.MALE,
           0.5f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         )
 
       val bucket3 =
@@ -413,7 +413,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
           AgeGroup.RANGE_35_54,
           Gender.FEMALE,
           0.3f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         )
 
       val backingStore = createBackingStore()
@@ -423,12 +423,12 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
       txContext1.addAcdpLedgerEntries(
         setOf(bucket1, bucket2, bucket3),
         setOf(acdpCharge),
-        Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false)
+        Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false),
       )
       txContext1.addAcdpLedgerEntries(
         setOf(bucket1),
         setOf(acdpCharge),
-        Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId2", false)
+        Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId2", false),
       )
       txContext1.commit()
 
@@ -463,7 +463,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
           AgeGroup.RANGE_35_54,
           Gender.MALE,
           0.3f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         )
       val bucketForOtherMC = bucket.copy(measurementConsumerId = otherMeasurementConsumerId)
       val acdpCharge = AcdpCharge(0.04, 5.0E-6)
@@ -473,13 +473,13 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
       txContext1.addAcdpLedgerEntries(
         setOf(bucket),
         setOf(acdpCharge),
-        Reference(MEASUREMENT_CONSUMER_ID, requisitionId, false)
+        Reference(MEASUREMENT_CONSUMER_ID, requisitionId, false),
       )
 
       txContext1.addAcdpLedgerEntries(
         setOf(bucketForOtherMC),
         setOf(acdpCharge),
-        Reference(otherMeasurementConsumerId, requisitionId, false)
+        Reference(otherMeasurementConsumerId, requisitionId, false),
       )
 
       txContext1.commit()
@@ -511,7 +511,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
           AgeGroup.RANGE_35_54,
           Gender.MALE,
           0.3f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         )
 
       val acdpCharge = AcdpCharge(0.04, 5.0E-6)
@@ -519,7 +519,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
       txContext1.addAcdpLedgerEntries(
         setOf(bucket1),
         setOf(acdpCharge),
-        Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false)
+        Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false),
       )
 
       txContext1.commit()
@@ -541,7 +541,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
       txContext2.addAcdpLedgerEntries(
         setOf(bucket1),
         setOf(acdpCharge),
-        Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", true)
+        Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", true),
       )
       txContext2.commit()
       val txContext3 = backingStore.startTransaction()
@@ -566,7 +566,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
           AgeGroup.RANGE_35_54,
           Gender.MALE,
           0.3f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         )
       val backingStore = createBackingStore()
 
@@ -576,7 +576,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
       txContext1.addAcdpLedgerEntries(
         setOf(bucket),
         setOf(acdpCharge),
-        Reference(MEASUREMENT_CONSUMER_ID, requisitionId, false)
+        Reference(MEASUREMENT_CONSUMER_ID, requisitionId, false),
       )
       txContext1.commit()
 
@@ -605,7 +605,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
         AgeGroup.RANGE_35_54,
         Gender.MALE,
         0.3f,
-        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
       )
     val acdpCharge = AcdpCharge(0.04, 5E-6)
 
@@ -615,7 +615,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
     txContext1.addAcdpLedgerEntries(
       setOf(bucket),
       setOf(acdpCharge),
-      Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false)
+      Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false),
     )
     txContext1.commit()
 
@@ -625,7 +625,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
     txContext2.addAcdpLedgerEntries(
       setOf(bucket),
       setOf(acdpCharge),
-      Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", true)
+      Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", true),
     )
     txContext2.commit()
 
@@ -654,14 +654,14 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
         AgeGroup.RANGE_35_54,
         Gender.MALE,
         0.3f,
-        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
       )
 
     val acdpCharge = AcdpCharge(0.04, 5E-6)
     txContext.addAcdpLedgerEntries(
       setOf(bucket),
       setOf(acdpCharge),
-      Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false)
+      Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false),
     )
 
     val newBackingStore = createBackingStore()

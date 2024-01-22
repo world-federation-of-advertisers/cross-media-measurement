@@ -168,8 +168,8 @@ class EventGroupsService(
               METADATA_FIELD,
               DynamicMessage.parseFrom(
                 typeRegistry.getDescriptorForTypeUrl(metadata.typeUrl),
-                metadata.value
-              )
+                metadata.value,
+              ),
             )
           }
         }
@@ -221,7 +221,7 @@ private fun CmmsEventGroup.toEventGroup(cmmsMetadata: CmmsEventGroup.Metadata?):
       EventGroupKey(
           measurementConsumerKey.measurementConsumerId,
           cmmsEventGroupKey.dataProviderId,
-          cmmsEventGroupKey.eventGroupId
+          cmmsEventGroupKey.eventGroupId,
         )
         .toName()
     dataProvider = CmmsDataProviderKey(cmmsEventGroupKey.dataProviderId).toName()

@@ -188,7 +188,7 @@ class ReportingTest {
 
     verifyProtoArgument(
         reportingSetsServiceMock,
-        ReportingSetsCoroutineImplBase::createReportingSet
+        ReportingSetsCoroutineImplBase::createReportingSet,
       )
       .isEqualTo(
         createReportingSetRequest {
@@ -241,7 +241,7 @@ class ReportingTest {
 
     verifyProtoArgument(
         reportingSetsServiceMock,
-        ReportingSetsCoroutineImplBase::createReportingSet
+        ReportingSetsCoroutineImplBase::createReportingSet,
       )
       .isEqualTo(
         createReportingSetRequest {
@@ -391,7 +391,7 @@ class ReportingTest {
             reportingMetricEntries +=
               parseTextProto(
                 textFormatReportingMetricEntryFile,
-                Report.ReportingMetricEntry.getDefaultInstance()
+                Report.ReportingMetricEntry.getDefaultInstance(),
               )
             timeIntervals = timeIntervals {
               timeIntervals += interval {
@@ -447,7 +447,7 @@ class ReportingTest {
             reportingMetricEntries +=
               parseTextProto(
                 textFormatReportingMetricEntryFile,
-                Report.ReportingMetricEntry.getDefaultInstance()
+                Report.ReportingMetricEntry.getDefaultInstance(),
               )
             periodicTimeInterval = periodicTimeInterval {
               this.startTime = Instant.parse(startTime).toProtoTime()
@@ -776,7 +776,7 @@ class ReportingTest {
 
     verifyProtoArgument(
         eventGroupMetadataDescriptorsServiceMock,
-        EventGroupMetadataDescriptorsCoroutineImplBase::getEventGroupMetadataDescriptor
+        EventGroupMetadataDescriptorsCoroutineImplBase::getEventGroupMetadataDescriptor,
       )
       .isEqualTo(
         getEventGroupMetadataDescriptorRequest { name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME }
@@ -805,7 +805,7 @@ class ReportingTest {
 
     verifyProtoArgument(
         eventGroupMetadataDescriptorsServiceMock,
-        EventGroupMetadataDescriptorsCoroutineImplBase::batchGetEventGroupMetadataDescriptors
+        EventGroupMetadataDescriptorsCoroutineImplBase::batchGetEventGroupMetadataDescriptors,
       )
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
@@ -818,7 +818,7 @@ class ReportingTest {
     assertThat(
         parseTextProto(
           output.out.reader(),
-          BatchGetEventGroupMetadataDescriptorsResponse.getDefaultInstance()
+          BatchGetEventGroupMetadataDescriptorsResponse.getDefaultInstance(),
         )
       )
       .isEqualTo(
@@ -854,7 +854,7 @@ class ReportingTest {
           "service",
           "api",
           "v2alpha",
-          "tools"
+          "tools",
         )
       )!!
 

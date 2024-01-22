@@ -100,7 +100,7 @@ class DataProvidersServiceTest {
 
     verifyProtoArgument(
         publicKingdomDataProvidersMock,
-        DataProvidersCoroutineImplBase::getDataProvider
+        DataProvidersCoroutineImplBase::getDataProvider,
       )
       .isEqualTo(getDataProviderRequest { name = DATA_PROVIDER_NAME })
   }

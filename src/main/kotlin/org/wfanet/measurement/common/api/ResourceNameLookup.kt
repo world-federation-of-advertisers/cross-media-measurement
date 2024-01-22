@@ -29,7 +29,7 @@ fun <K> ResourceNameLookup<K>.toResourceKeyLookup(
 
 private class ResourceKeyLookupImpl<K>(
   private val resourceNameLookup: ResourceNameLookup<K>,
-  private val keyFactory: ResourceKey.Factory<*>
+  private val keyFactory: ResourceKey.Factory<*>,
 ) : ResourceKeyLookup<K> {
   override suspend fun getResourceKey(lookupKey: K): ResourceKey? {
     return resourceNameLookup.getResourceName(lookupKey)?.let { keyFactory.fromName(it) }

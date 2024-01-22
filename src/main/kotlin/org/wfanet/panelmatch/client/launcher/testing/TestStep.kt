@@ -24,7 +24,7 @@ import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
 fun buildWorkflow(
   testedStep: Step,
   dataProviderName: String,
-  modelProviderName: String
+  modelProviderName: String,
 ): ExchangeWorkflow {
   return exchangeWorkflow {
     steps += testedStep

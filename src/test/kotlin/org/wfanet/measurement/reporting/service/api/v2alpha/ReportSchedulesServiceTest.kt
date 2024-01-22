@@ -124,7 +124,7 @@ class ReportSchedulesServiceTest {
         val reportingSetsMap =
           mapOf(
             INTERNAL_PRIMITIVE_REPORTING_SET.externalReportingSetId to
-              INTERNAL_PRIMITIVE_REPORTING_SET,
+              INTERNAL_PRIMITIVE_REPORTING_SET
           )
         batchGetReportingSetsResponse {
           reportingSets +=
@@ -160,7 +160,7 @@ class ReportSchedulesServiceTest {
         ReportSchedulesCoroutineStub(grpcTestServerRule.channel),
         ReportingSetsCoroutineStub(grpcTestServerRule.channel),
         DataProvidersCoroutineStub(grpcTestServerRule.channel),
-        EventGroupsCoroutineStub(grpcTestServerRule.channel)
+        EventGroupsCoroutineStub(grpcTestServerRule.channel),
       )
   }
 
@@ -274,7 +274,7 @@ class ReportSchedulesServiceTest {
 
     verifyProtoArgument(
         internalReportSchedulesMock,
-        ReportSchedulesCoroutineImplBase::createReportSchedule
+        ReportSchedulesCoroutineImplBase::createReportSchedule,
       )
       .isEqualTo(
         internalCreateReportScheduleRequest {
@@ -298,7 +298,7 @@ class ReportSchedulesServiceTest {
 
     verifyProtoArgument(
         internalReportingSetsMock,
-        ReportingSetsCoroutineImplBase::batchGetReportingSets
+        ReportingSetsCoroutineImplBase::batchGetReportingSets,
       )
       .isEqualTo(
         batchGetReportingSetsRequest {
@@ -387,7 +387,7 @@ class ReportSchedulesServiceTest {
 
       verifyProtoArgument(
           internalReportSchedulesMock,
-          ReportSchedulesCoroutineImplBase::createReportSchedule
+          ReportSchedulesCoroutineImplBase::createReportSchedule,
         )
         .isEqualTo(
           internalCreateReportScheduleRequest {
@@ -489,7 +489,7 @@ class ReportSchedulesServiceTest {
 
       verifyProtoArgument(
           internalReportSchedulesMock,
-          ReportSchedulesCoroutineImplBase::createReportSchedule
+          ReportSchedulesCoroutineImplBase::createReportSchedule,
         )
         .isEqualTo(
           internalCreateReportScheduleRequest {
@@ -591,7 +591,7 @@ class ReportSchedulesServiceTest {
 
       verifyProtoArgument(
           internalReportSchedulesMock,
-          ReportSchedulesCoroutineImplBase::createReportSchedule
+          ReportSchedulesCoroutineImplBase::createReportSchedule,
         )
         .isEqualTo(
           internalCreateReportScheduleRequest {
@@ -690,7 +690,7 @@ class ReportSchedulesServiceTest {
 
       verifyProtoArgument(
           internalReportSchedulesMock,
-          ReportSchedulesCoroutineImplBase::createReportSchedule
+          ReportSchedulesCoroutineImplBase::createReportSchedule,
         )
         .isEqualTo(
           internalCreateReportScheduleRequest {
@@ -786,7 +786,7 @@ class ReportSchedulesServiceTest {
 
       verifyProtoArgument(
           internalReportSchedulesMock,
-          ReportSchedulesCoroutineImplBase::createReportSchedule
+          ReportSchedulesCoroutineImplBase::createReportSchedule,
         )
         .isEqualTo(
           internalCreateReportScheduleRequest {
@@ -882,7 +882,7 @@ class ReportSchedulesServiceTest {
 
       verifyProtoArgument(
           internalReportSchedulesMock,
-          ReportSchedulesCoroutineImplBase::createReportSchedule
+          ReportSchedulesCoroutineImplBase::createReportSchedule,
         )
         .isEqualTo(
           internalCreateReportScheduleRequest {
@@ -978,7 +978,7 @@ class ReportSchedulesServiceTest {
 
       verifyProtoArgument(
           internalReportSchedulesMock,
-          ReportSchedulesCoroutineImplBase::createReportSchedule
+          ReportSchedulesCoroutineImplBase::createReportSchedule,
         )
         .isEqualTo(
           internalCreateReportScheduleRequest {
@@ -1057,7 +1057,7 @@ class ReportSchedulesServiceTest {
           mapOf(
             compositeReportingSet.externalReportingSetId to compositeReportingSet,
             INTERNAL_PRIMITIVE_REPORTING_SET.externalReportingSetId to
-              INTERNAL_PRIMITIVE_REPORTING_SET
+              INTERNAL_PRIMITIVE_REPORTING_SET,
           )
         batchGetReportingSetsResponse {
           reportingSets +=
@@ -2148,7 +2148,7 @@ class ReportSchedulesServiceTest {
 
     verifyProtoArgument(
         internalReportSchedulesMock,
-        ReportSchedulesCoroutineImplBase::listReportSchedules
+        ReportSchedulesCoroutineImplBase::listReportSchedules,
       )
       .isEqualTo(
         internalListReportSchedulesRequest {
@@ -2183,7 +2183,7 @@ class ReportSchedulesServiceTest {
 
     verifyProtoArgument(
         internalReportSchedulesMock,
-        ReportSchedulesCoroutineImplBase::listReportSchedules
+        ReportSchedulesCoroutineImplBase::listReportSchedules,
       )
       .isEqualTo(
         internalListReportSchedulesRequest {
@@ -2230,7 +2230,7 @@ class ReportSchedulesServiceTest {
 
     verifyProtoArgument(
         internalReportSchedulesMock,
-        ReportSchedulesCoroutineImplBase::listReportSchedules
+        ReportSchedulesCoroutineImplBase::listReportSchedules,
       )
       .isEqualTo(
         internalListReportSchedulesRequest {
@@ -2266,7 +2266,7 @@ class ReportSchedulesServiceTest {
 
     verifyProtoArgument(
         internalReportSchedulesMock,
-        ReportSchedulesCoroutineImplBase::listReportSchedules
+        ReportSchedulesCoroutineImplBase::listReportSchedules,
       )
       .isEqualTo(
         internalListReportSchedulesRequest {
@@ -2314,7 +2314,7 @@ class ReportSchedulesServiceTest {
 
     verifyProtoArgument(
         internalReportSchedulesMock,
-        ReportSchedulesCoroutineImplBase::listReportSchedules
+        ReportSchedulesCoroutineImplBase::listReportSchedules,
       )
       .isEqualTo(
         internalListReportSchedulesRequest {
@@ -2346,7 +2346,7 @@ class ReportSchedulesServiceTest {
 
     verifyProtoArgument(
         internalReportSchedulesMock,
-        ReportSchedulesCoroutineImplBase::listReportSchedules
+        ReportSchedulesCoroutineImplBase::listReportSchedules,
       )
       .isEqualTo(
         internalListReportSchedulesRequest {
@@ -2394,7 +2394,7 @@ class ReportSchedulesServiceTest {
 
     verifyProtoArgument(
         internalReportSchedulesMock,
-        ReportSchedulesCoroutineImplBase::listReportSchedules
+        ReportSchedulesCoroutineImplBase::listReportSchedules,
       )
       .isEqualTo(
         internalListReportSchedulesRequest {
@@ -2428,7 +2428,7 @@ class ReportSchedulesServiceTest {
 
     verifyProtoArgument(
         internalReportSchedulesMock,
-        ReportSchedulesCoroutineImplBase::listReportSchedules
+        ReportSchedulesCoroutineImplBase::listReportSchedules,
       )
       .isEqualTo(
         internalListReportSchedulesRequest {

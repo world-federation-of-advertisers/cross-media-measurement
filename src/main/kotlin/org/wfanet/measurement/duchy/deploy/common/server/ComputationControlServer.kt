@@ -45,14 +45,14 @@ abstract class ComputationControlServer : Runnable {
       SigningCerts.fromPemFiles(
         certificateFile = flags.server.tlsFlags.certFile,
         privateKeyFile = flags.server.tlsFlags.privateKeyFile,
-        trustedCertCollectionFile = flags.server.tlsFlags.certCollectionFile
+        trustedCertCollectionFile = flags.server.tlsFlags.certCollectionFile,
       )
 
     val channel: Channel =
       buildMutualTlsChannel(
           flags.asyncComputationControlServiceFlags.target,
           clientCerts,
-          flags.asyncComputationControlServiceFlags.certHost
+          flags.asyncComputationControlServiceFlags.certHost,
         )
         .withDefaultDeadline(flags.asyncComputationControlServiceFlags.defaultDeadlineDuration)
 
@@ -60,7 +60,7 @@ abstract class ComputationControlServer : Runnable {
         flags.server,
         javaClass.name,
         ComputationControlService(AsyncComputationControlCoroutineStub(channel), storageClient)
-          .withDuchyIdentities()
+          .withDuchyIdentities(),
       )
       .start()
       .blockUntilShutdown()

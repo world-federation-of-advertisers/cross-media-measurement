@@ -29,7 +29,7 @@ object TestCertificateManager : CertificateManager {
   override suspend fun getCertificate(
     exchange: ExchangeDateKey,
     certOwnerName: String,
-    certResourceName: String
+    certResourceName: String,
   ): X509Certificate {
     return CERTIFICATE
   }

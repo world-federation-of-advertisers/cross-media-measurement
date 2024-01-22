@@ -52,7 +52,7 @@ suspend fun ApacheBeamContext.executePrivateMembershipQueries(
       privateMembershipPublicKey,
       paddingNonces.toMapView("Padding Nonces View"),
       evaluateQueriesParameters,
-      queryEvaluator
+      queryEvaluator,
     )
 
   results.writeShardedFiles("encrypted-results")

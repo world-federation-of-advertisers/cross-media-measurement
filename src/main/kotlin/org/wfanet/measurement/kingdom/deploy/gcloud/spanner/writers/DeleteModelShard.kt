@@ -51,14 +51,14 @@ class DeleteModelShard(
       throw ModelShardInvalidArgsException(
         externalDataProviderId,
         externalModelShardId,
-        externalModelProviderId
+        externalModelProviderId,
       )
     }
 
     transactionContext.buffer(
       Mutation.delete(
         "ModelShards",
-        KeySet.singleKey(Key.of(dataProviderId, modelShardResult.modelShardId.value))
+        KeySet.singleKey(Key.of(dataProviderId, modelShardResult.modelShardId.value)),
       )
     )
 

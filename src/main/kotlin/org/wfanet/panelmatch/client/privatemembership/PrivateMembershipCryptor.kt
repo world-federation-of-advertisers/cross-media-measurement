@@ -30,6 +30,6 @@ interface PrivateMembershipCryptor : Serializable {
   /** encrypts a set of unencrypted queries */
   fun encryptQueries(
     unencryptedQueries: Iterable<UnencryptedQuery>,
-    keys: AsymmetricKeyPair
+    keys: AsymmetricKeyPair,
   ): ByteString
 }

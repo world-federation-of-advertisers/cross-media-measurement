@@ -42,14 +42,14 @@ abstract class RequisitionFulfillmentServer : Runnable {
       SigningCerts.fromPemFiles(
         certificateFile = flags.server.tlsFlags.certFile,
         privateKeyFile = flags.server.tlsFlags.privateKeyFile,
-        trustedCertCollectionFile = flags.server.tlsFlags.certCollectionFile
+        trustedCertCollectionFile = flags.server.tlsFlags.certCollectionFile,
       )
     val computationsClient =
       ComputationsCoroutineStub(
         buildMutualTlsChannel(
             flags.computationsServiceFlags.target,
             clientCerts,
-            flags.computationsServiceFlags.certHost
+            flags.computationsServiceFlags.certHost,
           )
           .withDefaultDeadline(flags.computationsServiceFlags.defaultDeadlineDuration)
       )
@@ -58,7 +58,7 @@ abstract class RequisitionFulfillmentServer : Runnable {
           buildMutualTlsChannel(
             flags.systemApiFlags.target,
             clientCerts,
-            flags.systemApiFlags.certHost
+            flags.systemApiFlags.certHost,
           )
         )
         .withDuchyId(flags.duchy.duchyName)
@@ -68,7 +68,7 @@ abstract class RequisitionFulfillmentServer : Runnable {
       RequisitionFulfillmentService(
           systemRequisitionsClient,
           computationsClient,
-          RequisitionStore(storageClient)
+          RequisitionStore(storageClient),
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
 

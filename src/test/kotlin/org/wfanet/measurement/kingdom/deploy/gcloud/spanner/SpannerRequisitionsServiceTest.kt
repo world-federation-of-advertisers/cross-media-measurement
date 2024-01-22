@@ -34,7 +34,7 @@ class SpannerRequisitionsServiceTest : RequisitionsServiceTest<SpannerRequisitio
       SpannerMeasurementsService(idGenerator, databaseClient),
       SpannerComputationParticipantsService(idGenerator, databaseClient),
       SpannerCertificatesService(idGenerator, databaseClient),
-      SpannerAccountsService(idGenerator, databaseClient)
+      SpannerAccountsService(idGenerator, databaseClient),
     )
   }
 

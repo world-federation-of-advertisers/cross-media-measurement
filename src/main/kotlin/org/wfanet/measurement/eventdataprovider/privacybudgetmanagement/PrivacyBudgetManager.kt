@@ -41,7 +41,7 @@ class PrivacyBudgetManager(
   val ledger =
     PrivacyBudgetLedger(
       backingStore,
-      DpParams(maximumPrivacyBudget.toDouble(), maximumTotalDelta.toDouble())
+      DpParams(maximumPrivacyBudget.toDouble(), maximumTotalDelta.toDouble()),
     )
 
   /** Checks if calling charge with this [reference] will result in an update in the ledger. */
@@ -56,13 +56,11 @@ class PrivacyBudgetManager(
    *   exceptions could include running out of privacy budget or a failure to commit the transaction
    *   to the database.
    */
-  @Deprecated(
-    "Should be removed after completely switching to Gaussian noise and ACDP composition",
-  )
+  @Deprecated("Should be removed after completely switching to Gaussian noise and ACDP composition")
   suspend fun chargingWillExceedPrivacyBudget(dpQuery: DpQuery) =
     ledger.chargingWillExceedPrivacyBudget(
       filter.getPrivacyBucketGroups(dpQuery.reference.measurementConsumerId, dpQuery.landscapeMask),
-      setOf(dpQuery.dpCharge)
+      setOf(dpQuery.dpCharge),
     )
 
   /**
@@ -78,9 +76,9 @@ class PrivacyBudgetManager(
     ledger.chargingWillExceedPrivacyBudgetInAcdp(
       filter.getPrivacyBucketGroups(
         acdpQuery.reference.measurementConsumerId,
-        acdpQuery.landscapeMask
+        acdpQuery.landscapeMask,
       ),
-      setOf(acdpQuery.acdpCharge)
+      setOf(acdpQuery.acdpCharge),
     )
 
   /**
@@ -94,14 +92,12 @@ class PrivacyBudgetManager(
    * @throws PrivacyBudgetManagerException if an error occurs in handling this request. Possible
    *   exceptions could include a failure to commit the transaction to the database.
    */
-  @Deprecated(
-    "Should be removed after completely switching to Gaussian noise and ACDP composition",
-  )
+  @Deprecated("Should be removed after completely switching to Gaussian noise and ACDP composition")
   suspend fun chargePrivacyBudget(dpQuery: DpQuery) =
     ledger.charge(
       dpQuery.reference,
       filter.getPrivacyBucketGroups(dpQuery.reference.measurementConsumerId, dpQuery.landscapeMask),
-      setOf(dpQuery.dpCharge)
+      setOf(dpQuery.dpCharge),
     )
 
   /**
@@ -120,8 +116,8 @@ class PrivacyBudgetManager(
       acdpQuery.reference,
       filter.getPrivacyBucketGroups(
         acdpQuery.reference.measurementConsumerId,
-        acdpQuery.landscapeMask
+        acdpQuery.landscapeMask,
       ),
-      setOf(acdpQuery.acdpCharge)
+      setOf(acdpQuery.acdpCharge),
     )
 }

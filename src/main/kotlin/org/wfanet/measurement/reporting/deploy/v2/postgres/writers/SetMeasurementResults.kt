@@ -72,7 +72,7 @@ class SetMeasurementResults(private val request: BatchSetMeasurementResultsReque
     MeasurementReader(transactionContext)
       .readMeasurementsByCmmsId(
         measurementConsumerId,
-        request.measurementResultsList.map { it.cmmsMeasurementId }
+        request.measurementResultsList.map { it.cmmsMeasurementId },
       )
       .collect {
         val measurement = it.measurement

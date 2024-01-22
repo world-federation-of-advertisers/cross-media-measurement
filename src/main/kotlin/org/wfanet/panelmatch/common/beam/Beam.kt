@@ -59,7 +59,7 @@ fun <KeyT, ValueT> PCollection<KV<KeyT, ValueT>>.values(
 /** Kotlin convenience helper for [ParDo]. */
 fun <InT, OutT> PCollection<InT>.parDo(
   doFn: DoFn<InT, OutT>,
-  name: String = "ParDo"
+  name: String = "ParDo",
 ): PCollection<OutT> {
   return apply(name, ParDo.of(doFn))
 }
@@ -67,7 +67,7 @@ fun <InT, OutT> PCollection<InT>.parDo(
 /** Kotlin convenience helper for [ParDo]. */
 inline fun <InT, OutT> PCollection<InT>.parDo(
   name: String = "ParDo",
-  crossinline processElement: suspend SequenceScope<OutT>.(InT) -> Unit
+  crossinline processElement: suspend SequenceScope<OutT>.(InT) -> Unit,
 ): PCollection<OutT> {
   return parDo(
     object : DoFn<InT, OutT>() {
@@ -76,14 +76,14 @@ inline fun <InT, OutT> PCollection<InT>.parDo(
         sequence<OutT> { processElement(element) }.forEach(output::output)
       }
     },
-    name
+    name,
   )
 }
 
 /** Convenience helper for filtering a [PCollection] */
 inline fun <reified T> PCollection<T>.filter(
   name: String = "Filter",
-  crossinline predicate: (T) -> Boolean
+  crossinline predicate: (T) -> Boolean,
 ): PCollection<T> {
   return parDo(name) { if (predicate(it)) yield(it) }
 }
@@ -91,7 +91,7 @@ inline fun <reified T> PCollection<T>.filter(
 /** Kotlin convenience helper for a [ParDo] that has a single output per input. */
 inline fun <InT, reified OutT> PCollection<InT>.map(
   name: String = "Map",
-  crossinline processElement: (InT) -> OutT
+  crossinline processElement: (InT) -> OutT,
 ): PCollection<OutT> {
   return parDo(name) { yield(processElement(it)) }
 }
@@ -99,7 +99,7 @@ inline fun <InT, reified OutT> PCollection<InT>.map(
 /** Kotlin convenience helper for a [ParDo] that yields an [Iterable] of outputs. */
 inline fun <InT, reified OutT> PCollection<InT>.flatMap(
   name: String = "FlatMap",
-  crossinline processElement: (InT) -> Iterable<OutT>
+  crossinline processElement: (InT) -> Iterable<OutT>,
 ): PCollection<OutT> {
   return parDo(name) { yieldAll(processElement(it)) }
 }
@@ -107,7 +107,7 @@ inline fun <InT, reified OutT> PCollection<InT>.flatMap(
 /** Kotlin convenience helper for keying a [PCollection] by some function of the inputs. */
 inline fun <InputT, reified KeyT> PCollection<InputT>.keyBy(
   name: String = "KeyBy",
-  crossinline keySelector: (InputT) -> KeyT
+  crossinline keySelector: (InputT) -> KeyT,
 ): PCollection<KV<KeyT, InputT>> {
   return map(name) { kvOf(keySelector(it), it) }
 }
@@ -115,7 +115,7 @@ inline fun <InputT, reified KeyT> PCollection<InputT>.keyBy(
 /** Kotlin convenience helper for transforming only the keys of a [PCollection] of [KV]s. */
 inline fun <InKeyT, reified OutKeyT, reified ValueT> PCollection<KV<InKeyT, ValueT>>.mapKeys(
   name: String = "MapKeys",
-  crossinline processKey: (InKeyT) -> OutKeyT
+  crossinline processKey: (InKeyT) -> OutKeyT,
 ): PCollection<KV<OutKeyT, ValueT>> {
   return map(name) { kvOf(processKey(it.key), it.value) }
 }
@@ -123,7 +123,7 @@ inline fun <InKeyT, reified OutKeyT, reified ValueT> PCollection<KV<InKeyT, Valu
 /** Kotlin convenience helper for transforming only the keys of a [PCollection] of [KV]s. */
 inline fun <KeyT, reified InValueT, reified OutValueT> PCollection<KV<KeyT, InValueT>>.mapValues(
   name: String = "MapValues",
-  crossinline processValue: (InValueT) -> OutValueT
+  crossinline processValue: (InValueT) -> OutValueT,
 ): PCollection<KV<KeyT, OutValueT>> {
   return map(name) { kvOf(it.key, processValue(it.value)) }
 }
@@ -132,7 +132,7 @@ inline fun <KeyT, reified InValueT, reified OutValueT> PCollection<KV<KeyT, InVa
 fun <T> PCollection<T>.partition(
   numParts: Int,
   name: String = "Partition",
-  partitionBy: (T) -> Int
+  partitionBy: (T) -> Int,
 ): PCollectionList<T> {
   return apply(name, Partition.of(numParts) { value: T, _ -> partitionBy(value) })
 }
@@ -142,7 +142,7 @@ inline fun <KeyT, reified LeftT, reified RightT, OutT> PCollection<KV<KeyT, Left
   right: PCollection<KV<KeyT, RightT>>,
   name: String = "Join",
   crossinline transform:
-    suspend SequenceScope<OutT>.(KeyT, Iterable<LeftT>, Iterable<RightT>) -> Unit
+    suspend SequenceScope<OutT>.(KeyT, Iterable<LeftT>, Iterable<RightT>) -> Unit,
 ): PCollection<OutT> {
   val leftTag = object : TupleTag<LeftT>() {}
   val rightTag = object : TupleTag<RightT>() {}
@@ -166,7 +166,7 @@ inline fun <reified KeyT, reified LeftT, reified RightT> PCollection<KV<KeyT, Le
   return oneToOneJoin(right, name = "$name/Join").map("$name/RequireNotNull") {
     kvOf(
       requireNotNull(it.key) { "Key is missing in strictOneToOneJoin '$name'" },
-      requireNotNull(it.value) { "Value is missing in strictOneToOneJoin '$name'" }
+      requireNotNull(it.value) { "Value is missing in strictOneToOneJoin '$name'" },
     )
   }
 }
@@ -185,7 +185,7 @@ inline fun <reified KeyT, reified LeftT, reified RightT> PCollection<KV<KeyT, Le
     .setCoder(
       KvCoder.of(
         NullableCoder.of((coder as KvCoder<KeyT, LeftT>).valueCoder),
-        NullableCoder.of((right.coder as KvCoder<KeyT, RightT>).valueCoder)
+        NullableCoder.of((right.coder as KvCoder<KeyT, RightT>).valueCoder),
       )
     )
 }
@@ -209,7 +209,7 @@ fun <T> PCollectionList<T>.flatten(name: String = "Flatten"): PCollection<T> {
 inline fun <InT, reified SideT, reified OutT> PCollection<InT>.parDoWithSideInput(
   sideInput: PCollectionView<SideT>,
   name: String = "ParDoWithSideInput",
-  crossinline processElement: suspend SequenceScope<OutT>.(InT, SideT) -> Unit
+  crossinline processElement: suspend SequenceScope<OutT>.(InT, SideT) -> Unit,
 ): PCollection<OutT> {
   val doFn =
     object : DoFn<InT, OutT>() {
@@ -217,7 +217,7 @@ inline fun <InT, reified SideT, reified OutT> PCollection<InT>.parDoWithSideInpu
       fun processElement(
         @Element element: InT,
         out: OutputReceiver<OutT>,
-        context: ProcessContext
+        context: ProcessContext,
       ) {
         sequence<OutT> { processElement(element, context.sideInput(sideInput)) }
           .forEach(out::output)
@@ -229,7 +229,7 @@ inline fun <InT, reified SideT, reified OutT> PCollection<InT>.parDoWithSideInpu
 inline fun <InT, reified SideT, reified OutT> PCollection<InT>.mapWithSideInput(
   sideInput: PCollectionView<SideT>,
   name: String = "MapWithSideInput",
-  crossinline processElement: (InT, SideT) -> OutT
+  crossinline processElement: (InT, SideT) -> OutT,
 ): PCollection<OutT> {
   return parDoWithSideInput(sideInput, name) { e, side -> yield(processElement(e, side)) }
 }
@@ -269,7 +269,7 @@ fun <T> PCollection<T>.breakFusion(name: String = "BreakFusion"): PCollection<T>
 fun Pipeline.createSequence(
   n: Int,
   parallelism: Int = 1000,
-  name: String = "CreateSequence"
+  name: String = "CreateSequence",
 ): PCollection<Int> {
   val numPerBatch: Int = ceil(n / parallelism.toFloat()).toInt()
   return apply("$name/Create", Create.of((0 until parallelism).toList())).parDo("$name/ParDo") {
@@ -282,7 +282,7 @@ fun Pipeline.createSequence(
 /** Convenience function for using Minus PTransform. */
 inline fun <reified T : Any> PCollection<T>.minus(
   other: PCollection<T>,
-  name: String = "Minus"
+  name: String = "Minus",
 ): PCollection<T> {
   return PCollectionList.of(this).and(other).apply(name, Minus()).setCoder(coder)
 }

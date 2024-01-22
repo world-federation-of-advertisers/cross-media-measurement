@@ -28,14 +28,14 @@ class SpannerPopulationsServiceTest : PopulationsServiceTest<SpannerPopulationsS
 
   override fun newServices(
     clock: Clock,
-    idGenerator: IdGenerator
+    idGenerator: IdGenerator,
   ): Services<SpannerPopulationsService> {
     val spannerServices =
       SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient).buildDataServices()
 
     return Services(
       spannerServices.populationsService as SpannerPopulationsService,
-      spannerServices.dataProvidersService
+      spannerServices.dataProvidersService,
     )
   }
 }

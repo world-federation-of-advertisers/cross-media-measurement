@@ -195,7 +195,7 @@ class EventGroupsServiceTest {
         flowOf(
           INTERNAL_EVENT_GROUP,
           INTERNAL_EVENT_GROUP.copy { externalEventGroupId = EVENT_GROUP_EXTERNAL_ID_2 },
-          INTERNAL_EVENT_GROUP.copy { externalEventGroupId = EVENT_GROUP_EXTERNAL_ID_3 }
+          INTERNAL_EVENT_GROUP.copy { externalEventGroupId = EVENT_GROUP_EXTERNAL_ID_3 },
         )
       )
   }

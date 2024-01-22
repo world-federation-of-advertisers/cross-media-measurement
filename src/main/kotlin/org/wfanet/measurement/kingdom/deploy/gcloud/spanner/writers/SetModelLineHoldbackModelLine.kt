@@ -37,12 +37,12 @@ class SetModelLineHoldbackModelLine(private val request: SetModelLineHoldbackMod
           transactionContext,
           ExternalId(request.externalModelProviderId),
           ExternalId(request.externalModelSuiteId),
-          ExternalId(request.externalModelLineId)
+          ExternalId(request.externalModelLineId),
         )
         ?: throw ModelLineNotFoundException(
           ExternalId(request.externalModelProviderId),
           ExternalId(request.externalModelSuiteId),
-          ExternalId(request.externalModelLineId)
+          ExternalId(request.externalModelLineId),
         )
 
     if (modelLineResult.modelLine.type != ModelLine.Type.PROD) {
@@ -50,7 +50,7 @@ class SetModelLineHoldbackModelLine(private val request: SetModelLineHoldbackMod
         ExternalId(request.externalModelProviderId),
         ExternalId(request.externalModelSuiteId),
         ExternalId(request.externalModelLineId),
-        modelLineResult.modelLine.type
+        modelLineResult.modelLine.type,
       ) {
         "Only ModelLine with type == PROD can have a Holdback ModelLine."
       }
@@ -62,12 +62,12 @@ class SetModelLineHoldbackModelLine(private val request: SetModelLineHoldbackMod
           transactionContext,
           ExternalId(request.externalHoldbackModelProviderId),
           ExternalId(request.externalHoldbackModelSuiteId),
-          ExternalId(request.externalHoldbackModelLineId)
+          ExternalId(request.externalHoldbackModelLineId),
         )
         ?: throw ModelLineNotFoundException(
           ExternalId(request.externalHoldbackModelProviderId),
           ExternalId(request.externalHoldbackModelSuiteId),
-          ExternalId(request.externalHoldbackModelLineId)
+          ExternalId(request.externalHoldbackModelLineId),
         )
 
     if (holdbackModelLineResult.modelLine.type != ModelLine.Type.HOLDBACK) {
@@ -75,7 +75,7 @@ class SetModelLineHoldbackModelLine(private val request: SetModelLineHoldbackMod
         ExternalId(holdbackModelLineResult.modelLine.externalModelProviderId),
         ExternalId(holdbackModelLineResult.modelLine.externalModelSuiteId),
         ExternalId(holdbackModelLineResult.modelLine.externalModelLineId),
-        holdbackModelLineResult.modelLine.type
+        holdbackModelLineResult.modelLine.type,
       ) {
         "Only ModelLine with type == HOLDBACK can be set as Holdback ModelLine."
       }

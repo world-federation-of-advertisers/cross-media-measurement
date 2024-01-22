@@ -120,7 +120,7 @@ class MeasurementConsumersServiceTest {
     assertThat(response).isEqualTo(MEASUREMENT_CONSUMER)
     verifyProtoArgument(
         internalServiceMock,
-        InternalMeasurementConsumersService::createMeasurementConsumer
+        InternalMeasurementConsumersService::createMeasurementConsumer,
       )
       .isEqualTo(
         internalCreateMeasurementConsumerRequest {
@@ -218,7 +218,7 @@ class MeasurementConsumersServiceTest {
 
     verifyProtoArgument(
         internalServiceMock,
-        InternalMeasurementConsumersService::getMeasurementConsumer
+        InternalMeasurementConsumersService::getMeasurementConsumer,
       )
       .isEqualTo(
         internalGetMeasurementConsumerRequest {
@@ -242,7 +242,7 @@ class MeasurementConsumersServiceTest {
 
     verifyProtoArgument(
         internalServiceMock,
-        InternalMeasurementConsumersService::getMeasurementConsumer
+        InternalMeasurementConsumersService::getMeasurementConsumer,
       )
       .isEqualTo(
         internalGetMeasurementConsumerRequest {
@@ -402,7 +402,7 @@ class MeasurementConsumersServiceTest {
 
     verifyProtoArgument(
         internalServiceMock,
-        InternalMeasurementConsumersService::addMeasurementConsumerOwner
+        InternalMeasurementConsumersService::addMeasurementConsumerOwner,
       )
       .isEqualTo(
         internalAddMeasurementConsumerOwnerRequest {
@@ -496,7 +496,7 @@ class MeasurementConsumersServiceTest {
 
     verifyProtoArgument(
         internalServiceMock,
-        InternalMeasurementConsumersService::removeMeasurementConsumerOwner
+        InternalMeasurementConsumersService::removeMeasurementConsumerOwner,
       )
       .isEqualTo(
         internalRemoveMeasurementConsumerOwnerRequest {

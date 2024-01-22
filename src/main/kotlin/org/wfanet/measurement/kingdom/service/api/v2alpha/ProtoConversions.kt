@@ -146,7 +146,7 @@ val DEFAULT_DIRECT_NOISE_MECHANISMS: List<NoiseMechanism> =
     NoiseMechanism.GEOMETRIC,
     NoiseMechanism.DISCRETE_GAUSSIAN,
     NoiseMechanism.CONTINUOUS_LAPLACE,
-    NoiseMechanism.CONTINUOUS_GAUSSIAN
+    NoiseMechanism.CONTINUOUS_GAUSSIAN,
   )
 
 /**
@@ -230,13 +230,13 @@ fun State.toInternalState(): List<InternalMeasurement.State> {
     State.AWAITING_REQUISITION_FULFILLMENT -> {
       listOf(
         InternalMeasurement.State.PENDING_REQUISITION_PARAMS,
-        InternalMeasurement.State.PENDING_REQUISITION_FULFILLMENT
+        InternalMeasurement.State.PENDING_REQUISITION_FULFILLMENT,
       )
     }
     State.COMPUTING -> {
       listOf(
         InternalMeasurement.State.PENDING_PARTICIPANT_CONFIRMATION,
-        InternalMeasurement.State.PENDING_COMPUTATION
+        InternalMeasurement.State.PENDING_COMPUTATION,
       )
     }
     State.SUCCEEDED -> listOf(InternalMeasurement.State.SUCCEEDED)
@@ -524,7 +524,7 @@ fun InternalModelSuite.toModelSuite(): ModelSuite {
     name =
       ModelSuiteKey(
           externalIdToApiId(source.externalModelProviderId),
-          externalIdToApiId(source.externalModelSuiteId)
+          externalIdToApiId(source.externalModelSuiteId),
         )
         .toName()
     displayName = source.displayName
@@ -562,7 +562,7 @@ fun InternalModelRelease.toModelRelease(): ModelRelease {
       ModelReleaseKey(
           externalIdToApiId(source.externalModelProviderId),
           externalIdToApiId(source.externalModelSuiteId),
-          externalIdToApiId(source.externalModelReleaseId)
+          externalIdToApiId(source.externalModelReleaseId),
         )
         .toName()
     createTime = source.createTime
@@ -599,7 +599,7 @@ fun InternalModelLine.toModelLine(): ModelLine {
       ModelLineKey(
           externalIdToApiId(source.externalModelProviderId),
           externalIdToApiId(source.externalModelSuiteId),
-          externalIdToApiId(source.externalModelLineId)
+          externalIdToApiId(source.externalModelLineId),
         )
         .toName()
     displayName = source.displayName
@@ -614,7 +614,7 @@ fun InternalModelLine.toModelLine(): ModelLine {
         ModelLineKey(
             externalIdToApiId(source.externalModelProviderId),
             externalIdToApiId(source.externalModelSuiteId),
-            externalIdToApiId(source.externalHoldbackModelLineId)
+            externalIdToApiId(source.externalHoldbackModelLineId),
           )
           .toName()
     }
@@ -662,7 +662,7 @@ fun InternalModelOutage.toModelOutage(): ModelOutage {
           externalIdToApiId(source.externalModelProviderId),
           externalIdToApiId(source.externalModelSuiteId),
           externalIdToApiId(source.externalModelLineId),
-          externalIdToApiId(source.externalModelOutageId)
+          externalIdToApiId(source.externalModelOutageId),
         )
         .toName()
     outageInterval = interval {
@@ -698,7 +698,7 @@ fun InternalModelRollout.toModelRollout(): ModelRollout {
           externalIdToApiId(source.externalModelProviderId),
           externalIdToApiId(source.externalModelSuiteId),
           externalIdToApiId(source.externalModelLineId),
-          externalIdToApiId(source.externalModelRolloutId)
+          externalIdToApiId(source.externalModelRolloutId),
         )
         .toName()
 
@@ -726,7 +726,7 @@ fun InternalModelRollout.toModelRollout(): ModelRollout {
             externalIdToApiId(source.externalModelProviderId),
             externalIdToApiId(source.externalModelSuiteId),
             externalIdToApiId(source.externalModelLineId),
-            externalIdToApiId(source.externalPreviousModelRolloutId)
+            externalIdToApiId(source.externalPreviousModelRolloutId),
           )
           .toName()
     }
@@ -734,7 +734,7 @@ fun InternalModelRollout.toModelRollout(): ModelRollout {
       ModelReleaseKey(
           externalIdToApiId(source.externalModelProviderId),
           externalIdToApiId(source.externalModelSuiteId),
-          externalIdToApiId(source.externalModelReleaseId)
+          externalIdToApiId(source.externalModelReleaseId),
         )
         .toName()
     createTime = source.createTime
@@ -745,7 +745,7 @@ fun InternalModelRollout.toModelRollout(): ModelRollout {
 /** Converts a public [ModelRollout] to an internal [InternalModelRollout] */
 fun ModelRollout.toInternal(
   modelLineKey: ModelLineKey,
-  modelReleaseKey: ModelReleaseKey
+  modelReleaseKey: ModelReleaseKey,
 ): InternalModelRollout {
   val publicModelRollout = this
 
@@ -807,14 +807,14 @@ fun InternalModelShard.toModelShard(): ModelShard {
     name =
       ModelShardKey(
           externalIdToApiId(source.externalDataProviderId),
-          externalIdToApiId(source.externalModelShardId)
+          externalIdToApiId(source.externalModelShardId),
         )
         .toName()
     modelRelease =
       ModelReleaseKey(
           externalIdToApiId(source.externalModelProviderId),
           externalIdToApiId(source.externalModelSuiteId),
-          externalIdToApiId(source.externalModelReleaseId)
+          externalIdToApiId(source.externalModelReleaseId),
         )
         .toName()
     modelBlob = modelBlob { modelBlobPath = source.modelBlobPath }
@@ -825,7 +825,7 @@ fun InternalModelShard.toModelShard(): ModelShard {
 /** Converts a public [ModelShard] to an internal [InternalModelShard] */
 fun ModelShard.toInternal(
   dataProviderKey: DataProviderKey,
-  modelReleaseKey: ModelReleaseKey
+  modelReleaseKey: ModelReleaseKey,
 ): InternalModelShard {
   val publicModelShard = this
 
@@ -846,7 +846,7 @@ fun InternalPopulation.toPopulation(): Population {
     name =
       PopulationKey(
           externalIdToApiId(source.externalDataProviderId),
-          externalIdToApiId(source.externalPopulationId)
+          externalIdToApiId(source.externalPopulationId),
         )
         .toName()
     description = source.description
@@ -877,13 +877,13 @@ fun InternalMeasurement.toMeasurement(): Measurement {
     name =
       MeasurementKey(
           externalIdToApiId(source.externalMeasurementConsumerId),
-          externalIdToApiId(source.externalMeasurementId)
+          externalIdToApiId(source.externalMeasurementId),
         )
         .toName()
     measurementConsumerCertificate =
       MeasurementConsumerCertificateKey(
           externalIdToApiId(source.externalMeasurementConsumerId),
-          externalIdToApiId(source.externalMeasurementConsumerCertificateId)
+          externalIdToApiId(source.externalMeasurementConsumerCertificateId),
         )
         .toName()
     measurementSpec = signedMessage {
@@ -904,10 +904,7 @@ fun InternalMeasurement.toMeasurement(): Measurement {
     val measurementTypeCase = measurementSpec.unpack<MeasurementSpec>().measurementTypeCase
 
     protocolConfig =
-      source.details.protocolConfig.toProtocolConfig(
-        measurementTypeCase,
-        dataProvidersCount,
-      )
+      source.details.protocolConfig.toProtocolConfig(measurementTypeCase, dataProvidersCount)
 
     state = source.state.toState()
     results +=
@@ -923,7 +920,7 @@ fun InternalMeasurement.toMeasurement(): Measurement {
               InternalMeasurement.ResultInfo.CertificateParentCase.EXTERNAL_DATA_PROVIDER_ID ->
                 DataProviderCertificateKey(
                     externalIdToApiId(it.externalDataProviderId),
-                    certificateApiId
+                    certificateApiId,
                   )
                   .toName()
               InternalMeasurement.ResultInfo.CertificateParentCase.CERTIFICATEPARENT_NOT_SET ->
@@ -951,14 +948,14 @@ fun InternalMeasurement.toMeasurement(): Measurement {
 /** Converts an internal [DataProviderValue] to a public [DataProviderEntry.Value]. */
 fun DataProviderValue.toDataProviderEntryValue(
   dataProviderId: String,
-  apiVersion: Version
+  apiVersion: Version,
 ): DataProviderEntry.Value {
   val dataProviderValue = this
   return DataProviderEntryKt.value {
     dataProviderCertificate =
       DataProviderCertificateKey(
           dataProviderId,
-          externalIdToApiId(externalDataProviderCertificateId)
+          externalIdToApiId(externalDataProviderCertificateId),
         )
         .toName()
     dataProviderPublicKey = any {
@@ -1122,7 +1119,7 @@ fun InternalExchange.toExchange(): Exchange {
   val exchangeKey =
     CanonicalExchangeKey(
       recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
-      exchangeId = date.toLocalDate().toString()
+      exchangeId = date.toLocalDate().toString(),
     )
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // ProtoBuf enum fields cannot be null.
   val state =
@@ -1150,7 +1147,7 @@ fun InternalExchangeStep.toExchangeStep(): ExchangeStep {
     CanonicalExchangeStepKey(
       recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
       exchangeId = date.toLocalDate().toString(),
-      exchangeStepId = stepIndex.toString()
+      exchangeStepId = stepIndex.toString(),
     )
   val apiVersion = Version.fromString(apiVersion)
 
@@ -1210,7 +1207,7 @@ fun InternalExchangeStepAttempt.toExchangeStepAttempt(): ExchangeStepAttempt {
       recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
       exchangeId = date.toLocalDate().toString(),
       exchangeStepId = stepIndex.toString(),
-      exchangeStepAttemptId = this@toExchangeStepAttempt.attemptNumber.toString()
+      exchangeStepAttemptId = this@toExchangeStepAttempt.attemptNumber.toString(),
     )
   val source = this
   return exchangeStepAttempt {

@@ -102,7 +102,7 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
     val measurementId: InternalId,
     val requisitionId: InternalId,
     val requisition: Requisition,
-    val measurementDetails: Measurement.Details
+    val measurementDetails: Measurement.Details,
   )
 
   override val builder: Statement.Builder = Statement.newBuilder(BASE_SQL)
@@ -113,7 +113,7 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
       InternalId(struct.getLong("MeasurementId")),
       InternalId(struct.getLong("RequisitionId")),
       buildRequisition(struct),
-      struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
+      struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser()),
     )
   }
 
@@ -147,7 +147,7 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
   suspend fun readByExternalComputationId(
     readContext: AsyncDatabaseClient.ReadContext,
     externalComputationId: Long,
-    externalRequisitionId: Long
+    externalRequisitionId: Long,
   ): Result? {
     return fillStatementBuilder {
         appendClause(

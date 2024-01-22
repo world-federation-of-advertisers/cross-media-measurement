@@ -177,7 +177,7 @@ class MeasurementsServiceTest {
           flowOf(
             INTERNAL_MEASUREMENT,
             INTERNAL_MEASUREMENT.copy { externalMeasurementId = EXTERNAL_MEASUREMENT_ID_2 },
-            INTERNAL_MEASUREMENT.copy { externalMeasurementId = EXTERNAL_MEASUREMENT_ID_3 }
+            INTERNAL_MEASUREMENT.copy { externalMeasurementId = EXTERNAL_MEASUREMENT_ID_3 },
           )
         )
       onBlocking { cancelMeasurement(any()) }.thenReturn(INTERNAL_MEASUREMENT)
@@ -209,7 +209,7 @@ class MeasurementsServiceTest {
       MeasurementsService(
         MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
         NOISE_MECHANISMS,
-        reachOnlyLlV2Enabled = true
+        reachOnlyLlV2Enabled = true,
       )
   }
 
@@ -226,7 +226,7 @@ class MeasurementsServiceTest {
 
     verifyProtoArgument(
         internalMeasurementsMock,
-        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::getMeasurement
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::getMeasurement,
       )
       .isEqualTo(
         internalGetMeasurementRequest {
@@ -321,7 +321,7 @@ class MeasurementsServiceTest {
       )
     verifyProtoArgument(
         internalMeasurementsMock,
-        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement,
       )
       .isEqualTo(
         internalCreateMeasurementRequest {
@@ -372,7 +372,7 @@ class MeasurementsServiceTest {
 
     verifyProtoArgument(
         internalMeasurementsMock,
-        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement,
       )
       .isEqualTo(
         internalCreateMeasurementRequest {
@@ -465,7 +465,7 @@ class MeasurementsServiceTest {
       )
     verifyProtoArgument(
         internalMeasurementsMock,
-        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement,
       )
       .isEqualTo(
         internalCreateMeasurementRequest {
@@ -546,7 +546,7 @@ class MeasurementsServiceTest {
       )
     verifyProtoArgument(
         internalMeasurementsMock,
-        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement,
       )
       .isEqualTo(
         internalCreateMeasurementRequest {
@@ -627,7 +627,7 @@ class MeasurementsServiceTest {
       )
     verifyProtoArgument(
         internalMeasurementsMock,
-        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement,
       )
       .isEqualTo(
         internalCreateMeasurementRequest {
@@ -718,7 +718,7 @@ class MeasurementsServiceTest {
       )
     verifyProtoArgument(
         internalMeasurementsMock,
-        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement,
       )
       .isEqualTo(
         internalCreateMeasurementRequest {
@@ -1471,7 +1471,7 @@ class MeasurementsServiceTest {
         InternalState.PENDING_COMPUTATION,
         InternalState.SUCCEEDED,
         InternalState.PENDING_REQUISITION_PARAMS,
-        InternalState.PENDING_REQUISITION_FULFILLMENT
+        InternalState.PENDING_REQUISITION_FULFILLMENT,
       )
     val publicStates =
       listOf(
@@ -1479,7 +1479,7 @@ class MeasurementsServiceTest {
         State.SUCCEEDED,
         State.AWAITING_REQUISITION_FULFILLMENT,
         State.COMPUTING,
-        State.CANCELLED
+        State.CANCELLED,
       )
 
     val request = listMeasurementsRequest {
@@ -1759,7 +1759,7 @@ class MeasurementsServiceTest {
 
     verifyProtoArgument(
         internalMeasurementsMock,
-        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::cancelMeasurement
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::cancelMeasurement,
       )
       .isEqualTo(
         internalCancelMeasurementRequest {
@@ -1869,7 +1869,7 @@ class MeasurementsServiceTest {
       }
     verifyProtoArgument(
         internalMeasurementsMock,
-        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchCreateMeasurements
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchCreateMeasurements,
       )
       .isEqualTo(
         internalBatchCreateMeasurementsRequest {
@@ -1911,7 +1911,7 @@ class MeasurementsServiceTest {
       }
     verifyProtoArgument(
         internalMeasurementsMock,
-        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchCreateMeasurements
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchCreateMeasurements,
       )
       .isEqualTo(
         internalBatchCreateMeasurementsRequest {
@@ -2171,7 +2171,7 @@ class MeasurementsServiceTest {
 
     verifyProtoArgument(
         internalMeasurementsMock,
-        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchGetMeasurements
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchGetMeasurements,
       )
       .isEqualTo(
         internalBatchGetMeasurementsRequest {
@@ -2328,13 +2328,13 @@ class MeasurementsServiceTest {
         LLV2_INTERNAL_PROTOCOL_CONFIG.liquidLegionsV2,
         LLV2_DUCHY_PROTOCOL_CONFIG.liquidLegionsV2,
         setOf("aggregator"),
-        2
+        2,
       )
       RoLlv2ProtocolConfig.setForTest(
         RO_LLV2_INTERNAL_PROTOCOL_CONFIG.reachOnlyLiquidLegionsV2,
         RO_LLV2_DUCHY_PROTOCOL_CONFIG.reachOnlyLiquidLegionsV2,
         setOf("aggregator"),
-        2
+        2,
       )
     }
 
@@ -2541,7 +2541,7 @@ class MeasurementsServiceTest {
               encryptedRequisitionSpec = it.value.encryptedRequisitionSpec.ciphertext
               nonceHash = it.value.nonceHash
             }
-          }
+          },
         )
       )
       details =
@@ -2615,7 +2615,7 @@ class MeasurementsServiceTest {
       listOf(
         InternalNoiseMechanism.NONE,
         InternalNoiseMechanism.CONTINUOUS_LAPLACE,
-        InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
+        InternalNoiseMechanism.CONTINUOUS_GAUSSIAN,
       )
 
     private val DEFAULT_INTERNAL_DIRECT_REACH_AND_FREQUENCY_PROTOCOL_CONFIG:

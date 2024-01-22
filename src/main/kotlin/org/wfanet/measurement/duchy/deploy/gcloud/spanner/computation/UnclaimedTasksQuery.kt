@@ -24,7 +24,7 @@ import org.wfanet.measurement.duchy.deploy.gcloud.spanner.common.SqlBasedQuery
 class UnclaimedTasksQuery<StageT>(
   val protocol: Long,
   val parseStageEnum: (ComputationStageLongValues) -> StageT,
-  timestamp: Timestamp
+  timestamp: Timestamp,
 ) : SqlBasedQuery<UnclaimedTaskQueryResult<StageT>> {
   companion object {
     // The column CreationTime is nullable due to later change to the schema. The timestamp of null
@@ -67,7 +67,7 @@ class UnclaimedTasksQuery<StageT>(
         ),
       creationTime = struct.getTimestamp("CreationTime"),
       updateTime = struct.getTimestamp("UpdateTime"),
-      nextAttempt = struct.getLong("NextAttempt")
+      nextAttempt = struct.getLong("NextAttempt"),
     )
 }
 
@@ -78,5 +78,5 @@ data class UnclaimedTaskQueryResult<StageT>(
   val computationStage: StageT,
   val creationTime: Timestamp,
   val updateTime: Timestamp,
-  val nextAttempt: Long
+  val nextAttempt: Long,
 )

@@ -141,7 +141,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     FakeMeasurementsService(
       RandomIdGenerator(Clock.systemUTC()),
       EDP_SIGNING_KEY_HANDLE,
-      DATA_PROVIDER_CERTIFICATE_NAME
+      DATA_PROVIDER_CERTIFICATE_NAME,
     )
 
   private val publicKingdomServer = GrpcTestServerRule {
@@ -237,7 +237,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
   private suspend fun createReportingSet(
     runId: String,
-    measurementConsumerName: String
+    measurementConsumerName: String,
   ): ReportingSet {
     val eventGroupsList = listEventGroups(measurementConsumerName).eventGroupsList
     return publicReportingSetsClient
@@ -264,7 +264,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
   private suspend fun createReport(
     runId: String,
     measurementConsumerName: String,
-    cumulative: Boolean = false
+    cumulative: Boolean = false,
   ): Report {
     val eventGroupsList = listEventGroups(measurementConsumerName).eventGroupsList
     val reportingSets = listReportingSets(measurementConsumerName).reportingSetsList
@@ -343,14 +343,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
   companion object {
     private val SECRETS_DIR: File =
       getRuntimePath(
-          Paths.get(
-            "wfa_measurement_system",
-            "src",
-            "main",
-            "k8s",
-            "testing",
-            "secretfiles",
-          )
+          Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
         )!!
         .toFile()
 
@@ -364,7 +357,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     private val MC_SIGNING_KEY_HANDLE: SigningKeyHandle =
       loadSigningKey(
         SECRETS_DIR.resolve("mc_cs_cert.der"),
-        SECRETS_DIR.resolve("mc_cs_private.der")
+        SECRETS_DIR.resolve("mc_cs_private.der"),
       )
     private val MC_ENCRYPTION_PUBLIC_KEY: EncryptionPublicKey =
       loadPublicKey(SECRETS_DIR.resolve("mc_enc_public.tink")).toEncryptionPublicKey()
@@ -384,7 +377,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     private val EDP_SIGNING_KEY_HANDLE: SigningKeyHandle =
       loadSigningKey(
         SECRETS_DIR.resolve("edp1_cs_cert.der"),
-        SECRETS_DIR.resolve("edp1_cs_private.der")
+        SECRETS_DIR.resolve("edp1_cs_private.der"),
       )
 
     private val CERTIFICATE: Certificate = certificate {
@@ -399,7 +392,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
       publicKey =
         signEncryptionPublicKey(
           loadPublicKey(SECRETS_DIR.resolve("edp1_enc_public.tink")).toEncryptionPublicKey(),
-          EDP_SIGNING_KEY_HANDLE
+          EDP_SIGNING_KEY_HANDLE,
         )
     }
 

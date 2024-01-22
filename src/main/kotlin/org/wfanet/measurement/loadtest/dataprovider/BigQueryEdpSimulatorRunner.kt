@@ -25,7 +25,7 @@ import picocli.CommandLine
   name = "BigQueryEdpSimulatorRunner",
   description = ["EdpSimulator Daemon"],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 /** Implementation of [EdpSimulatorRunner] using [BigQueryEventQuery]. */
 class BigQueryEdpSimulatorRunner : EdpSimulatorRunner() {
@@ -39,7 +39,7 @@ class BigQueryEdpSimulatorRunner : EdpSimulatorRunner() {
   @CommandLine.Option(
     names = ["--big-query-project"],
     description = ["BigQuery project name"],
-    required = true
+    required = true,
   )
   lateinit var bigQueryProjectName: String
     private set
@@ -47,7 +47,7 @@ class BigQueryEdpSimulatorRunner : EdpSimulatorRunner() {
   @CommandLine.Option(
     names = ["--big-query-dataset"],
     description = ["Name of dataset within BigQuery project"],
-    required = true
+    required = true,
   )
   lateinit var bigQueryDatasetName: String
     private set
@@ -55,7 +55,7 @@ class BigQueryEdpSimulatorRunner : EdpSimulatorRunner() {
   @CommandLine.Option(
     names = ["--big-query-table"],
     description = ["Name of table within BigQuery dataset"],
-    required = true
+    required = true,
   )
   lateinit var bigQueryTableName: String
     private set
@@ -68,7 +68,7 @@ class BigQueryEdpSimulatorRunner : EdpSimulatorRunner() {
         bigQuery,
         bigQueryDatasetName,
         bigQueryTableName,
-        publisherId
+        publisherId,
       )
 
     run(eventQuery, mapOf("" to EventGroupMetadata.testMetadata(publisherId)))

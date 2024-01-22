@@ -81,7 +81,7 @@ class BatchingDoFnTest : BeamTestBase() {
         mutableListOf("22"),
         mutableListOf("33"),
         mutableListOf("3", "3"),
-        mutableListOf("3")
+        mutableListOf("3"),
       )
   }
 
@@ -96,7 +96,7 @@ class BatchingDoFnTest : BeamTestBase() {
   private fun batchSingleBundle(
     batchSize: Long,
     item: String,
-    vararg items: String
+    vararg items: String,
   ): PCollection<MutableList<String>> {
     val testStream = makeTestStream().addElements(item, *items).advanceWatermarkToInfinity()
     return pipeline.apply(testStream).apply(makeParDo(batchSize))

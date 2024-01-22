@@ -137,7 +137,7 @@ class CreateReportingSetCommand : Runnable {
     names = ["--filter"],
     description = ["CEL filter predicate that applies to all `event_groups`"],
     required = false,
-    defaultValue = ""
+    defaultValue = "",
   )
   private lateinit var filterExpression: String
 
@@ -145,7 +145,7 @@ class CreateReportingSetCommand : Runnable {
     names = ["--display-name"],
     description = ["Human-readable name for display purposes"],
     required = false,
-    defaultValue = ""
+    defaultValue = "",
   )
   private lateinit var displayNameInput: String
 
@@ -153,7 +153,7 @@ class CreateReportingSetCommand : Runnable {
     names = ["--id"],
     description = ["Resource ID of the Reporting Set"],
     required = true,
-    defaultValue = ""
+    defaultValue = "",
   )
   private lateinit var reportingSetId: String
 
@@ -170,7 +170,7 @@ class CreateReportingSetCommand : Runnable {
               expression =
                 parseTextProto(
                   type.textFormatSetExpression!!.reader(),
-                  ReportingSet.SetExpression.getDefaultInstance()
+                  ReportingSet.SetExpression.getDefaultInstance(),
                 )
             }
         }
@@ -220,7 +220,7 @@ class ListReportingSetsCommand : Runnable {
       CommandLine.HelpCommand::class,
       CreateReportingSetCommand::class,
       ListReportingSetsCommand::class,
-    ]
+    ],
 )
 class ReportingSetsCommand : Runnable {
   @CommandLine.ParentCommand lateinit var parent: Reporting
@@ -280,7 +280,7 @@ class CreateReportCommand : Runnable {
       @CommandLine.Option(
         names = ["--periodic-interval-increment"],
         description = ["Increment for each time interval in ISO-8601 format of PnDTnHnMn"],
-        required = true
+        required = true,
       )
       lateinit var periodicIntervalIncrement: Duration
         private set
@@ -288,7 +288,7 @@ class CreateReportCommand : Runnable {
       @set:CommandLine.Option(
         names = ["--periodic-interval-count"],
         description = ["Number of periodic intervals"],
-        required = true
+        required = true,
       )
       var periodicIntervalCount by Delegates.notNull<Int>()
         private set
@@ -301,7 +301,7 @@ class CreateReportCommand : Runnable {
     @CommandLine.ArgGroup(
       exclusive = false,
       multiplicity = "1",
-      heading = "Periodic time interval specification\n"
+      heading = "Periodic time interval specification\n",
     )
     var periodicTimeIntervalInput: PeriodicTimeIntervalInput? = null
       private set
@@ -310,7 +310,7 @@ class CreateReportCommand : Runnable {
   @CommandLine.ArgGroup(
     exclusive = true,
     multiplicity = "1",
-    heading = "Time interval or periodic time interval\n"
+    heading = "Time interval or periodic time interval\n",
   )
   private lateinit var timeInput: TimeInput
 
@@ -318,7 +318,7 @@ class CreateReportCommand : Runnable {
     names = ["--id"],
     description = ["Resource ID of the Report"],
     required = true,
-    defaultValue = ""
+    defaultValue = "",
   )
   private lateinit var reportId: String
 
@@ -326,7 +326,7 @@ class CreateReportCommand : Runnable {
     names = ["--request-id"],
     description = ["Request ID for creation of Report"],
     required = false,
-    defaultValue = ""
+    defaultValue = "",
   )
   private lateinit var requestId: String
 
@@ -338,7 +338,7 @@ class CreateReportCommand : Runnable {
           reportingMetricEntries +=
             parseTextProto(
               textFormatReportingMetricEntry.reader(),
-              Report.ReportingMetricEntry.getDefaultInstance()
+              Report.ReportingMetricEntry.getDefaultInstance(),
             )
         }
 
@@ -404,9 +404,7 @@ class ListReportsCommand : Runnable {
 class GetReportCommand : Runnable {
   @CommandLine.ParentCommand private lateinit var parent: ReportsCommand
 
-  @CommandLine.Parameters(
-    description = ["API resource name of the Report"],
-  )
+  @CommandLine.Parameters(description = ["API resource name of the Report"])
   private lateinit var reportName: String
 
   override fun run() {
@@ -426,7 +424,7 @@ class GetReportCommand : Runnable {
       CreateReportCommand::class,
       ListReportsCommand::class,
       GetReportCommand::class,
-    ]
+    ],
 )
 class ReportsCommand : Runnable {
   @CommandLine.ParentCommand lateinit var parent: Reporting
@@ -610,7 +608,7 @@ class ListEventGroups : Runnable {
     names = ["--filter"],
     description = ["Result filter in format of raw CEL expression"],
     required = false,
-    defaultValue = ""
+    defaultValue = "",
   )
   private lateinit var celFilter: String
 
@@ -633,11 +631,7 @@ class ListEventGroups : Runnable {
 @CommandLine.Command(
   name = "event-groups",
   sortOptions = false,
-  subcommands =
-    [
-      CommandLine.HelpCommand::class,
-      ListEventGroups::class,
-    ]
+  subcommands = [CommandLine.HelpCommand::class, ListEventGroups::class],
 )
 class EventGroupsCommand : Runnable {
   @CommandLine.ParentCommand lateinit var parent: Reporting
@@ -651,9 +645,7 @@ class EventGroupsCommand : Runnable {
 class GetDataProvider : Runnable {
   @CommandLine.ParentCommand private lateinit var parent: DataProvidersCommand
 
-  @CommandLine.Parameters(
-    description = ["CMMS DataProvider resource name"],
-  )
+  @CommandLine.Parameters(description = ["CMMS DataProvider resource name"])
   private lateinit var cmmsDataProviderName: String
 
   override fun run() {
@@ -669,9 +661,7 @@ class GetDataProvider : Runnable {
 class GetEventGroupMetadataDescriptor : Runnable {
   @CommandLine.ParentCommand private lateinit var parent: EventGroupMetadataDescriptorsCommand
 
-  @CommandLine.Parameters(
-    description = ["CMMS EventGroupMetadataDescriptor resource name"],
-  )
+  @CommandLine.Parameters(description = ["CMMS EventGroupMetadataDescriptor resource name"])
   private lateinit var cmmsEventGroupMetadataDescriptorName: String
 
   override fun run() {
@@ -690,13 +680,13 @@ class GetEventGroupMetadataDescriptor : Runnable {
 
 @CommandLine.Command(
   name = "batch-get",
-  description = ["Batch Get event group metadata descriptors"]
+  description = ["Batch Get event group metadata descriptors"],
 )
 class BatchGetEventGroupMetadataDescriptors : Runnable {
   @CommandLine.ParentCommand private lateinit var parent: EventGroupMetadataDescriptorsCommand
 
   @CommandLine.Parameters(
-    description = ["List of CMMS EventGroupMetadataDescriptors resource names"],
+    description = ["List of CMMS EventGroupMetadataDescriptors resource names"]
   )
   private var cmmsEventGroupMetadataDescriptorNames: List<String> = mutableListOf()
 
@@ -717,11 +707,7 @@ class BatchGetEventGroupMetadataDescriptors : Runnable {
 @CommandLine.Command(
   name = "data-providers",
   sortOptions = false,
-  subcommands =
-    [
-      CommandLine.HelpCommand::class,
-      GetDataProvider::class,
-    ]
+  subcommands = [CommandLine.HelpCommand::class, GetDataProvider::class],
 )
 class DataProvidersCommand : Runnable {
   @CommandLine.ParentCommand lateinit var parent: Reporting
@@ -741,7 +727,7 @@ class DataProvidersCommand : Runnable {
       CommandLine.HelpCommand::class,
       GetEventGroupMetadataDescriptor::class,
       BatchGetEventGroupMetadataDescriptors::class,
-    ]
+    ],
 )
 class EventGroupMetadataDescriptorsCommand : Runnable {
   @CommandLine.ParentCommand lateinit var parent: Reporting
@@ -766,7 +752,7 @@ class EventGroupMetadataDescriptorsCommand : Runnable {
       EventGroupsCommand::class,
       DataProvidersCommand::class,
       EventGroupMetadataDescriptorsCommand::class,
-    ]
+    ],
 )
 class Reporting : Runnable {
   @CommandLine.Mixin private lateinit var tlsFlags: TlsFlags
@@ -777,7 +763,7 @@ class Reporting : Runnable {
       SigningCerts.fromPemFiles(
         certificateFile = tlsFlags.certFile,
         privateKeyFile = tlsFlags.privateKeyFile,
-        trustedCertCollectionFile = tlsFlags.certCollectionFile
+        trustedCertCollectionFile = tlsFlags.certCollectionFile,
       )
     buildMutualTlsChannel(apiFlags.apiTarget, clientCerts, apiFlags.apiCertHost)
       .withShutdownTimeout(Duration.ofSeconds(1))

@@ -57,7 +57,7 @@ data class ExponentialBackoff(
     private fun exponentialDuration(
       initialDelay: Duration,
       multiplier: Double,
-      attemptNumber: Int
+      attemptNumber: Int,
     ): Duration {
       require(attemptNumber > 0) { "Attempts start at 1" }
       if (attemptNumber == 1) {
@@ -69,10 +69,7 @@ data class ExponentialBackoff(
       )
     }
 
-    private fun Random.randomizedDuration(
-      delay: Duration,
-      randomnessFactor: Double,
-    ): Duration {
+    private fun Random.randomizedDuration(delay: Duration, randomnessFactor: Double): Duration {
       if (randomnessFactor == 0.0) {
         return delay
       }

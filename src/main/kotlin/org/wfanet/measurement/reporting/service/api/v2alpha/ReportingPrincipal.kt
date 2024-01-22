@@ -45,5 +45,5 @@ sealed interface ReportingPrincipal : Principal {
 
 data class MeasurementConsumerPrincipal(
   override val resourceKey: MeasurementConsumerKey,
-  override val config: MeasurementConsumerConfig
+  override val config: MeasurementConsumerConfig,
 ) : ReportingPrincipal, ResourcePrincipal

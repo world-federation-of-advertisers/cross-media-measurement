@@ -32,7 +32,7 @@ class LaplaceNoiserTest {
         -0.198253856945236,
         -0.878441914581552,
         -0.40731565142921,
-        2.741273309927767
+        2.741273309927767,
       )
 
     assertThat(expectedSamples).isEqualTo(samples)

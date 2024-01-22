@@ -36,7 +36,7 @@ class ComputationStatsService(private val computationsDatabase: ComputationsData
       localId = localComputationId,
       stage = request.computationStage,
       attempt = request.attempt.toLong(),
-      metric = ComputationStatMetric(metricName, request.metricValue)
+      metric = ComputationStatMetric(metricName, request.metricValue),
     )
     return CreateComputationStatResponse.getDefaultInstance()
   }
