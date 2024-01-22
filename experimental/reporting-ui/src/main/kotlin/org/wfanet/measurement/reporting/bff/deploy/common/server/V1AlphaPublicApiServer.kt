@@ -33,7 +33,7 @@ private const val SERVER_NAME = "V1AlphaPublicUiServer"
   name = SERVER_NAME,
   description = ["Ui server daemon for Reporting v1alpha public API services."],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 private fun run(
   @CommandLine.Mixin reportingApiServerFlags: ReportingApiServerFlags,
@@ -43,13 +43,13 @@ private fun run(
     SigningCerts.fromPemFiles(
       certificateFile = commonServerFlags.tlsFlags.certFile,
       privateKeyFile = commonServerFlags.tlsFlags.privateKeyFile,
-      trustedCertCollectionFile = commonServerFlags.tlsFlags.certCollectionFile
+      trustedCertCollectionFile = commonServerFlags.tlsFlags.certCollectionFile,
     )
   val channel: Channel =
     buildMutualTlsChannel(
         reportingApiServerFlags.reportingApiFlags.target,
         clientCerts,
-        reportingApiServerFlags.reportingApiFlags.certHost
+        reportingApiServerFlags.reportingApiFlags.certHost,
       )
       .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
 
