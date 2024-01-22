@@ -62,7 +62,7 @@ private class Flags {
   @CommandLine.Option(
     names = ["--otel-exporter-otlp-endpoint"],
     description = ["Endpoint for OpenTelemetry Collector."],
-    required = true
+    required = true,
   )
   lateinit var otelExporterOtlpEndpoint: String
     private set
@@ -70,7 +70,7 @@ private class Flags {
   @CommandLine.Option(
     names = ["--otel-service-name"],
     description = ["Service name to label cronjob metrics with."],
-    required = true
+    required = true,
   )
   lateinit var otelServiceName: String
     private set
@@ -82,7 +82,7 @@ private class Flags {
         "Option to print Measurements that would be cancelled instead of performing the cancellation."
       ],
     required = false,
-    defaultValue = "false"
+    defaultValue = "false",
   )
   var dryRun by Delegates.notNull<Boolean>()
     private set
@@ -91,21 +91,21 @@ private class Flags {
 @CommandLine.Command(
   name = "PendingMeasurementsCancellationJob",
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 private fun run(@CommandLine.Mixin flags: Flags) {
   val clientCerts =
     SigningCerts.fromPemFiles(
       certificateFile = flags.tlsFlags.certFile,
       privateKeyFile = flags.tlsFlags.privateKeyFile,
-      trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
+      trustedCertCollectionFile = flags.tlsFlags.certCollectionFile,
     )
 
   val channel =
     buildMutualTlsChannel(
         flags.kingdomApiServerFlags.internalApiFlags.target,
         clientCerts,
-        flags.kingdomApiServerFlags.internalApiFlags.certHost
+        flags.kingdomApiServerFlags.internalApiFlags.certHost,
       )
       .withVerboseLogging(flags.kingdomApiServerFlags.debugVerboseGrpcClientLogging)
       .withDefaultDeadline(flags.kingdomApiServerFlags.internalApiFlags.defaultDeadlineDuration)
@@ -140,7 +140,7 @@ private fun run(@CommandLine.Mixin flags: Flags) {
       flags.measurementsTimeToLive,
       flags.dryRun,
       Clock.systemUTC(),
-      openTelemetry
+      openTelemetry,
     )
   pendingMeasurementsCancellation.run()
 }

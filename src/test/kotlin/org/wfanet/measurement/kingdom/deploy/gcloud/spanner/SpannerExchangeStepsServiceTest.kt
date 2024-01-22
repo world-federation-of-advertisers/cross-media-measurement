@@ -38,7 +38,7 @@ class SpannerExchangeStepsServiceTest : ExchangeStepsServiceTest() {
 
   override fun newExchangeStepsService(
     idGenerator: IdGenerator,
-    serviceClock: Clock
+    serviceClock: Clock,
   ): ExchangeStepsCoroutineImplBase {
     return makeKingdomDataServices(idGenerator, serviceClock).exchangeStepsService
   }
@@ -69,7 +69,7 @@ class SpannerExchangeStepsServiceTest : ExchangeStepsServiceTest() {
 
   private fun makeKingdomDataServices(
     idGenerator: IdGenerator,
-    serviceClock: Clock = clock
+    serviceClock: Clock = clock,
   ): KingdomDataServices {
     return SpannerDataServices(serviceClock, idGenerator, spannerDatabase.databaseClient)
       .buildDataServices()

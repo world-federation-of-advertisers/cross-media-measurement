@@ -34,9 +34,8 @@ import org.wfanet.measurement.internal.kingdom.ApiKeysGrpcKt.ApiKeysCoroutineStu
 import org.wfanet.measurement.internal.kingdom.apiKey as internalApiKey
 import org.wfanet.measurement.internal.kingdom.deleteApiKeyRequest
 
-class ApiKeysService(
-  private val internalApiKeysStub: ApiKeysCoroutineStub,
-) : ApiKeysCoroutineImplBase() {
+class ApiKeysService(private val internalApiKeysStub: ApiKeysCoroutineStub) :
+  ApiKeysCoroutineImplBase() {
 
   override suspend fun createApiKey(request: CreateApiKeyRequest): ApiKey {
     val account = accountFromCurrentContext
@@ -113,7 +112,7 @@ class ApiKeysService(
       name =
         ApiKeyKey(
             externalIdToApiId(source.externalMeasurementConsumerId),
-            externalIdToApiId(source.externalApiKeyId)
+            externalIdToApiId(source.externalApiKeyId),
           )
           .toName()
       nickname = source.nickname

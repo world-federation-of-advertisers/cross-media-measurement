@@ -44,7 +44,7 @@ object SyntheticDataGeneration {
   fun <T : Message> generateEvents(
     messageInstance: T,
     populationSpec: SyntheticPopulationSpec,
-    syntheticEventGroupSpec: SyntheticEventGroupSpec
+    syntheticEventGroupSpec: SyntheticEventGroupSpec,
   ): Sequence<LabeledEvent<T>> {
     val subPopulations = populationSpec.subPopulationsList
 

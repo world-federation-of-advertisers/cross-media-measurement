@@ -41,7 +41,7 @@ class MeasurementConsumerCreationTokenReader :
   override suspend fun translate(struct: Struct): Result =
     Result(
       struct.getTimestamp("CreateTime"),
-      InternalId(struct.getLong("MeasurementConsumerCreationTokenId"))
+      InternalId(struct.getLong("MeasurementConsumerCreationTokenId")),
     )
 
   suspend fun readByMeasurementConsumerCreationTokenHash(

@@ -26,7 +26,7 @@ class PlaintextQueryPreparer : QueryPreparer {
 
   override fun prepareLookupKeys(
     identifierHashPepper: ByteString,
-    decryptedJoinKeyAndIds: List<JoinKeyAndId>
+    decryptedJoinKeyAndIds: List<JoinKeyAndId>,
   ): List<LookupKeyAndId> {
 
     return decryptedJoinKeyAndIds.map {

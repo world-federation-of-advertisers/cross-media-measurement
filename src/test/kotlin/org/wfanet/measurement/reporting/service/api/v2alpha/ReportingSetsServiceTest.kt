@@ -135,7 +135,7 @@ class ReportingSetsServiceTest {
 
     verifyProtoArgument(
         internalReportingSetsMock,
-        ReportingSetsCoroutineImplBase::createReportingSet
+        ReportingSetsCoroutineImplBase::createReportingSet,
       )
       .isEqualTo(
         internalCreateReportingSetRequest {
@@ -166,7 +166,7 @@ class ReportingSetsServiceTest {
 
     verifyProtoArgument(
         internalReportingSetsMock,
-        ReportingSetsCoroutineImplBase::createReportingSet
+        ReportingSetsCoroutineImplBase::createReportingSet,
       )
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
@@ -283,7 +283,7 @@ class ReportingSetsServiceTest {
 
       verifyProtoArgument(
           internalReportingSetsMock,
-          ReportingSetsCoroutineImplBase::createReportingSet
+          ReportingSetsCoroutineImplBase::createReportingSet,
         )
         .ignoringRepeatedFieldOrder()
         .isEqualTo(
@@ -555,7 +555,7 @@ class ReportingSetsServiceTest {
     val inaccessibleReportingSetName =
       ReportingSetKey(
           MEASUREMENT_CONSUMER_KEYS.last().measurementConsumerId,
-          ExternalId(400L).apiId.value
+          ExternalId(400L).apiId.value,
         )
         .toName()
     val request = createReportingSetRequest {
@@ -678,7 +678,7 @@ class ReportingSetsServiceTest {
 
     verifyProtoArgument(
         internalReportingSetsMock,
-        ReportingSetsCoroutineImplBase::streamReportingSets
+        ReportingSetsCoroutineImplBase::streamReportingSets,
       )
       .isEqualTo(
         streamReportingSetsRequest {
@@ -723,7 +723,7 @@ class ReportingSetsServiceTest {
 
     verifyProtoArgument(
         internalReportingSetsMock,
-        ReportingSetsCoroutineImplBase::streamReportingSets
+        ReportingSetsCoroutineImplBase::streamReportingSets,
       )
       .isEqualTo(
         streamReportingSetsRequest {
@@ -768,7 +768,7 @@ class ReportingSetsServiceTest {
 
     verifyProtoArgument(
         internalReportingSetsMock,
-        ReportingSetsCoroutineImplBase::streamReportingSets
+        ReportingSetsCoroutineImplBase::streamReportingSets,
       )
       .isEqualTo(
         streamReportingSetsRequest {
@@ -802,7 +802,7 @@ class ReportingSetsServiceTest {
 
     verifyProtoArgument(
         internalReportingSetsMock,
-        ReportingSetsCoroutineImplBase::streamReportingSets
+        ReportingSetsCoroutineImplBase::streamReportingSets,
       )
       .isEqualTo(
         streamReportingSetsRequest {
@@ -849,7 +849,7 @@ class ReportingSetsServiceTest {
 
     verifyProtoArgument(
         internalReportingSetsMock,
-        ReportingSetsCoroutineImplBase::streamReportingSets
+        ReportingSetsCoroutineImplBase::streamReportingSets,
       )
       .isEqualTo(
         streamReportingSetsRequest {
@@ -898,7 +898,7 @@ class ReportingSetsServiceTest {
 
     verifyProtoArgument(
         internalReportingSetsMock,
-        ReportingSetsCoroutineImplBase::streamReportingSets
+        ReportingSetsCoroutineImplBase::streamReportingSets,
       )
       .isEqualTo(
         streamReportingSetsRequest {

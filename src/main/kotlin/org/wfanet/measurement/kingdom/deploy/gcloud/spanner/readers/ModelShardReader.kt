@@ -30,7 +30,7 @@ class ModelShardReader : SpannerReader<ModelShardReader.Result>() {
   data class Result(
     val modelShard: ModelShard,
     val modelShardId: InternalId,
-    val dataProviderId: InternalId
+    val dataProviderId: InternalId,
   )
 
   override val baseSql: String =
@@ -57,7 +57,7 @@ class ModelShardReader : SpannerReader<ModelShardReader.Result>() {
     Result(
       buildModelShard(struct),
       InternalId(struct.getLong("ModelShardId")),
-      InternalId(struct.getLong("DataProviderId"))
+      InternalId(struct.getLong("DataProviderId")),
     )
 
   private fun buildModelShard(struct: Struct): ModelShard = modelShard {

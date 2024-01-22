@@ -26,7 +26,7 @@ import java.time.Instant
 data class PrivacyBudgetBalanceEntry(
   val privacyBucketGroup: PrivacyBucketGroup,
   val dpCharge: DpCharge,
-  val repetitionCount: Int
+  val repetitionCount: Int,
 )
 
 /**
@@ -48,7 +48,7 @@ data class PrivacyBudgetLedgerEntry(
   val measurementConsumerId: String,
   val referenceId: String,
   val isRefund: Boolean,
-  val createTime: Instant
+  val createTime: Instant,
 )
 /** Manages the persistence of privacy budget data. */
 interface PrivacyBudgetLedgerBackingStore : AutoCloseable {
@@ -100,7 +100,7 @@ interface PrivacyBudgetLedgerTransactionContext : AutoCloseable {
   suspend fun addLedgerEntries(
     privacyBucketGroups: Set<PrivacyBucketGroup>,
     dpCharges: Set<DpCharge>,
-    reference: Reference
+    reference: Reference,
   )
 
   /**
@@ -110,7 +110,7 @@ interface PrivacyBudgetLedgerTransactionContext : AutoCloseable {
   suspend fun addAcdpLedgerEntries(
     privacyBucketGroups: Set<PrivacyBucketGroup>,
     acdpCharges: Set<AcdpCharge>,
-    reference: Reference
+    reference: Reference,
   )
 
   fun getQueryTotalAcdpCharge(acdpCharges: Set<AcdpCharge>, isRefund: Boolean): AcdpCharge {

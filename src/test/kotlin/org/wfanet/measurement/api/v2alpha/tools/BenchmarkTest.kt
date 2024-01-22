@@ -80,14 +80,7 @@ import org.wfanet.measurement.consent.client.duchy.signResult
 private const val HOST = "localhost"
 private val SECRETS_DIR: Path =
   getRuntimePath(
-    Paths.get(
-      "wfa_measurement_system",
-      "src",
-      "main",
-      "k8s",
-      "testing",
-      "secretfiles",
-    )
+    Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
   )!!
 
 private const val API_KEY = "nR5QPN7ptx"
@@ -128,7 +121,7 @@ private val AGGREGATOR_SIGNING_KEY: SigningKeyHandle by lazy {
   val consentSignal509Cert = readCertificate(AGGREGATOR_CERTIFICATE_DER)
   SigningKeyHandle(
     consentSignal509Cert,
-    readPrivateKey(AGGREGATOR_PRIVATE_KEY_DER, consentSignal509Cert.publicKey.algorithm)
+    readPrivateKey(AGGREGATOR_PRIVATE_KEY_DER, consentSignal509Cert.publicKey.algorithm),
   )
 }
 private val AGGREGATOR_CERTIFICATE = certificate { x509Der = AGGREGATOR_CERTIFICATE_DER }
@@ -204,7 +197,7 @@ private val SUCCEEDED_POPULATION_MEASUREMENT = measurement {
 
 private fun getEncryptedResult(
   result: Measurement.Result,
-  publicKey: EncryptionPublicKey
+  publicKey: EncryptionPublicKey,
 ): EncryptedMessage {
   val signedResult = signResult(result, AGGREGATOR_SIGNING_KEY)
   return encryptResult(signedResult, publicKey)

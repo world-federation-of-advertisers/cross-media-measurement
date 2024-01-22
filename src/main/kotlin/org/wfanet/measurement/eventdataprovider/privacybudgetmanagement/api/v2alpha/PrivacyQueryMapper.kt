@@ -46,31 +46,31 @@ object PrivacyQueryMapper {
   fun getDpQuery(
     reference: Reference,
     measurementSpec: MeasurementSpec,
-    eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>
+    eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>,
   ): DpQuery {
     val dpCharge =
       when (measurementSpec.measurementTypeCase) {
         MeasurementTypeCase.REACH ->
           DpCharge(
             measurementSpec.reach.privacyParams.epsilon.toFloat(),
-            measurementSpec.reach.privacyParams.delta.toFloat()
+            measurementSpec.reach.privacyParams.delta.toFloat(),
           )
         MeasurementTypeCase.REACH_AND_FREQUENCY ->
           DpCharge(
             measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon.toFloat() +
               measurementSpec.reachAndFrequency.frequencyPrivacyParams.epsilon.toFloat(),
             measurementSpec.reachAndFrequency.reachPrivacyParams.delta.toFloat() +
-              measurementSpec.reachAndFrequency.frequencyPrivacyParams.delta.toFloat()
+              measurementSpec.reachAndFrequency.frequencyPrivacyParams.delta.toFloat(),
           )
         MeasurementTypeCase.IMPRESSION ->
           DpCharge(
             measurementSpec.impression.privacyParams.epsilon.toFloat(),
-            measurementSpec.impression.privacyParams.delta.toFloat()
+            measurementSpec.impression.privacyParams.delta.toFloat(),
           )
         MeasurementTypeCase.DURATION ->
           DpCharge(
             measurementSpec.duration.privacyParams.epsilon.toFloat(),
-            measurementSpec.duration.privacyParams.delta.toFloat()
+            measurementSpec.duration.privacyParams.delta.toFloat(),
           )
         else -> throw IllegalArgumentException("Measurement type not supported")
       }
@@ -79,7 +79,7 @@ object PrivacyQueryMapper {
       LandscapeMask(
         eventSpecs.map { EventGroupSpec(it.filter.expression, it.collectionInterval.toRange()) },
         measurementSpec.vidSamplingInterval.start,
-        measurementSpec.vidSamplingInterval.width
+        measurementSpec.vidSamplingInterval.width,
       ),
       dpCharge,
     )
@@ -111,7 +111,7 @@ object PrivacyQueryMapper {
           AcdpParamsConverter.getLlv2AcdpCharge(
             DpParams(
               measurementSpec.reach.privacyParams.epsilon,
-              measurementSpec.reach.privacyParams.delta
+              measurementSpec.reach.privacyParams.delta,
             ),
             contributorCount,
           )
@@ -122,13 +122,10 @@ object PrivacyQueryMapper {
               measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon +
                 measurementSpec.reachAndFrequency.frequencyPrivacyParams.epsilon,
               measurementSpec.reachAndFrequency.reachPrivacyParams.delta +
-                measurementSpec.reachAndFrequency.frequencyPrivacyParams.delta
+                measurementSpec.reachAndFrequency.frequencyPrivacyParams.delta,
             )
 
-          AcdpParamsConverter.getLlv2AcdpCharge(
-            dpParams,
-            contributorCount,
-          )
+          AcdpParamsConverter.getLlv2AcdpCharge(dpParams, contributorCount)
         }
         else ->
           throw IllegalArgumentException(
@@ -141,9 +138,9 @@ object PrivacyQueryMapper {
       LandscapeMask(
         eventSpecs.map { EventGroupSpec(it.filter.expression, it.collectionInterval.toRange()) },
         measurementSpec.vidSamplingInterval.start,
-        measurementSpec.vidSamplingInterval.width
+        measurementSpec.vidSamplingInterval.width,
       ),
-      acdpCharge
+      acdpCharge,
     )
   }
 
@@ -171,7 +168,7 @@ object PrivacyQueryMapper {
           AcdpParamsConverter.getDirectAcdpCharge(
             DpParams(
               measurementSpec.reach.privacyParams.epsilon,
-              measurementSpec.reach.privacyParams.delta
+              measurementSpec.reach.privacyParams.delta,
             ),
             SENSITIVITY,
           )
@@ -182,19 +179,16 @@ object PrivacyQueryMapper {
               measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon +
                 measurementSpec.reachAndFrequency.frequencyPrivacyParams.epsilon,
               measurementSpec.reachAndFrequency.reachPrivacyParams.delta +
-                measurementSpec.reachAndFrequency.frequencyPrivacyParams.delta
+                measurementSpec.reachAndFrequency.frequencyPrivacyParams.delta,
             )
 
-          AcdpParamsConverter.getDirectAcdpCharge(
-            dpParams,
-            SENSITIVITY,
-          )
+          AcdpParamsConverter.getDirectAcdpCharge(dpParams, SENSITIVITY)
         }
         MeasurementTypeCase.IMPRESSION ->
           AcdpParamsConverter.getDirectAcdpCharge(
             DpParams(
               measurementSpec.impression.privacyParams.epsilon,
-              measurementSpec.impression.privacyParams.delta
+              measurementSpec.impression.privacyParams.delta,
             ),
             SENSITIVITY,
           )
@@ -202,7 +196,7 @@ object PrivacyQueryMapper {
           AcdpParamsConverter.getDirectAcdpCharge(
             DpParams(
               measurementSpec.duration.privacyParams.epsilon,
-              measurementSpec.duration.privacyParams.delta
+              measurementSpec.duration.privacyParams.delta,
             ),
             SENSITIVITY,
           )
@@ -214,7 +208,7 @@ object PrivacyQueryMapper {
       LandscapeMask(
         eventSpecs.map { EventGroupSpec(it.filter.expression, it.collectionInterval.toRange()) },
         measurementSpec.vidSamplingInterval.start,
-        measurementSpec.vidSamplingInterval.width
+        measurementSpec.vidSamplingInterval.width,
       ),
       acdpCharge,
     )

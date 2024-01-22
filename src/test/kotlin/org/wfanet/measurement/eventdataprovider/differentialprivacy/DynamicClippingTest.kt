@@ -39,7 +39,7 @@ class DynamicClippingTest {
     assertThat(dynamicClipResult.threshold).isEqualTo(expectedThreshold)
     assertAlmostEqualCumulativeHistogram(
       dynamicClipResult.noisedCumulativeHistogramList,
-      expectedCumulativeHistogramList
+      expectedCumulativeHistogramList,
     )
   }
 
@@ -62,7 +62,7 @@ class DynamicClippingTest {
     assertThat(dynamicClipResult.threshold).isEqualTo(expectedThreshold)
     assertAlmostEqualCumulativeHistogram(
       dynamicClipResult.noisedCumulativeHistogramList,
-      expectedCumulativeHistogramList
+      expectedCumulativeHistogramList,
     )
   }
 
@@ -73,7 +73,7 @@ class DynamicClippingTest {
         1L to 1L,
         2L to 1L,
         3L to 1L,
-        4L to 1L
+        4L to 1L,
       ) // cumulativeHistogramList is listOf(4.0, 3.0, 2.0, 1.0)
     val maxThreshold = 3
 
@@ -97,7 +97,7 @@ class DynamicClippingTest {
     assertThat(dynamicClipResult.threshold).isEqualTo(expectedThreshold)
     assertAlmostEqualCumulativeHistogram(
       dynamicClipResult.noisedCumulativeHistogramList,
-      expectedCumulativeHistogramList
+      expectedCumulativeHistogramList,
     )
     assertThat(errPercent).isWithin(TOLERANCE).of(expectedErrPercent)
   }
@@ -109,7 +109,7 @@ class DynamicClippingTest {
         1L to 20L,
         2L to 20L,
         3L to 12L,
-        4L to 1L
+        4L to 1L,
       ) // cumulativeHistogramList is listOf(53.0, 33.0, 13.0, 1.0)
     val maxThreshold = 3
 
@@ -133,7 +133,7 @@ class DynamicClippingTest {
     assertThat(dynamicClipResult.threshold).isEqualTo(expectedThreshold)
     assertAlmostEqualCumulativeHistogram(
       dynamicClipResult.noisedCumulativeHistogramList,
-      expectedCumulativeHistogramList
+      expectedCumulativeHistogramList,
     )
     assertThat(errPercent).isWithin(TOLERANCE).of(expectedErrPercent)
   }
@@ -145,7 +145,7 @@ class DynamicClippingTest {
         1L to 20L,
         2L to 20L,
         3L to 12L,
-        4L to 1L
+        4L to 1L,
       ) // cumulativeHistogramList is listOf(53.0, 33.0, 13.0, 1.0)
 
     // Set rho large enough to minimize noise.
@@ -166,7 +166,7 @@ class DynamicClippingTest {
     assertThat(dynamicClipResult.threshold).isEqualTo(expectedThreshold)
     assertAlmostEqualCumulativeHistogram(
       dynamicClipResult.noisedCumulativeHistogramList,
-      expectedCumulativeHistogramList
+      expectedCumulativeHistogramList,
     )
     assertThat(errPercent).isWithin(TOLERANCE).of(expectedErrPercent)
   }
@@ -177,15 +177,7 @@ class DynamicClippingTest {
     val histogramList = DynamicClipping.frequencyHistogramMapToList(frequencyHistogramMap)
 
     // The first element should be zero which means 0 impression/duration has 0 count.
-    val expectedHistogramList =
-      listOf(
-        0L,
-        5L,
-        0L,
-        10L,
-        0L,
-        3L,
-      )
+    val expectedHistogramList = listOf(0L, 5L, 0L, 10L, 0L, 3L)
 
     assertThat(histogramList).isEqualTo(expectedHistogramList)
   }
@@ -199,7 +191,7 @@ class DynamicClippingTest {
 
     private fun assertAlmostEqualCumulativeHistogram(
       cumulativeHistogramList: List<Double>,
-      expectedCumulativeHistogramList: List<Double>
+      expectedCumulativeHistogramList: List<Double>,
     ) {
       assertThat(cumulativeHistogramList.size).isEqualTo(expectedCumulativeHistogramList.size)
       cumulativeHistogramList.forEachIndexed { index, count ->

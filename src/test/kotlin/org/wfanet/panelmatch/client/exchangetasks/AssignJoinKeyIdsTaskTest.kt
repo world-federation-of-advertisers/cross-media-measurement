@@ -26,9 +26,7 @@ import org.wfanet.panelmatch.client.exchangetasks.testing.executeToByteStrings
 
 @RunWith(JUnit4::class)
 class AssignJoinKeyIdsTaskTest {
-  private fun runAssignIds(
-    joinKeys: List<JoinKey> = JOIN_KEYS,
-  ): List<JoinKeyAndId> {
+  private fun runAssignIds(joinKeys: List<JoinKey> = JOIN_KEYS): List<JoinKeyAndId> {
     val joinKeyCollection = joinKeyCollection { this.joinKeys += joinKeys }
     val inputs = mutableListOf<Pair<String, ByteString>>()
     inputs.add("join-keys" to joinKeyCollection.toByteString())

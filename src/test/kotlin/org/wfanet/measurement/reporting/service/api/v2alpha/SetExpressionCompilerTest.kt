@@ -33,13 +33,13 @@ private val SET_EXPRESSION =
   SetOperationExpression(
     setOperator = Operator.UNION,
     lhs = REPORTING_SETS[0],
-    rhs = REPORTING_SETS[1]
+    rhs = REPORTING_SETS[1],
   )
 private val SET_EXPRESSION_ALL_UNION =
   SetOperationExpression(
     setOperator = Operator.UNION,
     lhs = SET_EXPRESSION,
-    rhs = REPORTING_SETS[2]
+    rhs = REPORTING_SETS[2],
   )
 // SetExpression = A + B + C - B
 
@@ -47,7 +47,7 @@ private val SET_EXPRESSION_ALL_UNION_BUT_ONE =
   SetOperationExpression(
     setOperator = Operator.DIFFERENCE,
     lhs = SET_EXPRESSION_ALL_UNION,
-    rhs = EXPECTED_REPORTING_SETS_LIST_ALL_UNION[1]
+    rhs = EXPECTED_REPORTING_SETS_LIST_ALL_UNION[1],
   )
 
 private val EXPECTED_RESULT_FOR_ALL_UNION_SET_EXPRESSION =
@@ -56,7 +56,7 @@ private val EXPECTED_RESULT_FOR_ALL_UNION_SET_EXPRESSION =
 private val EXPECTED_RESULT_FOR_ALL_UNION_BUT_ONE_SET_EXPRESSION =
   listOf(
     WeightedSubsetUnion(EXPECTED_REPORTING_SETS_LIST_ALL_UNION.map { it.id }, coefficient = 1),
-    WeightedSubsetUnion(listOf(EXPECTED_REPORTING_SETS_LIST_ALL_UNION[1].id), coefficient = -1)
+    WeightedSubsetUnion(listOf(EXPECTED_REPORTING_SETS_LIST_ALL_UNION[1].id), coefficient = -1),
   )
 
 @RunWith(JUnit4::class)
@@ -82,7 +82,7 @@ class SetExpressionCompilerTest {
     val resultAllUnionButOne = runBlocking {
       reportResultCompiler.compileSetExpression(
         SET_EXPRESSION_ALL_UNION_BUT_ONE,
-        REPORTING_SETS.size
+        REPORTING_SETS.size,
       )
     }
     assertThat(resultAllUnionButOne)
@@ -98,7 +98,7 @@ class SetExpressionCompilerTest {
       runBlocking {
         reportResultCompiler.compileSetExpression(
           setOperationWithSetOperatorTypeNotSet,
-          REPORTING_SETS.size
+          REPORTING_SETS.size,
         )
       }
     }

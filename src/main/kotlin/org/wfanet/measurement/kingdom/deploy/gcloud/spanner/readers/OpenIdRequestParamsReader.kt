@@ -37,7 +37,7 @@ class OpenIdRequestParamsReader : SpannerReader<OpenIdRequestParamsReader.Result
     Result(
       state = ExternalId(struct.getLong("ExternalOpenIdRequestParamsId")),
       nonce = ExternalId(struct.getLong("Nonce")),
-      isExpired = struct.getBoolean("IsExpired")
+      isExpired = struct.getBoolean("IsExpired"),
     )
 
   suspend fun readByState(

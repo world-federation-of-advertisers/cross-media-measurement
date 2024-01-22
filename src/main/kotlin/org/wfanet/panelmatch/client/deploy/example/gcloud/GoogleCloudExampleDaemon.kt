@@ -45,7 +45,7 @@ private class PrivateCaFlags {
   @Option(
     names = ["--privateca-project-id"],
     description = ["Google Cloud PrivateCA project id"],
-    required = true
+    required = true,
   )
   lateinit var projectId: String
     private set
@@ -53,7 +53,7 @@ private class PrivateCaFlags {
   @Option(
     names = ["--privateca-ca-location"],
     description = ["Google Cloud PrivateCA CA location"],
-    required = true
+    required = true,
   )
   lateinit var caLocation: String
     private set
@@ -61,7 +61,7 @@ private class PrivateCaFlags {
   @Option(
     names = ["--privateca-pool-id"],
     description = ["Google Cloud PrivateCA pool id"],
-    required = true
+    required = true,
   )
   lateinit var poolId: String
     private set
@@ -69,7 +69,7 @@ private class PrivateCaFlags {
   @Option(
     names = ["--privateca-ca-name"],
     description = ["Google Cloud PrivateCA CA name"],
-    required = true
+    required = true,
   )
   lateinit var certificateAuthorityName: String
     private set
@@ -79,7 +79,7 @@ private class PrivateCaFlags {
   name = "GoogleCloudExampleDaemon",
   description = ["Example daemon to execute ExchangeWorkflows on Google Cloud"],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 private class GoogleCloudExampleDaemon : ExampleDaemon() {
   @Mixin private lateinit var gcsFlags: GcsFromFlags.Flags
@@ -89,7 +89,7 @@ private class GoogleCloudExampleDaemon : ExampleDaemon() {
   @Option(
     names = ["--dataflow-project-id"],
     description = ["Google Cloud project name for Dataflow"],
-    required = true
+    required = true,
   )
   lateinit var dataflowProjectId: String
     private set
@@ -97,7 +97,7 @@ private class GoogleCloudExampleDaemon : ExampleDaemon() {
   @Option(
     names = ["--dataflow-region"],
     description = ["Google Cloud region for Dataflow"],
-    required = true
+    required = true,
   )
   lateinit var dataflowRegion: String
     private set
@@ -105,7 +105,7 @@ private class GoogleCloudExampleDaemon : ExampleDaemon() {
   @Option(
     names = ["--dataflow-service-account"],
     description = ["Service account for Dataflow"],
-    required = true
+    required = true,
   )
   lateinit var dataflowServiceAccount: String
     private set
@@ -113,7 +113,7 @@ private class GoogleCloudExampleDaemon : ExampleDaemon() {
   @Option(
     names = ["--dataflow-temp-location"],
     description = ["Google Cloud temp location (GCS bucket) for Dataflow"],
-    required = true
+    required = true,
   )
   lateinit var dataflowTempLocation: String
     private set
@@ -129,21 +129,21 @@ private class GoogleCloudExampleDaemon : ExampleDaemon() {
   @set:Option(
     names = ["--dataflow-disk-size"],
     description = ["Dataflow disk size in GB."],
-    defaultValue = "30"
+    defaultValue = "30",
   )
   private var dataflowDiskSize by Delegates.notNull<Int>()
 
   @set:Option(
     names = ["--dataflow-max-num-workers"],
     description = ["Maximum number of workers to use in Dataflow."],
-    defaultValue = "100"
+    defaultValue = "100",
   )
   private var dataflowMaxNumWorkers by Delegates.notNull<Int>()
 
   @set:Option(
     names = ["--s3-from-beam"],
     description = ["Whether to configure s3 access from Apache Beam."],
-    defaultValue = "false"
+    defaultValue = "false",
   )
   private var s3FromBeam by Delegates.notNull<Boolean>()
 
@@ -204,7 +204,7 @@ private class GoogleCloudExampleDaemon : ExampleDaemon() {
     DaemonStorageClientDefaults(
       rootStorageClient,
       tinkKeyUri,
-      TinkKeyStorageProvider(GcpKmsClient())
+      TinkKeyStorageProvider(GcpKmsClient()),
     )
   }
 

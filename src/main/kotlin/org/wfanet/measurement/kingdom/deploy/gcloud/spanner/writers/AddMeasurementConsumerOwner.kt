@@ -36,7 +36,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  */
 class AddMeasurementConsumerOwner(
   private val externalAccountId: ExternalId,
-  private val externalMeasurementConsumerId: ExternalId
+  private val externalMeasurementConsumerId: ExternalId,
 ) : SimpleSpannerWriter<MeasurementConsumer>() {
 
   override suspend fun TransactionScope.runTransaction(): MeasurementConsumer {

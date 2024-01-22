@@ -33,7 +33,7 @@ class EncryptionKeyPairMap {
   @Option(
     names = ["--key-pair-config-file"],
     description = ["Path to the textproto file of EncryptionKeyPairConfig that contains key pairs"],
-    required = true
+    required = true,
   )
   private lateinit var keyPairConfigFile: File
 

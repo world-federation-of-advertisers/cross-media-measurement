@@ -28,7 +28,7 @@ import org.wfanet.panelmatch.common.storage.toByteString
 class IntersectValidateTask(
   private val maxSize: Int,
   private val maximumNewItemsAllowed: Int,
-  private val isFirstExchange: Boolean
+  private val isFirstExchange: Boolean,
 ) : ExchangeTask {
   override suspend fun execute(
     input: Map<String, StorageClient.Blob>

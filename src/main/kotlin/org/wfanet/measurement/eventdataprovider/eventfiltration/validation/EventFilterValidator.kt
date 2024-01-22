@@ -30,15 +30,7 @@ private const val NOT_OPERATOR = "!_"
 private const val AND_OPERATOR = "_&&_"
 private const val OR_OPERATOR = "_||_"
 
-private val LEAF_ONLY_OPERATORS =
-  listOf(
-    "_>_",
-    "_<_",
-    "_!=_",
-    "_==_",
-    "_<=_",
-    "@in",
-  )
+private val LEAF_ONLY_OPERATORS = listOf("_>_", "_<_", "_!=_", "_==_", "_<=_", "@in")
 private val BOOLEAN_OPERATORS = listOf(NOT_OPERATOR, AND_OPERATOR, OR_OPERATOR)
 private val ALLOWED_OPERATORS = LEAF_ONLY_OPERATORS + BOOLEAN_OPERATORS
 
@@ -173,7 +165,7 @@ object EventFilterValidator {
 
   private fun Expr.toOperativeNegationNormalForm(
     operativeFields: Set<String>,
-    negate: Boolean = false
+    negate: Boolean = false,
   ): Expr {
     // Leaf Node, if it is a comparison node, should never be reached if the EventFilter is valid.
     // The leaf comparison nodes are always checked from the parent. Presence is handled here.
@@ -196,7 +188,7 @@ object EventFilterValidator {
       return buildToOperativeNegationNormalForm(
         if (negate) AND_OPERATOR else OR_OPERATOR,
         operativeFields,
-        negate
+        negate,
       )
     }
     // AND Node
@@ -206,7 +198,7 @@ object EventFilterValidator {
       return buildToOperativeNegationNormalForm(
         if (negate) OR_OPERATOR else AND_OPERATOR,
         operativeFields,
-        negate
+        negate,
       )
     }
     // Comparison Node (e.g. x == 47).  If it is for a non-operative comparison, return true.
@@ -258,7 +250,7 @@ object EventFilterValidator {
   private fun Expr.buildToOperativeNegationNormalForm(
     func: String,
     operativeFields: Set<String>,
-    negate: Boolean = false
+    negate: Boolean = false,
   ): Expr {
     val builder: Builder = toBuilderWithFunction(func)
     callExpr.argsList.forEach {

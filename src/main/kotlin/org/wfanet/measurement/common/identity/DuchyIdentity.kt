@@ -69,13 +69,13 @@ class DuchyTlsIdentityInterceptor : ServerInterceptor {
   override fun <ReqT, RespT> interceptCall(
     call: ServerCall<ReqT, RespT>,
     headers: Metadata,
-    next: ServerCallHandler<ReqT, RespT>
+    next: ServerCallHandler<ReqT, RespT>,
   ): ServerCall.Listener<ReqT> {
     val authorityKeyIdentifiers: List<ByteString> = authorityKeyIdentifiersFromCurrentContext
     if (authorityKeyIdentifiers.isEmpty()) {
       call.close(
         Status.UNAUTHENTICATED.withDescription("No authorityKeyIdentifiers found"),
-        Metadata()
+        Metadata(),
       )
       return object : ServerCall.Listener<ReqT>() {}
     }
@@ -98,7 +98,7 @@ fun BindableService.withDuchyIdentities(): ServerServiceDefinition =
   ServerInterceptors.interceptForward(
     this,
     AuthorityKeyServerInterceptor(),
-    DuchyTlsIdentityInterceptor()
+    DuchyTlsIdentityInterceptor(),
   )
 
 /**

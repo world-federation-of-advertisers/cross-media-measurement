@@ -58,7 +58,7 @@ abstract class SyntheticGeneratorEventQuery(
     return SyntheticDataGeneration.generateEvents(
         DynamicMessage.getDefaultInstance(eventMessageDescriptor),
         populationSpec,
-        syntheticDataSpec
+        syntheticDataSpec,
       )
       .filter { it.timestamp in timeRange }
       .filter { EventFilters.matches(it.message, program) }

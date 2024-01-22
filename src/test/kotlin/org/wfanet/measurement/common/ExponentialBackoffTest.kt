@@ -29,11 +29,7 @@ import org.junit.runners.JUnit4
 class ExponentialBackoffTest {
   @Test
   fun `durationForAttempt returns initial delay for attempt 1`() {
-    val backoff =
-      ExponentialBackoff(
-        initialDelay = Duration.ofMillis(250),
-        randomnessFactor = 0.0,
-      )
+    val backoff = ExponentialBackoff(initialDelay = Duration.ofMillis(250), randomnessFactor = 0.0)
 
     val duration: Duration = backoff.durationForAttempt(1)
 
@@ -61,7 +57,7 @@ class ExponentialBackoffTest {
         initialDelay = Duration.ofMillis(500),
         multiplier = 2.0,
         randomnessFactor = 0.5,
-        random = Random(RANDOM_SEED)
+        random = Random(RANDOM_SEED),
       )
 
     val duration: Duration = backoff.durationForAttempt(4)

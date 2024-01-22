@@ -37,9 +37,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementR
  * * [MeasurementNotFoundByMeasurementConsumerException] when the Measurement is not found
  * * [MeasurementEtagMismatchException] when requested etag does not match actual etag
  */
-class BatchDeleteMeasurements(
-  private val requests: BatchDeleteMeasurementsRequest,
-) : SimpleSpannerWriter<Empty>() {
+class BatchDeleteMeasurements(private val requests: BatchDeleteMeasurementsRequest) :
+  SimpleSpannerWriter<Empty>() {
 
   override suspend fun TransactionScope.runTransaction(): Empty {
     val keySet = KeySet.newBuilder()
@@ -51,11 +50,11 @@ class BatchDeleteMeasurements(
         MeasurementReader.readKeyByExternalIds(
           transactionContext,
           externalMeasurementConsumerId,
-          externalMeasurementId
+          externalMeasurementId,
         )
           ?: throw MeasurementNotFoundByMeasurementConsumerException(
             externalMeasurementConsumerId,
-            externalMeasurementId
+            externalMeasurementId,
           ) {
             "Measurement with external MeasurementConsumer ID $externalMeasurementConsumerId and " +
               "external Measurement ID $externalMeasurementId not found"

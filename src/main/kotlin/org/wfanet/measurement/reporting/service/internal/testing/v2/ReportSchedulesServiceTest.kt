@@ -496,7 +496,7 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
         ReportSchedule.CREATE_TIME_FIELD_NUMBER,
         ReportSchedule.UPDATE_TIME_FIELD_NUMBER,
         ReportSchedule.EXTERNAL_REPORT_SCHEDULE_ID_FIELD_NUMBER,
-        ReportSchedule.STATE_FIELD_NUMBER
+        ReportSchedule.STATE_FIELD_NUMBER,
       )
       .isEqualTo(reportSchedule)
   }
@@ -870,7 +870,7 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
 
     private fun createReportScheduleForRequest(
       reportingSet: ReportingSet,
-      metricCalculationSpec: MetricCalculationSpec
+      metricCalculationSpec: MetricCalculationSpec,
     ): ReportSchedule {
       return reportSchedule {
         this.cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID

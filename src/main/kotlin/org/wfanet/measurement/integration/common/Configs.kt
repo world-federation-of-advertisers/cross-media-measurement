@@ -51,24 +51,24 @@ val DUCHY_ID_CONFIG: DuchyIdConfig =
 val AGGREGATOR_PROTOCOLS_SETUP_CONFIG: ProtocolsSetupConfig =
   loadTextProto(
     "aggregator_protocols_setup_config.textproto",
-    ProtocolsSetupConfig.getDefaultInstance()
+    ProtocolsSetupConfig.getDefaultInstance(),
   )
 val NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG: ProtocolsSetupConfig =
   loadTextProto(
     "non_aggregator_protocols_setup_config.textproto",
-    ProtocolsSetupConfig.getDefaultInstance()
+    ProtocolsSetupConfig.getDefaultInstance(),
   )
 val LLV2_PROTOCOL_CONFIG_CONFIG: Llv2ProtocolConfigConfig =
   loadTextProto(
     "llv2_protocol_config_config.textproto",
-    Llv2ProtocolConfigConfig.getDefaultInstance()
+    Llv2ProtocolConfigConfig.getDefaultInstance(),
   )
 val LLV2_AGGREGATOR_NAME =
   AGGREGATOR_PROTOCOLS_SETUP_CONFIG.liquidLegionsV2.externalAggregatorDuchyId!!
 val RO_LLV2_PROTOCOL_CONFIG_CONFIG: Llv2ProtocolConfigConfig =
   loadTextProto(
     "ro_llv2_protocol_config_config.textproto",
-    Llv2ProtocolConfigConfig.getDefaultInstance()
+    Llv2ProtocolConfigConfig.getDefaultInstance(),
   )
 
 val ALL_DUCHY_NAMES = DUCHY_ID_CONFIG.duchiesList.map { it.externalDuchyId }
@@ -83,7 +83,7 @@ val ALL_DUCHIES =
     DuchyIds.Entry(
       duchy.internalDuchyId,
       duchy.externalDuchyId,
-      duchy.activeStartTime.toInstant()..activeEndTime
+      duchy.activeStartTime.toInstant()..activeEndTime,
     )
   }
 val ALL_EDP_DISPLAY_NAMES = listOf("edp1", "edp2", "edp3")
@@ -109,7 +109,7 @@ fun loadTestCertCollection(fileName: String): Collection<X509Certificate> =
 fun loadSigningKey(certDerFileName: String, privateKeyDerFileName: String): SigningKeyHandle {
   return loadSigningKey(
     SECRET_FILES_PATH.resolve(certDerFileName).toFile(),
-    SECRET_FILES_PATH.resolve(privateKeyDerFileName).toFile()
+    SECRET_FILES_PATH.resolve(privateKeyDerFileName).toFile(),
   )
 }
 

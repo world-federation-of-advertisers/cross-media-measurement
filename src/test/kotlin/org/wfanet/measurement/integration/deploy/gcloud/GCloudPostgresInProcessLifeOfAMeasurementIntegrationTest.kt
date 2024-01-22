@@ -33,7 +33,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDataS
 class GCloudPostgresInProcessLifeOfAMeasurementIntegrationTest :
   InProcessLifeOfAMeasurementIntegrationTest(
     KingdomDataServicesProviderRule(),
-    PostgresDuchyDependencyProviderRule(databaseProvider, ALL_DUCHY_NAMES)
+    PostgresDuchyDependencyProviderRule(databaseProvider, ALL_DUCHY_NAMES),
   ) {
 
   /**

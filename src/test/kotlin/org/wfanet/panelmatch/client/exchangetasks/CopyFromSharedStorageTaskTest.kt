@@ -55,7 +55,7 @@ class CopyFromSharedStorageTaskTest {
         destination,
         copyOptions { this.labelType = labelType },
         SOURCE_BLOB_KEY,
-        DESTINATION_BLOB_KEY
+        DESTINATION_BLOB_KEY,
       )
       .execute()
   }
@@ -80,7 +80,7 @@ class CopyFromSharedStorageTaskTest {
     assertThat(destinationByteStrings)
       .containsExactly(
         DESTINATION_BLOB_KEY to sourceBlob.toByteString(),
-        signatureBlobKeyFor(DESTINATION_BLOB_KEY) to sourceBlob.signature
+        signatureBlobKeyFor(DESTINATION_BLOB_KEY) to sourceBlob.signature,
       )
   }
 
@@ -99,7 +99,7 @@ class CopyFromSharedStorageTaskTest {
         SHARD_BLOB_KEY1 to SHARD_CONTENTS1,
         signatureBlobKeyFor(SHARD_BLOB_KEY1) to source.getBlob(SHARD_BLOB_KEY1).signature,
         SHARD_BLOB_KEY2 to SHARD_CONTENTS2,
-        signatureBlobKeyFor(SHARD_BLOB_KEY2) to source.getBlob(SHARD_BLOB_KEY2).signature
+        signatureBlobKeyFor(SHARD_BLOB_KEY2) to source.getBlob(SHARD_BLOB_KEY2).signature,
       )
   }
 

@@ -35,7 +35,7 @@ private const val BUFFER_SIZE_BYTES = 32 * 1024 * 1024 // 32MiB
 
 @Command(
   name = "parse-decrypted-event-data",
-  description = ["Parses the decrypted event data produced by an exchange."]
+  description = ["Parses the decrypted event data produced by an exchange."],
 )
 class ParseDecryptedEventData : Runnable {
 

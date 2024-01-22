@@ -43,12 +43,12 @@ class SetReportScheduleIterationState(private val request: SetReportScheduleIter
         .readReportScheduleIterationByExternalId(
           cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId,
           externalReportScheduleId = request.externalReportScheduleId,
-          externalReportScheduleIterationId = request.externalReportScheduleIterationId
+          externalReportScheduleIterationId = request.externalReportScheduleIterationId,
         )
         ?: throw ReportScheduleIterationNotFoundException(
           cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId,
           externalReportScheduleId = request.externalReportScheduleId,
-          externalReportScheduleIterationId = request.externalReportScheduleIterationId
+          externalReportScheduleIterationId = request.externalReportScheduleIterationId,
         ))
 
     // REPORT_CREATED is a terminal state.
@@ -56,7 +56,7 @@ class SetReportScheduleIterationState(private val request: SetReportScheduleIter
       throw ReportScheduleIterationStateInvalidException(
         cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId,
         externalReportScheduleId = request.externalReportScheduleId,
-        externalReportScheduleIterationId = request.externalReportScheduleIterationId
+        externalReportScheduleIterationId = request.externalReportScheduleIterationId,
       )
     }
 

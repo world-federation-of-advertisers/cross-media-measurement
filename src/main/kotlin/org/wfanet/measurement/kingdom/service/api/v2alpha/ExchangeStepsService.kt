@@ -68,7 +68,7 @@ private const val MAX_PAGE_SIZE = 100
 
 class ExchangeStepsService(
   private val internalRecurringExchanges: InternalRecurringExchangesCoroutineStub,
-  private val internalExchangeSteps: InternalExchangeStepsCoroutineStub
+  private val internalExchangeSteps: InternalExchangeStepsCoroutineStub,
 ) : ExchangeStepsCoroutineImplBase() {
   private enum class Permission {
     LIST,
@@ -118,7 +118,7 @@ class ExchangeStepsService(
             externalIdToApiId(internalResponse.exchangeStep.externalRecurringExchangeId),
           exchangeId = internalResponse.exchangeStep.date.toLocalDate().toString(),
           exchangeStepId = internalResponse.exchangeStep.stepIndex.toString(),
-          exchangeStepAttemptId = internalResponse.attemptNumber.toString()
+          exchangeStepAttemptId = internalResponse.attemptNumber.toString(),
         )
         .toName()
     return claimReadyExchangeStepResponse {
@@ -258,7 +258,7 @@ class ExchangeStepsService(
           buildNextPageToken(
               request.filter,
               streamExchangeStepsRequest.filter,
-              limitedResults.last()
+              limitedResults.last(),
             )
             .toByteString()
             .base64UrlEncode()
@@ -269,7 +269,7 @@ class ExchangeStepsService(
   private fun buildNextPageToken(
     filter: ListExchangeStepsRequest.Filter,
     internalFilter: StreamExchangeStepsRequest.Filter,
-    lastResult: InternalExchangeStep
+    lastResult: InternalExchangeStep,
   ) = listExchangeStepsPageToken {
     externalRecurringExchangeId = internalFilter.externalRecurringExchangeId
     dates += internalFilter.datesList

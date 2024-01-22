@@ -47,11 +47,11 @@ class ApacheBeamContext(
   val inputLabels: Map<String, String>,
   private val outputManifests: Map<String, ShardedFileName>,
   private val inputBlobs: Map<String, Blob>,
-  private val storageFactory: StorageFactory
+  private val storageFactory: StorageFactory,
 ) {
   suspend fun <T : Message> readShardedPCollection(
     manifestLabel: String,
-    prototype: T
+    prototype: T,
   ): PCollection<T> {
     val blob =
       requireNotNull(inputBlobs.getValue(manifestLabel)) {
@@ -60,7 +60,7 @@ class ApacheBeamContext(
     val shardedFileName = blob.toStringUtf8()
     return pipeline.apply(
       "Read $shardedFileName",
-      ReadShardedData(prototype, shardedFileName, storageFactory)
+      ReadShardedData(prototype, shardedFileName, storageFactory),
     )
   }
 

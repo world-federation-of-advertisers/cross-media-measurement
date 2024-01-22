@@ -51,7 +51,7 @@ class CopyToSharedStorageTaskTest {
         destination,
         copyOptions { this.labelType = labelType },
         SOURCE_BLOB_KEY,
-        DESTINATION_BLOB_KEY
+        DESTINATION_BLOB_KEY,
       )
       .execute()
   }
@@ -93,7 +93,7 @@ class CopyToSharedStorageTaskTest {
         SHARD_BLOB_KEY1,
         signatureBlobKeyFor(SHARD_BLOB_KEY1),
         SHARD_BLOB_KEY2,
-        signatureBlobKeyFor(SHARD_BLOB_KEY2)
+        signatureBlobKeyFor(SHARD_BLOB_KEY2),
       )
   }
 

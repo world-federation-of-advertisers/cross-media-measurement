@@ -26,62 +26,33 @@ class AcdpParamsConverterTest {
 
   @Test
   fun `getLlv2AcdpCharge throws exception with invalid epsilon`() {
-    assertFails {
-      AcdpParamsConverter.getLlv2AcdpCharge(
-        DpParams(-0.1, 0.1),
-        CONTRIBUTOR_COUNT,
-      )
-    }
+    assertFails { AcdpParamsConverter.getLlv2AcdpCharge(DpParams(-0.1, 0.1), CONTRIBUTOR_COUNT) }
   }
 
   @Test
   fun `getLlv2AcdpCharge throws exception with invalid delta`() {
-    assertFails {
-      AcdpParamsConverter.getLlv2AcdpCharge(
-        DpParams(0.1, -0.1),
-        CONTRIBUTOR_COUNT,
-      )
-    }
+    assertFails { AcdpParamsConverter.getLlv2AcdpCharge(DpParams(0.1, -0.1), CONTRIBUTOR_COUNT) }
   }
 
   @Test
   fun `getLlv2AcdpCharge throws exception with invalid contributorCount`() {
-    assertFails {
-      AcdpParamsConverter.getLlv2AcdpCharge(
-        DP_PARAMS,
-        -1,
-      )
-    }
+    assertFails { AcdpParamsConverter.getLlv2AcdpCharge(DP_PARAMS, -1) }
   }
 
   @Test
   fun `getDirectAcdpCharge throws exception with invalid epsilon`() {
-    assertFails {
-      AcdpParamsConverter.getDirectAcdpCharge(
-        DpParams(-0.1, 0.1),
-        SENSITIVITY,
-      )
-    }
+    assertFails { AcdpParamsConverter.getDirectAcdpCharge(DpParams(-0.1, 0.1), SENSITIVITY) }
   }
 
   @Test
   fun `getDirectAcdpCharge throws exception with invalid delta`() {
-    assertFails {
-      AcdpParamsConverter.getDirectAcdpCharge(
-        DpParams(0.1, -0.1),
-        SENSITIVITY,
-      )
-    }
+    assertFails { AcdpParamsConverter.getDirectAcdpCharge(DpParams(0.1, -0.1), SENSITIVITY) }
   }
 
   @Test
   fun `llv2 rho and theta should be correct with given dpParams and one contributor`() {
     // mu and sigmaDistributed with given DP params: mu = 261.0, sigma = 48.23177914088707
-    val acdpCharge =
-      AcdpParamsConverter.getLlv2AcdpCharge(
-        DP_PARAMS,
-        CONTRIBUTOR_COUNT,
-      )
+    val acdpCharge = AcdpParamsConverter.getLlv2AcdpCharge(DP_PARAMS, CONTRIBUTOR_COUNT)
     val expectedAcdpCharge = AcdpCharge(2.149331679905983E-4, 4.378180881551259E-7)
 
     assertThat(acdpCharge.rho).isWithin(TOLERANCE).of(expectedAcdpCharge.rho)
@@ -90,11 +61,7 @@ class AcdpParamsConverterTest {
 
   @Test
   fun `llv2 rho and theta should be correct with given dpParams and three contributors`() {
-    val acdpCharge =
-      AcdpParamsConverter.getLlv2AcdpCharge(
-        DP_PARAMS,
-        3,
-      )
+    val acdpCharge = AcdpParamsConverter.getLlv2AcdpCharge(DP_PARAMS, 3)
     val expectedAcdpCharge = AcdpCharge(2.149331679905983E-4, 4.5945334251551807E-7)
 
     assertThat(acdpCharge.rho).isWithin(TOLERANCE).of(expectedAcdpCharge.rho)
@@ -114,11 +81,7 @@ class AcdpParamsConverterTest {
 
   @Test
   fun `direct rho and theta should be correct with given dpParams`() {
-    val acdpCharge =
-      AcdpParamsConverter.getDirectAcdpCharge(
-        DP_PARAMS,
-        SENSITIVITY,
-      )
+    val acdpCharge = AcdpParamsConverter.getDirectAcdpCharge(DP_PARAMS, SENSITIVITY)
     val expectedAcdpCharge = AcdpCharge(4.946819611450154E-4, 0.0)
 
     assertThat(acdpCharge.rho).isWithin(TOLERANCE).of(expectedAcdpCharge.rho)

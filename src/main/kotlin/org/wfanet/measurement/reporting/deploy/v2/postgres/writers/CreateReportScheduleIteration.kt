@@ -40,11 +40,11 @@ class CreateReportScheduleIteration(private val reportScheduleIteration: ReportS
       ReportScheduleReader(transactionContext)
         .readReportScheduleByExternalId(
           cmmsMeasurementConsumerId = reportScheduleIteration.cmmsMeasurementConsumerId,
-          externalReportScheduleId = reportScheduleIteration.externalReportScheduleId
+          externalReportScheduleId = reportScheduleIteration.externalReportScheduleId,
         )
         ?: throw ReportScheduleNotFoundException(
           cmmsMeasurementConsumerId = reportScheduleIteration.cmmsMeasurementConsumerId,
-          externalReportScheduleId = reportScheduleIteration.externalReportScheduleId
+          externalReportScheduleId = reportScheduleIteration.externalReportScheduleId,
         )
 
     val reportScheduleIterationId = idGenerator.generateInternalId()

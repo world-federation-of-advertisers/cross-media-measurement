@@ -51,7 +51,7 @@ class MetadataPrincipalServerInterceptor(
   override fun <ReqT, RespT> interceptCall(
     call: ServerCall<ReqT, RespT>,
     headers: Metadata,
-    next: ServerCallHandler<ReqT, RespT>
+    next: ServerCallHandler<ReqT, RespT>,
   ): ServerCall.Listener<ReqT> {
     if (ContextKeys.PRINCIPAL_CONTEXT_KEY.get() != null) {
       return Contexts.interceptCall(Context.current(), call, headers, next)
@@ -61,7 +61,7 @@ class MetadataPrincipalServerInterceptor(
     if (principalName == null) {
       call.close(
         Status.UNAUTHENTICATED.withDescription("$REPORTING_PRINCIPAL_NAME_METADATA_KEY not found"),
-        Metadata()
+        Metadata(),
       )
       return object : ServerCall.Listener<ReqT>() {}
     }
@@ -102,7 +102,7 @@ class MetadataPrincipalServerInterceptor(
     ): ServerServiceDefinition =
       ServerInterceptors.interceptForward(
         this,
-        MetadataPrincipalServerInterceptor(measurementConsumerConfigs)
+        MetadataPrincipalServerInterceptor(measurementConsumerConfigs),
       )
   }
 }

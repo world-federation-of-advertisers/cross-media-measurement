@@ -30,7 +30,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateRecurr
 
 class SpannerRecurringExchangesService(
   private val idGenerator: IdGenerator,
-  private val client: AsyncDatabaseClient
+  private val client: AsyncDatabaseClient,
 ) : RecurringExchangesCoroutineImplBase() {
   override suspend fun createRecurringExchange(
     request: CreateRecurringExchangeRequest
@@ -47,7 +47,7 @@ class SpannerRecurringExchangesService(
     return RecurringExchangeReader()
       .readByExternalRecurringExchangeId(
         client.singleUse(),
-        ExternalId(request.externalRecurringExchangeId)
+        ExternalId(request.externalRecurringExchangeId),
       )
       ?.recurringExchange ?: failGrpc(Status.NOT_FOUND) { "RecurringExchange not found" }
   }

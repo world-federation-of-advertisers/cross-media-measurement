@@ -54,7 +54,7 @@ data class CanonicalExchangeStepAttemptKey(
     exchangeStepAttemptId: String,
   ) : this(
     CanonicalExchangeStepKey(recurringExchangeId, exchangeId, exchangeStepId),
-    exchangeStepAttemptId
+    exchangeStepAttemptId,
   )
 
   override fun toName(): String {
@@ -63,7 +63,7 @@ data class CanonicalExchangeStepAttemptKey(
         IdVariable.RECURRING_EXCHANGE to recurringExchangeId,
         IdVariable.EXCHANGE to exchangeId,
         IdVariable.EXCHANGE_STEP to exchangeStepId,
-        IdVariable.EXCHANGE_STEP_ATTEMPT to exchangeStepAttemptId
+        IdVariable.EXCHANGE_STEP_ATTEMPT to exchangeStepAttemptId,
       )
     )
   }
@@ -83,7 +83,7 @@ data class CanonicalExchangeStepAttemptKey(
           it.getValue(IdVariable.RECURRING_EXCHANGE),
           it.getValue(IdVariable.EXCHANGE),
           it.getValue(IdVariable.EXCHANGE_STEP),
-          it.getValue(IdVariable.EXCHANGE_STEP_ATTEMPT)
+          it.getValue(IdVariable.EXCHANGE_STEP_ATTEMPT),
         )
       }
     }

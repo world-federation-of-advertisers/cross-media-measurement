@@ -22,7 +22,7 @@ import org.wfanet.panelmatch.client.exchangetasks.JoinKeyIdentifier
 
 @Deprecated(
   "Use a random (not empty) JoinKeyIdentifier instead",
-  replaceWith = ReplaceWith("makePaddingQueryJoinKeyIdentifier()")
+  replaceWith = ReplaceWith("makePaddingQueryJoinKeyIdentifier()"),
 )
 val PADDING_QUERY_JOIN_KEY_IDENTIFIER = joinKeyIdentifierOf(ByteString.EMPTY)
 
