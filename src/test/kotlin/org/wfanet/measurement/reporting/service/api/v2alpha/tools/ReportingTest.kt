@@ -599,7 +599,7 @@ class ReportingTest {
 
     verifyProtoArgument(
         metricCalculationSpecsServiceMock,
-        MetricCalculationSpecsCoroutineImplBase::createMetricCalculationSpec
+        MetricCalculationSpecsCoroutineImplBase::createMetricCalculationSpec,
       )
       .isEqualTo(
         createMetricCalculationSpecRequest {
@@ -661,7 +661,7 @@ class ReportingTest {
 
     verifyProtoArgument(
         metricCalculationSpecsServiceMock,
-        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs
+        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs,
       )
       .isEqualTo(
         listMetricCalculationSpecsRequest {
@@ -687,7 +687,7 @@ class ReportingTest {
 
     verifyProtoArgument(
         metricCalculationSpecsServiceMock,
-        MetricCalculationSpecsCoroutineImplBase::getMetricCalculationSpec
+        MetricCalculationSpecsCoroutineImplBase::getMetricCalculationSpec,
       )
       .isEqualTo(getMetricCalculationSpecRequest { name = METRIC_CALCULATION_SPEC_NAME })
     assertThat(output).status().isEqualTo(0)

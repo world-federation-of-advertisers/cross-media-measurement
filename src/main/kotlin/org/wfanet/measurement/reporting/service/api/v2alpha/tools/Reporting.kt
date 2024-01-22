@@ -449,7 +449,7 @@ class CreateMetricCalculationSpecCommand : Runnable {
     names = ["--display-name"],
     description = ["Human-readable name for display purposes"],
     required = false,
-    defaultValue = ""
+    defaultValue = "",
   )
   private lateinit var displayName: String
 
@@ -471,7 +471,7 @@ class CreateMetricCalculationSpecCommand : Runnable {
     names = ["--filter"],
     description = ["CEL filter predicate that will be conjoined to any Reporting Set filters"],
     required = false,
-    defaultValue = ""
+    defaultValue = "",
   )
   private lateinit var filter: String
 
@@ -486,7 +486,7 @@ class CreateMetricCalculationSpecCommand : Runnable {
     names = ["--id"],
     description = ["Resource ID of the Metric Calculation Spec"],
     required = true,
-    defaultValue = ""
+    defaultValue = "",
   )
   private lateinit var metricCalculationSpecId: String
 
@@ -556,9 +556,7 @@ class ListMetricCalculationSpecsCommand : Runnable {
 class GetMetricCalculationSpecCommand : Runnable {
   @CommandLine.ParentCommand private lateinit var parent: MetricCalculationSpecsCommand
 
-  @CommandLine.Parameters(
-    description = ["API resource name of the Metric Calculation Spec"],
-  )
+  @CommandLine.Parameters(description = ["API resource name of the Metric Calculation Spec"])
   private lateinit var metricCalculationSpecName: String
 
   override fun run() {
@@ -581,7 +579,7 @@ class GetMetricCalculationSpecCommand : Runnable {
       CreateMetricCalculationSpecCommand::class,
       ListMetricCalculationSpecsCommand::class,
       GetMetricCalculationSpecCommand::class,
-    ]
+    ],
 )
 class MetricCalculationSpecsCommand : Runnable {
   @CommandLine.ParentCommand lateinit var parent: Reporting
