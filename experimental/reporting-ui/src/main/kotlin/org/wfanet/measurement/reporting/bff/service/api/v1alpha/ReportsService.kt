@@ -16,6 +16,7 @@ package org.wfanet.measurement.reporting.bff.service.api.v1alpha
 
 import com.google.type.interval
 import io.grpc.Status
+import io.grpc.StatusException
 import java.util.logging.Logger
 import org.wfanet.measurement.reporting.bff.v1alpha.GetReportRequest
 import org.wfanet.measurement.reporting.bff.v1alpha.ListReportsRequest
@@ -31,8 +32,11 @@ import org.wfanet.measurement.reporting.bff.v1alpha.listReportsResponse
 import org.wfanet.measurement.reporting.bff.v1alpha.report
 import org.wfanet.measurement.reporting.v2alpha.MetricResult.ResultCase
 import org.wfanet.measurement.reporting.v2alpha.Report as BackendReport
+import org.wfanet.measurement.reporting.v2alpha.ReportingSet
+import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt as BackendReportsGrpcKt
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
+import org.wfanet.measurement.reporting.v2alpha.listReportingSetsRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
 
 val UNIQUE_TYPE_TAG = "unique"
@@ -43,7 +47,7 @@ val DISPLAY_NAME_TAG = "ui.halo-cmm.org/display_name"
 
 class ReportsService(
   private val backendReportsStub: BackendReportsGrpcKt.ReportsCoroutineStub,
-  private val reportingSetsService: ReportingSetsService,
+  private val reportingSetsServiceStub: ReportingSetsGrpcKt.ReportingSetsCoroutineStub,
 ) : ReportsGrpcKt.ReportsCoroutineImplBase() {
   override suspend fun listReports(request: ListReportsRequest): ListReportsResponse {
     // TODO(@bdomen-ggl): Still working on UX for pagination, so holding off for now.
@@ -59,7 +63,18 @@ class ReportsService(
       pageSize = 1000
     }
 
-    val resp = backendReportsStub.listReports(backendRequest)
+    val resp = try {
+      backendReportsStub.listReports(backendRequest)
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            Status.Code.CANCELLED -> Status.CANCELLED
+            else -> Status.UNKNOWN
+          }
+          .withCause(e)
+          .withDescription("Unable to list Reports.")
+          .asRuntimeException()
+    }
 
     if (resp.nextPageToken.isNotEmpty()) {
       logger.warning { "Additional ListReport items. Not Loopping through additional pages." }
@@ -71,7 +86,18 @@ class ReportsService(
     val results = listReportsResponse {
       resp.reportsList
         .filter { it.tagsMap.containsKey("ui.halo-cmm.org") }
-        .forEach { reports += it.toBffReport(view) }
+        .forEach { reports +=
+          when (view) {
+            ReportView.REPORT_VIEW_BASIC -> it.toBasicReport()
+            ReportView.REPORT_VIEW_FULL -> {
+              val listReportingSetsResponse = listReportingSets(request.parent)
+              it.toFullReport(listReportingSetsResponse)
+            }
+            else ->
+              throw Status.INVALID_ARGUMENT.withDescription("View type must be specified")
+                .asRuntimeException()
+          }
+        }
     }
 
     return results
@@ -79,7 +105,19 @@ class ReportsService(
 
   override suspend fun getReport(request: GetReportRequest): Report {
     val backendRequest = getReportRequest { name = request.name }
-    val resp = backendReportsStub.getReport(backendRequest)
+
+    val resp = try {
+      backendReportsStub.getReport(backendRequest)
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            Status.Code.CANCELLED -> Status.CANCELLED
+            else -> Status.UNKNOWN
+          }
+          .withCause(e)
+          .withDescription("Unable to get Report.")
+          .asRuntimeException()
+    }
 
     if (!resp.tagsMap.containsKey("ui.halo-cmm.org")) {
       throw Status.INVALID_ARGUMENT.withDescription("Not a supported UI report")
@@ -90,28 +128,27 @@ class ReportsService(
       if (request.view == ReportView.REPORT_VIEW_UNSPECIFIED) ReportView.REPORT_VIEW_FULL
       else request.view
 
-    val result = resp.toBffReport(view)
-    return result
-  }
-
-  private suspend fun BackendReport.toBffReport(view: ReportView): Report {
-    val source = this
-
-    return when (view) {
-      ReportView.REPORT_VIEW_BASIC -> source.toBasicReport()
-      ReportView.REPORT_VIEW_FULL -> source.toFullReport()
+    val result = when (view) {
+      ReportView.REPORT_VIEW_BASIC -> resp.toBasicReport()
+      ReportView.REPORT_VIEW_FULL -> {
+        val listReportingSetsResponse = listReportingSets(request.parent)
+        resp.toFullReport(listReportingSetsResponse)
+      }
       else ->
         throw Status.INVALID_ARGUMENT.withDescription("View type must be specified")
           .asRuntimeException()
     }
+    return result
   }
 
   private fun BackendReport.toBasicReport(): Report {
     val source = this
 
     return report {
-      reportId = source.name.substring(source.name.lastIndexOf("/") + 1)
-      name = source.name
+      reportId = source.name
+      name =
+        if (source.tagsMap.containsKey(DISPLAY_NAME_TAG)) source.tagsMap[DISPLAY_NAME_TAG]!!
+        else source.name
       state = source.state.toBffState()
     }
   }
@@ -134,6 +171,30 @@ class ReportsService(
     }
   }
 
+  // TODO(@bdomen-ggl): Probably want to add get reporting set to ensure we don't have to paginate
+  //  and to make the list more manageable as lots of reporting sets get created.
+  private suspend fun listReportingSets(reportParent: String): List<ReportingSet>  {
+    val backendRequest = listReportingSetsRequest {
+      parent = reportParent
+      pageSize = 1000
+    }
+
+    val resp = try {
+      reportingSetsServiceStub.listReportingSets(backendRequest)
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            Status.Code.CANCELLED -> Status.CANCELLED
+            else -> Status.UNKNOWN
+          }
+          .withCause(e)
+          .withDescription("Unable to list Reporting Sets.")
+          .asRuntimeException()
+    }
+
+    return resp.reportingSetsList
+  }
+
   val DEMOGRAPHIC_CODE_TO_STRING =
     mapOf(
       "person.gender == 1" to "Male",
@@ -143,18 +204,12 @@ class ReportsService(
       "person.age_group == 3" to "55+",
     )
 
-  private suspend fun BackendReport.toFullReport(): Report {
+  private suspend fun BackendReport.toFullReport(reportingSets: List<ReportingSet>): Report {
     val source = this
 
     // Get Reporting Sets from Reporting Metric Entries
     //  Need to get both the individual and unique reporting sets
     //  to map them to a single result later.
-    // TODO(@bdomen-ggl): Probably want to add get reporting set to ensure we don't have to paginate
-    //  and to make the list more manageable as lots of reporting sets get created.
-    val measurementConsumerName =
-      source.name.substring(0, source.name.indexOf("/", source.name.indexOf("/")))
-    val reportingSetsRequest = ListReportingSetsRequest(measurementConsumerName, 1000)
-    val reportingSets = reportingSetsService.ListReportingSets(reportingSetsRequest)
 
     // Build the BFF report from the Backend report
     val rep = report {

@@ -21,7 +21,6 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
-import org.wfanet.measurement.reporting.bff.service.api.v1alpha.ReportingSetsService
 import org.wfanet.measurement.reporting.bff.service.api.v1alpha.ReportsService
 import org.wfanet.measurement.reporting.bff.v1alpha.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt as HaloReportingSetsGrpcKt
@@ -58,7 +57,7 @@ private fun run(
     listOf(
       ReportsService(
           HaloReportsGrpcKt.ReportsCoroutineStub(channel),
-          ReportingSetsService(HaloReportingSetsGrpcKt.ReportingSetsCoroutineStub(channel))
+          HaloReportingSetsGrpcKt.ReportingSetsCoroutineStub(channel)
         )
         .bindService()
     )
