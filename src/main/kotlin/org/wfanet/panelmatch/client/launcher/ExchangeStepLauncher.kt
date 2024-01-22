@@ -24,7 +24,7 @@ import org.wfanet.panelmatch.client.launcher.InvalidExchangeStepException.Failur
 class ExchangeStepLauncher(
   private val apiClient: ApiClient,
   private val validator: ExchangeStepValidator,
-  private val jobLauncher: JobLauncher
+  private val stepExecutor: ExchangeStepExecutor,
 ) {
 
   /**
@@ -36,7 +36,7 @@ class ExchangeStepLauncher(
 
     try {
       val validatedExchangeStep = validator.validate(exchangeStep)
-      jobLauncher.execute(validatedExchangeStep, attemptKey)
+      stepExecutor.execute(validatedExchangeStep, attemptKey)
     } catch (e: Exception) {
       invalidateAttempt(attemptKey, e)
     }
