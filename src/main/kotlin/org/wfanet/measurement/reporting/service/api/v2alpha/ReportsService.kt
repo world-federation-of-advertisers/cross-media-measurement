@@ -317,34 +317,84 @@ class ReportsService(
       try {
         internalReportsStub.createReport(internalCreateReportRequest)
       } catch (e: StatusException) {
-        throw when (e.status.code) {
+        when (e.status.code) {
             Status.Code.DEADLINE_EXCEEDED ->
-              Status.DEADLINE_EXCEEDED.withDescription("Unable to create Report.")
-            Status.Code.CANCELLED -> Status.CANCELLED.withDescription("Unable to create Report.")
+              throw Status.DEADLINE_EXCEEDED.withDescription("Unable to create Report.")
+                .withCause(e)
+                .asRuntimeException()
+            Status.Code.CANCELLED ->
+              throw Status.CANCELLED.withDescription("Unable to create Report.")
+                .withCause(e)
+                .asRuntimeException()
             Status.Code.FAILED_PRECONDITION ->
-              Status.FAILED_PRECONDITION.withDescription(
+              throw Status.FAILED_PRECONDITION.withDescription(
                 "Unable to create Report. The measurement consumer not found."
               )
-            Status.Code.ALREADY_EXISTS ->
-              Status.ALREADY_EXISTS.withDescription(
-                "Report with ID ${request.reportId} already exists under ${request.parent}"
-              )
+                .withCause(e)
+                .asRuntimeException()
+            Status.Code.ALREADY_EXISTS -> {
+              var haveMetricsBeenCreated = true
+              val existingInternalReport =
+                try {
+                  internalReportsStub.getReport(
+                    internalGetReportRequest {
+                      cmmsMeasurementConsumerId = internalCreateReportRequest.report.cmmsMeasurementConsumerId
+                      externalReportId = internalCreateReportRequest.externalReportId
+                    }
+                  )
+                } catch (e: StatusException) {
+                  throw Status.UNKNOWN.withDescription("Unable to create Report.")
+                    .withCause(e)
+                    .asRuntimeException()
+                }
+
+              // Check if any Metric for the Report has not been created yet.
+              outer@ for (reportingMetricCalculationSpec in existingInternalReport.reportingMetricEntriesMap.values) {
+                for (reportingMetricCalculationSpecMetrics in reportingMetricCalculationSpec.metricCalculationSpecReportingMetricsList) {
+                  for (reportingMetric in reportingMetricCalculationSpecMetrics.reportingMetricsList) {
+                    if (reportingMetric.externalMetricId.isEmpty()) {
+                      haveMetricsBeenCreated = false
+                      break@outer
+                    }
+                  }
+                }
+              }
+
+              // If the Metric for the Report have already been created, then the error is valid.
+              // Otherwise, continue with the creation of the Metrics.
+              if (haveMetricsBeenCreated) {
+                throw Status.ALREADY_EXISTS.withDescription(
+                  "Report with ID ${request.reportId} already exists under ${request.parent}"
+                )
+                  .withCause(e)
+                  .asRuntimeException()
+              } else {
+                existingInternalReport
+              }
+            }
             Status.Code.NOT_FOUND ->
               if (e.message!!.contains("external_report_schedule_id")) {
-                Status.NOT_FOUND.withDescription(
+                throw Status.NOT_FOUND.withDescription(
                   "ReportSchedule associated with the Report not found."
                 )
+                  .withCause(e)
+                  .asRuntimeException()
               } else if (e.message!!.contains("external_metric_calculation_spec_id")) {
-                Status.NOT_FOUND.withDescription(
+                throw Status.NOT_FOUND.withDescription(
                   "MetricCalculationSpec used in the Report not found."
                 )
+                  .withCause(e)
+                  .asRuntimeException()
               } else {
-                Status.NOT_FOUND.withDescription("ReportingSet used in the Report not found.")
+                throw Status.NOT_FOUND.withDescription("ReportingSet used in the Report not found.")
+                  .withCause(e)
+                  .asRuntimeException()
               }
-            else -> Status.UNKNOWN.withDescription("Unable to create Report.")
+            else ->
+              throw Status.UNKNOWN.withDescription("Unable to create Report.")
+                .withCause(e)
+                .asRuntimeException()
           }
-          .withCause(e)
-          .asRuntimeException()
       }
 
     // Create metrics.

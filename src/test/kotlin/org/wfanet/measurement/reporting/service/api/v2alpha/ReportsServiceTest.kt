@@ -551,6 +551,161 @@ class ReportsServiceTest {
     }
 
   @Test
+  fun `createReport returns report when resource id already used but metrics weren't created`() =
+    runBlocking {
+      val targetReportingSet = PRIMITIVE_REPORTING_SETS.first()
+      val timeIntervalsList =
+        listOf(
+          interval {
+            startTime = START_TIME
+            endTime = END_TIME
+          },
+          interval {
+            startTime = END_TIME
+            endTime = END_INSTANT.plus(Duration.ofDays(1)).toProtoTime()
+          }
+        )
+
+      val intervals =
+        listOf(
+          interval {
+            startTime = START_TIME
+            endTime = END_TIME
+          },
+          interval {
+            startTime = END_TIME
+            endTime = END_INSTANT.plus(Duration.ofDays(1)).toProtoTime()
+          }
+        )
+
+      val initialReportingMetrics: List<InternalReport.ReportingMetric> =
+        intervals.map { timeInterval ->
+          buildInitialReportingMetric(timeInterval, INTERNAL_REACH_METRIC_SPEC, listOf())
+        }
+
+      val (internalRequestingReport, internalInitialReport, internalPendingReport) =
+        buildInternalReports(
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
+          timeIntervals = intervals,
+          reportingSetId = targetReportingSet.resourceId,
+          reportingMetrics = initialReportingMetrics,
+          metricCalculationSpecId = REACH_METRIC_CALCULATION_SPEC_ID
+        )
+
+      whenever(
+        internalReportsMock.createReport(
+          eq(
+            internalCreateReportRequest {
+              report = internalRequestingReport
+              externalReportId = "report-id"
+            }
+          )
+        )
+      )
+        .thenThrow(Status.ALREADY_EXISTS.asRuntimeException())
+
+      whenever(
+        internalReportsMock.getReport(
+          eq(
+            internalGetReportRequest {
+              cmmsMeasurementConsumerId = internalInitialReport.cmmsMeasurementConsumerId
+              externalReportId = internalInitialReport.externalReportId
+            }
+          )
+        )
+      )
+        .thenReturn(internalPendingReport.copy {
+          val reportingMetricCalculationSpec = reportingMetricEntries.entries.first().value
+          reportingMetricEntries[reportingMetricEntries.entries.first().key] =
+            reportingMetricCalculationSpec.copy {
+              metricCalculationSpecReportingMetrics[0] =
+                reportingMetricCalculationSpec.metricCalculationSpecReportingMetricsList[0].copy {
+                  reportingMetrics[0] = reportingMetricCalculationSpec.metricCalculationSpecReportingMetricsList[0].reportingMetricsList[0].copy {
+                    clearExternalMetricId()
+                  }
+                }
+            }
+        })
+        .thenReturn(internalPendingReport)
+
+      val requestingMetrics: List<Metric> =
+        timeIntervalsList.map { timeInterval ->
+          metric {
+            reportingSet = targetReportingSet.name
+            this.timeInterval = timeInterval
+            metricSpec = REACH_METRIC_SPEC
+          }
+        }
+
+      whenever(metricsMock.batchCreateMetrics(any()))
+        .thenReturn(
+          batchCreateMetricsResponse {
+            metrics +=
+              requestingMetrics.mapIndexed { index, metric ->
+                metric.copy {
+                  name =
+                    MetricKey(
+                      MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
+                      ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value
+                    )
+                      .toName()
+                  state = Metric.State.RUNNING
+                  createTime = Instant.now().toProtoTime()
+                }
+              }
+          }
+        )
+
+      val requestingReport = report {
+        tags.putAll(REPORT_TAGS)
+        reportingMetricEntries +=
+          ReportKt.reportingMetricEntry {
+            key = targetReportingSet.name
+            value =
+              ReportKt.reportingMetricCalculationSpec {
+                metricCalculationSpecs += REACH_METRIC_CALCULATION_SPEC_NAME
+              }
+          }
+        timeIntervals = timeIntervals { timeIntervals += timeIntervalsList }
+      }
+
+      val request = createReportRequest {
+        parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+        report = requestingReport
+        reportId = "report-id"
+      }
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+
+      verifyProtoArgument(metricsMock, MetricsCoroutineImplBase::batchCreateMetrics)
+        .isEqualTo(
+          batchCreateMetricsRequest {
+            parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+            requests +=
+              requestingMetrics.mapIndexed { requestId, metric ->
+                createMetricRequest {
+                  parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+                  this.metric = metric
+                  this.requestId = ExternalId(REACH_METRIC_ID_BASE_LONG + requestId).apiId.value
+                  metricId = "$METRIC_ID_PREFIX${this.requestId}"
+                }
+              }
+          }
+        )
+
+      assertThat(result)
+        .isEqualTo(
+          requestingReport.copy {
+            name = internalInitialReport.resourceName
+            state = Report.State.RUNNING
+            createTime = internalInitialReport.createTime
+          }
+        )
+    }
+
+  @Test
   fun `createReport returns report with two metrics when multiple filters`() = runBlocking {
     val targetReportingSet = PRIMITIVE_REPORTING_SETS.first()
 
@@ -1885,6 +2040,28 @@ class ReportsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createReport throws ALREADY_EXISTS when resource ID has already been used`() {
+    runBlocking {
+      whenever(internalReportsMock.createReport(any()))
+        .thenThrow(Status.ALREADY_EXISTS.asRuntimeException())
+    }
+
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      reportId = "report-id"
+      report = PENDING_REACH_REPORT
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
   }
 
   @Test
