@@ -76,10 +76,10 @@ message Report {
         // Impression count with standard deviation.
         message ImpressionCountResult {
           // The number of impressions.
-          int64 count = 1;
+          int64 count = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
 
           // The standard deviation for determining confidence intervals.
-          double standard_deviation = 2;
+          double standard_deviation = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
         }
 
         // The number of impressions.
@@ -92,7 +92,8 @@ message Report {
         //   3: 2
         // The keys are implied to be views of at least that amount (eg. 1 is
         // really 1+).
-        map<int32, double> frequency_histogram = 3;
+        map<int32, double> frequency_histogram = 3
+            [(google.api.field_behavior) = OUTPUT_ONLY];
 
         // The reach value.
         int64 reach = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
