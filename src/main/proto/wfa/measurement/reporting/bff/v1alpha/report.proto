@@ -79,7 +79,8 @@ message Report {
           int64 count = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
 
           // The standard deviation for determining confidence intervals.
-          double standard_deviation = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+          double standard_deviation = 2
+              [(google.api.field_behavior) = OUTPUT_ONLY];
         }
 
         // The number of impressions.
