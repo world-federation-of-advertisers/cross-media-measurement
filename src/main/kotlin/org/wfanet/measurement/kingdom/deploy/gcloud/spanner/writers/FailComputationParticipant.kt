@@ -59,11 +59,11 @@ class FailComputationParticipant(private val request: FailComputationParticipant
         .readByExternalComputationId(
           transactionContext,
           ExternalId(request.externalComputationId),
-          InternalId(duchyId)
+          InternalId(duchyId),
         )
         ?: throw ComputationParticipantNotFoundByComputationException(
           ExternalId(request.externalComputationId),
-          request.externalDuchyId
+          request.externalDuchyId,
         ) {
           "ComputationParticipant for external computation ID ${request.externalComputationId} " +
             "and external duchy ID ${request.externalDuchyId} not found"
@@ -81,16 +81,16 @@ class FailComputationParticipant(private val request: FailComputationParticipant
       Measurement.State.PENDING_REQUISITION_PARAMS,
       Measurement.State.PENDING_REQUISITION_FULFILLMENT,
       Measurement.State.PENDING_PARTICIPANT_CONFIRMATION,
-      Measurement.State.PENDING_COMPUTATION, -> {}
+      Measurement.State.PENDING_COMPUTATION -> {}
       Measurement.State.FAILED,
       Measurement.State.SUCCEEDED,
       Measurement.State.CANCELLED,
       Measurement.State.STATE_UNSPECIFIED,
-      Measurement.State.UNRECOGNIZED, -> {
+      Measurement.State.UNRECOGNIZED -> {
         throw MeasurementStateIllegalException(
           ExternalId(computationParticipant.externalMeasurementConsumerId),
           ExternalId(computationParticipant.externalMeasurementId),
-          measurementState
+          measurementState,
         ) {
           "Unexpected Measurement state $measurementState (${measurementState.number})"
         }
@@ -141,14 +141,14 @@ class FailComputationParticipant(private val request: FailComputationParticipant
       nextState = Measurement.State.FAILED,
       previousState = measurementState,
       measurementLogEntryDetails = measurementLogEntryDetails,
-      details = updatedMeasurementDetails
+      details = updatedMeasurementDetails,
     )
 
     insertDuchyMeasurementLogEntry(
       InternalId(measurementId),
       InternalId(measurementConsumerId),
       InternalId(duchyId),
-      duchyMeasurementLogEntry.details
+      duchyMeasurementLogEntry.details,
     )
 
     return computationParticipant.copy { state = NEXT_COMPUTATION_PARTICIPANT_STATE }

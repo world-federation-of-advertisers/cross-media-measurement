@@ -28,14 +28,10 @@ class SpannerAccountsServiceTest : AccountsServiceTest<SpannerAccountsService>()
 
   override fun newTestDataServices(idGenerator: IdGenerator): TestDataServices {
     val databaseClient = spannerDatabase.databaseClient
-    return TestDataServices(
-      SpannerMeasurementConsumersService(idGenerator, databaseClient),
-    )
+    return TestDataServices(SpannerMeasurementConsumersService(idGenerator, databaseClient))
   }
 
-  override fun newService(
-    idGenerator: IdGenerator,
-  ): SpannerAccountsService {
+  override fun newService(idGenerator: IdGenerator): SpannerAccountsService {
     return SpannerAccountsService(idGenerator, spannerDatabase.databaseClient)
   }
 }

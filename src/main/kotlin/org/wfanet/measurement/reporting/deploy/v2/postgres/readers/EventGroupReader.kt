@@ -31,10 +31,7 @@ class EventGroupReader(private val readContext: ReadContext) {
     val eventGroupId: InternalId,
   )
 
-  data class CmmsEventGroupKey(
-    val cmmsDataProviderId: String,
-    val cmmsEventGroupId: String,
-  )
+  data class CmmsEventGroupKey(val cmmsDataProviderId: String, val cmmsEventGroupId: String)
 
   private val baseSql: String =
     """
@@ -52,7 +49,7 @@ class EventGroupReader(private val readContext: ReadContext) {
       cmmsDataProviderId = row["CmmsDataProviderId"],
       cmmsEventGroupId = row["CmmsEventGroupId"],
       measurementConsumerId = row["MeasurementConsumerId"],
-      eventGroupId = row["EventGroupId"]
+      eventGroupId = row["EventGroupId"],
     )
   }
 

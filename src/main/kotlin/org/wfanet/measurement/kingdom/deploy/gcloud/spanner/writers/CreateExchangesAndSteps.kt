@@ -36,7 +36,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RecurringExc
 
 class CreateExchangesAndSteps(
   private val party: ExchangeWorkflow.Party,
-  private val externalPartyId: ExternalId
+  private val externalPartyId: ExternalId,
 ) : SimpleSpannerWriter<Unit>() {
 
   override suspend fun TransactionScope.runTransaction() {
@@ -59,7 +59,7 @@ class CreateExchangesAndSteps(
     // Update recurring exchange with new next exchange date. Its state doesn't change.
     updateRecurringExchange(
       recurringExchangeId = recurringExchangeId,
-      nextExchangeDate = nextNextExchangeDate
+      nextExchangeDate = nextNextExchangeDate,
     )
 
     // Create all steps for the Exchange, set them all to BLOCKED State initially.
@@ -68,14 +68,14 @@ class CreateExchangesAndSteps(
       recurringExchangeId = recurringExchangeId,
       date = nextExchangeDate,
       modelProviderId = modelProviderId,
-      dataProviderId = dataProviderId
+      dataProviderId = dataProviderId,
     )
 
     // Update all Steps States based on the workflow.
     updateExchangeStepsToReady(
       steps = workflow.stepsList.filter { step -> step.prerequisiteStepIndicesCount == 0 },
       recurringExchangeId = recurringExchangeId,
-      date = nextExchangeDate
+      date = nextExchangeDate,
     )
   }
 
@@ -135,7 +135,7 @@ class CreateExchangesAndSteps(
 
   private fun TransactionScope.updateRecurringExchange(
     recurringExchangeId: Long,
-    nextExchangeDate: Date
+    nextExchangeDate: Date,
   ) {
     transactionContext.bufferUpdateMutation("RecurringExchanges") {
       set("RecurringExchangeId" to recurringExchangeId)
@@ -148,7 +148,7 @@ class CreateExchangesAndSteps(
     recurringExchangeId: Long,
     date: Date,
     modelProviderId: Long,
-    dataProviderId: Long
+    dataProviderId: Long,
   ) {
     for (step in workflow.stepsList) {
       transactionContext.bufferInsertMutation("ExchangeSteps") {

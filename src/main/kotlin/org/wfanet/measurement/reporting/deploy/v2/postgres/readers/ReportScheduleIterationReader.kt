@@ -37,7 +37,7 @@ class ReportScheduleIterationReader(private val readContext: ReadContext) {
     val measurementConsumerId: InternalId,
     val reportScheduleId: InternalId,
     val reportScheduleIterationId: InternalId,
-    val reportScheduleIteration: ReportScheduleIteration
+    val reportScheduleIteration: ReportScheduleIteration,
   )
 
   private val baseSql: String =
@@ -69,7 +69,7 @@ class ReportScheduleIterationReader(private val readContext: ReadContext) {
       row["MeasurementConsumerId"],
       row["ReportScheduleId"],
       row["ReportScheduleIterationId"],
-      buildReportScheduleIteration(row)
+      buildReportScheduleIteration(row),
     )
 
   suspend fun readReportScheduleIterationByExternalId(

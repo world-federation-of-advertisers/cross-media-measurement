@@ -64,7 +64,7 @@ class CreateMeasurementConsumer(
     if (accountResult.account.activationState != Account.ActivationState.ACTIVATED) {
       throw AccountActivationStateIllegalException(
         ExternalId(accountResult.account.externalAccountId),
-        accountResult.account.activationState
+        accountResult.account.activationState,
       )
     }
 
@@ -111,7 +111,7 @@ class CreateMeasurementConsumer(
     MeasurementConsumerCreationTokenReader()
       .readByMeasurementConsumerCreationTokenHash(
         transactionContext,
-        measurementConsumerCreationTokenHash
+        measurementConsumerCreationTokenHash,
       ) ?: throw PermissionDeniedException()
 
   private suspend fun TransactionScope.readAccount(

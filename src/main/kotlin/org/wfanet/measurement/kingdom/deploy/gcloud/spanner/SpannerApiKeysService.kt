@@ -34,7 +34,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.DeleteApiKey
 
 class SpannerApiKeysService(
   private val idGenerator: IdGenerator,
-  private val client: AsyncDatabaseClient
+  private val client: AsyncDatabaseClient,
 ) : ApiKeysGrpcKt.ApiKeysCoroutineImplBase() {
   override suspend fun createApiKey(request: ApiKey): ApiKey {
     try {
@@ -50,7 +50,7 @@ class SpannerApiKeysService(
     try {
       return DeleteApiKey(
           externalApiKeyId = ExternalId(request.externalApiKeyId),
-          externalMeasurementConsumerId = ExternalId(request.externalMeasurementConsumerId)
+          externalMeasurementConsumerId = ExternalId(request.externalMeasurementConsumerId),
         )
         .execute(client, idGenerator)
     } catch (e: MeasurementConsumerNotFoundException) {

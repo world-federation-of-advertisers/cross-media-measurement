@@ -146,7 +146,7 @@ private fun HonestMajorityShareShuffle.computationStageInput(): ComputationStage
 /** Creates an [AdvanceComputationRequest.Header] for a liquid legions v2 computation. */
 fun advanceComputationHeader(
   liquidLegionsV2ContentDescription: LiquidLegionsV2.Description,
-  globalComputationId: String
+  globalComputationId: String,
 ): AdvanceComputationRequest.Header =
   AdvanceComputationRequestKt.header {
     name = ComputationKey(globalComputationId).toName()
@@ -156,7 +156,7 @@ fun advanceComputationHeader(
 /** Creates an [AdvanceComputationRequest.Header] for a reach-only liquid legions v2 computation. */
 fun advanceComputationHeader(
   reachOnlyLiquidLegionsV2ContentDescription: ReachOnlyLiquidLegionsV2.Description,
-  globalComputationId: String
+  globalComputationId: String,
 ): AdvanceComputationRequest.Header =
   AdvanceComputationRequestKt.header {
     name = ComputationKey(globalComputationId).toName()
@@ -171,7 +171,7 @@ fun advanceComputationHeader(
  */
 fun advanceComputationHeader(
   honestMajorityShareShuffleContentDescription: HonestMajorityShareShuffle.Description,
-  globalComputationId: String
+  globalComputationId: String,
 ): AdvanceComputationRequest.Header =
   AdvanceComputationRequestKt.header {
     name = ComputationKey(globalComputationId).toName()
@@ -187,7 +187,7 @@ fun advanceComputationHeader(
 fun advanceComputationHeader(
   honestMajorityShareShuffleContentDescription: HonestMajorityShareShuffle.Description,
   globalComputationId: String,
-  seed: ByteString
+  seed: ByteString,
 ): AdvanceComputationRequest.Header =
   AdvanceComputationRequestKt.header {
     name = ComputationKey(globalComputationId).toName()

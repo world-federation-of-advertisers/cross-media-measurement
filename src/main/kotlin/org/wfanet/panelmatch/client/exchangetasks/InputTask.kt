@@ -28,7 +28,7 @@ import org.wfanet.panelmatch.common.loggerFor
 class InputTask(
   private val blobKey: String,
   private val throttler: Throttler,
-  private val storage: StorageClient
+  private val storage: StorageClient,
 ) : CustomIOExchangeTask() {
 
   private suspend fun isReady(): Boolean {

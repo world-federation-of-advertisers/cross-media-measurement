@@ -30,7 +30,7 @@ suspend fun ComputationsCoroutineStub.advanceComputationStage(
   computationToken: ComputationToken,
   inputsToNextStage: List<String> = listOf(),
   passThroughBlobs: List<String> = listOf(),
-  stage: ComputationStage
+  stage: ComputationStage,
 ): ComputationToken {
   require(
     ComputationProtocolStageDetails.validateRoleForStage(stage, computationToken.computationDetails)
@@ -49,7 +49,7 @@ suspend fun ComputationsCoroutineStub.advanceComputationStage(
         outputBlobs =
           ComputationProtocolStageDetails.outputBlobNumbersForStage(
             stage,
-            computationToken.computationDetails
+            computationToken.computationDetails,
           )
       }
       .build()

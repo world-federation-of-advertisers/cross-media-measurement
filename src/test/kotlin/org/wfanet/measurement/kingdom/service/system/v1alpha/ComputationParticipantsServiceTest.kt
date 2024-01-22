@@ -174,7 +174,7 @@ class ComputationParticipantsServiceTest {
   private val service =
     ComputationParticipantsService(
       InternalComputationParticipantsCoroutineStub(grpcTestServerRule.channel),
-      duchyIdProvider
+      duchyIdProvider,
     )
 
   @Test
@@ -215,7 +215,7 @@ class ComputationParticipantsServiceTest {
       )
     verifyProtoArgument(
         internalComputationParticipantsServiceMock,
-        InternalComputationParticipantsCoroutineService::setParticipantRequisitionParams
+        InternalComputationParticipantsCoroutineService::setParticipantRequisitionParams,
       )
       .isEqualTo(
         InternalSetParticipantRequisitionParamsRequest.newBuilder()
@@ -276,7 +276,7 @@ class ComputationParticipantsServiceTest {
       )
     verifyProtoArgument(
         internalComputationParticipantsServiceMock,
-        InternalComputationParticipantsCoroutineService::setParticipantRequisitionParams
+        InternalComputationParticipantsCoroutineService::setParticipantRequisitionParams,
       )
       .isEqualTo(
         internalSetParticipantRequisitionParamsRequest {
@@ -324,7 +324,7 @@ class ComputationParticipantsServiceTest {
     assertThat(response.failure).isEqualTo(request.failure)
     verifyProtoArgument(
         internalComputationParticipantsServiceMock,
-        InternalComputationParticipantsCoroutineService::failComputationParticipant
+        InternalComputationParticipantsCoroutineService::failComputationParticipant,
       )
       .isEqualTo(
         InternalFailComputationParticipantRequest.newBuilder()
@@ -358,7 +358,7 @@ class ComputationParticipantsServiceTest {
     assertThat(response.state).isEqualTo(ComputationParticipant.State.READY)
     verifyProtoArgument(
         internalComputationParticipantsServiceMock,
-        InternalComputationParticipantsCoroutineService::confirmComputationParticipant
+        InternalComputationParticipantsCoroutineService::confirmComputationParticipant,
       )
       .isEqualTo(
         InternalConfirmComputationParticipantRequest.newBuilder()

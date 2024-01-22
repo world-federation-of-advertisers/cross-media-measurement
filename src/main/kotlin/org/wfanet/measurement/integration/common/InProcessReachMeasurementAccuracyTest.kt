@@ -62,8 +62,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
   duchyDependenciesRule:
     ProviderRule<
       (
-        String,
-        ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub,
+        String, ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub,
       ) -> InProcessDuchy.DuchyDependencies
     >,
 ) {
@@ -73,7 +72,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
     InProcessCmmsComponents(
       kingdomDataServicesRule,
       duchyDependenciesRule,
-      SYNTHETIC_EVENT_GROUP_SPECS
+      SYNTHETIC_EVENT_GROUP_SPECS,
     )
 
   private lateinit var mcSimulator: MeasurementConsumerSimulator
@@ -110,7 +109,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
     val eventQuery =
       MetadataSyntheticGeneratorEventQuery(
         SyntheticGenerationSpecs.POPULATION_SPEC,
-        InProcessCmmsComponents.MC_ENCRYPTION_PRIVATE_KEY
+        InProcessCmmsComponents.MC_ENCRYPTION_PRIVATE_KEY,
       )
     mcSimulator =
       MeasurementConsumerSimulator(
@@ -118,7 +117,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
           measurementConsumerData.name,
           InProcessCmmsComponents.MC_ENTITY_CONTENT.signingKey,
           InProcessCmmsComponents.MC_ENCRYPTION_PRIVATE_KEY,
-          measurementConsumerData.apiAuthenticationKey
+          measurementConsumerData.apiAuthenticationKey,
         ),
         OUTPUT_DP_PARAMS,
         publicDataProvidersClient,
@@ -129,7 +128,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
         RESULT_POLLING_DELAY,
         InProcessCmmsComponents.TRUSTED_CERTIFICATES,
         eventQuery,
-        NoiseMechanism.CONTINUOUS_GAUSSIAN
+        NoiseMechanism.CONTINUOUS_GAUSSIAN,
       )
   }
 
@@ -148,16 +147,16 @@ abstract class InProcessReachMeasurementAccuracyTest(
       LiquidLegionsV2Methodology(
         RoLlv2ProtocolConfig.protocolConfig.sketchParams.decayRate,
         RoLlv2ProtocolConfig.protocolConfig.sketchParams.maxSize,
-        RoLlv2ProtocolConfig.protocolConfig.sketchParams.samplingIndicatorSize
+        RoLlv2ProtocolConfig.protocolConfig.sketchParams.samplingIndicatorSize,
       )
     val reachMeasurementParams =
       ReachMeasurementParams(
         StatsVidSamplingInterval(
           measurementInfo.measurementSpec.vidSamplingInterval.start.toDouble(),
-          measurementInfo.measurementSpec.vidSamplingInterval.width.toDouble()
+          measurementInfo.measurementSpec.vidSamplingInterval.width.toDouble(),
         ),
         DpParams(OUTPUT_DP_PARAMS.epsilon, OUTPUT_DP_PARAMS.delta),
-        StatsNoiseMechanism.GAUSSIAN
+        StatsNoiseMechanism.GAUSSIAN,
       )
     val reachMeasurementVarianceParams =
       ReachMeasurementVarianceParams(reach, reachMeasurementParams)
@@ -197,7 +196,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
         logger.log(
           Level.WARNING,
           "expected result not consistent. round=$round, prev_expected_result=$expectedReach, " +
-            "current_expected_result=${executionResult.expectedResult.reach.value}"
+            "current_expected_result=${executionResult.expectedResult.reach.value}",
         )
       }
 
@@ -236,7 +235,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
       Level.INFO,
       "average_reach=$averageReach, offset_percentage=${"%.2f".format(offsetPercentage)}%, " +
         "number_of_rounds_within_interval=$withinIntervalNumber out of $DEFAULT_TEST_ROUND_NUMBER " +
-        "(${"%.2f".format(withinIntervalPercentage)}%) "
+        "(${"%.2f".format(withinIntervalPercentage)}%) ",
     )
 
     val standardDeviation = getStandardDeviation(reachResults.map { it.actualReach.toDouble() })
@@ -244,7 +243,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
       Level.INFO,
       "std=${"%.2f".format(standardDeviation)}, " +
         "expected_std=${"%.2f".format(expectedStandardDeviation)}, " +
-        "ratio=${"%.2f".format(standardDeviation / expectedStandardDeviation)}"
+        "ratio=${"%.2f".format(standardDeviation / expectedStandardDeviation)}",
     )
 
     assertThat(withinIntervalPercentage).isAtLeast(COVERAGE_TEST_THRESHOLD)

@@ -109,7 +109,7 @@ private class CreateDataProviderCommand : Runnable {
   @Option(
     names = ["--certificate-der-file"],
     description = ["Certificate for the principal"],
-    required = true
+    required = true,
   )
   private lateinit var certificateDerFile: File
 
@@ -120,7 +120,7 @@ private class CreateDataProviderCommand : Runnable {
   @Option(
     names = ["--encryption-public-key-file"],
     description = ["Principal's serialized EncryptionPublicKey"],
-    required = true
+    required = true,
   )
   private lateinit var encryptionPublicKeyFile: File
 
@@ -139,7 +139,7 @@ private class CreateDataProviderCommand : Runnable {
   @Option(
     names = ["--encryption-public-key-signature-file"],
     description = ["Principal's signature of serialized EncryptionPublicKey"],
-    required = true
+    required = true,
   )
   private lateinit var encryptionPublicKeySignatureFile: File
 
@@ -249,17 +249,13 @@ private class CreateDuchyCertificateCommand : Runnable {
     val certificateKey =
       DuchyCertificateKey(
         certificate.externalDuchyId,
-        externalIdToApiId(certificate.externalCertificateId)
+        externalIdToApiId(certificate.externalCertificateId),
       )
     println("Certificate name: ${certificateKey.toName()}")
   }
 
   class Duchy {
-    @Option(
-      names = ["--duchy"],
-      description = ["API resource name of the Duchy"],
-      required = true,
-    )
+    @Option(names = ["--duchy"], description = ["API resource name of the Duchy"], required = true)
     var duchyName: String? = null
       private set
 
@@ -348,7 +344,7 @@ private class CreateRecurringExchangeCommand : Runnable {
       CreateModelProviderCommand::class,
       CreateRecurringExchangeCommand::class,
       CreateDuchyCertificateCommand::class,
-    ]
+    ],
 )
 private class CreateResource : Runnable {
   @Mixin private lateinit var tlsFlags: TlsFlags
@@ -359,7 +355,7 @@ private class CreateResource : Runnable {
       SigningCerts.fromPemFiles(
         certificateFile = tlsFlags.certFile,
         privateKeyFile = tlsFlags.privateKeyFile,
-        trustedCertCollectionFile = tlsFlags.certCollectionFile
+        trustedCertCollectionFile = tlsFlags.certCollectionFile,
       )
 
     buildMutualTlsChannel(internalApiFlags.target, clientCerts, internalApiFlags.certHost)

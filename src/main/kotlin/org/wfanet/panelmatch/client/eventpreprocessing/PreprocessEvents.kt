@@ -49,7 +49,7 @@ fun preprocessEvents(
       cryptoKeyProvider = cryptoKeyProvider,
       eventPreprocessor = eventPreprocessor,
       compressionParametersView = compressionParametersView,
-    )
+    ),
   )
 }
 
@@ -86,10 +86,10 @@ class PreprocessEventsTransform(
               identifierHashPepperProvider,
               hkdfPepperProvider,
               cryptoKeyProvider,
-              compressionParametersView
-            ),
+              compressionParametersView,
+            )
           )
-          .withSideInputs(compressionParametersView)
+          .withSideInputs(compressionParametersView),
       )
       .map("Map to DatabaseEntry") {
         databaseEntry {

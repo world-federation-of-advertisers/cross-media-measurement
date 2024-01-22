@@ -64,7 +64,7 @@ private const val MAX_BATCH_CANCEL = 1000
 
 class SpannerMeasurementsService(
   private val idGenerator: IdGenerator,
-  private val client: AsyncDatabaseClient
+  private val client: AsyncDatabaseClient,
 ) : MeasurementsCoroutineImplBase() {
 
   override suspend fun createMeasurement(request: CreateMeasurementRequest): Measurement {
@@ -117,7 +117,7 @@ class SpannerMeasurementsService(
       .readByExternalIds(
         client.singleUse(),
         ExternalId(request.externalMeasurementConsumerId),
-        ExternalId(request.externalMeasurementId)
+        ExternalId(request.externalMeasurementId),
       )
       ?.measurement ?: failGrpc(Status.NOT_FOUND) { "Measurement not found" }
   }
@@ -147,7 +147,7 @@ class SpannerMeasurementsService(
     } catch (e: DuchyCertificateNotFoundException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Aggregator's Certificate not found."
+        "Aggregator's Certificate not found.",
       )
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
@@ -173,7 +173,7 @@ class SpannerMeasurementsService(
     } catch (e: MeasurementStateIllegalException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Measurement state illegal."
+        "Measurement state illegal.",
       )
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
@@ -278,7 +278,7 @@ class SpannerMeasurementsService(
         .readByExternalIds(
           client.singleUse(),
           ExternalId(request.externalMeasurementConsumerId),
-          request.externalMeasurementIdsList.map { ExternalId(it) }
+          request.externalMeasurementIdsList.map { ExternalId(it) },
         )
 
     if (results.size < request.externalMeasurementIdsList.size) {

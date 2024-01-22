@@ -32,7 +32,7 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
     val modelLine: ModelLine,
     val modelLineId: InternalId,
     val modelSuiteId: InternalId,
-    val modelProviderId: InternalId
+    val modelProviderId: InternalId,
   )
 
   override val baseSql: String =
@@ -69,7 +69,7 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
       buildModelLine(struct),
       InternalId(struct.getLong("ModelLineId")),
       InternalId(struct.getLong("ModelSuiteId")),
-      InternalId(struct.getLong("ModelProviderId"))
+      InternalId(struct.getLong("ModelProviderId")),
     )
 
   private fun buildModelLine(struct: Struct): ModelLine = modelLine {

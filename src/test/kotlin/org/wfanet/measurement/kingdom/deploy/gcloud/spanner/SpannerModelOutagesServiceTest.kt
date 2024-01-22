@@ -29,7 +29,7 @@ class SpannerModelOutagesServiceTest : ModelOutagesServiceTest<SpannerModelOutag
 
   override fun newServices(
     clock: Clock,
-    idGenerator: IdGenerator
+    idGenerator: IdGenerator,
   ): Services<SpannerModelOutagesService> {
     val spannerServices =
       SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient).buildDataServices()
@@ -38,7 +38,7 @@ class SpannerModelOutagesServiceTest : ModelOutagesServiceTest<SpannerModelOutag
       spannerServices.modelOutagesService as SpannerModelOutagesService,
       spannerServices.modelProvidersService,
       spannerServices.modelSuitesService,
-      spannerServices.modelLinesService
+      spannerServices.modelLinesService,
     )
   }
 }

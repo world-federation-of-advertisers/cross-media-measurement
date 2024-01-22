@@ -50,7 +50,7 @@ class LiquidLegionsSketchAggregationV2ProtocolEnumStagesTest {
           LiquidLegionsSketchAggregationV2Protocol.EnumStages.longToEnum(
             LiquidLegionsSketchAggregationV2Protocol.EnumStages.enumToLong(stage)
           ),
-          "enumToLong and longToEnum were not inverses for $stage"
+          "enumToLong and longToEnum were not inverses for $stage",
         )
       }
     }
@@ -60,11 +60,11 @@ class LiquidLegionsSketchAggregationV2ProtocolEnumStagesTest {
   fun `longToEnum with invalid numbers`() {
     assertEquals(
       LiquidLegionsSketchAggregationV2.Stage.UNRECOGNIZED,
-      LiquidLegionsSketchAggregationV2Protocol.EnumStages.longToEnum(-1)
+      LiquidLegionsSketchAggregationV2Protocol.EnumStages.longToEnum(-1),
     )
     assertEquals(
       LiquidLegionsSketchAggregationV2.Stage.UNRECOGNIZED,
-      LiquidLegionsSketchAggregationV2Protocol.EnumStages.longToEnum(1000)
+      LiquidLegionsSketchAggregationV2Protocol.EnumStages.longToEnum(1000),
     )
   }
 
@@ -73,28 +73,28 @@ class LiquidLegionsSketchAggregationV2ProtocolEnumStagesTest {
     assertTrue {
       LiquidLegionsSketchAggregationV2Protocol.EnumStages.validTransition(
         LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS,
-        LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE
+        LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE,
       )
     }
 
     assertFalse {
       LiquidLegionsSketchAggregationV2Protocol.EnumStages.validTransition(
         LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS,
-        LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_TWO
+        LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_TWO,
       )
     }
 
     assertFalse {
       LiquidLegionsSketchAggregationV2Protocol.EnumStages.validTransition(
         LiquidLegionsSketchAggregationV2.Stage.STAGE_UNSPECIFIED,
-        LiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE
+        LiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE,
       )
     }
 
     assertFalse {
       LiquidLegionsSketchAggregationV2Protocol.EnumStages.validTransition(
         LiquidLegionsSketchAggregationV2.Stage.UNRECOGNIZED,
-        LiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE
+        LiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE,
       )
     }
   }

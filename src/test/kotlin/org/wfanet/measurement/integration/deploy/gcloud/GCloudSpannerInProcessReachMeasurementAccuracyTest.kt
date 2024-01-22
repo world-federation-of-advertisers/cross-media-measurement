@@ -27,7 +27,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDataS
 class GCloudSpannerInProcessReachMeasurementAccuracyTest :
   InProcessReachMeasurementAccuracyTest(
     KingdomDataServicesProviderRule(),
-    SpannerDuchyDependencyProviderRule(ALL_DUCHY_NAMES)
+    SpannerDuchyDependencyProviderRule(ALL_DUCHY_NAMES),
   ) {
 
   /**

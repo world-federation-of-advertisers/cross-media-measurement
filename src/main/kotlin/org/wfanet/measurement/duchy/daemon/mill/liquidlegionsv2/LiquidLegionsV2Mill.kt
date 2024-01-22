@@ -105,7 +105,7 @@ abstract class LiquidLegionsV2Mill(
     requestChunkSizeBytes,
     maximumAttempts,
     clock,
-    openTelemetry
+    openTelemetry,
   ) {
   /**
    * Verifies that all EDPs have participated.
@@ -145,7 +145,7 @@ abstract class LiquidLegionsV2Mill(
    */
   protected fun verifyDuchySignature(
     duchy: ComputationParticipant,
-    publicApiVersion: Version
+    publicApiVersion: Version,
   ): String? {
     val duchyInfo: DuchyInfo.Entry =
       requireNotNull(DuchyInfo.getByDuchyId(duchy.duchyId)) {
@@ -166,7 +166,7 @@ abstract class LiquidLegionsV2Mill(
             duchy.elGamalPublicKeySignature,
             signatureAlgorithm,
             duchyCertificate,
-            trustedCertificates.getValue(duchyInfo.rootCertificateSkid)
+            trustedCertificates.getValue(duchyInfo.rootCertificateSkid),
           )
         } catch (e: CertPathValidatorException) {
           return "Certificate path invalid for Duchy ${duchy.duchyId}"
@@ -181,7 +181,7 @@ abstract class LiquidLegionsV2Mill(
   /** Fails a computation both locally and at the kingdom when the confirmation fails. */
   protected fun failComputationAtConfirmationPhase(
     token: ComputationToken,
-    errorList: List<String>
+    errorList: List<String>,
   ): ComputationToken {
     val errorMessage =
       "@Mill $millId, Computation ${token.globalComputationId} failed due to:\n" +
@@ -191,7 +191,7 @@ abstract class LiquidLegionsV2Mill(
 
   protected suspend fun sendResultToKingdom(
     token: ComputationToken,
-    computationResult: ComputationResult
+    computationResult: ComputationResult,
   ) {
     val kingdomComputation = token.computationDetails.kingdomComputation
     val serializedPublicApiEncryptionPublicKey: ByteString
@@ -211,7 +211,7 @@ abstract class LiquidLegionsV2Mill(
       certificate = consentSignalCert,
       resultPublicKey = serializedPublicApiEncryptionPublicKey,
       encryptedResult = encryptedResultCiphertext,
-      publicApiVersion = publicApiVersion
+      publicApiVersion = publicApiVersion,
     )
   }
 

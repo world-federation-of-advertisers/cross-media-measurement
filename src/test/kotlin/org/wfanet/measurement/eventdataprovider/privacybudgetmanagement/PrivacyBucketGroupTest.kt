@@ -28,7 +28,7 @@ class PrivacyBucketGroupTest {
         AgeGroup.RANGE_35_54,
         Gender.MALE,
         0.3f,
-        0.2f
+        0.2f,
       )
   }
 
@@ -42,7 +42,7 @@ class PrivacyBucketGroupTest {
         AgeGroup.RANGE_35_54,
         Gender.MALE,
         0.8f,
-        0.5f
+        0.5f,
       )
     }
   }
@@ -57,7 +57,7 @@ class PrivacyBucketGroupTest {
         AgeGroup.RANGE_35_54,
         Gender.MALE,
         0.3f,
-        0.1f
+        0.1f,
       )
 
     assertThat(bucketGroup.overlapsWith(bucketGroup2)).isTrue()
@@ -73,7 +73,7 @@ class PrivacyBucketGroupTest {
         AgeGroup.RANGE_35_54,
         Gender.MALE,
         0.6f,
-        0.2f
+        0.2f,
       )
 
     assertThat(bucketGroup.overlapsWith(bucketGroup2)).isFalse()
@@ -89,7 +89,7 @@ class PrivacyBucketGroupTest {
         AgeGroup.RANGE_35_54,
         Gender.MALE,
         0.5f,
-        0.1f
+        0.1f,
       )
 
     assertThat(bucketGroup.overlapsWith(bucketGroup2)).isFalse()

@@ -33,12 +33,12 @@ private const val SERVER_NAME = "SystemApiServer"
   name = SERVER_NAME,
   description = ["Server daemon for Kingdom system API services."],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 private fun run(
   @CommandLine.Mixin kingdomApiServerFlags: KingdomApiServerFlags,
   @CommandLine.Mixin duchyInfoFlags: DuchyInfoFlags,
-  @CommandLine.Mixin commonServerFlags: CommonServer.Flags
+  @CommandLine.Mixin commonServerFlags: CommonServer.Flags,
 ) {
   runKingdomApiServer(kingdomApiServerFlags, SERVER_NAME, duchyInfoFlags, commonServerFlags) {
     channel ->
@@ -46,7 +46,7 @@ private fun run(
       ComputationsService(InternalMeasurementsCoroutineStub(channel)),
       ComputationParticipantsService(InternalComputationParticipantsCoroutineStub(channel)),
       ComputationLogEntriesService(InternalMeasurementLogEntriesCoroutineStub(channel)),
-      RequisitionsService(InternalRequisitionsCoroutineStub(channel))
+      RequisitionsService(InternalRequisitionsCoroutineStub(channel)),
     )
   }
 }

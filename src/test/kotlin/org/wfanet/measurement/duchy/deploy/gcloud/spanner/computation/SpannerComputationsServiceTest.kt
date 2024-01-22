@@ -77,9 +77,9 @@ class SpannerComputationsServiceTest : ComputationsServiceTest<ComputationsServi
           ComputationMutations(
             ComputationTypes,
             protocolStageEnumHelper,
-            computationProtocolStageDetails
+            computationProtocolStageDetails,
           ),
-        clock = clock
+        clock = clock,
       )
     val systemComputationLogEntriesClient =
       ComputationLogEntriesCoroutineStub(grpcTestServerRule.channel)
@@ -88,10 +88,14 @@ class SpannerComputationsServiceTest : ComputationsServiceTest<ComputationsServi
         ComputationsDatabase,
         ComputationsDatabaseReader by computationsDatabaseReader,
         ComputationsDatabaseTransactor<
-          ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails
+          ComputationType,
+          ComputationStage,
+          ComputationStageDetails,
+          ComputationDetails,
         > by computationsDatabaseTransactor,
         ComputationProtocolStagesEnumHelper<
-          ComputationType, ComputationStage
+          ComputationType,
+          ComputationStage,
         > by protocolStageEnumHelper {}
 
     return ComputationsService(
@@ -100,7 +104,7 @@ class SpannerComputationsServiceTest : ComputationsServiceTest<ComputationsServi
       ComputationStore(storageClient),
       RequisitionStore(storageClient),
       ALSACE,
-      clock
+      clock,
     )
   }
 }

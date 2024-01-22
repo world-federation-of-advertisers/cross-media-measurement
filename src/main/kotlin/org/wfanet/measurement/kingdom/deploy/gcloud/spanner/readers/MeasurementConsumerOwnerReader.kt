@@ -36,7 +36,7 @@ class MeasurementConsumerOwnerReader : SpannerReader<MeasurementConsumerOwnerRea
   override suspend fun translate(struct: Struct): Result =
     Result(
       accountId = InternalId(struct.getLong("AccountId")),
-      measurementConsumerId = InternalId(struct.getLong("MeasurementConsumerId"))
+      measurementConsumerId = InternalId(struct.getLong("MeasurementConsumerId")),
     )
 
   suspend fun checkOwnershipExist(

@@ -47,7 +47,7 @@ class CreateReportingSet(private val request: ReportingSet) : PostgresWriter<Rep
 
   private suspend fun TransactionScope.insertReportingSet(
     internalReportingSetId: InternalId,
-    externalReportingSetId: ExternalId
+    externalReportingSetId: ExternalId,
   ) {
     val statement =
       boundStatement(
@@ -72,7 +72,7 @@ class CreateReportingSet(private val request: ReportingSet) : PostgresWriter<Rep
 
   private suspend fun TransactionScope.insertReportingSetEventGroup(
     eventGroupKey: ReportingSet.EventGroupKey,
-    reportingSetId: InternalId
+    reportingSetId: InternalId,
   ) {
     val statement =
       boundStatement(

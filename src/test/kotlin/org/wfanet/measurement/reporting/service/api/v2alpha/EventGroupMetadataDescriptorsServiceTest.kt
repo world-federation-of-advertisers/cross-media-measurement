@@ -74,7 +74,7 @@ class EventGroupMetadataDescriptorsServiceTest {
     addService(
       ServerInterceptors.intercept(
         publicKingdomEventGroupMetadataDescriptorsMock,
-        headerCapturingInterceptor
+        headerCapturingInterceptor,
       )
     )
   }
@@ -112,7 +112,7 @@ class EventGroupMetadataDescriptorsServiceTest {
 
     verifyProtoArgument(
         publicKingdomEventGroupMetadataDescriptorsMock,
-        EventGroupMetadataDescriptorsCoroutineImplBase::getEventGroupMetadataDescriptor
+        EventGroupMetadataDescriptorsCoroutineImplBase::getEventGroupMetadataDescriptor,
       )
       .isEqualTo(
         getEventGroupMetadataDescriptorRequest { name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME }
@@ -204,7 +204,7 @@ class EventGroupMetadataDescriptorsServiceTest {
 
       verifyProtoArgument(
           publicKingdomEventGroupMetadataDescriptorsMock,
-          EventGroupMetadataDescriptorsCoroutineImplBase::batchGetEventGroupMetadataDescriptors
+          EventGroupMetadataDescriptorsCoroutineImplBase::batchGetEventGroupMetadataDescriptors,
         )
         .ignoringRepeatedFieldOrder()
         .isEqualTo(

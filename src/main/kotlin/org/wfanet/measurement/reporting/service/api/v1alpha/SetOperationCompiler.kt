@@ -128,7 +128,7 @@ class SetOperationCompiler {
   private fun convertUnionSetToWeightedMeasurements(
     unionSet: UnionSet,
     coefficient: Int,
-    sortedReportingSetNames: List<String>
+    sortedReportingSetNames: List<String>,
   ): WeightedMeasurement {
     // Find the reporting sets in the union-set.
     val reportingSetNames =
@@ -145,7 +145,7 @@ class SetOperationCompiler {
    */
   private suspend fun convertPrimitiveRegionsToUnionSetCoefficientMap(
     numReportingSets: Int,
-    primitiveRegions: Set<PrimitiveRegion>
+    primitiveRegions: Set<PrimitiveRegion>,
   ): UnionSetCoefficientMap {
 
     val primitiveRegionsToUnionSetCoefficients: PrimitiveRegionToUnionSetCoefficientMap =
@@ -164,7 +164,7 @@ class SetOperationCompiler {
           convertSinglePrimitiveRegionToUnionSetCoefficientMap(
             numReportingSets,
             region,
-            primitiveRegionsToUnionSetCoefficients
+            primitiveRegionsToUnionSetCoefficients,
           )
         }
       }
@@ -213,7 +213,7 @@ class SetOperationCompiler {
   private fun convertSinglePrimitiveRegionToUnionSetCoefficientMap(
     numReportingSets: Int,
     region: PrimitiveRegion,
-    primitiveRegionsToUnionSetCoefficients: PrimitiveRegionToUnionSetCoefficientMap
+    primitiveRegionsToUnionSetCoefficients: PrimitiveRegionToUnionSetCoefficientMap,
   ) {
     // For a given region, we first find which bit positions are set and which are not.
     val setBitPositions = mutableListOf<Int>()
@@ -278,7 +278,7 @@ class SetOperationCompiler {
   private fun findComposingUnionSets(
     setBitPositions: MutableList<Int>,
     unsetBitPositions: MutableList<Int>,
-    size: Int
+    size: Int,
   ): MutableList<UnionSet> {
     val composingUnionSets = mutableListOf<UnionSet>()
 
@@ -299,7 +299,7 @@ class SetOperationCompiler {
     start: Int,
     choices: MutableList<Int>,
     combination: MutableList<Int>,
-    result: MutableList<UnionSet>
+    result: MutableList<UnionSet>,
   ) {
     if (combination.size == size) {
       result.add(combination.sumOf { 1.toUnionSet() shl it })
@@ -318,7 +318,7 @@ class SetOperationCompiler {
   /** Gets the set of the primitive regions that form the set from the set operation expression. */
   private fun setOperationExpressionToPrimitiveRegions(
     numReportingSets: Int,
-    setOperationExpression: SetOperationExpression
+    setOperationExpression: SetOperationExpression,
   ): Set<PrimitiveRegion> {
     val allPrimitiveRegionSetsList = buildAllPrimitiveRegions(numReportingSets)
     return setOperationExpression.decompose(allPrimitiveRegionSetsList)
@@ -357,7 +357,7 @@ private fun Operand?.decompose(
 private fun calculateBinarySetOperation(
   lhs: Set<PrimitiveRegion>,
   rhs: Set<PrimitiveRegion>,
-  operator: Operator
+  operator: Operator,
 ): Set<PrimitiveRegion> {
   return when (operator) {
     Operator.UNION -> lhs union rhs
@@ -435,9 +435,7 @@ private fun SetOperation.storeReportingSetNames(reportingSetNames: MutableSet<St
 }
 
 /** Gets all resource names of the reporting sets used in this [SetOperation.Operand]. */
-private fun SetOperation.Operand.storeReportingSetNames(
-  reportingSetNames: MutableSet<String>,
-) {
+private fun SetOperation.Operand.storeReportingSetNames(reportingSetNames: MutableSet<String>) {
   val node = this
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
   when (node.operandCase) {

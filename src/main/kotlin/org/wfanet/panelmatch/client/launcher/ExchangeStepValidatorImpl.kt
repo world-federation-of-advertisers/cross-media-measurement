@@ -31,7 +31,7 @@ import org.wfanet.panelmatch.common.secrets.SecretMap
 class ExchangeStepValidatorImpl(
   private val party: ExchangeWorkflow.Party,
   private val validExchangeWorkflows: SecretMap,
-  private val clock: Clock
+  private val clock: Clock,
 ) : ExchangeStepValidator {
   override suspend fun validate(exchangeStep: ExchangeStep): ValidatedExchangeStep {
     val packedExchangeWorkflow = exchangeStep.exchangeWorkflow
@@ -41,7 +41,7 @@ class ExchangeStepValidatorImpl(
       validExchangeWorkflows.get(recurringExchangeId)
         ?: throw InvalidExchangeStepException(
           TRANSIENT,
-          "No ExchangeWorkflow known for RecurringExchange $recurringExchangeId"
+          "No ExchangeWorkflow known for RecurringExchange $recurringExchangeId",
         )
     if (existingExchangeWorkflow != packedExchangeWorkflow.value) {
       throw InvalidExchangeStepException(PERMANENT, "Serialized ExchangeWorkflow unrecognized")
@@ -62,7 +62,7 @@ class ExchangeStepValidatorImpl(
     if (step.party != party) {
       throw InvalidExchangeStepException(
         PERMANENT,
-        "Party for step '${step.stepId}' was not ${party.name}"
+        "Party for step '${step.stepId}' was not ${party.name}",
       )
     }
 
@@ -71,7 +71,7 @@ class ExchangeStepValidatorImpl(
     if (exchangeDate < firstExchangeDate) {
       throw InvalidExchangeStepException(
         PERMANENT,
-        "exchange_date is before ExchangeWorkflow.first_exchange_date"
+        "exchange_date is before ExchangeWorkflow.first_exchange_date",
       )
     }
 

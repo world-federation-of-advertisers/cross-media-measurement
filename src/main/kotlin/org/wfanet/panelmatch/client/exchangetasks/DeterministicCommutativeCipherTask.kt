@@ -32,7 +32,7 @@ class DeterministicCommutativeCipherTask
 internal constructor(
   private val operation: (ByteString, List<ByteString>) -> List<ByteString>,
   private val inputDataLabel: String,
-  private val outputDataLabel: String
+  private val outputDataLabel: String,
 ) : ExchangeTask {
 
   override suspend fun execute(
@@ -75,7 +75,7 @@ internal constructor(
       return DeterministicCommutativeCipherTask(
         operation = cipher::decrypt,
         inputDataLabel = "encrypted-data",
-        outputDataLabel = "decrypted-data"
+        outputDataLabel = "decrypted-data",
       )
     }
 
@@ -85,7 +85,7 @@ internal constructor(
       return DeterministicCommutativeCipherTask(
         operation = cipher::encrypt,
         inputDataLabel = "unencrypted-data",
-        outputDataLabel = "encrypted-data"
+        outputDataLabel = "encrypted-data",
       )
     }
 
@@ -95,7 +95,7 @@ internal constructor(
       return DeterministicCommutativeCipherTask(
         operation = cipher::reEncrypt,
         inputDataLabel = "encrypted-data",
-        outputDataLabel = "reencrypted-data"
+        outputDataLabel = "reencrypted-data",
       )
     }
   }

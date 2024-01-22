@@ -230,7 +230,7 @@ class MetricSpecDefaultsTest {
         maximumWatchDurationPerUser =
           Durations.add(
             METRIC_SPEC_CONFIG.watchDurationParams.maximumWatchDurationPerUser,
-            METRIC_SPEC_CONFIG.watchDurationParams.maximumWatchDurationPerUser
+            METRIC_SPEC_CONFIG.watchDurationParams.maximumWatchDurationPerUser,
           )
       }
       vidSamplingInterval =

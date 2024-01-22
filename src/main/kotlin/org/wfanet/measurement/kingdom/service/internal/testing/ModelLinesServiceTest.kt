@@ -274,7 +274,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
       .ignoringFields(
         ModelLine.CREATE_TIME_FIELD_NUMBER,
         ModelLine.UPDATE_TIME_FIELD_NUMBER,
-        ModelLine.EXTERNAL_MODEL_LINE_ID_FIELD_NUMBER
+        ModelLine.EXTERNAL_MODEL_LINE_ID_FIELD_NUMBER,
       )
       .isEqualTo(
         modelLine {
@@ -303,7 +303,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
       .ignoringFields(
         ModelLine.CREATE_TIME_FIELD_NUMBER,
         ModelLine.UPDATE_TIME_FIELD_NUMBER,
-        ModelLine.EXTERNAL_MODEL_LINE_ID_FIELD_NUMBER
+        ModelLine.EXTERNAL_MODEL_LINE_ID_FIELD_NUMBER,
       )
       .isEqualTo(
         modelLine {

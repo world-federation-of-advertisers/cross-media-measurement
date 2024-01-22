@@ -38,7 +38,7 @@ import org.wfanet.panelmatch.common.storage.newInputStream
 class ReadShardedData<T : Message>(
   private val prototype: T,
   private val fileSpec: String,
-  private val storageFactory: StorageFactory
+  private val storageFactory: StorageFactory,
 ) : PTransform<PBegin, PCollection<T>>() {
   override fun expand(input: PBegin): PCollection<T> {
     val fileNames: PCollection<String> =
@@ -55,7 +55,7 @@ class ReadShardedData<T : Message>(
 
 private class ReadBlobFn<T : MessageLite>(
   private val prototype: T,
-  private val storageFactory: StorageFactory
+  private val storageFactory: StorageFactory,
 ) : DoFn<String, T>() {
   private val metricsNamespace = "ReadShardedData"
   private val itemSizeDistribution = Metrics.distribution(metricsNamespace, "item-sizes")

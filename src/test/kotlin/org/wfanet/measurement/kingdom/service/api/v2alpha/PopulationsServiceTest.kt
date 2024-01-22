@@ -127,7 +127,7 @@ class PopulationsServiceTest {
         flowOf(
           INTERNAL_POPULATION,
           INTERNAL_POPULATION.copy { externalPopulationId = EXTERNAL_POPULATION_ID_2 },
-          INTERNAL_POPULATION.copy { externalPopulationId = EXTERNAL_POPULATION_ID_3 }
+          INTERNAL_POPULATION.copy { externalPopulationId = EXTERNAL_POPULATION_ID_3 },
         )
       )
   }
@@ -139,9 +139,7 @@ class PopulationsServiceTest {
   @Before
   fun initService() {
     service =
-      PopulationsService(
-        PopulationsGrpcKt.PopulationsCoroutineStub(grpcTestServerRule.channel),
-      )
+      PopulationsService(PopulationsGrpcKt.PopulationsCoroutineStub(grpcTestServerRule.channel))
   }
 
   @Test

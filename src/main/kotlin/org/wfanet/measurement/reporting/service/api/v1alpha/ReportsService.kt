@@ -326,7 +326,7 @@ class ReportsService(
         throw Exception(
           "Unable to retrieve the measurement consumer " +
             "[${MeasurementConsumerKey(resourceKey.measurementConsumerId).toName()}].",
-          e
+          e,
         )
       }
 
@@ -352,8 +352,8 @@ class ReportsService(
         signingCertificateDer,
         readPrivateKey(
           signingPrivateKeyDer,
-          readCertificate(signingCertificateDer).publicKey.algorithm
-        )
+          readCertificate(signingCertificateDer).publicKey.algorithm,
+        ),
       )
 
     createMeasurements(
@@ -364,15 +364,11 @@ class ReportsService(
       apiAuthenticationKey,
       signingConfig,
       internalReportingSetMap,
-      dataProviderInfoMap
+      dataProviderInfoMap,
     )
 
     val internalCreateReportRequest: InternalCreateReportRequest =
-      buildInternalCreateReportRequest(
-        request,
-        reportInfo,
-        namedSetOperationResults,
-      )
+      buildInternalCreateReportRequest(request, reportInfo, namedSetOperationResults)
     try {
       return internalReportsStub.createReport(internalCreateReportRequest).toReport()
     } catch (e: StatusException) {
@@ -383,7 +379,7 @@ class ReportsService(
   /** Gets a signing certificate x509Der in ByteString. */
   private suspend fun getSigningCertificateDer(
     apiAuthenticationKey: String,
-    signingCertificateName: String
+    signingCertificateName: String,
   ): ByteString {
     // TODO: Replace this with caching certificates or having them stored alongside the private key.
     return try {
@@ -395,7 +391,7 @@ class ReportsService(
       throw Exception(
         "Unable to retrieve the signing certificate for the measurement consumer " +
           "[$signingCertificateName].",
-        e
+        e,
       )
     }
   }
@@ -403,7 +399,7 @@ class ReportsService(
   /** Builds a [ReportInfo] from a [CreateReportRequest]. */
   private fun buildReportInfo(
     request: CreateReportRequest,
-    measurementConsumerReferenceId: String
+    measurementConsumerReferenceId: String,
   ): ReportInfo {
     grpcRequire(request.report.hasEventGroupUniverse()) { "EventGroupUniverse is not specified." }
     grpcRequire(request.report.eventGroupUniverse.eventGroupEntriesList.isNotEmpty()) {
@@ -434,7 +430,7 @@ class ReportsService(
     apiAuthenticationKey: String,
     signingConfig: SigningConfig,
     internalReportingSetMap: Map<Long, InternalReportingSet>,
-    dataProviderInfoMap: Map<String, DataProviderInfo>
+    dataProviderInfoMap: Map<String, DataProviderInfo>,
   ) = coroutineScope {
     val deferredMeasurements = mutableListOf<Deferred<Measurement>>()
     for (metric in request.report.metricsList) {
@@ -462,7 +458,7 @@ class ReportsService(
                   apiAuthenticationKey,
                   signingConfig,
                   internalReportingSetMap,
-                  dataProviderInfoMap
+                  dataProviderInfoMap,
                 )
                 .also {
                   weightedMeasurementInfo.kingdomMeasurementId =
@@ -508,14 +504,14 @@ class ReportsService(
     apiAuthenticationKey: String,
     signingConfig: SigningConfig,
     internalReportingSetMap: Map<Long, InternalReportingSet>,
-    dataProviderInfoMap: Map<String, DataProviderInfo>
+    dataProviderInfoMap: Map<String, DataProviderInfo>,
   ): Measurement {
     val eventGroupEntriesByDataProvider =
       groupEventGroupEntriesByDataProvider(
         weightedMeasurementInfo.weightedMeasurement.reportingSets,
         weightedMeasurementInfo.timeInterval.toMeasurementTimeInterval(),
         reportInfo.eventGroupFilters,
-        internalReportingSetMap
+        internalReportingSetMap,
       )
 
     val createMeasurementRequest: CreateMeasurementRequest =
@@ -525,7 +521,7 @@ class ReportsService(
         internalMetricDetails,
         weightedMeasurementInfo.reportingMeasurementId,
         signingConfig,
-        dataProviderInfoMap
+        dataProviderInfoMap,
       )
 
     try {
@@ -535,7 +531,7 @@ class ReportsService(
     } catch (e: StatusException) {
       throw Exception(
         "Unable to create Measurement with request ID ${createMeasurementRequest.requestId}",
-        e
+        e,
       )
     }
   }
@@ -557,7 +553,7 @@ class ReportsService(
         throw Exception(
           "Unable to retrieve a report from the reporting database using the provided " +
             "reportIdempotencyKey [$reportIdempotencyKey].",
-          e
+          e,
         )
       }
       null
@@ -697,7 +693,7 @@ class ReportsService(
       val reportName =
         ReportKey(
             internalReport.measurementConsumerReferenceId,
-            externalIdToApiId(internalReport.externalReportId)
+            externalIdToApiId(internalReport.externalReportId),
           )
           .toName()
       throw Exception("Unable to get the report [$reportName] from the reporting database.", e)
@@ -751,7 +747,7 @@ class ReportsService(
         val encryptionPrivateKeyHandle =
           encryptionKeyPairStore.getPrivateKeyHandle(
             principalName,
-            measurementSpec.measurementPublicKey.unpack<EncryptionPublicKey>().data
+            measurementSpec.measurementPublicKey.unpack<EncryptionPublicKey>().data,
           ) ?: failGrpc(Status.PERMISSION_DENIED) { "Encryption private key not found" }
 
         val setInternalMeasurementResultRequest =
@@ -769,7 +765,7 @@ class ReportsService(
           throw Exception(
             "Unable to update the measurement [$measurementResourceName] in the reporting " +
               "database.",
-            e
+            e,
           )
         }
       }
@@ -789,7 +785,7 @@ class ReportsService(
           throw Exception(
             "Unable to update the measurement [$measurementResourceName] in the reporting " +
               "database.",
-            e
+            e,
           )
         }
       }
@@ -823,7 +819,7 @@ class ReportsService(
   private suspend fun decryptMeasurementResultOutput(
     measurementResultOutput: Measurement.ResultOutput,
     encryptionPrivateKeyHandle: PrivateKeyHandle,
-    apiAuthenticationKey: String
+    apiAuthenticationKey: String,
   ): Measurement.Result {
     // TODO: Cache the certificate
     val certificate =
@@ -834,7 +830,7 @@ class ReportsService(
       } catch (e: StatusException) {
         throw Exception(
           "Unable to retrieve the certificate [${measurementResultOutput.certificate}].",
-          e
+          e,
         )
       }
 
@@ -909,19 +905,11 @@ class ReportsService(
 
       metric.setOperationsList.map { setOperation ->
         val setOperationId =
-          buildSetOperationId(
-            reportInfo.reportIdempotencyKey,
-            details,
-            setOperation.uniqueName,
-          )
+          buildSetOperationId(reportInfo.reportIdempotencyKey, details, setOperation.uniqueName)
 
         namedSetOperationResults[setOperationId]?.let { setOperationResult ->
           val internalNamedSetOperation =
-            buildInternalNamedSetOperation(
-              setOperation,
-              reportInfo,
-              setOperationResult,
-            )
+            buildInternalNamedSetOperation(setOperation, reportInfo, setOperationResult)
           namedSetOperations += internalNamedSetOperation
         }
       }
@@ -939,13 +927,10 @@ class ReportsService(
       setOperation =
         buildInternalSetOperation(
           namedSetOperation.setOperation,
-          reportInfo.measurementConsumerReferenceId
+          reportInfo.measurementConsumerReferenceId,
         )
 
-      this.measurementCalculations +=
-        buildMeasurementCalculationList(
-          setOperationResult,
-        )
+      this.measurementCalculations += buildMeasurementCalculationList(setOperationResult)
     }
   }
 
@@ -996,7 +981,7 @@ class ReportsService(
    * [InternalTimeInterval]s.
    */
   private fun buildMeasurementCalculationList(
-    setOperationResult: SetOperationResult,
+    setOperationResult: SetOperationResult
   ): List<MeasurementCalculation> {
     val measurementCalculations = mutableListOf<MeasurementCalculation>()
     setOperationResult.weightedMeasurementInfoList
@@ -1027,7 +1012,7 @@ class ReportsService(
     internalMetricDetails: InternalMetricDetails,
     requestId: String,
     signingConfig: SigningConfig,
-    dataProviderInfoMap: Map<String, DataProviderInfo>
+    dataProviderInfoMap: Map<String, DataProviderInfo>,
   ): CreateMeasurementRequest {
     val measurementConsumerCertificate: X509Certificate =
       readCertificate(signingConfig.signingCertificateDer)
@@ -1045,7 +1030,7 @@ class ReportsService(
             eventGroupEntriesByDataProvider,
             measurementEncryptionPublicKey,
             measurementConsumerSigningKey,
-            dataProviderInfoMap
+            dataProviderInfoMap,
           )
 
         val unsignedMeasurementSpec: MeasurementSpec =
@@ -1070,7 +1055,7 @@ class ReportsService(
     reportingSetNames: List<String>,
     timeInterval: Interval,
     eventGroupFilters: Map<String, String>,
-    internalReportingSetMap: Map<Long, InternalReportingSet>
+    internalReportingSetMap: Map<Long, InternalReportingSet>,
   ): Map<DataProviderKey, List<EventGroupEntry>> {
     return reportingSetNames
       .flatMap {
@@ -1083,7 +1068,7 @@ class ReportsService(
             EventGroupKey(
               internalEventGroupKey.measurementConsumerReferenceId,
               internalEventGroupKey.dataProviderReferenceId,
-              internalEventGroupKey.eventGroupReferenceId
+              internalEventGroupKey.eventGroupReferenceId,
             )
           val eventGroupName = eventGroupKey.toName()
           val filter =
@@ -1094,7 +1079,7 @@ class ReportsService(
               key =
                 CmmsEventGroupKey(
                     internalEventGroupKey.dataProviderReferenceId,
-                    internalEventGroupKey.eventGroupReferenceId
+                    internalEventGroupKey.eventGroupReferenceId,
                   )
                   .toName()
               value =
@@ -1109,14 +1094,14 @@ class ReportsService(
       }
       .groupBy(
         { (eventGroupKey, _) -> DataProviderKey(eventGroupKey.dataProviderReferenceId) },
-        { (_, eventGroupEntry) -> eventGroupEntry }
+        { (_, eventGroupEntry) -> eventGroupEntry },
       )
   }
 
   /** Builds a [Map] of [DataProvider] name to [DataProviderInfo]. */
   private suspend fun buildDataProviderInfoMap(
     apiAuthenticationKey: String,
-    dataProviderNames: Collection<String>
+    dataProviderNames: Collection<String>,
   ): Map<String, DataProviderInfo> {
     val dataProviderInfoMap = mutableMapOf<String, DataProviderInfo>()
 
@@ -1214,7 +1199,7 @@ class ReportsService(
       val encryptRequisitionSpec =
         encryptRequisitionSpec(
           signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
-          dataProviderInfo.publicKey.unpack()
+          dataProviderInfo.publicKey.unpack(),
         )
 
       dataProviderEntry {
@@ -1295,7 +1280,7 @@ class ReportsService(
     private val reportInfo: ReportInfo,
     private val internalReportingSetsStub: ReportingSetsGrpcKt.ReportingSetsCoroutineStub,
     private val setOperationCompiler: SetOperationCompiler,
-    private val report: Report
+    private val report: Report,
   ) {
 
     private val reportingSetExternalIds: MutableSet<Long> = mutableSetOf()
@@ -1357,7 +1342,7 @@ class ReportsService(
             buildSetOperationId(
               reportInfo.reportIdempotencyKey,
               internalMetricDetails,
-              namedSetOperation.uniqueName
+              namedSetOperation.uniqueName,
             )
 
           val weightedMeasurementInfoList =
@@ -1365,7 +1350,7 @@ class ReportsService(
               namedSetOperation.setOperation,
               setOperationId,
               metricTimeIntervalsList,
-              sortedTimeIntervalsList
+              sortedTimeIntervalsList,
             )
           namedSetOperationResults[setOperationId] =
             SetOperationResult(weightedMeasurementInfoList, internalMetricDetails)
@@ -1430,17 +1415,13 @@ class ReportsService(
         timeInterval ->
         weightedMeasurementsList.mapIndexed { index, weightedMeasurement ->
           val measurementReferenceId =
-            buildMeasurementReferenceId(
-              setOperationId,
-              timeInterval,
-              index,
-            )
+            buildMeasurementReferenceId(setOperationId, timeInterval, index)
 
           WeightedMeasurementInfo(
             measurementReferenceId,
             weightedMeasurement,
             timeInterval = timeInterval,
-            reportTimeInterval = sortedReportTimeIntervalsList[timeIntervalsIndex]
+            reportTimeInterval = sortedReportTimeIntervalsList[timeIntervalsIndex],
           )
         }
       }
@@ -1474,7 +1455,7 @@ class ReportsService(
 
   private class MeasurementSpecComponentFactory(
     private val measurementSpecConfig: MeasurementSpecConfig,
-    private val secureRandom: SecureRandom
+    private val secureRandom: SecureRandom,
   ) {
     private val DEFAULT_VID_START = 0.0f
     private val DEFAULT_VID_WIDTH = 1.0f
@@ -1543,7 +1524,7 @@ class ReportsService(
             start =
               calculateRandomVidStart(
                 vidSamplingInterval.randomStart.width,
-                vidSamplingInterval.randomStart.numVidBuckets
+                vidSamplingInterval.randomStart.numVidBuckets,
               )
             width =
               vidSamplingInterval.randomStart.width.toFloat() /
@@ -1700,7 +1681,7 @@ private fun InternalReportingSet.checkReportingSetEventGroupFilters(
       EventGroupKey(
           eventGroupKey.measurementConsumerReferenceId,
           eventGroupKey.dataProviderReferenceId,
-          eventGroupKey.eventGroupReferenceId
+          eventGroupKey.eventGroupReferenceId,
         )
         .toName()
     val internalReportingSetDisplayName = this.displayName
@@ -1728,7 +1709,7 @@ private fun checkSetOperationNamesUniqueness(metricsList: List<Metric>) {
 /** Builds a list of [InternalMeasurementKey]s from an [InternalMetric]. */
 private fun buildInternalMeasurementKeys(
   internalMetric: InternalMetric,
-  measurementConsumerReferenceId: String
+  measurementConsumerReferenceId: String,
 ): List<InternalMeasurementKey> {
   return internalMetric.namedSetOperationsList
     .flatMap { namedSetOperation ->
@@ -2015,7 +1996,7 @@ private fun InternalReport.toReport(): Report {
   val reportResourceName =
     ReportKey(
         measurementConsumerId = source.measurementConsumerReferenceId,
-        reportId = externalIdToApiId(source.externalReportId)
+        reportId = externalIdToApiId(source.externalReportId),
       )
       .toName()
   val measurementConsumerResourceName =
@@ -2158,7 +2139,7 @@ private fun InternalOperand.toOperand(): Operand {
         reportingSet =
           ReportingSetKey(
               source.reportingSetId.measurementConsumerReferenceId,
-              externalIdToApiId(source.reportingSetId.externalReportingSetId)
+              externalIdToApiId(source.reportingSetId.externalReportingSetId),
             )
             .toName()
       }

@@ -22,13 +22,11 @@ import org.wfanet.measurement.common.api.ChildResourceKey
 import org.wfanet.measurement.common.api.ResourceKey
 
 /** [ResourceKey] of a Metric. */
-data class MetricKey(
-  override val parentKey: MeasurementConsumerKey,
-  val metricId: String,
-) : ChildResourceKey {
+data class MetricKey(override val parentKey: MeasurementConsumerKey, val metricId: String) :
+  ChildResourceKey {
   constructor(
     cmmsMeasurementConsumerId: String,
-    metricId: String
+    metricId: String,
   ) : this(MeasurementConsumerKey(cmmsMeasurementConsumerId), metricId)
 
   val cmmsMeasurementConsumerId: String
@@ -51,7 +49,7 @@ data class MetricKey(
       val idVars: Map<IdVariable, String> = parser.parseIdVars(resourceName) ?: return null
       return MetricKey(
         idVars.getValue(IdVariable.MEASUREMENT_CONSUMER),
-        idVars.getValue(IdVariable.METRIC)
+        idVars.getValue(IdVariable.METRIC),
       )
     }
   }

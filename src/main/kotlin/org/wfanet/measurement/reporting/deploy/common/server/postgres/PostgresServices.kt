@@ -27,7 +27,7 @@ object PostgresServices {
     return Services(
       PostgresMeasurementsService(idGenerator, client),
       PostgresReportingSetsService(idGenerator, client),
-      PostgresReportsService(idGenerator, client)
+      PostgresReportsService(idGenerator, client),
     )
   }
 }

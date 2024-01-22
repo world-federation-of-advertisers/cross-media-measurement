@@ -76,7 +76,7 @@ class ExchangesServiceTest {
   private val service =
     ExchangesService(
       InternalRecurringExchangesCoroutineStub(grpcTestServerRule.channel),
-      InternalExchangesCoroutineStub(grpcTestServerRule.channel)
+      InternalExchangesCoroutineStub(grpcTestServerRule.channel),
     )
 
   private fun getExchange(fillRequest: GetExchangeRequestKt.Dsl.() -> Unit): Exchange =
@@ -102,7 +102,7 @@ class ExchangesServiceTest {
 
     verifyProtoArgument(
         internalExchangesServiceMock,
-        InternalExchangesCoroutineImplBase::getExchange
+        InternalExchangesCoroutineImplBase::getExchange,
       )
       .isEqualTo(
         internalGetExchangeRequest {
@@ -122,7 +122,7 @@ class ExchangesServiceTest {
 
     verifyProtoArgument(
         internalExchangesServiceMock,
-        InternalExchangesCoroutineImplBase::getExchange
+        InternalExchangesCoroutineImplBase::getExchange,
       )
       .isEqualTo(
         internalGetExchangeRequest {
@@ -143,7 +143,7 @@ class ExchangesServiceTest {
 
     verifyProtoArgument(
         internalExchangesServiceMock,
-        InternalExchangesCoroutineImplBase::getExchange
+        InternalExchangesCoroutineImplBase::getExchange,
       )
       .isEqualTo(
         internalGetExchangeRequest {
@@ -164,7 +164,7 @@ class ExchangesServiceTest {
 
     verifyProtoArgument(
         internalExchangesServiceMock,
-        InternalExchangesCoroutineImplBase::getExchange
+        InternalExchangesCoroutineImplBase::getExchange,
       )
       .isEqualTo(
         internalGetExchangeRequest {
@@ -201,17 +201,17 @@ class ExchangesServiceTest {
     private val EXCHANGE_KEY =
       CanonicalExchangeKey(
         EXTERNAL_RECURRING_EXCHANGE_ID.apiId.value,
-        EXCHANGE_DATE.toLocalDate().toString()
+        EXCHANGE_DATE.toLocalDate().toString(),
       )
     private val DATA_PROVIDER_EXCHANGE_KEY =
       DataProviderExchangeKey(
         DataProviderRecurringExchangeKey(DATA_PROVIDER_KEY, EXCHANGE_KEY.recurringExchangeId),
-        EXCHANGE_KEY.exchangeId
+        EXCHANGE_KEY.exchangeId,
       )
     private val MODEL_PROVIDER_EXCHANGE_KEY =
       ModelProviderExchangeKey(
         ModelProviderRecurringExchangeKey(MODEL_PROVIDER_KEY, EXCHANGE_KEY.recurringExchangeId),
-        EXCHANGE_KEY.exchangeId
+        EXCHANGE_KEY.exchangeId,
       )
 
     private val AUDIT_TRAIL_HASH = ByteString.copyFromUtf8("some arbitrary audit_trail_hash")

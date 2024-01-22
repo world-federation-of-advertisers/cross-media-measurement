@@ -38,7 +38,7 @@ class SharedStorageSelector(
   private val certificateManager: CertificateManager,
   private val sharedStorageFactories:
     Map<PlatformCase, (StorageDetails, ExchangeDateKey) -> StorageFactory>,
-  private val storageDetailsProvider: StorageDetailsProvider
+  private val storageDetailsProvider: StorageDetailsProvider,
 ) {
 
   /**
@@ -49,7 +49,7 @@ class SharedStorageSelector(
   suspend fun getVerifyingStorage(
     blobKey: String,
     storageType: StorageType,
-    context: ExchangeContext
+    context: ExchangeContext,
   ): VerifyingStorageClient {
     val storageDetails = storageDetailsProvider.get(context.recurringExchangeId)
     validateStorageType(storageType, storageDetails)
@@ -61,7 +61,7 @@ class SharedStorageSelector(
       certificateManager.getCertificate(
         context.exchangeDateKey,
         context.partnerName,
-        namedSignature.certificateName
+        namedSignature.certificateName,
       )
     return VerifyingStorageClient(storageFactory, x509)
   }
@@ -72,7 +72,7 @@ class SharedStorageSelector(
    */
   suspend fun getSigningStorage(
     storageType: StorageType,
-    context: ExchangeContext
+    context: ExchangeContext,
   ): SigningStorageClient {
     val storageDetails = storageDetailsProvider.get(context.recurringExchangeId)
     validateStorageType(storageType, storageDetails)
@@ -86,7 +86,7 @@ class SharedStorageSelector(
 
   private fun getStorageFactory(
     storageDetails: StorageDetails,
-    context: ExchangeContext
+    context: ExchangeContext,
   ): StorageFactory {
     val platform = storageDetails.platformCase
     val buildStorageFactory =

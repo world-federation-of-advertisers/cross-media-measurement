@@ -101,7 +101,7 @@ class SubmitBatchRequestsTest {
             items,
             BATCH_GET_REPORTING_SETS_LIMIT,
             ::batchGetReportingSets,
-            parseResponse
+            parseResponse,
           )
           .toList()
 
@@ -133,7 +133,7 @@ class SubmitBatchRequestsTest {
             items,
             BATCH_GET_REPORTING_SETS_LIMIT,
             ::batchGetReportingSets,
-            parseResponse
+            parseResponse,
           )
           .toList()
 
@@ -157,7 +157,7 @@ class SubmitBatchRequestsTest {
           flow {},
           BATCH_GET_REPORTING_SETS_LIMIT,
           ::batchGetReportingSets,
-          parseResponse
+          parseResponse,
         )
         .toList()
 

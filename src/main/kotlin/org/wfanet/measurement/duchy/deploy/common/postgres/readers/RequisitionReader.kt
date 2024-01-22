@@ -33,7 +33,7 @@ class RequisitionReader {
       row: ResultRow
     ) : this(
       computationId = row.get<Long>("ComputationId"),
-      requisitionId = row.get<Long>("RequisitionId")
+      requisitionId = row.get<Long>("RequisitionId"),
     )
   }
 
@@ -46,7 +46,7 @@ class RequisitionReader {
    */
   suspend fun readRequisitionByExternalKey(
     readContext: ReadContext,
-    key: ExternalRequisitionKey
+    key: ExternalRequisitionKey,
   ): RequisitionResult? {
     val sql =
       boundStatement(
@@ -75,7 +75,7 @@ class RequisitionReader {
    */
   suspend fun readRequisitionBlobKeys(
     readContext: ReadContext,
-    localComputationId: Long
+    localComputationId: Long,
   ): List<String> {
     val statement =
       boundStatement(

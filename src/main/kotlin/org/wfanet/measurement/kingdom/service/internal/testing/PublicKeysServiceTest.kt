@@ -93,13 +93,13 @@ abstract class PublicKeysServiceTest<T : PublicKeysCoroutineImplBase> {
       population.createDataProviderCertificate(
         certificatesService,
         dataProvider,
-        notValidBefore = now
+        notValidBefore = now,
       )
     // Insert another certificate to make sure it's not just using the most recent one.
     population.createDataProviderCertificate(
       certificatesService,
       dataProvider,
-      notValidBefore = now
+      notValidBefore = now,
     )
 
     publicKeysService.updatePublicKey(
@@ -128,19 +128,19 @@ abstract class PublicKeysServiceTest<T : PublicKeysCoroutineImplBase> {
       population.createMeasurementConsumer(
         measurementConsumersService,
         accountsService,
-        notValidBefore = now
+        notValidBefore = now,
       )
     val certificate =
       population.createMeasurementConsumerCertificate(
         certificatesService,
         measurementConsumer,
-        notValidBefore = now
+        notValidBefore = now,
       )
     // Insert another certificate to make sure it's not just using the most recent one.
     population.createMeasurementConsumerCertificate(
       certificatesService,
       measurementConsumer,
-      notValidBefore = now
+      notValidBefore = now,
     )
 
     publicKeysService.updatePublicKey(

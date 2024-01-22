@@ -262,7 +262,7 @@ class LiquidLegionsV2EncryptionUtilityTest {
         5L,
         2.0 / 3, // register 1 and 5 : 5
         10L,
-        1.0 / 3 // register 4  : MAXIMUM_FREQUENCY
+        1.0 / 3, // register 4  : MAXIMUM_FREQUENCY
       )
   }
 

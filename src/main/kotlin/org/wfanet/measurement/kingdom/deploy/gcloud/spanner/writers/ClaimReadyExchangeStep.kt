@@ -63,7 +63,7 @@ class ClaimReadyExchangeStep(
               states += ExchangeStep.State.READY_FOR_RETRY
               states += ExchangeStep.State.READY
             },
-          limit = 1
+          limit = 1,
         )
         .execute(transactionContext)
         .singleOrNull() ?: return Optional.absent()
@@ -76,14 +76,14 @@ class ClaimReadyExchangeStep(
       createExchangeStepAttempt(
         recurringExchangeId = recurringExchangeId,
         date = exchangeStep.date,
-        stepIndex = exchangeStep.stepIndex.toLong()
+        stepIndex = exchangeStep.stepIndex.toLong(),
       )
 
     // Finally, update the Exchange Step status to IN_PROGRESS.
     updateExchangeStepState(
       exchangeStep = exchangeStep,
       recurringExchangeId = exchangeStepResult.recurringExchangeId,
-      state = ExchangeStep.State.IN_PROGRESS
+      state = ExchangeStep.State.IN_PROGRESS,
     )
 
     val updatedStep = exchangeStep.copy { state = ExchangeStep.State.IN_PROGRESS }
@@ -106,7 +106,7 @@ class ClaimReadyExchangeStep(
   private suspend fun TransactionScope.createExchangeStepAttempt(
     recurringExchangeId: Long,
     date: Date,
-    stepIndex: Long
+    stepIndex: Long,
   ): Long {
     val now = clock.instant()
 
@@ -137,7 +137,7 @@ class ClaimReadyExchangeStep(
   private suspend fun TransactionScope.findAttemptIndex(
     recurringExchangeId: Long,
     date: Date,
-    stepIndex: Long
+    stepIndex: Long,
   ): Long {
     val sql =
       """

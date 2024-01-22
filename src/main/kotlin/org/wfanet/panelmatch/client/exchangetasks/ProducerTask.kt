@@ -22,7 +22,7 @@ import org.wfanet.measurement.storage.StorageClient
 /** Wraps [produceOutput] in a task that reads no inputs and outputs to label [outputLabel]. */
 class ProducerTask(
   private val outputLabel: String,
-  private val produceOutput: suspend () -> ByteString
+  private val produceOutput: suspend () -> ByteString,
 ) : ExchangeTask {
   override suspend fun execute(
     input: Map<String, StorageClient.Blob>

@@ -46,7 +46,7 @@ class JniPrivateMembershipCryptorTest {
         unencryptedQueryOf(100, 1, 1),
         unencryptedQueryOf(100, 2, 2),
         unencryptedQueryOf(101, 3, 1),
-        unencryptedQueryOf(101, 4, 5)
+        unencryptedQueryOf(101, 4, 5),
       )
     val encryptedQueries = privateMembershipCryptor.encryptQueries(unencryptedQueries, keys)
     val encryptedQueryList =
@@ -58,7 +58,7 @@ class JniPrivateMembershipCryptorTest {
         encryptedQueryOf(100, 1),
         encryptedQueryOf(100, 2),
         encryptedQueryOf(101, 3),
-        encryptedQueryOf(101, 4)
+        encryptedQueryOf(101, 4),
       )
   }
 

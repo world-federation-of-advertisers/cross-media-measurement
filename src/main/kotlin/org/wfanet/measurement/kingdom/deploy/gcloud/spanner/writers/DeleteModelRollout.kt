@@ -38,7 +38,7 @@ class DeleteModelRollout(private val request: DeleteModelRolloutRequest, private
         ExternalId(request.externalModelProviderId),
         ExternalId(request.externalModelSuiteId),
         ExternalId(request.externalModelLineId),
-        ExternalId(request.externalModelRolloutId)
+        ExternalId(request.externalModelRolloutId),
       )
 
     val now = clock.instant().toProtoTime()
@@ -46,7 +46,7 @@ class DeleteModelRollout(private val request: DeleteModelRolloutRequest, private
       throw ModelRolloutInvalidArgsException(
         ExternalId(request.externalModelProviderId),
         ExternalId(request.externalModelSuiteId),
-        ExternalId(request.externalModelLineId)
+        ExternalId(request.externalModelLineId),
       ) {
         "It is no longer possible to delete this ModelRollout."
       }
@@ -62,7 +62,7 @@ class DeleteModelRollout(private val request: DeleteModelRolloutRequest, private
             modelRolloutResult.modelLineId.value,
             modelRolloutResult.modelRolloutId.value,
           )
-        )
+        ),
       )
     )
 
@@ -73,7 +73,7 @@ class DeleteModelRollout(private val request: DeleteModelRolloutRequest, private
     externalModelProviderId: ExternalId,
     externalModelSuiteId: ExternalId,
     externalModelLineId: ExternalId,
-    externalModelRolloutId: ExternalId
+    externalModelRolloutId: ExternalId,
   ): ModelRolloutReader.Result =
     ModelRolloutReader()
       .readByExternalModelRolloutId(
@@ -81,12 +81,12 @@ class DeleteModelRollout(private val request: DeleteModelRolloutRequest, private
         externalModelProviderId,
         externalModelSuiteId,
         externalModelLineId,
-        externalModelRolloutId
+        externalModelRolloutId,
       )
       ?: throw ModelRolloutNotFoundException(
         externalModelProviderId,
         externalModelSuiteId,
         externalModelLineId,
-        externalModelRolloutId
+        externalModelRolloutId,
       )
 }

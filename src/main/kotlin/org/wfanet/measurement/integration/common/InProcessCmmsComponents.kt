@@ -54,7 +54,7 @@ class InProcessCmmsComponents(
   private val duchyDependenciesRule:
     ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>,
   private val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec> =
-    SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS
+    SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS,
 ) : TestRule {
   private val kingdomDataServices: DataServices
     get() = kingdomDataServicesRule.value
@@ -100,7 +100,7 @@ class InProcessCmmsComponents(
       kingdomDataServicesRule,
       kingdom,
       duchyDependenciesRule,
-      *duchies.toTypedArray()
+      *duchies.toTypedArray(),
     )
   }
 
@@ -130,13 +130,13 @@ class InProcessCmmsComponents(
         internalCertificatesClient = kingdom.internalCertificatesClient,
         measurementConsumersClient = publicMeasurementConsumersClient,
         runId = "12345",
-        requiredDuchies = listOf("worker1", "worker2")
+        requiredDuchies = listOf("worker1", "worker2"),
       )
     // Create the MC.
     val (measurementConsumer, apiKey) =
       resourceSetup.createMeasurementConsumer(
         MC_ENTITY_CONTENT,
-        resourceSetup.createAccountWithRetries()
+        resourceSetup.createAccountWithRetries(),
       )
     mcResourceName = measurementConsumer.name
     apiAuthenticationKey = apiKey
@@ -171,7 +171,7 @@ class InProcessCmmsComponents(
       mcResourceName,
       MC_ENTITY_CONTENT.signingKey,
       MC_ENCRYPTION_PRIVATE_KEY,
-      apiAuthenticationKey
+      apiAuthenticationKey,
     )
   }
 
@@ -220,7 +220,7 @@ class InProcessCmmsComponents(
         LLV2_PROTOCOL_CONFIG_CONFIG.protocolConfig,
         LLV2_PROTOCOL_CONFIG_CONFIG.duchyProtocolConfig,
         setOf("aggregator"),
-        2
+        2,
       )
       RoLlv2ProtocolConfig.setForTest(
         RO_LLV2_PROTOCOL_CONFIG_CONFIG.protocolConfig,

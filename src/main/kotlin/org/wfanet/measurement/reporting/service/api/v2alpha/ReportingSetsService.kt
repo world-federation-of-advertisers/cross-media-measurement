@@ -110,7 +110,7 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
    */
   private suspend fun compileCompositeReportingSet(
     rootReportingSet: ReportingSet,
-    cmmsMeasurementConsumerId: String
+    cmmsMeasurementConsumerId: String,
   ): List<InternalReportingSet.WeightedSubsetUnion> {
     val primitiveReportingSetBasesMap = mutableMapOf<PrimitiveReportingSetBasis, Int>()
     val initialFiltersStack = mutableListOf<String>()
@@ -124,7 +124,7 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
         rootReportingSet.composite.expression,
         initialFiltersStack,
         primitiveReportingSetBasesMap,
-        cmmsMeasurementConsumerId
+        cmmsMeasurementConsumerId,
       )
 
     val idToPrimitiveReportingSetBasis: Map<Int, PrimitiveReportingSetBasis> =
@@ -137,7 +137,7 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
     val weightedSubsetUnions: List<WeightedSubsetUnion> =
       setExpressionCompiler.compileSetExpression(
         setOperationExpression,
-        idToPrimitiveReportingSetBasis.size
+        idToPrimitiveReportingSetBasis.size,
       )
 
     return weightedSubsetUnions.map { weightedSubsetUnion ->
@@ -179,7 +179,7 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
             expression.lhs,
             filters,
             primitiveReportingSetBasesMap,
-            cmmsMeasurementConsumerId
+            cmmsMeasurementConsumerId,
           )
         ) {
           "lhs of a set expression must be set."
@@ -189,8 +189,8 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
           expression.rhs,
           filters,
           primitiveReportingSetBasesMap,
-          cmmsMeasurementConsumerId
-        )
+          cmmsMeasurementConsumerId,
+        ),
     )
   }
 
@@ -238,7 +238,7 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
                 internalReportingSet.composite.toExpression(cmmsMeasurementConsumerId),
                 filters,
                 primitiveReportingSetBasesMap,
-                cmmsMeasurementConsumerId
+                cmmsMeasurementConsumerId,
               )
               .also {
                 // Remove the reporting set's filter from the stack if there is any.
@@ -257,7 +257,7 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
           operand.expression,
           filters,
           primitiveReportingSetBasesMap,
-          cmmsMeasurementConsumerId
+          cmmsMeasurementConsumerId,
         )
       }
       ReportingSet.SetExpression.Operand.OperandCase.OPERAND_NOT_SET -> {
@@ -269,7 +269,7 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
   /** Gets an [InternalReportingSet] given the reporting set resource name. */
   private suspend fun getInternalReportingSet(
     reportingSet: String,
-    cmmsMeasurementConsumerId: String
+    cmmsMeasurementConsumerId: String,
   ): InternalReportingSet {
     val reportingSetKey = buildReportingSetKey(reportingSet, cmmsMeasurementConsumerId)
 

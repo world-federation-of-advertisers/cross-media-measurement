@@ -36,7 +36,7 @@ class SetContinuationToken(private val continuationToken: String) {
         oldContinuationToken != null &&
           Timestamps.compare(
             newContinuationToken.lastSeenUpdateTime,
-            oldContinuationToken.lastSeenUpdateTime
+            oldContinuationToken.lastSeenUpdateTime,
           ) < 0
       ) {
         throw InvalidContinuationTokenException(

@@ -34,7 +34,7 @@ data class PrivacyBucketGroup(
   val ageGroup: AgeGroup,
   val gender: Gender,
   val vidSampleStart: Float,
-  val vidSampleWidth: Float
+  val vidSampleWidth: Float,
 ) {
   init {
     if (this.vidSampleStart + this.vidSampleWidth > 1) {
@@ -42,9 +42,7 @@ data class PrivacyBucketGroup(
     }
   }
 
-  fun overlapsWith(
-    otherBucketGroup: PrivacyBucketGroup,
-  ): Boolean {
+  fun overlapsWith(otherBucketGroup: PrivacyBucketGroup): Boolean {
     if (this.measurementConsumerId != otherBucketGroup.measurementConsumerId) {
       return false
     }

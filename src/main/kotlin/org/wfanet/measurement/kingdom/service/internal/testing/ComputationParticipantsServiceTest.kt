@@ -85,7 +85,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val measurementsService: MeasurementsCoroutineImplBase,
     val certificatesService: CertificatesCoroutineImplBase,
     val requisitionsService: RequisitionsCoroutineImplBase,
-    val accountsService: AccountsCoroutineImplBase
+    val accountsService: AccountsCoroutineImplBase,
   )
 
   private val clock: Clock = Clock.systemUTC()
@@ -151,7 +151,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         measurementsService,
         measurementConsumer,
         PROVIDED_MEASUREMENT_ID,
-        dataProvider
+        dataProvider,
       )
 
     val request = setParticipantRequisitionParamsRequest {
@@ -185,7 +185,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       measurementsService,
       measurementConsumer,
       PROVIDED_MEASUREMENT_ID,
-      dataProvider
+      dataProvider,
     )
 
     val request = setParticipantRequisitionParamsRequest {
@@ -220,7 +220,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
           measurementsService,
           measurementConsumer,
           PROVIDED_MEASUREMENT_ID,
-          dataProvider
+          dataProvider,
         )
 
       val request = setParticipantRequisitionParamsRequest {
@@ -253,7 +253,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         measurementsService,
         measurementConsumer,
         PROVIDED_MEASUREMENT_ID,
-        dataProvider
+        dataProvider,
       )
 
     val request = setParticipantRequisitionParamsRequest {
@@ -294,7 +294,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         measurementsService,
         measurementConsumer,
         PROVIDED_MEASUREMENT_ID,
-        dataProvider
+        dataProvider,
       )
 
     val certificate =
@@ -302,7 +302,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         certificatesService,
         DUCHIES[0].externalDuchyId,
         clock.instant().minus(2L, ChronoUnit.DAYS),
-        clock.instant().minus(1L, ChronoUnit.DAYS)
+        clock.instant().minus(1L, ChronoUnit.DAYS),
       )
 
     val request = setParticipantRequisitionParamsRequest {
@@ -334,7 +334,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         measurementsService,
         measurementConsumer,
         PROVIDED_MEASUREMENT_ID,
-        dataProvider
+        dataProvider,
       )
 
     val certificate =
@@ -342,7 +342,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         certificatesService,
         DUCHIES[0].externalDuchyId,
         clock.instant().plus(1L, ChronoUnit.DAYS),
-        clock.instant().plus(2L, ChronoUnit.DAYS)
+        clock.instant().plus(2L, ChronoUnit.DAYS),
       )
 
     val request = setParticipantRequisitionParamsRequest {
@@ -375,7 +375,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         measurementsService,
         measurementConsumer,
         PROVIDED_MEASUREMENT_ID,
-        dataProvider
+        dataProvider,
       )
 
     measurementsService.cancelMeasurement(
@@ -419,7 +419,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         measurementsService,
         measurementConsumer,
         PROVIDED_MEASUREMENT_ID,
-        dataProvider
+        dataProvider,
       )
 
     val request = setParticipantRequisitionParamsRequest {
@@ -472,7 +472,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
             measurementsService,
             measurementConsumer,
             PROVIDED_MEASUREMENT_ID,
-            dataProvider
+            dataProvider,
           )
           .externalComputationId
 
@@ -548,7 +548,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         population.createMeasurementConsumer(measurementConsumersService, accountsService),
         "measurement",
         population.createDataProvider(dataProvidersService),
-        population.createDataProvider(dataProvidersService)
+        population.createDataProvider(dataProvidersService),
       )
 
     val setParticipantRequisitionParamsDetails = liquidLegionsV2Details {
@@ -635,7 +635,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         population.createMeasurementConsumer(measurementConsumersService, accountsService),
         "measurement",
         population.createDataProvider(dataProvidersService),
-        population.createDataProvider(dataProvidersService)
+        population.createDataProvider(dataProvidersService),
       )
     val setParticipantRequisitionParamsDetails = liquidLegionsV2Details {
       elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
@@ -712,7 +712,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         "measurement",
         population.createDataProvider(
           dataProvidersService,
-          listOf(Population.AGGREGATOR_DUCHY.externalDuchyId)
+          listOf(Population.AGGREGATOR_DUCHY.externalDuchyId),
         ),
       )
 
@@ -794,7 +794,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         measurementsService,
         measurementConsumer,
         "measurement 1",
-        dataProvider
+        dataProvider,
       )
 
     val request = setParticipantRequisitionParamsRequest {
@@ -846,7 +846,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         measurementsService,
         measurementConsumer,
         "measurement 1",
-        dataProvider
+        dataProvider,
       )
 
     val request = setParticipantRequisitionParamsRequest {
@@ -902,7 +902,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         ProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
         DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
         setOf(Population.AGGREGATOR_DUCHY.externalDuchyId),
-        2
+        2,
       )
     }
   }

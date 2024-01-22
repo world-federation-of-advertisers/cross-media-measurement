@@ -23,7 +23,7 @@ import picocli.CommandLine
 
 @CommandLine.Command(
   name = "provide_workflow_input",
-  description = ["Will copy workflow input to private storage"]
+  description = ["Will copy workflow input to private storage"],
 )
 class ProvideWorkflowInput : Callable<Int> {
 
@@ -60,7 +60,7 @@ class ProvideWorkflowInput : Callable<Int> {
         LocalDate.parse(exchangeDate),
         flags.privateStorageFactories,
         blobKey,
-        blobContents.readBytes().toByteString()
+        blobContents.readBytes().toByteString(),
       )
     }
     return 0

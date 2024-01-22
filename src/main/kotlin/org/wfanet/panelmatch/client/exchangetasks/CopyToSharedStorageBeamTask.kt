@@ -45,7 +45,7 @@ fun ApacheBeamContext.copyToSharedStorage(
   manifestBytes
     .apply(
       "Copy Manifest Bytes",
-      ParDo.of(CopyManifestToSharedDoFn(destination, destinationManifestBlobKey))
+      ParDo.of(CopyManifestToSharedDoFn(destination, destinationManifestBlobKey)),
     )
     .flatMap("Generate Shard Names") { ShardedFileName(it.toStringUtf8()).fileNames.asIterable() }
     .breakFusion("Break Fusion Before Copy")

@@ -24,7 +24,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementD
 
 class StreamMeasurementsByDuchyCertificate(
   duchyCertificateId: InternalId,
-  pendingMeasurementStates: List<Measurement.State>
+  pendingMeasurementStates: List<Measurement.State>,
 ) : SimpleSpannerQuery<MeasurementDetailsReader.Result>() {
   override val reader =
     MeasurementDetailsReader().fillStatementBuilder {

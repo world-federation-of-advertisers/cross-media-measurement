@@ -43,11 +43,7 @@ import software.amazon.awssdk.services.s3.S3AsyncClient
 @CommandLine.Command(name = "add_all_resources", description = ["Adds all resources into GCS"])
 class AddAllResources : Callable<Int> {
 
-  @CommandLine.Option(
-    names = ["--tink-key-uri"],
-    description = ["URI for tink"],
-    required = true,
-  )
+  @CommandLine.Option(names = ["--tink-key-uri"], description = ["URI for tink"], required = true)
   private lateinit var tinkKeyUri: String
 
   // TODO(jmolle): Make the flags not required and make AWS an option for root and shared storage.
@@ -98,7 +94,7 @@ class AddAllResources : Callable<Int> {
   @CommandLine.Option(
     names = ["--partner-certificate-file"],
     description = ["Certificate for the principal"],
-    required = true
+    required = true,
   )
   private lateinit var partnerCertificateFile: File
 
@@ -134,7 +130,7 @@ class AddAllResources : Callable<Int> {
   @CommandLine.Option(
     names = ["--workflow-input-blob-contents"],
     description = ["Blob Contents"],
-    required = true
+    required = true,
   )
   private lateinit var workflowInputBlobContents: File
 
@@ -205,7 +201,7 @@ class AddAllResources : Callable<Int> {
     Map<StorageDetails.PlatformCase, (StorageDetails, ExchangeDateKey) -> StorageFactory> by lazy {
     mapOf(
       StorageDetails.PlatformCase.GCS to ::GcsStorageFactory,
-      StorageDetails.PlatformCase.AWS to ::S3StorageFactory
+      StorageDetails.PlatformCase.AWS to ::S3StorageFactory,
     )
   }
 
@@ -223,7 +219,7 @@ class AddAllResources : Callable<Int> {
         LocalDate.parse(exchangeDate),
         privateStorageFactory,
         workflowInputBlobKey,
-        workflowInputBlobContents.readBytes().toByteString()
+        workflowInputBlobContents.readBytes().toByteString(),
       )
     }
     return 0

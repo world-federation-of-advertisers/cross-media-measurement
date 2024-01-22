@@ -54,7 +54,7 @@ abstract class AbstractPanelMatchCorrectnessTest(private val localSystem: PanelM
     val workflow: ExchangeWorkflow by lazy {
       loadTestData(
           "double_blind_exchange_workflow.textproto",
-          ExchangeWorkflow.getDefaultInstance()
+          ExchangeWorkflow.getDefaultInstance(),
         )
         .copy { firstExchangeDate = EXCHANGE_DATE.toProtoDate() }
     }
@@ -143,7 +143,7 @@ abstract class AbstractPanelMatchCorrectnessTest(private val localSystem: PanelM
       return parseTextProto(
         testDataRuntimePath.resolve(fileName).toFile(),
         defaultInstance,
-        typeRegistry
+        typeRegistry,
       )
     }
 

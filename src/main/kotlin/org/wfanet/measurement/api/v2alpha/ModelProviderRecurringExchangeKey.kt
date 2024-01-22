@@ -23,11 +23,11 @@ import org.wfanet.measurement.common.api.ResourceKey
 /** [ResourceKey] of a RecurringExchange with a ModelProvider parent. */
 data class ModelProviderRecurringExchangeKey(
   override val parentKey: ModelProviderKey,
-  override val recurringExchangeId: String
+  override val recurringExchangeId: String,
 ) : RecurringExchangeKey, ChildResourceKey {
   constructor(
     modelProviderId: String,
-    recurringExchangeId: String
+    recurringExchangeId: String,
   ) : this(ModelProviderKey(modelProviderId), recurringExchangeId)
 
   val modelProviderId: String
@@ -37,7 +37,7 @@ data class ModelProviderRecurringExchangeKey(
     return parser.assembleName(
       mapOf(
         IdVariable.MODEL_PROVIDER to modelProviderId,
-        IdVariable.RECURRING_EXCHANGE to recurringExchangeId
+        IdVariable.RECURRING_EXCHANGE to recurringExchangeId,
       )
     )
   }
@@ -50,7 +50,7 @@ data class ModelProviderRecurringExchangeKey(
       val idVars: Map<IdVariable, String> = parser.parseIdVars(resourceName) ?: return null
       return ModelProviderRecurringExchangeKey(
         idVars.getValue(IdVariable.MODEL_PROVIDER),
-        idVars.getValue(IdVariable.RECURRING_EXCHANGE)
+        idVars.getValue(IdVariable.RECURRING_EXCHANGE),
       )
     }
   }

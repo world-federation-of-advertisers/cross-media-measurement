@@ -51,6 +51,6 @@ fun ComputationToken.toDatabaseEditToken():
     stage = computationStage,
     attempt = attempt,
     editVersion = version,
-    globalId = globalComputationId
+    globalId = globalComputationId,
   )
 }

@@ -70,7 +70,7 @@ class CreateCertificate(private val certificate: Certificate) :
     createCertificateMapTableMutation(
         getOwnerInternalId(transactionContext),
         certificateId,
-        externalMapId
+        externalMapId,
       )
       .bufferTo(transactionContext)
     return certificate.toBuilder().setExternalCertificateId(externalMapId.value).build()
@@ -94,7 +94,7 @@ class CreateCertificate(private val certificate: Certificate) :
         val externalMeasurementConsumerId = ExternalId(certificate.externalMeasurementConsumerId)
         MeasurementConsumerReader.readMeasurementConsumerId(
           transactionContext,
-          externalMeasurementConsumerId
+          externalMeasurementConsumerId,
         ) ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
       }
       Certificate.ParentCase.EXTERNAL_DUCHY_ID ->
@@ -116,7 +116,7 @@ class CreateCertificate(private val certificate: Certificate) :
   private fun createCertificateMapTableMutation(
     internalOwnerId: InternalId,
     internalCertificateId: InternalId,
-    externalMapId: ExternalId
+    externalMapId: ExternalId,
   ): Mutation {
     val tableName = "${ownerTableName}Certificates"
     val internalIdField = "${ownerTableName}Id"

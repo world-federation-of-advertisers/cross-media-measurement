@@ -68,7 +68,7 @@ object Covariances {
         reachMeasurementCovarianceParams.samplingWidth +
           reachMeasurementCovarianceParams.otherSamplingWidth -
           reachMeasurementCovarianceParams.unionSamplingWidth,
-      inflation = 0.0
+      inflation = 0.0,
     )
   }
 
@@ -83,7 +83,7 @@ object Covariances {
         weightedMeasurementVarianceParams.measurementVarianceParams.measurementParams
           .vidSamplingInterval,
         otherWeightedMeasurementVarianceParams.measurementVarianceParams.measurementParams
-          .vidSamplingInterval
+          .vidSamplingInterval,
       )
 
     val liquidLegionsSketchParams =
@@ -107,7 +107,7 @@ object Covariances {
                 otherWeightedMeasurementVarianceParams.measurementVarianceParams.measurementParams
                   .vidSamplingInterval
                   .width,
-              unionSamplingWidth = unionSamplingWidth
+              unionSamplingWidth = unionSamplingWidth,
             )
           )
         }
@@ -139,7 +139,7 @@ object Covariances {
               otherWeightedMeasurementVarianceParams.measurementVarianceParams.measurementParams
                 .vidSamplingInterval
                 .width,
-            unionSamplingWidth = unionSamplingWidth
+            unionSamplingWidth = unionSamplingWidth,
           )
         )
       }
@@ -180,8 +180,8 @@ object Covariances {
           otherWeightedMeasurementVarianceParams.measurementVarianceParams.measurementParams
             .vidSamplingInterval
             .width,
-        unionSamplingWidth = unionSamplingWidth
-      )
+        unionSamplingWidth = unionSamplingWidth,
+      ),
     )
   }
 
@@ -192,16 +192,16 @@ object Covariances {
   ): Double {
     return max(
       vidSamplingInterval.start + vidSamplingInterval.width,
-      otherVidSamplingInterval.start + otherVidSamplingInterval.width
+      otherVidSamplingInterval.start + otherVidSamplingInterval.width,
     ) -
       min(vidSamplingInterval.start, otherVidSamplingInterval.start) -
       max(
         0.0,
-        otherVidSamplingInterval.start - vidSamplingInterval.start - vidSamplingInterval.width
+        otherVidSamplingInterval.start - vidSamplingInterval.start - vidSamplingInterval.width,
       ) -
       max(
         0.0,
-        vidSamplingInterval.start - otherVidSamplingInterval.start - otherVidSamplingInterval.width
+        vidSamplingInterval.start - otherVidSamplingInterval.start - otherVidSamplingInterval.width,
       )
   }
 }

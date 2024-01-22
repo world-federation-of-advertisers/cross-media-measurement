@@ -22,9 +22,8 @@ import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCorou
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
 import org.wfanet.measurement.api.withAuthenticationKey
 
-class DataProvidersService(
-  private val dataProvidersStub: DataProvidersCoroutineStub,
-) : DataProvidersCoroutineImplBase() {
+class DataProvidersService(private val dataProvidersStub: DataProvidersCoroutineStub) :
+  DataProvidersCoroutineImplBase() {
   override suspend fun getDataProvider(request: GetDataProviderRequest): DataProvider {
     val principal: ReportingPrincipal = principalFromCurrentContext
     when (principal) {

@@ -125,7 +125,7 @@ class ModelSuitesServiceTest {
           flowOf(
             INTERNAL_MODEL_SUITE,
             INTERNAL_MODEL_SUITE.copy { externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID_2 },
-            INTERNAL_MODEL_SUITE.copy { externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID_3 }
+            INTERNAL_MODEL_SUITE.copy { externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID_3 },
           )
         )
     }
@@ -137,9 +137,7 @@ class ModelSuitesServiceTest {
   @Before
   fun initService() {
     service =
-      ModelSuitesService(
-        ModelSuitesGrpcKt.ModelSuitesCoroutineStub(grpcTestServerRule.channel),
-      )
+      ModelSuitesService(ModelSuitesGrpcKt.ModelSuitesCoroutineStub(grpcTestServerRule.channel))
   }
 
   @Test

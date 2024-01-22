@@ -79,7 +79,7 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
     /** Reads the [InternalId] for a MeasurementConsumer given its [ExternalId]. */
     suspend fun readMeasurementConsumerId(
       readContext: AsyncDatabaseClient.ReadContext,
-      externalMeasurementConsumerId: ExternalId
+      externalMeasurementConsumerId: ExternalId,
     ): InternalId? {
       val column = "MeasurementConsumerId"
       val row: Struct =
@@ -87,7 +87,7 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
           "MeasurementConsumers",
           "MeasurementConsumersByExternalId",
           Key.of(externalMeasurementConsumerId.value),
-          column
+          column,
         ) ?: return null
       return row.getInternalId(column)
     }

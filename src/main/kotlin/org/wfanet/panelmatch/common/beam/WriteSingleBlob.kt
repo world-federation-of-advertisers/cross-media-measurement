@@ -32,7 +32,7 @@ import org.wfanet.panelmatch.common.storage.StorageFactory
 /** Writes a single input message into a blob. */
 class WriteSingleBlob<T : Message>(
   private val blobKey: String,
-  private val storageFactory: StorageFactory
+  private val storageFactory: StorageFactory,
 ) : PTransform<PCollection<T>, WriteSingleBlob.WriteResult>() {
 
   /** [POutput] holding the single blobKey written. */
@@ -46,7 +46,7 @@ class WriteSingleBlob<T : Message>(
     override fun finishSpecifyingOutput(
       transformName: String,
       input: PInput,
-      transform: PTransform<*, *>
+      transform: PTransform<*, *>,
     ) {}
 
     companion object {
@@ -59,7 +59,7 @@ class WriteSingleBlob<T : Message>(
     val blobKeys =
       input.apply(
         "Write $blobKey",
-        ParDo.of(WriteBlobFn(blobKey, storageFactory, count)).withSideInputs(count)
+        ParDo.of(WriteBlobFn(blobKey, storageFactory, count)).withSideInputs(count),
       )
     return WriteResult(blobKeys)
   }
@@ -68,7 +68,7 @@ class WriteSingleBlob<T : Message>(
 private class WriteBlobFn<T : Message>(
   private val blobKey: String,
   private val storageFactory: StorageFactory,
-  private val count: PCollectionView<Long>
+  private val count: PCollectionView<Long>,
 ) : DoFn<T, String>() {
 
   @DoFn.ProcessElement

@@ -25,7 +25,7 @@ data class PopulationKey(override val parentKey: DataProviderKey, val population
   ChildResourceKey {
   constructor(
     dataProviderId: String,
-    populationId: String
+    populationId: String,
   ) : this(DataProviderKey(dataProviderId), populationId)
 
   val dataProviderId: String

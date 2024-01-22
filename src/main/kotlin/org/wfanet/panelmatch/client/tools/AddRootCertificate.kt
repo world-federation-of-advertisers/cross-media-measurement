@@ -22,7 +22,7 @@ import picocli.CommandLine
 
 @CommandLine.Command(
   name = "add_root_certificate",
-  description = ["Adds a Root Certificate for another party"]
+  description = ["Adds a Root Certificate for another party"],
 )
 class AddRootCertificate : Callable<Int> {
 
@@ -38,7 +38,7 @@ class AddRootCertificate : Callable<Int> {
   @CommandLine.Option(
     names = ["--certificate-file"],
     description = ["Certificate for the principal"],
-    required = true
+    required = true,
   )
   private lateinit var certificateFile: File
 

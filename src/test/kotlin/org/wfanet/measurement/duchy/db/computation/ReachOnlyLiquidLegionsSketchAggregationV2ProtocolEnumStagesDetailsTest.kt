@@ -55,7 +55,7 @@ class ReachOnlyLiquidLegionsSketchAggregationV2ProtocolEnumStagesDetailsTest {
             participant += computationParticipant { duchyId = "B" }
             participant += computationParticipant { duchyId = "C" }
             participant += computationParticipant { duchyId = "D" }
-          }
+          },
         )
       ProtoTruth.assertThat(stageProto).isEqualTo(expected)
       ProtoTruth.assertThat(Details.parseDetails(stageProto.toByteArray())).isEqualTo(stageProto)

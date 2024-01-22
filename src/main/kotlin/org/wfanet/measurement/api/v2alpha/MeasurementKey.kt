@@ -22,17 +22,15 @@ private val parser =
   ResourceNameParser("measurementConsumers/{measurement_consumer}/measurements/{measurement}")
 
 /** [ResourceKey] of a Measurement. */
-data class MeasurementKey(
-  val measurementConsumerId: String,
-  val measurementId: String,
-) : ChildResourceKey, RequisitionParentKey {
+data class MeasurementKey(val measurementConsumerId: String, val measurementId: String) :
+  ChildResourceKey, RequisitionParentKey {
   override val parentKey = MeasurementConsumerKey(measurementConsumerId)
 
   override fun toName(): String {
     return parser.assembleName(
       mapOf(
         IdVariable.MEASUREMENT_CONSUMER to measurementConsumerId,
-        IdVariable.MEASUREMENT to measurementId
+        IdVariable.MEASUREMENT to measurementId,
       )
     )
   }
@@ -44,7 +42,7 @@ data class MeasurementKey(
       return parser.parseIdVars(resourceName)?.let {
         MeasurementKey(
           it.getValue(IdVariable.MEASUREMENT_CONSUMER),
-          it.getValue(IdVariable.MEASUREMENT)
+          it.getValue(IdVariable.MEASUREMENT),
         )
       }
     }

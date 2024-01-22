@@ -28,27 +28,27 @@ class DuchyOrderTest {
   fun `all orders are possible`() {
     assertEquals(
       listOf(SALZBURG, BOHEMIA, AUSTRIA),
-      getDuchyOrderByPublicKeysAndComputationId(duchies, "1")
+      getDuchyOrderByPublicKeysAndComputationId(duchies, "1"),
     )
     assertEquals(
       listOf(SALZBURG, AUSTRIA, BOHEMIA),
-      getDuchyOrderByPublicKeysAndComputationId(duchies, "3")
+      getDuchyOrderByPublicKeysAndComputationId(duchies, "3"),
     )
     assertEquals(
       listOf(BOHEMIA, SALZBURG, AUSTRIA),
-      getDuchyOrderByPublicKeysAndComputationId(duchies, "8")
+      getDuchyOrderByPublicKeysAndComputationId(duchies, "8"),
     )
     assertEquals(
       listOf(BOHEMIA, AUSTRIA, SALZBURG),
-      getDuchyOrderByPublicKeysAndComputationId(duchies, "5")
+      getDuchyOrderByPublicKeysAndComputationId(duchies, "5"),
     )
     assertEquals(
       listOf(AUSTRIA, BOHEMIA, SALZBURG),
-      getDuchyOrderByPublicKeysAndComputationId(duchies, "9")
+      getDuchyOrderByPublicKeysAndComputationId(duchies, "9"),
     )
     assertEquals(
       listOf(AUSTRIA, SALZBURG, BOHEMIA),
-      getDuchyOrderByPublicKeysAndComputationId(duchies, "2")
+      getDuchyOrderByPublicKeysAndComputationId(duchies, "2"),
     )
   }
 

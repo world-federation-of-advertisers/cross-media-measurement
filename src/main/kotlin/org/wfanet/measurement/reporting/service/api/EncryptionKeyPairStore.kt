@@ -45,6 +45,6 @@ class InMemoryEncryptionKeyPairStore(
 
   override suspend fun getPrivateKeyHandle(
     principal: String,
-    publicKey: ByteString
+    publicKey: ByteString,
   ): PrivateKeyHandle? = principalToKeyPairs[principal]?.get(fingerprint(publicKey))
 }

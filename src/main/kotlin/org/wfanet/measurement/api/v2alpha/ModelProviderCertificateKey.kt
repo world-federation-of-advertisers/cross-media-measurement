@@ -23,7 +23,7 @@ private val parser =
 /** [ResourceKey] of a ModelProvider Certificate. */
 data class ModelProviderCertificateKey(
   val modelProviderId: String,
-  override val certificateId: String
+  override val certificateId: String,
 ) : CertificateKey {
   override val parentKey = ModelProviderKey(modelProviderId)
 
@@ -40,7 +40,7 @@ data class ModelProviderCertificateKey(
       return parser.parseIdVars(resourceName)?.let {
         ModelProviderCertificateKey(
           it.getValue(IdVariable.MODEL_PROVIDER),
-          it.getValue(IdVariable.CERTIFICATE)
+          it.getValue(IdVariable.CERTIFICATE),
         )
       }
     }

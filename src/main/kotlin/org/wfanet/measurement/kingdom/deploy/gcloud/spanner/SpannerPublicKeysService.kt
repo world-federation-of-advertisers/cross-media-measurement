@@ -30,7 +30,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.UpdatePublic
 
 class SpannerPublicKeysService(
   private val idGenerator: IdGenerator,
-  private val client: AsyncDatabaseClient
+  private val client: AsyncDatabaseClient,
 ) : PublicKeysGrpcKt.PublicKeysCoroutineImplBase() {
 
   override suspend fun updatePublicKey(request: UpdatePublicKeyRequest): UpdatePublicKeyResponse {

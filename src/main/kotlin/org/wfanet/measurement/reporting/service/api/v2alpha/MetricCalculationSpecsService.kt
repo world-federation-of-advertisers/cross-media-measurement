@@ -215,7 +215,7 @@ class MetricCalculationSpecsService(
       metricCalculationSpecs +=
         filterMetricCalculationSpecs(
           results.map { internalMetricCalculationSpec -> internalMetricCalculationSpec.toPublic() },
-          request.filter
+          request.filter,
         )
 
       if (nextPageToken != null) {
@@ -263,7 +263,7 @@ class MetricCalculationSpecsService(
 
   private fun filterMetricCalculationSpecs(
     metricCalculationSpecs: List<MetricCalculationSpec>,
-    filter: String
+    filter: String,
   ): List<MetricCalculationSpec> {
     return try {
       filterList(ENV, metricCalculationSpecs, filter)
@@ -340,7 +340,7 @@ class MetricCalculationSpecsService(
       val metricCalculationSpecKey =
         MetricCalculationSpecKey(
           source.cmmsMeasurementConsumerId,
-          source.externalMetricCalculationSpecId
+          source.externalMetricCalculationSpecId,
         )
 
       return metricCalculationSpec {

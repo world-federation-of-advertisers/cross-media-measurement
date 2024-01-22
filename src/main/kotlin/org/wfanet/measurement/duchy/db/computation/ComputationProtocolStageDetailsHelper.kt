@@ -19,7 +19,7 @@ interface ComputationProtocolStageDetailsHelper<
   ProtocolT,
   StageT,
   StageDetailsT,
-  ComputationDetailsT
+  ComputationDetailsT,
 > {
   /** Creates the stage specific details for a given computation stage. */
   fun detailsFor(stage: StageT, computationDetails: ComputationDetailsT): StageDetailsT
@@ -39,7 +39,7 @@ interface ComputationProtocolStageDetailsHelper<
   /** Sets [EndComputationReason] to the [ComputationDetailsT]. */
   fun setEndingState(
     details: ComputationDetailsT,
-    reason: EndComputationReason
+    reason: EndComputationReason,
   ): ComputationDetailsT
 
   /** Parses the [ComputationDetailsT] proto from [ByteArray]. */

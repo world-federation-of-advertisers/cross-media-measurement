@@ -59,7 +59,7 @@ object ReachOnlyLiquidLegionsV2Starter {
     computationStorageClient: ComputationsGrpcKt.ComputationsCoroutineStub,
     systemComputation: Computation,
     reachOnlyLiquidLegionsV2SetupConfig: LiquidLegionsV2SetupConfig,
-    blobStorageBucket: String
+    blobStorageBucket: String,
   ) {
     require(systemComputation.name.isNotEmpty()) { "Resource name not specified" }
     val globalId: String = systemComputation.key.computationId
@@ -95,7 +95,7 @@ object ReachOnlyLiquidLegionsV2Starter {
   private fun List<LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant>
     .orderByRoles(
     globalComputationId: String,
-    aggregatorId: String
+    aggregatorId: String,
   ): List<LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant> {
     val aggregator =
       this.find { it.duchyId == aggregatorId }
@@ -110,7 +110,7 @@ object ReachOnlyLiquidLegionsV2Starter {
     token: ComputationToken,
     computationStorageClient: ComputationsGrpcKt.ComputationsCoroutineStub,
     systemComputation: Computation,
-    aggregatorId: String
+    aggregatorId: String,
   ) {
     val updatedDetails =
       token.computationDetails.copy {
@@ -139,7 +139,7 @@ object ReachOnlyLiquidLegionsV2Starter {
 
     computationStorageClient.advanceComputationStage(
       computationToken = newToken,
-      stage = ReachOnlyLiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE.toProtocolStage()
+      stage = ReachOnlyLiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE.toProtocolStage(),
     )
   }
 
@@ -162,7 +162,7 @@ object ReachOnlyLiquidLegionsV2Starter {
           token,
           computationStorageClient,
           systemComputation,
-          aggregatorId
+          aggregatorId,
         )
         return
       }
@@ -200,7 +200,7 @@ object ReachOnlyLiquidLegionsV2Starter {
 
   suspend fun startComputation(
     token: ComputationToken,
-    computationStorageClient: ComputationsGrpcKt.ComputationsCoroutineStub
+    computationStorageClient: ComputationsGrpcKt.ComputationsCoroutineStub,
   ) {
     require(token.computationDetails.hasReachOnlyLiquidLegionsV2()) {
       "Reach-Only Liquid Legions V2 computation required"
@@ -214,7 +214,7 @@ object ReachOnlyLiquidLegionsV2Starter {
         computationStorageClient.advanceComputationStage(
           computationToken = token,
           inputsToNextStage = token.outputPathList(),
-          stage = ReachOnlyLiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE.toProtocolStage()
+          stage = ReachOnlyLiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE.toProtocolStage(),
         )
         logger.info("[id=${token.globalComputationId}] Computation is now started")
         return

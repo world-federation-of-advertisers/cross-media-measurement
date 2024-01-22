@@ -48,9 +48,7 @@ class HybridEncryptTask : ExchangeTask {
     val hybridEncrypt = publicKeysetHandle.getPrimitive(HybridEncrypt::class.java)
     val encryptedData =
       hybridEncrypt.encrypt(inputData.toByteArray(), NO_ASSOCIATED_DATA).toByteString()
-    return mapOf(
-      ENCRYPTED_DATA_LABEL to flowOf(encryptedData),
-    )
+    return mapOf(ENCRYPTED_DATA_LABEL to flowOf(encryptedData))
   }
 
   companion object {

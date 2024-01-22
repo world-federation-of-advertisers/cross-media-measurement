@@ -35,7 +35,7 @@ import org.wfanet.panelmatch.common.storage.StorageFactory
  */
 class ForwardedStorageFactory(
   private val storageDetails: StorageDetails,
-  private val exchangeDateKey: ExchangeDateKey
+  private val exchangeDateKey: ExchangeDateKey,
 ) : StorageFactory {
 
   override fun build(): StorageClient {
@@ -46,7 +46,7 @@ class ForwardedStorageFactory(
         buildTlsChannel(
           forwardedStorage.target,
           readCertificateCollection(requireNotNull(File(forwardedStorage.certCollectionPath))),
-          forwardedStorage.forwardedStorageCertHost
+          forwardedStorage.forwardedStorageCertHost,
         )
       )
     )

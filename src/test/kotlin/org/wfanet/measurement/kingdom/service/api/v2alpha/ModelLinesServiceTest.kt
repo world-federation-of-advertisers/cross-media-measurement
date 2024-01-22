@@ -75,11 +75,7 @@ import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest as intern
 
 private const val DEFAULT_LIMIT = 50
 private val TYPES: Set<InternalType> =
-  setOf(
-    InternalType.PROD,
-    InternalType.DEV,
-    InternalType.HOLDBACK,
-  )
+  setOf(InternalType.PROD, InternalType.DEV, InternalType.HOLDBACK)
 
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 private const val DUCHY_NAME = "duchies/AAAAAAAAAHs"
@@ -171,7 +167,7 @@ class ModelLinesServiceTest {
             INTERNAL_MODEL_LINE.copy {
               externalModelLineId = EXTERNAL_MODEL_LINE_ID_3
               type = InternalType.HOLDBACK
-            }
+            },
           )
         )
     }
@@ -182,10 +178,7 @@ class ModelLinesServiceTest {
 
   @Before
   fun initService() {
-    service =
-      ModelLinesService(
-        ModelLinesCoroutineStub(grpcTestServerRule.channel),
-      )
+    service = ModelLinesService(ModelLinesCoroutineStub(grpcTestServerRule.channel))
   }
 
   @Test
@@ -460,7 +453,7 @@ class ModelLinesServiceTest {
 
     verifyProtoArgument(
         internalModelLinesMock,
-        ModelLinesCoroutineImplBase::setModelLineHoldbackModelLine
+        ModelLinesCoroutineImplBase::setModelLineHoldbackModelLine,
       )
       .isEqualTo(
         internalSetModelLineHoldbackModelLineRequest {

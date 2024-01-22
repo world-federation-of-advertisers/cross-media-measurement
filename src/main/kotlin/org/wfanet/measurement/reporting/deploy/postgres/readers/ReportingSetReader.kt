@@ -39,7 +39,7 @@ class ReportingSetReader {
   data class Result(
     val measurementConsumerReferenceId: String,
     val reportingSetId: InternalId,
-    var reportingSet: ReportingSet
+    var reportingSet: ReportingSet,
   )
 
   private val baseSql: String =
@@ -80,7 +80,7 @@ class ReportingSetReader {
   suspend fun readReportingSetByExternalId(
     readContext: ReadContext,
     measurementConsumerReferenceId: String,
-    externalReportingSetId: ExternalId
+    externalReportingSetId: ExternalId,
   ): Result {
     val statement =
       boundStatement(
@@ -101,7 +101,7 @@ class ReportingSetReader {
   fun listReportingSets(
     client: DatabaseClient,
     filter: StreamReportingSetsRequest.Filter,
-    limit: Int = 0
+    limit: Int = 0,
   ): Flow<Result> {
     val statement =
       boundStatement(
@@ -135,7 +135,7 @@ class ReportingSetReader {
   fun getReportingSetsByExternalIds(
     client: DatabaseClient,
     measurementConsumerReferenceId: String,
-    externalReportingSetIds: List<Long>
+    externalReportingSetIds: List<Long>,
   ): Flow<Result> {
     val sql =
       StringBuilder(

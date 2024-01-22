@@ -99,14 +99,14 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     derUtf8: String,
     skidUtf8: String,
     notValidBefore: Instant,
-    notValidAfter: Instant
+    notValidAfter: Instant,
   ) = certificate { fillRequestCertificate(derUtf8, skidUtf8, notValidBefore, notValidAfter) }
 
   private fun CertificateKt.Dsl.fillRequestCertificate(
     derUtf8: String,
     skidUtf8: String,
     notValidBefore: Instant,
-    notValidAfter: Instant
+    notValidAfter: Instant,
   ) {
     this.notValidBefore = notValidBefore.toProtoTime()
     this.notValidAfter = notValidAfter.toProtoTime()
@@ -118,7 +118,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     measurementConsumersService: MeasurementConsumersCoroutineImplBase,
     accountsService: AccountsCoroutineImplBase,
     notValidBefore: Instant = clock.instant(),
-    notValidAfter: Instant = notValidBefore.plus(365L, ChronoUnit.DAYS)
+    notValidAfter: Instant = notValidBefore.plus(365L, ChronoUnit.DAYS),
   ): MeasurementConsumer {
     val account = createAccount(accountsService)
     activateAccount(accountsService, account)
@@ -132,7 +132,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
               "MC cert",
               "MC SKID " + idGenerator.generateExternalId().value,
               notValidBefore,
-              notValidAfter
+              notValidAfter,
             )
           details =
             MeasurementConsumerKt.details {
@@ -154,7 +154,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
       listOf(WORKER1_DUCHY.externalDuchyId, WORKER2_DUCHY.externalDuchyId),
     notValidBefore: Instant = clock.instant(),
     notValidAfter: Instant = notValidBefore.plus(365L, ChronoUnit.DAYS),
-    customize: (DataProviderKt.Dsl.() -> Unit)? = null
+    customize: (DataProviderKt.Dsl.() -> Unit)? = null,
   ): DataProvider {
     return dataProvidersService.createDataProvider(
       dataProvider {
@@ -163,7 +163,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
             "EDP cert",
             "EDP SKID " + idGenerator.generateExternalId().value,
             notValidBefore,
-            notValidAfter
+            notValidAfter,
           )
         details =
           DataProviderKt.details {
@@ -190,7 +190,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     measurementConsumer: MeasurementConsumer,
     providedMeasurementId: String,
     dataProviders: Map<Long, Measurement.DataProviderValue> = mapOf(),
-    details: Measurement.Details
+    details: Measurement.Details,
   ): Measurement {
     return measurementsService.createMeasurement(
       createMeasurementRequest {
@@ -209,7 +209,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
   suspend fun createModelRelease(
     modelSuite: ModelSuite,
     population: Population,
-    modelReleasesService: ModelReleasesCoroutineImplBase
+    modelReleasesService: ModelReleasesCoroutineImplBase,
   ): ModelRelease {
     val modelRelease = modelRelease {
       externalModelProviderId = modelSuite.externalModelProviderId
@@ -222,7 +222,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
 
   suspend fun createPopulation(
     dataProvider: DataProvider,
-    populationsService: PopulationsGrpcKt.PopulationsCoroutineImplBase
+    populationsService: PopulationsGrpcKt.PopulationsCoroutineImplBase,
   ): Population {
     val population =
       populationsService.createPopulation(
@@ -241,7 +241,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     modelSuitesService: ModelSuitesCoroutineImplBase,
     modelLinesService: ModelLinesCoroutineImplBase,
     modelLineType: ModelLine.Type = ModelLine.Type.PROD,
-    createHoldbackModelLine: Boolean = false
+    createHoldbackModelLine: Boolean = false,
   ): ModelLine {
 
     val modelSuite = createModelSuite(modelProvidersService, modelSuitesService)
@@ -278,7 +278,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
 
   suspend fun createModelSuite(
     modelProvidersService: ModelProvidersCoroutineImplBase,
-    modelSuitesService: ModelSuitesCoroutineImplBase
+    modelSuitesService: ModelSuitesCoroutineImplBase,
   ): ModelSuite {
 
     val modelProvider = modelProvidersService.createModelProvider(modelProvider {})
@@ -295,7 +295,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     measurementsService: MeasurementsCoroutineImplBase,
     measurementConsumer: MeasurementConsumer,
     providedMeasurementId: String,
-    dataProviders: Map<Long, Measurement.DataProviderValue> = mapOf()
+    dataProviders: Map<Long, Measurement.DataProviderValue> = mapOf(),
   ): Measurement {
     val details =
       MeasurementKt.details {
@@ -313,7 +313,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
       measurementConsumer,
       providedMeasurementId,
       dataProviders,
-      details
+      details,
     )
   }
 
@@ -321,13 +321,13 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     measurementsService: MeasurementsCoroutineImplBase,
     measurementConsumer: MeasurementConsumer,
     providedMeasurementId: String,
-    vararg dataProviders: DataProvider
+    vararg dataProviders: DataProvider,
   ): Measurement {
     return createComputedMeasurement(
       measurementsService,
       measurementConsumer,
       providedMeasurementId,
-      dataProviders.associate { it.externalDataProviderId to it.toDataProviderValue() }
+      dataProviders.associate { it.externalDataProviderId to it.toDataProviderValue() },
     )
   }
 
@@ -335,7 +335,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     measurementsService: MeasurementsCoroutineImplBase,
     measurementConsumer: MeasurementConsumer,
     providedMeasurementId: String,
-    dataProviders: Map<Long, Measurement.DataProviderValue> = mapOf()
+    dataProviders: Map<Long, Measurement.DataProviderValue> = mapOf(),
   ): Measurement {
     val details =
       MeasurementKt.details {
@@ -350,7 +350,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
       measurementConsumer,
       providedMeasurementId,
       dataProviders,
-      details
+      details,
     )
   }
 
@@ -358,13 +358,13 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     measurementsService: MeasurementsCoroutineImplBase,
     measurementConsumer: MeasurementConsumer,
     providedMeasurementId: String,
-    vararg dataProviders: DataProvider
+    vararg dataProviders: DataProvider,
   ): Measurement {
     return createDirectMeasurement(
       measurementsService,
       measurementConsumer,
       providedMeasurementId,
-      dataProviders.associate { it.externalDataProviderId to it.toDataProviderValue() }
+      dataProviders.associate { it.externalDataProviderId to it.toDataProviderValue() },
     )
   }
 
@@ -372,7 +372,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     certificatesService: CertificatesCoroutineImplBase,
     externalDuchyId: String,
     notValidBefore: Instant = clock.instant(),
-    notValidAfter: Instant = notValidBefore.plus(365L, ChronoUnit.DAYS)
+    notValidAfter: Instant = notValidBefore.plus(365L, ChronoUnit.DAYS),
   ): Certificate {
     return certificatesService.createCertificate(
       certificate {
@@ -381,7 +381,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
           "Duchy cert",
           "Duchy SKID " + idGenerator.generateExternalId().value,
           notValidBefore,
-          notValidAfter
+          notValidAfter,
         )
       }
     )
@@ -391,7 +391,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     certificatesService: CertificatesCoroutineImplBase,
     parent: MeasurementConsumer,
     notValidBefore: Instant = clock.instant(),
-    notValidAfter: Instant = notValidBefore.plus(365L, ChronoUnit.DAYS)
+    notValidAfter: Instant = notValidBefore.plus(365L, ChronoUnit.DAYS),
   ): Certificate {
     return certificatesService.createCertificate(
       certificate {
@@ -400,7 +400,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
           "MC cert",
           "MC SKID " + idGenerator.generateExternalId().value,
           notValidBefore,
-          notValidAfter
+          notValidAfter,
         )
       }
     )
@@ -410,7 +410,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     certificatesService: CertificatesCoroutineImplBase,
     parent: DataProvider,
     notValidBefore: Instant = clock.instant(),
-    notValidAfter: Instant = notValidBefore.plus(365L, ChronoUnit.DAYS)
+    notValidAfter: Instant = notValidBefore.plus(365L, ChronoUnit.DAYS),
   ): Certificate {
     return certificatesService.createCertificate(
       certificate {
@@ -419,7 +419,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
           "EDP cert",
           "EDP SKID " + idGenerator.generateExternalId().value,
           notValidBefore,
-          notValidAfter
+          notValidAfter,
         )
       }
     )
@@ -429,7 +429,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
   suspend fun createAccount(
     accountsService: AccountsCoroutineImplBase,
     externalCreatorAccountId: Long = 0L,
-    externalOwnedMeasurementConsumerId: Long = 0L
+    externalOwnedMeasurementConsumerId: Long = 0L,
   ): Account {
     return accountsService.createAccount(
       account {
@@ -456,9 +456,9 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
           state = openIdRequestParams.state,
           nonce = openIdRequestParams.nonce,
           redirectUri = "",
-          isSelfIssued = true
+          isSelfIssued = true,
         ),
-        clock
+        clock,
       )
     val openIdConnectIdentity = parseIdToken(idToken)
 
@@ -485,7 +485,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
       SelfIssuedIdTokens.validateJwt(
         redirectUri = redirectUri,
         idToken = idToken,
-        publicJwkHandle = publicJwkHandle
+        publicJwkHandle = publicJwkHandle,
       )
 
     return openIdConnectIdentity {

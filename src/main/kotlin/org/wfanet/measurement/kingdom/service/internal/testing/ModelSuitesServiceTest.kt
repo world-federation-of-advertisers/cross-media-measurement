@@ -109,7 +109,7 @@ abstract class ModelSuitesServiceTest<T : ModelSuitesCoroutineImplBase> {
     assertThat(createdModelSuite)
       .ignoringFields(
         ModelSuite.CREATE_TIME_FIELD_NUMBER,
-        ModelSuite.EXTERNAL_MODEL_SUITE_ID_FIELD_NUMBER
+        ModelSuite.EXTERNAL_MODEL_SUITE_ID_FIELD_NUMBER,
       )
       .isEqualTo(
         modelSuite {

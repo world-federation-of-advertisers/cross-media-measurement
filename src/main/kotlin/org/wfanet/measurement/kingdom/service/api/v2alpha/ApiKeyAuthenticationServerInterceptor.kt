@@ -42,13 +42,13 @@ import org.wfanet.measurement.internal.kingdom.authenticateApiKeyRequest
 /** gRPC [ServerInterceptor] to check [ApiKey] credentials coming in from a request. */
 class ApiKeyAuthenticationServerInterceptor(
   private val internalApiKeysClient: ApiKeysCoroutineStub,
-  coroutineContext: CoroutineContext = EmptyCoroutineContext
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : SuspendableServerInterceptor(coroutineContext) {
 
   override suspend fun <ReqT : Any, RespT : Any> interceptCallSuspending(
     call: ServerCall<ReqT, RespT>,
     headers: Metadata,
-    next: ServerCallHandler<ReqT, RespT>
+    next: ServerCallHandler<ReqT, RespT>,
   ): ServerCall.Listener<ReqT> {
     val authenticationKey =
       headers.get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)

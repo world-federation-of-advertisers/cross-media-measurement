@@ -119,7 +119,7 @@ class CertificateAuthorityTest {
         CONTEXT,
         CERTIFICATE_AUTHORITY_ARN,
         mockCreateCertificateClient,
-        generateKeyPair = { KeyPair(ROOT_PUBLIC_KEY, readPrivateKey(ROOT_PRIVATE_KEY_FILE, "ec")) }
+        generateKeyPair = { KeyPair(ROOT_PUBLIC_KEY, readPrivateKey(ROOT_PRIVATE_KEY_FILE, "ec")) },
       )
 
     val (x509, privateKey) = certificateAuthority.generateX509CertificateAndPrivateKey()

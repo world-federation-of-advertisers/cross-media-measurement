@@ -94,7 +94,7 @@ class ComputationsService(
         newCreateComputationLogEntryRequest(
           token.globalComputationId,
           token.computationStage,
-          token.attempt.toLong()
+          token.attempt.toLong(),
         )
       )
       token.toClaimWorkResponse()
@@ -118,13 +118,13 @@ class ComputationsService(
       computationsDatabase.getValidInitialStage(request.computationType).first(),
       request.stageDetails,
       request.computationDetails,
-      request.requisitionsList
+      request.requisitionsList,
     )
 
     sendStatusUpdateToKingdom(
       newCreateComputationLogEntryRequest(
         request.globalComputationId,
-        computationsDatabase.getValidInitialStage(request.computationType).first()
+        computationsDatabase.getValidInitialStage(request.computationType).first(),
       )
     )
 
@@ -165,7 +165,7 @@ class ComputationsService(
       val globalIds =
         computationsDatabase.readGlobalComputationIds(
           request.stagesList.toSet(),
-          request.updatedBefore.toInstant()
+          request.updatedBefore.toInstant(),
         )
       if (!request.force) {
         return purgeComputationsResponse {
@@ -197,7 +197,7 @@ class ComputationsService(
           ComputationDetails.CompletedReason.CANCELED -> EndComputationReason.CANCELED
           else -> error("Unknown CompletedReason $it")
         },
-        request.token.computationDetails
+        request.token.computationDetails,
       )
     } catch (e: ComputationNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
@@ -208,7 +208,7 @@ class ComputationsService(
     sendStatusUpdateToKingdom(
       newCreateComputationLogEntryRequest(
         request.token.globalComputationId,
-        request.endingComputationStage
+        request.endingComputationStage,
       )
     )
 
@@ -243,7 +243,7 @@ class ComputationsService(
       computationsDatabase.updateComputationDetails(
         request.token.toDatabaseEditToken(),
         request.details,
-        request.requisitionsList
+        request.requisitionsList,
       )
     } catch (e: ComputationNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
@@ -261,7 +261,7 @@ class ComputationsService(
     try {
       computationsDatabase.writeOutputBlobReference(
         request.token.toDatabaseEditToken(),
-        BlobRef(request.outputBlobId, request.blobPath)
+        BlobRef(request.outputBlobId, request.blobPath),
       )
     } catch (e: ComputationNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
@@ -295,7 +295,7 @@ class ComputationsService(
           else -> error("Unsupported AdvanceComputationStageRequest.AfterTransition '$it'. ")
         },
         request.stageDetails,
-        lockExtension
+        lockExtension,
       )
     } catch (e: ComputationNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
@@ -306,7 +306,7 @@ class ComputationsService(
     sendStatusUpdateToKingdom(
       newCreateComputationLogEntryRequest(
         request.token.globalComputationId,
-        request.nextComputationStage
+        request.nextComputationStage,
       )
     )
     return computationsDatabase
@@ -343,7 +343,7 @@ class ComputationsService(
     computationsDatabase.writeRequisitionBlobPath(
       request.token.toDatabaseEditToken(),
       request.key,
-      request.blobPath
+      request.blobPath,
     )
     return checkNotNull(computationsDatabase.readComputationToken(request.key))
       .toRecordRequisitionBlobPathResponse()
@@ -355,7 +355,7 @@ class ComputationsService(
     computationsDatabase.writeRequisitionSeed(
       request.token.toDatabaseEditToken(),
       request.key,
-      request.seed
+      request.seed,
     )
     val updatedToken = checkNotNull(computationsDatabase.readComputationToken(request.key))
     return recordRequisitionSeedResponse { token = updatedToken }
@@ -364,7 +364,7 @@ class ComputationsService(
   private fun newCreateComputationLogEntryRequest(
     globalId: String,
     computationStage: ComputationStage,
-    attempt: Long = 0L
+    attempt: Long = 0L,
   ): CreateComputationLogEntryRequest {
     return CreateComputationLogEntryRequest.newBuilder()
       .apply {

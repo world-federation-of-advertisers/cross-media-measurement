@@ -49,24 +49,15 @@ class EventFilterValidatorTest {
   private val stringVar = { name: String -> Decls.newVar(name, Decls.String) }
 
   private fun bannerTemplateVar(): Decl {
-    return Decls.newVar(
-      "banner",
-      Decls.newObjectType("$TEMPLATE_PREFIX.Banner"),
-    )
+    return Decls.newVar("banner", Decls.newObjectType("$TEMPLATE_PREFIX.Banner"))
   }
 
   private fun videoTemplateVar(): Decl {
-    return Decls.newVar(
-      "video",
-      Decls.newObjectType("$TEMPLATE_PREFIX.Video"),
-    )
+    return Decls.newVar("video", Decls.newObjectType("$TEMPLATE_PREFIX.Video"))
   }
 
   private fun personTemplateVar(): Decl {
-    return Decls.newVar(
-      "person",
-      Decls.newObjectType("$TEMPLATE_PREFIX.Person"),
-    )
+    return Decls.newVar("person", Decls.newObjectType("$TEMPLATE_PREFIX.Person"))
   }
 
   private fun envWithTestTemplateVars(vararg vars: Decl): Env {
@@ -89,12 +80,12 @@ class EventFilterValidatorTest {
   private fun compileToNormalForm(
     celExpression: String,
     env: Env,
-    operativeFields: Set<String>
+    operativeFields: Set<String>,
   ): Expr = EventFilterValidator.compile(env, celExpression, operativeFields).expr
 
   private inline fun assertFailsWithCode(
     code: Code,
-    block: () -> Unit
+    block: () -> Unit,
   ): EventFilterValidationException {
     return assertFailsWith<EventFilterValidationException> { block() }
       .also { assertThat(it.code).isEqualTo(code) }
@@ -116,10 +107,7 @@ class EventFilterValidatorTest {
 
   @Test
   fun `works on supported operation`() {
-    compile(
-      "age > 30",
-      env(intVar("age")),
-    )
+    compile("age > 30", env(intVar("age")))
   }
 
   @Test
@@ -130,22 +118,13 @@ class EventFilterValidatorTest {
   @Test
   fun `fails on comparing int to boolean conditional`() {
     assertFailsWithCode(Code.INVALID_CEL_EXPRESSION) {
-      compile(
-        "age && (date > 10)",
-        env(
-          intVar("age"),
-          intVar("date"),
-        )
-      )
+      compile("age && (date > 10)", env(intVar("age"), intVar("date")))
     }
   }
 
   @Test
   fun `comparing field to a list of constants is valid`() {
-    compile(
-      "age in [10, 20, 30]",
-      env(intVar("age")),
-    )
+    compile("age in [10, 20, 30]", env(intVar("age")))
   }
 
   @Test
@@ -158,15 +137,7 @@ class EventFilterValidatorTest {
   @Test
   fun `variable is invalid within a list`() {
     assertFailsWithCode(Code.INVALID_VALUE_TYPE) {
-      compile(
-        "age in [a, b, c]",
-        env(
-          intVar("age"),
-          intVar("a"),
-          intVar("b"),
-          intVar("c"),
-        )
-      )
+      compile("age in [a, b, c]", env(intVar("age"), intVar("a"), intVar("b"), intVar("c")))
     }
   }
 
@@ -192,11 +163,7 @@ class EventFilterValidatorTest {
     assertFailsWithCode(Code.FIELD_COMPARISON_OUTSIDE_LEAF) {
       compile(
         "field1 == (field2 != field3)",
-        env(
-          booleanVar("field1"),
-          stringVar("field2"),
-          stringVar("field3"),
-        )
+        env(booleanVar("field1"), stringVar("field2"), stringVar("field3")),
       )
     }
   }
@@ -211,25 +178,14 @@ class EventFilterValidatorTest {
     assertFailsWithCode(Code.INVALID_OPERATION_OUTSIDE_LEAF) {
       compile(
         "(a == b) <= (field2 < field3)",
-        env(
-          intVar("a"),
-          intVar("b"),
-          stringVar("field2"),
-          stringVar("field3"),
-        )
+        env(intVar("a"), intVar("b"), stringVar("field2"), stringVar("field3")),
       )
     }
   }
 
   @Test
   fun `fields can be compared between each other`() {
-    compile(
-      "field1 == field2",
-      env(
-        intVar("field1"),
-        intVar("field2"),
-      ),
-    )
+    compile("field1 == field2", env(intVar("field1"), intVar("field2")))
   }
 
   @Test
@@ -243,10 +199,7 @@ class EventFilterValidatorTest {
   fun `can use valid template fields on comparison`() {
     compile(
       "banner.viewable == true && person.age_group == 1",
-      envWithTestTemplateVars(
-        bannerTemplateVar(),
-        personTemplateVar(),
-      )
+      envWithTestTemplateVars(bannerTemplateVar(), personTemplateVar()),
     )
   }
 
@@ -264,7 +217,7 @@ class EventFilterValidatorTest {
   fun `can use template with has operator with other operators`() {
     compile(
       "has(person.age_group) && person.age_group in [0, 1]",
-      envWithTestTemplateVars(personTemplateVar())
+      envWithTestTemplateVars(personTemplateVar()),
     )
   }
 
@@ -282,11 +235,7 @@ class EventFilterValidatorTest {
   @Test
   @Ignore("Not implemented") // TODO(world-federation-of-advertisers/cross-media-measurement#819)
   fun `compiles to Normal Form correctly with non-scalar operative field child`() {
-    val env =
-      envWithTestTemplateVars(
-        videoTemplateVar(),
-        personTemplateVar(),
-      )
+    val env = envWithTestTemplateVars(videoTemplateVar(), personTemplateVar())
     // Note that this is a contrived example, as this field would be non-operative in practice.
     val operativeFields = OPERATIVE_FIELDS.plus("video.length")
     val expression = "video.length.seconds > 30"
@@ -297,11 +246,7 @@ class EventFilterValidatorTest {
 
   @Test
   fun `compiles to Normal Form correctly with single non operative field`() {
-    val env =
-      envWithTestTemplateVars(
-        videoTemplateVar(),
-        personTemplateVar(),
-      )
+    val env = envWithTestTemplateVars(videoTemplateVar(), personTemplateVar())
 
     val expression = "video.viewed_fraction > 0.25"
     val expectedCompiledNormalizedExpression =
@@ -325,11 +270,7 @@ class EventFilterValidatorTest {
 
   @Test
   fun `compiles to Normal Form correctly with single operative field with presence check`() {
-    val env =
-      envWithTestTemplateVars(
-        videoTemplateVar(),
-        personTemplateVar(),
-      )
+    val env = envWithTestTemplateVars(videoTemplateVar(), personTemplateVar())
 
     // Note that this is a contrived example, as the value field is scalar and therefore always
     // present. In practice, presence checks are only useful on wrapper messages.
@@ -342,11 +283,7 @@ class EventFilterValidatorTest {
 
   @Test
   fun `compiles to Normal Form correctly with non operative fields`() {
-    val env =
-      envWithTestTemplateVars(
-        bannerTemplateVar(),
-        personTemplateVar(),
-      )
+    val env = envWithTestTemplateVars(bannerTemplateVar(), personTemplateVar())
 
     val expression = "banner.viewable == true && person.age_group == 1"
     val expectedNormalizedExpression = "true && person.age_group == 1"
@@ -357,10 +294,7 @@ class EventFilterValidatorTest {
 
   @Test
   fun `compiles to Normal Form correctly with no non operative fields and negation`() {
-    val env =
-      envWithTestTemplateVars(
-        personTemplateVar(),
-      )
+    val env = envWithTestTemplateVars(personTemplateVar())
     val expression = "!(person.gender == 2 && person.age_group == 1)"
     val expectedNormalizedExpression = "!(person.gender == 2) || !(person.age_group == 1)"
 
@@ -370,11 +304,7 @@ class EventFilterValidatorTest {
 
   @Test
   fun `compiles to Normal Form correctly with non operative fields and negation`() {
-    val env =
-      envWithTestTemplateVars(
-        personTemplateVar(),
-        videoTemplateVar(),
-      )
+    val env = envWithTestTemplateVars(personTemplateVar(), videoTemplateVar())
 
     val expression =
       "!(person.gender == 2 && person.age_group == 1) && " + "!(video.viewed_fraction > 0.25)"
@@ -386,11 +316,7 @@ class EventFilterValidatorTest {
 
   @Test
   fun `compiles to Normal Form correctly with complex expression`() {
-    val env =
-      envWithTestTemplateVars(
-        personTemplateVar(),
-        videoTemplateVar(),
-      )
+    val env = envWithTestTemplateVars(personTemplateVar(), videoTemplateVar())
 
     val expression =
       """

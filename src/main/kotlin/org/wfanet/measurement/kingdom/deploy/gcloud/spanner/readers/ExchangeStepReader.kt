@@ -43,7 +43,7 @@ class ExchangeStepReader : SpannerReader<ExchangeStepReader.Result>() {
     readContext: AsyncDatabaseClient.ReadContext,
     externalRecurringExchangeId: ExternalId,
     date: Date,
-    stepIndex: Int
+    stepIndex: Int,
   ): Result? {
     fillStatementBuilder {
       val clause =

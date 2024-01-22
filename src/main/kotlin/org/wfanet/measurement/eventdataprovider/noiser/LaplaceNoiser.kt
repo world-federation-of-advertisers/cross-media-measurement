@@ -23,7 +23,7 @@ class LaplaceNoiser(privacyParams: DpParams, random: Random) : AbstractNoiser() 
     LaplaceDistribution(
       RandomGeneratorFactory.createRandomGenerator(random),
       0.0,
-      1 / privacyParams.epsilon
+      1 / privacyParams.epsilon,
     )
 
   override val variance: Double

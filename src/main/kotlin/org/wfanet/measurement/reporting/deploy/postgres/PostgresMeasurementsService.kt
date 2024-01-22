@@ -52,7 +52,7 @@ class PostgresMeasurementsService(
           .readMeasurementByReferenceIds(
             client.singleUse(),
             request.measurementConsumerReferenceId,
-            request.measurementReferenceId
+            request.measurementReferenceId,
           )
       }
         ?: throw MeasurementNotFoundException()
@@ -69,7 +69,7 @@ class PostgresMeasurementsService(
     } catch (e: MeasurementStateInvalidException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Measurement has already been updated."
+        "Measurement has already been updated.",
       )
     }
   }
@@ -82,7 +82,7 @@ class PostgresMeasurementsService(
     } catch (e: MeasurementStateInvalidException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Measurement has already been updated."
+        "Measurement has already been updated.",
       )
     }
   }

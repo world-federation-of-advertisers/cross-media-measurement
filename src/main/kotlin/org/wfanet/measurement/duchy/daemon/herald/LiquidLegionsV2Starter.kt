@@ -61,7 +61,7 @@ object LiquidLegionsV2Starter {
     computationStorageClient: ComputationsCoroutineStub,
     systemComputation: Computation,
     liquidLegionsV2SetupConfig: LiquidLegionsV2SetupConfig,
-    blobStorageBucket: String
+    blobStorageBucket: String,
   ) {
     require(systemComputation.name.isNotEmpty()) { "Resource name not specified" }
     val globalId: String = systemComputation.key.computationId
@@ -97,7 +97,7 @@ object LiquidLegionsV2Starter {
    */
   private fun List<ComputationParticipant>.orderByRoles(
     globalComputationId: String,
-    aggregatorId: String
+    aggregatorId: String,
   ): List<ComputationParticipant> {
     val aggregator =
       this.find { it.duchyId == aggregatorId }
@@ -112,7 +112,7 @@ object LiquidLegionsV2Starter {
     token: ComputationToken,
     computationStorageClient: ComputationsCoroutineStub,
     systemComputation: Computation,
-    aggregatorId: String
+    aggregatorId: String,
   ) {
     val updatedDetails =
       token.computationDetails
@@ -143,7 +143,7 @@ object LiquidLegionsV2Starter {
 
     computationStorageClient.advanceComputationStage(
       computationToken = newToken,
-      stage = Stage.CONFIRMATION_PHASE.toProtocolStage()
+      stage = Stage.CONFIRMATION_PHASE.toProtocolStage(),
     )
   }
 
@@ -166,7 +166,7 @@ object LiquidLegionsV2Starter {
           token,
           computationStorageClient,
           systemComputation,
-          aggregatorId
+          aggregatorId,
         )
         return
       }
@@ -208,7 +208,7 @@ object LiquidLegionsV2Starter {
 
   suspend fun startComputation(
     token: ComputationToken,
-    computationStorageClient: ComputationsCoroutineStub
+    computationStorageClient: ComputationsCoroutineStub,
   ) {
     require(token.computationDetails.hasLiquidLegionsV2()) {
       "Liquid Legions V2 computation required"
@@ -222,7 +222,7 @@ object LiquidLegionsV2Starter {
         computationStorageClient.advanceComputationStage(
           computationToken = token,
           inputsToNextStage = token.outputPathList(),
-          stage = Stage.SETUP_PHASE.toProtocolStage()
+          stage = Stage.SETUP_PHASE.toProtocolStage(),
         )
         logger.info("[id=${token.globalComputationId}] Computation is now started")
         return
@@ -318,7 +318,7 @@ object LiquidLegionsV2Starter {
 
   private fun ParametersKt.Dsl.populate(
     protocolConfig: Computation.MpcProtocolConfig.LiquidLegionsV2,
-    measurementSpec: MeasurementSpec
+    measurementSpec: MeasurementSpec,
   ) {
     sketchParameters = liquidLegionsSketchParameters {
       decayRate = protocolConfig.sketchParams.decayRate

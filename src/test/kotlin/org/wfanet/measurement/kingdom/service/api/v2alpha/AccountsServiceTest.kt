@@ -184,7 +184,7 @@ class AccountsServiceTest {
       AccountsService.validateIdToken(
         idToken = idToken,
         redirectUri = REDIRECT_URI,
-        internalAccountsStub = internalClient
+        internalAccountsStub = internalClient,
       )
     verifyProtoArgument(internalAccountsMock, AccountsCoroutineImplBase::activateAccount)
       .isEqualTo(
@@ -250,7 +250,7 @@ class AccountsServiceTest {
         AccountsService.validateIdToken(
           idToken = newIdToken,
           redirectUri = REDIRECT_URI,
-          internalAccountsStub = internalClient
+          internalAccountsStub = internalClient,
         )
       verifyProtoArgument(internalAccountsMock, AccountsCoroutineImplBase::replaceAccountIdentity)
         .isEqualTo(
@@ -354,7 +354,7 @@ class AccountsServiceTest {
         AccountsService.validateIdToken(
           idToken = idToken,
           internalAccountsStub = internalClient,
-          redirectUri = REDIRECT_URI
+          redirectUri = REDIRECT_URI,
         )
       }
     }
@@ -369,7 +369,7 @@ class AccountsServiceTest {
         AccountsService.validateIdToken(
           idToken = idToken,
           internalAccountsStub = internalClient,
-          redirectUri = REDIRECT_URI
+          redirectUri = REDIRECT_URI,
         )
       }
     }
@@ -384,7 +384,7 @@ class AccountsServiceTest {
         AccountsService.validateIdToken(
           idToken = idToken,
           internalAccountsStub = internalClient,
-          redirectUri = REDIRECT_URI
+          redirectUri = REDIRECT_URI,
         )
       }
     }
@@ -399,7 +399,7 @@ class AccountsServiceTest {
         AccountsService.validateIdToken(
           idToken = idToken,
           internalAccountsStub = internalClient,
-          redirectUri = REDIRECT_URI + "5"
+          redirectUri = REDIRECT_URI + "5",
         )
       }
     }
@@ -414,7 +414,7 @@ class AccountsServiceTest {
         AccountsService.validateIdToken(
           idToken = idToken,
           internalAccountsStub = internalClient,
-          redirectUri = ""
+          redirectUri = "",
         )
       }
     }

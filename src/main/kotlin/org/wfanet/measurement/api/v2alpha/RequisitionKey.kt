@@ -42,7 +42,7 @@ data class CanonicalRequisitionKey(
 ) : RequisitionKey {
   constructor(
     dataProviderId: String,
-    requisitionId: String
+    requisitionId: String,
   ) : this(DataProviderKey(dataProviderId), requisitionId)
 
   val dataProviderId: String
@@ -64,7 +64,7 @@ data class CanonicalRequisitionKey(
       return parser.parseIdVars(resourceName)?.let {
         CanonicalRequisitionKey(
           it.getValue(IdVariable.DATA_PROVIDER),
-          it.getValue(IdVariable.REQUISITION)
+          it.getValue(IdVariable.REQUISITION),
         )
       }
     }

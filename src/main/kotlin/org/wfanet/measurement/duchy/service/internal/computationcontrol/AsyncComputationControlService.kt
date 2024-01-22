@@ -158,7 +158,7 @@ class AsyncComputationControlService(
         computationsClient.advanceComputationStage(
           computationToken = token,
           inputsToNextStage = token.outputPathList(),
-          stage = stages.nextStage(token.computationStage)
+          stage = stages.nextStage(token.computationStage),
         )
       } catch (e: StatusException) {
         throw when (e.status.code) {
@@ -213,10 +213,8 @@ class AsyncComputationControlService(
     return response?.token
   }
 
-  private class RetryableException(
-    message: String? = null,
-    cause: Throwable? = null,
-  ) : Exception(message, cause) {
+  private class RetryableException(message: String? = null, cause: Throwable? = null) :
+    Exception(message, cause) {
     constructor(cause: Throwable) : this(null, cause)
   }
 

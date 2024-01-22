@@ -30,7 +30,7 @@ class EventGroupMetadataDescriptorReader :
   data class Result(
     val eventGroupMetadataDescriptor: EventGroupMetadataDescriptor,
     val internalDescriptorId: InternalId,
-    val internalDataProviderId: InternalId
+    val internalDataProviderId: InternalId,
   )
 
   override val builder: Statement.Builder = Statement.newBuilder(BASE_SQL)
@@ -43,7 +43,7 @@ class EventGroupMetadataDescriptorReader :
 
   fun bindWhereClause(
     dataProviderId: Long,
-    externalDescriptorId: Long
+    externalDescriptorId: Long,
   ): EventGroupMetadataDescriptorReader {
     return fillStatementBuilder {
       appendClause(
@@ -83,7 +83,7 @@ class EventGroupMetadataDescriptorReader :
   suspend fun readByIdempotencyKey(
     readContext: AsyncDatabaseClient.ReadContext,
     dataProviderId: InternalId,
-    idempotencyKey: String
+    idempotencyKey: String,
   ): Result? {
     return fillStatementBuilder {
         appendClause(
@@ -107,7 +107,7 @@ class EventGroupMetadataDescriptorReader :
     Result(
       buildEventGroupMetadataDescriptor(struct),
       InternalId(struct.getLong("EventGroupMetadataDescriptorId")),
-      InternalId(struct.getLong("DataProviderId"))
+      InternalId(struct.getLong("DataProviderId")),
     )
 
   private fun buildEventGroupMetadataDescriptor(struct: Struct): EventGroupMetadataDescriptor {

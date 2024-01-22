@@ -74,7 +74,7 @@ class PostgresReportingSetsService(
     } catch (e: MeasurementConsumerNotFoundException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Measurement Consumer not found"
+        "Measurement Consumer not found",
       )
     }
   }

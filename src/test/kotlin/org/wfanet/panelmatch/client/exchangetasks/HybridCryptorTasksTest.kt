@@ -70,7 +70,7 @@ class HybridCryptorTasksTest {
     val encryptResults =
       encrypt(
         "public-key-handle" to publicKeyHandle,
-        "plaintext-data" to plaintext.toByteStringUtf8()
+        "plaintext-data" to plaintext.toByteStringUtf8(),
       )
     val encryptedData = encryptResults.getValue("encrypted-data")
 
@@ -89,7 +89,7 @@ class HybridCryptorTasksTest {
     val encryptResults =
       encrypt(
         "public-key-handle" to publicKeyHandle,
-        "plaintext-data" to plaintext.toByteStringUtf8()
+        "plaintext-data" to plaintext.toByteStringUtf8(),
       )
     val encryptedData = encryptResults.getValue("encrypted-data")
 
@@ -107,7 +107,7 @@ class HybridCryptorTasksTest {
     assertFailsWith(java.security.GeneralSecurityException::class) {
       encrypt(
         "public-key-handle" to privateKeyHandle,
-        "plaintext-data" to plaintext.toByteStringUtf8()
+        "plaintext-data" to plaintext.toByteStringUtf8(),
       )
     }
   }

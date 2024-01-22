@@ -35,7 +35,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateR
 suspend fun checkValidCertificate(
   measurementConsumerCertificateId: Long,
   measurementConsumerId: Long,
-  transactionContext: AsyncDatabaseClient.TransactionContext
+  transactionContext: AsyncDatabaseClient.TransactionContext,
 ): InternalId {
   val externalMeasurementConsumerId = ExternalId(measurementConsumerId)
   val externalMeasurementConsumerCertificateId = ExternalId(measurementConsumerCertificateId)
@@ -50,6 +50,6 @@ suspend fun checkValidCertificate(
   }
     ?: throw MeasurementConsumerCertificateNotFoundException(
       externalMeasurementConsumerId,
-      externalMeasurementConsumerCertificateId
+      externalMeasurementConsumerCertificateId,
     )
 }

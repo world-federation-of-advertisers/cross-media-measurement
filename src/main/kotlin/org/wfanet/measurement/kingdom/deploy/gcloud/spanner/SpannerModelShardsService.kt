@@ -40,7 +40,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.DeleteModelS
 
 class SpannerModelShardsService(
   private val idGenerator: IdGenerator,
-  private val client: AsyncDatabaseClient
+  private val client: AsyncDatabaseClient,
 ) : ModelShardsCoroutineImplBase() {
 
   override suspend fun createModelShard(request: ModelShard): ModelShard {
@@ -74,7 +74,7 @@ class SpannerModelShardsService(
       return DeleteModelShard(
           ExternalId(request.externalDataProviderId),
           ExternalId(request.externalModelShardId),
-          externalModelProviderId
+          externalModelProviderId,
         )
         .execute(client, idGenerator)
     } catch (e: DataProviderNotFoundException) {
@@ -84,7 +84,7 @@ class SpannerModelShardsService(
     } catch (e: ModelShardInvalidArgsException) {
       throw e.asStatusRuntimeException(
         Status.Code.INVALID_ARGUMENT,
-        "Cannot delete ModelShard having ModelRelease owned by another ModelProvider."
+        "Cannot delete ModelShard having ModelRelease owned by another ModelProvider.",
       )
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
@@ -99,11 +99,7 @@ class SpannerModelShardsService(
           request.filter.after.externalDataProviderId == 0L ||
           request.filter.after.externalModelShardId == 0L)
     ) {
-      failGrpc(
-        Status.INVALID_ARGUMENT,
-      ) {
-        "Missing After filter fields"
-      }
+      failGrpc(Status.INVALID_ARGUMENT) { "Missing After filter fields" }
     }
     return StreamModelShards(request.filter, request.limit).execute(client.singleUse()).map {
       it.modelShard

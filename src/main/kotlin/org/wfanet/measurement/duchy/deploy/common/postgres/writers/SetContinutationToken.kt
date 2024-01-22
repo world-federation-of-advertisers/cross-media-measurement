@@ -40,7 +40,7 @@ class SetContinuationToken(private val continuationToken: String) : PostgresWrit
     } catch (e: InvalidProtocolBufferException) {
       throw ContinuationTokenMalformedException(
         continuationToken,
-        "ContinuationToken is malformed."
+        "ContinuationToken is malformed.",
       )
     }
 
@@ -71,12 +71,12 @@ class SetContinuationToken(private val continuationToken: String) : PostgresWrit
         oldContinuationToken != null &&
           Timestamps.compare(
             newContinuationToken.lastSeenUpdateTime,
-            oldContinuationToken.lastSeenUpdateTime
+            oldContinuationToken.lastSeenUpdateTime,
           ) < 0
       ) {
         throw ContinuationTokenInvalidException(
           continuationToken,
-          "ContinuationToken to set cannot have older timestamp."
+          "ContinuationToken to set cannot have older timestamp.",
         )
       }
       transactionContext.executeStatement(statement)

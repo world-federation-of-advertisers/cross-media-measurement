@@ -69,7 +69,7 @@ class RecordRequisitionData(
       requisitionFingerprint = externalRequisitionKey.requisitionFingerprint,
       pathToBlob = pathToBlob,
       randomSeed = seed,
-      updateTime = writeTime
+      updateTime = writeTime,
     )
 
     return checkNotNull(

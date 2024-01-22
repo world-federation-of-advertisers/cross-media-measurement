@@ -75,12 +75,12 @@ class CreateReportSchedule(private val request: CreateReportScheduleRequest) :
       ReportScheduleReader(transactionContext)
         .readReportScheduleByExternalId(
           request.reportSchedule.cmmsMeasurementConsumerId,
-          request.externalReportScheduleId
+          request.externalReportScheduleId,
         ) != null
     ) {
       throw ReportScheduleAlreadyExistsException(
         reportSchedule.cmmsMeasurementConsumerId,
-        reportSchedule.externalReportScheduleId
+        reportSchedule.externalReportScheduleId,
       )
     }
 
@@ -113,11 +113,11 @@ class CreateReportSchedule(private val request: CreateReportScheduleRequest) :
       MetricCalculationSpecReader(transactionContext)
         .batchReadByExternalIds(
           reportSchedule.cmmsMeasurementConsumerId,
-          externalMetricCalculationSpecIds
+          externalMetricCalculationSpecIds,
         )
         .associateBy(
           { it.metricCalculationSpec.externalMetricCalculationSpecId },
-          { it.metricCalculationSpecId }
+          { it.metricCalculationSpecId },
         )
 
     if (metricCalculationSpecMap.size < externalMetricCalculationSpecIds.size) {
@@ -125,7 +125,7 @@ class CreateReportSchedule(private val request: CreateReportScheduleRequest) :
         if (!metricCalculationSpecMap.containsKey(it)) {
           throw MetricCalculationSpecNotFoundException(
             cmmsMeasurementConsumerId = reportSchedule.cmmsMeasurementConsumerId,
-            externalMetricCalculationSpecId = it
+            externalMetricCalculationSpecId = it,
           )
         }
       }

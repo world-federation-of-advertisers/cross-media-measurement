@@ -40,16 +40,16 @@ class ComputationDataClients
 private constructor(
   val computationsClient: ComputationsCoroutineStub,
   private val computationStore: ComputationStore,
-  private val requisitionStore: RequisitionStore
+  private val requisitionStore: RequisitionStore,
 ) {
 
   constructor(
     computationStorageClient: ComputationsCoroutineStub,
-    storageClient: StorageClient
+    storageClient: StorageClient,
   ) : this(
     computationStorageClient,
     ComputationStore(storageClient),
-    RequisitionStore(storageClient)
+    RequisitionStore(storageClient),
   )
 
   /**
@@ -63,14 +63,14 @@ private constructor(
     computationToken: ComputationToken,
     inputsToNextStage: List<String> = listOf(),
     passThroughBlobs: List<String> = listOf(),
-    stage: ComputationStage
+    stage: ComputationStage,
   ): ComputationToken {
     return try {
       computationsClient.advanceComputationStage(
         computationToken = computationToken,
         inputsToNextStage = inputsToNextStage,
         passThroughBlobs = passThroughBlobs,
-        stage = stage
+        stage = stage,
       )
     } catch (e: StatusException) {
       val message = "Error advancing computation stage"
@@ -91,19 +91,19 @@ private constructor(
    */
   private suspend fun writeSingleOutputBlob(
     computationToken: ComputationToken,
-    content: Flow<ByteString>
+    content: Flow<ByteString>,
   ): ComputationToken {
     return writeBlobIfNotPresent(
       computationToken,
       computationToken.singleOutputBlobMetadata(),
-      content
+      content,
     )
   }
 
   /** @see writeSingleOutputBlob */
   suspend fun writeSingleOutputBlob(
     computationToken: ComputationToken,
-    content: ByteString
+    content: ByteString,
   ): ComputationToken {
     val blobMetadata = computationToken.singleOutputBlobMetadata()
     return writeBlobIfNotPresent(computationToken, blobMetadata, flowOf(content))
@@ -120,7 +120,7 @@ private constructor(
   private suspend fun writeBlobIfNotPresent(
     computationToken: ComputationToken,
     metadata: ComputationStageBlobMetadata,
-    content: Flow<ByteString>
+    content: Flow<ByteString>,
   ): ComputationToken {
     if (metadata.path.isNotEmpty()) {
       return computationToken
@@ -194,7 +194,7 @@ private constructor(
     fun forTesting(
       computationStorageClient: ComputationsCoroutineStub,
       computationStore: ComputationStore,
-      requisitionStore: RequisitionStore
+      requisitionStore: RequisitionStore,
     ): ComputationDataClients {
       return ComputationDataClients(computationStorageClient, computationStore, requisitionStore)
     }

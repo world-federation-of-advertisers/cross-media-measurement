@@ -70,7 +70,7 @@ class RoLlv2ProtocolConfigFlags {
   @CommandLine.Option(
     names = ["--ro-llv2-protocol-config-config"],
     description = ["Llv2ProtocolConfigConfig proto message in text format."],
-    required = true
+    required = true,
   )
   lateinit var config: File
     private set

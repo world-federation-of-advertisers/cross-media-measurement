@@ -50,7 +50,7 @@ private val PENDING_MEASUREMENT_STATES =
     Measurement.State.PENDING_COMPUTATION,
     Measurement.State.PENDING_PARTICIPANT_CONFIRMATION,
     Measurement.State.PENDING_REQUISITION_FULFILLMENT,
-    Measurement.State.PENDING_REQUISITION_PARAMS
+    Measurement.State.PENDING_REQUISITION_PARAMS,
   )
 
 /**
@@ -80,7 +80,7 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
           reader.execute(transactionContext).singleOrNull()
             ?: throw DataProviderCertificateNotFoundException(
               externalDataProviderId,
-              externalCertificateId
+              externalCertificateId,
             ) {
               "Certificate not found."
             }
@@ -93,7 +93,7 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
           reader.execute(transactionContext).singleOrNull()
             ?: throw MeasurementConsumerCertificateNotFoundException(
               externalMeasurementConsumerId,
-              externalCertificateId
+              externalCertificateId,
             ) {
               "Certificate not found."
             }
@@ -106,7 +106,7 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
           reader.execute(transactionContext).singleOrNull()
             ?: throw ModelProviderCertificateNotFoundException(
               externalModelProviderId,
-              externalCertificateId
+              externalCertificateId,
             ) {
               "Certificate not found."
             }
@@ -123,7 +123,7 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
           reader.execute(transactionContext).singleOrNull()
             ?: throw DuchyCertificateNotFoundException(
               request.externalDuchyId,
-              externalCertificateId
+              externalCertificateId,
             ) {
               "Certificate not found."
             }
@@ -174,7 +174,7 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
       RevokeCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> {
         StreamMeasurementsByDataProviderCertificate(
             certificateResult.certificateId,
-            PENDING_MEASUREMENT_STATES
+            PENDING_MEASUREMENT_STATES,
           )
           .execute(transactionContext)
           .collect {
@@ -193,7 +193,7 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
       RevokeCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> {
         StreamMeasurementsByDuchyCertificate(
             certificateResult.certificateId,
-            PENDING_MEASUREMENT_STATES
+            PENDING_MEASUREMENT_STATES,
           )
           .execute(transactionContext)
           .collect {
@@ -222,14 +222,14 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
   private suspend fun TransactionScope.failMeasurement(
     measurementConsumerId: InternalId,
     measurementId: InternalId,
-    details: Measurement.Details
+    details: Measurement.Details,
   ) {
 
     val measurementState =
       MeasurementReader.readMeasurementState(
         transactionContext,
         measurementConsumerId,
-        measurementId
+        measurementId,
       )
 
     val measurementLogEntryDetails =
@@ -250,7 +250,7 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
       nextState = Measurement.State.FAILED,
       previousState = measurementState,
       measurementLogEntryDetails = measurementLogEntryDetails,
-      details = details
+      details = details,
     )
   }
 }

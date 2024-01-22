@@ -55,7 +55,7 @@ class HonestMajorityShareShuffleProtocolEnumStagesTest {
           HonestMajorityShareShuffleProtocol.EnumStages.longToEnum(
             HonestMajorityShareShuffleProtocol.EnumStages.enumToLong(stage)
           ),
-          "enumToLong and longToEnum were not inverses for $stage"
+          "enumToLong and longToEnum were not inverses for $stage",
         )
       }
     }
@@ -65,11 +65,11 @@ class HonestMajorityShareShuffleProtocolEnumStagesTest {
   fun `longToEnum with invalid numbers`() {
     assertEquals(
       HonestMajorityShareShuffle.Stage.UNRECOGNIZED,
-      HonestMajorityShareShuffleProtocol.EnumStages.longToEnum(-1)
+      HonestMajorityShareShuffleProtocol.EnumStages.longToEnum(-1),
     )
     assertEquals(
       HonestMajorityShareShuffle.Stage.UNRECOGNIZED,
-      HonestMajorityShareShuffleProtocol.EnumStages.longToEnum(1000)
+      HonestMajorityShareShuffleProtocol.EnumStages.longToEnum(1000),
     )
   }
 
@@ -78,49 +78,49 @@ class HonestMajorityShareShuffleProtocolEnumStagesTest {
     assertTrue {
       HonestMajorityShareShuffleProtocol.EnumStages.validTransition(
         HonestMajorityShareShuffle.Stage.SETUP_PHASE,
-        HonestMajorityShareShuffle.Stage.WAIT_ON_SHUFFLE_INPUT
+        HonestMajorityShareShuffle.Stage.WAIT_ON_SHUFFLE_INPUT,
       )
     }
 
     assertTrue {
       HonestMajorityShareShuffleProtocol.EnumStages.validTransition(
         HonestMajorityShareShuffle.Stage.SETUP_PHASE,
-        HonestMajorityShareShuffle.Stage.SHUFFLE_PHASE
+        HonestMajorityShareShuffle.Stage.SHUFFLE_PHASE,
       )
     }
 
     assertTrue {
       HonestMajorityShareShuffleProtocol.EnumStages.validTransition(
         HonestMajorityShareShuffle.Stage.WAIT_ON_SHUFFLE_INPUT,
-        HonestMajorityShareShuffle.Stage.SHUFFLE_PHASE
+        HonestMajorityShareShuffle.Stage.SHUFFLE_PHASE,
       )
     }
 
     assertTrue {
       HonestMajorityShareShuffleProtocol.EnumStages.validTransition(
         HonestMajorityShareShuffle.Stage.WAIT_ON_AGGREGATION_INPUT,
-        HonestMajorityShareShuffle.Stage.AGGREGATION_PHASE
+        HonestMajorityShareShuffle.Stage.AGGREGATION_PHASE,
       )
     }
 
     assertFalse {
       HonestMajorityShareShuffleProtocol.EnumStages.validTransition(
         HonestMajorityShareShuffle.Stage.WAIT_ON_AGGREGATION_INPUT,
-        HonestMajorityShareShuffle.Stage.COMPLETE
+        HonestMajorityShareShuffle.Stage.COMPLETE,
       )
     }
 
     assertFalse {
       HonestMajorityShareShuffleProtocol.EnumStages.validTransition(
         HonestMajorityShareShuffle.Stage.SETUP_PHASE,
-        HonestMajorityShareShuffle.Stage.COMPLETE
+        HonestMajorityShareShuffle.Stage.COMPLETE,
       )
     }
 
     assertFalse {
       HonestMajorityShareShuffleProtocol.EnumStages.validTransition(
         HonestMajorityShareShuffle.Stage.UNRECOGNIZED,
-        HonestMajorityShareShuffle.Stage.SETUP_PHASE
+        HonestMajorityShareShuffle.Stage.SETUP_PHASE,
       )
     }
   }

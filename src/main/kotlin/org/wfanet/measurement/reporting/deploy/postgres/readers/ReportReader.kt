@@ -52,7 +52,7 @@ class ReportReader {
   data class Result(
     val measurementConsumerReferenceId: String,
     val reportId: InternalId,
-    val report: Report
+    val report: Report,
   )
 
   private val baseSql: String =
@@ -220,7 +220,7 @@ class ReportReader {
   suspend fun getReportByExternalId(
     readContext: ReadContext,
     measurementConsumerReferenceId: String,
-    externalReportId: Long
+    externalReportId: Long,
   ): Result {
     val statement =
       boundStatement(
@@ -246,7 +246,7 @@ class ReportReader {
   suspend fun getReportById(
     readContext: ReadContext,
     measurementConsumerReferenceId: String,
-    reportId: Long
+    reportId: Long,
   ): Result {
     val statement =
       boundStatement(
@@ -272,7 +272,7 @@ class ReportReader {
   suspend fun getReportByIdempotencyKey(
     readContext: ReadContext,
     measurementConsumerReferenceId: String,
-    reportIdempotencyKey: String
+    reportIdempotencyKey: String,
   ): Result {
     val statement =
       boundStatement(
@@ -293,7 +293,7 @@ class ReportReader {
   fun listReports(
     client: DatabaseClient,
     filter: StreamReportsRequest.Filter,
-    limit: Int = 0
+    limit: Int = 0,
   ): Flow<Result> {
     val statement =
       boundStatement(
@@ -377,7 +377,7 @@ class ReportReader {
 
   private fun buildMeasurements(
     measurementConsumerReferenceId: String,
-    measurementsArr: Array<String>
+    measurementsArr: Array<String>,
   ): Map<String, Measurement> {
     return measurementsArr
       .map { JsonParser.parseString(it).asJsonObject }
@@ -397,13 +397,13 @@ class ReportReader {
                 Measurement.Result.parseFrom(it.getAsJsonPrimitive("result").base64MimeDecode())
             }
           }
-        }
+        },
       )
   }
 
   private fun buildMetrics(
     measurementConsumerReferenceId: String,
-    metricsArr: Array<String>
+    metricsArr: Array<String>,
   ): Collection<Metric> {
     val metricsList = ArrayList<Metric>(metricsArr.size)
     metricsArr.forEach {
@@ -477,7 +477,7 @@ class ReportReader {
   private fun buildSetOperation(
     measurementConsumerReferenceId: String,
     setOperationId: Long,
-    setOperationMap: Map<Long, JsonObject>
+    setOperationMap: Map<Long, JsonObject>,
   ): SetOperation {
     val setOperationObject = setOperationMap[setOperationId]
     return setOperation {
@@ -498,7 +498,7 @@ class ReportReader {
               buildSetOperation(
                 measurementConsumerReferenceId,
                 setOperationObject.getAsJsonPrimitive("leftHandSetOperationId").asLong,
-                setOperationMap
+                setOperationMap,
               )
           }
         }
@@ -518,7 +518,7 @@ class ReportReader {
               buildSetOperation(
                 measurementConsumerReferenceId,
                 setOperationObject.getAsJsonPrimitive("rightHandSetOperationId").asLong,
-                setOperationMap
+                setOperationMap,
               )
           }
         }

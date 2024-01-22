@@ -158,7 +158,7 @@ abstract class MillBase(
       if (token.attempt > maximumAttempts) {
         failComputation(
           token,
-          "Failing computation due to too many failed ComputationStageAttempts."
+          "Failing computation due to too many failed ComputationStageAttempts.",
         )
       }
 
@@ -169,12 +169,12 @@ abstract class MillBase(
       wallDurationLogger.logStageDurationMetric(
         token,
         STAGE_WALL_CLOCK_DURATION,
-        stageWallClockDurationHistogram
+        stageWallClockDurationHistogram,
       )
       cpuDurationLogger.logStageDurationMetric(
         token,
         STAGE_CPU_DURATION,
-        stageCpuTimeDurationHistogram
+        stageCpuTimeDurationHistogram,
       )
     } else {
       logger.fine("@Mill $millId: No computation available, waiting for the next poll...")
@@ -214,7 +214,7 @@ abstract class MillBase(
           failComputation(
             token,
             message = "Failing computation due to too many failed attempts.",
-            cause = e
+            cause = e,
           )
         } else {
           logger.log(Level.WARNING, e) { "$globalId@$millId: TRANSIENT error" }
@@ -274,7 +274,7 @@ abstract class MillBase(
   private suspend fun failComputation(
     token: ComputationToken,
     message: String? = null,
-    cause: Throwable? = null
+    cause: Throwable? = null,
   ) {
     val errorMessage: String = message ?: cause?.message.orEmpty()
     val logMessageSupplier = { "${token.globalComputationId}@$millId: $errorMessage" }
@@ -331,7 +331,7 @@ abstract class MillBase(
   private suspend fun logStageMetric(
     token: ComputationToken,
     metricName: String,
-    metricValue: Long
+    metricValue: Long,
   ) {
     logger.info(
       "@Mill $millId, ${token.globalComputationId}/${token.computationStage.name}/$metricName:" +
@@ -362,7 +362,7 @@ abstract class MillBase(
   private suspend fun sendComputationStats(
     token: ComputationToken,
     metricName: String,
-    metricValue: Long
+    metricValue: Long,
   ) {
     logAndSuppressExceptionSuspend {
       computationStatsClient.createComputationStat(
@@ -380,7 +380,7 @@ abstract class MillBase(
   /** Builds a [CreateComputationLogEntryRequest] to update the new error. */
   private fun newErrorUpdateRequest(
     token: ComputationToken,
-    message: String
+    message: String,
   ): CreateComputationLogEntryRequest {
     val timestamp = clock.protoTimestamp()
     return CreateComputationLogEntryRequest.newBuilder()
@@ -418,7 +418,7 @@ abstract class MillBase(
   protected suspend fun sendAdvanceComputationRequest(
     header: AdvanceComputationRequest.Header,
     content: Flow<ByteString>,
-    stub: ComputationControlCoroutineStub
+    stub: ComputationControlCoroutineStub,
   ) {
     val requestFlow =
       content
@@ -444,13 +444,13 @@ abstract class MillBase(
    */
   protected suspend fun existingOutputOr(
     token: ComputationToken,
-    block: suspend () -> ByteString
+    block: suspend () -> ByteString,
   ): EncryptedComputationResult {
     if (token.singleOutputBlobMetadata().path.isNotEmpty()) {
       // Reuse cached result if it exists
       return EncryptedComputationResult(
         checkNotNull(dataClients.readSingleOutputBlob(token)),
-        token
+        token,
       )
     }
     val wallDurationLogger = wallDurationLogger()
@@ -458,11 +458,11 @@ abstract class MillBase(
     wallDurationLogger.logStageDurationMetric(
       token,
       JNI_WALL_CLOCK_DURATION,
-      jniWallClockDurationHistogram
+      jniWallClockDurationHistogram,
     )
     return EncryptedComputationResult(
       flowOf(result),
-      dataClients.writeSingleOutputBlob(token, result)
+      dataClients.writeSingleOutputBlob(token, result),
     )
   }
 
@@ -472,32 +472,32 @@ abstract class MillBase(
    */
   protected suspend fun existingOutputAnd(
     token: ComputationToken,
-    block: suspend () -> ByteString
+    block: suspend () -> ByteString,
   ): EncryptedComputationResult {
     val wallDurationLogger = wallDurationLogger()
     val result = block()
     wallDurationLogger.logStageDurationMetric(
       token,
       JNI_WALL_CLOCK_DURATION,
-      jniWallClockDurationHistogram
+      jniWallClockDurationHistogram,
     )
     // Reuse cached result if it exists even though the block has been rerun.
     if (token.singleOutputBlobMetadata().path.isNotEmpty()) {
       return EncryptedComputationResult(
         checkNotNull(dataClients.readSingleOutputBlob(token)),
-        token
+        token,
       )
     }
     return EncryptedComputationResult(
       flowOf(result),
-      dataClients.writeSingleOutputBlob(token, result)
+      dataClients.writeSingleOutputBlob(token, result),
     )
   }
 
   /** Reads all input blobs and combines all the bytes together. */
   protected suspend fun readAndCombineAllInputBlobs(
     token: ComputationToken,
-    count: Int
+    count: Int,
   ): ByteString {
     val blobMap: Map<BlobRef, ByteString> = dataClients.readInputBlobs(token)
     if (blobMap.size != count) {
@@ -511,7 +511,7 @@ abstract class MillBase(
   /** Completes a computation and records the [CompletedReason] */
   protected suspend fun completeComputation(
     token: ComputationToken,
-    reason: CompletedReason
+    reason: CompletedReason,
   ): ComputationToken {
     val response: FinishComputationResponse =
       try {
@@ -605,7 +605,7 @@ abstract class MillBase(
     suspend fun logStageDurationMetric(
       token: ComputationToken,
       metricName: String,
-      histogram: LongHistogram
+      histogram: LongHistogram,
     ) {
       val time = getTimeMillis() - start
       logStageDurationMetric(token, metricName, time, histogram)
@@ -621,7 +621,7 @@ abstract class MillBase(
     suspend fun logStageDurationMetric(
       token: ComputationToken,
       metricName: String,
-      histogram: LongHistogram
+      histogram: LongHistogram,
     ) {
       val time = timeMark.elapsedNow().inWholeMilliseconds
       logStageDurationMetric(token, metricName, time, histogram)
@@ -651,7 +651,7 @@ data class Certificate(
   // The public API name of this certificate.
   val name: String,
   // The value of the certificate.
-  val value: X509Certificate
+  val value: X509Certificate,
 )
 
 /** Converts a milliseconds to a human friendly string. */

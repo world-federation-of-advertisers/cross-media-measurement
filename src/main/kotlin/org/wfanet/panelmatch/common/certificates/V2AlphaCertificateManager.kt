@@ -46,7 +46,7 @@ class V2AlphaCertificateManager(
   private val privateKeys: MutableSecretMap,
   private val algorithm: String,
   private val certificateAuthority: CertificateAuthority,
-  private val localName: String
+  private val localName: String,
 ) : CertificateManager {
 
   private val x509CertCache = ConcurrentHashMap<String, X509Certificate>()
@@ -56,7 +56,7 @@ class V2AlphaCertificateManager(
   override suspend fun getCertificate(
     exchange: ExchangeDateKey,
     certOwnerName: String,
-    certResourceName: String
+    certResourceName: String,
   ): X509Certificate {
     check(certResourceName.startsWith("$certOwnerName/certificates/")) {
       "Invalid resource names: $certOwnerName and $certResourceName"
@@ -132,7 +132,7 @@ class V2AlphaCertificateManager(
 
   private suspend fun verifyCertificate(
     certificate: X509Certificate,
-    ownerName: String
+    ownerName: String,
   ): X509Certificate {
     val rootCert = getRootCertificate(ownerName)
     certificate.verify(rootCert.publicKey, jceProvider)

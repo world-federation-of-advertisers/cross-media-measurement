@@ -73,7 +73,7 @@ private class Flags {
         "Whether to print the number of the Computations that would be deleted without performing the deletion."
       ],
     required = false,
-    defaultValue = "false"
+    defaultValue = "false",
   )
   var dryRun by Delegates.notNull<Boolean>()
     private set
@@ -81,7 +81,7 @@ private class Flags {
   @set:CommandLine.Option(
     names = ["--debug-verbose-grpc-client-logging"],
     description = ["Enables full gRPC request and response logging for outgoing gRPCs"],
-    defaultValue = "false"
+    defaultValue = "false",
   )
   var verboseGrpcClientLogging by Delegates.notNull<Boolean>()
     private set
@@ -90,20 +90,20 @@ private class Flags {
 @CommandLine.Command(
   name = "ComputationsCleanerJob",
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 private fun run(@CommandLine.Mixin flags: Flags) {
   val clientCerts =
     SigningCerts.fromPemFiles(
       certificateFile = flags.tlsFlags.certFile,
       privateKeyFile = flags.tlsFlags.privateKeyFile,
-      trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
+      trustedCertCollectionFile = flags.tlsFlags.certCollectionFile,
     )
   val internalComputationsChannel: Channel =
     buildMutualTlsChannel(
         flags.computationsServiceFlags.target,
         clientCerts,
-        flags.computationsServiceFlags.certHost
+        flags.computationsServiceFlags.certHost,
       )
       .withShutdownTimeout(flags.channelShutdownTimeout)
       .withDefaultDeadline(flags.rpcDeadlineDuration)

@@ -27,12 +27,12 @@ import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidatedExch
 /** Executes an [ExchangeStep] in a new coroutine in [scope]. */
 class CoroutineLauncher(
   private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default),
-  private val stepExecutor: ExchangeStepExecutor
+  private val stepExecutor: ExchangeStepExecutor,
 ) : JobLauncher {
 
   override suspend fun execute(
     step: ValidatedExchangeStep,
-    attemptKey: CanonicalExchangeStepAttemptKey
+    attemptKey: CanonicalExchangeStepAttemptKey,
   ) {
     (scope + SupervisorJob()).launch(CoroutineName(attemptKey.toName())) {
       stepExecutor.execute(step, attemptKey)

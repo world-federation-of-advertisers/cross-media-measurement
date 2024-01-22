@@ -35,7 +35,7 @@ suspend fun ApacheBeamContext.preprocessEvents(
     (ByteString) -> DeterministicCommutativeCipherKeyProvider,
   hkdfPepperProvider: (ByteString) -> HkdfPepperProvider,
   identifierPepperProvider: (ByteString) -> IdentifierHashPepperProvider,
-  maxByteSize: Long
+  maxByteSize: Long,
 ) {
 
   val unprocessedEventData: PCollection<UnprocessedEvent> =

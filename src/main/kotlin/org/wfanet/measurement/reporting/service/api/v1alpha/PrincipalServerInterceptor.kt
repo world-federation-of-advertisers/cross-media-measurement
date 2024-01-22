@@ -53,13 +53,13 @@ fun <T> withPrincipal(principal: ReportingPrincipal, block: () -> T): T {
 fun <T> withMeasurementConsumerPrincipal(
   measurementConsumerName: String,
   config: MeasurementConsumerConfig,
-  block: () -> T
+  block: () -> T,
 ): T {
   return Context.current()
     .withPrincipal(
       MeasurementConsumerPrincipal(
         MeasurementConsumerKey.fromName(measurementConsumerName)!!,
-        config
+        config,
       )
     )
     .call(block)
@@ -80,7 +80,7 @@ fun BindableService.withPrincipalsFromX509AuthorityKeyIdentifiers(
     AkidPrincipalServerInterceptor(
       ContextKeys.PRINCIPAL_CONTEXT_KEY,
       AuthorityKeyServerInterceptor.AUTHORITY_KEY_IDENTIFIERS_CONTEXT_KEY,
-      akidPrincipalLookup
-    )
+      akidPrincipalLookup,
+    ),
   )
 }

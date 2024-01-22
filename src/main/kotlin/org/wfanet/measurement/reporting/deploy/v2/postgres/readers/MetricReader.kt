@@ -51,7 +51,7 @@ class MetricReader(private val readContext: ReadContext) {
     val measurementConsumerId: InternalId,
     val metricId: InternalId,
     val createMetricRequestId: String,
-    val metric: Metric
+    val metric: Metric,
   )
 
   data class ReportingMetricKey(
@@ -66,7 +66,7 @@ class MetricReader(private val readContext: ReadContext) {
     val createMetricRequestId: String,
     val externalMetricId: String,
     val metricSpec: MetricSpec,
-    val metricDetails: Metric.Details
+    val metricDetails: Metric.Details,
   )
 
   private data class MetricInfo(
@@ -166,7 +166,7 @@ class MetricReader(private val readContext: ReadContext) {
 
   fun readMetricsByRequestId(
     measurementConsumerId: InternalId,
-    createMetricRequestIds: Collection<String>
+    createMetricRequestIds: Collection<String>,
   ): Flow<Result> {
     if (createMetricRequestIds.isEmpty()) {
       return emptyFlow()
@@ -217,7 +217,7 @@ class MetricReader(private val readContext: ReadContext) {
             measurementConsumerId = metricInfo.measurementConsumerId,
             metricId = metricInfo.metricId,
             createMetricRequestId = createMetricRequestId,
-            metric = metric
+            metric = metric,
           )
         )
       }
@@ -332,11 +332,11 @@ class MetricReader(private val readContext: ReadContext) {
           bind(metricCalculationSpecIdIndex, timedReportingMetricKey.metricCalculationSpecId)
           bind(
             timeIntervalStartIndex,
-            timedReportingMetricKey.timeInterval.startTime.toInstant().atOffset(ZoneOffset.UTC)
+            timedReportingMetricKey.timeInterval.startTime.toInstant().atOffset(ZoneOffset.UTC),
           )
           bind(
             timeIntervalEndExclusiveIndex,
-            timedReportingMetricKey.timeInterval.endTime.toInstant().atOffset(ZoneOffset.UTC)
+            timedReportingMetricKey.timeInterval.endTime.toInstant().atOffset(ZoneOffset.UTC),
           )
         }
       }
@@ -485,9 +485,7 @@ class MetricReader(private val readContext: ReadContext) {
     return reportingMetricMap
   }
 
-  fun batchGetMetrics(
-    request: BatchGetMetricsRequest,
-  ): Flow<Result> {
+  fun batchGetMetrics(request: BatchGetMetricsRequest): Flow<Result> {
     val sql =
       StringBuilder(
         """
@@ -532,16 +530,14 @@ class MetricReader(private val readContext: ReadContext) {
             measurementConsumerId = metricInfo.measurementConsumerId,
             metricId = metricInfo.metricId,
             createMetricRequestId = createMetricRequestId,
-            metric = metric
+            metric = metric,
           )
         )
       }
     }
   }
 
-  fun readMetrics(
-    request: StreamMetricsRequest,
-  ): Flow<Result> {
+  fun readMetrics(request: StreamMetricsRequest): Flow<Result> {
     val sql =
       """
         $baseSqlSelect
@@ -584,7 +580,7 @@ class MetricReader(private val readContext: ReadContext) {
             measurementConsumerId = metricInfo.measurementConsumerId,
             metricId = metricInfo.metricId,
             createMetricRequestId = createMetricRequestId,
-            metric = metric
+            metric = metric,
           )
         )
       }
@@ -770,7 +766,7 @@ class MetricReader(private val readContext: ReadContext) {
             timeInterval = metricTimeInterval,
             metricSpec = metricSpec,
             details = metricDetails,
-            weightedMeasurementInfoMap = mutableMapOf()
+            weightedMeasurementInfoMap = mutableMapOf(),
           )
         }
 
@@ -810,7 +806,7 @@ class MetricReader(private val readContext: ReadContext) {
         ) {
           PrimitiveReportingSetBasisInfo(
             externalReportingSetId = primitiveExternalReportingSetId,
-            filterSet = mutableSetOf()
+            filterSet = mutableSetOf(),
           )
         }
 

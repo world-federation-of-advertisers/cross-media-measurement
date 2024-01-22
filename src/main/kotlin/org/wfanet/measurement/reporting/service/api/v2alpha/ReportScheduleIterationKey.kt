@@ -28,10 +28,10 @@ data class ReportScheduleIterationKey(
   constructor(
     cmmsMeasurementConsumerId: String,
     reportScheduleId: String,
-    reportScheduleIterationId: String
+    reportScheduleIterationId: String,
   ) : this(
     ReportScheduleKey(cmmsMeasurementConsumerId, reportScheduleId),
-    reportScheduleIterationId
+    reportScheduleIterationId,
   )
 
   val cmmsMeasurementConsumerId: String
@@ -59,7 +59,7 @@ data class ReportScheduleIterationKey(
       return ReportScheduleIterationKey(
         idVars.getValue(IdVariable.MEASUREMENT_CONSUMER),
         idVars.getValue(IdVariable.REPORT_SCHEDULE),
-        idVars.getValue(IdVariable.REPORT_SCHEDULE_ITERATION)
+        idVars.getValue(IdVariable.REPORT_SCHEDULE_ITERATION),
       )
     }
   }

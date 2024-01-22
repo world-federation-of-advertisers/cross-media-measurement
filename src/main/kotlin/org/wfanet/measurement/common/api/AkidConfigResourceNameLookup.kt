@@ -29,7 +29,7 @@ class AkidConfigResourceNameLookup(config: AuthorityKeyToPrincipalMap) :
   private val lookupTable: Map<ByteString, String> =
     config.entriesList.associateBy(
       AuthorityKeyToPrincipalMap.Entry::getAuthorityKeyIdentifier,
-      AuthorityKeyToPrincipalMap.Entry::getPrincipalResourceName
+      AuthorityKeyToPrincipalMap.Entry::getPrincipalResourceName,
     )
 
   override suspend fun getResourceName(lookupKey: ByteString): String? = lookupTable[lookupKey]

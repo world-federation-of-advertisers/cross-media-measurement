@@ -315,7 +315,7 @@ class HeraldTest {
         computationStore,
         requisitionStore,
         DUCHY_ONE,
-        Clock.systemUTC()
+        Clock.systemUTC(),
       )
     )
     addService(systemComputations)
@@ -411,7 +411,7 @@ class HeraldTest {
       buildComputationAtKingdom(
         "2",
         Computation.State.PENDING_REQUISITION_PARAMS,
-        systemApiRequisitions = listOf(systemApiRequisitions1, systemApiRequisitions2)
+        systemApiRequisitions = listOf(systemApiRequisitions1, systemApiRequisitions2),
       )
     mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
 
@@ -419,7 +419,7 @@ class HeraldTest {
       globalId = confirmingKnown.key.computationId,
       stage = LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage(),
       computationDetails = LLV2_AGGREGATOR_COMPUTATION_DETAILS,
-      blobs = listOf(newInputBlobMetadata(0L, "input-blob"), newEmptyOutputBlobMetadata(1L))
+      blobs = listOf(newInputBlobMetadata(0L, "input-blob"), newEmptyOutputBlobMetadata(1L)),
     )
 
     aggregatorHerald.syncStatuses()
@@ -436,7 +436,7 @@ class HeraldTest {
         confirmingKnown.key.computationId.toLong(),
         LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage(),
         confirmingUnknown.key.computationId.toLong(),
-        LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage()
+        LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage(),
       )
 
     assertThat(
@@ -444,7 +444,7 @@ class HeraldTest {
       )
       .containsExactly(
         REQUISITION_1.toRequisitionMetadata(Requisition.State.UNFULFILLED),
-        REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED)
+        REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED),
       )
     assertThat(
         fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.computationDetails
@@ -502,7 +502,7 @@ class HeraldTest {
       buildComputationAtKingdom(
         "1",
         Computation.State.PENDING_REQUISITION_PARAMS,
-        serializedMeasurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC
+        serializedMeasurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC,
       )
 
     val systemApiRequisitions1 =
@@ -514,7 +514,7 @@ class HeraldTest {
         "2",
         Computation.State.PENDING_REQUISITION_PARAMS,
         listOf(systemApiRequisitions1, systemApiRequisitions2),
-        serializedMeasurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC
+        serializedMeasurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC,
       )
     mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
 
@@ -522,7 +522,7 @@ class HeraldTest {
       globalId = confirmingKnown.key.computationId,
       stage = LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage(),
       computationDetails = LLV2_AGGREGATOR_COMPUTATION_DETAILS,
-      blobs = listOf(newInputBlobMetadata(0L, "input-blob"), newEmptyOutputBlobMetadata(1L))
+      blobs = listOf(newInputBlobMetadata(0L, "input-blob"), newEmptyOutputBlobMetadata(1L)),
     )
 
     aggregatorHerald.syncStatuses()
@@ -539,7 +539,7 @@ class HeraldTest {
         confirmingKnown.key.computationId.toLong(),
         LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage(),
         confirmingUnknown.key.computationId.toLong(),
-        LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage()
+        LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage(),
       )
 
     assertThat(
@@ -547,7 +547,7 @@ class HeraldTest {
       )
       .containsExactly(
         REACH_ONLY_REQUISITION_1.toRequisitionMetadata(Requisition.State.UNFULFILLED),
-        REACH_ONLY_REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED)
+        REACH_ONLY_REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED),
       )
     assertThat(
         fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.computationDetails
@@ -601,7 +601,7 @@ class HeraldTest {
         "1",
         Computation.State.PENDING_REQUISITION_PARAMS,
         serializedMeasurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC,
-        mpcProtocolConfig = RO_LLV2_MPC_PROTOCOL_CONFIG
+        mpcProtocolConfig = RO_LLV2_MPC_PROTOCOL_CONFIG,
       )
 
     val systemApiRequisitions1 =
@@ -614,7 +614,7 @@ class HeraldTest {
         Computation.State.PENDING_REQUISITION_PARAMS,
         listOf(systemApiRequisitions1, systemApiRequisitions2),
         serializedMeasurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC,
-        mpcProtocolConfig = RO_LLV2_MPC_PROTOCOL_CONFIG
+        mpcProtocolConfig = RO_LLV2_MPC_PROTOCOL_CONFIG,
       )
     mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
 
@@ -623,7 +623,7 @@ class HeraldTest {
       stage =
         ReachOnlyLiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage(),
       computationDetails = RO_LLV2_AGGREGATOR_COMPUTATION_DETAILS,
-      blobs = listOf(newInputBlobMetadata(0L, "input-blob"), newEmptyOutputBlobMetadata(1L))
+      blobs = listOf(newInputBlobMetadata(0L, "input-blob"), newEmptyOutputBlobMetadata(1L)),
     )
 
     aggregatorHerald.syncStatuses()
@@ -640,7 +640,7 @@ class HeraldTest {
         confirmingKnown.key.computationId.toLong(),
         ReachOnlyLiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage(),
         confirmingUnknown.key.computationId.toLong(),
-        ReachOnlyLiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage()
+        ReachOnlyLiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage(),
       )
 
     assertThat(
@@ -648,7 +648,7 @@ class HeraldTest {
       )
       .containsExactly(
         REACH_ONLY_REQUISITION_1.toRequisitionMetadata(Requisition.State.UNFULFILLED),
-        REACH_ONLY_REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED)
+        REACH_ONLY_REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED),
       )
     assertThat(
         fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.computationDetails
@@ -773,8 +773,8 @@ class HeraldTest {
         listOf(
           systemComputationParticipant1,
           systemComputationParticipant2,
-          systemComputationParticipant3
-        )
+          systemComputationParticipant3,
+        ),
       )
 
     mockStreamActiveComputationsToReturn(waitingRequisitionsAndKeySet)
@@ -787,8 +787,8 @@ class HeraldTest {
       requisitions =
         listOf(
           REQUISITION_1.toRequisitionMetadata(Requisition.State.UNFULFILLED),
-          REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED)
-        )
+          REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED),
+        ),
     )
 
     aggregatorHerald.syncStatuses()
@@ -844,13 +844,13 @@ class HeraldTest {
               elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_1")
               duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_1")
             }
-            .build()
+            .build(),
         )
       )
     assertThat(duchyComputationToken.requisitionsList)
       .containsExactly(
         REQUISITION_1.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_ONE),
-        REQUISITION_2.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_TWO)
+        REQUISITION_2.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_TWO),
       )
   }
 
@@ -917,8 +917,8 @@ class HeraldTest {
         listOf(
           systemComputationParticipant1,
           systemComputationParticipant2,
-          systemComputationParticipant3
-        )
+          systemComputationParticipant3,
+        ),
       )
 
     mockStreamActiveComputationsToReturn(waitingRequisitionsAndKeySet)
@@ -932,8 +932,8 @@ class HeraldTest {
       requisitions =
         listOf(
           REQUISITION_1.toRequisitionMetadata(Requisition.State.UNFULFILLED),
-          REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED)
-        )
+          REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED),
+        ),
     )
 
     aggregatorHerald.syncStatuses()
@@ -985,13 +985,13 @@ class HeraldTest {
             elGamalPublicKey = v2alphaApiElgamalPublicKey1.toByteString()
             elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_1")
             duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_1")
-          }
+          },
         )
       )
     assertThat(duchyComputationToken.requisitionsList)
       .containsExactly(
         REQUISITION_1.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_ONE),
-        REQUISITION_2.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_TWO)
+        REQUISITION_2.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_TWO),
       )
   }
 
@@ -1006,7 +1006,7 @@ class HeraldTest {
       globalId = waitingToStart.key.computationId,
       stage = LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START.toProtocolStage(),
       computationDetails = LLV2_NON_AGGREGATOR_COMPUTATION_DETAILS,
-      blobs = listOf(newPassThroughBlobMetadata(0L, "local-copy-of-sketches"))
+      blobs = listOf(newPassThroughBlobMetadata(0L, "local-copy-of-sketches")),
     )
 
     fakeComputationDatabase.addComputation(
@@ -1014,7 +1014,7 @@ class HeraldTest {
       stage = LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE.toProtocolStage(),
       computationDetails = LLV2_AGGREGATOR_COMPUTATION_DETAILS,
       blobs =
-        listOf(newInputBlobMetadata(0L, "inputs-to-add-noise"), newEmptyOutputBlobMetadata(1L))
+        listOf(newInputBlobMetadata(0L, "inputs-to-add-noise"), newEmptyOutputBlobMetadata(1L)),
     )
 
     aggregatorHerald.syncStatuses()
@@ -1031,7 +1031,7 @@ class HeraldTest {
         waitingToStart.key.computationId.toLong(),
         LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE.toProtocolStage(),
         addingNoise.key.computationId.toLong(),
-        LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE.toProtocolStage()
+        LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE.toProtocolStage(),
       )
   }
 
@@ -1046,7 +1046,7 @@ class HeraldTest {
       globalId = waitingToStart.key.computationId,
       stage = ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START.toProtocolStage(),
       computationDetails = RO_LLV2_NON_AGGREGATOR_COMPUTATION_DETAILS,
-      blobs = listOf(newPassThroughBlobMetadata(0L, "local-copy-of-sketches"))
+      blobs = listOf(newPassThroughBlobMetadata(0L, "local-copy-of-sketches")),
     )
 
     fakeComputationDatabase.addComputation(
@@ -1054,7 +1054,7 @@ class HeraldTest {
       stage = ReachOnlyLiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE.toProtocolStage(),
       computationDetails = RO_LLV2_AGGREGATOR_COMPUTATION_DETAILS,
       blobs =
-        listOf(newInputBlobMetadata(0L, "inputs-to-add-noise"), newEmptyOutputBlobMetadata(1L))
+        listOf(newInputBlobMetadata(0L, "inputs-to-add-noise"), newEmptyOutputBlobMetadata(1L)),
     )
 
     aggregatorHerald.syncStatuses()
@@ -1071,7 +1071,7 @@ class HeraldTest {
         waitingToStart.key.computationId.toLong(),
         ReachOnlyLiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE.toProtocolStage(),
         addingNoise.key.computationId.toLong(),
-        ReachOnlyLiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE.toProtocolStage()
+        ReachOnlyLiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE.toProtocolStage(),
       )
   }
 
@@ -1098,7 +1098,7 @@ class HeraldTest {
       globalId = computation.key.computationId,
       stage = LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage(),
       computationDetails = LLV2_NON_AGGREGATOR_COMPUTATION_DETAILS,
-      blobs = listOf(newInputBlobMetadata(0L, "local-copy-of-sketches"))
+      blobs = listOf(newInputBlobMetadata(0L, "local-copy-of-sketches")),
     )
 
     val syncResult = async { nonAggregatorHerald.syncStatuses() }
@@ -1113,7 +1113,7 @@ class HeraldTest {
       )
       .containsExactly(
         computation.key.computationId.toLong(),
-        LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage()
+        LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage(),
       )
 
     // Update the state.
@@ -1122,7 +1122,7 @@ class HeraldTest {
       globalId = computation.key.computationId,
       stage = LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START.toProtocolStage(),
       computationDetails = LLV2_NON_AGGREGATOR_COMPUTATION_DETAILS,
-      blobs = listOf(newPassThroughBlobMetadata(0L, "local-copy-of-sketches"))
+      blobs = listOf(newPassThroughBlobMetadata(0L, "local-copy-of-sketches")),
     )
     // Verify that next attempt succeeds.
     syncResult.await()
@@ -1144,7 +1144,7 @@ class HeraldTest {
         ContinuationTokenManager(continuationTokensStub),
         NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
         Clock.systemUTC(),
-        maxAttempts = 2
+        maxAttempts = 2,
       )
 
     val computation =
@@ -1155,7 +1155,7 @@ class HeraldTest {
       globalId = computation.key.computationId,
       stage = LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage(),
       computationDetails = LLV2_NON_AGGREGATOR_COMPUTATION_DETAILS,
-      blobs = listOf(newInputBlobMetadata(0L, "local-copy-of-sketches"))
+      blobs = listOf(newInputBlobMetadata(0L, "local-copy-of-sketches")),
     )
 
     heraldWithOneRetry.syncStatuses()
@@ -1165,7 +1165,7 @@ class HeraldTest {
     }
     verifyProtoArgument(
         systemComputationParticipants,
-        SystemComputationParticipantsCoroutineImplBase::failComputationParticipant
+        SystemComputationParticipantsCoroutineImplBase::failComputationParticipant,
       )
       .comparingExpectedFieldsOnly()
       .isEqualTo(
@@ -1358,7 +1358,7 @@ class HeraldTest {
       systemComputationParticipant: List<SystemComputationParticipant> =
         ALL_COMPUTATION_PARTICIPANTS,
       serializedMeasurementSpec: ByteString = SERIALIZED_MEASUREMENT_SPEC,
-      mpcProtocolConfig: MpcProtocolConfig = LLV2_MPC_PROTOCOL_CONFIG
+      mpcProtocolConfig: MpcProtocolConfig = LLV2_MPC_PROTOCOL_CONFIG,
     ): Computation {
       return computation {
         name = ComputationKey(globalId).toName()

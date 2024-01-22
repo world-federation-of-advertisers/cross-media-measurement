@@ -25,7 +25,7 @@ class MeasurementDetailsReader() : SpannerReader<MeasurementDetailsReader.Result
   data class Result(
     val measurementConsumerId: InternalId,
     val measurementId: InternalId,
-    val measurementDetails: Measurement.Details
+    val measurementDetails: Measurement.Details,
   )
 
   override val baseSql =
@@ -43,6 +43,6 @@ class MeasurementDetailsReader() : SpannerReader<MeasurementDetailsReader.Result
     Result(
       struct.getInternalId("MeasurementConsumerId"),
       struct.getInternalId("MeasurementId"),
-      struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
+      struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser()),
     )
 }

@@ -40,7 +40,7 @@ class ExchangesDeletion(
   private val exchangesService: ExchangesGrpcKt.ExchangesCoroutineStub,
   private val daysToLive: Long,
   private val dryRun: Boolean = false,
-  private val openTelemetry: OpenTelemetry = GlobalOpenTelemetry.get()
+  private val openTelemetry: OpenTelemetry = GlobalOpenTelemetry.get(),
 ) {
   private val meter: Meter = openTelemetry.getMeter(ExchangesDeletion::class.java.name)
   private val exchangeDeletionCounter: LongCounter =

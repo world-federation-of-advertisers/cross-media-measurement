@@ -34,7 +34,7 @@ class SpannerDuchyDependencyProviderRule(duchies: Iterable<String>) :
 
   private fun buildDuchyDependencies(
     duchyId: String,
-    logEntryClient: ComputationLogEntriesCoroutineStub
+    logEntryClient: ComputationLogEntriesCoroutineStub,
   ): InProcessDuchy.DuchyDependencies {
     val computationsDatabase =
       computationsDatabaseRules[duchyId]
@@ -46,7 +46,7 @@ class SpannerDuchyDependencyProviderRule(duchies: Iterable<String>) :
         storageClient,
         logEntryClient,
         duchyId,
-        computationsDatabase.databaseClient
+        computationsDatabase.databaseClient,
       )
     return InProcessDuchy.DuchyDependencies(duchyDataServices, storageClient)
   }

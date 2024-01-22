@@ -36,7 +36,7 @@ class SpannerPublicKeysServiceTest : PublicKeysServiceTest<SpannerPublicKeysServ
       spannerServices.measurementConsumersService,
       spannerServices.dataProvidersService,
       spannerServices.certificatesService,
-      spannerServices.accountsService
+      spannerServices.accountsService,
     )
   }
 }

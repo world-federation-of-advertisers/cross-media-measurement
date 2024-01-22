@@ -118,7 +118,7 @@ class EventGroupsServiceTest {
       EventGroupsService(
         EventGroupsCoroutineStub(grpcTestServerRule.channel),
         ENCRYPTION_KEY_PAIR_STORE,
-        celEnvCacheProvider
+        celEnvCacheProvider,
       )
   }
 
@@ -155,7 +155,7 @@ class EventGroupsServiceTest {
               eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
               metadata = Any.pack(testMessage)
             },
-            ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey()
+            ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey(),
           )
       }
 
@@ -519,7 +519,7 @@ class EventGroupsServiceTest {
       EventGroupsService(
         EventGroupsCoroutineStub(grpcTestServerRule.channel),
         InMemoryEncryptionKeyPairStore(mapOf()),
-        celEnvCacheProvider
+        celEnvCacheProvider,
       )
 
     val exception =
@@ -604,7 +604,7 @@ class EventGroupsServiceTest {
             eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
             metadata = Any.pack(TEST_MESSAGE)
           },
-          ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey()
+          ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey(),
         )
       state = CmmsEventGroup.State.ACTIVE
     }
@@ -625,7 +625,7 @@ class EventGroupsServiceTest {
             eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
             metadata = Any.pack(TEST_MESSAGE)
           },
-          ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey()
+          ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey(),
         )
       state = CmmsEventGroup.State.ACTIVE
     }

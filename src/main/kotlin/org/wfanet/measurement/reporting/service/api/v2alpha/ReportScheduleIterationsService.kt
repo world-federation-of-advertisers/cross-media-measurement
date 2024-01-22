@@ -158,7 +158,7 @@ class ReportScheduleIterationsService(
           subResults.map { internalReportScheduleIteration ->
             internalReportScheduleIteration.toPublic()
           },
-          request.filter
+          request.filter,
         )
 
       if (nextPageToken != null) {
@@ -169,7 +169,7 @@ class ReportScheduleIterationsService(
 
   private fun filterReportScheduleIterations(
     reportScheduleIterations: List<ReportScheduleIteration>,
-    filter: String
+    filter: String,
   ): List<ReportScheduleIteration> {
     return try {
       filterList(ENV, reportScheduleIterations, filter)
@@ -278,7 +278,7 @@ private fun InternalReportScheduleIteration.toPublic(): ReportScheduleIteration 
     ReportScheduleIterationKey(
       source.cmmsMeasurementConsumerId,
       source.externalReportScheduleId,
-      source.externalReportScheduleIterationId
+      source.externalReportScheduleIterationId,
     )
 
   return reportScheduleIteration {

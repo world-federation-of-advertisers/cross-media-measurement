@@ -82,7 +82,7 @@ class ReportScheduleIterationsServiceTest {
   fun initService() {
     service =
       ReportScheduleIterationsService(
-        ReportScheduleIterationsCoroutineStub(grpcTestServerRule.channel),
+        ReportScheduleIterationsCoroutineStub(grpcTestServerRule.channel)
       )
   }
 
@@ -252,7 +252,7 @@ class ReportScheduleIterationsServiceTest {
 
     verifyProtoArgument(
         internalReportScheduleIterationsMock,
-        ReportScheduleIterationsCoroutineImplBase::listReportScheduleIterations
+        ReportScheduleIterationsCoroutineImplBase::listReportScheduleIterations,
       )
       .isEqualTo(
         internalListReportScheduleIterationsRequest {
@@ -288,7 +288,7 @@ class ReportScheduleIterationsServiceTest {
 
     verifyProtoArgument(
         internalReportScheduleIterationsMock,
-        ReportScheduleIterationsCoroutineImplBase::listReportScheduleIterations
+        ReportScheduleIterationsCoroutineImplBase::listReportScheduleIterations,
       )
       .isEqualTo(
         internalListReportScheduleIterationsRequest {
@@ -338,7 +338,7 @@ class ReportScheduleIterationsServiceTest {
 
     verifyProtoArgument(
         internalReportScheduleIterationsMock,
-        ReportScheduleIterationsCoroutineImplBase::listReportScheduleIterations
+        ReportScheduleIterationsCoroutineImplBase::listReportScheduleIterations,
       )
       .isEqualTo(
         internalListReportScheduleIterationsRequest {
@@ -375,7 +375,7 @@ class ReportScheduleIterationsServiceTest {
 
     verifyProtoArgument(
         internalReportScheduleIterationsMock,
-        ReportScheduleIterationsCoroutineImplBase::listReportScheduleIterations
+        ReportScheduleIterationsCoroutineImplBase::listReportScheduleIterations,
       )
       .isEqualTo(
         internalListReportScheduleIterationsRequest {
@@ -426,7 +426,7 @@ class ReportScheduleIterationsServiceTest {
 
     verifyProtoArgument(
         internalReportScheduleIterationsMock,
-        ReportScheduleIterationsCoroutineImplBase::listReportScheduleIterations
+        ReportScheduleIterationsCoroutineImplBase::listReportScheduleIterations,
       )
       .isEqualTo(
         internalListReportScheduleIterationsRequest {
@@ -459,7 +459,7 @@ class ReportScheduleIterationsServiceTest {
 
     verifyProtoArgument(
         internalReportScheduleIterationsMock,
-        ReportScheduleIterationsCoroutineImplBase::listReportScheduleIterations
+        ReportScheduleIterationsCoroutineImplBase::listReportScheduleIterations,
       )
       .isEqualTo(
         internalListReportScheduleIterationsRequest {
@@ -510,7 +510,7 @@ class ReportScheduleIterationsServiceTest {
 
     verifyProtoArgument(
         internalReportScheduleIterationsMock,
-        ReportScheduleIterationsCoroutineImplBase::listReportScheduleIterations
+        ReportScheduleIterationsCoroutineImplBase::listReportScheduleIterations,
       )
       .isEqualTo(
         internalListReportScheduleIterationsRequest {
@@ -547,7 +547,7 @@ class ReportScheduleIterationsServiceTest {
 
     verifyProtoArgument(
         internalReportScheduleIterationsMock,
-        ReportScheduleIterationsCoroutineImplBase::listReportScheduleIterations
+        ReportScheduleIterationsCoroutineImplBase::listReportScheduleIterations,
       )
       .isEqualTo(
         internalListReportScheduleIterationsRequest {

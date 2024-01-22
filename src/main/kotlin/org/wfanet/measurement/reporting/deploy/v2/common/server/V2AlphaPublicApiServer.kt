@@ -92,7 +92,7 @@ private const val SERVER_NAME = "V2AlphaPublicApiServer"
   name = SERVER_NAME,
   description = ["Server daemon for Reporting v2alpha public API services."],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 private fun run(
   @CommandLine.Mixin reportingApiServerFlags: ReportingApiServerFlags,
@@ -106,13 +106,13 @@ private fun run(
     SigningCerts.fromPemFiles(
       certificateFile = commonServerFlags.tlsFlags.certFile,
       privateKeyFile = commonServerFlags.tlsFlags.privateKeyFile,
-      trustedCertCollectionFile = commonServerFlags.tlsFlags.certCollectionFile
+      trustedCertCollectionFile = commonServerFlags.tlsFlags.certCollectionFile,
     )
   val channel: Channel =
     buildMutualTlsChannel(
         reportingApiServerFlags.internalApiFlags.target,
         clientCerts,
-        reportingApiServerFlags.internalApiFlags.certHost
+        reportingApiServerFlags.internalApiFlags.certHost,
       )
       .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
 
@@ -120,21 +120,21 @@ private fun run(
     buildMutualTlsChannel(
         target = kingdomApiFlags.target,
         clientCerts = clientCerts,
-        hostName = kingdomApiFlags.certHost
+        hostName = kingdomApiFlags.certHost,
       )
       .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
 
   val principalLookup: PrincipalLookup<ReportingPrincipal, ByteString> =
     AkidPrincipalLookup(
         v2AlphaPublicServerFlags.authorityKeyIdentifierToPrincipalMapFile,
-        v2AlphaFlags.measurementConsumerConfigFile
+        v2AlphaFlags.measurementConsumerConfigFile,
       )
       .memoizing()
 
   val measurementConsumerConfigs =
     parseTextProto(
       v2AlphaFlags.measurementConsumerConfigFile,
-      MeasurementConsumerConfigs.getDefaultInstance()
+      MeasurementConsumerConfigs.getDefaultInstance(),
     )
 
   val internalMeasurementConsumersCoroutineStub = InternalMeasurementConsumersCoroutineStub(channel)
@@ -186,7 +186,7 @@ private fun run(
       SecureRandom(),
       v2AlphaFlags.signingPrivateKeyStoreDir,
       commonServerFlags.tlsFlags.signingCerts.trustedCertificates,
-      Dispatchers.IO
+      Dispatchers.IO,
     )
 
   val inProcessExecutorService: ExecutorService =
@@ -195,7 +195,7 @@ private fun run(
       commonServerFlags.threadPoolSize,
       60L,
       TimeUnit.SECONDS,
-      LinkedBlockingQueue()
+      LinkedBlockingQueue(),
     )
 
   val inProcessServerName = InProcessServerBuilder.generateName()
@@ -204,7 +204,7 @@ private fun run(
       inProcessServerName,
       commonServerFlags,
       metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs),
-      inProcessExecutorService
+      inProcessExecutorService,
     )
   val inProcessChannel =
     InProcessChannelBuilder.forName(inProcessServerName)
@@ -233,14 +233,14 @@ private fun run(
           InternalReportsCoroutineStub(channel),
           InternalMetricCalculationSpecsCoroutineStub(channel),
           MetricsCoroutineStub(inProcessChannel),
-          metricSpecConfig
+          metricSpecConfig,
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ReportSchedulesService(
           InternalReportSchedulesCoroutineStub(channel),
           InternalReportingSetsCoroutineStub(channel),
           KingdomDataProvidersCoroutineStub(kingdomChannel),
-          KingdomEventGroupsCoroutineStub(kingdomChannel)
+          KingdomEventGroupsCoroutineStub(kingdomChannel),
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ReportScheduleIterationsService(InternalReportScheduleIterationsCoroutineStub(channel))

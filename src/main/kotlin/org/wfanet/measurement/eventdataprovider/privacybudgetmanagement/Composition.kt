@@ -28,7 +28,7 @@ import org.apache.commons.math3.optim.univariate.UnivariateObjectiveFunction
 data class AdvancedCompositionKey(
   val dpCharge: DpCharge,
   val repetitionCount: Int,
-  val totalDelta: Float
+  val totalDelta: Float,
 )
 
 object Composition {
@@ -69,7 +69,7 @@ object Composition {
   private fun calculateAdvancedComposition(
     dpCharge: DpCharge,
     repetitionCount: Int,
-    totalDelta: Float
+    totalDelta: Float,
   ): Float {
     val epsilon = dpCharge.epsilon.toDouble()
     val delta = dpCharge.delta.toDouble()
@@ -115,7 +115,7 @@ object Composition {
   fun totalPrivacyBudgetUsageUnderAdvancedComposition(
     dpCharge: DpCharge,
     repetitionCount: Int,
-    totalDelta: Float
+    totalDelta: Float,
   ): Float =
     advancedCompositionResults.getOrPut(
       AdvancedCompositionKey(dpCharge, repetitionCount, totalDelta)
@@ -133,7 +133,7 @@ object Composition {
    */
   fun totalPrivacyBudgetUsageUnderAcdpComposition(
     acdpCharges: List<AcdpCharge>,
-    targetEpsilon: Double
+    targetEpsilon: Double,
   ): Double {
     val totalRho: Double = acdpCharges.sumOf { it.rho }
     val totalTheta: Double = acdpCharges.sumOf { it.theta }
@@ -153,7 +153,7 @@ object Composition {
         MaxEval(MAX_ITER_EVAL),
         SearchInterval(minAlpha, maxAlpha),
         UnivariateObjectiveFunction { alpha: Double -> computeDeltaGivenAlpha(alpha) },
-        GoalType.MINIMIZE
+        GoalType.MINIMIZE,
       )
 
     return res.value

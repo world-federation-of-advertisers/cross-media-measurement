@@ -24,7 +24,7 @@ import picocli.CommandLine
   name = "S3LiquidLegionsV2MillDaemon",
   description = ["Liquid Legions V2 Mill daemon."],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 class S3LiquidLegionsV2MillDaemon : LiquidLegionsV2MillDaemon() {
   @CommandLine.Mixin private lateinit var s3Flags: S3Flags

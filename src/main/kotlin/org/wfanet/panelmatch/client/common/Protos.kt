@@ -77,7 +77,7 @@ fun unencryptedQueryOf(shardId: ShardId, bucketId: BucketId, queryId: QueryId): 
 /** Constructs a [DecryptedQueryResult]. */
 fun decryptedQueryResultOf(
   queryId: QueryId,
-  bucketContents: Iterable<ByteString>
+  bucketContents: Iterable<ByteString>,
 ): DecryptedQueryResult = decryptedQueryResult {
   this.queryId = queryId
   this.queryResult = bucketContents { items += bucketContents }
@@ -98,7 +98,7 @@ fun bucketOf(bucketId: BucketId, items: Iterable<ByteString>): Bucket = bucket {
 /** Constructs a [Result]. */
 fun encryptedQueryResultOf(
   queryId: QueryId,
-  serializedEncryptedQueryResult: ByteString
+  serializedEncryptedQueryResult: ByteString,
 ): EncryptedQueryResult = encryptedQueryResult {
   this.queryId = queryId
   this.serializedEncryptedQueryResult = serializedEncryptedQueryResult
@@ -108,7 +108,7 @@ fun encryptedQueryResultOf(
 fun encryptedQueryBundleOf(
   shardId: ShardId,
   queryIds: Iterable<QueryId>,
-  serializedEncryptedQueries: ByteString
+  serializedEncryptedQueries: ByteString,
 ): EncryptedQueryBundle = encryptedQueryBundle {
   this.shardId = shardId
   this.queryIds += queryIds

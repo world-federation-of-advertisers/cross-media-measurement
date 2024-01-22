@@ -125,7 +125,7 @@ class ModelReleasesServiceTest {
         flowOf(
           INTERNAL_MODEL_RELEASE,
           INTERNAL_MODEL_RELEASE.copy { externalModelReleaseId = EXTERNAL_MODEL_RELEASE_ID_2 },
-          INTERNAL_MODEL_RELEASE.copy { externalModelReleaseId = EXTERNAL_MODEL_RELEASE_ID_3 }
+          INTERNAL_MODEL_RELEASE.copy { externalModelReleaseId = EXTERNAL_MODEL_RELEASE_ID_3 },
         )
       )
   }
@@ -136,10 +136,7 @@ class ModelReleasesServiceTest {
 
   @Before
   fun initService() {
-    service =
-      ModelReleasesService(
-        ModelReleasesCoroutineStub(grpcTestServerRule.channel),
-      )
+    service = ModelReleasesService(ModelReleasesCoroutineStub(grpcTestServerRule.channel))
   }
 
   @Test

@@ -41,7 +41,7 @@ class InternalApiFlags {
   @CommandLine.Option(
     names = ["--internal-api-default-deadline"],
     description = ["Default deadline duration for RPCs to internal API"],
-    defaultValue = "30s"
+    defaultValue = "30s",
   )
   lateinit var defaultDeadlineDuration: Duration
     private set

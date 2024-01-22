@@ -121,7 +121,7 @@ class ExchangeStepsServiceTest {
   private val service =
     ExchangeStepsService(
       InternalRecurringExchangesCoroutineStub(grpcTestServerRule.channel),
-      InternalExchangeStepsCoroutineStub(grpcTestServerRule.channel)
+      InternalExchangeStepsCoroutineStub(grpcTestServerRule.channel),
     )
 
   private fun claimReadyExchangeStep(
@@ -168,7 +168,7 @@ class ExchangeStepsServiceTest {
 
     verifyProtoArgument(
         internalServiceMock,
-        InternalExchangeStepsCoroutineImplBase::claimReadyExchangeStep
+        InternalExchangeStepsCoroutineImplBase::claimReadyExchangeStep,
       )
       .isEqualTo(
         internalClaimReadyExchangeStepRequest {
@@ -200,7 +200,7 @@ class ExchangeStepsServiceTest {
 
     verifyProtoArgument(
         internalServiceMock,
-        InternalExchangeStepsCoroutineImplBase::claimReadyExchangeStep
+        InternalExchangeStepsCoroutineImplBase::claimReadyExchangeStep,
       )
       .isEqualTo(
         internalClaimReadyExchangeStepRequest {
@@ -370,7 +370,7 @@ class ExchangeStepsServiceTest {
       CanonicalExchangeStepKey(
         recurringExchangeId = EXCHANGE_STEP_KEY.recurringExchangeId,
         exchangeId = EXCHANGE_STEP_KEY.exchangeId,
-        exchangeStepId = (STEP_INDEX + 1).toString()
+        exchangeStepId = (STEP_INDEX + 1).toString(),
       )
     private val EXCHANGE_STEP_ATTEMPT_KEY =
       CanonicalExchangeStepAttemptKey(

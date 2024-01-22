@@ -34,7 +34,7 @@ import picocli.CommandLine
   name = "ForwardedStorageSpannerComputationsServer",
   description = ["Server daemon for ${ComputationsServer.SERVICE_NAME} service."],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 class ForwardedStorageSpannerComputationServer : ComputationsServer() {
   @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
@@ -56,11 +56,11 @@ class ForwardedStorageSpannerComputationServer : ComputationsServer() {
             ComputationMutations(
               ComputationTypes,
               protocolStageEnumHelper,
-              computationProtocolStageDetails
-            )
+              computationProtocolStageDetails,
+            ),
         ),
         SpannerContinuationTokensService(databaseClient),
-        storageClient
+        storageClient,
       )
     }
   }

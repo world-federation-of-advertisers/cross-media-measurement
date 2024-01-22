@@ -112,10 +112,10 @@ class InProcessReportingServer(
               it.keyPairsList.map { keyPair ->
                 Pair(
                   signingPrivateKeyDir.resolve(keyPair.publicKeyFile).readByteString(),
-                  loadPrivateKey(signingPrivateKeyDir.resolve(keyPair.privateKeyFile))
+                  loadPrivateKey(signingPrivateKeyDir.resolve(keyPair.privateKeyFile)),
                 )
               }
-            }
+            },
           )
         )
 
@@ -150,9 +150,9 @@ class InProcessReportingServer(
               SecureRandom(),
               signingPrivateKeyDir,
               trustedCertificates,
-              MEASUREMENT_SPEC_CONFIG
+              MEASUREMENT_SPEC_CONFIG,
             )
-            .withMetadataPrincipalIdentities(measurementConsumerConfig)
+            .withMetadataPrincipalIdentities(measurementConsumerConfig),
         )
         .forEach { addService(it.withVerboseLogging(verboseGrpcLogging)) }
     }

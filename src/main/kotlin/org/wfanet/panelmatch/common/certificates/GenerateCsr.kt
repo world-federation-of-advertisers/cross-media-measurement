@@ -32,7 +32,7 @@ fun generateCsrFromPrivateKey(key: PrivateKey, organization: String, commonName:
     "-subj",
     "/O=$organization/CN=$commonName",
     "-key",
-    "/dev/stdin"
+    "/dev/stdin",
   )
 }
 

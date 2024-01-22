@@ -49,7 +49,7 @@ private const val VALID_SECONDS = 3600L
 
 class SpannerAccountsService(
   private val idGenerator: IdGenerator,
-  private val client: AsyncDatabaseClient
+  private val client: AsyncDatabaseClient,
 ) : AccountsCoroutineImplBase() {
   override suspend fun createAccount(request: Account): Account {
     try {
@@ -69,7 +69,7 @@ class SpannerAccountsService(
 
       return CreateAccount(
           externalCreatorAccountId = externalCreatorAccountId,
-          externalOwnedMeasurementConsumerId = externalOwnedMeasurementConsumerId
+          externalOwnedMeasurementConsumerId = externalOwnedMeasurementConsumerId,
         )
         .execute(client, idGenerator)
     } catch (e: AccountNotFoundException) {
@@ -77,7 +77,7 @@ class SpannerAccountsService(
     } catch (e: PermissionDeniedException) {
       throw e.asStatusRuntimeException(
         Status.Code.PERMISSION_DENIED,
-        "Caller does not own the owned measurement consumer."
+        "Caller does not own the owned measurement consumer.",
       )
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
@@ -99,28 +99,28 @@ class SpannerAccountsService(
           externalAccountId = ExternalId(request.externalAccountId),
           activationToken = ExternalId(request.activationToken),
           issuer = request.identity.issuer,
-          subject = request.identity.subject
+          subject = request.identity.subject,
         )
         .execute(client, idGenerator)
     } catch (e: PermissionDeniedException) {
       throw e.asStatusRuntimeException(
         Status.Code.PERMISSION_DENIED,
-        "Activation token is not valid for this account."
+        "Activation token is not valid for this account.",
       )
     } catch (e: DuplicateAccountIdentityException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Issuer and subject pair already exists."
+        "Issuer and subject pair already exists.",
       )
     } catch (e: AccountActivationStateIllegalException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Cannot activate an account again. "
+        "Cannot activate an account again. ",
       )
     } catch (e: AccountNotFoundException) {
       throw e.asStatusRuntimeException(
         Status.Code.NOT_FOUND,
-        "Account to activate has not been found."
+        "Account to activate has not been found.",
       )
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error")
@@ -132,20 +132,20 @@ class SpannerAccountsService(
       return ReplaceAccountIdentityWithNewOpenIdConnectIdentity(
           externalAccountId = ExternalId(request.externalAccountId),
           issuer = request.identity.issuer,
-          subject = request.identity.subject
+          subject = request.identity.subject,
         )
         .execute(client, idGenerator)
     } catch (e: DuplicateAccountIdentityException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Issuer and subject pair already exists."
+        "Issuer and subject pair already exists.",
       )
     } catch (e: AccountNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Account was not found.")
     } catch (e: AccountActivationStateIllegalException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Account has not been activated yet."
+        "Account has not been activated yet.",
       )
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
@@ -158,7 +158,7 @@ class SpannerAccountsService(
         .readByIssuerAndSubject(
           client.singleUse(),
           request.identity.issuer,
-          request.identity.subject
+          request.identity.subject,
         ) ?: failGrpc(Status.NOT_FOUND) { "Identity not found" }
 
     return AccountReader()

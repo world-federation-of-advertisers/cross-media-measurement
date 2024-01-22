@@ -42,7 +42,7 @@ class PostgresReportingSetsService(
     } catch (e: ReportingSetAlreadyExistsException) {
       throw e.asStatusRuntimeException(
         Status.Code.ALREADY_EXISTS,
-        "IDs generated for Reporting Set already exist"
+        "IDs generated for Reporting Set already exist",
       )
     }
   }
@@ -54,7 +54,7 @@ class PostgresReportingSetsService(
           .readReportingSetByExternalId(
             client.singleUse(),
             request.measurementConsumerReferenceId,
-            ExternalId(request.externalReportingSetId)
+            ExternalId(request.externalReportingSetId),
           )
           .reportingSet
       }
@@ -75,7 +75,7 @@ class PostgresReportingSetsService(
       .getReportingSetsByExternalIds(
         client,
         request.measurementConsumerReferenceId,
-        request.externalReportingSetIdsList
+        request.externalReportingSetIdsList,
       )
       .map { result -> result.reportingSet }
       .withSerializableErrorRetries()

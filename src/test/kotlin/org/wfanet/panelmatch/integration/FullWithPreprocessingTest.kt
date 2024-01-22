@@ -48,12 +48,12 @@ private val EDP_DATABASE_ENTRIES: List<UnprocessedEvent> =
     listOf(
       unprocessedEventOf(
         "join-key-$index".toByteStringUtf8(),
-        "payload-1-for-join-key-$index".toByteStringUtf8()
+        "payload-1-for-join-key-$index".toByteStringUtf8(),
       ),
       unprocessedEventOf(
         "join-key-$index".toByteStringUtf8(),
-        "payload-2-for-join-key-$index".toByteStringUtf8()
-      )
+        "payload-2-for-join-key-$index".toByteStringUtf8(),
+      ),
     )
   }
 
@@ -76,13 +76,11 @@ class FullWithPreprocessingTest : AbstractInProcessPanelMatchIntegrationTest() {
     )
 
   override val initialModelProviderInputs: Map<String, ByteString> =
-    mapOf(
-      "mp-plaintext-join-keys" to PLAINTEXT_JOIN_KEYS.toByteString(),
-    )
+    mapOf("mp-plaintext-join-keys" to PLAINTEXT_JOIN_KEYS.toByteString())
 
   override fun validateFinalState(
     dataProviderDaemon: ExchangeWorkflowDaemonForTest,
-    modelProviderDaemon: ExchangeWorkflowDaemonForTest
+    modelProviderDaemon: ExchangeWorkflowDaemonForTest,
   ) {
     val blob = modelProviderDaemon.readPrivateBlob("decrypted-event-data-0-of-1")
     assertNotNull(blob)

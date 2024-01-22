@@ -23,6 +23,6 @@ interface QueryPreparer : Serializable {
   /** Hashes decrypted join keys using a pepper to uint64. */
   fun prepareLookupKeys(
     identifierHashPepper: ByteString,
-    decryptedJoinKeyAndIds: List<JoinKeyAndId>
+    decryptedJoinKeyAndIds: List<JoinKeyAndId>,
   ): List<LookupKeyAndId>
 }

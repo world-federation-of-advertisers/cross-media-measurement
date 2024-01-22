@@ -58,7 +58,7 @@ class RefuseRequisition(private val request: RefuseRequisitionRequest) :
       throw MeasurementStateIllegalException(
         ExternalId(requisition.externalMeasurementConsumerId),
         ExternalId(requisition.externalMeasurementId),
-        measurementState
+        measurementState,
       ) {
         "Expected ${Measurement.State.PENDING_REQUISITION_FULFILLMENT}, got $measurementState"
       }
@@ -94,7 +94,7 @@ class RefuseRequisition(private val request: RefuseRequisitionRequest) :
       nextState = Measurement.State.FAILED,
       previousState = measurementState,
       measurementLogEntryDetails = measurementLogEntryDetails,
-      details = updatedMeasurementDetails
+      details = updatedMeasurementDetails,
     )
 
     return requisition.copy {
@@ -117,11 +117,11 @@ class RefuseRequisition(private val request: RefuseRequisitionRequest) :
         .readByExternalDataProviderId(
           transactionContext,
           externalDataProviderId = externalDataProviderId,
-          externalRequisitionId = externalRequisitionId
+          externalRequisitionId = externalRequisitionId,
         )
         ?: throw RequisitionNotFoundByDataProviderException(
           ExternalId(externalDataProviderId),
-          ExternalId(externalRequisitionId)
+          ExternalId(externalRequisitionId),
         ) {
           "Requisition with external DataProvider ID $externalDataProviderId and external " +
             "Requisition ID $externalRequisitionId not found"

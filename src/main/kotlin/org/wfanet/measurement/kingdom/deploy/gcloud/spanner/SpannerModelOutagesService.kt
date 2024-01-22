@@ -39,7 +39,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.DeleteModelO
 
 class SpannerModelOutagesService(
   private val idGenerator: IdGenerator,
-  private val client: AsyncDatabaseClient
+  private val client: AsyncDatabaseClient,
 ) : ModelOutagesCoroutineImplBase() {
 
   override suspend fun createModelOutage(request: ModelOutage): ModelOutage {
@@ -53,7 +53,7 @@ class SpannerModelOutagesService(
     } catch (e: ModelOutageInvalidArgsException) {
       throw e.asStatusRuntimeException(
         Status.Code.INVALID_ARGUMENT,
-        e.message ?: "ModelOutageStartTime cannot precede ModelOutageEndTime."
+        e.message ?: "ModelOutageStartTime cannot precede ModelOutageEndTime.",
       )
     }
   }
@@ -101,22 +101,14 @@ class SpannerModelOutagesService(
           request.filter.after.externalModelSuiteId == 0L ||
           request.filter.after.externalModelProviderId == 0L)
     ) {
-      failGrpc(
-        Status.INVALID_ARGUMENT,
-      ) {
-        "Missing After filter fields"
-      }
+      failGrpc(Status.INVALID_ARGUMENT) { "Missing After filter fields" }
     }
     if (
       request.filter.hasOutageInterval() &&
         (!request.filter.outageInterval.hasModelOutageStartTime() ||
           !request.filter.outageInterval.hasModelOutageEndTime())
     ) {
-      failGrpc(
-        Status.INVALID_ARGUMENT,
-      ) {
-        "Missing OutageInterval fields"
-      }
+      failGrpc(Status.INVALID_ARGUMENT) { "Missing OutageInterval fields" }
     }
     return StreamModelOutages(request.filter, request.limit).execute(client.singleUse()).map {
       it.modelOutage

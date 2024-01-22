@@ -40,13 +40,13 @@ import org.wfanet.measurement.system.v1alpha.ComputationKey
 class ComputationControlService(
   private val asyncComputationControlClient: AsyncComputationControlCoroutineStub,
   private val computationStore: ComputationStore,
-  private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext
+  private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext,
 ) : ComputationControlCoroutineImplBase() {
 
   constructor(
     asyncComputationControlClient: AsyncComputationControlCoroutineStub,
     storageClient: StorageClient,
-    duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext
+    duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext,
   ) : this(asyncComputationControlClient, ComputationStore(storageClient), duchyIdentityProvider)
 
   override suspend fun advanceComputation(
@@ -74,7 +74,7 @@ class ComputationControlService(
   private suspend fun handleAsyncRequest(
     header: AdvanceComputationRequest.Header,
     content: Flow<ByteString>?,
-    globalId: String
+    globalId: String,
   ) {
     val stage = header.stageExpectingInput()
 
@@ -94,7 +94,7 @@ class ComputationControlService(
         val blob =
           computationStore.write(
             ComputationBlobContext(globalId, stage, blobMetadata.blobId),
-            content!!
+            content!!,
           )
         blobId = blobMetadata.blobId
         blobPath = blob.blobKey

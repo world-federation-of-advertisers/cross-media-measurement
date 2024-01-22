@@ -133,7 +133,7 @@ class PostgresComputationsService(
   private val requisitionReader = RequisitionReader()
 
   override suspend fun createComputation(
-    request: CreateComputationRequest,
+    request: CreateComputationRequest
   ): CreateComputationResponse {
     grpcRequire(request.globalComputationId.isNotEmpty()) {
       "global_computation_id is not specified."
@@ -193,7 +193,7 @@ class PostgresComputationsService(
           claimedToken.globalComputationId,
           claimedToken.computationStage,
           claimedToken.attempt.toLong(),
-        ),
+        )
       )
       return claimedToken.toClaimWorkResponse()
     }
@@ -202,7 +202,7 @@ class PostgresComputationsService(
   }
 
   override suspend fun getComputationToken(
-    request: GetComputationTokenRequest,
+    request: GetComputationTokenRequest
   ): GetComputationTokenResponse {
     val token =
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
@@ -238,7 +238,7 @@ class PostgresComputationsService(
   }
 
   override suspend fun purgeComputations(
-    request: PurgeComputationsRequest,
+    request: PurgeComputationsRequest
   ): PurgeComputationsResponse {
     grpcRequire(
       request.stagesList.all {
@@ -246,7 +246,7 @@ class PostgresComputationsService(
           protocolStagesEnumHelper.stageToProtocol(it),
           it,
         )
-      },
+      }
     ) {
       "Requested stage list contains non terminal stage."
     }
@@ -255,7 +255,7 @@ class PostgresComputationsService(
           request.stagesList,
           request.updatedBefore.toInstant(),
           request.force,
-          computationReader
+          computationReader,
         )
         .execute(client, idGenerator)
 
@@ -266,7 +266,7 @@ class PostgresComputationsService(
   }
 
   override suspend fun finishComputation(
-    request: FinishComputationRequest,
+    request: FinishComputationRequest
   ): FinishComputationResponse {
     val writer =
       FinishComputation(
@@ -298,14 +298,14 @@ class PostgresComputationsService(
       newCreateComputationLogEntryRequest(
         request.token.globalComputationId,
         request.endingComputationStage,
-      ),
+      )
     )
 
     return token.toFinishComputationResponse()
   }
 
   override suspend fun updateComputationDetails(
-    request: UpdateComputationDetailsRequest,
+    request: UpdateComputationDetailsRequest
   ): UpdateComputationDetailsResponse {
     require(request.token.computationDetails.protocolCase == request.details.protocolCase) {
       "The protocol type cannot change."
@@ -332,7 +332,7 @@ class PostgresComputationsService(
   }
 
   override suspend fun recordOutputBlobPath(
-    request: RecordOutputBlobPathRequest,
+    request: RecordOutputBlobPathRequest
   ): RecordOutputBlobPathResponse {
     val writer =
       RecordOutputBlobPath(
@@ -355,7 +355,7 @@ class PostgresComputationsService(
   }
 
   override suspend fun advanceComputationStage(
-    request: AdvanceComputationStageRequest,
+    request: AdvanceComputationStageRequest
   ): AdvanceComputationStageResponse {
     val lockExtension: Duration =
       if (request.hasLockExtension()) request.lockExtension.toDuration() else defaultLockDuration
@@ -369,7 +369,7 @@ class PostgresComputationsService(
           AfterTransition.CONTINUE_WORKING
         else ->
           error(
-            "Unsupported AdvanceComputationStageRequest.AfterTransition '${request.afterTransition}'. ",
+            "Unsupported AdvanceComputationStageRequest.AfterTransition '${request.afterTransition}'. "
           )
       }
 
@@ -400,21 +400,21 @@ class PostgresComputationsService(
       newCreateComputationLogEntryRequest(
         request.token.globalComputationId,
         request.nextComputationStage,
-      ),
+      )
     )
 
     return token.toAdvanceComputationStageResponse()
   }
 
   override suspend fun getComputationIds(
-    request: GetComputationIdsRequest,
+    request: GetComputationIdsRequest
   ): GetComputationIdsResponse {
     val ids = computationReader.readGlobalComputationIds(client.singleUse(), request.stagesList)
     return getComputationIdsResponse { globalIds += ids }
   }
 
   override suspend fun enqueueComputation(
-    request: EnqueueComputationRequest,
+    request: EnqueueComputationRequest
   ): EnqueueComputationResponse {
     grpcRequire(request.delaySecond >= 0) {
       "DelaySecond ${request.delaySecond} should be non-negative."
@@ -438,7 +438,7 @@ class PostgresComputationsService(
   }
 
   override suspend fun recordRequisitionBlobPath(
-    request: RecordRequisitionBlobPathRequest,
+    request: RecordRequisitionBlobPathRequest
   ): RecordRequisitionBlobPathResponse {
     val token =
       RecordRequisitionData(
@@ -454,7 +454,7 @@ class PostgresComputationsService(
   }
 
   override suspend fun recordRequisitionSeed(
-    request: RecordRequisitionSeedRequest,
+    request: RecordRequisitionSeedRequest
   ): RecordRequisitionSeedResponse {
     val token =
       RecordRequisitionData(

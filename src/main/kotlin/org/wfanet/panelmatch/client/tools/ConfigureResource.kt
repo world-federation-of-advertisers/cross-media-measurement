@@ -49,7 +49,7 @@ class ConfigureResource(private val clientDefaults: DaemonStorageClientDefaults)
     date: LocalDate,
     privateStorageFactories: Map<PlatformCase, (StorageDetails, ExchangeDateKey) -> StorageFactory>,
     blobKey: String,
-    contents: ByteString
+    contents: ByteString,
   ) {
     val privateStorageSelector =
       PrivateStorageSelector(privateStorageFactories, clientDefaults.privateStorageInfo)

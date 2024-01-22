@@ -32,7 +32,7 @@ import picocli.CommandLine
   name = "S3PostgresDuchyDataServer",
   description = ["Server daemon for ${DuchyDataServer.SERVICE_NAME} service."],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 class S3PostgresDuchyDataServer : DuchyDataServer() {
   @CommandLine.Mixin private lateinit var postgresFlags: AwsPostgresFlags
@@ -53,7 +53,7 @@ class S3PostgresDuchyDataServer : DuchyDataServer() {
         computationLogEntriesClient,
         duchyFlags.duchyName,
         idGenerator,
-        databaseClient
+        databaseClient,
       )
     )
   }

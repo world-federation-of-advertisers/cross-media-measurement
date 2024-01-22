@@ -184,7 +184,7 @@ class HonestMajorityShareShuffleStagesTest {
               assertThat(
                   stages.isValidStage(
                     currentStage.toProtocolStage(),
-                    requestStage.toProtocolStage()
+                    requestStage.toProtocolStage(),
                   )
                 )
                 .isTrue()
@@ -192,7 +192,7 @@ class HonestMajorityShareShuffleStagesTest {
               assertThat(
                   stages.isValidStage(
                     currentStage.toProtocolStage(),
-                    requestStage.toProtocolStage()
+                    requestStage.toProtocolStage(),
                   )
                 )
                 .isFalse()
@@ -203,7 +203,7 @@ class HonestMajorityShareShuffleStagesTest {
               assertThat(
                   stages.isValidStage(
                     currentStage.toProtocolStage(),
-                    requestStage.toProtocolStage()
+                    requestStage.toProtocolStage(),
                   )
                 )
                 .isTrue()
@@ -211,7 +211,7 @@ class HonestMajorityShareShuffleStagesTest {
               assertThat(
                   stages.isValidStage(
                     currentStage.toProtocolStage(),
-                    requestStage.toProtocolStage()
+                    requestStage.toProtocolStage(),
                   )
                 )
                 .isFalse()
@@ -233,7 +233,7 @@ class HonestMajorityShareShuffleStagesTest {
     val updatedDetails =
       stages.updateComputationDetails(
         WAIT_ON_SHUFFLE_INPUT_TOKEN.computationDetails,
-        SHUFFLE_PHASE_INPUT
+        SHUFFLE_PHASE_INPUT,
       )
 
     assertThat(updatedDetails).isEqualTo(UPDATED_WAIT_ON_SHUFFLE_INPUT_TOKEN.computationDetails)

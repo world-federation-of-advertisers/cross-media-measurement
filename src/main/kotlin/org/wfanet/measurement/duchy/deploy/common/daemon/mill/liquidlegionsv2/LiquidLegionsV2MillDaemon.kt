@@ -73,21 +73,21 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
       SigningCerts.fromPemFiles(
         certificateFile = flags.tlsFlags.certFile,
         privateKeyFile = flags.tlsFlags.privateKeyFile,
-        trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
+        trustedCertCollectionFile = flags.tlsFlags.certCollectionFile,
       )
 
     val computationsServiceChannel: Channel =
       buildMutualTlsChannel(
           flags.computationsServiceFlags.target,
           clientCerts,
-          flags.computationsServiceFlags.certHost
+          flags.computationsServiceFlags.certHost,
         )
         .withShutdownTimeout(flags.channelShutdownTimeout)
         .withDefaultDeadline(flags.computationsServiceFlags.defaultDeadlineDuration)
     val dataClients =
       ComputationDataClients(
         ComputationsCoroutineStub(computationsServiceChannel).withDuchyId(duchyName),
-        storageClient
+        storageClient,
       )
 
     val computationControlClientMap =
@@ -98,7 +98,7 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
               buildMutualTlsChannel(
                   flags.computationControlServiceTargets.getValue(duchyId),
                   clientCerts,
-                  entry.computationControlServiceCertHost
+                  entry.computationControlServiceCertHost,
                 )
                 .withShutdownTimeout(flags.channelShutdownTimeout)
             )
@@ -127,7 +127,7 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
         csX509Certificate,
         flags.csPrivateKeyDerFile.inputStream().use { input ->
           readPrivateKey(ByteString.readFrom(input), csX509Certificate.publicKey.algorithm)
-        }
+        },
       )
 
     // This will be the name of the pod when deployed to Kubernetes. Note that the millId is
@@ -172,11 +172,11 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
                       128000.0,
                       256000.0,
                       512000.0,
-                      1024000.0
+                      1024000.0,
                     )
                   )
                 )
-                .build()
+                .build(),
             )
             .build()
         OpenTelemetrySdk.builder().setMeterProvider(meterProvider).build()
@@ -199,7 +199,7 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
         workLockDuration = flags.workLockDuration,
         openTelemetry = openTelemetry,
         requestChunkSizeBytes = flags.requestChunkSizeBytes,
-        parallelism = flags.parallelism
+        parallelism = flags.parallelism,
       )
 
     val reachOnlyLiquidLegionsV2Mill =
@@ -219,7 +219,7 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
         workLockDuration = flags.workLockDuration,
         openTelemetry = openTelemetry,
         requestChunkSizeBytes = flags.requestChunkSizeBytes,
-        parallelism = flags.parallelism
+        parallelism = flags.parallelism,
       )
 
     runBlocking {

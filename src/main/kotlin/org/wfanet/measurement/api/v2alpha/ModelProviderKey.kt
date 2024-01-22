@@ -18,9 +18,8 @@ import org.wfanet.measurement.common.ResourceNameParser
 import org.wfanet.measurement.common.api.ResourceKey
 
 /** [ModelProviderKey] of a Model Provider. */
-data class ModelProviderKey(
-  val modelProviderId: String,
-) : ResourceKey, CertificateParentKey, RecurringExchangeParentKey {
+data class ModelProviderKey(val modelProviderId: String) :
+  ResourceKey, CertificateParentKey, RecurringExchangeParentKey {
   override fun toName(): String {
     return parser.assembleName(mapOf(IdVariable.MODEL_PROVIDER to modelProviderId))
   }

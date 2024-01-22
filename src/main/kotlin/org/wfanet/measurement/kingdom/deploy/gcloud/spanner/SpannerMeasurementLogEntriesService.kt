@@ -36,7 +36,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateDuchyM
 
 class SpannerMeasurementLogEntriesService(
   private val idGenerator: IdGenerator,
-  private val client: AsyncDatabaseClient
+  private val client: AsyncDatabaseClient,
 ) : MeasurementLogEntriesCoroutineImplBase() {
   override suspend fun createDuchyMeasurementLogEntry(
     request: CreateDuchyMeasurementLogEntryRequest
@@ -58,7 +58,7 @@ class SpannerMeasurementLogEntriesService(
     } catch (e: MeasurementStateIllegalException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Measurement in wrong state."
+        "Measurement in wrong state.",
       )
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error")
@@ -70,7 +70,7 @@ class SpannerMeasurementLogEntriesService(
   ): Flow<StateTransitionMeasurementLogEntry> {
     return StreamStateTransitionMeasurementLogEntries(
         ExternalId(request.externalMeasurementId),
-        ExternalId(request.externalMeasurementConsumerId)
+        ExternalId(request.externalMeasurementConsumerId),
       )
       .execute(client.singleUse())
       .map { it.stateTransitionMeasurementLogEntry }

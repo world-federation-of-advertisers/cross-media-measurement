@@ -69,11 +69,11 @@ private const val WILDCARD = ResourceKey.WILDCARD_ID
 private val API_VERSION = Version.V2_ALPHA
 
 class EventGroupMetadataDescriptorsService(
-  private val internalEventGroupMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub,
+  private val internalEventGroupMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub
 ) : EventGroupMetadataDescriptorsCoroutineImplBase() {
 
   override suspend fun getEventGroupMetadataDescriptor(
-    request: GetEventGroupMetadataDescriptorRequest,
+    request: GetEventGroupMetadataDescriptorRequest
   ): EventGroupMetadataDescriptor {
     val key =
       grpcRequireNotNull(EventGroupMetadataDescriptorKey.fromName(request.name)) {
@@ -115,7 +115,7 @@ class EventGroupMetadataDescriptorsService(
   }
 
   override suspend fun createEventGroupMetadataDescriptor(
-    request: CreateEventGroupMetadataDescriptorRequest,
+    request: CreateEventGroupMetadataDescriptorRequest
   ): EventGroupMetadataDescriptor {
     val parentKey =
       grpcRequireNotNull(DataProviderKey.fromName(request.parent)) {
@@ -149,7 +149,7 @@ class EventGroupMetadataDescriptorsService(
     val createRequest =
       request.eventGroupMetadataDescriptor.toInternal(
         parentKey.dataProviderId,
-        idempotencyKey = request.requestId
+        idempotencyKey = request.requestId,
       )
     val internalEventGroupMetadataDescriptor =
       try {
@@ -165,7 +165,7 @@ class EventGroupMetadataDescriptorsService(
   }
 
   override suspend fun updateEventGroupMetadataDescriptor(
-    request: UpdateEventGroupMetadataDescriptorRequest,
+    request: UpdateEventGroupMetadataDescriptorRequest
   ): EventGroupMetadataDescriptor {
     val eventGroupMetadataDescriptorKey =
       grpcRequireNotNull(
@@ -195,7 +195,7 @@ class EventGroupMetadataDescriptorsService(
       eventGroupMetadataDescriptor =
         request.eventGroupMetadataDescriptor.toInternal(
           eventGroupMetadataDescriptorKey.dataProviderId,
-          eventGroupMetadataDescriptorKey.eventGroupMetadataDescriptorId
+          eventGroupMetadataDescriptorKey.eventGroupMetadataDescriptorId,
         )
     }
     val internalEventGroupMetadataDescriptor =
@@ -214,7 +214,7 @@ class EventGroupMetadataDescriptorsService(
   }
 
   override suspend fun batchGetEventGroupMetadataDescriptors(
-    request: BatchGetEventGroupMetadataDescriptorsRequest,
+    request: BatchGetEventGroupMetadataDescriptorsRequest
   ): BatchGetEventGroupMetadataDescriptorsResponse {
     val parentKey =
       grpcRequireNotNull(DataProviderKey.fromName(request.parent)) {
@@ -356,7 +356,7 @@ private fun InternalEventGroupMetadataDescriptor.toEventGroupMetadataDescriptor(
     name =
       EventGroupMetadataDescriptorKey(
           externalIdToApiId(externalDataProviderId),
-          externalIdToApiId(externalEventGroupMetadataDescriptorId)
+          externalIdToApiId(externalEventGroupMetadataDescriptorId),
         )
         .toName()
     descriptorSet = details.descriptorSet

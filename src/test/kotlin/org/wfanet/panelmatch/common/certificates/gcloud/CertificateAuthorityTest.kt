@@ -114,7 +114,7 @@ class CertificateAuthorityTest {
         poolId = CA_POOL_NAME.caPool,
         certificateAuthorityName = CERTIFICATE_AUTHORITY_NAME,
         client = mockCreateCertificateClient,
-        generateKeyPair = { KeyPair(ROOT_PUBLIC_KEY, readPrivateKey(ROOT_PRIVATE_KEY_FILE, "ec")) }
+        generateKeyPair = { KeyPair(ROOT_PUBLIC_KEY, readPrivateKey(ROOT_PRIVATE_KEY_FILE, "ec")) },
       )
 
     val (x509, privateKey) = certificateAuthority.generateX509CertificateAndPrivateKey()

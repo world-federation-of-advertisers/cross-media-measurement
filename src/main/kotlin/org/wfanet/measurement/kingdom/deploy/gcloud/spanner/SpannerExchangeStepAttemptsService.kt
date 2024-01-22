@@ -33,7 +33,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.FinishExchan
 class SpannerExchangeStepAttemptsService(
   private val clock: Clock,
   private val idGenerator: IdGenerator,
-  private val client: AsyncDatabaseClient
+  private val client: AsyncDatabaseClient,
 ) : ExchangeStepAttemptsCoroutineImplBase() {
 
   override suspend fun getExchangeStepAttempt(
@@ -47,13 +47,13 @@ class SpannerExchangeStepAttemptsService(
           externalRecurringExchangeId,
           request.date,
           request.stepIndex,
-          request.attemptNumber
+          request.attemptNumber,
         )
         ?: throw ExchangeStepAttemptNotFoundException(
             externalRecurringExchangeId,
             request.date,
             request.stepIndex,
-            request.attemptNumber
+            request.attemptNumber,
           )
           .asStatusRuntimeException(Status.Code.NOT_FOUND)
     return result.exchangeStepAttempt
@@ -71,7 +71,7 @@ class SpannerExchangeStepAttemptsService(
         attemptNumber = request.attemptNumber,
         terminalState = request.state,
         debugLogEntries = request.debugLogEntriesList,
-        clock = clock
+        clock = clock,
       )
     try {
       return writer.execute(client, idGenerator)

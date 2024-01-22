@@ -34,7 +34,7 @@ class SpannerMeasurementConsumersServiceTest :
 
     return Services(
       spannerServices.measurementConsumersService as SpannerMeasurementConsumersService,
-      spannerServices.accountsService
+      spannerServices.accountsService,
     )
   }
 }

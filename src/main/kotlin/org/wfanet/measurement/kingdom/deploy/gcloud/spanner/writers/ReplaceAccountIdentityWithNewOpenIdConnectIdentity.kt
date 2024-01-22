@@ -54,7 +54,7 @@ class ReplaceAccountIdentityWithNewOpenIdConnectIdentity(
     if (readAccountResult.account.activationState == Account.ActivationState.UNACTIVATED) {
       throw AccountActivationStateIllegalException(
         externalAccountId,
-        readAccountResult.account.activationState
+        readAccountResult.account.activationState,
       )
     }
 
@@ -70,7 +70,7 @@ class ReplaceAccountIdentityWithNewOpenIdConnectIdentity(
       }
       ?: throw AccountActivationStateIllegalException(
         externalAccountId,
-        Account.ActivationState.UNACTIVATED
+        Account.ActivationState.UNACTIVATED,
       )
 
     val source = this@ReplaceAccountIdentityWithNewOpenIdConnectIdentity

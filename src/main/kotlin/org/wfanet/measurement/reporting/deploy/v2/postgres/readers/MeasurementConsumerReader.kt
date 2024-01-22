@@ -23,10 +23,7 @@ import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.identity.InternalId
 
 class MeasurementConsumerReader(private val readContext: ReadContext) {
-  data class Result(
-    val measurementConsumerId: InternalId,
-    val cmmsMeasurementConsumerId: String,
-  )
+  data class Result(val measurementConsumerId: InternalId, val cmmsMeasurementConsumerId: String)
 
   private val baseSql: String =
     """
@@ -40,7 +37,7 @@ class MeasurementConsumerReader(private val readContext: ReadContext) {
   private fun translate(row: ResultRow): Result {
     return Result(
       measurementConsumerId = row["MeasurementConsumerId"],
-      cmmsMeasurementConsumerId = row["CmmsMeasurementConsumerId"]
+      cmmsMeasurementConsumerId = row["CmmsMeasurementConsumerId"],
     )
   }
 

@@ -81,7 +81,7 @@ class CsvEventQueryTest {
                 endTime = LAST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
               }
             filter = EMPTY_EVENT_FILTER
-          }
+          },
         )
       )
 
@@ -100,7 +100,7 @@ class CsvEventQueryTest {
             filter = eventFilter {
               expression = "person.gender == $PERSON_MALE && person.gender == $PERSON_FEMALE"
             }
-          }
+          },
         )
       )
 
@@ -118,7 +118,7 @@ class CsvEventQueryTest {
             filter = eventFilter {
               expression = "person.age_group == $PERSON_35_to_54 && person.gender == $PERSON_FEMALE"
             }
-          }
+          },
         )
       )
 
@@ -134,7 +134,7 @@ class CsvEventQueryTest {
           RequisitionSpecKt.EventGroupEntryKt.value {
             collectionInterval = FULL_TIME_INTERVAL
             filter = EMPTY_EVENT_FILTER
-          }
+          },
         )
       )
 

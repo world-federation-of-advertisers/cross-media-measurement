@@ -39,7 +39,7 @@ class SetMeasurementFailure(private val request: SetMeasurementFailureRequest) :
         .readMeasurementByReferenceIds(
           transactionContext,
           measurementConsumerReferenceId = request.measurementConsumerReferenceId,
-          measurementReferenceId = request.measurementReferenceId
+          measurementReferenceId = request.measurementReferenceId,
         ) ?: throw MeasurementNotFoundException()
 
     if (measurementResult.measurement.state != Measurement.State.PENDING) {

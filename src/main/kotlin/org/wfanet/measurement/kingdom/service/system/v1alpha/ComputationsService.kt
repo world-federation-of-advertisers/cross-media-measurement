@@ -221,7 +221,7 @@ class ComputationsService(
         Measurement.State.PENDING_COMPUTATION,
         Measurement.State.FAILED,
         Measurement.State.CANCELLED,
-        Measurement.State.SUCCEEDED
+        Measurement.State.SUCCEEDED,
       )
   }
 }

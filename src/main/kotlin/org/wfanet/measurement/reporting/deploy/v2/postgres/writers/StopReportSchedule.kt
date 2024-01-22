@@ -42,17 +42,17 @@ class StopReportSchedule(private val request: StopReportScheduleRequest) :
       ReportScheduleReader(transactionContext)
         .readReportScheduleByExternalId(
           request.cmmsMeasurementConsumerId,
-          request.externalReportScheduleId
+          request.externalReportScheduleId,
         )
         ?: throw ReportScheduleNotFoundException(
           request.cmmsMeasurementConsumerId,
-          request.externalReportScheduleId
+          request.externalReportScheduleId,
         )
 
     if (result.reportSchedule.state != ReportSchedule.State.ACTIVE) {
       throw ReportScheduleStateInvalidException(
         request.cmmsMeasurementConsumerId,
-        request.externalReportScheduleId
+        request.externalReportScheduleId,
       )
     }
 

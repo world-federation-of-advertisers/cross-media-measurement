@@ -74,7 +74,7 @@ private const val EXTERNAL_RECURRING_EXCHANGE_ID = 222L
 private val RECURRING_EXCHANGE_ID_GENERATOR =
   FixedIdGenerator(
     InternalId(INTERNAL_RECURRING_EXCHANGE_ID),
-    ExternalId(EXTERNAL_RECURRING_EXCHANGE_ID)
+    ExternalId(EXTERNAL_RECURRING_EXCHANGE_ID),
   )
 
 private const val INTERNAL_DATA_PROVIDER_ID = 333L
@@ -223,7 +223,7 @@ abstract class ExchangeStepAttemptsServiceTest {
         makeRequest(
           attemptState = ExchangeStepAttempt.State.SUCCEEDED,
           attemptNumber = 1,
-          stepIndex = 2
+          stepIndex = 2,
         )
       )
     assertThat(response2.attemptNumber).isEqualTo(1L)
@@ -238,7 +238,7 @@ abstract class ExchangeStepAttemptsServiceTest {
         makeRequest(
           attemptState = ExchangeStepAttempt.State.SUCCEEDED,
           attemptNumber = 1,
-          stepIndex = 3
+          stepIndex = 3,
         )
       )
     assertThat(response3.attemptNumber).isEqualTo(1L)
@@ -246,15 +246,15 @@ abstract class ExchangeStepAttemptsServiceTest {
     exchangesService.assertTestExchangeHasState(Exchange.State.SUCCEEDED)
     exchangeStepsService.assertTestExchangeStepHasState(
       exchangeStepState = ExchangeStep.State.SUCCEEDED,
-      exchangeStepIndex = 1
+      exchangeStepIndex = 1,
     )
     exchangeStepsService.assertTestExchangeStepHasState(
       exchangeStepState = ExchangeStep.State.SUCCEEDED,
-      exchangeStepIndex = 2
+      exchangeStepIndex = 2,
     )
     exchangeStepsService.assertTestExchangeStepHasState(
       exchangeStepState = ExchangeStep.State.SUCCEEDED,
-      exchangeStepIndex = 3
+      exchangeStepIndex = 3,
     )
   }
 
@@ -299,15 +299,15 @@ abstract class ExchangeStepAttemptsServiceTest {
     exchangesService.assertTestExchangeHasState(Exchange.State.ACTIVE)
     exchangeStepsService.assertTestExchangeStepHasState(
       exchangeStepState = ExchangeStep.State.SUCCEEDED,
-      exchangeStepIndex = 1
+      exchangeStepIndex = 1,
     )
     exchangeStepsService.assertTestExchangeStepHasState(
       exchangeStepState = ExchangeStep.State.BLOCKED,
-      exchangeStepIndex = 2
+      exchangeStepIndex = 2,
     )
     exchangeStepsService.assertTestExchangeStepHasState(
       exchangeStepState = ExchangeStep.State.BLOCKED,
-      exchangeStepIndex = 3
+      exchangeStepIndex = 3,
     )
   }
 
@@ -499,7 +499,7 @@ abstract class ExchangeStepAttemptsServiceTest {
   private fun makeRequest(
     attemptState: ExchangeStepAttempt.State,
     attemptNumber: Int = 1,
-    stepIndex: Int = STEP_INDEX
+    stepIndex: Int = STEP_INDEX,
   ): FinishExchangeStepAttemptRequest {
     return finishExchangeStepAttemptRequest {
       externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
@@ -512,7 +512,7 @@ abstract class ExchangeStepAttemptsServiceTest {
 
   private fun makeExchangeStepAttempt(
     attemptState: ExchangeStepAttempt.State,
-    attemptNo: Int = 1
+    attemptNo: Int = 1,
   ): ExchangeStepAttempt {
     val debugLogMessage =
       when (attemptState) {
@@ -533,7 +533,7 @@ abstract class ExchangeStepAttemptsServiceTest {
 
   private fun ExchangeWorkflowKt.Dsl.addNextStep(
     party: ExchangeWorkflow.Party,
-    prerequisites: Iterable<Int>
+    prerequisites: Iterable<Int>,
   ) {
     steps += step {
       stepIndex = this@addNextStep.steps.size + 1

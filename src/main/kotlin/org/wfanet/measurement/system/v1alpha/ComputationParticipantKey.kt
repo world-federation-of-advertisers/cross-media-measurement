@@ -34,7 +34,7 @@ data class ComputationParticipantKey(val computationId: String, val duchyId: Str
       return parser.parseIdVars(resourceName)?.let {
         ComputationParticipantKey(
           it.getValue(IdVariable.COMPUTATION),
-          it.getValue(IdVariable.DUCHY)
+          it.getValue(IdVariable.DUCHY),
         )
       }
     }

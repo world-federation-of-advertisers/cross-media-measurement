@@ -31,7 +31,7 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
   data class Result(
     val eventGroup: EventGroup,
     val internalEventGroupId: InternalId,
-    val internalDataProviderId: InternalId
+    val internalDataProviderId: InternalId,
   )
 
   override val builder: Statement.Builder = Statement.newBuilder(BASE_SQL)
@@ -45,7 +45,7 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
   suspend fun readByCreateRequestId(
     readContext: AsyncDatabaseClient.ReadContext,
     dataProviderId: InternalId,
-    createRequestId: String
+    createRequestId: String,
   ): Result? {
     return fillStatementBuilder {
         appendClause(
@@ -111,7 +111,7 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
     Result(
       buildEventGroup(struct),
       InternalId(struct.getLong("EventGroupId")),
-      InternalId(struct.getLong("DataProviderId"))
+      InternalId(struct.getLong("DataProviderId")),
     )
 
   private fun buildEventGroup(struct: Struct): EventGroup = eventGroup {

@@ -151,7 +151,7 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
     grpcRequire(
       Timestamps.compare(
         request.dataAvailabilityInterval.startTime,
-        request.dataAvailabilityInterval.endTime
+        request.dataAvailabilityInterval.endTime,
       ) < 0
     ) {
       "data_availability_interval start_time must be before end_time"

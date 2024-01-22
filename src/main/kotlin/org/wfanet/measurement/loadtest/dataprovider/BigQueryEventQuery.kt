@@ -79,7 +79,7 @@ abstract class BigQueryEventQuery(
   /** Builds a query based on the parameters given. */
   private fun buildQueryConfig(
     publisherId: Int,
-    timeRange: OpenEndTimeRange
+    timeRange: OpenEndTimeRange,
   ): QueryJobConfiguration {
     val query =
       """
@@ -96,7 +96,7 @@ abstract class BigQueryEventQuery(
         addNamedParameter("start_time", QueryParameterValue.timestamp(timeRange.start.epochMicros))
         addNamedParameter(
           "end_time_exclusive",
-          QueryParameterValue.timestamp(timeRange.endExclusive.epochMicros)
+          QueryParameterValue.timestamp(timeRange.endExclusive.epochMicros),
         )
       }
       .build()
@@ -151,7 +151,7 @@ abstract class BigQueryEventQuery(
     return LabeledEvent(
       Timestamp.ofTimeMicroseconds(get("time").timestampValue).toInstant(),
       get("vid").longValue,
-      message
+      message,
     )
   }
 
@@ -164,7 +164,7 @@ class SinglePublisherBigQueryEventQuery(
   bigQuery: BigQuery,
   datasetName: String,
   tableName: String,
-  private val publisherId: Int
+  private val publisherId: Int,
 ) : BigQueryEventQuery(bigQuery, datasetName, tableName) {
   override fun getPublisherId(eventGroup: EventGroup): Int {
     return publisherId

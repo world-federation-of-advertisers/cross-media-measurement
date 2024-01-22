@@ -28,7 +28,7 @@ import org.wfanet.panelmatch.common.storage.toByteString
 /** Reads a blob into a PCollection. */
 class ReadAsSingletonPCollection(
   private val blobKey: String,
-  private val storageFactory: StorageFactory
+  private val storageFactory: StorageFactory,
 ) : PTransform<PBegin, PCollection<ByteString>>() {
   override fun expand(input: PBegin): PCollection<ByteString> {
     return input

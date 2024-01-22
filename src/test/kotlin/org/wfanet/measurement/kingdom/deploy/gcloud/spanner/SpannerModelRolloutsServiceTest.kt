@@ -29,7 +29,7 @@ class SpannerModelRolloutsServiceTest : ModelRolloutsServiceTest<SpannerModelRol
 
   override fun newServices(
     testClock: Clock,
-    idGenerator: IdGenerator
+    idGenerator: IdGenerator,
   ): Services<SpannerModelRolloutsService> {
     val spannerServices =
       SpannerDataServices(testClock, idGenerator, spannerDatabase.databaseClient)
@@ -42,7 +42,7 @@ class SpannerModelRolloutsServiceTest : ModelRolloutsServiceTest<SpannerModelRol
       spannerServices.modelLinesService,
       spannerServices.modelReleasesService,
       spannerServices.populationsService,
-      spannerServices.dataProvidersService
+      spannerServices.dataProvidersService,
     )
   }
 }

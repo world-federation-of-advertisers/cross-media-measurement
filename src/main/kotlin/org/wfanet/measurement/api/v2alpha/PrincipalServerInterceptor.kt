@@ -56,7 +56,7 @@ inline fun <R> withPrincipal(authenticatedPrincipal: MeasurementPrincipal, actio
 inline fun <T> withDataProviderPrincipal(dataProviderName: String, block: () -> T): T {
   return withPrincipal(
     DataProviderPrincipal(requireNotNull(DataProviderKey.fromName(dataProviderName))),
-    block
+    block,
   )
 }
 
@@ -64,7 +64,7 @@ inline fun <T> withDataProviderPrincipal(dataProviderName: String, block: () -> 
 inline fun <T> withModelProviderPrincipal(modelProviderName: String, block: () -> T): T {
   return withPrincipal(
     ModelProviderPrincipal(requireNotNull(ModelProviderKey.fromName(modelProviderName))),
-    block
+    block,
   )
 }
 
@@ -76,13 +76,13 @@ inline fun <T> withDuchyPrincipal(duchyName: String, block: () -> T): T {
 /** Executes [block] with a [MeasurementConsumerPrincipal] installed in a new [Context]. */
 inline fun <T> withMeasurementConsumerPrincipal(
   measurementConsumerName: String,
-  block: () -> T
+  block: () -> T,
 ): T {
   return withPrincipal(
     MeasurementConsumerPrincipal(
       requireNotNull(MeasurementConsumerKey.fromName(measurementConsumerName))
     ),
-    block
+    block,
   )
 }
 
@@ -93,7 +93,7 @@ fun Context.withPrincipal(principal: MeasurementPrincipal): Context {
 
 /** Convenience helper for [AkidPrincipalServerInterceptor]. */
 fun BindableService.withPrincipalsFromX509AuthorityKeyIdentifiers(
-  akidPrincipalLookup: PrincipalLookup<MeasurementPrincipal, ByteString>,
+  akidPrincipalLookup: PrincipalLookup<MeasurementPrincipal, ByteString>
 ): ServerServiceDefinition {
   return ServerInterceptors.interceptForward(
     this,
@@ -101,7 +101,7 @@ fun BindableService.withPrincipalsFromX509AuthorityKeyIdentifiers(
     AkidPrincipalServerInterceptor(
       ContextKeys.PRINCIPAL_CONTEXT_KEY,
       AuthorityKeyServerInterceptor.AUTHORITY_KEY_IDENTIFIERS_CONTEXT_KEY,
-      akidPrincipalLookup
-    )
+      akidPrincipalLookup,
+    ),
   )
 }

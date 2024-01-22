@@ -60,7 +60,7 @@ object DuchyIds {
   class Entry(
     val internalDuchyId: Long,
     val externalDuchyId: String,
-    val activeRange: ClosedRange<Instant>
+    val activeRange: ClosedRange<Instant>,
   ) {
     fun isActive(instant: Instant): Boolean {
       return instant in activeRange
@@ -72,7 +72,7 @@ class DuchyIdsFlags {
   @CommandLine.Option(
     names = ["--duchy-id-config"],
     description = ["DuchyIdConfig proto message in text format."],
-    required = true
+    required = true,
   )
   lateinit var config: File
     private set
@@ -88,6 +88,6 @@ private fun DuchyIdConfig.Duchy.toDuchyIdsEntry(): DuchyIds.Entry {
   return DuchyIds.Entry(
     internalDuchyId,
     externalDuchyId,
-    activeStartTime.toInstant()..activeEndTime
+    activeStartTime.toInstant()..activeEndTime,
   )
 }

@@ -29,7 +29,7 @@ import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
  */
 class MetadataSyntheticGeneratorEventQuery(
   populationSpec: SyntheticPopulationSpec,
-  private val mcPrivateKey: PrivateKeyHandle
+  private val mcPrivateKey: PrivateKeyHandle,
 ) : SyntheticGeneratorEventQuery(populationSpec, TestEvent.getDescriptor()) {
   override fun getSyntheticDataSpec(eventGroup: EventGroup): SyntheticEventGroupSpec {
     val metadata = decryptMetadata(eventGroup.encryptedMetadata, mcPrivateKey)

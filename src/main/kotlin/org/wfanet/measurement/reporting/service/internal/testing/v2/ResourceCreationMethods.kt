@@ -47,7 +47,7 @@ suspend fun createReportingSet(
   reportingSetsService: ReportingSetsCoroutineImplBase,
   externalReportingSetId: String = "external-reporting-set-id",
   cmmsDataProviderId: String = "data-provider-id",
-  cmmsEventGroupId: String = "event-group-id"
+  cmmsEventGroupId: String = "event-group-id",
 ): ReportingSet {
   val reportingSet = reportingSet {
     this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
@@ -80,7 +80,7 @@ suspend fun createMeasurementConsumer(
 suspend fun createMetricCalculationSpec(
   cmmsMeasurementConsumerId: String,
   metricCalculationSpecsService: MetricCalculationSpecsCoroutineImplBase,
-  externalMetricCalculationSpecId: String = "external-metric-calculation-spec-id"
+  externalMetricCalculationSpecId: String = "external-metric-calculation-spec-id",
 ): MetricCalculationSpec {
   val metricCalculationSpec = metricCalculationSpec {
     this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId

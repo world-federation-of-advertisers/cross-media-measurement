@@ -41,7 +41,7 @@ import picocli.CommandLine
 @CommandLine.Command(
   name = "CompletedMeasurementsDeletionJob",
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 class CompletedMeasurementsDeletionJob private constructor() : Runnable {
   @CommandLine.Mixin private lateinit var tlsFlags: TlsFlags
@@ -54,7 +54,7 @@ class CompletedMeasurementsDeletionJob private constructor() : Runnable {
     description =
       [
         "The maximum number of measurements to delete in a single call to the API.",
-        "This flag can be adjusted to ensure the RPC does not timeout."
+        "This flag can be adjusted to ensure the RPC does not timeout.",
       ],
   )
   private var maxToDeletePerRpc by Delegates.notNull<Int>()
@@ -91,7 +91,7 @@ class CompletedMeasurementsDeletionJob private constructor() : Runnable {
         "Option to print the Measurements that would be deleted instead of performing the deletion."
       ],
     required = false,
-    defaultValue = "false"
+    defaultValue = "false",
   )
   private var dryRun by Delegates.notNull<Boolean>()
 
@@ -100,14 +100,14 @@ class CompletedMeasurementsDeletionJob private constructor() : Runnable {
       SigningCerts.fromPemFiles(
         certificateFile = tlsFlags.certFile,
         privateKeyFile = tlsFlags.privateKeyFile,
-        trustedCertCollectionFile = tlsFlags.certCollectionFile
+        trustedCertCollectionFile = tlsFlags.certCollectionFile,
       )
 
     val channel =
       buildMutualTlsChannel(
           kingdomApiServerFlags.internalApiFlags.target,
           clientCerts,
-          kingdomApiServerFlags.internalApiFlags.certHost
+          kingdomApiServerFlags.internalApiFlags.certHost,
         )
         .withVerboseLogging(kingdomApiServerFlags.debugVerboseGrpcClientLogging)
         .withDefaultDeadline(kingdomApiServerFlags.internalApiFlags.defaultDeadlineDuration)
@@ -143,7 +143,7 @@ class CompletedMeasurementsDeletionJob private constructor() : Runnable {
         measurementsTimeToLive,
         dryRun,
         Clock.systemUTC(),
-        openTelemetry
+        openTelemetry,
       )
     completedMeasurementsDeletion.run()
   }

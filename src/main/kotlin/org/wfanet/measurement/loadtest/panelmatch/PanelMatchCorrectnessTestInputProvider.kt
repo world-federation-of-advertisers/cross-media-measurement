@@ -76,12 +76,12 @@ object PanelMatchCorrectnessTestInputProvider {
         listOf(
           unprocessedEventOf(
             "join-key-$index".toByteStringUtf8(),
-            "payload-1-for-join-key-$index".toByteStringUtf8()
+            "payload-1-for-join-key-$index".toByteStringUtf8(),
           ),
           unprocessedEventOf(
             "join-key-$index".toByteStringUtf8(),
-            "payload-2-for-join-key-$index".toByteStringUtf8()
-          )
+            "payload-2-for-join-key-$index".toByteStringUtf8(),
+          ),
         )
       }
 
@@ -115,8 +115,6 @@ object PanelMatchCorrectnessTestInputProvider {
       joinKeyAndIds +=
         joinKeyAndIdOf("join-key-2".toByteStringUtf8(), "join-key-id-2".toByteStringUtf8())
     }
-    return mapOf(
-      "mp-plaintext-join-keys" to PLAINTEXT_JOIN_KEYS.toByteString(),
-    )
+    return mapOf("mp-plaintext-join-keys" to PLAINTEXT_JOIN_KEYS.toByteString())
   }
 }

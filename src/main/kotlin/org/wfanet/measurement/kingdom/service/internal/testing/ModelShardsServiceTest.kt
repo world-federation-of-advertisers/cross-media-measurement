@@ -59,7 +59,7 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
     val modelProvidersService: ModelProvidersCoroutineImplBase,
     val modelSuitesService: ModelSuitesCoroutineImplBase,
     val modelReleasesService: ModelReleasesCoroutineImplBase,
-    val populationsService: PopulationsCoroutineImplBase
+    val populationsService: PopulationsCoroutineImplBase,
   )
 
   protected val clock: Clock = Clock.systemUTC()
@@ -110,7 +110,7 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
           externalModelSuiteId = modelSuite.externalModelSuiteId
         },
         createdPopulation,
-        modelReleasesService
+        modelReleasesService,
       )
 
     val modelShard = modelShard {
@@ -124,9 +124,7 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
     val createdModelShard = modelShardsService.createModelShard(modelShard)
 
     assertThat(createdModelShard)
-      .ignoringFields(
-        ModelShard.CREATE_TIME_FIELD_NUMBER,
-      )
+      .ignoringFields(ModelShard.CREATE_TIME_FIELD_NUMBER)
       .isEqualTo(
         modelShard {
           externalDataProviderId = createdModelShard.externalDataProviderId
@@ -193,7 +191,7 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
           externalModelSuiteId = modelSuite.externalModelSuiteId
         },
         createdPopulation,
-        modelReleasesService
+        modelReleasesService,
       )
 
     val modelShard = modelShard {
@@ -243,7 +241,7 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
           externalModelSuiteId = modelSuite.externalModelSuiteId
         },
         createdPopulation,
-        modelReleasesService
+        modelReleasesService,
       )
 
     val modelShard = modelShard {
@@ -291,7 +289,7 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
             externalModelSuiteId = modelSuite1.externalModelSuiteId
           },
           createdPopulation,
-          modelReleasesService
+          modelReleasesService,
         )
 
       val modelShard = modelShard {
@@ -391,7 +389,7 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
           externalModelSuiteId = modelSuite.externalModelSuiteId
         },
         createdPopulation,
-        modelReleasesService
+        modelReleasesService,
       )
 
     val modelShard = modelShard {
@@ -434,7 +432,7 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
           externalModelSuiteId = modelSuite1.externalModelSuiteId
         },
         createdPopulation,
-        modelReleasesService
+        modelReleasesService,
       )
 
     val modelRelease2 =
@@ -444,7 +442,7 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
           externalModelSuiteId = modelSuite2.externalModelSuiteId
         },
         createdPopulation,
-        modelReleasesService
+        modelReleasesService,
       )
 
     val modelShardProto1 = modelShard {
@@ -494,7 +492,7 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
           externalModelSuiteId = modelSuite.externalModelSuiteId
         },
         createdPopulation,
-        modelReleasesService
+        modelReleasesService,
       )
 
     val modelShard = modelShard {
@@ -555,7 +553,7 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
           externalModelSuiteId = modelSuite.externalModelSuiteId
         },
         createdPopulation,
-        modelReleasesService
+        modelReleasesService,
       )
 
     val modelShard = modelShard {

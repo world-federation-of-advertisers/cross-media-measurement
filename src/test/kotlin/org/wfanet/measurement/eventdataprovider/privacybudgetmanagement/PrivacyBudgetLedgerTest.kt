@@ -37,7 +37,7 @@ class PrivacyBudgetLedgerTest {
           AgeGroup.RANGE_35_54,
           Gender.MALE,
           0.3f,
-          0.1f
+          0.1f,
         )
       val dpCharge = DpCharge(1.0f, 0.01f)
 
@@ -64,7 +64,7 @@ class PrivacyBudgetLedgerTest {
           AgeGroup.RANGE_35_54,
           Gender.MALE,
           0.3f,
-          0.1f
+          0.1f,
         )
       val dpCharge = DpCharge(1.0f, 0.01f)
 
@@ -93,7 +93,7 @@ class PrivacyBudgetLedgerTest {
           AgeGroup.RANGE_35_54,
           Gender.MALE,
           0.3f,
-          0.1f
+          0.1f,
         )
       val dpCharge = DpCharge(1.0f, 0.001f)
       // The charges succeed and fills the Privacy Budget.
@@ -118,7 +118,7 @@ class PrivacyBudgetLedgerTest {
         AgeGroup.RANGE_35_54,
         Gender.MALE,
         0.3f,
-        0.1f
+        0.1f,
       )
     val dpCharge = DpCharge(1.0f, 0.001f)
     // Only the first charge would fill the budget, rest are not processed by the ledger
@@ -141,7 +141,7 @@ class PrivacyBudgetLedgerTest {
           AgeGroup.RANGE_35_54,
           Gender.MALE,
           0.3f,
-          0.1f
+          0.1f,
         )
       val dpCharge = DpCharge(1.0f, 0.001f)
       // The charges succeed and fills the Privacy Budget.
@@ -176,7 +176,7 @@ class PrivacyBudgetLedgerTest {
           AgeGroup.RANGE_35_54,
           Gender.MALE,
           0.3f,
-          0.1f
+          0.1f,
         )
 
       // The charges succeed and fills the Privacy Budget.
@@ -204,7 +204,7 @@ class PrivacyBudgetLedgerTest {
           AgeGroup.RANGE_35_54,
           Gender.MALE,
           0.3f,
-          0.1f
+          0.1f,
         )
       val bucket2 =
         PrivacyBucketGroup(
@@ -214,7 +214,7 @@ class PrivacyBudgetLedgerTest {
           AgeGroup.RANGE_35_54,
           Gender.FEMALE,
           0.3f,
-          0.1f
+          0.1f,
         )
 
       // The charges succeed and fills the Privacy Budget.
@@ -247,7 +247,7 @@ class PrivacyBudgetLedgerTest {
           AgeGroup.RANGE_35_54,
           Gender.MALE,
           0.3f,
-          0.1f
+          0.1f,
         )
 
       val chargeList = setOf(DpCharge(0.5f, 0.001f), DpCharge(0.3f, 0.001f), DpCharge(0.2f, 0.001f))
@@ -274,7 +274,7 @@ class PrivacyBudgetLedgerTest {
           AgeGroup.RANGE_35_54,
           Gender.MALE,
           0.3f,
-          0.1f
+          0.1f,
         )
       val acdpCharge = AcdpCharge(0.04, 5.0E-6)
 
@@ -302,7 +302,7 @@ class PrivacyBudgetLedgerTest {
           AgeGroup.RANGE_35_54,
           Gender.MALE,
           0.3f,
-          0.1f
+          0.1f,
         )
       val acdpCharge = AcdpCharge(0.04, 5.0E-6)
 
@@ -330,7 +330,7 @@ class PrivacyBudgetLedgerTest {
           AgeGroup.RANGE_35_54,
           Gender.MALE,
           0.3f,
-          0.1f
+          0.1f,
         )
       val acdpCharge = AcdpCharge(0.04, 5.0E-6)
       // The acdpCharges succeed and fills the Privacy Budget.
@@ -355,7 +355,7 @@ class PrivacyBudgetLedgerTest {
         AgeGroup.RANGE_35_54,
         Gender.MALE,
         0.3f,
-        0.1f
+        0.1f,
       )
     val acdpCharge = AcdpCharge(0.04, 5.0E-6)
     // Only the first acdpCharge would fill the budget, rest are not processed by the ledger
@@ -377,7 +377,7 @@ class PrivacyBudgetLedgerTest {
           AgeGroup.RANGE_35_54,
           Gender.MALE,
           0.3f,
-          0.1f
+          0.1f,
         )
       val acdpCharge = AcdpCharge(0.04, 5.0E-6)
 
@@ -412,7 +412,7 @@ class PrivacyBudgetLedgerTest {
           AgeGroup.RANGE_35_54,
           Gender.MALE,
           0.3f,
-          0.1f
+          0.1f,
         )
 
       // The acdpCharges succeed and fills the privacy budget.
@@ -441,7 +441,7 @@ class PrivacyBudgetLedgerTest {
           AgeGroup.RANGE_35_54,
           Gender.MALE,
           0.3f,
-          0.1f
+          0.1f,
         )
       val bucket2 =
         PrivacyBucketGroup(
@@ -451,7 +451,7 @@ class PrivacyBudgetLedgerTest {
           AgeGroup.RANGE_35_54,
           Gender.FEMALE,
           0.3f,
-          0.1f
+          0.1f,
         )
 
       val acdpCharge = AcdpCharge(0.04, 5.0E-6)
@@ -485,7 +485,7 @@ class PrivacyBudgetLedgerTest {
           AgeGroup.RANGE_35_54,
           Gender.MALE,
           0.3f,
-          0.1f
+          0.1f,
         )
 
       val acdpChargesList =
@@ -493,7 +493,7 @@ class PrivacyBudgetLedgerTest {
           AcdpCharge(0.04, 5.0E-6),
           AcdpCharge(0.05, 5.0E-6),
           AcdpCharge(0.06, 5.0E-6),
-          AcdpCharge(0.07, 5.0E-6)
+          AcdpCharge(0.07, 5.0E-6),
         )
 
       // The acdpCharges succeed and fills the Privacy Budget.

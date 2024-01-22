@@ -92,7 +92,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
         .readByExternalComputationId(transactionContext, externalComputationId, InternalId(duchyId))
         ?: throw ComputationParticipantNotFoundByComputationException(
           externalComputationId,
-          request.externalDuchyId
+          request.externalDuchyId,
         ) {
           "ComputationParticipant for external computation ID ${request.externalComputationId} " +
             "and external duchy ID ${request.externalDuchyId} not found"
@@ -105,7 +105,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
       throw MeasurementStateIllegalException(
         ExternalId(computationParticipant.externalMeasurementConsumerId),
         ExternalId(computationParticipant.externalMeasurementId),
-        computationParticipantResult.measurementState
+        computationParticipantResult.measurementState,
       )
     }
 
@@ -116,7 +116,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
       throw ComputationParticipantStateIllegalException(
         externalComputationId,
         request.externalDuchyId,
-        computationParticipant.state
+        computationParticipant.state,
       ) {
         "ComputationParticipant for external computation Id ${request.externalComputationId} " +
           "and external duchy ID ${request.externalDuchyId} has the wrong state. " +
@@ -153,7 +153,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
         otherDuchyIds,
         measurementConsumerId,
         measurementId,
-        NEXT_COMPUTATION_PARTICIPANT_STATE
+        NEXT_COMPUTATION_PARTICIPANT_STATE,
       )
     ) {
       val measurementLogEntryDetails =
@@ -163,7 +163,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
         measurementId = measurementId,
         nextState = Measurement.State.PENDING_REQUISITION_FULFILLMENT,
         previousState = computationParticipantResult.measurementState,
-        measurementLogEntryDetails = measurementLogEntryDetails
+        measurementLogEntryDetails = measurementLogEntryDetails,
       )
       transactionContext
         .executeQuery(
@@ -199,7 +199,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
 
   private suspend fun TransactionScope.readDuchyCertificateId(
     duchyId: InternalId,
-    externalCertificateId: ExternalId
+    externalCertificateId: ExternalId,
   ): InternalId {
     val column = "CertificateId"
     return transactionContext
@@ -207,7 +207,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
         "DuchyCertificates",
         "DuchyCertificatesByExternalId",
         Key.of(duchyId.value, externalCertificateId.value),
-        column
+        column,
       )
       ?.let { struct -> InternalId(struct.getLong(column)) }
       ?: throw DuchyCertificateNotFoundException(request.externalDuchyId, externalCertificateId) {

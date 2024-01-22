@@ -32,7 +32,7 @@ import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 /** [PrincipalLookup] of [ReportingPrincipal] by authority key identifier (AKID). */
 class AkidPrincipalLookup(
   akidConfig: AuthorityKeyToPrincipalMap,
-  measurementConsumerConfigs: MeasurementConsumerConfigs
+  measurementConsumerConfigs: MeasurementConsumerConfigs,
 ) : PrincipalLookup<ReportingPrincipal, ByteString> {
 
   /**
@@ -44,10 +44,10 @@ class AkidPrincipalLookup(
    */
   constructor(
     akidConfig: File,
-    measurementConsumerConfigs: File
+    measurementConsumerConfigs: File,
   ) : this(
     parseTextProto(akidConfig, AuthorityKeyToPrincipalMap.getDefaultInstance()),
-    parseTextProto(measurementConsumerConfigs, MeasurementConsumerConfigs.getDefaultInstance())
+    parseTextProto(measurementConsumerConfigs, MeasurementConsumerConfigs.getDefaultInstance()),
   )
 
   private val measurementConsumerConfigs: Map<String, MeasurementConsumerConfig> =

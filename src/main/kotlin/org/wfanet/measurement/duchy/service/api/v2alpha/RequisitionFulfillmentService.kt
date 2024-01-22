@@ -110,19 +110,19 @@ class RequisitionFulfillmentService(
               recordRequisitionSeedLocally(
                 computationToken,
                 externalRequisitionKey,
-                header.honestMajorityShareShuffle.seed
+                header.honestMajorityShareShuffle.seed,
               )
             }
             FulfillRequisitionRequest.Header.ProtocolCase.PROTOCOL_NOT_SET -> {
               val blob =
                 requisitionStore.write(
                   RequisitionBlobContext(computationToken.globalComputationId, key.requisitionId),
-                  consumed.remaining.map { it.bodyChunk.data }
+                  consumed.remaining.map { it.bodyChunk.data },
                 )
               recordRequisitionBlobPathLocally(
                 computationToken,
                 externalRequisitionKey,
-                blob.blobKey
+                blob.blobKey,
               )
             }
           }
@@ -131,7 +131,7 @@ class RequisitionFulfillmentService(
         fulfillRequisitionAtKingdom(
           computationToken.globalComputationId,
           externalRequisitionKey.externalRequisitionId,
-          header.nonce
+          header.nonce,
         )
 
         return FULFILLED_RESPONSE
@@ -166,7 +166,7 @@ class RequisitionFulfillmentService(
   private fun verifyRequisitionFulfillment(
     computationToken: ComputationToken,
     requisitionKey: ExternalRequisitionKey,
-    nonce: Long
+    nonce: Long,
   ): RequisitionMetadata {
     val kingdomComputation = computationToken.computationDetails.kingdomComputation
     val requisitionMetadata =
@@ -186,7 +186,7 @@ class RequisitionFulfillmentService(
             measurementSpec,
             requisitionMetadata.toConsentSignalingRequisition(),
             requisitionKey.requisitionFingerprint,
-            nonce
+            nonce,
           )
         ) {
           throw Status.FAILED_PRECONDITION.withDescription(
@@ -204,7 +204,7 @@ class RequisitionFulfillmentService(
   private suspend fun recordRequisitionBlobPathLocally(
     token: ComputationToken,
     key: ExternalRequisitionKey,
-    blobPath: String
+    blobPath: String,
   ) {
     computationsClient.recordRequisitionBlobPath(
       RecordRequisitionBlobPathRequest.newBuilder()
@@ -221,7 +221,7 @@ class RequisitionFulfillmentService(
   private suspend fun recordRequisitionSeedLocally(
     token: ComputationToken,
     key: ExternalRequisitionKey,
-    seed: ByteString
+    seed: ByteString,
   ) {
     computationsClient.recordRequisitionSeed(
       recordRequisitionSeedRequest {
@@ -236,7 +236,7 @@ class RequisitionFulfillmentService(
   private suspend fun fulfillRequisitionAtKingdom(
     computationId: String,
     requisitionId: String,
-    nonce: Long
+    nonce: Long,
   ) {
     systemRequisitionsClient.fulfillRequisition(
       systemFulfillRequisitionRequest {

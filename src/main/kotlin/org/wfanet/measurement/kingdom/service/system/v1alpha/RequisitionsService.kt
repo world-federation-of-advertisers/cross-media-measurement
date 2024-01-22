@@ -29,7 +29,7 @@ import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoro
 
 class RequisitionsService(
   private val internalRequisitionsClient: InternalRequisitionsCoroutineStub,
-  private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext
+  private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext,
 ) : RequisitionsCoroutineImplBase() {
 
   override suspend fun fulfillRequisition(request: FulfillRequisitionRequest): Requisition {

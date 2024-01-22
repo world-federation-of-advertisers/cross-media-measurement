@@ -88,7 +88,7 @@ class EventGroupMetadataDescriptorsServiceTest {
             INTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR.copy {
               externalEventGroupMetadataDescriptorId =
                 EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID_2.value
-            }
+            },
           )
         )
     }
@@ -123,7 +123,7 @@ class EventGroupMetadataDescriptorsServiceTest {
 
     verifyProtoArgument(
         internalEventGroupMetadataDescriptorsMock,
-        EventGroupMetadataDescriptorsCoroutineImplBase::getEventGroupMetadataDescriptor
+        EventGroupMetadataDescriptorsCoroutineImplBase::getEventGroupMetadataDescriptor,
       )
       .isEqualTo(
         internalGetEventGroupMetadataDescriptorRequest {
@@ -150,7 +150,7 @@ class EventGroupMetadataDescriptorsServiceTest {
 
     verifyProtoArgument(
         internalEventGroupMetadataDescriptorsMock,
-        EventGroupMetadataDescriptorsCoroutineImplBase::getEventGroupMetadataDescriptor
+        EventGroupMetadataDescriptorsCoroutineImplBase::getEventGroupMetadataDescriptor,
       )
       .isEqualTo(
         internalGetEventGroupMetadataDescriptorRequest {
@@ -207,7 +207,7 @@ class EventGroupMetadataDescriptorsServiceTest {
 
     verifyProtoArgument(
         internalEventGroupMetadataDescriptorsMock,
-        EventGroupMetadataDescriptorsCoroutineImplBase::createEventGroupMetadataDescriptor
+        EventGroupMetadataDescriptorsCoroutineImplBase::createEventGroupMetadataDescriptor,
       )
       .isEqualTo(
         INTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR.copy {
@@ -308,7 +308,7 @@ class EventGroupMetadataDescriptorsServiceTest {
 
     verifyProtoArgument(
         internalEventGroupMetadataDescriptorsMock,
-        EventGroupMetadataDescriptorsCoroutineImplBase::updateEventGroupMetadataDescriptor
+        EventGroupMetadataDescriptorsCoroutineImplBase::updateEventGroupMetadataDescriptor,
       )
       .isEqualTo(
         org.wfanet.measurement.internal.kingdom.updateEventGroupMetadataDescriptorRequest {
@@ -381,7 +381,7 @@ class EventGroupMetadataDescriptorsServiceTest {
       eventGroupMetadataDescriptors +=
         listOf(
           EVENT_GROUP_METADATA_DESCRIPTOR.copy { name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2 },
-          EVENT_GROUP_METADATA_DESCRIPTOR
+          EVENT_GROUP_METADATA_DESCRIPTOR,
         )
     }
 
@@ -399,14 +399,14 @@ class EventGroupMetadataDescriptorsServiceTest {
               externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID_2.value
               externalEventGroupMetadataDescriptorId =
                 EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID_2.value
-            }
+            },
           )
         )
     }
     val eventGroupMetadataDescriptor2Key =
       EventGroupMetadataDescriptorKey(
         DATA_PROVIDER_EXTERNAL_ID_2.apiId.value,
-        EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID_2.apiId.value
+        EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID_2.apiId.value,
       )
     val request = batchGetEventGroupMetadataDescriptorsRequest {
       parent = "dataProviders/-"
@@ -427,7 +427,7 @@ class EventGroupMetadataDescriptorsServiceTest {
               EVENT_GROUP_METADATA_DESCRIPTOR,
               EVENT_GROUP_METADATA_DESCRIPTOR.copy {
                 name = eventGroupMetadataDescriptor2Key.toName()
-              }
+              },
             )
         }
       )
@@ -811,13 +811,13 @@ class EventGroupMetadataDescriptorsServiceTest {
     private val EVENT_GROUP_METADATA_DESCRIPTOR_NAME =
       EventGroupMetadataDescriptorKey(
           DATA_PROVIDER_KEY.dataProviderId,
-          EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.apiId.value
+          EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.apiId.value,
         )
         .toName()
     private val EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2 =
       EventGroupMetadataDescriptorKey(
           DATA_PROVIDER_KEY.dataProviderId,
-          EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID_2.apiId.value
+          EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID_2.apiId.value,
         )
         .toName()
     private val FILE_DESCRIPTOR_SET = FileDescriptorSet.getDefaultInstance()

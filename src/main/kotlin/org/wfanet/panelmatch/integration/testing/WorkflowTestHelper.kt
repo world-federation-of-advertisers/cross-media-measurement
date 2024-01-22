@@ -23,7 +23,7 @@ const val TEST_PADDING_NONCE_PREFIX: String = "[Padding Nonce]"
 data class ParsedPlaintextResults(
   val joinKey: String,
   val isPaddingQuery: Boolean,
-  val plaintexts: List<String>
+  val plaintexts: List<String>,
 )
 
 /**

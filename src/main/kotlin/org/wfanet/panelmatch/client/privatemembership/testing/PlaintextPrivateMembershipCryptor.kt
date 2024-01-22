@@ -50,7 +50,7 @@ class PlaintextPrivateMembershipCryptor : PrivateMembershipCryptor {
     return privateMembershipCryptorHelper
       .makeEncryptedQueryBundle(
         shard = shardId,
-        queries = unencryptedQueries.map { it.queryId to it.bucketId }
+        queries = unencryptedQueries.map { it.queryId to it.bucketId },
       )
       .toByteString()
   }

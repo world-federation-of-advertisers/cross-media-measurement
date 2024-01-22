@@ -36,21 +36,15 @@ class PlaintextPrivateMembershipCryptorTest {
     val keys = privateMembershipCryptor.generateKeys()
     val unencryptedQueriesList =
       listOf(
-        listOf(
-          unencryptedQueryOf(100, 1, 1),
-          unencryptedQueryOf(100, 2, 2),
-        ),
-        listOf(
-          unencryptedQueryOf(101, 3, 1),
-          unencryptedQueryOf(101, 4, 5),
-        )
+        listOf(unencryptedQueryOf(100, 1, 1), unencryptedQueryOf(100, 2, 2)),
+        listOf(unencryptedQueryOf(101, 3, 1), unencryptedQueryOf(101, 4, 5)),
       )
     val encryptedQueriesList =
       unencryptedQueriesList.map { privateMembershipCryptor.encryptQueries(it, keys) }
     assertThat(encryptedQueriesList.map { EncryptedQueryBundle.parseFrom(it) })
       .containsExactly(
         encryptedQueryBundleOf(shard = 100, listOf(1 to 1, 2 to 2)),
-        encryptedQueryBundleOf(shard = 101, listOf(3 to 1, 4 to 5))
+        encryptedQueryBundleOf(shard = 101, listOf(3 to 1, 4 to 5)),
       )
   }
 
@@ -59,26 +53,9 @@ class PlaintextPrivateMembershipCryptorTest {
     val keys = privateMembershipCryptor.generateKeys()
     val encryptedEventData =
       listOf(
-        encryptedEventDataSetOf(
-          listOf(
-            "<some encrypted data a>",
-            "<some encrypted data b>",
-          ),
-          1
-        ),
-        encryptedEventDataSetOf(
-          listOf(
-            "<some encrypted data c>",
-            "<some encrypted data d>",
-          ),
-          2
-        ),
-        encryptedEventDataSetOf(
-          listOf(
-            "<some encrypted data e>",
-          ),
-          3
-        ),
+        encryptedEventDataSetOf(listOf("<some encrypted data a>", "<some encrypted data b>"), 1),
+        encryptedEventDataSetOf(listOf("<some encrypted data c>", "<some encrypted data d>"), 2),
+        encryptedEventDataSetOf(listOf("<some encrypted data e>"), 3),
       )
     val encryptedQueryResults =
       encryptedEventData.map { privateMembershipCryptorHelper.makeEncryptedQueryResult(keys, it) }
@@ -99,17 +76,17 @@ class PlaintextPrivateMembershipCryptorTest {
         decryptedQueryOf(1, "<some encrypted data b>".toByteStringUtf8()),
         decryptedQueryOf(2, "<some encrypted data c>".toByteStringUtf8()),
         decryptedQueryOf(2, "<some encrypted data d>".toByteStringUtf8()),
-        decryptedQueryOf(3, "<some encrypted data e>".toByteStringUtf8())
+        decryptedQueryOf(3, "<some encrypted data e>".toByteStringUtf8()),
       )
   }
 
   private fun encryptedQueryBundleOf(
     shard: Int,
-    queries: List<Pair<Int, Int>>
+    queries: List<Pair<Int, Int>>,
   ): EncryptedQueryBundle {
     return privateMembershipCryptorHelper.makeEncryptedQueryBundle(
       shardIdOf(shard),
-      queries.map { queryIdOf(it.first) to bucketIdOf(it.second) }
+      queries.map { queryIdOf(it.first) to bucketIdOf(it.second) },
     )
   }
 }

@@ -65,7 +65,7 @@ class ActivateAccount(
     if (readAccountResult.account.activationState == Account.ActivationState.ACTIVATED) {
       throw AccountActivationStateIllegalException(
         externalAccountId,
-        Account.ActivationState.ACTIVATED
+        Account.ActivationState.ACTIVATED,
       )
     }
 
@@ -89,7 +89,7 @@ class ActivateAccount(
       val measurementConsumerId: InternalId =
         MeasurementConsumerReader.readMeasurementConsumerId(
           transactionContext,
-          externalMeasurementConsumerId
+          externalMeasurementConsumerId,
         ) ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
 
       transactionContext.bufferInsertMutation("MeasurementConsumerOwners") {

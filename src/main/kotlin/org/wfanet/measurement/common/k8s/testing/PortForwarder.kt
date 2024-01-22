@@ -55,7 +55,7 @@ class PortForwarder(
   private val port: Int,
   private val apiClient: ApiClient = Configuration.getDefaultApiClient(),
   private val localAddress: InetAddress = InetAddress.getLoopbackAddress(),
-  coroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO
+  coroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
 ) : AutoCloseable {
   private val scope: CoroutineScope =
     CoroutineScope(coroutineContext + CoroutineName("$podName forwarding"))

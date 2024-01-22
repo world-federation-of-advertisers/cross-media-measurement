@@ -224,11 +224,11 @@ class ModelOutagesService(
               source.filter.hasOutageIntervalOverlapping() &&
               Timestamps.compare(
                 source.filter.outageIntervalOverlapping.startTime,
-                this.outageInterval.startTime
+                this.outageInterval.startTime,
               ) == 0 &&
               Timestamps.compare(
                 source.filter.outageIntervalOverlapping.endTime,
-                this.outageInterval.endTime
+                this.outageInterval.endTime,
               ) == 0
           ) {
             "Arguments must be kept the same when using a page token"

@@ -75,7 +75,7 @@ class ComputationDataClientsTest {
         ComputationStore(storageClient),
         RequisitionStore(storageClient),
         ALSACE,
-        Clock.systemUTC()
+        Clock.systemUTC(),
       )
     )
   }
@@ -103,11 +103,11 @@ class ComputationDataClientsTest {
       SingleLiquidLegionsV2Computation(
         ComputationDataClients(
           ComputationsCoroutineStub(channel = grpcTestServerRule.channel),
-          storageClient = dummyStorageClient
+          storageClient = dummyStorageClient,
         ),
         ID_WHERE_ALSACE_IS_NOT_PRIMARY,
         RoleInComputation.NON_AGGREGATOR,
-        testClock
+        testClock,
       )
     val fakeRpcService = computation.FakeRpcService()
     computation.enqueue()
@@ -150,11 +150,11 @@ class ComputationDataClientsTest {
       SingleLiquidLegionsV2Computation(
         ComputationDataClients(
           ComputationsCoroutineStub(channel = grpcTestServerRule.channel),
-          storageClient = dummyStorageClient
+          storageClient = dummyStorageClient,
         ),
         ID_WHERE_ALSACE_IS_PRIMARY,
         RoleInComputation.AGGREGATOR,
-        testClock
+        testClock,
       )
     val fakeRpcService = computation.FakeRpcService()
 
@@ -174,7 +174,7 @@ class ComputationDataClientsTest {
             addParticipantBuilder().apply { duchyId = BAVARIA }
             addParticipantBuilder().apply { duchyId = ALSACE }
           }
-          .build()
+          .build(),
       )
     )
     fakeRpcService.receiveSketch(BAVARIA)
@@ -206,7 +206,7 @@ class ComputationDataClientsTest {
 data class ComputationStep(
   val token: ComputationToken,
   val inputs: List<ComputationStageBlobMetadata>,
-  val outputs: List<ComputationStageBlobMetadata>
+  val outputs: List<ComputationStageBlobMetadata>,
 )
 
 /**
@@ -221,7 +221,7 @@ class SingleLiquidLegionsV2Computation(
   private val dataClients: ComputationDataClients,
   globalId: String,
   roleInComputation: RoleInComputation,
-  private val testClock: TestClockWithNamedInstants
+  private val testClock: TestClockWithNamedInstants,
 ) {
 
   private var token: ComputationToken = runBlocking {
@@ -269,7 +269,7 @@ class SingleLiquidLegionsV2Computation(
   /** Runs an operation and checks the returned token from the operation matches the expected. */
   private fun assertTokenChangesTo(
     expected: ComputationToken,
-    run: suspend (ComputationStep) -> ComputationToken
+    run: suspend (ComputationStep) -> ComputationToken,
   ) = runBlocking {
     testClock.tickSeconds("${expected.computationStage}_$expected.attempt")
     // Some stages use the inputs to their predecessor as inputs it itself. If the inputs are needed
@@ -349,7 +349,7 @@ class SingleLiquidLegionsV2Computation(
           dataClients.transitionComputationToStage(
             computationToken = it.token,
             inputsToNextStage = it.inputs.paths() + it.outputs.paths(),
-            stage = Stage.SETUP_PHASE.toProtocolStage()
+            stage = Stage.SETUP_PHASE.toProtocolStage(),
           )
         }
       }
@@ -371,7 +371,7 @@ class SingleLiquidLegionsV2Computation(
         dataClients.transitionComputationToStage(
           computationToken = it.token,
           inputsToNextStage = it.outputs.paths(),
-          stage = nextStage.toProtocolStage()
+          stage = nextStage.toProtocolStage(),
         )
       }
     }
@@ -391,7 +391,7 @@ class SingleLiquidLegionsV2Computation(
     ) {
       dataClients.transitionComputationToStage(
         computationToken = it.token,
-        stage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
+        stage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage(),
       )
     }
   }
@@ -407,7 +407,7 @@ class SingleLiquidLegionsV2Computation(
       dataClients.transitionComputationToStage(
         computationToken = it.token,
         inputsToNextStage = it.inputs.paths(),
-        stage = Stage.CONFIRMATION_PHASE.toProtocolStage()
+        stage = Stage.CONFIRMATION_PHASE.toProtocolStage(),
       )
     }
   }
@@ -424,7 +424,7 @@ class SingleLiquidLegionsV2Computation(
       dataClients.transitionComputationToStage(
         computationToken = it.token,
         inputsToNextStage = it.inputs.paths(),
-        stage = Stage.SETUP_PHASE.toProtocolStage()
+        stage = Stage.SETUP_PHASE.toProtocolStage(),
       )
     }
   }
@@ -442,7 +442,7 @@ class SingleLiquidLegionsV2Computation(
       dataClients.transitionComputationToStage(
         computationToken = it.token,
         inputsToNextStage = it.outputs.paths(),
-        stage = stage.toProtocolStage()
+        stage = stage.toProtocolStage(),
       )
     }
   }

@@ -60,7 +60,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   protected data class Services<T>(
     val measurementsService: T,
-    val reportsService: ReportsCoroutineImplBase
+    val reportsService: ReportsCoroutineImplBase,
   )
 
   /** Instance of the service under test. */
@@ -370,7 +370,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
                   columnHeader =
                     buildColumnHeader(
                       metricDetails.metricTypeCase.name,
-                      NAMED_SET_OPERATION.displayName
+                      NAMED_SET_OPERATION.displayName,
                     )
                   setOperations += 260.0
                   setOperations += 440.0
@@ -490,7 +490,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
                   columnHeader =
                     buildColumnHeader(
                       metricDetails.metricTypeCase.name,
-                      NAMED_SET_OPERATION.displayName
+                      NAMED_SET_OPERATION.displayName,
                     )
                   setOperations += 0.0
                   setOperations += 440.0
@@ -592,7 +592,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
                   columnHeader =
                     buildColumnHeader(
                       metricDetails.metricTypeCase.name,
-                      NAMED_SET_OPERATION.displayName
+                      NAMED_SET_OPERATION.displayName,
                     )
                   setOperations += 700.0
                   setOperations += 1400.0
@@ -672,7 +672,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
                   columnHeader =
                     buildColumnHeader(
                       metricDetails.metricTypeCase.name,
-                      NAMED_SET_OPERATION.displayName
+                      NAMED_SET_OPERATION.displayName,
                     )
                   setOperations += 700.0
                   setOperations += 1400.0
@@ -747,7 +747,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
                   columnHeader =
                     buildColumnHeader(
                       metricDetails.metricTypeCase.name,
-                      NAMED_SET_OPERATION.displayName
+                      NAMED_SET_OPERATION.displayName,
                     )
                   setOperations += 700.0
                   setOperations += 1400.0

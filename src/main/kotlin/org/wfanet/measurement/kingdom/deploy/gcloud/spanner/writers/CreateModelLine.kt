@@ -47,7 +47,7 @@ class CreateModelLine(private val modelLine: ModelLine, private val clock: Clock
     if (Timestamps.compare(now, modelLine.activeStartTime) >= 0) {
       throw ModelLineInvalidArgsException(
         ExternalId(modelLine.externalModelProviderId),
-        ExternalId(modelLine.externalModelSuiteId)
+        ExternalId(modelLine.externalModelSuiteId),
       ) {
         "ActiveStartTime must be in the future."
       }
@@ -59,7 +59,7 @@ class CreateModelLine(private val modelLine: ModelLine, private val clock: Clock
     ) {
       throw ModelLineInvalidArgsException(
         ExternalId(modelLine.externalModelProviderId),
-        ExternalId(modelLine.externalModelSuiteId)
+        ExternalId(modelLine.externalModelSuiteId),
       ) {
         "ActiveEndTime cannot precede ActiveStartTime."
       }
@@ -68,11 +68,11 @@ class CreateModelLine(private val modelLine: ModelLine, private val clock: Clock
     val modelSuiteData: Struct =
       readModelSuiteData(
         ExternalId(modelLine.externalModelProviderId),
-        ExternalId(modelLine.externalModelSuiteId)
+        ExternalId(modelLine.externalModelSuiteId),
       )
         ?: throw ModelSuiteNotFoundException(
           ExternalId(modelLine.externalModelProviderId),
-          ExternalId(modelLine.externalModelSuiteId)
+          ExternalId(modelLine.externalModelSuiteId),
         )
 
     val internalModelLineId = idGenerator.generateInternalId()
@@ -101,12 +101,12 @@ class CreateModelLine(private val modelLine: ModelLine, private val clock: Clock
               transactionContext,
               ExternalId(modelLine.externalModelProviderId),
               ExternalId(modelLine.externalModelSuiteId),
-              ExternalId(modelLine.externalHoldbackModelLineId)
+              ExternalId(modelLine.externalHoldbackModelLineId),
             )
             ?: throw ModelLineNotFoundException(
               ExternalId(modelLine.externalModelProviderId),
               ExternalId(modelLine.externalModelSuiteId),
-              ExternalId(modelLine.externalHoldbackModelLineId)
+              ExternalId(modelLine.externalHoldbackModelLineId),
             ) {
               "HoldbackModelLine not found."
             }
@@ -116,7 +116,7 @@ class CreateModelLine(private val modelLine: ModelLine, private val clock: Clock
             ExternalId(modelLine.externalModelProviderId),
             ExternalId(modelLine.externalModelSuiteId),
             externalModelLineId,
-            modelLine.type
+            modelLine.type,
           ) {
             "Only ModelLine with type == PROD can have a Holdback ModelLine."
           }
@@ -126,7 +126,7 @@ class CreateModelLine(private val modelLine: ModelLine, private val clock: Clock
             ExternalId(holdbackModelLineResult.modelLine.externalModelProviderId),
             ExternalId(holdbackModelLineResult.modelLine.externalModelSuiteId),
             ExternalId(holdbackModelLineResult.modelLine.externalModelLineId),
-            holdbackModelLineResult.modelLine.type
+            holdbackModelLineResult.modelLine.type,
           ) {
             "Only ModelLine with type == HOLDBACK can be set as Holdback ModelLine."
           }
@@ -142,7 +142,7 @@ class CreateModelLine(private val modelLine: ModelLine, private val clock: Clock
 
   private suspend fun TransactionScope.readModelSuiteData(
     externalModelProviderId: ExternalId,
-    externalModelSuiteId: ExternalId
+    externalModelSuiteId: ExternalId,
   ): Struct? {
     val sql =
       """

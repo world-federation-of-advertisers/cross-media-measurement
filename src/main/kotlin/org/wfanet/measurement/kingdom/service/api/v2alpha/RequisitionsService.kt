@@ -85,9 +85,8 @@ import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 
-class RequisitionsService(
-  private val internalRequisitionStub: RequisitionsCoroutineStub,
-) : RequisitionsCoroutineImplBase() {
+class RequisitionsService(private val internalRequisitionStub: RequisitionsCoroutineStub) :
+  RequisitionsCoroutineImplBase() {
 
   private enum class Permission {
     LIST,
@@ -285,7 +284,7 @@ private fun InternalRequisition.toRequisition(): Requisition {
   val requisitionKey =
     CanonicalRequisitionKey(
       externalIdToApiId(externalDataProviderId),
-      externalIdToApiId(externalRequisitionId)
+      externalIdToApiId(externalRequisitionId),
     )
   val measurementApiVersion = Version.fromString(parentMeasurement.apiVersion)
   val packedMeasurementSpec = any {
@@ -310,13 +309,13 @@ private fun InternalRequisition.toRequisition(): Requisition {
     measurement =
       MeasurementKey(
           externalIdToApiId(externalMeasurementConsumerId),
-          externalIdToApiId(externalMeasurementId)
+          externalIdToApiId(externalMeasurementId),
         )
         .toName()
     measurementConsumerCertificate =
       MeasurementConsumerCertificateKey(
           externalIdToApiId(externalMeasurementConsumerId),
-          externalIdToApiId(parentMeasurement.externalMeasurementConsumerCertificateId)
+          externalIdToApiId(parentMeasurement.externalMeasurementConsumerCertificateId),
         )
         .toName()
     this.measurementSpec = signedMessage {
@@ -342,7 +341,7 @@ private fun InternalRequisition.toRequisition(): Requisition {
     dataProviderCertificate =
       DataProviderCertificateKey(
           externalIdToApiId(externalDataProviderId),
-          externalIdToApiId(this@toRequisition.dataProviderCertificate.externalCertificateId)
+          externalIdToApiId(this@toRequisition.dataProviderCertificate.externalCertificateId),
         )
         .toName()
     this.dataProviderPublicKey = dataProviderPublicKey
@@ -420,7 +419,7 @@ private fun State.toInternal(): InternalState =
 /** Converts an internal [DuchyValue] to a public [DuchyEntry.Value]. */
 private fun DuchyValue.toDuchyEntryValue(
   externalDuchyId: String,
-  apiVersion: Version
+  apiVersion: Version,
 ): DuchyEntry.Value {
   val duchyCertificateKey =
     DuchyCertificateKey(externalDuchyId, externalIdToApiId(externalDuchyCertificateId))
@@ -475,7 +474,7 @@ private fun buildInternalStreamRequisitionsRequest(
   filter: ListRequisitionsRequest.Filter,
   parentKey: RequisitionParentKey,
   pageSize: Int,
-  pageToken: ListRequisitionsPageToken?
+  pageToken: ListRequisitionsPageToken?,
 ): StreamRequisitionsRequest {
   val requestStates = filter.statesList
   return streamRequisitionsRequest {
@@ -527,7 +526,7 @@ private fun buildInternalStreamRequisitionsRequest(
 private fun buildNextPageToken(
   filter: ListRequisitionsRequest.Filter,
   internalFilter: StreamRequisitionsRequest.Filter,
-  internalRequisitions: List<InternalRequisition>
+  internalRequisitions: List<InternalRequisition>,
 ): ListRequisitionsPageToken {
   return listRequisitionsPageToken {
     if (internalFilter.externalDataProviderId != 0L) {

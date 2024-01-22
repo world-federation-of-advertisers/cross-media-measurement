@@ -32,7 +32,7 @@ class CopyFromPreviousExchangeTask(
   private val privateStorageSelector: PrivateStorageSelector,
   private val schedule: ExchangeWorkflow.Schedule,
   private val currentExchangeDateKey: ExchangeDateKey,
-  private val previousBlobKey: String
+  private val previousBlobKey: String,
 ) : ExchangeTask {
   override suspend fun execute(
     input: Map<String, StorageClient.Blob>
@@ -51,7 +51,7 @@ class CopyFromPreviousExchangeTask(
 
 private fun calculatePreviousExchangeDate(
   date: LocalDate,
-  schedule: ExchangeWorkflow.Schedule
+  schedule: ExchangeWorkflow.Schedule,
 ): LocalDate {
   return when (schedule.cronExpression) {
     "@daily" -> date.minusDays(1)

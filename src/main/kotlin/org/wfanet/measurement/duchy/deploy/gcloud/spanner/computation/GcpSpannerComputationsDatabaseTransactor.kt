@@ -56,11 +56,11 @@ class GcpSpannerComputationsDatabaseTransactor<
   ProtocolT,
   StageT,
   StageDT : Message,
-  ComputationDT : Message
+  ComputationDT : Message,
 >(
   private val databaseClient: AsyncDatabaseClient,
   private val computationMutations: ComputationMutations<ProtocolT, StageT, StageDT, ComputationDT>,
-  private val clock: Clock = Clock.systemUTC()
+  private val clock: Clock = Clock.systemUTC(),
 ) : ComputationsDatabaseTransactor<ProtocolT, StageT, StageDT, ComputationDT> {
 
   private val localComputationIdGenerator: LocalComputationIdGenerator =
@@ -72,7 +72,7 @@ class GcpSpannerComputationsDatabaseTransactor<
     initialStage: StageT,
     stageDetails: StageDT,
     computationDetails: ComputationDT,
-    requisitions: List<RequisitionEntry>
+    requisitions: List<RequisitionEntry>,
   ) {
     require(computationMutations.validInitialStage(protocol, initialStage)) {
       "Invalid initial stage $initialStage"
@@ -91,7 +91,7 @@ class GcpSpannerComputationsDatabaseTransactor<
         lockExpirationTime = writeTimestamp,
         details = computationDetails,
         protocol = protocol,
-        stage = initialStage
+        stage = initialStage,
       )
 
     val computationStageRow =
@@ -100,7 +100,7 @@ class GcpSpannerComputationsDatabaseTransactor<
         stage = initialStage,
         creationTime = writeTimestamp,
         nextAttempt = 1,
-        details = stageDetails
+        details = stageDetails,
       )
 
     val requisitionRows =
@@ -110,7 +110,7 @@ class GcpSpannerComputationsDatabaseTransactor<
           requisitionId = requisitions.indexOf(it).toLong(),
           externalRequisitionId = it.key.externalRequisitionId,
           requisitionFingerprint = it.key.requisitionFingerprint,
-          requisitionDetails = it.value
+          requisitionDetails = it.value,
         )
       }
 
@@ -132,7 +132,7 @@ class GcpSpannerComputationsDatabaseTransactor<
           // TODO(@renjiezh): Check to make sure the lock isn't actively held by someone other than
           // the caller.
           lockOwner = WRITE_NULL_STRING,
-          lockExpirationTime = clock.instant().plusSeconds(delaySecond.toLong()).toGcloudTimestamp()
+          lockExpirationTime = clock.instant().plusSeconds(delaySecond.toLong()).toGcloudTimestamp(),
         )
       )
     }
@@ -141,7 +141,7 @@ class GcpSpannerComputationsDatabaseTransactor<
   override suspend fun claimTask(
     protocol: ProtocolT,
     ownerId: String,
-    lockDuration: Duration
+    lockDuration: Duration,
   ): String? {
     /** Claim a specific task represented by the results of running the above sql. */
     suspend fun claimSpecificTask(result: UnclaimedTaskQueryResult<StageT>): Boolean =
@@ -153,13 +153,13 @@ class GcpSpannerComputationsDatabaseTransactor<
           result.nextAttempt,
           result.updateTime,
           ownerId,
-          lockDuration
+          lockDuration,
         )
       }
     return UnclaimedTasksQuery(
         computationMutations.protocolEnumToLong(protocol),
         computationMutations::longValuesToComputationStageEnum,
-        clock.gcloudTimestamp()
+        clock.gcloudTimestamp(),
       )
       .execute(databaseClient)
       // First the possible tasks to claim are selected from the computations table, then for each
@@ -183,7 +183,7 @@ class GcpSpannerComputationsDatabaseTransactor<
     nextAttempt: Long,
     lastUpdate: Timestamp,
     ownerId: String,
-    lockDuration: Duration
+    lockDuration: Duration,
   ): Boolean {
     val currentLockOwnerStruct =
       txn.readRow("Computations", Key.of(computationId), listOf("LockOwner", "UpdateTime"))
@@ -204,7 +204,7 @@ class GcpSpannerComputationsDatabaseTransactor<
         stage,
         nextAttempt,
         beginTime = writeTimestamp,
-        details = ComputationStageAttemptDetails.getDefaultInstance()
+        details = ComputationStageAttemptDetails.getDefaultInstance(),
       )
     )
     // And increment NextAttempt column of the computation stage.
@@ -212,7 +212,7 @@ class GcpSpannerComputationsDatabaseTransactor<
       computationMutations.updateComputationStage(
         computationId,
         stage,
-        nextAttempt = nextAttempt + 1
+        nextAttempt = nextAttempt + 1,
       )
     )
 
@@ -224,7 +224,7 @@ class GcpSpannerComputationsDatabaseTransactor<
           .readRow(
             "ComputationStageAttempts",
             Key.of(computationId, stage.toLongStage(), currentAttempt),
-            listOf("Details")
+            listOf("Details"),
           )
           ?.getProtoMessage("Details", ComputationStageAttemptDetails.parser())
           ?: error("Failed to claim computation $computationId. It does not exist.")
@@ -237,7 +237,7 @@ class GcpSpannerComputationsDatabaseTransactor<
           attempt = currentAttempt,
           endTime = writeTimestamp,
           details =
-            details.copy { reasonEnded = ComputationStageAttemptDetails.EndReason.LOCK_OVERWRITTEN }
+            details.copy { reasonEnded = ComputationStageAttemptDetails.EndReason.LOCK_OVERWRITTEN },
         )
       )
     }
@@ -249,13 +249,13 @@ class GcpSpannerComputationsDatabaseTransactor<
     computationId: Long,
     ownerId: String,
     writeTime: Instant,
-    lockDuration: Duration
+    lockDuration: Duration,
   ): Mutation {
     return computationMutations.updateComputation(
       computationId,
       writeTime.toGcloudTimestamp(),
       lockOwner = ownerId,
-      lockExpirationTime = writeTime.plus(lockDuration).toGcloudTimestamp()
+      lockExpirationTime = writeTime.plus(lockDuration).toGcloudTimestamp(),
     )
   }
 
@@ -267,7 +267,7 @@ class GcpSpannerComputationsDatabaseTransactor<
     outputBlobs: Int,
     afterTransition: AfterTransition,
     nextStageDetails: StageDT,
-    lockExtension: Duration?
+    lockExtension: Duration?,
   ) {
     require(computationMutations.validTransition(token.stage, nextStage)) {
       "Invalid stage transition ${token.stage} -> $nextStage"
@@ -293,7 +293,7 @@ class GcpSpannerComputationsDatabaseTransactor<
           writeTime,
           afterTransition,
           nextStageDetails,
-          lockExtension
+          lockExtension,
         )
       )
 
@@ -303,7 +303,7 @@ class GcpSpannerComputationsDatabaseTransactor<
           nextStage,
           inputBlobPaths,
           passThroughBlobPaths,
-          outputBlobs
+          outputBlobs,
         )
       )
     }
@@ -313,7 +313,7 @@ class GcpSpannerComputationsDatabaseTransactor<
     token: ComputationEditToken<ProtocolT, StageT>,
     endingStage: StageT,
     endComputationReason: EndComputationReason,
-    computationDetails: ComputationDT
+    computationDetails: ComputationDT,
   ) {
     require(computationMutations.validTerminalStage(token.protocol, endingStage)) {
       "Invalid terminal stage of computation $endingStage"
@@ -338,7 +338,7 @@ class GcpSpannerComputationsDatabaseTransactor<
           lockOwner = WRITE_NULL_STRING,
           lockExpirationTime = WRITE_NULL_TIMESTAMP,
           // Add a reason why the computation ended to the details section.
-          details = computationMutations.setEndingState(details, endComputationReason)
+          details = computationMutations.setEndingState(details, endComputationReason),
         )
       )
 
@@ -352,7 +352,7 @@ class GcpSpannerComputationsDatabaseTransactor<
             stage = token.stage,
             endTime = writeTime,
             nextAttempt = 1,
-            details = computationMutations.detailsFor(endingStage, computationDetails)
+            details = computationMutations.detailsFor(endingStage, computationDetails),
           )
         )
       } else {
@@ -361,7 +361,7 @@ class GcpSpannerComputationsDatabaseTransactor<
             localId = token.localId,
             stage = token.stage,
             endTime = writeTime,
-            followingStage = endingStage
+            followingStage = endingStage,
           )
         )
         txn.buffer(
@@ -371,7 +371,7 @@ class GcpSpannerComputationsDatabaseTransactor<
             creationTime = writeTime,
             previousStage = token.stage,
             nextAttempt = 1,
-            details = computationMutations.detailsFor(endingStage, computationDetails)
+            details = computationMutations.detailsFor(endingStage, computationDetails),
           )
         )
       }
@@ -404,7 +404,7 @@ class GcpSpannerComputationsDatabaseTransactor<
               stage = unfinished.stage,
               attempt = unfinished.attempt,
               endTime = writeTime,
-              details = unfinished.details.toBuilder().setReasonEnded(reason).build()
+              details = unfinished.details.toBuilder().setReasonEnded(reason).build(),
             )
           )
         }
@@ -414,7 +414,7 @@ class GcpSpannerComputationsDatabaseTransactor<
   override suspend fun updateComputationDetails(
     token: ComputationEditToken<ProtocolT, StageT>,
     computationDetails: ComputationDT,
-    requisitions: List<RequisitionEntry>
+    requisitions: List<RequisitionEntry>,
   ) {
     runIfTokenFromLastUpdate(token) { txn ->
       requisitions.forEach {
@@ -423,7 +423,7 @@ class GcpSpannerComputationsDatabaseTransactor<
             "Requisitions",
             "RequisitionsByExternalId",
             Key.of(it.key.externalRequisitionId, it.key.requisitionFingerprint.toGcloudByteArray()),
-            listOf("ComputationId", "RequisitionId")
+            listOf("ComputationId", "RequisitionId"),
           ) ?: error("No Computation found row for this requisition: ${it.key}")
         txn.buffer(
           computationMutations.updateRequisition(
@@ -431,7 +431,7 @@ class GcpSpannerComputationsDatabaseTransactor<
             requisitionId = row.getLong("RequisitionId"),
             externalRequisitionId = it.key.externalRequisitionId,
             requisitionFingerprint = it.key.requisitionFingerprint,
-            requisitionDetails = it.value
+            requisitionDetails = it.value,
           )
         )
       }
@@ -440,7 +440,7 @@ class GcpSpannerComputationsDatabaseTransactor<
         computationMutations.updateComputation(
           localId = token.localId,
           updateTime = writeTime,
-          details = computationDetails
+          details = computationDetails,
         )
       )
     }
@@ -453,7 +453,7 @@ class GcpSpannerComputationsDatabaseTransactor<
     writeTime: Instant,
     afterTransition: AfterTransition,
     nextStageDetails: StageDT,
-    lockExtension: Duration?
+    lockExtension: Duration?,
   ): List<Mutation> {
     val writeTimestamp = writeTime.toGcloudTimestamp()
     val mutations = arrayListOf<Mutation>()
@@ -480,7 +480,7 @@ class GcpSpannerComputationsDatabaseTransactor<
             // The computation lock will expire sometime in the future.
             AfterTransition.CONTINUE_WORKING ->
               writeTime.plus(requireNotNull(lockExtension)).toGcloudTimestamp()
-          }
+          },
       )
     )
 
@@ -489,7 +489,7 @@ class GcpSpannerComputationsDatabaseTransactor<
         localId = token.localId,
         stage = token.stage,
         followingStage = newStage,
-        endTime = writeTimestamp
+        endTime = writeTimestamp,
       )
     )
 
@@ -498,7 +498,7 @@ class GcpSpannerComputationsDatabaseTransactor<
         .readRow(
           "ComputationStageAttempts",
           Key.of(token.localId, token.stage.toLongStage(), token.attempt),
-          listOf("Details")
+          listOf("Details"),
         )
         ?.getProtoMessage("Details", ComputationStageAttemptDetails.parser())
         ?: error("No ComputationStageAttempt (${token.localId}, $newStage, ${token.attempt})")
@@ -512,7 +512,7 @@ class GcpSpannerComputationsDatabaseTransactor<
           attemptDetails
             .toBuilder()
             .setReasonEnded(ComputationStageAttemptDetails.EndReason.SUCCEEDED)
-            .build()
+            .build(),
       )
     )
 
@@ -530,7 +530,7 @@ class GcpSpannerComputationsDatabaseTransactor<
             stage = newStage,
             attempt = 1,
             beginTime = writeTimestamp,
-            details = ComputationStageAttemptDetails.getDefaultInstance()
+            details = ComputationStageAttemptDetails.getDefaultInstance(),
           )
       }
 
@@ -548,7 +548,7 @@ class GcpSpannerComputationsDatabaseTransactor<
         // an attempt of the new stage is not added because, attemptOfNewStageMutation is null, then
         // there is not an ongoing attempt of the stage at the end of the transaction, the next
         // attempt of stage will be the first.
-        nextAttempt = if (attemptOfNewStageMutation == null) 1L else 2L
+        nextAttempt = if (attemptOfNewStageMutation == null) 1L else 2L,
       )
     )
 
@@ -564,7 +564,7 @@ class GcpSpannerComputationsDatabaseTransactor<
     stage: StageT,
     blobInputRefs: List<String>,
     passThroughBlobRefs: List<String>,
-    outputBlobs: Int
+    outputBlobs: Int,
   ): List<Mutation> {
     val mutations = ArrayList<Mutation>()
     blobInputRefs.mapIndexedTo(mutations) { index, path ->
@@ -573,7 +573,7 @@ class GcpSpannerComputationsDatabaseTransactor<
         stage = stage,
         blobId = index.toLong(),
         pathToBlob = path,
-        dependencyType = ComputationBlobDependency.INPUT
+        dependencyType = ComputationBlobDependency.INPUT,
       )
     }
 
@@ -583,7 +583,7 @@ class GcpSpannerComputationsDatabaseTransactor<
         stage = stage,
         blobId = index.toLong() + blobInputRefs.size,
         pathToBlob = path,
-        dependencyType = ComputationBlobDependency.PASS_THROUGH
+        dependencyType = ComputationBlobDependency.PASS_THROUGH,
       )
     }
 
@@ -592,7 +592,7 @@ class GcpSpannerComputationsDatabaseTransactor<
         localId = localId,
         stage = stage,
         blobId = index.toLong() + blobInputRefs.size + passThroughBlobRefs.size,
-        dependencyType = ComputationBlobDependency.OUTPUT
+        dependencyType = ComputationBlobDependency.OUTPUT,
       )
     }
     return mutations
@@ -601,13 +601,13 @@ class GcpSpannerComputationsDatabaseTransactor<
   private suspend fun outputBlobIdToPathMap(
     txn: AsyncDatabaseClient.TransactionContext,
     localId: Long,
-    stage: StageT
+    stage: StageT,
   ): Map<Long, String?> {
     return txn
       .read(
         "ComputationBlobReferences",
         KeySet.prefixRange(Key.of(localId, stage.toLongStage())),
-        listOf("BlobId", "PathToBlob", "DependencyType")
+        listOf("BlobId", "PathToBlob", "DependencyType"),
       )
       .filter {
         val dep = it.getProtoEnum("DependencyType", ComputationBlobDependency::forNumber)
@@ -619,7 +619,7 @@ class GcpSpannerComputationsDatabaseTransactor<
 
   override suspend fun writeOutputBlobReference(
     token: ComputationEditToken<ProtocolT, StageT>,
-    blobRef: BlobRef
+    blobRef: BlobRef,
   ) {
     require(blobRef.key.isNotBlank()) { "Cannot insert blank path to blob. $blobRef" }
     runIfTokenFromLastUpdate(token) { txn ->
@@ -628,7 +628,7 @@ class GcpSpannerComputationsDatabaseTransactor<
           .readRow(
             "ComputationBlobReferences",
             Key.of(token.localId, token.stage.toLongStage(), blobRef.idInRelationalDatabase),
-            listOf("DependencyType")
+            listOf("DependencyType"),
           )
           ?.getProtoEnum("DependencyType", ComputationBlobDependency::forNumber)
           ?: error(
@@ -640,14 +640,14 @@ class GcpSpannerComputationsDatabaseTransactor<
         listOf(
           computationMutations.updateComputation(
             localId = token.localId,
-            updateTime = clock.gcloudTimestamp()
+            updateTime = clock.gcloudTimestamp(),
           ),
           computationMutations.updateComputationBlobReference(
             localId = token.localId,
             stage = token.stage,
             blobId = blobRef.idInRelationalDatabase,
-            pathToBlob = blobRef.key
-          )
+            pathToBlob = blobRef.key,
+          ),
         )
       )
     }
@@ -657,7 +657,7 @@ class GcpSpannerComputationsDatabaseTransactor<
     token: ComputationEditToken<ProtocolT, StageT>,
     externalRequisitionKey: ExternalRequisitionKey,
     pathToBlob: String? = null,
-    seed: ByteString? = null
+    seed: ByteString? = null,
   ) {
     require((pathToBlob != null && seed == null) || (pathToBlob == null && seed != null)) {
       "There must be only one of seed or pathToBlob non-null."
@@ -669,9 +669,9 @@ class GcpSpannerComputationsDatabaseTransactor<
           "RequisitionsByExternalId",
           Key.of(
             externalRequisitionKey.externalRequisitionId,
-            externalRequisitionKey.requisitionFingerprint.toGcloudByteArray()
+            externalRequisitionKey.requisitionFingerprint.toGcloudByteArray(),
           ),
-          listOf("ComputationId", "RequisitionId")
+          listOf("ComputationId", "RequisitionId"),
         ) ?: error("No Computation found row for this requisition: $externalRequisitionKey")
       val localComputationId = row.getLong("ComputationId")
       val requisitionId = row.getLong("RequisitionId")
@@ -683,7 +683,7 @@ class GcpSpannerComputationsDatabaseTransactor<
         listOf(
           computationMutations.updateComputation(
             localId = localComputationId,
-            updateTime = clock.gcloudTimestamp()
+            updateTime = clock.gcloudTimestamp(),
           ),
           computationMutations.updateRequisition(
             localComputationId = localComputationId,
@@ -691,8 +691,8 @@ class GcpSpannerComputationsDatabaseTransactor<
             externalRequisitionId = externalRequisitionKey.externalRequisitionId,
             requisitionFingerprint = externalRequisitionKey.requisitionFingerprint,
             pathToBlob = pathToBlob,
-            randomSeed = seed
-          )
+            randomSeed = seed,
+          ),
         )
       )
     }
@@ -701,7 +701,7 @@ class GcpSpannerComputationsDatabaseTransactor<
   override suspend fun writeRequisitionBlobPath(
     token: ComputationEditToken<ProtocolT, StageT>,
     externalRequisitionKey: ExternalRequisitionKey,
-    pathToBlob: String
+    pathToBlob: String,
   ) {
     require(pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $externalRequisitionKey" }
     writeRequisitionData(token, externalRequisitionKey, pathToBlob = pathToBlob)
@@ -710,7 +710,7 @@ class GcpSpannerComputationsDatabaseTransactor<
   override suspend fun writeRequisitionSeed(
     token: ComputationEditToken<ProtocolT, StageT>,
     externalRequisitionKey: ExternalRequisitionKey,
-    seed: ByteString
+    seed: ByteString,
   ) {
     require(!seed.isEmpty) { "Cannot insert empty seed. $externalRequisitionKey" }
     writeRequisitionData(token, externalRequisitionKey, seed = seed)
@@ -720,7 +720,7 @@ class GcpSpannerComputationsDatabaseTransactor<
     localId: Long,
     stage: StageT,
     attempt: Long,
-    metric: ComputationStatMetric
+    metric: ComputationStatMetric,
   ) {
     databaseClient.write(
       computationMutations.insertComputationStat(
@@ -728,7 +728,7 @@ class GcpSpannerComputationsDatabaseTransactor<
         stage = stage,
         attempt = attempt,
         metricName = metric.name,
-        metricValue = metric.value
+        metricValue = metric.value,
       )
     )
   }
@@ -752,7 +752,7 @@ class GcpSpannerComputationsDatabaseTransactor<
    */
   private suspend fun <R> runIfTokenFromLastUpdate(
     token: ComputationEditToken<ProtocolT, StageT>,
-    readWriteTransactionBlock: TransactionWork<R>
+    readWriteTransactionBlock: TransactionWork<R>,
   ): R {
     val localId = token.localId
     return databaseClient.readWriteTransaction().execute { txn ->
@@ -779,7 +779,7 @@ class GcpSpannerComputationsDatabaseTransactor<
           computationId = localId,
           version = version,
           tokenVersion = tokenVersion,
-          message = message
+          message = message,
         )
       }
     }

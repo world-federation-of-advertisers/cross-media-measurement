@@ -39,7 +39,7 @@ private val PENDING_MEASUREMENT_STATES =
     Measurement.State.PENDING_COMPUTATION,
     Measurement.State.PENDING_PARTICIPANT_CONFIRMATION,
     Measurement.State.PENDING_REQUISITION_FULFILLMENT,
-    Measurement.State.PENDING_REQUISITION_PARAMS
+    Measurement.State.PENDING_REQUISITION_PARAMS,
   )
 private const val MAX_BATCH_CANCEL = 1000
 
@@ -48,7 +48,7 @@ class PendingMeasurementsCancellation(
   private val timeToLive: Duration,
   private val dryRun: Boolean = false,
   private val clock: Clock = Clock.systemUTC(),
-  private val openTelemetry: OpenTelemetry = GlobalOpenTelemetry.get()
+  private val openTelemetry: OpenTelemetry = GlobalOpenTelemetry.get(),
 ) {
   private val meter: Meter =
     openTelemetry.getMeter(PendingMeasurementsCancellation::class.java.name)

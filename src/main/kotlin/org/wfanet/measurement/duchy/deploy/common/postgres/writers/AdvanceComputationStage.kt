@@ -74,7 +74,7 @@ class AdvanceComputationStage<ProtocolT, StageT, StageDT : Message>(
           transactionContext,
           localId,
           protocolStagesEnumHelper.computationStageEnumToLongValues(currentStage).stage,
-          ComputationBlobDependency.OUTPUT.numberAsLong
+          ComputationBlobDependency.OUTPUT.numberAsLong,
         )
         .filterValues { it == null }
     check(unwrittenOutputs.isEmpty()) {
@@ -89,11 +89,7 @@ class AdvanceComputationStage<ProtocolT, StageT, StageDT : Message>(
     val nextStageLong = protocolStagesEnumHelper.computationStageEnumToLongValues(nextStage).stage
     val currentStageLong =
       protocolStagesEnumHelper.computationStageEnumToLongValues(currentStage).stage
-    updateComputation(
-      localId = localId,
-      updateTime = writeTime,
-      stage = nextStageLong,
-    )
+    updateComputation(localId = localId, updateTime = writeTime, stage = nextStageLong)
 
     when (afterTransition) {
       AfterTransition.DO_NOT_ADD_TO_QUEUE -> releaseComputationLock(localId, writeTime)
@@ -108,7 +104,7 @@ class AdvanceComputationStage<ProtocolT, StageT, StageDT : Message>(
       localId = localId,
       stage = currentStageLong,
       followingStage = nextStageLong,
-      endTime = writeTime
+      endTime = writeTime,
     )
 
     val attemptDetails =
@@ -122,7 +118,7 @@ class AdvanceComputationStage<ProtocolT, StageT, StageDT : Message>(
       attempt = attempt,
       endTime = writeTime,
       details =
-        attemptDetails.copy { reasonEnded = ComputationStageAttemptDetails.EndReason.SUCCEEDED }
+        attemptDetails.copy { reasonEnded = ComputationStageAttemptDetails.EndReason.SUCCEEDED },
     )
 
     val startAttempt: Boolean =
@@ -147,7 +143,7 @@ class AdvanceComputationStage<ProtocolT, StageT, StageDT : Message>(
       // an attempt of the new stage is not added because, attemptOfNewStageMutation is null, then
       // there is not an ongoing attempt of the stage at the end of the transaction, the next
       // attempt of stage will be the first.
-      nextAttempt = if (startAttempt) 2 else 1
+      nextAttempt = if (startAttempt) 2 else 1,
     )
 
     if (startAttempt) {
@@ -156,7 +152,7 @@ class AdvanceComputationStage<ProtocolT, StageT, StageDT : Message>(
         stage = nextStageLong,
         attempt = 1,
         beginTime = writeTime,
-        details = ComputationStageAttemptDetails.getDefaultInstance()
+        details = ComputationStageAttemptDetails.getDefaultInstance(),
       )
     }
 
@@ -166,7 +162,7 @@ class AdvanceComputationStage<ProtocolT, StageT, StageDT : Message>(
         stage = nextStageLong,
         blobId = index.toLong(),
         pathToBlob = path,
-        dependencyType = ComputationBlobDependency.INPUT
+        dependencyType = ComputationBlobDependency.INPUT,
       )
     }
 
@@ -176,7 +172,7 @@ class AdvanceComputationStage<ProtocolT, StageT, StageDT : Message>(
         stage = nextStageLong,
         blobId = index.toLong() + inputBlobPaths.size,
         pathToBlob = path,
-        dependencyType = ComputationBlobDependency.PASS_THROUGH
+        dependencyType = ComputationBlobDependency.PASS_THROUGH,
       )
     }
 
@@ -186,7 +182,7 @@ class AdvanceComputationStage<ProtocolT, StageT, StageDT : Message>(
         stage = nextStageLong,
         blobId = index.toLong() + inputBlobPaths.size + passThroughBlobPaths.size,
         pathToBlob = null,
-        dependencyType = ComputationBlobDependency.OUTPUT
+        dependencyType = ComputationBlobDependency.OUTPUT,
       )
     }
 

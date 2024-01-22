@@ -130,7 +130,7 @@ class BaseFlags {
   @CommandLine.Option(
     names = ["--encryption-private-key-file"],
     description = ["MeasurementConsumer's EncryptionPrivateKey"],
-    required = true
+    required = true,
   )
   lateinit var encryptionPrivateKeyFile: File
 
@@ -155,7 +155,7 @@ class BaseFlags {
   @set:CommandLine.Option(
     names = ["--output-file"],
     description = ["Name of file where final results should be written"],
-    required = true
+    required = true,
   )
   var outputFile by Delegates.notNull<String>()
     private set
@@ -177,7 +177,7 @@ private fun getPopulationDataProviderEntry(
   measurementConsumerSigningKey: SigningKeyHandle,
   packedMeasurementEncryptionPublicKey: ProtoAny,
   secureRandom: SecureRandom,
-  apiAuthenticationKey: String
+  apiAuthenticationKey: String,
 ): Measurement.DataProviderEntry {
   return dataProviderEntry {
     val requisitionSpec = requisitionSpec {
@@ -207,7 +207,7 @@ private fun getPopulationDataProviderEntry(
       encryptedRequisitionSpec =
         encryptRequisitionSpec(
           signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
-          dataProvider.publicKey.unpack()
+          dataProvider.publicKey.unpack(),
         )
       nonceHash = Hashing.hashSha256(requisitionSpec.nonce)
     }
@@ -221,7 +221,7 @@ private fun getEventDataProviderEntry(
   measurementConsumerSigningKey: SigningKeyHandle,
   packedMeasurementEncryptionPublicKey: ProtoAny,
   secureRandom: SecureRandom,
-  apiAuthenticationKey: String
+  apiAuthenticationKey: String,
 ): Measurement.DataProviderEntry {
   return dataProviderEntry {
     val requisitionSpec = requisitionSpec {
@@ -259,7 +259,7 @@ private fun getEventDataProviderEntry(
       encryptedRequisitionSpec =
         encryptRequisitionSpec(
           signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
-          dataProvider.publicKey.unpack()
+          dataProvider.publicKey.unpack(),
         )
       nonceHash = Hashing.hashSha256(requisitionSpec.nonce)
     }
@@ -268,7 +268,7 @@ private fun getEventDataProviderEntry(
 
 private fun getMeasurementResult(
   resultOutput: Measurement.ResultOutput,
-  privateKeyHandle: PrivateKeyHandle
+  privateKeyHandle: PrivateKeyHandle,
 ): Measurement.Result {
   val signedResult = decryptResult(resultOutput.encryptedResult, privateKeyHandle)
   return signedResult.unpack()
@@ -279,7 +279,7 @@ class Benchmark(
   private val createMeasurementFlags: CreateMeasurementFlags,
   val channel: ManagedChannel,
   val apiAuthenticationKey: String,
-  val clock: Clock
+  val clock: Clock,
 ) {
 
   private val secureRandom = SecureRandom.getInstance("SHA1PRNG")
@@ -330,7 +330,7 @@ class Benchmark(
   private fun generateRequests(
     measurementConsumerStub: MeasurementConsumersCoroutineStub,
     measurementStub: MeasurementsCoroutineStub,
-    dataProviderStub: DataProvidersCoroutineStub
+    dataProviderStub: DataProvidersCoroutineStub,
   ) {
     val measurementConsumer =
       runBlocking(Dispatchers.IO) {
@@ -344,7 +344,7 @@ class Benchmark(
     val measurementConsumerPrivateKey =
       readPrivateKey(
         createMeasurementFlags.privateKeyDerFile.readByteString(),
-        measurementConsumerCertificate.publicKey.algorithm
+        measurementConsumerCertificate.publicKey.algorithm,
       )
     val measurementConsumerSigningKey =
       SigningKeyHandle(measurementConsumerCertificate, measurementConsumerPrivateKey)
@@ -372,7 +372,7 @@ class Benchmark(
                 measurementConsumerSigningKey,
                 packedMeasurementEncryptionPublicKey,
                 secureRandom,
-                apiAuthenticationKey
+                apiAuthenticationKey,
               )
 
             val unsignedMeasurementSpec = measurementSpec {
@@ -402,7 +402,7 @@ class Benchmark(
                   measurementConsumerSigningKey,
                   packedMeasurementEncryptionPublicKey,
                   secureRandom,
-                  apiAuthenticationKey
+                  apiAuthenticationKey,
                 )
               }
             val unsignedMeasurementSpec = measurementSpec {
@@ -458,7 +458,7 @@ class Benchmark(
   /** Collects responses from tasks that have completed. */
   private fun collectCompletedTasks(
     measurementStub: MeasurementsCoroutineStub,
-    firstInstant: Instant
+    firstInstant: Instant,
   ) {
     var iTask = 0
     while (iTask < taskList.size) {
@@ -623,7 +623,7 @@ class BenchmarkReport private constructor(val clock: Clock = Clock.systemUTC()) 
       SigningCerts.fromPemFiles(
         certificateFile = tlsFlags.certFile,
         privateKeyFile = tlsFlags.privateKeyFile,
-        trustedCertCollectionFile = tlsFlags.certCollectionFile
+        trustedCertCollectionFile = tlsFlags.certCollectionFile,
       )
     buildMutualTlsChannel(apiFlags.apiTarget, clientCerts, apiFlags.apiCertHost)
       .withShutdownTimeout(JavaDuration.ofSeconds(1))

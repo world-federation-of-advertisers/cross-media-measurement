@@ -29,7 +29,7 @@ import org.wfanet.measurement.reporting.service.internal.testing.v2.ReportSchedu
 class PostgresReportScheduleIterationsServiceTest :
   ReportScheduleIterationsServiceTest<PostgresReportScheduleIterationsService>() {
   override fun newServices(
-    idGenerator: IdGenerator,
+    idGenerator: IdGenerator
   ): Services<PostgresReportScheduleIterationsService> {
     val client: PostgresDatabaseClient = databaseProvider.createDatabase()
     return Services(

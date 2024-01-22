@@ -39,11 +39,11 @@ class UpdateEventGroupMetadataDescriptor(
         .readByExternalIds(
           transactionContext,
           eventGroupMetadataDescriptor.externalDataProviderId,
-          eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId
+          eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId,
         )
         ?: throw EventGroupMetadataDescriptorNotFoundException(
           ExternalId(eventGroupMetadataDescriptor.externalDataProviderId),
-          ExternalId(eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId)
+          ExternalId(eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId),
         )
 
     transactionContext.bufferUpdateMutation("EventGroupMetadataDescriptors") {

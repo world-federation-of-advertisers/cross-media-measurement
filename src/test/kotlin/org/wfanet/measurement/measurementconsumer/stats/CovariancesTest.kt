@@ -69,14 +69,7 @@ class CovariancesTest {
   @Test
   fun `computeDeterministicCovariance returns a value for reach when large reaches not overlap and large sampling widths overlap`() {
     val reachMeasurementCovarianceParams =
-      ReachMeasurementCovarianceParams(
-        3e8.toLong(),
-        3e8.toLong(),
-        6e8.toLong(),
-        0.7,
-        0.7,
-        0.7,
-      )
+      ReachMeasurementCovarianceParams(3e8.toLong(), 3e8.toLong(), 6e8.toLong(), 0.7, 0.7, 0.7)
     val covariance = Covariances.computeDeterministicCovariance(reachMeasurementCovarianceParams)
     val expected = 0.0
     assertThat(covariance).isEqualTo(expected)
@@ -184,10 +177,10 @@ class CovariancesTest {
               ReachMeasurementParams(
                 vidSamplingInterval = VidSamplingInterval(0.0, 2e-4),
                 dpParams = DpParams(1.0, 1e-5),
-                noiseMechanism = NoiseMechanism.LAPLACE
-              )
+                noiseMechanism = NoiseMechanism.LAPLACE,
+              ),
           ),
-        methodology = CustomDirectScalarMethodology(0.0)
+        methodology = CustomDirectScalarMethodology(0.0),
       )
 
     val otherWeightedReachMeasurementVarianceParams =
@@ -201,10 +194,10 @@ class CovariancesTest {
               ReachMeasurementParams(
                 vidSamplingInterval = VidSamplingInterval(1e-4, 3e-4),
                 dpParams = DpParams(1.0, 1e-5),
-                noiseMechanism = NoiseMechanism.LAPLACE
-              )
+                noiseMechanism = NoiseMechanism.LAPLACE,
+              ),
           ),
-        methodology = DeterministicMethodology
+        methodology = DeterministicMethodology,
       )
 
     val unionWeightedReachMeasurementVarianceParams =
@@ -218,17 +211,17 @@ class CovariancesTest {
               ReachMeasurementParams(
                 vidSamplingInterval = VidSamplingInterval(0.0, 4e-4),
                 dpParams = DpParams(1.0, 1e-5),
-                noiseMechanism = NoiseMechanism.LAPLACE
-              )
+                noiseMechanism = NoiseMechanism.LAPLACE,
+              ),
           ),
-        methodology = DeterministicMethodology
+        methodology = DeterministicMethodology,
       )
 
     val covariance =
       Covariances.computeMeasurementCovariance(
         weightedReachMeasurementVarianceParams,
         otherWeightedReachMeasurementVarianceParams,
-        unionWeightedReachMeasurementVarianceParams
+        unionWeightedReachMeasurementVarianceParams,
       )
 
     val expected = 0.0
@@ -250,10 +243,10 @@ class CovariancesTest {
               ReachMeasurementParams(
                 vidSamplingInterval = VidSamplingInterval(0.0, 2e-4),
                 dpParams = DpParams(1.0, 1e-5),
-                noiseMechanism = NoiseMechanism.LAPLACE
-              )
+                noiseMechanism = NoiseMechanism.LAPLACE,
+              ),
           ),
-        methodology = DeterministicMethodology
+        methodology = DeterministicMethodology,
       )
 
     val otherWeightedReachMeasurementVarianceParams =
@@ -267,10 +260,10 @@ class CovariancesTest {
               ReachMeasurementParams(
                 vidSamplingInterval = VidSamplingInterval(1e-4, 3e-4),
                 dpParams = DpParams(1.0, 1e-5),
-                noiseMechanism = NoiseMechanism.LAPLACE
-              )
+                noiseMechanism = NoiseMechanism.LAPLACE,
+              ),
           ),
-        methodology = DeterministicMethodology
+        methodology = DeterministicMethodology,
       )
 
     val unionWeightedReachMeasurementVarianceParams =
@@ -284,17 +277,17 @@ class CovariancesTest {
               ReachMeasurementParams(
                 vidSamplingInterval = VidSamplingInterval(0.0, 4e-4),
                 dpParams = DpParams(1.0, 1e-5),
-                noiseMechanism = NoiseMechanism.LAPLACE
-              )
+                noiseMechanism = NoiseMechanism.LAPLACE,
+              ),
           ),
-        methodology = DeterministicMethodology
+        methodology = DeterministicMethodology,
       )
 
     val covariance =
       Covariances.computeMeasurementCovariance(
         weightedReachMeasurementVarianceParams,
         otherWeightedReachMeasurementVarianceParams,
-        unionWeightedReachMeasurementVarianceParams
+        unionWeightedReachMeasurementVarianceParams,
       )
 
     val expected = 1665.6666666666665
@@ -316,10 +309,10 @@ class CovariancesTest {
               ReachMeasurementParams(
                 vidSamplingInterval = VidSamplingInterval(0.0, 2e-4),
                 dpParams = DpParams(1.0, 1e-5),
-                noiseMechanism = NoiseMechanism.LAPLACE
-              )
+                noiseMechanism = NoiseMechanism.LAPLACE,
+              ),
           ),
-        methodology = LiquidLegionsSketchMethodology(100.0, 100000L)
+        methodology = LiquidLegionsSketchMethodology(100.0, 100000L),
       )
 
     val otherWeightedReachMeasurementVarianceParams =
@@ -333,10 +326,10 @@ class CovariancesTest {
               ReachMeasurementParams(
                 vidSamplingInterval = VidSamplingInterval(1e-4, 3e-4),
                 dpParams = DpParams(1.0, 1e-5),
-                noiseMechanism = NoiseMechanism.LAPLACE
-              )
+                noiseMechanism = NoiseMechanism.LAPLACE,
+              ),
           ),
-        methodology = DeterministicMethodology
+        methodology = DeterministicMethodology,
       )
 
     val unionWeightedReachMeasurementVarianceParams =
@@ -350,17 +343,17 @@ class CovariancesTest {
               ReachMeasurementParams(
                 vidSamplingInterval = VidSamplingInterval(0.0, 4e-4),
                 dpParams = DpParams(1.0, 1e-5),
-                noiseMechanism = NoiseMechanism.LAPLACE
-              )
+                noiseMechanism = NoiseMechanism.LAPLACE,
+              ),
           ),
-        methodology = DeterministicMethodology
+        methodology = DeterministicMethodology,
       )
 
     val covariance =
       Covariances.computeMeasurementCovariance(
         weightedReachMeasurementVarianceParams,
         otherWeightedReachMeasurementVarianceParams,
-        unionWeightedReachMeasurementVarianceParams
+        unionWeightedReachMeasurementVarianceParams,
       )
 
     val expected = 1665.6666666666665
@@ -385,10 +378,10 @@ class CovariancesTest {
               ReachMeasurementParams(
                 vidSamplingInterval = VidSamplingInterval(0.0, 0.7),
                 dpParams = DpParams(1.0, 1e-5),
-                noiseMechanism = NoiseMechanism.LAPLACE
-              )
+                noiseMechanism = NoiseMechanism.LAPLACE,
+              ),
           ),
-        methodology = LiquidLegionsSketchMethodology(decayRate, sketchSize)
+        methodology = LiquidLegionsSketchMethodology(decayRate, sketchSize),
       )
 
     val otherWeightedReachMeasurementVarianceParams =
@@ -402,10 +395,10 @@ class CovariancesTest {
               ReachMeasurementParams(
                 vidSamplingInterval = VidSamplingInterval(0.0, 0.7),
                 dpParams = DpParams(1.0, 1e-5),
-                noiseMechanism = NoiseMechanism.LAPLACE
-              )
+                noiseMechanism = NoiseMechanism.LAPLACE,
+              ),
           ),
-        methodology = LiquidLegionsSketchMethodology(decayRate, sketchSize)
+        methodology = LiquidLegionsSketchMethodology(decayRate, sketchSize),
       )
 
     val unionWeightedReachMeasurementVarianceParams =
@@ -419,17 +412,17 @@ class CovariancesTest {
               ReachMeasurementParams(
                 vidSamplingInterval = VidSamplingInterval(0.0, 0.7),
                 dpParams = DpParams(1.0, 1e-5),
-                noiseMechanism = NoiseMechanism.LAPLACE
-              )
+                noiseMechanism = NoiseMechanism.LAPLACE,
+              ),
           ),
-        methodology = LiquidLegionsSketchMethodology(decayRate, sketchSize)
+        methodology = LiquidLegionsSketchMethodology(decayRate, sketchSize),
       )
 
     val covariance =
       Covariances.computeMeasurementCovariance(
         weightedReachMeasurementVarianceParams,
         otherWeightedReachMeasurementVarianceParams,
-        unionWeightedReachMeasurementVarianceParams
+        unionWeightedReachMeasurementVarianceParams,
       )
 
     val expected = 214283.93565983986
@@ -454,10 +447,10 @@ class CovariancesTest {
               ReachMeasurementParams(
                 vidSamplingInterval = VidSamplingInterval(0.0, 0.7),
                 dpParams = DpParams(1.0, 1e-5),
-                noiseMechanism = NoiseMechanism.LAPLACE
-              )
+                noiseMechanism = NoiseMechanism.LAPLACE,
+              ),
           ),
-        methodology = LiquidLegionsSketchMethodology(decayRate, sketchSize)
+        methodology = LiquidLegionsSketchMethodology(decayRate, sketchSize),
       )
 
     val otherWeightedReachMeasurementVarianceParams =
@@ -471,10 +464,10 @@ class CovariancesTest {
               ReachMeasurementParams(
                 vidSamplingInterval = VidSamplingInterval(0.0, 0.7),
                 dpParams = DpParams(1.0, 1e-5),
-                noiseMechanism = NoiseMechanism.LAPLACE
-              )
+                noiseMechanism = NoiseMechanism.LAPLACE,
+              ),
           ),
-        methodology = LiquidLegionsSketchMethodology(decayRate + 1, sketchSize)
+        methodology = LiquidLegionsSketchMethodology(decayRate + 1, sketchSize),
       )
 
     val unionWeightedReachMeasurementVarianceParams =
@@ -488,17 +481,17 @@ class CovariancesTest {
               ReachMeasurementParams(
                 vidSamplingInterval = VidSamplingInterval(0.0, 0.7),
                 dpParams = DpParams(1.0, 1e-5),
-                noiseMechanism = NoiseMechanism.LAPLACE
-              )
+                noiseMechanism = NoiseMechanism.LAPLACE,
+              ),
           ),
-        methodology = LiquidLegionsV2Methodology(decayRate + 2, sketchSize, 100000L)
+        methodology = LiquidLegionsV2Methodology(decayRate + 2, sketchSize, 100000L),
       )
 
     assertFailsWith<IllegalArgumentException> {
       Covariances.computeMeasurementCovariance(
         weightedReachMeasurementVarianceParams,
         otherWeightedReachMeasurementVarianceParams,
-        unionWeightedReachMeasurementVarianceParams
+        unionWeightedReachMeasurementVarianceParams,
       )
     }
   }

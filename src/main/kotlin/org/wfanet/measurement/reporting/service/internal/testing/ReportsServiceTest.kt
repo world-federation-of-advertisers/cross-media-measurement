@@ -242,7 +242,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
                         startTime =
                           Timestamps.add(
                             periodicTimeInterval.startTime,
-                            periodicTimeInterval.increment
+                            periodicTimeInterval.increment,
                           )
                         endTime = Timestamps.add(startTime, periodicTimeInterval.increment)
                       }
@@ -585,7 +585,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
     private fun createCreateReportRequest(
       measurementConsumerReferenceId: String,
       reportIdempotencyKey: String,
-      vararg measurementReferenceIds: String
+      vararg measurementReferenceIds: String,
     ): CreateReportRequest {
       return createReportRequest {
         report = report {

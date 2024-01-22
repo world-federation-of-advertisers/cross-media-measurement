@@ -45,7 +45,7 @@ class PrivacyBucketFilterTest {
       LandscapeMask(
         listOf(EventGroupSpec("person.age_group", timeRange)),
         0.0f,
-        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
       )
 
     assertFailsWith<PrivacyBudgetManagerException> {
@@ -59,7 +59,7 @@ class PrivacyBucketFilterTest {
       LandscapeMask(
         listOf(EventGroupSpec("person.age_group in [1] && person.gender == 2", timeRange)),
         0.0f,
-        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
       )
 
     assertThat(
@@ -73,7 +73,7 @@ class PrivacyBucketFilterTest {
           AgeGroup.RANGE_18_34,
           Gender.FEMALE,
           0.0f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           MEASUREMENT_CONSUMER_ID,
@@ -82,7 +82,7 @@ class PrivacyBucketFilterTest {
           AgeGroup.RANGE_18_34,
           Gender.FEMALE,
           0.0f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           MEASUREMENT_CONSUMER_ID,
@@ -91,7 +91,7 @@ class PrivacyBucketFilterTest {
           AgeGroup.RANGE_18_34,
           Gender.FEMALE,
           PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           MEASUREMENT_CONSUMER_ID,
@@ -100,7 +100,7 @@ class PrivacyBucketFilterTest {
           AgeGroup.RANGE_18_34,
           Gender.FEMALE,
           PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
       )
   }
@@ -112,11 +112,11 @@ class PrivacyBucketFilterTest {
         listOf(
           EventGroupSpec(
             "person.age_group in [1] && person.gender == 2 && " + "banner_ad.viewable == true",
-            timeRange
+            timeRange,
           )
         ),
         0.0f,
-        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
       )
 
     assertThat(
@@ -130,7 +130,7 @@ class PrivacyBucketFilterTest {
           AgeGroup.RANGE_18_34,
           Gender.FEMALE,
           0.0f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           MEASUREMENT_CONSUMER_ID,
@@ -139,7 +139,7 @@ class PrivacyBucketFilterTest {
           AgeGroup.RANGE_18_34,
           Gender.FEMALE,
           0.0f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           MEASUREMENT_CONSUMER_ID,
@@ -148,7 +148,7 @@ class PrivacyBucketFilterTest {
           AgeGroup.RANGE_18_34,
           Gender.FEMALE,
           PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           MEASUREMENT_CONSUMER_ID,
@@ -157,7 +157,7 @@ class PrivacyBucketFilterTest {
           AgeGroup.RANGE_18_34,
           Gender.FEMALE,
           PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
       )
   }
@@ -168,7 +168,7 @@ class PrivacyBucketFilterTest {
       LandscapeMask(
         listOf(EventGroupSpec("person.age_group in [1] ", timeRange)),
         0.0f,
-        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
       )
 
     assertThat(
@@ -182,7 +182,7 @@ class PrivacyBucketFilterTest {
           AgeGroup.RANGE_18_34,
           Gender.FEMALE,
           0.0f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           MEASUREMENT_CONSUMER_ID,
@@ -191,7 +191,7 @@ class PrivacyBucketFilterTest {
           AgeGroup.RANGE_18_34,
           Gender.FEMALE,
           0.0f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           MEASUREMENT_CONSUMER_ID,
@@ -200,7 +200,7 @@ class PrivacyBucketFilterTest {
           AgeGroup.RANGE_18_34,
           Gender.FEMALE,
           PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           MEASUREMENT_CONSUMER_ID,
@@ -209,7 +209,7 @@ class PrivacyBucketFilterTest {
           AgeGroup.RANGE_18_34,
           Gender.FEMALE,
           PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           MEASUREMENT_CONSUMER_ID,
@@ -218,7 +218,7 @@ class PrivacyBucketFilterTest {
           AgeGroup.RANGE_18_34,
           Gender.MALE,
           0.0f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           MEASUREMENT_CONSUMER_ID,
@@ -227,7 +227,7 @@ class PrivacyBucketFilterTest {
           AgeGroup.RANGE_18_34,
           Gender.MALE,
           0.0f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           MEASUREMENT_CONSUMER_ID,
@@ -236,7 +236,7 @@ class PrivacyBucketFilterTest {
           AgeGroup.RANGE_18_34,
           Gender.MALE,
           PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           MEASUREMENT_CONSUMER_ID,
@@ -245,7 +245,7 @@ class PrivacyBucketFilterTest {
           AgeGroup.RANGE_18_34,
           Gender.MALE,
           PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
       )
   }
@@ -257,11 +257,11 @@ class PrivacyBucketFilterTest {
         listOf(
           EventGroupSpec(
             "person.age_group in [0] && person.gender == 1 || " + "banner_ad.viewable == true",
-            timeRange
+            timeRange,
           )
         ),
         0.0f,
-        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
       )
 
     assertThat(
@@ -276,13 +276,13 @@ class PrivacyBucketFilterTest {
       LandscapeMask(
         listOf(EventGroupSpec("person.age_group in [1] ", timeRange)),
         0.0f,
-        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
       )
 
     assertThat(
         alwaysChargingPrivacyBucketFilter.getPrivacyBucketGroups(
           MEASUREMENT_CONSUMER_ID,
-          privacyLandscapeMask
+          privacyLandscapeMask,
         )
       )
       .containsExactly(
@@ -293,7 +293,7 @@ class PrivacyBucketFilterTest {
           ageGroup = AgeGroup.RANGE_18_34,
           gender = Gender.MALE,
           vidSampleStart = 0.0f,
-          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           measurementConsumerId = "ACME",
@@ -302,7 +302,7 @@ class PrivacyBucketFilterTest {
           ageGroup = AgeGroup.RANGE_18_34,
           gender = Gender.FEMALE,
           vidSampleStart = 0.0f,
-          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           measurementConsumerId = "ACME",
@@ -311,7 +311,7 @@ class PrivacyBucketFilterTest {
           ageGroup = AgeGroup.RANGE_35_54,
           gender = Gender.MALE,
           vidSampleStart = 0.0f,
-          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           measurementConsumerId = "ACME",
@@ -320,7 +320,7 @@ class PrivacyBucketFilterTest {
           ageGroup = AgeGroup.RANGE_35_54,
           gender = Gender.FEMALE,
           vidSampleStart = 0.0f,
-          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           measurementConsumerId = "ACME",
@@ -329,7 +329,7 @@ class PrivacyBucketFilterTest {
           ageGroup = AgeGroup.ABOVE_54,
           gender = Gender.MALE,
           vidSampleStart = 0.0f,
-          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           measurementConsumerId = "ACME",
@@ -338,7 +338,7 @@ class PrivacyBucketFilterTest {
           ageGroup = AgeGroup.ABOVE_54,
           gender = Gender.FEMALE,
           vidSampleStart = 0.0f,
-          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           measurementConsumerId = "ACME",
@@ -347,7 +347,7 @@ class PrivacyBucketFilterTest {
           ageGroup = AgeGroup.RANGE_18_34,
           gender = Gender.MALE,
           vidSampleStart = 0.0f,
-          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           measurementConsumerId = "ACME",
@@ -356,7 +356,7 @@ class PrivacyBucketFilterTest {
           ageGroup = AgeGroup.RANGE_18_34,
           gender = Gender.FEMALE,
           vidSampleStart = 0.0f,
-          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           measurementConsumerId = "ACME",
@@ -365,7 +365,7 @@ class PrivacyBucketFilterTest {
           ageGroup = AgeGroup.RANGE_35_54,
           gender = Gender.MALE,
           vidSampleStart = 0.0f,
-          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           measurementConsumerId = "ACME",
@@ -374,7 +374,7 @@ class PrivacyBucketFilterTest {
           ageGroup = AgeGroup.RANGE_35_54,
           gender = Gender.FEMALE,
           vidSampleStart = 0.0f,
-          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           measurementConsumerId = "ACME",
@@ -383,7 +383,7 @@ class PrivacyBucketFilterTest {
           ageGroup = AgeGroup.ABOVE_54,
           gender = Gender.MALE,
           vidSampleStart = 0.0f,
-          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           measurementConsumerId = "ACME",
@@ -392,7 +392,7 @@ class PrivacyBucketFilterTest {
           ageGroup = AgeGroup.ABOVE_54,
           gender = Gender.FEMALE,
           vidSampleStart = 0.0f,
-          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           measurementConsumerId = "ACME",
@@ -401,7 +401,7 @@ class PrivacyBucketFilterTest {
           ageGroup = AgeGroup.RANGE_18_34,
           gender = Gender.MALE,
           vidSampleStart = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           measurementConsumerId = "ACME",
@@ -410,7 +410,7 @@ class PrivacyBucketFilterTest {
           ageGroup = AgeGroup.RANGE_18_34,
           gender = Gender.FEMALE,
           vidSampleStart = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           measurementConsumerId = "ACME",
@@ -419,7 +419,7 @@ class PrivacyBucketFilterTest {
           ageGroup = AgeGroup.RANGE_35_54,
           gender = Gender.MALE,
           vidSampleStart = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           measurementConsumerId = "ACME",
@@ -428,7 +428,7 @@ class PrivacyBucketFilterTest {
           ageGroup = AgeGroup.RANGE_35_54,
           gender = Gender.FEMALE,
           vidSampleStart = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           measurementConsumerId = "ACME",
@@ -437,7 +437,7 @@ class PrivacyBucketFilterTest {
           ageGroup = AgeGroup.ABOVE_54,
           gender = Gender.MALE,
           vidSampleStart = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           measurementConsumerId = "ACME",
@@ -446,7 +446,7 @@ class PrivacyBucketFilterTest {
           ageGroup = AgeGroup.ABOVE_54,
           gender = Gender.FEMALE,
           vidSampleStart = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           measurementConsumerId = "ACME",
@@ -455,7 +455,7 @@ class PrivacyBucketFilterTest {
           ageGroup = AgeGroup.RANGE_18_34,
           gender = Gender.MALE,
           vidSampleStart = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           measurementConsumerId = "ACME",
@@ -464,7 +464,7 @@ class PrivacyBucketFilterTest {
           ageGroup = AgeGroup.RANGE_18_34,
           gender = Gender.FEMALE,
           vidSampleStart = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           measurementConsumerId = "ACME",
@@ -473,7 +473,7 @@ class PrivacyBucketFilterTest {
           ageGroup = AgeGroup.RANGE_35_54,
           gender = Gender.MALE,
           vidSampleStart = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           measurementConsumerId = "ACME",
@@ -482,7 +482,7 @@ class PrivacyBucketFilterTest {
           ageGroup = AgeGroup.RANGE_35_54,
           gender = Gender.FEMALE,
           vidSampleStart = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           measurementConsumerId = "ACME",
@@ -491,7 +491,7 @@ class PrivacyBucketFilterTest {
           ageGroup = AgeGroup.ABOVE_54,
           gender = Gender.MALE,
           vidSampleStart = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           measurementConsumerId = "ACME",
@@ -500,8 +500,8 @@ class PrivacyBucketFilterTest {
           ageGroup = AgeGroup.ABOVE_54,
           gender = Gender.FEMALE,
           vidSampleStart = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-        )
+          vidSampleWidth = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+        ),
       )
   }
 }

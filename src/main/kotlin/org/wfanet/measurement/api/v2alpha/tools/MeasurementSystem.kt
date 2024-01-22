@@ -186,7 +186,7 @@ private val CHANNEL_SHUTDOWN_TIMEOUT = JavaDuration.ofSeconds(30)
       ModelShards::class,
       ModelRollouts::class,
       ModelSuites::class,
-    ]
+    ],
 )
 class MeasurementSystem private constructor() : Runnable {
   @Spec private lateinit var commandSpec: CommandSpec
@@ -240,10 +240,7 @@ class MeasurementSystem private constructor() : Runnable {
   }
 }
 
-@Command(
-  name = "accounts",
-  subcommands = [CommandLine.HelpCommand::class],
-)
+@Command(name = "accounts", subcommands = [CommandLine.HelpCommand::class])
 private class Accounts {
   @ParentCommand
   lateinit var parentCommand: MeasurementSystem
@@ -257,7 +254,7 @@ private class Accounts {
   fun authenticate(
     @Option(
       names = ["--self-issued-openid-provider-key", "--siop-key"],
-      description = ["Self-issued OpenID Provider key as a binary Tink keyset"]
+      description = ["Self-issued OpenID Provider key as a binary Tink keyset"],
     )
     siopKey: File
   ) {
@@ -277,7 +274,7 @@ private class Accounts {
       SelfIssuedIdTokens.generateIdToken(
         PrivateJwkHandle(keysetHandle),
         response.authenticationRequestUri,
-        Clock.systemUTC()
+        Clock.systemUTC(),
       )
 
     println("ID Token: $idToken")
@@ -307,10 +304,7 @@ private class Accounts {
   }
 }
 
-@Command(
-  name = "certificates",
-  subcommands = [CommandLine.HelpCommand::class],
-)
+@Command(name = "certificates", subcommands = [CommandLine.HelpCommand::class])
 private class Certificates {
   @ParentCommand
   lateinit var parentCommand: MeasurementSystem
@@ -319,7 +313,7 @@ private class Certificates {
   @Option(
     names = ["--api-key"],
     paramLabel = "<apiKey>",
-    description = ["API authentication key. Required when parent type is MeasurementConsumer."]
+    description = ["API authentication key. Required when parent type is MeasurementConsumer."],
   )
   var authenticationKey: String? = null
 
@@ -328,15 +322,13 @@ private class Certificates {
     if (authenticationKey == null) client else client.withAuthenticationKey(authenticationKey)
   }
 
-  @Command(
-    description = ["Creates a Certificate resource"],
-  )
+  @Command(description = ["Creates a Certificate resource"])
   fun create(
     @Option(
       names = ["--parent"],
       paramLabel = "<parent>",
       required = true,
-      description = ["Name of parent resource"]
+      description = ["Name of parent resource"],
     )
     parent: String,
     @Option(
@@ -350,7 +342,7 @@ private class Certificates {
     if (authenticationKey == null && MeasurementConsumerKey.fromName(parent) != null) {
       throw ParameterException(
         parentCommand.commandLine,
-        "API authentication key is required when parent type is MeasurementConsumer"
+        "API authentication key is required when parent type is MeasurementConsumer",
       )
     }
 
@@ -364,22 +356,16 @@ private class Certificates {
     println("Certificate name: ${response.name}")
   }
 
-  @Command(
-    description = ["Revokes a Certificate"],
-  )
+  @Command(description = ["Revokes a Certificate"])
   fun revoke(
-    @Option(
-      names = ["--revocation-state"],
-      paramLabel = "<revocationState>",
-      required = true,
-    )
+    @Option(names = ["--revocation-state"], paramLabel = "<revocationState>", required = true)
     revocationState: Certificate.RevocationState,
     @Parameters(index = "0", paramLabel = "<name>", description = ["Resource name"]) name: String,
   ) {
     if (authenticationKey == null && MeasurementConsumerCertificateKey.fromName(name) != null) {
       throw ParameterException(
         parentCommand.commandLine,
-        "API authentication key is required when parent type is MeasurementConsumer"
+        "API authentication key is required when parent type is MeasurementConsumer",
       )
     }
 
@@ -393,10 +379,7 @@ private class Certificates {
   }
 }
 
-@Command(
-  name = "public-keys",
-  subcommands = [CommandLine.HelpCommand::class],
-)
+@Command(name = "public-keys", subcommands = [CommandLine.HelpCommand::class])
 private class PublicKeys {
   @ParentCommand
   lateinit var parentCommand: MeasurementSystem
@@ -405,7 +388,7 @@ private class PublicKeys {
   @Option(
     names = ["--api-key"],
     paramLabel = "<apiKey>",
-    description = ["API authentication key. Required when parent type is MeasurementConsumer."]
+    description = ["API authentication key. Required when parent type is MeasurementConsumer."],
   )
   var authenticationKey: String? = null
 
@@ -414,9 +397,7 @@ private class PublicKeys {
     if (authenticationKey == null) client else client.withAuthenticationKey(authenticationKey)
   }
 
-  @Command(
-    description = ["Updates a PublicKey resource"],
-  )
+  @Command(description = ["Updates a PublicKey resource"])
   fun update(
     @Option(
       names = ["--public-key"],
@@ -467,10 +448,7 @@ private class PublicKeys {
   }
 }
 
-@Command(
-  name = "measurement-consumers",
-  subcommands = [CommandLine.HelpCommand::class],
-)
+@Command(name = "measurement-consumers", subcommands = [CommandLine.HelpCommand::class])
 private class MeasurementConsumers {
   @ParentCommand
   lateinit var parentCommand: MeasurementSystem
@@ -485,14 +463,10 @@ private class MeasurementConsumers {
       [
         "Creates a MeasurementConsumer resource.",
         "Use the EncryptionPublicKeys tool to serialize/sign the encryption public key.",
-      ],
+      ]
   )
   fun create(
-    @Option(
-      names = ["--creation-token"],
-      paramLabel = "<creationToken>",
-      required = true,
-    )
+    @Option(names = ["--creation-token"], paramLabel = "<creationToken>", required = true)
     creationToken: String,
     @Option(
       names = ["--certificate"],
@@ -515,17 +489,9 @@ private class MeasurementConsumers {
       required = true,
     )
     publicKeySignatureFile: File,
-    @Option(
-      names = ["--display-name"],
-      paramLabel = "<displayName>",
-      defaultValue = "",
-    )
+    @Option(names = ["--display-name"], paramLabel = "<displayName>", defaultValue = "")
     displayName: String,
-    @Option(
-      names = ["--id-token"],
-      paramLabel = "<idToken>",
-    )
-    idTokenOption: String? = null,
+    @Option(names = ["--id-token"], paramLabel = "<idToken>") idTokenOption: String? = null,
   ) {
     // TODO(remkop/picocli#882): Use built-in Picocli functionality once available.
     val idToken: String = idTokenOption ?: String(System.console().readPassword("ID Token: "))
@@ -570,7 +536,7 @@ private class MeasurementConsumers {
       ListMeasurements::class,
       GetMeasurement::class,
       CancelMeasurement::class,
-    ]
+    ],
 )
 private class Measurements {
   @ParentCommand
@@ -659,7 +625,7 @@ class CreateMeasurement : Runnable {
           encryptedRequisitionSpec =
             encryptRequisitionSpec(
               signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
-              dataProvider.publicKey.unpack()
+              dataProvider.publicKey.unpack(),
             )
           nonceHash = Hashing.hashSha256(requisitionSpec.nonce)
         }
@@ -670,7 +636,7 @@ class CreateMeasurement : Runnable {
     eventDataProviderInput:
       CreateMeasurementFlags.MeasurementParams.EventMeasurementParams.EventDataProviderInput,
     measurementConsumerSigningKey: SigningKeyHandle,
-    packedMeasurementEncryptionPublicKey: ProtoAny
+    packedMeasurementEncryptionPublicKey: ProtoAny,
   ): Measurement.DataProviderEntry {
     return dataProviderEntry {
       val requisitionSpec = requisitionSpec {
@@ -708,7 +674,7 @@ class CreateMeasurement : Runnable {
           encryptedRequisitionSpec =
             encryptRequisitionSpec(
               signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
-              dataProvider.publicKey.unpack()
+              dataProvider.publicKey.unpack(),
             )
           nonceHash = Hashing.hashSha256(requisitionSpec.nonce)
         }
@@ -729,7 +695,7 @@ class CreateMeasurement : Runnable {
     val measurementConsumerPrivateKey =
       readPrivateKey(
         createMeasurementFlags.privateKeyDerFile.readByteString(),
-        measurementConsumerCertificate.publicKey.algorithm
+        measurementConsumerCertificate.publicKey.algorithm,
       )
     val measurementConsumerSigningKey =
       SigningKeyHandle(measurementConsumerCertificate, measurementConsumerPrivateKey)
@@ -744,7 +710,7 @@ class CreateMeasurement : Runnable {
               measurementParams.populationMeasurementParams.populationDataProviderInput,
               measurementParams.populationMeasurementParams,
               measurementConsumerSigningKey,
-              packedMeasurementEncryptionPublicKey
+              packedMeasurementEncryptionPublicKey,
             )
           )
         } else {
@@ -752,7 +718,7 @@ class CreateMeasurement : Runnable {
             getEventDataProviderEntry(
               it,
               measurementConsumerSigningKey,
-              packedMeasurementEncryptionPublicKey
+              packedMeasurementEncryptionPublicKey,
             )
           }
         }
@@ -841,24 +807,19 @@ class ListMeasurements : Runnable {
 class GetMeasurement : Runnable {
   @ParentCommand private lateinit var parentCommand: Measurements
 
-  @Parameters(
-    index = "0",
-    description = ["API resource name of the Measurement"],
-  )
+  @Parameters(index = "0", description = ["API resource name of the Measurement"])
   private lateinit var measurementName: String
 
   @Option(
     names = ["--encryption-private-key-file"],
     description = ["MeasurementConsumer's EncryptionPrivateKey"],
-    required = true
+    required = true,
   )
   private lateinit var privateKeyDerFile: File
 
   private val privateKeyHandle: PrivateKeyHandle by lazy { loadPrivateKey(privateKeyDerFile) }
 
-  private fun getMeasurementResult(
-    resultOutput: Measurement.ResultOutput,
-  ): Measurement.Result {
+  private fun getMeasurementResult(resultOutput: Measurement.ResultOutput): Measurement.Result {
     val certificate = runBlocking {
       parentCommand.certificateStub
         .withAuthenticationKey(parentCommand.apiAuthenticationKey)
@@ -928,10 +889,7 @@ class GetMeasurement : Runnable {
 class CancelMeasurement : Runnable {
   @ParentCommand private lateinit var parentCommand: Measurements
 
-  @Parameters(
-    index = "0",
-    description = ["API resource name of the Measurement"],
-  )
+  @Parameters(index = "0", description = ["API resource name of the Measurement"])
   private lateinit var measurementName: String
 
   override fun run() {
@@ -946,10 +904,7 @@ class CancelMeasurement : Runnable {
   }
 }
 
-@Command(
-  name = "data-providers",
-  subcommands = [CommandLine.HelpCommand::class],
-)
+@Command(name = "data-providers", subcommands = [CommandLine.HelpCommand::class])
 private class DataProviders {
   @ParentCommand
   lateinit var parentCommand: MeasurementSystem
@@ -975,7 +930,7 @@ private class DataProviders {
         ],
       required = true,
     )
-    requiredDuchies: List<String>,
+    requiredDuchies: List<String>
   ) {
     val request = replaceDataProviderRequiredDuchiesRequest {
       name = dataProviderName
@@ -1001,10 +956,7 @@ private class DataProviders {
   }
 }
 
-@Command(
-  name = "api-keys",
-  subcommands = [CommandLine.HelpCommand::class],
-)
+@Command(name = "api-keys", subcommands = [CommandLine.HelpCommand::class])
 private class ApiKeys {
   @ParentCommand
   lateinit var parentCommand: MeasurementSystem
@@ -1014,34 +966,20 @@ private class ApiKeys {
     ApiKeysCoroutineStub(parentCommand.kingdomChannel)
   }
 
-  @Option(
-    names = ["--id-token"],
-    paramLabel = "<idToken>",
-  )
+  @Option(names = ["--id-token"], paramLabel = "<idToken>")
   private var idTokenOption: String? = null
 
-  @Command(
-    description = ["Creates an ApiKey resource"],
-  )
+  @Command(description = ["Creates an ApiKey resource"])
   fun create(
     @Option(
       names = ["--measurement-consumer"],
       paramLabel = "<measurementConsumer>",
       description = ["API resource name of the MeasurementConsumer"],
-      required = true
-    )
-    measurementConsumer: String,
-    @Option(
-      names = ["--nickname"],
-      paramLabel = "<nickname>",
       required = true,
     )
-    nickname: String,
-    @Option(
-      names = ["--description"],
-      paramLabel = "<description>",
-    )
-    description: String?,
+    measurementConsumer: String,
+    @Option(names = ["--nickname"], paramLabel = "<nickname>", required = true) nickname: String,
+    @Option(names = ["--description"], paramLabel = "<description>") description: String?,
   ) {
     // TODO(remkop/picocli#882): Use built-in Picocli functionality once available.
     val idToken: String = idTokenOption ?: String(System.console().readPassword("ID Token: "))
@@ -1062,10 +1000,7 @@ private class ApiKeys {
   }
 }
 
-@Command(
-  name = "model-lines",
-  subcommands = [CommandLine.HelpCommand::class],
-)
+@Command(name = "model-lines", subcommands = [CommandLine.HelpCommand::class])
 private class ModelLines {
   @ParentCommand
   lateinit var parentCommand: MeasurementSystem
@@ -1087,14 +1022,14 @@ private class ModelLines {
       names = ["--display-name"],
       description = ["Model line display name."],
       required = false,
-      defaultValue = ""
+      defaultValue = "",
     )
     modelLineDisplayName: String,
     @Option(
       names = ["--description"],
       description = ["Model line description."],
       required = false,
-      defaultValue = ""
+      defaultValue = "",
     )
     modelLineDescription: String,
     @Option(
@@ -1109,19 +1044,15 @@ private class ModelLines {
       required = false,
     )
     modelLineActiveEndTime: Instant? = null,
-    @Option(
-      names = ["--type"],
-      description = ["Model line type."],
-      required = true,
-    )
+    @Option(names = ["--type"], description = ["Model line type."], required = true)
     modelLineType: ModelLine.Type,
     @Option(
       names = ["--holdback-model-line"],
       description = ["Holdback model line."],
       required = false,
-      defaultValue = ""
+      defaultValue = "",
     )
-    modelLineHoldbackModelLine: String
+    modelLineHoldbackModelLine: String,
   ) {
     val request = createModelLineRequest {
       parent = modelSuiteName
@@ -1145,11 +1076,7 @@ private class ModelLines {
 
   @Command(description = ["Sets the holdback model line for a given model line."])
   fun setHoldbackModelLine(
-    @Option(
-      names = ["--name"],
-      description = ["Model line name."],
-      required = true,
-    )
+    @Option(names = ["--name"], description = ["Model line name."], required = true)
     modelLineName: String,
     @Option(
       names = ["--holdback-model-line"],
@@ -1171,11 +1098,7 @@ private class ModelLines {
 
   @Command(description = ["Sets the active end time for a given model line."])
   fun setActiveEndTime(
-    @Option(
-      names = ["--name"],
-      description = ["Model line name."],
-      required = true,
-    )
+    @Option(names = ["--name"], description = ["Model line name."], required = true)
     modelLineName: String,
     @Option(
       names = ["--active-end-time"],
@@ -1205,7 +1128,7 @@ private class ModelLines {
       names = ["--page-size"],
       description = ["The maximum number of ModelLines to return."],
       required = false,
-      defaultValue = "0"
+      defaultValue = "0",
     )
     listPageSize: Int,
     @Option(
@@ -1215,7 +1138,7 @@ private class ModelLines {
           "A page token, received from a previous `ListModelLinesRequest` call. Provide this to retrieve the subsequent page."
         ],
       required = false,
-      defaultValue = ""
+      defaultValue = "",
     )
     listPageToken: String,
     @Option(
@@ -1223,7 +1146,7 @@ private class ModelLines {
       description = ["The list of types used to filter the result."],
       required = false,
     )
-    modelLineTypes: List<ModelLine.Type>?
+    modelLineTypes: List<ModelLine.Type>?,
   ) {
     val request = listModelLinesRequest {
       parent = modelSuiteName
@@ -1259,10 +1182,7 @@ private class ModelLines {
   }
 }
 
-@Command(
-  name = "model-releases",
-  subcommands = [CommandLine.HelpCommand::class],
-)
+@Command(name = "model-releases", subcommands = [CommandLine.HelpCommand::class])
 private class ModelReleases {
   @ParentCommand
   lateinit var parentCommand: MeasurementSystem
@@ -1279,7 +1199,7 @@ private class ModelReleases {
       description = ["API resource name of the parent ModelSuite."],
       required = true,
     )
-    modelSuiteName: String,
+    modelSuiteName: String
   ) {
     val request = createModelReleaseRequest {
       parent = modelSuiteName
@@ -1294,12 +1214,8 @@ private class ModelReleases {
 
   @Command(description = ["Gets model release."])
   fun get(
-    @Option(
-      names = ["--name"],
-      description = ["Model release name."],
-      required = true,
-    )
-    modelReleaseName: String,
+    @Option(names = ["--name"], description = ["Model release name."], required = true)
+    modelReleaseName: String
   ) {
     val request = getModelReleaseRequest { name = modelReleaseName }
     val outputModelRelease =
@@ -1319,7 +1235,7 @@ private class ModelReleases {
       names = ["--page-size"],
       description = ["The maximum number of ModelReleases to return."],
       required = false,
-      defaultValue = "0"
+      defaultValue = "0",
     )
     listPageSize: Int,
     @Option(
@@ -1329,7 +1245,7 @@ private class ModelReleases {
           "A page token, received from a previous `ListModelReleasesRequest` call. Provide this to retrieve the subsequent page."
         ],
       required = false,
-      defaultValue = ""
+      defaultValue = "",
     )
     listPageToken: String,
   ) {
@@ -1349,10 +1265,7 @@ private class ModelReleases {
   }
 }
 
-@Command(
-  name = "model-outages",
-  subcommands = [CommandLine.HelpCommand::class],
-)
+@Command(name = "model-outages", subcommands = [CommandLine.HelpCommand::class])
 private class ModelOutages {
   @ParentCommand
   lateinit var parentCommand: MeasurementSystem
@@ -1411,7 +1324,7 @@ private class ModelOutages {
       names = ["--page-size"],
       description = ["The maximum number of ModelOutages to return."],
       required = false,
-      defaultValue = "0"
+      defaultValue = "0",
     )
     listPageSize: Int,
     @Option(
@@ -1421,7 +1334,7 @@ private class ModelOutages {
           "A page token, received from a previous `ListModelOutagesRequest` call. Provide this to retrieve the subsequent page."
         ],
       required = false,
-      defaultValue = ""
+      defaultValue = "",
     )
     listPageToken: String,
     @Option(
@@ -1429,7 +1342,7 @@ private class ModelOutages {
       description =
         ["A flag to specify whether to include ModelOutage in the DELETED state or not."],
       required = false,
-      defaultValue = "false"
+      defaultValue = "false",
     )
     showDeletedOutages: Boolean,
     @Option(
@@ -1474,7 +1387,7 @@ private class ModelOutages {
       description = ["API resource name of the ModelOutage."],
       required = true,
     )
-    modelOutageName: String,
+    modelOutageName: String
   ) {
     val request = deleteModelOutageRequest { name = modelOutageName }
     val outputModelOutage =
@@ -1493,10 +1406,7 @@ private class ModelOutages {
   }
 }
 
-@Command(
-  name = "model-shards",
-  subcommands = [CommandLine.HelpCommand::class],
-)
+@Command(name = "model-shards", subcommands = [CommandLine.HelpCommand::class])
 private class ModelShards {
   @ParentCommand
   lateinit var parentCommand: MeasurementSystem
@@ -1553,7 +1463,7 @@ private class ModelShards {
       names = ["--page-size"],
       description = ["The maximum number of ModelShards to return."],
       required = false,
-      defaultValue = "0"
+      defaultValue = "0",
     )
     listPageSize: Int,
     @Option(
@@ -1563,7 +1473,7 @@ private class ModelShards {
           "A page token, received from a previous `ListModelShardsRequest` call. Provide this to retrieve the subsequent page."
         ],
       required = false,
-      defaultValue = ""
+      defaultValue = "",
     )
     listPageToken: String,
   ) {
@@ -1584,7 +1494,7 @@ private class ModelShards {
       description = ["API resource name of the ModelShard."],
       required = true,
     )
-    modelShardName: String,
+    modelShardName: String
   ) {
     val request = deleteModelShardRequest { name = modelShardName }
 
@@ -1601,10 +1511,7 @@ private class ModelShards {
   }
 }
 
-@Command(
-  name = "model-rollouts",
-  subcommands = [CommandLine.HelpCommand::class],
-)
+@Command(name = "model-rollouts", subcommands = [CommandLine.HelpCommand::class])
 private class ModelRollouts {
   @ParentCommand
   lateinit var parentCommand: MeasurementSystem
@@ -1651,7 +1558,7 @@ private class ModelRollouts {
     if (instantRolloutDate == null && (rolloutStartDate == null || rolloutEndDate == null)) {
       throw ParameterException(
         parentCommand.commandLine,
-        "Both `rolloutStartDate` and `rolloutEndDate` must be set when `instantRolloutDate` is not."
+        "Both `rolloutStartDate` and `rolloutEndDate` must be set when `instantRolloutDate` is not.",
       )
     }
 
@@ -1688,7 +1595,7 @@ private class ModelRollouts {
       names = ["--page-size"],
       description = ["The maximum number of ModelRollouts to return."],
       required = false,
-      defaultValue = "0"
+      defaultValue = "0",
     )
     listPageSize: Int,
     @Option(
@@ -1698,7 +1605,7 @@ private class ModelRollouts {
           "A page token, received from a previous ListModelRolloutsRequest call. Provide this to retrieve the subsequent page."
         ],
       required = false,
-      defaultValue = ""
+      defaultValue = "",
     )
     listPageToken: String,
     @Option(
@@ -1771,7 +1678,7 @@ private class ModelRollouts {
       description = ["API resource name of the ModelRollout."],
       required = true,
     )
-    modelRolloutName: String,
+    modelRolloutName: String
   ) {
     val request = deleteModelRolloutRequest { name = modelRolloutName }
     runBlocking(parentCommand.rpcDispatcher) { modelRolloutStub.deleteModelRollout(request) }
@@ -1794,10 +1701,7 @@ private class ModelRollouts {
   }
 }
 
-@Command(
-  name = "model-suites",
-  subcommands = [CommandLine.HelpCommand::class],
-)
+@Command(name = "model-suites", subcommands = [CommandLine.HelpCommand::class])
 private class ModelSuites {
   @ParentCommand
   lateinit var parentCommand: MeasurementSystem
@@ -1825,9 +1729,9 @@ private class ModelSuites {
       names = ["--description"],
       description = ["Model suite description."],
       required = false,
-      defaultValue = ""
+      defaultValue = "",
     )
-    modelSuiteDescription: String
+    modelSuiteDescription: String,
   ) {
     val request = createModelSuiteRequest {
       parent = modelProviderName
@@ -1844,12 +1748,8 @@ private class ModelSuites {
 
   @Command(description = ["Gets model suite."])
   fun get(
-    @Option(
-      names = ["--name"],
-      description = ["Model suite name."],
-      required = true,
-    )
-    modelSuiteName: String,
+    @Option(names = ["--name"], description = ["Model suite name."], required = true)
+    modelSuiteName: String
   ) {
     val request = getModelSuiteRequest { name = modelSuiteName }
     val outputModelSuite =
@@ -1869,7 +1769,7 @@ private class ModelSuites {
       names = ["--page-size"],
       description = ["The maximum number of ModelSuites to return."],
       required = false,
-      defaultValue = "0"
+      defaultValue = "0",
     )
     listPageSize: Int,
     @Option(
@@ -1879,7 +1779,7 @@ private class ModelSuites {
           "A page token, received from a previous `ListModelSuitesRequest` call. Provide this to retrieve the subsequent page."
         ],
       required = false,
-      defaultValue = ""
+      defaultValue = "",
     )
     listPageToken: String,
   ) {

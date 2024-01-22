@@ -42,7 +42,7 @@ import org.wfanet.measurement.internal.kingdom.getRecurringExchangeRequest as in
 
 class ExchangesService(
   private val internalRecurringExchanges: RecurringExchangesCoroutineStub,
-  private val internalExchanges: ExchangesCoroutineStub
+  private val internalExchanges: ExchangesCoroutineStub,
 ) : ExchangesCoroutineImplBase() {
   override suspend fun getExchange(request: GetExchangeRequest): Exchange {
     fun permissionDeniedStatus() =

@@ -38,7 +38,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.RemoveMeasur
 
 class SpannerMeasurementConsumersService(
   private val idGenerator: IdGenerator,
-  private val client: AsyncDatabaseClient
+  private val client: AsyncDatabaseClient,
 ) : MeasurementConsumersCoroutineImplBase() {
   override suspend fun createMeasurementConsumer(
     request: CreateMeasurementConsumerRequest
@@ -55,20 +55,20 @@ class SpannerMeasurementConsumersService(
       return CreateMeasurementConsumer(
           measurementConsumer,
           ExternalId(request.externalAccountId),
-          request.measurementConsumerCreationTokenHash
+          request.measurementConsumerCreationTokenHash,
         )
         .execute(client, idGenerator)
     } catch (e: PermissionDeniedException) {
       throw e.asStatusRuntimeException(
         Status.Code.PERMISSION_DENIED,
-        "Measurement Consumer creation token is not valid."
+        "Measurement Consumer creation token is not valid.",
       )
     } catch (e: AccountNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Account not found.")
     } catch (e: AccountActivationStateIllegalException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Account has not been activated yet."
+        "Account has not been activated yet.",
       )
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
@@ -81,7 +81,7 @@ class SpannerMeasurementConsumersService(
     return MeasurementConsumerReader()
       .readByExternalMeasurementConsumerId(
         client.singleUse(),
-        ExternalId(request.externalMeasurementConsumerId)
+        ExternalId(request.externalMeasurementConsumerId),
       )
       ?.measurementConsumer ?: failGrpc(Status.NOT_FOUND) { "MeasurementConsumer not found" }
   }
@@ -92,7 +92,7 @@ class SpannerMeasurementConsumersService(
     try {
       return AddMeasurementConsumerOwner(
           externalAccountId = ExternalId(request.externalAccountId),
-          externalMeasurementConsumerId = ExternalId(request.externalMeasurementConsumerId)
+          externalMeasurementConsumerId = ExternalId(request.externalMeasurementConsumerId),
         )
         .execute(client, idGenerator)
     } catch (e: AccountNotFoundException) {
@@ -110,7 +110,7 @@ class SpannerMeasurementConsumersService(
     try {
       return RemoveMeasurementConsumerOwner(
           externalAccountId = ExternalId(request.externalAccountId),
-          externalMeasurementConsumerId = ExternalId(request.externalMeasurementConsumerId)
+          externalMeasurementConsumerId = ExternalId(request.externalMeasurementConsumerId),
         )
         .execute(client, idGenerator)
     } catch (e: AccountNotFoundException) {
@@ -120,7 +120,7 @@ class SpannerMeasurementConsumersService(
     } catch (e: PermissionDeniedException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Account doesn't own MeasurementConsumer."
+        "Account doesn't own MeasurementConsumer.",
       )
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")

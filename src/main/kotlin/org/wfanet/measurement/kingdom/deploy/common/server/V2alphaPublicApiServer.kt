@@ -83,7 +83,7 @@ private const val SERVER_NAME = "V2alphaPublicApiServer"
   name = SERVER_NAME,
   description = ["Server daemon for Kingdom v2alpha public API services."],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 private fun run(
   @CommandLine.Mixin kingdomApiServerFlags: KingdomApiServerFlags,
@@ -101,13 +101,13 @@ private fun run(
     SigningCerts.fromPemFiles(
       certificateFile = commonServerFlags.tlsFlags.certFile,
       privateKeyFile = commonServerFlags.tlsFlags.privateKeyFile,
-      trustedCertCollectionFile = commonServerFlags.tlsFlags.certCollectionFile
+      trustedCertCollectionFile = commonServerFlags.tlsFlags.certCollectionFile,
     )
   val channel =
     buildMutualTlsChannel(
         kingdomApiServerFlags.internalApiFlags.target,
         clientCerts,
-        kingdomApiServerFlags.internalApiFlags.certHost
+        kingdomApiServerFlags.internalApiFlags.certHost,
       )
       .withVerboseLogging(kingdomApiServerFlags.debugVerboseGrpcClientLogging)
       .withDefaultDeadline(kingdomApiServerFlags.internalApiFlags.defaultDeadlineDuration)
@@ -125,12 +125,12 @@ private fun run(
       AccountsService(internalAccountsCoroutineStub, v2alphaFlags.redirectUri)
         .withAccountAuthenticationServerInterceptor(
           internalAccountsCoroutineStub,
-          v2alphaFlags.redirectUri
+          v2alphaFlags.redirectUri,
         ),
       ApiKeysService(InternalApiKeysCoroutineStub(channel))
         .withAccountAuthenticationServerInterceptor(
           internalAccountsCoroutineStub,
-          v2alphaFlags.redirectUri
+          v2alphaFlags.redirectUri,
         ),
       CertificatesService(InternalCertificatesCoroutineStub(channel))
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
@@ -149,7 +149,7 @@ private fun run(
       MeasurementsService(
           InternalMeasurementsCoroutineStub(channel),
           v2alphaFlags.directNoiseMechanisms,
-          v2alphaFlags.reachOnlyLlV2Enabled
+          v2alphaFlags.reachOnlyLlV2Enabled,
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
@@ -157,7 +157,7 @@ private fun run(
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withAccountAuthenticationServerInterceptor(
           internalAccountsCoroutineStub,
-          v2alphaFlags.redirectUri
+          v2alphaFlags.redirectUri,
         )
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
       PublicKeysService(InternalPublicKeysCoroutineStub(channel))
@@ -168,17 +168,17 @@ private fun run(
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
       ExchangesService(
           internalRecurringExchangesCoroutineStub,
-          InternalExchangesCoroutineStub(channel)
+          InternalExchangesCoroutineStub(channel),
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ExchangeStepsService(
           internalRecurringExchangesCoroutineStub,
-          internalExchangeStepsCoroutineStub
+          internalExchangeStepsCoroutineStub,
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ExchangeStepAttemptsService(
           InternalExchangeStepAttemptsCoroutineStub(channel),
-          internalExchangeStepsCoroutineStub
+          internalExchangeStepsCoroutineStub,
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ModelLinesService(InternalModelLinesCoroutineStub(channel))
@@ -216,7 +216,7 @@ private class V2alphaFlags {
   @CommandLine.Option(
     names = ["--open-id-redirect-uri"],
     description = ["The redirect uri for OpenID Provider responses."],
-    required = true
+    required = true,
   )
   lateinit var redirectUri: String
     private set
@@ -245,7 +245,7 @@ private class V2alphaFlags {
         "Noise mechanisms that can be used in direct computation. It can be specified multiple " +
           "times."
       ],
-    required = true
+    required = true,
   )
   fun setDirectNoiseMechanisms(noiseMechanisms: List<NoiseMechanism>) {
     for (noiseMechanism in noiseMechanisms) {
@@ -261,7 +261,7 @@ private class V2alphaFlags {
             String.format(
               "Invalid noise mechanism $noiseMechanism for option '--direct-noise-mechanism'. " +
                 "Discrete mechanisms are not supported for direct computations."
-            )
+            ),
           )
         }
         NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
@@ -270,7 +270,7 @@ private class V2alphaFlags {
             spec.commandLine(),
             String.format(
               "Invalid noise mechanism $noiseMechanism for option '--direct-noise-mechanism'."
-            )
+            ),
           )
         }
       }

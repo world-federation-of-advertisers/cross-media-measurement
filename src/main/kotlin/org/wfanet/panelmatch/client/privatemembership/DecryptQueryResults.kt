@@ -80,7 +80,7 @@ fun decryptQueryResults(
   privateMembershipKeys: PCollectionView<AsymmetricKeyPair>,
   parameters: Any,
   queryResultsDecryptor: QueryResultsDecryptor,
-  hkdfPepper: ByteString
+  hkdfPepper: ByteString,
 ): PCollection<KeyedDecryptedEventDataSet> {
   return PCollectionTuple.of(DecryptQueryResults.encryptedQueryResultsTag, encryptedQueryResults)
     .and(DecryptQueryResults.queryIdAndIdsTag, queryIdAndIds)
@@ -93,8 +93,8 @@ fun decryptQueryResults(
         queryResultsDecryptor,
         hkdfPepper,
         compressionParameters,
-        privateMembershipKeys
-      )
+        privateMembershipKeys,
+      ),
     )
 }
 
@@ -103,7 +103,7 @@ class DecryptQueryResults(
   private val queryResultsDecryptor: QueryResultsDecryptor,
   private val hkdfPepper: ByteString,
   private val compressionParameters: PCollectionView<CompressionParameters>,
-  private val privateMembershipKeys: PCollectionView<AsymmetricKeyPair>
+  private val privateMembershipKeys: PCollectionView<AsymmetricKeyPair>,
 ) : PTransform<PCollectionTuple, PCollection<KeyedDecryptedEventDataSet>>() {
 
   override fun expand(input: PCollectionTuple): PCollection<KeyedDecryptedEventDataSet> {
@@ -112,7 +112,7 @@ class DecryptQueryResults(
     val plaintextListCoder =
       KvCoder.of(
         ProtoCoder.of(JoinKeyIdentifier::class.java),
-        ListCoder.of(ProtoCoder.of(Plaintext::class.java))
+        ListCoder.of(ProtoCoder.of(Plaintext::class.java)),
       )
     val encryptedQueryResults: PCollection<EncryptedQueryResult> = input[encryptedQueryResultsTag]
     val queryIdAndIds: PCollection<QueryIdAndId> = input[queryIdAndIdsTag]
@@ -151,10 +151,10 @@ class DecryptQueryResults(
                 privateMembershipKeys,
                 compressionParameters,
                 parameters,
-                hkdfPepper
+                hkdfPepper,
               )
             )
-            .withSideInputs(privateMembershipKeys, compressionParameters)
+            .withSideInputs(privateMembershipKeys, compressionParameters),
         )
         .parDo(DecryptResultsFn(queryResultsDecryptor), name = "Decrypt")
         .setCoder(plaintextListCoder)
@@ -186,7 +186,7 @@ class DecryptQueryResults(
       realQueryResults
         .strictOneToOneJoin(
           keyedPlaintextJoinKeyAndIds,
-          name = "Join Decrypted Result to Plaintext Joinkeys"
+          name = "Join Decrypted Result to Plaintext Joinkeys",
         )
         .map("Map to KeyedDecryptedEventDataSet") {
           keyedDecryptedEventDataSet {
@@ -212,11 +212,11 @@ private class BuildDecryptQueryResultsParametersFn(
   private val keysView: PCollectionView<AsymmetricKeyPair>,
   private val compressionParametersView: PCollectionView<CompressionParameters>,
   private val parameters: Any,
-  private val hkdfPepper: ByteString
+  private val hkdfPepper: ByteString,
 ) :
   DoFn<
     KV<JoinKeyAndId?, Iterable<@JvmWildcard EncryptedQueryResult>?>,
-    KV<JoinKeyIdentifier, DecryptQueryResultsParameters>
+    KV<JoinKeyIdentifier, DecryptQueryResultsParameters>,
   >() {
   private val metricsNamespace = "DecryptQueryResults"
   private val noResults = Metrics.counter(metricsNamespace, "no-results")
@@ -263,7 +263,7 @@ private class BuildDecryptQueryResultsParametersFn(
 private class DecryptResultsFn(private val queryResultsDecryptor: QueryResultsDecryptor) :
   DoFn<
     KV<JoinKeyIdentifier, DecryptQueryResultsParameters>,
-    KV<JoinKeyIdentifier, List<@JvmWildcard Plaintext>>
+    KV<JoinKeyIdentifier, List<@JvmWildcard Plaintext>>,
   >() {
   private val metricsNamespace = "DecryptQueryResults"
   private val decryptionTimes = Metrics.distribution(metricsNamespace, "decryption-times")

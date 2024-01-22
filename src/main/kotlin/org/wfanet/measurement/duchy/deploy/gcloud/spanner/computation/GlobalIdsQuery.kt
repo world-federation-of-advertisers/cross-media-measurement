@@ -29,7 +29,7 @@ class GlobalIdsQuery<StageT>(
   toComputationStageLongValuesFunc: (StageT) -> ComputationStageLongValues,
   filterToStages: Set<StageT>,
   computationType: ComputationType,
-  updatedBefore: Timestamp? = null
+  updatedBefore: Timestamp? = null,
 ) : SqlBasedQuery<String> {
   companion object {
     private const val parameterizedQuery =

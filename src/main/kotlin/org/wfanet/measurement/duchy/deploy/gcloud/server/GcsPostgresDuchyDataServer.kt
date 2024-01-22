@@ -34,7 +34,7 @@ import picocli.CommandLine
   name = "GcsPostgresDuchyDataServer",
   description = ["Server daemon for ${DuchyDataServer.SERVICE_NAME} service."],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 class GcsPostgresDuchyDataServer : DuchyDataServer() {
   @CommandLine.Mixin private lateinit var gcsFlags: GcsFromFlags.Flags
@@ -54,7 +54,7 @@ class GcsPostgresDuchyDataServer : DuchyDataServer() {
         computationLogEntriesClient,
         duchyFlags.duchyName,
         idGenerator,
-        client
+        client,
       )
     )
   }

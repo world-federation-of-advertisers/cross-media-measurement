@@ -94,7 +94,7 @@ private fun toV2AlphaName(): String {
       recurringExchangeId = externalIdToApiId(RECURRING_EXCHANGE_ID),
       exchangeId = EXCHANGE_ID,
       exchangeStepId = STEP_INDEX.toString(),
-      exchangeStepAttemptId = ATTEMPT_NUMBER.toString()
+      exchangeStepAttemptId = ATTEMPT_NUMBER.toString(),
     )
     .toName()
 }
@@ -137,7 +137,7 @@ class ExchangeStepAttemptsServiceTest {
   private val service =
     ExchangeStepAttemptsService(
       ExchangeStepAttemptsCoroutineStub(grpcTestServerRule.channel),
-      ExchangeStepsCoroutineStub(grpcTestServerRule.channel)
+      ExchangeStepsCoroutineStub(grpcTestServerRule.channel),
     )
 
   @Test
@@ -271,7 +271,7 @@ class ExchangeStepAttemptsServiceTest {
 
     verifyProtoArgument(
         internalExchangeStepAttempts,
-        InternalExchangeStepAttempts::finishExchangeStepAttempt
+        InternalExchangeStepAttempts::finishExchangeStepAttempt,
       )
       .ignoringFieldAbsence()
       .isEqualTo(

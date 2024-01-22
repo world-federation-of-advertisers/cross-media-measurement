@@ -64,11 +64,11 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
         .readByExternalComputationId(
           transactionContext,
           ExternalId(request.externalComputationId),
-          InternalId(duchyId)
+          InternalId(duchyId),
         )
         ?: throw ComputationParticipantNotFoundByComputationException(
           ExternalId(request.externalComputationId),
-          request.externalDuchyId
+          request.externalDuchyId,
         ) {
           "ComputationParticipant for external computation ID ${request.externalComputationId} " +
             "and external duchy ID ${request.externalDuchyId} not found"
@@ -82,7 +82,7 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
       throw MeasurementStateIllegalException(
         ExternalId(computationParticipant.externalMeasurementConsumerId),
         ExternalId(computationParticipant.externalMeasurementId),
-        measurementState
+        measurementState,
       ) {
         "Measurement for external computation Id ${request.externalComputationId} " +
           "and external duchy ID ${request.externalDuchyId} has the wrong state. " +
@@ -94,7 +94,7 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
       throw ComputationParticipantStateIllegalException(
         ExternalId(request.externalComputationId),
         request.externalDuchyId,
-        computationParticipant.state
+        computationParticipant.state,
       ) {
         "ComputationParticipant for external computation Id ${request.externalComputationId} " +
           "and external duchy ID ${request.externalDuchyId} has the wrong state. " +
@@ -114,7 +114,7 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
     val duchyIds: List<InternalId> =
       getComputationParticipantsDuchyIds(
           InternalId(measurementConsumerId),
-          InternalId(measurementId)
+          InternalId(measurementId),
         )
         .filter { it.value != duchyId }
 
@@ -124,7 +124,7 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
         duchyIds,
         InternalId(measurementConsumerId),
         InternalId(measurementId),
-        NEXT_COMPUTATION_PARTICIPANT_STATE
+        NEXT_COMPUTATION_PARTICIPANT_STATE,
       )
     ) {
 
@@ -138,7 +138,7 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
         measurementId = InternalId(measurementId),
         nextState = Measurement.State.PENDING_COMPUTATION,
         previousState = measurementState,
-        measurementLogEntryDetails = measurementLogEntryDetails
+        measurementLogEntryDetails = measurementLogEntryDetails,
       )
     }
 
@@ -147,7 +147,7 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
 
   private suspend fun TransactionScope.getComputationParticipantsDuchyIds(
     measurementConsumerId: InternalId,
-    measurementId: InternalId
+    measurementId: InternalId,
   ): List<InternalId> {
     val sql =
       """

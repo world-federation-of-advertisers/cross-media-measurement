@@ -45,7 +45,7 @@ private typealias ComputationsDb =
     ComputationTypeEnum.ComputationType,
     ComputationStage,
     ComputationStageDetails,
-    ComputationDetails
+    ComputationDetails,
   >
 
 object SpannerDuchyDataServices {
@@ -54,7 +54,7 @@ object SpannerDuchyDataServices {
     storageClient: StorageClient,
     computationLogEntriesClient: ComputationLogEntriesCoroutineStub,
     duchyName: String,
-    databaseClient: AsyncDatabaseClient
+    databaseClient: AsyncDatabaseClient,
   ): DuchyDataServices {
 
     val computationTypeEnumHelper: ComputationTypeEnumHelper<ComputationTypeEnum.ComputationType> =
@@ -67,7 +67,7 @@ object SpannerDuchyDataServices {
         ComputationTypeEnum.ComputationType,
         ComputationStage,
         ComputationStageDetails,
-        ComputationDetails
+        ComputationDetails,
       > =
       ComputationProtocolStageDetails
 
@@ -80,8 +80,8 @@ object SpannerDuchyDataServices {
           ComputationMutations(
             computationTypeEnumHelper,
             protocolStagesEnumHelper,
-            computationProtocolStageDetailsHelper
-          )
+            computationProtocolStageDetailsHelper,
+          ),
       )
     val computationsDatabase =
       newComputationsDatabase(computationReader, computationDb, protocolStagesEnumHelper)
@@ -91,10 +91,10 @@ object SpannerDuchyDataServices {
         computationLogEntriesClient = computationLogEntriesClient,
         computationStore = ComputationStore(storageClient),
         requisitionStore = RequisitionStore(storageClient),
-        duchyName = duchyName
+        duchyName = duchyName,
       ),
       ComputationStatsService(computationsDatabase),
-      SpannerContinuationTokensService(databaseClient)
+      SpannerContinuationTokensService(databaseClient),
     )
   }
 
@@ -109,7 +109,8 @@ object SpannerDuchyDataServices {
       ComputationsDatabaseReader by computationsDatabaseReader,
       ComputationsDb by computationDb,
       ComputationProtocolStagesEnumHelper<
-        ComputationTypeEnum.ComputationType, ComputationStage
+        ComputationTypeEnum.ComputationType,
+        ComputationStage,
       > by protocolStagesEnumHelper {}
   }
 }

@@ -25,7 +25,7 @@ internal fun SpannerWriter.TransactionScope.updateRequisition(
   readResult: RequisitionReader.Result,
   state: Requisition.State,
   details: Requisition.Details,
-  fulfillingDuchyId: InternalId? = null
+  fulfillingDuchyId: InternalId? = null,
 ) {
   transactionContext.bufferUpdateMutation("Requisitions") {
     set("MeasurementId" to readResult.measurementId.value)

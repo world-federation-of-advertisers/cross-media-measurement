@@ -35,7 +35,7 @@ class LocalComputationIdGeneratorsTest {
     val globalId = "123"
     assertEquals(
       parseUnsignedLong("B3D50C48FFFFFFF0", 16) or globalId.hashCode().toLong(),
-      gen.localId(globalId)
+      gen.localId(globalId),
     )
   }
 }

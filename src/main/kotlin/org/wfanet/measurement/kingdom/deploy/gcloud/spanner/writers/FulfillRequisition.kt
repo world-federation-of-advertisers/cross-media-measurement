@@ -70,7 +70,7 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
       throw MeasurementStateIllegalException(
         ExternalId(requisition.externalMeasurementConsumerId),
         ExternalId(requisition.externalMeasurementId),
-        measurementState
+        measurementState,
       ) {
         "Expected ${Measurement.State.PENDING_REQUISITION_FULFILLMENT}, got $measurementState"
       }
@@ -102,7 +102,7 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
             measurementId = measurementId,
             nextState = it,
             previousState = measurementState,
-            measurementLogEntryDetails = measurementLogEntryDetails
+            measurementLogEntryDetails = measurementLogEntryDetails,
           )
         }
       } else {
@@ -136,11 +136,11 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
         .readByExternalComputationId(
           transactionContext,
           externalComputationId = externalComputationId,
-          externalRequisitionId = externalRequisitionId
+          externalRequisitionId = externalRequisitionId,
         )
         ?: throw RequisitionNotFoundByComputationException(
           ExternalId(externalComputationId),
-          ExternalId(externalRequisitionId)
+          ExternalId(externalRequisitionId),
         ) {
           "Requisition with external Computation ID $externalComputationId and external " +
             "Requisition ID $externalRequisitionId not found"
@@ -151,11 +151,11 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
         .readByExternalDataProviderId(
           transactionContext,
           externalDataProviderId = externalDataProviderId,
-          externalRequisitionId = externalRequisitionId
+          externalRequisitionId = externalRequisitionId,
         )
         ?: throw RequisitionNotFoundByDataProviderException(
           ExternalId(externalDataProviderId),
-          ExternalId(externalRequisitionId)
+          ExternalId(externalRequisitionId),
         ) {
           "Requisition with external DataProvider ID $externalDataProviderId and external " +
             "Requisition ID $externalRequisitionId not found"
@@ -175,7 +175,7 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
     private fun TransactionScope.readRequisitionsNotInState(
       measurementConsumerId: InternalId,
       measurementId: InternalId,
-      state: Requisition.State
+      state: Requisition.State,
     ): Flow<InternalId> {
       val sql =
         """

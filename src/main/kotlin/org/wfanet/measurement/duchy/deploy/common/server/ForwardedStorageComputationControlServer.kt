@@ -23,7 +23,7 @@ import picocli.CommandLine
   name = "ForwardedStorageComputationControlServer",
   description = ["Server daemon for ${ComputationControlServer.SERVICE_NAME} service."],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 class ForwardedStorageComputationControlServer : ComputationControlServer() {
   @CommandLine.Mixin private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags

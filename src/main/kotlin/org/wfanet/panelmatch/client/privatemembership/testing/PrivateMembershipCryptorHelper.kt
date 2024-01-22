@@ -35,7 +35,7 @@ interface PrivateMembershipCryptorHelper : Serializable {
   /** Constructs an encrypted query bundle */
   fun makeEncryptedQueryBundle(
     shard: ShardId,
-    queries: List<Pair<QueryId, BucketId>>
+    queries: List<Pair<QueryId, BucketId>>,
   ): EncryptedQueryBundle
 
   /** Decodes an encrypted query bundle */
@@ -44,7 +44,7 @@ interface PrivateMembershipCryptorHelper : Serializable {
   /** Constructs an [EncryptedQueryResult] from an [EncryptedEventDataSet] */
   fun makeEncryptedQueryResult(
     keys: AsymmetricKeyPair,
-    encryptedEventDataSet: EncryptedEventDataSet
+    encryptedEventDataSet: EncryptedEventDataSet,
   ): EncryptedQueryResult
 
   /** Decodes an encrypted query result */
@@ -56,7 +56,7 @@ interface PrivateMembershipCryptorHelper : Serializable {
    */
   fun makeEncryptedEventDataSet(
     plaintext: DecryptedEventDataSet,
-    joinkey: Pair<QueryId, JoinKey>
+    joinkey: Pair<QueryId, JoinKey>,
   ): EncryptedEventDataSet
 }
 
@@ -65,6 +65,6 @@ data class ShardedQuery(val shardId: ShardId, val queryId: QueryId, val bucketId
   constructor(
     shard: Int,
     query: Int,
-    bucket: Int
+    bucket: Int,
   ) : this(shardIdOf(shard), queryIdOf(query), bucketIdOf(bucket))
 }

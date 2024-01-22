@@ -79,10 +79,7 @@ class FinishComputation<ProtocolT, StageT, ComputationDT : Message, StageDT : Me
       details = endingComputationDetails,
     )
 
-    releaseComputationLock(
-      localComputationId = localId,
-      updateTime = writeTime,
-    )
+    releaseComputationLock(localComputationId = localId, updateTime = writeTime)
 
     if (currentStage == endingStage) {
       // TODO(world-federation-of-advertisers/cross-media-measurement#774): Determine whether this
@@ -94,7 +91,7 @@ class FinishComputation<ProtocolT, StageT, ComputationDT : Message, StageDT : Me
         stage = currentStageLong,
         endTime = writeTime,
         details = endingStageDetails,
-        nextAttempt = 1
+        nextAttempt = 1,
       )
     } else {
       updateComputationStage(
@@ -114,41 +111,37 @@ class FinishComputation<ProtocolT, StageT, ComputationDT : Message, StageDT : Me
       )
     }
 
-    ComputationStageAttemptReader()
-      .readUnfinishedAttempts(
-        transactionContext,
-        localId,
-      )
-      .collect { unfinished ->
-        // Determine the reason the unfinished computation stage attempt is ending.
-        val reason =
-          if (
-            unfinished.computationStage == currentStageLong && unfinished.attempt == currentAttempt
-          ) {
-            // The unfinished attempt is the current attempt of the current stage.
-            // Set its ending reason based on the ending status of the computation as a whole. { {
-            when (endComputationReason) {
-              EndComputationReason.SUCCEEDED -> ComputationStageAttemptDetails.EndReason.SUCCEEDED
-              EndComputationReason.FAILED -> ComputationStageAttemptDetails.EndReason.ERROR
-              EndComputationReason.CANCELED -> ComputationStageAttemptDetails.EndReason.CANCELLED
-            }
-          } else {
-            logger.warning(
-              "Stage attempt with primary key " +
-                "(${unfinished.computationId}, ${unfinished.computationStage}, ${unfinished.attempt}) " +
-                "did not have an ending reason set when ending computation, " +
-                "setting it to 'CANCELLED'.",
-            )
-            ComputationStageAttemptDetails.EndReason.CANCELLED
+    ComputationStageAttemptReader().readUnfinishedAttempts(transactionContext, localId).collect {
+      unfinished ->
+      // Determine the reason the unfinished computation stage attempt is ending.
+      val reason =
+        if (
+          unfinished.computationStage == currentStageLong && unfinished.attempt == currentAttempt
+        ) {
+          // The unfinished attempt is the current attempt of the current stage.
+          // Set its ending reason based on the ending status of the computation as a whole. { {
+          when (endComputationReason) {
+            EndComputationReason.SUCCEEDED -> ComputationStageAttemptDetails.EndReason.SUCCEEDED
+            EndComputationReason.FAILED -> ComputationStageAttemptDetails.EndReason.ERROR
+            EndComputationReason.CANCELED -> ComputationStageAttemptDetails.EndReason.CANCELLED
           }
-        updateComputationStageAttempt(
-          localId = unfinished.computationId,
-          stage = unfinished.computationStage,
-          attempt = unfinished.attempt,
-          endTime = writeTime,
-          details = unfinished.details.copy { reasonEnded = reason },
-        )
-      }
+        } else {
+          logger.warning(
+            "Stage attempt with primary key " +
+              "(${unfinished.computationId}, ${unfinished.computationStage}, ${unfinished.attempt}) " +
+              "did not have an ending reason set when ending computation, " +
+              "setting it to 'CANCELLED'."
+          )
+          ComputationStageAttemptDetails.EndReason.CANCELLED
+        }
+      updateComputationStageAttempt(
+        localId = unfinished.computationId,
+        stage = unfinished.computationStage,
+        attempt = unfinished.attempt,
+        endTime = writeTime,
+        details = unfinished.details.copy { reasonEnded = reason },
+      )
+    }
 
     return checkNotNull(computationReader.readComputationToken(transactionContext, token.globalId))
   }

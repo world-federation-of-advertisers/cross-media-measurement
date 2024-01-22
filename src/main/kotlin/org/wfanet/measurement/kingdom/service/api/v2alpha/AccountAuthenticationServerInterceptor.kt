@@ -42,13 +42,13 @@ import org.wfanet.measurement.internal.kingdom.authenticateAccountRequest
 class AccountAuthenticationServerInterceptor(
   private val internalAccountsClient: AccountsCoroutineStub,
   private val redirectUri: String,
-  coroutineContext: CoroutineContext = EmptyCoroutineContext
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : SuspendableServerInterceptor(coroutineContext) {
 
   override suspend fun <ReqT : Any, RespT : Any> interceptCallSuspending(
     call: ServerCall<ReqT, RespT>,
     headers: Metadata,
-    next: ServerCallHandler<ReqT, RespT>
+    next: ServerCallHandler<ReqT, RespT>,
   ): ServerCall.Listener<ReqT> {
     var context = Context.current()
     val idToken =
@@ -88,7 +88,7 @@ class AccountAuthenticationServerInterceptor(
       AccountsService.validateIdToken(
         idToken = idToken,
         redirectUri = redirectUri,
-        internalAccountsStub = internalAccountsClient
+        internalAccountsStub = internalAccountsClient,
       )
 
     return internalAccountsClient.authenticateAccount(
@@ -99,20 +99,20 @@ class AccountAuthenticationServerInterceptor(
 
 fun BindableService.withAccountAuthenticationServerInterceptor(
   internalAccountsClient: AccountsCoroutineStub,
-  redirectUri: String
+  redirectUri: String,
 ): ServerServiceDefinition =
   ServerInterceptors.intercept(
     this,
-    AccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri)
+    AccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri),
   )
 
 fun ServerServiceDefinition.withAccountAuthenticationServerInterceptor(
   internalAccountsClient: AccountsCoroutineStub,
-  redirectUri: String
+  redirectUri: String,
 ): ServerServiceDefinition =
   ServerInterceptors.intercept(
     this,
-    AccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri)
+    AccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri),
   )
 
 /** Executes [block] with [Account] installed in a new [Context]. */

@@ -56,7 +56,7 @@ object Llv2ProtocolConfig {
     protocolConfig: ProtocolConfig.LiquidLegionsV2,
     duchyProtocolConfig: DuchyProtocolConfig.LiquidLegionsV2,
     requiredExternalDuchyIds: Set<String>,
-    minimumNumberOfRequiredDuchies: Int
+    minimumNumberOfRequiredDuchies: Int,
   ) {
     require(!Llv2ProtocolConfig::protocolConfig.isInitialized)
     require(!Llv2ProtocolConfig::duchyProtocolConfig.isInitialized)
@@ -79,7 +79,7 @@ class Llv2ProtocolConfigFlags {
   @CommandLine.Option(
     names = ["--llv2-protocol-config-config"],
     description = ["Llv2ProtocolConfigConfig proto message in text format."],
-    required = true
+    required = true,
   )
   lateinit var config: File
     private set

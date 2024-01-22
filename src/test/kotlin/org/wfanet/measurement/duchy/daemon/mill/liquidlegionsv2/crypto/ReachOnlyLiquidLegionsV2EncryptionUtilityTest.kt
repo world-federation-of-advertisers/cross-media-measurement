@@ -177,7 +177,7 @@ class ReachOnlyLiquidLegionsV2EncryptionUtilityTest {
         DECAY_RATE,
         LIQUID_LEGIONS_SIZE,
         4,
-        VID_SAMPLING_INTERVAL_WIDTH.toDouble()
+        VID_SAMPLING_INTERVAL_WIDTH.toDouble(),
       )
     assertEquals(expectedResult, result)
   }

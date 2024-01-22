@@ -27,23 +27,23 @@ private val DECRYPTED_JOIN_KEYS: List<JoinKeyAndId> =
   listOf(
     joinKeyAndIdOf(
       "some-decrypted-join-key-0".toByteStringUtf8(),
-      "some-identifier0".toByteStringUtf8()
+      "some-identifier0".toByteStringUtf8(),
     ),
     joinKeyAndIdOf(
       "some-decrypted-join-key-11".toByteStringUtf8(),
-      "some-identifier1".toByteStringUtf8()
+      "some-identifier1".toByteStringUtf8(),
     ),
     joinKeyAndIdOf(
       "some-decrypted-join-key-222".toByteStringUtf8(),
-      "some-identifier2".toByteStringUtf8()
+      "some-identifier2".toByteStringUtf8(),
     ),
     joinKeyAndIdOf(
       "some-decrypted-join-key-3333".toByteStringUtf8(),
-      "some-identifier3".toByteStringUtf8()
+      "some-identifier3".toByteStringUtf8(),
     ),
     joinKeyAndIdOf(
       "some-decrypted-join-key-44444".toByteStringUtf8(),
-      "some-identifier4".toByteStringUtf8()
+      "some-identifier4".toByteStringUtf8(),
     ),
   )
 
@@ -75,7 +75,7 @@ abstract class AbstractQueryPreparerTest {
     val joinKeyAndIds2: List<LookupKeyAndId> =
       queryPreparer.prepareLookupKeys(
         "some-other-other-pepper".toByteStringUtf8(),
-        DECRYPTED_JOIN_KEYS
+        DECRYPTED_JOIN_KEYS,
       )
     assertThat(joinKeyAndIds1).containsNoneIn(joinKeyAndIds2)
   }

@@ -23,7 +23,7 @@ interface CertificateManager {
   data class KeyPair(
     val x509Certificate: X509Certificate,
     val privateKey: PrivateKey,
-    val certResourceName: String
+    val certResourceName: String,
   )
 
   /**
@@ -36,7 +36,7 @@ interface CertificateManager {
   suspend fun getCertificate(
     exchange: ExchangeDateKey,
     certOwnerName: String,
-    certResourceName: String
+    certResourceName: String,
   ): X509Certificate
 
   /** Grabs the root [X509Certificate] for a party. */

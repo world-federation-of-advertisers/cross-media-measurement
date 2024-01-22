@@ -31,7 +31,7 @@ data class VidSamplingInterval(val start: Double, val width: Double)
 data class ReachMeasurementParams(
   val vidSamplingInterval: VidSamplingInterval,
   val dpParams: DpParams,
-  val noiseMechanism: NoiseMechanism
+  val noiseMechanism: NoiseMechanism,
 )
 
 /** The parameters used to compute a reach-and-frequency measurement. */
@@ -47,7 +47,7 @@ data class ImpressionMeasurementParams(
   val vidSamplingInterval: VidSamplingInterval,
   val dpParams: DpParams,
   val maximumFrequencyPerUser: Int,
-  val noiseMechanism: NoiseMechanism
+  val noiseMechanism: NoiseMechanism,
 )
 
 /** The parameters used to compute a watch duration measurement. */
@@ -55,13 +55,13 @@ data class WatchDurationMeasurementParams(
   val vidSamplingInterval: VidSamplingInterval,
   val dpParams: DpParams,
   val maximumDurationPerUser: Double,
-  val noiseMechanism: NoiseMechanism
+  val noiseMechanism: NoiseMechanism,
 )
 
 /** The parameters used to compute the variance of a reach measurement. */
 data class ReachMeasurementVarianceParams(
   val reach: Long,
-  val measurementParams: ReachMeasurementParams
+  val measurementParams: ReachMeasurementParams,
 )
 
 /** The parameters used to compute the variance of a reach-and-frequency measurement. */
@@ -69,19 +69,19 @@ data class FrequencyMeasurementVarianceParams(
   val totalReach: Long,
   val reachMeasurementVariance: Double,
   val relativeFrequencyDistribution: Map<Int, Double>,
-  val measurementParams: FrequencyMeasurementParams
+  val measurementParams: FrequencyMeasurementParams,
 )
 
 /** The parameters used to compute the variance of an impression measurement. */
 data class ImpressionMeasurementVarianceParams(
   val impression: Long,
-  val measurementParams: ImpressionMeasurementParams
+  val measurementParams: ImpressionMeasurementParams,
 )
 
 /** The parameters used to compute the variance of a watch duration measurement. */
 data class WatchDurationMeasurementVarianceParams(
   val duration: Double,
-  val measurementParams: WatchDurationMeasurementParams
+  val measurementParams: WatchDurationMeasurementParams,
 )
 
 typealias FrequencyVariance = Map<Int, Double>
@@ -101,5 +101,5 @@ data class ReachMeasurementCovarianceParams(
   val unionReach: Long,
   val samplingWidth: Double,
   val otherSamplingWidth: Double,
-  val unionSamplingWidth: Double
+  val unionSamplingWidth: Double,
 )

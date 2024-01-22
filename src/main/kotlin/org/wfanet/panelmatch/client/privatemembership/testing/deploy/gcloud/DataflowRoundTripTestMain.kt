@@ -99,8 +99,8 @@ fun main(args: Array<String>) {
       "Create Private Membership Keys",
       Create.ofProvider(
         AsymmetricKeysValueProvider(),
-        SerializableCoder.of(AsymmetricKeyPair::class.java)
-      )
+        SerializableCoder.of(AsymmetricKeyPair::class.java),
+      ),
     )
 
   val createQueriesParameters =
@@ -108,7 +108,7 @@ fun main(args: Array<String>) {
       numShards = SHARD_COUNT,
       numBucketsPerShard = BUCKETS_PER_SHARD_COUNT,
       maxQueriesPerShard = QUERIES_PER_SHARD_COUNT,
-      padQueries = true
+      padQueries = true,
     )
 
   val privateMembershipCryptor =
@@ -128,7 +128,7 @@ fun main(args: Array<String>) {
         rawQueries,
         privateMembershipKeys.toSingletonView(),
         createQueriesParameters,
-        privateMembershipCryptor
+        privateMembershipCryptor,
       )
       .encryptedQueryBundles
 
@@ -148,7 +148,7 @@ fun main(args: Array<String>) {
         val uniqueQueryId = i + j * SHARD_COUNT
         databaseEntryOf(
           lookupKeyOf(Random.nextLong()),
-          encryptedEntryOf(makeFakeUserDataPayload(uniqueQueryId.toString()))
+          encryptedEntryOf(makeFakeUserDataPayload(uniqueQueryId.toString())),
         )
       }
     }
@@ -157,7 +157,7 @@ fun main(args: Array<String>) {
     EvaluateQueriesParameters(
       numShards = SHARD_COUNT,
       numBucketsPerShard = BUCKETS_PER_SHARD_COUNT,
-      maxQueriesPerShard = QUERIES_PER_SHARD_COUNT
+      maxQueriesPerShard = QUERIES_PER_SHARD_COUNT,
     )
 
   val serializedPublicKey = privateMembershipKeys.map { it.serializedPublicKey }.toSingletonView()
@@ -168,7 +168,7 @@ fun main(args: Array<String>) {
       serializedPublicKey,
       paddingNonces,
       evaluateQueriesParameters,
-      queryEvaluator
+      queryEvaluator,
     )
 
   val outputSchema =
@@ -177,14 +177,14 @@ fun main(args: Array<String>) {
         listOf(
           TableFieldSchema().setName("QueryId").setType("INT64"),
           TableFieldSchema().setName("ResultIndex").setType("INT64"),
-          TableFieldSchema().setName("Result").setType("STRING")
+          TableFieldSchema().setName("Result").setType("STRING"),
         )
       )
 
   results
     .parDoWithSideInput<EncryptedQueryResult, AsymmetricKeyPair, TableRow>(
       privateMembershipKeys.toSingletonView(),
-      name = "Decrypt to TableRows"
+      name = "Decrypt to TableRows",
     ) { encryptedQueryResult: EncryptedQueryResult, keys: AsymmetricKeyPair ->
       val response =
         JniPrivateMembership.decryptQueries(
@@ -227,7 +227,7 @@ private class AsymmetricKeysValueProvider : ValueProvider<AsymmetricKeyPair> {
     val privateKey: PrivateKey = generateKeysResponse.privateKey
     AsymmetricKeyPair(
       serializedPublicKey = publicKey.toByteString(),
-      serializedPrivateKey = privateKey.toByteString()
+      serializedPrivateKey = privateKey.toByteString(),
     )
   }
 
@@ -243,7 +243,7 @@ private fun PCollection<TableRow>.toBigQuery(outputTable: String, tableSchema: T
       .to(outputTable)
       .withSchema(tableSchema)
       .withCreateDisposition(BigQueryIO.Write.CreateDisposition.CREATE_IF_NEEDED)
-      .withWriteDisposition(BigQueryIO.Write.WriteDisposition.WRITE_TRUNCATE)
+      .withWriteDisposition(BigQueryIO.Write.WriteDisposition.WRITE_TRUNCATE),
   )
 }
 

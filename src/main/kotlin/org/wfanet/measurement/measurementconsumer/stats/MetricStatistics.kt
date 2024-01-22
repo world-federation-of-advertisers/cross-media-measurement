@@ -22,7 +22,7 @@ data class CustomDirectScalarMethodology(val variance: Double) : Methodology
 
 data class CustomDirectFrequencyMethodology(
   val relativeVariances: FrequencyVariance,
-  val kPlusRelativeVariances: FrequencyVariance
+  val kPlusRelativeVariances: FrequencyVariance,
 ) : Methodology
 
 object DeterministicMethodology : Methodology
@@ -33,35 +33,35 @@ data class LiquidLegionsSketchMethodology(val decayRate: Double, val sketchSize:
 data class LiquidLegionsV2Methodology(
   val decayRate: Double,
   val sketchSize: Long,
-  val samplingIndicatorSize: Long
+  val samplingIndicatorSize: Long,
 ) : Methodology
 
 data class WeightedReachMeasurementVarianceParams(
   val binaryRepresentation: Int,
   val weight: Int,
   val measurementVarianceParams: ReachMeasurementVarianceParams,
-  val methodology: Methodology
+  val methodology: Methodology,
 )
 
 data class WeightedFrequencyMeasurementVarianceParams(
   val binaryRepresentation: Int,
   val weight: Int,
   val measurementVarianceParams: FrequencyMeasurementVarianceParams,
-  val methodology: Methodology
+  val methodology: Methodology,
 )
 
 data class WeightedImpressionMeasurementVarianceParams(
   val binaryRepresentation: Int,
   val weight: Int,
   val measurementVarianceParams: ImpressionMeasurementVarianceParams,
-  val methodology: Methodology
+  val methodology: Methodology,
 )
 
 data class WeightedWatchDurationMeasurementVarianceParams(
   val binaryRepresentation: Int,
   val weight: Int,
   val measurementVarianceParams: WatchDurationMeasurementVarianceParams,
-  val methodology: Methodology
+  val methodology: Methodology,
 )
 
 /** The parameters used to compute the variance of a reach metric. */

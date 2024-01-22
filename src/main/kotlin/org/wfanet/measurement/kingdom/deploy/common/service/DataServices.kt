@@ -71,7 +71,7 @@ data class KingdomDataServices(
   val modelReleasesService: ModelReleasesCoroutineImplBase,
   val modelShardsService: ModelShardsCoroutineImplBase,
   val modelRolloutsService: ModelRolloutsCoroutineImplBase,
-  val populationsService: PopulationsCoroutineImplBase
+  val populationsService: PopulationsCoroutineImplBase,
 )
 
 fun KingdomDataServices.toList(): List<BindableService> {

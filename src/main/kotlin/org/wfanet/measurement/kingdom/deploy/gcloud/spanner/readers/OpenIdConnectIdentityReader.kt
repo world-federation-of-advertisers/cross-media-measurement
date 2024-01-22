@@ -25,7 +25,7 @@ class OpenIdConnectIdentityReader : SpannerReader<OpenIdConnectIdentityReader.Re
     val issuer: String,
     val subject: String,
     val accountId: InternalId,
-    val openIdConnectIdentityId: InternalId
+    val openIdConnectIdentityId: InternalId,
   )
 
   override val baseSql: String =
@@ -44,7 +44,7 @@ class OpenIdConnectIdentityReader : SpannerReader<OpenIdConnectIdentityReader.Re
       issuer = struct.getString("Issuer"),
       subject = struct.getString("Subject"),
       accountId = InternalId(struct.getLong("AccountId")),
-      openIdConnectIdentityId = InternalId(struct.getLong("OpenIdConnectIdentityId"))
+      openIdConnectIdentityId = InternalId(struct.getLong("OpenIdConnectIdentityId")),
     )
 
   suspend fun readByAccountId(
@@ -62,7 +62,7 @@ class OpenIdConnectIdentityReader : SpannerReader<OpenIdConnectIdentityReader.Re
   suspend fun readByIssuerAndSubject(
     readContext: AsyncDatabaseClient.ReadContext,
     issuer: String,
-    subject: String
+    subject: String,
   ): Result? {
     return fillStatementBuilder {
         appendClause(

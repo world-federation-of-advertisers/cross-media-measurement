@@ -52,7 +52,7 @@ class LiquidLegionsSketchAggregationV2ProtocolEnumStagesDetailsTest {
               addParticipantBuilder().apply { duchyId = "C" }
               addParticipantBuilder().apply { duchyId = "D" }
             }
-            .build()
+            .build(),
         )
       ProtoTruth.assertThat(stageProto).isEqualTo(expected)
       ProtoTruth.assertThat(Details.parseDetails(stageProto.toByteArray())).isEqualTo(stageProto)

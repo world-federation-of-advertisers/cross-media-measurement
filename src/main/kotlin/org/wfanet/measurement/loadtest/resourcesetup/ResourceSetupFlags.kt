@@ -34,7 +34,7 @@ class ResourceSetupFlags {
     names = ["--duchy-consent-signaling-cert-der-files"],
     description =
       ["The map from external Duchy Id to its consent signaling cert (DER format) file."],
-    required = true
+    required = true,
   )
   lateinit var duchyCsCertDerFiles: Map<String, File>
     private set
@@ -43,7 +43,7 @@ class ResourceSetupFlags {
     names = ["--edp-consent-signaling-cert-der-files"],
     description =
       ["The map from EDP display name to its consent signaling cert (DER format) file."],
-    required = true
+    required = true,
   )
   lateinit var edpCsCertDerFiles: Map<String, File>
     private set
@@ -52,7 +52,7 @@ class ResourceSetupFlags {
     names = ["--edp-consent-signaling-key-der-files"],
     description =
       ["The map from EDP display name to its consent signaling private key (DER format) file."],
-    required = true
+    required = true,
   )
   lateinit var edpCsKeyDerFiles: Map<String, File>
     private set
@@ -60,7 +60,7 @@ class ResourceSetupFlags {
   @CommandLine.Option(
     names = ["--edp-encryption-public-keysets"],
     description = ["The map from EDP display name to its encryption public key Tink Keyset file."],
-    required = true
+    required = true,
   )
   lateinit var edpEncryptionPublicKeysets: Map<String, File>
     private set
@@ -68,7 +68,7 @@ class ResourceSetupFlags {
   @CommandLine.Option(
     names = ["--mc-consent-signaling-cert-der-file"],
     description = ["The MC's consent signaling cert (DER format) file."],
-    required = true
+    required = true,
   )
   lateinit var mcCsCertDerFile: File
     private set
@@ -76,7 +76,7 @@ class ResourceSetupFlags {
   @CommandLine.Option(
     names = ["--mc-consent-signaling-key-der-file"],
     description = ["The MC's consent signaling private key (DER format) file."],
-    required = true
+    required = true,
   )
   lateinit var mcCsKeyDerFile: File
     private set
@@ -84,7 +84,7 @@ class ResourceSetupFlags {
   @CommandLine.Option(
     names = ["--mc-encryption-public-keyset"],
     description = ["The MC's encryption public key Tink Keyset file."],
-    required = true
+    required = true,
   )
   lateinit var mcEncryptionPublicKeyset: File
     private set
@@ -115,7 +115,7 @@ class ResourceSetupFlags {
   @CommandLine.Option(
     names = ["--run-id"],
     description = ["Unique identifier of the run, if not set, timestamp will be used."],
-    required = false
+    required = false,
   )
   var runId: String =
     DateTimeFormatter.ofPattern("yyyy-MM-ddHH-mm-ss-SSS")
@@ -128,9 +128,9 @@ class ResourceSetupFlags {
     description =
       [
         "Duchy ID that must be included in all Measurements for the created DataProvider resources.",
-        "This option may be specified multiple times."
+        "This option may be specified multiple times.",
       ],
-    required = false
+    required = false,
   )
   var requiredDuchies: List<String> = emptyList()
     private set

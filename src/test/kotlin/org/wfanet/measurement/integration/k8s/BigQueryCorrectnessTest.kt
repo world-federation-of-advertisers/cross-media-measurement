@@ -80,14 +80,14 @@ class BigQueryCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           TEST_CONFIG.measurementConsumer,
           MC_SIGNING_KEY,
           MC_ENCRYPTION_PRIVATE_KEY,
-          TEST_CONFIG.apiAuthenticationKey
+          TEST_CONFIG.apiAuthenticationKey,
         )
 
       val publicApiChannel =
         buildMutualTlsChannel(
             TEST_CONFIG.kingdomPublicApiTarget,
             MEASUREMENT_CONSUMER_SIGNING_CERTS,
-            TEST_CONFIG.kingdomPublicApiCertHost.ifEmpty { null }
+            TEST_CONFIG.kingdomPublicApiCertHost.ifEmpty { null },
           )
           .also { channels.add(it) }
           .withDefaultDeadline(RPC_DEADLINE_DURATION)
@@ -99,7 +99,7 @@ class BigQueryCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           bigQuery,
           BIGQUERY_CONFIG.dataset,
           BIGQUERY_CONFIG.table,
-          MC_ENCRYPTION_PRIVATE_KEY
+          MC_ENCRYPTION_PRIVATE_KEY,
         )
 
       return MeasurementConsumerSimulator(
@@ -113,7 +113,7 @@ class BigQueryCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         RESULT_POLLING_DELAY,
         MEASUREMENT_CONSUMER_SIGNING_CERTS.trustedCertificates,
         eventQuery,
-        ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+        ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
       )
     }
 

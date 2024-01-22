@@ -23,13 +23,13 @@ import org.wfanet.measurement.common.api.ResourceKey
 /** [ResourceKey] of an EventGroup with a MeasurementConsumer as the parent. */
 data class MeasurementConsumerEventGroupKey(
   val measurementConsumerId: String,
-  val eventGroupId: String
+  val eventGroupId: String,
 ) : ChildResourceKey {
   override fun toName(): String {
     return parser.assembleName(
       mapOf(
         IdVariable.MEASUREMENT_CONSUMER to measurementConsumerId,
-        IdVariable.EVENT_GROUP to eventGroupId
+        IdVariable.EVENT_GROUP to eventGroupId,
       )
     )
   }
@@ -46,7 +46,7 @@ data class MeasurementConsumerEventGroupKey(
       return parser.parseIdVars(resourceName)?.let {
         MeasurementConsumerEventGroupKey(
           it.getValue(IdVariable.MEASUREMENT_CONSUMER),
-          it.getValue(IdVariable.EVENT_GROUP)
+          it.getValue(IdVariable.EVENT_GROUP),
         )
       }
     }

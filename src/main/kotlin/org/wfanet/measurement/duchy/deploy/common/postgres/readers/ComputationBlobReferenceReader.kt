@@ -77,7 +77,7 @@ class ComputationBlobReferenceReader {
     readContext: ReadContext,
     localId: Long,
     stage: Long,
-    dependencyType: Long
+    dependencyType: Long,
   ): Map<Long, String?> {
     val sql =
       boundStatement(
@@ -114,7 +114,7 @@ class ComputationBlobReferenceReader {
    */
   suspend fun readComputationBlobKeys(
     readContext: ReadContext,
-    localComputationId: Long
+    localComputationId: Long,
   ): List<String> {
     val statement =
       boundStatement(
@@ -145,7 +145,7 @@ class ComputationBlobReferenceReader {
   suspend fun readBlobMetadata(
     readContext: ReadContext,
     localComputationId: Long,
-    computationStage: Long
+    computationStage: Long,
   ): List<ComputationStageBlobMetadata> {
     val statement =
       boundStatement(

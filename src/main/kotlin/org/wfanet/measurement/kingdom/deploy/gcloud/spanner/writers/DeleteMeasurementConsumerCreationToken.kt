@@ -25,7 +25,7 @@ internal fun SpannerWriter.TransactionScope.deleteMeasurementConsumerCreationTok
   transactionContext.buffer(
     Mutation.delete(
       "MeasurementConsumerCreationTokens",
-      KeySet.singleKey(Key.of(measurementConsumerCreationTokenId.value))
+      KeySet.singleKey(Key.of(measurementConsumerCreationTokenId.value)),
     )
   )
 }

@@ -408,7 +408,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
       ComputationDataClients.forTesting(
         ComputationsCoroutineStub(channel),
         computationStore,
-        requisitionStore
+        requisitionStore,
       )
     addService(mockReachOnlyLiquidLegionsComputationControl)
     addService(mockSystemComputations)
@@ -422,7 +422,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
         computationStore,
         requisitionStore,
         DUCHY_THREE_NAME,
-        Clock.systemUTC()
+        Clock.systemUTC(),
       )
     )
   }
@@ -461,7 +461,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
   private fun buildAdvanceComputationRequests(
     globalComputationId: String,
     description: ReachOnlyLiquidLegionsV2.Description,
-    vararg chunkContents: String
+    vararg chunkContents: String,
   ): List<AdvanceComputationRequest> {
     val header = advanceComputationRequest {
       header =
@@ -489,13 +489,13 @@ class ReachOnlyLiquidLegionsV2MillTest {
     val csSigningKey =
       SigningKeyHandle(
         csX509Certificate,
-        readPrivateKey(CONSENT_SIGNALING_PRIVATE_KEY_DER, csX509Certificate.publicKey.algorithm)
+        readPrivateKey(CONSENT_SIGNALING_PRIVATE_KEY_DER, csX509Certificate.publicKey.algorithm),
       )
     val csCertificate = Certificate(CONSENT_SIGNALING_CERT_NAME, csX509Certificate)
     val trustedCertificates =
       DuchyInfo.entries.values.associateBy(
         { it.rootCertificateSkid },
-        { CONSENT_SIGNALING_ROOT_CERT }
+        { CONSENT_SIGNALING_ROOT_CERT },
       )
 
     aggregatorMill =
@@ -516,7 +516,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
         openTelemetry = GlobalOpenTelemetry.get(),
         requestChunkSizeBytes = 20,
         maximumAttempts = 2,
-        parallelism = PARALLELISM
+        parallelism = PARALLELISM,
       )
     nonAggregatorMill =
       ReachOnlyLiquidLegionsV2Mill(
@@ -536,7 +536,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
         openTelemetry = GlobalOpenTelemetry.get(),
         requestChunkSizeBytes = 20,
         maximumAttempts = 2,
-        parallelism = PARALLELISM
+        parallelism = PARALLELISM,
       )
   }
 
@@ -546,7 +546,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = INITIALIZATION_PHASE.toProtocolStage()
+          stage = INITIALIZATION_PHASE.toProtocolStage(),
         )
         .build()
 
@@ -565,7 +565,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
       partialToken.localComputationId,
       partialToken.computationStage,
       computationDetails = initialComputationDetails,
-      requisitions = REQUISITIONS
+      requisitions = REQUISITIONS,
     )
 
     whenever(mockCryptoWorker.completeReachOnlyInitializationPhase(any())).thenAnswer {
@@ -605,7 +605,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
                   listOf(
                     COMPUTATION_PARTICIPANT_1,
                     COMPUTATION_PARTICIPANT_2,
-                    COMPUTATION_PARTICIPANT_3
+                    COMPUTATION_PARTICIPANT_3,
                   )
                 this.localElgamalKey = elGamalKeyPair {
                   publicKey = elGamalPublicKey {
@@ -640,7 +640,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
                   listOf(
                     COMPUTATION_PARTICIPANT_1,
                     COMPUTATION_PARTICIPANT_2,
-                    COMPUTATION_PARTICIPANT_3
+                    COMPUTATION_PARTICIPANT_3,
                   )
                 this.localElgamalKey = elGamalKeyPair {
                   publicKey = elGamalPublicKey {
@@ -677,7 +677,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
                   listOf(
                     COMPUTATION_PARTICIPANT_1,
                     COMPUTATION_PARTICIPANT_2,
-                    COMPUTATION_PARTICIPANT_3
+                    COMPUTATION_PARTICIPANT_3,
                   )
                 this.localElgamalKey = elGamalKeyPair {
                   publicKey = elGamalPublicKey {
@@ -699,7 +699,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = INITIALIZATION_PHASE.toProtocolStage()
+          stage = INITIALIZATION_PHASE.toProtocolStage(),
         )
         .build()
 
@@ -718,7 +718,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
       partialToken.localComputationId,
       partialToken.computationStage,
       computationDetails = initialComputationDetails,
-      requisitions = REQUISITIONS
+      requisitions = REQUISITIONS,
     )
 
     var cryptoRequest = CompleteReachOnlyInitializationPhaseRequest.getDefaultInstance()
@@ -757,7 +757,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
                   listOf(
                     COMPUTATION_PARTICIPANT_1,
                     COMPUTATION_PARTICIPANT_2,
-                    COMPUTATION_PARTICIPANT_3
+                    COMPUTATION_PARTICIPANT_3,
                   )
                 this.localElgamalKey = elGamalKeyPair {
                   publicKey = elGamalPublicKey {
@@ -774,7 +774,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
 
     verifyProtoArgument(
         mockComputationParticipants,
-        SystemComputationParticipantsCoroutineImplBase::setParticipantRequisitionParams
+        SystemComputationParticipantsCoroutineImplBase::setParticipantRequisitionParams,
       )
       .comparingExpectedFieldsOnly()
       .isEqualTo(
@@ -818,7 +818,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
       globalId = GLOBAL_ID,
       stage = CONFIRMATION_PHASE.toProtocolStage(),
       computationDetails = computationDetailsWithoutPublicKey,
-      requisitions = listOf(requisition1, requisition2)
+      requisitions = listOf(requisition1, requisition2),
     )
 
     whenever(mockComputationLogEntries.createComputationLogEntry(any()))
@@ -847,7 +847,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
 
     verifyProtoArgument(
         mockComputationParticipants,
-        SystemComputationParticipantsCoroutineImplBase::failComputationParticipant
+        SystemComputationParticipantsCoroutineImplBase::failComputationParticipant,
       )
       .comparingExpectedFieldsOnly()
       .isEqualTo(
@@ -892,7 +892,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
       globalId = GLOBAL_ID,
       stage = CONFIRMATION_PHASE.toProtocolStage(),
       computationDetails = computationDetailsWithoutPublicKey,
-      requisitions = REQUISITIONS
+      requisitions = REQUISITIONS,
     )
 
     whenever(mockComputationLogEntries.createComputationLogEntry(any()))
@@ -920,7 +920,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
 
     verifyProtoArgument(
         mockComputationParticipants,
-        SystemComputationParticipantsCoroutineImplBase::confirmComputationParticipant
+        SystemComputationParticipantsCoroutineImplBase::confirmComputationParticipant,
       )
       .isEqualTo(
         confirmComputationParticipantRequest {
@@ -947,7 +947,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
       globalId = GLOBAL_ID,
       stage = CONFIRMATION_PHASE.toProtocolStage(),
       computationDetails = computationDetailsWithoutPublicKey,
-      requisitions = REQUISITIONS
+      requisitions = REQUISITIONS,
     )
 
     whenever(mockComputationLogEntries.createComputationLogEntry(any()))
@@ -985,7 +985,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
 
     verifyProtoArgument(
         mockComputationParticipants,
-        SystemComputationParticipantsCoroutineImplBase::confirmComputationParticipant
+        SystemComputationParticipantsCoroutineImplBase::confirmComputationParticipant,
       )
       .isEqualTo(
         confirmComputationParticipantRequest {
@@ -1014,7 +1014,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
             listOf(
               COMPUTATION_PARTICIPANT_2_WITH_INVALID_SIGNATURE,
               COMPUTATION_PARTICIPANT_3,
-              COMPUTATION_PARTICIPANT_1
+              COMPUTATION_PARTICIPANT_1,
             )
           combinedPublicKey = COMBINED_PUBLIC_KEY
           // partiallyCombinedPublicKey and combinedPublicKey are the same at the aggregator.
@@ -1027,7 +1027,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
       globalId = GLOBAL_ID,
       stage = CONFIRMATION_PHASE.toProtocolStage(),
       computationDetails = computationDetailsWithoutInvalidDuchySignature,
-      requisitions = listOf(requisitionWithInvalidNonce)
+      requisitions = listOf(requisitionWithInvalidNonce),
     )
 
     whenever(mockComputationLogEntries.createComputationLogEntry(any()))
@@ -1057,7 +1057,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
 
     verifyProtoArgument(
         mockComputationParticipants,
-        SystemComputationParticipantsCoroutineImplBase::failComputationParticipant
+        SystemComputationParticipantsCoroutineImplBase::failComputationParticipant,
       )
       .comparingExpectedFieldsOnly()
       .isEqualTo(
@@ -1089,7 +1089,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = SETUP_PHASE.toProtocolStage()
+          stage = SETUP_PHASE.toProtocolStage(),
         )
         .build()
     val requisitionBlobContext =
@@ -1102,7 +1102,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
       partialToken.computationStage,
       computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
       requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3),
-      blobs = listOf(cachedBlobContext.toMetadata(ComputationBlobDependency.OUTPUT))
+      blobs = listOf(cachedBlobContext.toMetadata(ComputationBlobDependency.OUTPUT)),
     )
 
     // Stage 1. Process the above computation
@@ -1126,7 +1126,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
               computationStageBlobMetadata {
                 dependencyType = ComputationBlobDependency.OUTPUT
                 blobId = 1L
-              }
+              },
             )
           )
           version = 2 // claimTask + transitionStage
@@ -1148,7 +1148,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = SETUP_PHASE.toProtocolStage()
+          stage = SETUP_PHASE.toProtocolStage(),
         )
         .build()
     val requisitionBlobContext =
@@ -1160,7 +1160,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
       partialToken.computationStage,
       computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
       requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3),
-      blobs = listOf(newEmptyOutputBlobMetadata(calculatedBlobContext.blobId))
+      blobs = listOf(newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)),
     )
 
     var cryptoRequest = CompleteReachOnlySetupPhaseRequest.getDefaultInstance()
@@ -1195,7 +1195,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
               computationStageBlobMetadata {
                 dependencyType = ComputationBlobDependency.OUTPUT
                 blobId = 1L
-              }
+              },
             )
           )
           version = 3 // claimTask + writeOutputBlob + transitionStage
@@ -1214,7 +1214,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
           SETUP_PHASE_INPUT,
           "local_requisition-co",
           "mpleteReachOnlySetup",
-          "Phase-encryptedNoise"
+          "Phase-encryptedNoise",
         )
       )
       .inOrder()
@@ -1247,7 +1247,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = SETUP_PHASE.toProtocolStage()
+          stage = SETUP_PHASE.toProtocolStage(),
         )
         .build()
     val requisitionBlobContext =
@@ -1260,7 +1260,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
       partialToken.computationStage,
       computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
       requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3),
-      blobs = listOf(cachedBlobContext.toMetadata(ComputationBlobDependency.OUTPUT))
+      blobs = listOf(cachedBlobContext.toMetadata(ComputationBlobDependency.OUTPUT)),
     )
 
     // Stage 1. Process the above computation
@@ -1284,7 +1284,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
               computationStageBlobMetadata {
                 dependencyType = ComputationBlobDependency.OUTPUT
                 blobId = 1L
-              }
+              },
             )
           )
           version = 2 // claimTask + transitionStage
@@ -1306,7 +1306,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = SETUP_PHASE.toProtocolStage()
+          stage = SETUP_PHASE.toProtocolStage(),
         )
         .build()
     val requisitionBlobContext =
@@ -1324,9 +1324,9 @@ class ReachOnlyLiquidLegionsV2MillTest {
         listOf(
           newInputBlobMetadata(0L, inputBlob0Context.blobKey),
           newInputBlobMetadata(1L, inputBlob1Context.blobKey),
-          newEmptyOutputBlobMetadata(3L)
+          newEmptyOutputBlobMetadata(3L),
         ),
-      requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3)
+      requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3),
     )
 
     var cryptoRequest = CompleteReachOnlySetupPhaseRequest.getDefaultInstance()
@@ -1361,7 +1361,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
               computationStageBlobMetadata {
                 dependencyType = ComputationBlobDependency.OUTPUT
                 blobId = 1
-              }
+              },
             )
           )
           version = 3 // claimTask + writeOutputBlob + transitionStage
@@ -1384,7 +1384,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
           "chy_2_sketch_duchy_3",
           "_sketch_-completeRea",
           "chOnlySetupPhase-enc",
-          "ryptedNoise"
+          "ryptedNoise",
         )
       )
       .inOrder()
@@ -1428,7 +1428,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = SETUP_PHASE.toProtocolStage()
+          stage = SETUP_PHASE.toProtocolStage(),
         )
         .build()
     val requisitionBlobContext =
@@ -1442,7 +1442,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
       computationDetails = computationDetails,
       blobs =
         listOf(newInputBlobMetadata(0L, inputBlob0Context.blobKey), newEmptyOutputBlobMetadata(3L)),
-      requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3)
+      requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3),
     )
 
     var cryptoRequest = CompleteReachOnlySetupPhaseRequest.getDefaultInstance()
@@ -1477,7 +1477,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
               computationStageBlobMetadata {
                 dependencyType = ComputationBlobDependency.OUTPUT
                 blobId = 1
-              }
+              },
             )
           )
           version = 3 // claimTask + writeOutputBlob + transitionStage
@@ -1531,7 +1531,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = SETUP_PHASE.toProtocolStage()
+          stage = SETUP_PHASE.toProtocolStage(),
         )
         .build()
     val requisitionBlobContext =
@@ -1549,9 +1549,9 @@ class ReachOnlyLiquidLegionsV2MillTest {
         listOf(
           newInputBlobMetadata(0L, inputBlob0Context.blobKey),
           newInputBlobMetadata(1L, inputBlob1Context.blobKey),
-          newEmptyOutputBlobMetadata(3L)
+          newEmptyOutputBlobMetadata(3L),
         ),
-      requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3)
+      requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3),
     )
 
     // Stage 1. Process the above computation
@@ -1577,7 +1577,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
 
     verifyProtoArgument(
         mockComputationParticipants,
-        SystemComputationParticipantsCoroutineImplBase::failComputationParticipant
+        SystemComputationParticipantsCoroutineImplBase::failComputationParticipant,
       )
       .comparingExpectedFieldsOnly()
       .isEqualTo(
@@ -1605,7 +1605,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = EXECUTION_PHASE.toProtocolStage()
+          stage = EXECUTION_PHASE.toProtocolStage(),
         )
         .build()
     val inputBlobContext = ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 0L)
@@ -1619,9 +1619,9 @@ class ReachOnlyLiquidLegionsV2MillTest {
       blobs =
         listOf(
           inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
-          cachedBlobContext.toMetadata(ComputationBlobDependency.OUTPUT)
+          cachedBlobContext.toMetadata(ComputationBlobDependency.OUTPUT),
         ),
-      requisitions = REQUISITIONS
+      requisitions = REQUISITIONS,
     )
 
     // Stage 1. Process the above computation
@@ -1658,7 +1658,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = EXECUTION_PHASE.toProtocolStage()
+          stage = EXECUTION_PHASE.toProtocolStage(),
         )
         .build()
     val inputBlobContext = ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 0L)
@@ -1672,9 +1672,9 @@ class ReachOnlyLiquidLegionsV2MillTest {
       blobs =
         listOf(
           inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
-          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)
+          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId),
         ),
-      requisitions = REQUISITIONS
+      requisitions = REQUISITIONS,
     )
 
     var cryptoRequest = CompleteReachOnlyExecutionPhaseRequest.getDefaultInstance()
@@ -1729,7 +1729,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = EXECUTION_PHASE.toProtocolStage()
+          stage = EXECUTION_PHASE.toProtocolStage(),
         )
         .build()
     val inputBlobContext = ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 0L)
@@ -1743,9 +1743,9 @@ class ReachOnlyLiquidLegionsV2MillTest {
       blobs =
         listOf(
           inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
-          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)
+          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId),
         ),
-      requisitions = REQUISITIONS
+      requisitions = REQUISITIONS,
     )
 
     // Stage 1. Process the above computation
@@ -1771,7 +1771,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
 
     verifyProtoArgument(
         mockComputationParticipants,
-        SystemComputationParticipantsCoroutineImplBase::failComputationParticipant
+        SystemComputationParticipantsCoroutineImplBase::failComputationParticipant,
       )
       .comparingExpectedFieldsOnly()
       .isEqualTo(
@@ -1798,7 +1798,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = EXECUTION_PHASE.toProtocolStage()
+          stage = EXECUTION_PHASE.toProtocolStage(),
         )
         .build()
     val inputBlobContext = ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 0L)
@@ -1814,9 +1814,9 @@ class ReachOnlyLiquidLegionsV2MillTest {
       blobs =
         listOf(
           inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
-          cachedBlobContext.toMetadata(ComputationBlobDependency.OUTPUT)
+          cachedBlobContext.toMetadata(ComputationBlobDependency.OUTPUT),
         ),
-      requisitions = REQUISITIONS
+      requisitions = REQUISITIONS,
     )
 
     // Stage 1. Process the above computation
@@ -1847,7 +1847,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = EXECUTION_PHASE.toProtocolStage()
+          stage = EXECUTION_PHASE.toProtocolStage(),
         )
         .build()
     val computationDetailsWithVidSamplingWidth =
@@ -1868,9 +1868,9 @@ class ReachOnlyLiquidLegionsV2MillTest {
       blobs =
         listOf(
           inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
-          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)
+          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId),
         ),
-      requisitions = REQUISITIONS
+      requisitions = REQUISITIONS,
     )
     val testReach = 123L
     var cryptoRequest = CompleteReachOnlyExecutionPhaseAtAggregatorRequest.getDefaultInstance()
@@ -1959,7 +1959,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = EXECUTION_PHASE.toProtocolStage()
+          stage = EXECUTION_PHASE.toProtocolStage(),
         )
         .build()
     val inputBlobContext = ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 0L)
@@ -1973,9 +1973,9 @@ class ReachOnlyLiquidLegionsV2MillTest {
       blobs =
         listOf(
           inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
-          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)
+          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId),
         ),
-      requisitions = REQUISITIONS
+      requisitions = REQUISITIONS,
     )
 
     // Stage 1. Process the above computation
@@ -2001,7 +2001,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
 
     verifyProtoArgument(
         mockComputationParticipants,
-        SystemComputationParticipantsCoroutineImplBase::failComputationParticipant
+        SystemComputationParticipantsCoroutineImplBase::failComputationParticipant,
       )
       .comparingExpectedFieldsOnly()
       .isEqualTo(
@@ -2034,10 +2034,10 @@ private suspend fun Blob.readToString(): String = read().flatten().toStringUtf8(
 
 private suspend fun ComputationStore.writeString(
   context: ComputationBlobContext,
-  content: String
+  content: String,
 ): Blob = write(context, ByteString.copyFromUtf8(content))
 
 private suspend fun RequisitionStore.writeString(
   context: RequisitionBlobContext,
-  content: String
+  content: String,
 ): Blob = write(context, ByteString.copyFromUtf8(content))

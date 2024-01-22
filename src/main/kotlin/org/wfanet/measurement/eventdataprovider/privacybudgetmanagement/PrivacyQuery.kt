@@ -35,7 +35,7 @@ data class AcdpCharge(val rho: Double, val theta: Double)
 data class Reference(
   val measurementConsumerId: String,
   val referenceId: String,
-  val isRefund: Boolean
+  val isRefund: Boolean,
 )
 
 /** Represents a privacy filter for one event group. */
@@ -45,7 +45,7 @@ data class EventGroupSpec(val eventFilter: String, val timeRange: OpenEndTimeRan
 data class LandscapeMask(
   val eventGroupSpecs: List<EventGroupSpec>,
   val vidSampleStart: Float,
-  val vidSampleWidth: Float
+  val vidSampleWidth: Float,
 )
 
 /**

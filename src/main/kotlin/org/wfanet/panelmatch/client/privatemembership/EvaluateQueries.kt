@@ -41,13 +41,13 @@ fun evaluateQueries(
   serializedPublicKey: PCollectionView<ByteString>,
   paddingNonces: PCollectionView<Map<QueryId, PaddingNonce>>,
   parameters: EvaluateQueriesParameters,
-  queryEvaluator: QueryEvaluator
+  queryEvaluator: QueryEvaluator,
 ): PCollection<EncryptedQueryResult> {
   return PCollectionTuple.of(EvaluateQueries.databaseTag, database)
     .and(EvaluateQueries.queryBundlesTag, queryBundles)
     .apply(
       "Evaluate Queries",
-      EvaluateQueries(parameters, queryEvaluator, serializedPublicKey, paddingNonces)
+      EvaluateQueries(parameters, queryEvaluator, serializedPublicKey, paddingNonces),
     )
 }
 
@@ -85,7 +85,7 @@ private class EvaluateQueries(
               paddingNonces,
             )
           )
-          .withSideInputs(serializedPublicKey, paddingNonces)
+          .withSideInputs(serializedPublicKey, paddingNonces),
       )
   }
 
@@ -99,7 +99,7 @@ private class EvaluateQueriesForShardFn(
   private val maxQueriesPerShard: Int,
   private val queryEvaluator: QueryEvaluator,
   private val serializedPublicKey: PCollectionView<ByteString>,
-  private val paddingNonces: PCollectionView<Map<QueryId, PaddingNonce>>
+  private val paddingNonces: PCollectionView<Map<QueryId, PaddingNonce>>,
 ) : DoFn<KV<ShardId, CoGbkResult>, EncryptedQueryResult>() {
   private val metricsNamespace = "EvaluateQueries"
 

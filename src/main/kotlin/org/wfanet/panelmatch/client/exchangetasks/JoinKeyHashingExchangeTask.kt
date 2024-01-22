@@ -30,7 +30,7 @@ class JoinKeyHashingExchangeTask
 internal constructor(
   private val operation: (ByteString, List<JoinKeyAndId>) -> List<LookupKeyAndId>,
   private val inputDataLabel: String,
-  private val outputDataLabel: String
+  private val outputDataLabel: String,
 ) : ExchangeTask {
 
   override suspend fun execute(
@@ -52,7 +52,7 @@ internal constructor(
       return JoinKeyHashingExchangeTask(
         operation = QueryPreparer::prepareLookupKeys,
         inputDataLabel = "join-keys",
-        outputDataLabel = "lookup-keys"
+        outputDataLabel = "lookup-keys",
       )
     }
   }

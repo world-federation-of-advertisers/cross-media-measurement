@@ -41,7 +41,7 @@ class PostgresComputationStatsService(
         request.computationStage,
         request.attempt,
         metricName,
-        request.metricValue
+        request.metricValue,
       )
       .execute(client, idGenerator)
     return CreateComputationStatResponse.getDefaultInstance()

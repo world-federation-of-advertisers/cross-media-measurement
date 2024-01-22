@@ -18,9 +18,7 @@ import org.wfanet.measurement.common.ResourceNameParser
 import org.wfanet.measurement.common.api.ResourceKey
 
 /** [DataProviderKey] of a Data Provider. */
-data class DataProviderKey(
-  val dataProviderId: String,
-) :
+data class DataProviderKey(val dataProviderId: String) :
   ResourceKey,
   CertificateParentKey,
   RecurringExchangeParentKey,

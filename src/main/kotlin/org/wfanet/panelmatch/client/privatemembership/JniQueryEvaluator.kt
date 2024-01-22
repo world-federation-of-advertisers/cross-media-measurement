@@ -42,7 +42,7 @@ class JniQueryEvaluator(parameters: Any) : QueryEvaluator {
     shards: List<DatabaseShard>,
     queryBundles: List<EncryptedQueryBundle>,
     paddingNonces: Map<QueryId, PaddingNonce>,
-    serializedPublicKey: ByteString
+    serializedPublicKey: ByteString,
   ): List<EncryptedQueryResult> {
     val presentDatabaseShards = shards.map { it.shardId.id }.toSet()
     val presentQueryShards = queryBundles.map { it.shardId.id }.toSet()
@@ -80,7 +80,7 @@ class JniQueryEvaluator(parameters: Any) : QueryEvaluator {
     return response.queryResultsList.map { encryptedQueryResult ->
       encryptedQueryResultOf(
         queryIdOf(encryptedQueryResult.queryMetadata.queryId),
-        encryptedQueryResult.toByteString()
+        encryptedQueryResult.toByteString(),
       )
     }
   }

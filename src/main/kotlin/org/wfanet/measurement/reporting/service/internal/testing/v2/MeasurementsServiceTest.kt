@@ -104,7 +104,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
         metricsService,
         reportingSetsService,
         measurementConsumersService,
-        1
+        1,
       )
 
     service.batchSetCmmsMeasurementIds(
@@ -148,7 +148,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
         metricsService,
         reportingSetsService,
         measurementConsumersService,
-        2
+        2,
       )
 
     service.batchSetCmmsMeasurementIds(
@@ -193,7 +193,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
               cmmsMeasurementId = "1235"
               state = Measurement.State.PENDING
             }
-        }
+        },
       )
   }
 
@@ -207,7 +207,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
           reportingSetsService,
           measurementConsumersService,
           2,
-          true
+          true,
         )
 
       service.batchSetCmmsMeasurementIds(
@@ -252,7 +252,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
                 cmmsMeasurementId = "1235"
                 state = Measurement.State.PENDING
               }
-          }
+          },
         )
     }
 
@@ -265,7 +265,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
           metricsService,
           reportingSetsService,
           measurementConsumersService,
-          1
+          1,
         )
 
       val request = batchSetCmmsMeasurementIdsRequest {
@@ -311,7 +311,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
           metricsService,
           reportingSetsService,
           measurementConsumersService,
-          1
+          1,
         )
 
       val exception =
@@ -432,7 +432,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
         metricsService,
         reportingSetsService,
         measurementConsumersService,
-        1
+        1,
       )
     service.batchSetCmmsMeasurementIds(
       batchSetCmmsMeasurementIdsRequest {
@@ -507,7 +507,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
         metricsService,
         reportingSetsService,
         measurementConsumersService,
-        2
+        2,
       )
     service.batchSetCmmsMeasurementIds(
       batchSetCmmsMeasurementIdsRequest {
@@ -611,7 +611,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
                 }
               state = Measurement.State.SUCCEEDED
             }
-        }
+        },
       )
   }
 
@@ -625,7 +625,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
           reportingSetsService,
           measurementConsumersService,
           2,
-          noFiltersInMeasurementBases = true
+          noFiltersInMeasurementBases = true,
         )
       service.batchSetCmmsMeasurementIds(
         batchSetCmmsMeasurementIdsRequest {
@@ -728,7 +728,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
                   }
                 state = Measurement.State.SUCCEEDED
               }
-          }
+          },
         )
     }
 
@@ -741,7 +741,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
           metricsService,
           reportingSetsService,
           measurementConsumersService,
-          1
+          1,
         )
       service.batchSetCmmsMeasurementIds(
         batchSetCmmsMeasurementIdsRequest {
@@ -818,7 +818,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
           metricsService,
           reportingSetsService,
           measurementConsumersService,
-          1
+          1,
         )
       service.batchSetCmmsMeasurementIds(
         batchSetCmmsMeasurementIdsRequest {
@@ -949,7 +949,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
         metricsService,
         reportingSetsService,
         measurementConsumersService,
-        1
+        1,
       )
     service.batchSetCmmsMeasurementIds(
       batchSetCmmsMeasurementIdsRequest {
@@ -1005,7 +1005,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
         metricsService,
         reportingSetsService,
         measurementConsumersService,
-        2
+        2,
       )
     service.batchSetCmmsMeasurementIds(
       batchSetCmmsMeasurementIdsRequest {
@@ -1069,7 +1069,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
                 MeasurementKt.details { failure = MeasurementKt.failure { message = "failure2" } }
               state = Measurement.State.FAILED
             }
-        }
+        },
       )
   }
 
@@ -1083,7 +1083,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
           reportingSetsService,
           measurementConsumersService,
           2,
-          noFiltersInMeasurementBases = true
+          noFiltersInMeasurementBases = true,
         )
       service.batchSetCmmsMeasurementIds(
         batchSetCmmsMeasurementIdsRequest {
@@ -1147,7 +1147,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
                   MeasurementKt.details { failure = MeasurementKt.failure { message = "failure2" } }
                 state = Measurement.State.FAILED
               }
-          }
+          },
         )
     }
 
@@ -1160,7 +1160,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
           metricsService,
           reportingSetsService,
           measurementConsumersService,
-          1
+          1,
         )
       service.batchSetCmmsMeasurementIds(
         batchSetCmmsMeasurementIdsRequest {
@@ -1218,7 +1218,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
           metricsService,
           reportingSetsService,
           measurementConsumersService,
-          1
+          1,
         )
       service.batchSetCmmsMeasurementIds(
         batchSetCmmsMeasurementIdsRequest {
@@ -1414,7 +1414,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
 
     private suspend fun createPrimitiveReportingSet(
       cmmsMeasurementConsumerId: String,
-      reportingSetsService: ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
+      reportingSetsService: ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase,
     ): ReportingSet {
       val reportingSet = reportingSet {
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId

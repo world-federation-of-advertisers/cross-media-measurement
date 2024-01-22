@@ -53,12 +53,12 @@ suspend fun <ITEM, RESP, RESULT> submitBatchRequests(
   items: Flow<ITEM>,
   limit: Int,
   callRpc: suspend (List<ITEM>) -> RESP,
-  parseResponse: (RESP) -> List<RESULT>
+  parseResponse: (RESP) -> List<RESULT>,
 ): Flow<RESULT> {
   if (limit <= 0) {
     throw BatchRequestException(
       "Invalid limit",
-      IllegalArgumentException("The size limit of a batch must be greater than 0.")
+      IllegalArgumentException("The size limit of a batch must be greater than 0."),
     )
   }
 

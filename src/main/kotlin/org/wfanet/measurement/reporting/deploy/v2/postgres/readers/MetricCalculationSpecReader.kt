@@ -32,7 +32,7 @@ class MetricCalculationSpecReader(private val readContext: ReadContext) {
   data class Result(
     val measurementConsumerId: InternalId,
     val metricCalculationSpecId: InternalId,
-    val metricCalculationSpec: MetricCalculationSpec
+    val metricCalculationSpec: MetricCalculationSpec,
   )
 
   private val baseSql: String =
@@ -52,7 +52,7 @@ class MetricCalculationSpecReader(private val readContext: ReadContext) {
     Result(
       row["MeasurementConsumerId"],
       row["MetricCalculationSpecId"],
-      buildMetricCalculationSpec(row)
+      buildMetricCalculationSpec(row),
     )
 
   suspend fun readMetricCalculationSpecByExternalId(
@@ -104,7 +104,7 @@ class MetricCalculationSpecReader(private val readContext: ReadContext) {
 
   suspend fun batchReadByExternalIds(
     cmmsMeasurementConsumerId: String,
-    externalMetricCalculationSpecIds: Collection<String>
+    externalMetricCalculationSpecIds: Collection<String>,
   ): List<Result> {
     if (externalMetricCalculationSpecIds.isEmpty()) {
       return emptyList()

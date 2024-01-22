@@ -61,7 +61,7 @@ abstract class AbstractCreateQueriesTest : BeamTestBase() {
       71L to "hij",
       85L to "klm",
       95L to "nop",
-      99L to "qrs"
+      99L to "qrs",
     )
   }
 
@@ -84,7 +84,7 @@ abstract class AbstractCreateQueriesTest : BeamTestBase() {
         numShards = 2,
         numBucketsPerShard = 5,
         maxQueriesPerShard = 12345,
-        padQueries = false
+        padQueries = false,
       )
     val (queryIdAndJoinKeys, encryptedResults) = runWorkflow(privateMembershipCryptor, parameters)
     val decodedQueries =
@@ -97,7 +97,7 @@ abstract class AbstractCreateQueriesTest : BeamTestBase() {
         PanelistQuery(shard = 1, bucket = 0, joinKeyIdentifier = "hij"),
         PanelistQuery(shard = 1, bucket = 2, joinKeyIdentifier = "klm"),
         PanelistQuery(shard = 1, bucket = 2, joinKeyIdentifier = "nop"),
-        PanelistQuery(shard = 1, bucket = 4, joinKeyIdentifier = "qrs")
+        PanelistQuery(shard = 1, bucket = 4, joinKeyIdentifier = "qrs"),
       )
     assertFailsWith(NoSuchElementException::class) { runPipelineAndGetNumberOfDiscardedQueries() }
   }
@@ -112,7 +112,7 @@ abstract class AbstractCreateQueriesTest : BeamTestBase() {
         numShards = numShards,
         numBucketsPerShard = numBucketsPerShard,
         maxQueriesPerShard = totalQueriesPerShard,
-        padQueries = true
+        padQueries = true,
       )
     val (queryIdAndJoinKeys, encryptedQueries) = runWorkflow(privateMembershipCryptor, parameters)
     val decodedQueries =
@@ -125,7 +125,7 @@ abstract class AbstractCreateQueriesTest : BeamTestBase() {
         PanelistQuery(shard = 1, bucket = 0, joinKeyIdentifier = "hij"),
         PanelistQuery(shard = 1, bucket = 2, joinKeyIdentifier = "klm"),
         PanelistQuery(shard = 1, bucket = 2, joinKeyIdentifier = "nop"),
-        PanelistQuery(shard = 1, bucket = 4, joinKeyIdentifier = "qrs")
+        PanelistQuery(shard = 1, bucket = 4, joinKeyIdentifier = "qrs"),
       )
     assertThat(decodedQueries.values()).satisfies { shardedQueries ->
       for (i in 0 until numShards) {
@@ -152,7 +152,7 @@ abstract class AbstractCreateQueriesTest : BeamTestBase() {
         numShards = numShards,
         numBucketsPerShard = numBucketsPerShard,
         maxQueriesPerShard = totalQueriesPerShard,
-        padQueries = true
+        padQueries = true,
       )
     val (queryIdAndJoinKeys, encryptedQueries, discardedJoinKeys) =
       runWorkflow(privateMembershipCryptor, parameters)
@@ -188,7 +188,7 @@ abstract class AbstractCreateQueriesTest : BeamTestBase() {
         numShards = numShards,
         numBucketsPerShard = numBucketsPerShard,
         maxQueriesPerShard = totalQueriesPerShard,
-        padQueries = true
+        padQueries = true,
       )
 
     val (_, encryptedResults, discardedJoinKeys) = runWorkflow(privateMembershipCryptor, parameters)
@@ -228,13 +228,13 @@ abstract class AbstractCreateQueriesTest : BeamTestBase() {
           lookupKey = lookupKeyOf(it.first)
           joinKeyIdentifier = joinKeyIdentifierOf(it.second.toByteStringUtf8())
         }
-      }
+      },
     )
   }
 
   private fun decodeEncryptedQueryBundle(
     privateMembershipCryptorHelper: PrivateMembershipCryptorHelper,
-    encryptedQueryBundles: PCollection<EncryptedQueryBundle>
+    encryptedQueryBundles: PCollection<EncryptedQueryBundle>,
   ): PCollection<KV<QueryId, ShardedQuery>> {
     return encryptedQueryBundles
       .flatMap("Map to ShardedQuery") { encryptedQueryBundle ->
@@ -245,7 +245,7 @@ abstract class AbstractCreateQueriesTest : BeamTestBase() {
 
   private fun getPanelistQueries(
     decryptedQueries: PCollection<KV<QueryId, ShardedQuery>>,
-    queryIdAndIds: PCollection<QueryIdAndId>
+    queryIdAndIds: PCollection<QueryIdAndId>,
   ): PCollection<KV<QueryId, PanelistQuery>> {
     return queryIdAndIds
       .keyBy { it.queryId }
@@ -281,15 +281,15 @@ abstract class AbstractCreateQueriesTest : BeamTestBase() {
 private data class PanelistQuery(
   val shardId: ShardId,
   val bucketId: BucketId,
-  val joinKeyIdentifier: JoinKeyIdentifier
+  val joinKeyIdentifier: JoinKeyIdentifier,
 ) : Serializable {
   constructor(
     shard: Int,
     bucket: Int,
-    joinKeyIdentifier: String
+    joinKeyIdentifier: String,
   ) : this(
     shardIdOf(shard),
     bucketIdOf(bucket),
-    joinKeyIdentifierOf(joinKeyIdentifier.toByteStringUtf8())
+    joinKeyIdentifierOf(joinKeyIdentifier.toByteStringUtf8()),
   )
 }

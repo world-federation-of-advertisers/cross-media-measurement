@@ -55,7 +55,7 @@ class HmssProtocolConfigFlags {
   @CommandLine.Option(
     names = ["--hmss-protocol-config-config"],
     description = ["HmssProtocolConfigConfig proto message in text format."],
-    required = true
+    required = true,
   )
   lateinit var config: File
     private set

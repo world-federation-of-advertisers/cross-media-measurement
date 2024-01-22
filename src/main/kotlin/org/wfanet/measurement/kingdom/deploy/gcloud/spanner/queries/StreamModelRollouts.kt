@@ -25,7 +25,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelRollout
 
 class StreamModelRollouts(
   private val requestFilter: StreamModelRolloutsRequest.Filter,
-  limit: Int = 0
+  limit: Int = 0,
 ) : SimpleSpannerQuery<ModelRolloutReader.Result>() {
 
   override val reader =

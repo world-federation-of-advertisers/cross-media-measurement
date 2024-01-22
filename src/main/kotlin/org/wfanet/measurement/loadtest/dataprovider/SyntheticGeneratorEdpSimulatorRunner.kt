@@ -30,7 +30,7 @@ import picocli.CommandLine
   name = "SyntheticGeneratorEdpSimulatorRunner",
   description = ["EdpSimulator Daemon"],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 /** Implementation of [EdpSimulatorRunner] using [SyntheticGeneratorEventQuery]. */
 class SyntheticGeneratorEdpSimulatorRunner : EdpSimulatorRunner() {

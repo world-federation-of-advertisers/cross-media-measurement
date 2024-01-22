@@ -32,7 +32,7 @@ import picocli.CommandLine.HelpCommand
       AddSharedStorageInfo::class,
       ProvideWorkflowInput::class,
       AddAllResources::class,
-    ]
+    ],
 )
 class AddResource : Callable<Int> {
   /** Return 0 for success -- all work happens in subcommands. */

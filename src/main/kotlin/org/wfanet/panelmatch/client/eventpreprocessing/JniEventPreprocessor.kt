@@ -33,7 +33,7 @@ class JniEventPreprocessor : EventPreprocessor {
     init {
       loadLibraryFromResource(
         libraryName = "preprocess_events",
-        resourcePathPrefix = "/main/swig/wfanet/panelmatch/client/eventpreprocessing"
+        resourcePathPrefix = "/main/swig/wfanet/panelmatch/client/eventpreprocessing",
       )
     }
   }

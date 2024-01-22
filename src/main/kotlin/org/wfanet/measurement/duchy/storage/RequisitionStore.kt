@@ -31,7 +31,7 @@ class RequisitionStore(storageClient: StorageClient) :
 /** The context from which a blob key is derived for [RequisitionStore]. */
 data class RequisitionBlobContext(
   private val globalComputationId: String,
-  private val externalRequisitionId: String
+  private val externalRequisitionId: String,
 ) {
   val blobKey: String
     get() = "$globalComputationId/$externalRequisitionId"

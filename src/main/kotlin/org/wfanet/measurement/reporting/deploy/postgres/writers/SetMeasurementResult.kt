@@ -59,7 +59,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
         .readMeasurementByReferenceIds(
           transactionContext,
           measurementConsumerReferenceId = request.measurementConsumerReferenceId,
-          measurementReferenceId = request.measurementReferenceId
+          measurementReferenceId = request.measurementReferenceId,
         ) ?: throw MeasurementNotFoundException()
 
     if (measurementResult.measurement.state != Measurement.State.PENDING) {
@@ -93,7 +93,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
         .listMeasurementsForReportsByMeasurementReferenceId(
           transactionContext,
           request.measurementConsumerReferenceId,
-          request.measurementReferenceId
+          request.measurementReferenceId,
         )
         .collect { result ->
           if (result.state == Measurement.State.SUCCEEDED) {
@@ -146,7 +146,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
 
   private fun constructResult(
     report: Report,
-    measurementResultsMap: Map<String, MeasurementResultsReader.Result>
+    measurementResultsMap: Map<String, MeasurementResultsReader.Result>,
   ): Report.Details.Result {
     return ReportKt.DetailsKt.result {
       val rowHeaders = getRowHeaders(report)
@@ -167,7 +167,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
                     namedSetOperation.sortedMeasurementCalculations.map {
                       calculateScalarResult(
                         metricType,
-                        it.getMeasurementResults(measurementResultsMap)
+                        it.getMeasurementResults(measurementResultsMap),
                       )
                     }
                 }
@@ -246,7 +246,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
       MeasurementResult(
         measurementResultsMap[it.measurementReferenceId]?.result
           ?: throw MeasurementNotFoundException(),
-        it.coefficient
+        it.coefficient,
       )
     }
   }
@@ -362,7 +362,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
   /** Convert a [Metric] to a [Report.Details.Result.HistogramTable] of a [Report] */
   private fun Metric.toHistogramTable(
     rowHeaders: List<String>,
-    measurementResultsMap: Map<String, MeasurementResultsReader.Result>
+    measurementResultsMap: Map<String, MeasurementResultsReader.Result>,
   ): Report.Details.Result.HistogramTable {
     val setOperationFrequencyHistograms: List<List<Map<Long, Double>>> =
       namedSetOperationsList.map {

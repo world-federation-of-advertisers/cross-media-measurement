@@ -73,7 +73,7 @@ class PanelMatchResourceSetup(
   ) : this(
     DataProvidersGrpcKt.DataProvidersCoroutineStub(kingdomInternalApiChannel),
     ModelProvidersGrpcKt.ModelProvidersCoroutineStub(kingdomInternalApiChannel),
-    RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub(kingdomInternalApiChannel)
+    RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub(kingdomInternalApiChannel),
   )
 
   /**
@@ -86,7 +86,7 @@ class PanelMatchResourceSetup(
   ) : this(
     DataProvidersGrpcKt.DataProvidersCoroutineStub(kingdomInternalApiChannel),
     ModelProvidersGrpcKt.ModelProvidersCoroutineStub(kingdomInternalApiChannel),
-    RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub(kingdomInternalApiChannel)
+    RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub(kingdomInternalApiChannel),
   )
 
   suspend fun process(
@@ -141,7 +141,7 @@ class PanelMatchResourceSetup(
         externalModelProviderId,
         exchangeDate,
         exchangeSchedule,
-        exchangeWorkflow
+        exchangeWorkflow,
       )
     }
     withContext(Dispatchers.IO) { writeOutput(resources) }
@@ -173,7 +173,7 @@ class PanelMatchResourceSetup(
         externalModelProvider = externalModelProviderId,
         exchangeDate = exchangeDate,
         exchangeSchedule = exchangeSchedule,
-        exchangeWorkflow = exchangeWorkflow
+        exchangeWorkflow = exchangeWorkflow,
       )
     val recurringExchangeKey =
       CanonicalRecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId))
@@ -224,7 +224,7 @@ class PanelMatchResourceSetup(
     externalModelProvider: Long,
     exchangeDate: Date,
     exchangeSchedule: String,
-    exchangeWorkflow: ExchangeWorkflow
+    exchangeWorkflow: ExchangeWorkflow,
   ): Long {
     val recurringExchangeId =
       recurringExchangesStub
@@ -259,7 +259,7 @@ class PanelMatchResourceSetup(
           org.wfanet.measurement.loadtest.panelmatch.resourcesetup.resources {
             this.resources += resources
           },
-          writer
+          writer,
         )
     }
 
@@ -319,5 +319,5 @@ data class PanelMatchResourceKeys(
 data class WorkflowResourceKeys(
   val dataProviderKey: DataProviderKey,
   val modelProviderKey: ModelProviderKey,
-  val recurringExchangeKey: RecurringExchangeKey
+  val recurringExchangeKey: RecurringExchangeKey,
 )

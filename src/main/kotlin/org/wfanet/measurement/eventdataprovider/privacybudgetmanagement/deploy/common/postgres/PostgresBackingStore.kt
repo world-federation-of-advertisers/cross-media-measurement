@@ -51,14 +51,10 @@ class PostgresBackingStore(createConnection: () -> Connection) : PrivacyBudgetLe
   override fun startTransaction(): PostgresBackingStoreTransactionContext {
     val previousTransactionIsClosed = previousTransactionContext?.isClosed ?: true
     if (!previousTransactionIsClosed) {
-      throw PrivacyBudgetManagerException(
-        PrivacyBudgetManagerExceptionType.NESTED_TRANSACTION,
-      )
+      throw PrivacyBudgetManagerException(PrivacyBudgetManagerExceptionType.NESTED_TRANSACTION)
     }
     if (connection.isClosed) {
-      throw PrivacyBudgetManagerException(
-        PrivacyBudgetManagerExceptionType.BACKING_STORE_CLOSED,
-      )
+      throw PrivacyBudgetManagerException(PrivacyBudgetManagerExceptionType.BACKING_STORE_CLOSED)
     }
     connection.createStatement().use { statement: Statement ->
       statement.executeUpdate("begin transaction")
@@ -71,9 +67,8 @@ class PostgresBackingStore(createConnection: () -> Connection) : PrivacyBudgetLe
   }
 }
 
-class PostgresBackingStoreTransactionContext(
-  private val connection: Connection,
-) : PrivacyBudgetLedgerTransactionContext {
+class PostgresBackingStoreTransactionContext(private val connection: Connection) :
+  PrivacyBudgetLedgerTransactionContext {
   private var transactionHasEnded = false
 
   val isClosed: Boolean
@@ -81,15 +76,13 @@ class PostgresBackingStoreTransactionContext(
 
   private fun throwIfTransactionHasEnded(privacyBucketGroups: List<PrivacyBucketGroup>) {
     if (transactionHasEnded) {
-      throw PrivacyBudgetManagerException(
-        PrivacyBudgetManagerExceptionType.UPDATE_AFTER_COMMIT,
-      )
+      throw PrivacyBudgetManagerException(PrivacyBudgetManagerExceptionType.UPDATE_AFTER_COMMIT)
     }
   }
 
   private suspend fun getLastReference(
     measurementConsumerId: String,
-    referenceId: String
+    referenceId: String,
   ): Boolean? {
     val selectSql =
       """
@@ -166,7 +159,7 @@ class PostgresBackingStoreTransactionContext(
   }
 
   override suspend fun findAcdpBalanceEntry(
-    privacyBucketGroup: PrivacyBucketGroup,
+    privacyBucketGroup: PrivacyBucketGroup
   ): PrivacyBudgetAcdpBalanceEntry {
     throwIfTransactionHasEnded(listOf(privacyBucketGroup))
     assert(privacyBucketGroup.startingDate == privacyBucketGroup.endingDate)
@@ -195,10 +188,7 @@ class PostgresBackingStoreTransactionContext(
 
       statement.executeQuery().use { rs: ResultSet ->
         var acdpBalanceEntry: PrivacyBudgetAcdpBalanceEntry =
-          PrivacyBudgetAcdpBalanceEntry(
-            privacyBucketGroup,
-            AcdpCharge(0.0, 0.0),
-          )
+          PrivacyBudgetAcdpBalanceEntry(privacyBucketGroup, AcdpCharge(0.0, 0.0))
 
         if (rs.next()) {
           acdpBalanceEntry =
@@ -239,7 +229,7 @@ class PostgresBackingStoreTransactionContext(
 
   private suspend fun addBalanceEntries(
     privacyBudgetBalanceEntries: List<PrivacyBudgetBalanceEntry>,
-    refundCharge: Boolean = false
+    refundCharge: Boolean = false,
   ) {
     throwIfTransactionHasEnded(privacyBudgetBalanceEntries.map { it.privacyBucketGroup })
     val insertEntrySql =
@@ -296,13 +286,13 @@ class PostgresBackingStoreTransactionContext(
   override suspend fun addLedgerEntries(
     privacyBucketGroups: Set<PrivacyBucketGroup>,
     dpCharges: Set<DpCharge>,
-    reference: Reference
+    reference: Reference,
   ) {
     addBalanceEntries(
       privacyBucketGroups.flatMap { privacyBucketGroup ->
         dpCharges.map { dpCharge -> PrivacyBudgetBalanceEntry(privacyBucketGroup, dpCharge, 1) }
       },
-      reference.isRefund
+      reference.isRefund,
     )
     addLedgerEntry(reference)
   }
@@ -310,7 +300,7 @@ class PostgresBackingStoreTransactionContext(
   override suspend fun addAcdpLedgerEntries(
     privacyBucketGroups: Set<PrivacyBucketGroup>,
     acdpCharges: Set<AcdpCharge>,
-    reference: Reference
+    reference: Reference,
   ) {
     throwIfTransactionHasEnded(privacyBucketGroups.toList())
 

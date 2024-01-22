@@ -146,10 +146,10 @@ class InProcessReportingServer(
                 it.keyPairsList.map { keyPair ->
                   Pair(
                     signingPrivateKeyDir.resolve(keyPair.publicKeyFile).readByteString(),
-                    loadPrivateKey(signingPrivateKeyDir.resolve(keyPair.privateKeyFile))
+                    loadPrivateKey(signingPrivateKeyDir.resolve(keyPair.privateKeyFile)),
                   )
                 }
-              }
+              },
             )
           )
 
@@ -200,13 +200,10 @@ class InProcessReportingServer(
             EventGroupsService(
                 publicKingdomEventGroupsClient,
                 encryptionKeyPairStore,
-                celEnvCacheProvider
+                celEnvCacheProvider,
               )
               .withMetadataPrincipalIdentities(measurementConsumerConfigs),
-            MetricCalculationSpecsService(
-                internalMetricCalculationSpecsClient,
-                METRIC_SPEC_CONFIG,
-              )
+            MetricCalculationSpecsService(internalMetricCalculationSpecsClient, METRIC_SPEC_CONFIG)
               .withMetadataPrincipalIdentities(measurementConsumerConfigs),
             MetricsService(
                 METRIC_SPEC_CONFIG,
@@ -222,7 +219,7 @@ class InProcessReportingServer(
                 SecureRandom(),
                 signingPrivateKeyDir,
                 trustedCertificates,
-                Dispatchers.IO
+                Dispatchers.IO,
               )
               .withMetadataPrincipalIdentities(measurementConsumerConfigs),
             ReportingSetsService(internalReportingSetsClient)
@@ -233,7 +230,7 @@ class InProcessReportingServer(
                 PublicMetricsCoroutineStub(this@GrpcTestServerRule.channel),
                 METRIC_SPEC_CONFIG,
               )
-              .withMetadataPrincipalIdentities(measurementConsumerConfigs)
+              .withMetadataPrincipalIdentities(measurementConsumerConfigs),
           )
           .forEach { addService(it.withVerboseLogging(verboseGrpcLogging)) }
       }

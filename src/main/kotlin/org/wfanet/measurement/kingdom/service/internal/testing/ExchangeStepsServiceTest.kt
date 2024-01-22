@@ -87,7 +87,7 @@ private const val EXTERNAL_RECURRING_EXCHANGE_ID = 222L
 private val RECURRING_EXCHANGE_ID_GENERATOR =
   FixedIdGenerator(
     InternalId(INTERNAL_RECURRING_EXCHANGE_ID),
-    ExternalId(EXTERNAL_RECURRING_EXCHANGE_ID)
+    ExternalId(EXTERNAL_RECURRING_EXCHANGE_ID),
   )
 
 private const val INTERNAL_DATA_PROVIDER_ID = 333L
@@ -191,7 +191,7 @@ abstract class ExchangeStepsServiceTest {
   /** Creates a /ExchangeSteps service implementation using [idGenerator]. */
   protected abstract fun newExchangeStepsService(
     idGenerator: IdGenerator,
-    serviceClock: Clock
+    serviceClock: Clock,
   ): ExchangeStepsCoroutineImplBase
 
   /** Creates a /ExchangeStepAttempts service implementation using [idGenerator]. */
@@ -496,11 +496,7 @@ abstract class ExchangeStepsServiceTest {
 
     assertThat(response)
       .ignoringFieldScope(EXCHANGE_STEP_RESPONSE_IGNORED_FIELDS)
-      .containsExactly(
-        EXCHANGE_STEP,
-        EXCHANGE_STEP_2,
-        EXCHANGE_STEP_3,
-      )
+      .containsExactly(EXCHANGE_STEP, EXCHANGE_STEP_2, EXCHANGE_STEP_3)
       .inOrder()
   }
 
@@ -527,10 +523,7 @@ abstract class ExchangeStepsServiceTest {
 
     assertThat(response)
       .ignoringFieldScope(EXCHANGE_STEP_RESPONSE_IGNORED_FIELDS)
-      .containsExactly(
-        EXCHANGE_STEP_2,
-        EXCHANGE_STEP_3,
-      )
+      .containsExactly(EXCHANGE_STEP_2, EXCHANGE_STEP_3)
       .inOrder()
   }
 

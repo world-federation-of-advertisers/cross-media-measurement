@@ -62,7 +62,7 @@ private const val SELF_ISSUED_ISSUER = "https://self-issued.me"
 
 class AccountsService(
   private val internalAccountsStub: AccountsCoroutineStub,
-  private val redirectUri: String
+  private val redirectUri: String,
 ) : AccountsCoroutineImplBase() {
 
   override suspend fun createAccount(request: CreateAccountRequest): Account {
@@ -118,7 +118,7 @@ class AccountsService(
         validateIdToken(
           idToken = idToken,
           redirectUri = redirectUri,
-          internalAccountsStub = internalAccountsStub
+          internalAccountsStub = internalAccountsStub,
         )
       } catch (ex: GeneralSecurityException) {
         failGrpc(Status.INVALID_ARGUMENT.withCause(ex)) { "ID token is invalid" }
@@ -166,7 +166,7 @@ class AccountsService(
         validateIdToken(
           idToken = newIdToken,
           redirectUri = redirectUri,
-          internalAccountsStub = internalAccountsStub
+          internalAccountsStub = internalAccountsStub,
         )
       } catch (ex: GeneralSecurityException) {
         failGrpc(Status.INVALID_ARGUMENT.withCause(ex)) { "New ID token is invalid" }
@@ -208,7 +208,7 @@ class AccountsService(
           state = openIdRequestParams.state,
           nonce = openIdRequestParams.nonce,
           redirectUri = this.redirectUri,
-          isSelfIssued = true
+          isSelfIssued = true,
         )
     }
 
@@ -271,7 +271,7 @@ class AccountsService(
     suspend fun validateIdToken(
       idToken: String,
       redirectUri: String,
-      internalAccountsStub: AccountsCoroutineStub
+      internalAccountsStub: AccountsCoroutineStub,
     ): InternalOpenIdConnectIdentity {
       val tokenParts = idToken.split(".")
 
@@ -300,7 +300,7 @@ class AccountsService(
         SelfIssuedIdTokens.validateJwt(
           redirectUri = redirectUri,
           idToken = idToken,
-          publicJwkHandle = publicJwkHandle
+          publicJwkHandle = publicJwkHandle,
         )
 
       if (!verifiedJwt.subject.equals(SelfIssuedIdTokens.calculateRsaThumbprint(jwk.toString()))) {

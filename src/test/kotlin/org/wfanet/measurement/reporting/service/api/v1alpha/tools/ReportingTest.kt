@@ -93,7 +93,7 @@ private val TEXTPROTO_DIR: Path =
       "service",
       "api",
       "v1alpha",
-      "tools"
+      "tools",
     )
   )!!
 
@@ -160,7 +160,7 @@ private val LIST_REPORTS_RESPONSE = listReportsResponse {
         name = "$MEASUREMENT_CONSUMER_NAME/reports/3"
         measurementConsumer = MEASUREMENT_CONSUMER_NAME
         state = Report.State.FAILED
-      }
+      },
     )
 }
 
@@ -243,7 +243,7 @@ class ReportingTest {
 
     verifyProtoArgument(
         reportingSetsServiceMock,
-        ReportingSetsCoroutineImplBase::createReportingSet
+        ReportingSetsCoroutineImplBase::createReportingSet,
       )
       .isEqualTo(
         createReportingSetRequest {

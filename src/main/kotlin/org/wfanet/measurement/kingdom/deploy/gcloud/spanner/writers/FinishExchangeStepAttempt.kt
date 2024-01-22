@@ -60,7 +60,7 @@ class FinishExchangeStepAttempt(
   private val attemptNumber: Int,
   private val terminalState: ExchangeStepAttempt.State,
   private val debugLogEntries: Iterable<ExchangeStepAttemptDetails.DebugLog>,
-  private val clock: Clock
+  private val clock: Clock,
 ) : SimpleSpannerWriter<ExchangeStepAttempt>() {
   private lateinit var exchangeStepResult: ExchangeStepReader.Result
   private lateinit var exchangeStepAttemptResult: ExchangeStepAttemptReader.Result
@@ -103,7 +103,7 @@ class FinishExchangeStepAttempt(
     updateExchangeStepState(
       exchangeStep = exchangeStep,
       recurringExchangeId = recurringExchangeId.value,
-      state = ExchangeStep.State.SUCCEEDED
+      state = ExchangeStep.State.SUCCEEDED,
     )
 
     val workflow =
@@ -122,7 +122,7 @@ class FinishExchangeStepAttempt(
     updateExchangeStepsToReady(
       steps,
       recurringExchangeId = recurringExchangeId.value,
-      date = exchangeDate
+      date = exchangeDate,
     )
 
     if (allStepsCompleted()) {
@@ -136,7 +136,7 @@ class FinishExchangeStepAttempt(
     updateExchangeStepState(
       exchangeStep = exchangeStep,
       recurringExchangeId = recurringExchangeId.value,
-      state = ExchangeStep.State.READY_FOR_RETRY
+      state = ExchangeStep.State.READY_FOR_RETRY,
     )
     return updateExchangeStepAttempt(ExchangeStepAttempt.State.FAILED)
   }
@@ -145,7 +145,7 @@ class FinishExchangeStepAttempt(
     updateExchangeStepState(
       exchangeStep = exchangeStep,
       recurringExchangeId = recurringExchangeId.value,
-      state = ExchangeStep.State.FAILED
+      state = ExchangeStep.State.FAILED,
     )
     updateExchangeState(Exchange.State.FAILED)
     return updateExchangeStepAttempt(ExchangeStepAttempt.State.FAILED_STEP)
@@ -191,13 +191,13 @@ class FinishExchangeStepAttempt(
         externalRecurringExchangeId,
         exchangeDate,
         stepIndex,
-        attemptNumber
+        attemptNumber,
       )
       ?: throw ExchangeStepAttemptNotFoundException(
         externalRecurringExchangeId,
         exchangeDate,
         stepIndex,
-        attemptNumber
+        attemptNumber,
       )
   }
 

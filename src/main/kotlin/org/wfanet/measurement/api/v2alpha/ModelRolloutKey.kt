@@ -29,7 +29,7 @@ data class ModelRolloutKey(
   val modelProviderId: String,
   val modelSuiteId: String,
   val modelLineId: String,
-  val modelRolloutId: String
+  val modelRolloutId: String,
 ) : ResourceKey {
 
   override fun toName(): String {
@@ -38,7 +38,7 @@ data class ModelRolloutKey(
         IdVariable.MODEL_PROVIDER to modelProviderId,
         IdVariable.MODEL_SUITE to modelSuiteId,
         IdVariable.MODEL_LINE to modelLineId,
-        IdVariable.MODEL_ROLLOUT to modelRolloutId
+        IdVariable.MODEL_ROLLOUT to modelRolloutId,
       )
     )
   }
@@ -52,7 +52,7 @@ data class ModelRolloutKey(
           it.getValue(IdVariable.MODEL_PROVIDER),
           it.getValue(IdVariable.MODEL_SUITE),
           it.getValue(IdVariable.MODEL_LINE),
-          it.getValue(IdVariable.MODEL_ROLLOUT)
+          it.getValue(IdVariable.MODEL_ROLLOUT),
         )
       }
     }

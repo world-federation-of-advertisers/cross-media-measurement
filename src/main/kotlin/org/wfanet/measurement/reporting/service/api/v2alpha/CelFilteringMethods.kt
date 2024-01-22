@@ -41,7 +41,7 @@ fun buildCelEnvironment(message: Message): Env {
         descriptor.fields.map {
           Decls.newVar(it.name, celTypeRegistry.findFieldType(descriptor.fullName, it.name).type)
         }
-      )
+      ),
     )
   return env
 }

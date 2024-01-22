@@ -62,7 +62,7 @@ private val PACKED_EXCHANGE_WORKFLOW = EXCHANGE_WORKFLOW.pack()
 private val VALID_EXCHANGE_WORKFLOWS =
   TestSecretMap(
     RECURRING_EXCHANGE_ID to PACKED_EXCHANGE_WORKFLOW.value,
-    OTHER_RECURRING_EXCHANGE_ID to ByteString.EMPTY
+    OTHER_RECURRING_EXCHANGE_ID to ByteString.EMPTY,
   )
 
 private val EXCHANGE_STEP = exchangeStep {
@@ -79,7 +79,7 @@ class ExchangeStepValidatorImplTest {
     ExchangeStepValidatorImpl(
       DATA_PROVIDER,
       VALID_EXCHANGE_WORKFLOWS,
-      Clock.fixed(TEST_INSTANT, ZoneOffset.UTC)
+      Clock.fixed(TEST_INSTANT, ZoneOffset.UTC),
     )
 
   private fun validate(exchangeStep: ExchangeStep) = runBlockingTest {

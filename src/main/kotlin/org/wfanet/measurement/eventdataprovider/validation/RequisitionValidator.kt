@@ -29,6 +29,6 @@ fun interface RequisitionValidator {
    */
   fun validate(
     requisition: Requisition,
-    requisitionSpec: RequisitionSpec
+    requisitionSpec: RequisitionSpec,
   ): List<Requisition.Refusal>
 }

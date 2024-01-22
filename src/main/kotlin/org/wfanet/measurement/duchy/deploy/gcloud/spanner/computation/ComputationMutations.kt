@@ -57,12 +57,15 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
   computationTypeEnumHelper: ComputationTypeEnumHelper<ProtocolT>,
   computationProtocolStagesEnumHelper: ComputationProtocolStagesEnumHelper<ProtocolT, StageT>,
   computationProtocolStageDetailsHelper:
-    ComputationProtocolStageDetailsHelper<ProtocolT, StageT, StageDT, ComputationDT>
+    ComputationProtocolStageDetailsHelper<ProtocolT, StageT, StageDT, ComputationDT>,
 ) :
   ComputationTypeEnumHelper<ProtocolT> by computationTypeEnumHelper,
   ComputationProtocolStagesEnumHelper<ProtocolT, StageT> by computationProtocolStagesEnumHelper,
   ComputationProtocolStageDetailsHelper<
-    ProtocolT, StageT, StageDT, ComputationDT
+    ProtocolT,
+    StageT,
+    StageDT,
+    ComputationDT,
   > by computationProtocolStageDetailsHelper {
   /** Appends fields to write in a mutation of the Computations spanner table. */
   private fun computation(
@@ -75,7 +78,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     stage: StageT? = null,
     lockOwner: String? = null,
     lockExpirationTime: Timestamp? = null,
-    details: ComputationDT? = null
+    details: ComputationDT? = null,
   ): Mutation {
     val m = newBuilderFunction("Computations")
     m.set("ComputationId").to(localId)
@@ -109,7 +112,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     stage: StageT,
     lockOwner: String = WRITE_NULL_STRING,
     lockExpirationTime: Timestamp = WRITE_NULL_TIMESTAMP,
-    details: ComputationDT
+    details: ComputationDT,
   ): Mutation {
     return computation(
       newBuilderFunction = Mutation::newInsertBuilder,
@@ -121,7 +124,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
       stage = stage,
       lockOwner = lockOwner,
       lockExpirationTime = lockExpirationTime,
-      details = details
+      details = details,
     )
   }
 
@@ -138,7 +141,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     stage: StageT? = null,
     lockOwner: String? = null,
     lockExpirationTime: Timestamp? = null,
-    details: ComputationDT? = null
+    details: ComputationDT? = null,
   ): Mutation {
     return computation(
       newBuilderFunction = Mutation::newUpdateBuilder,
@@ -148,7 +151,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
       stage = stage,
       lockOwner = lockOwner,
       lockExpirationTime = lockExpirationTime,
-      details = details
+      details = details,
     )
   }
 
@@ -162,7 +165,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     endTime: Timestamp? = null,
     previousStage: StageT? = null,
     followingStage: StageT? = null,
-    details: StageDT? = null
+    details: StageDT? = null,
   ): Mutation {
     val m = newBuilderFunction("ComputationStages")
     m.set("ComputationId").to(localId)
@@ -190,7 +193,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     endTime: Timestamp? = null,
     previousStage: StageT? = null,
     followingStage: StageT? = null,
-    details: StageDT
+    details: StageDT,
   ): Mutation {
     return computationStage(
       Mutation::newInsertBuilder,
@@ -201,7 +204,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
       endTime,
       previousStage,
       followingStage,
-      details
+      details,
     )
   }
 
@@ -219,7 +222,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     endTime: Timestamp? = null,
     previousStage: StageT? = null,
     followingStage: StageT? = null,
-    details: StageDT? = null
+    details: StageDT? = null,
   ): Mutation {
     return computationStage(
       Mutation::newUpdateBuilder,
@@ -230,7 +233,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
       endTime,
       previousStage,
       followingStage,
-      details
+      details,
     )
   }
 
@@ -242,7 +245,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     attempt: Long,
     beginTime: Timestamp? = null,
     endTime: Timestamp? = null,
-    details: ComputationStageAttemptDetails? = null
+    details: ComputationStageAttemptDetails? = null,
   ): Mutation {
     val m = newBuilderFunction("ComputationStageAttempts")
     m.set("ComputationId").to(localId)
@@ -266,7 +269,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     attempt: Long,
     beginTime: Timestamp,
     endTime: Timestamp? = null,
-    details: ComputationStageAttemptDetails
+    details: ComputationStageAttemptDetails,
   ): Mutation {
     return computationStageAttempt(
       Mutation::newInsertBuilder,
@@ -275,7 +278,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
       attempt,
       beginTime,
       endTime,
-      details
+      details,
     )
   }
 
@@ -291,7 +294,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     attempt: Long,
     beginTime: Timestamp? = null,
     endTime: Timestamp? = null,
-    details: ComputationStageAttemptDetails? = null
+    details: ComputationStageAttemptDetails? = null,
   ): Mutation {
     return computationStageAttempt(
       Mutation::newUpdateBuilder,
@@ -300,7 +303,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
       attempt,
       beginTime,
       endTime,
-      details
+      details,
     )
   }
 
@@ -311,7 +314,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     stage: StageT,
     blobId: Long,
     pathToBlob: String? = null,
-    dependencyType: ComputationBlobDependency? = null
+    dependencyType: ComputationBlobDependency? = null,
   ): Mutation {
     val m = newBuilderFunction("ComputationBlobReferences")
     m.set("ComputationId").to(localId)
@@ -333,7 +336,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     stage: StageT,
     blobId: Long,
     pathToBlob: String? = null,
-    dependencyType: ComputationBlobDependency
+    dependencyType: ComputationBlobDependency,
   ): Mutation {
     return computationBlobReference(
       Mutation::newInsertBuilder,
@@ -341,7 +344,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
       stage,
       blobId,
       pathToBlob,
-      dependencyType
+      dependencyType,
     )
   }
 
@@ -356,7 +359,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     stage: StageT,
     blobId: Long,
     pathToBlob: String? = null,
-    dependencyType: ComputationBlobDependency? = null
+    dependencyType: ComputationBlobDependency? = null,
   ): Mutation {
     return computationBlobReference(
       Mutation::newUpdateBuilder,
@@ -364,7 +367,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
       stage,
       blobId,
       pathToBlob,
-      dependencyType
+      dependencyType,
     )
   }
 
@@ -375,7 +378,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     stage: StageT,
     attempt: Long,
     metricName: String,
-    metricValue: Long
+    metricValue: Long,
   ): Mutation {
     return newBuilderFunction("ComputationStats")
       .apply {
@@ -400,7 +403,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     stage: StageT,
     attempt: Long,
     metricName: String,
-    metricValue: Long
+    metricValue: Long,
   ): Mutation {
     return computationStat(
       Mutation::newInsertBuilder,
@@ -408,7 +411,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
       stage,
       attempt,
       metricName,
-      metricValue
+      metricValue,
     )
   }
 
@@ -421,7 +424,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     requisitionFingerprint: ByteString,
     pathToBlob: String? = null,
     randomSeed: ByteString? = null,
-    requisitionDetails: RequisitionDetails? = null
+    requisitionDetails: RequisitionDetails? = null,
   ): Mutation {
     return newBuilderFunction("Requisitions")
       .apply {
@@ -452,7 +455,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     requisitionFingerprint: ByteString,
     pathToBlob: String? = null,
     randomSeed: ByteString? = null,
-    requisitionDetails: RequisitionDetails = RequisitionDetails.getDefaultInstance()
+    requisitionDetails: RequisitionDetails = RequisitionDetails.getDefaultInstance(),
   ): Mutation {
     return requisition(
       Mutation::newInsertBuilder,
@@ -462,7 +465,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
       requisitionFingerprint,
       pathToBlob,
       randomSeed,
-      requisitionDetails
+      requisitionDetails,
     )
   }
 
@@ -479,7 +482,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     requisitionFingerprint: ByteString,
     pathToBlob: String? = null,
     randomSeed: ByteString? = null,
-    requisitionDetails: RequisitionDetails? = null
+    requisitionDetails: RequisitionDetails? = null,
   ): Mutation {
     return requisition(
       Mutation::newUpdateBuilder,
@@ -489,7 +492,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
       requisitionFingerprint,
       pathToBlob,
       randomSeed,
-      requisitionDetails
+      requisitionDetails,
     )
   }
 }

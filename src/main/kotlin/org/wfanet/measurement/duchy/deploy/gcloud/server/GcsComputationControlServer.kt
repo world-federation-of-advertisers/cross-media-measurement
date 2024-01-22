@@ -25,7 +25,7 @@ import picocli.CommandLine
   name = "GcsComputationControlServer",
   description = ["Server daemon for ${ComputationControlServer.SERVICE_NAME} service."],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 class GcsComputationControlServer : ComputationControlServer() {
   @CommandLine.Mixin private lateinit var gcsFlags: GcsFromFlags.Flags

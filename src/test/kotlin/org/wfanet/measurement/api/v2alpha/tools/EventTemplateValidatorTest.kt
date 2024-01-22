@@ -64,7 +64,7 @@ class EventTemplateValidatorTest {
     val args =
       arrayOf(
         "--descriptor-set=$BAD_TEMPLATES_DESCRIPTOR_SET_RUNTIME_PATH",
-        "--event-proto=$TEST_TEMPLATES_PACKAGE.MissingTemplateAnnotationEvent"
+        "--event-proto=$TEST_TEMPLATES_PACKAGE.MissingTemplateAnnotationEvent",
       )
 
     val capturedOutput: CommandLineTesting.CapturedOutput = callCli(args)
@@ -78,7 +78,7 @@ class EventTemplateValidatorTest {
     val args =
       arrayOf(
         "--descriptor-set=$BAD_TEMPLATES_DESCRIPTOR_SET_RUNTIME_PATH",
-        "--event-proto=$TEST_TEMPLATES_PACKAGE.MismatchedTemplateNameEvent"
+        "--event-proto=$TEST_TEMPLATES_PACKAGE.MismatchedTemplateNameEvent",
       )
 
     val capturedOutput: CommandLineTesting.CapturedOutput = callCli(args)
@@ -93,7 +93,7 @@ class EventTemplateValidatorTest {
     val args =
       arrayOf(
         "--descriptor-set=$BAD_TEMPLATES_DESCRIPTOR_SET_RUNTIME_PATH",
-        "--event-proto=$TEST_TEMPLATES_PACKAGE.MissingFieldAnnotationEvent"
+        "--event-proto=$TEST_TEMPLATES_PACKAGE.MissingFieldAnnotationEvent",
       )
 
     val capturedOutput: CommandLineTesting.CapturedOutput = callCli(args)
@@ -107,7 +107,7 @@ class EventTemplateValidatorTest {
     val args =
       arrayOf(
         "--descriptor-set=$BAD_TEMPLATES_DESCRIPTOR_SET_RUNTIME_PATH",
-        "--event-proto=$TEST_TEMPLATES_PACKAGE.UnsupportedFieldTypeEvent"
+        "--event-proto=$TEST_TEMPLATES_PACKAGE.UnsupportedFieldTypeEvent",
       )
 
     val capturedOutput: CommandLineTesting.CapturedOutput = callCli(args)
@@ -124,7 +124,7 @@ class EventTemplateValidatorTest {
     val args =
       arrayOf(
         "--descriptor-set=$BAD_TEMPLATES_DESCRIPTOR_SET_RUNTIME_PATH",
-        "--event-proto=$TEST_TEMPLATES_PACKAGE.UnsupportedRepeatedFieldEvent"
+        "--event-proto=$TEST_TEMPLATES_PACKAGE.UnsupportedRepeatedFieldEvent",
       )
 
     val capturedOutput: CommandLineTesting.CapturedOutput = callCli(args)
@@ -153,7 +153,7 @@ class EventTemplateValidatorTest {
         "api",
         "v2alpha",
         "event_templates",
-        "testing"
+        "testing",
       )
     private val TEST_TEMPLATES_RUNTIME_PATH by lazy { getRuntimePath(TEST_TEMPLATES_PATH)!! }
 

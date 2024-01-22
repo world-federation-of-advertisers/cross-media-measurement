@@ -22,9 +22,8 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 typealias LabeledTestEvent = LabeledEvent<TestEvent>
 
 /** Fulfills the query with matching events using filters. */
-open class InMemoryEventQuery(
-  private val labeledEvents: List<LabeledTestEvent>,
-) : EventQuery<TestEvent> {
+open class InMemoryEventQuery(private val labeledEvents: List<LabeledTestEvent>) :
+  EventQuery<TestEvent> {
   override fun getLabeledEvents(
     eventGroupSpec: EventQuery.EventGroupSpec
   ): Sequence<LabeledTestEvent> {

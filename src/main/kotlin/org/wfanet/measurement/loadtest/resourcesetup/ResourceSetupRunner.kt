@@ -35,26 +35,26 @@ import picocli.CommandLine
 @CommandLine.Command(
   name = "RunResourceSetupJob",
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
   val clientCerts =
     SigningCerts.fromPemFiles(
       certificateFile = flags.tlsFlags.certFile,
       privateKeyFile = flags.tlsFlags.privateKeyFile,
-      trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
+      trustedCertCollectionFile = flags.tlsFlags.certCollectionFile,
     )
   val v2alphaPublicApiChannel: Channel =
     buildMutualTlsChannel(
       flags.kingdomPublicApiFlags.target,
       clientCerts,
-      flags.kingdomPublicApiFlags.certHost
+      flags.kingdomPublicApiFlags.certHost,
     )
   val kingdomInternalApiChannel: Channel =
     buildMutualTlsChannel(
         flags.kingdomInternalApiFlags.target,
         clientCerts,
-        flags.kingdomInternalApiFlags.certHost
+        flags.kingdomInternalApiFlags.certHost,
       )
       .withDefaultDeadline(flags.kingdomInternalApiFlags.defaultDeadlineDuration)
   val internalDataProvidersStub = InternalDataProvidersCoroutineStub(kingdomInternalApiChannel)
@@ -101,7 +101,7 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
         flags.runId,
         flags.requiredDuchies,
         flags.bazelConfigName,
-        flags.outputDir
+        flags.outputDir,
       )
       .process(dataProviderContents, measurementConsumerContent, duchyCerts)
   }

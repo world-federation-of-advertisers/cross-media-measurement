@@ -20,7 +20,7 @@ import org.wfanet.measurement.storage.StorageClient
 /** [StorageFactory] for [SizeLimitedStorageClient]. */
 private class SizeLimitedStorageFactory(
   private val sizeLimitBytes: Long,
-  private val delegate: StorageFactory
+  private val delegate: StorageFactory,
 ) : StorageFactory {
   override fun build(): StorageClient {
     return SizeLimitedStorageClient(sizeLimitBytes, delegate.build())

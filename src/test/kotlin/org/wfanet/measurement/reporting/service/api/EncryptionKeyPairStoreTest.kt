@@ -31,14 +31,7 @@ import org.wfanet.measurement.common.readByteString
 
 private val SECRETS_DIR: Path =
   getRuntimePath(
-    Paths.get(
-      "wfa_measurement_system",
-      "src",
-      "main",
-      "k8s",
-      "testing",
-      "secretfiles",
-    )
+    Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
   )!!
 
 private val PUBLIC_KEY_FILE_1 = SECRETS_DIR.resolve("mc_enc_public.tink").toFile()
@@ -87,17 +80,14 @@ class EncryptionKeyPairStoreTest {
   private fun getKeyPairs(): Map<String, List<Pair<ByteString, PrivateKeyHandle>>> {
     return mapOf(
       PRINCIPAL_NAME to
-        listOf(
-          PUBLIC_KEY_1 to PRIVATE_KEY_HANDLE_1,
-          PUBLIC_KEY_2 to PRIVATE_KEY_HANDLE_2,
-        )
+        listOf(PUBLIC_KEY_1 to PRIVATE_KEY_HANDLE_1, PUBLIC_KEY_2 to PRIVATE_KEY_HANDLE_2)
     )
   }
 
   private fun verifyKeyPair(
     keyPairStore: InMemoryEncryptionKeyPairStore,
     principalName: String,
-    publicKey: ByteString
+    publicKey: ByteString,
   ) {
     val privateKeyHandle = runBlocking {
       requireNotNull(keyPairStore.getPrivateKeyHandle(principalName, publicKey))

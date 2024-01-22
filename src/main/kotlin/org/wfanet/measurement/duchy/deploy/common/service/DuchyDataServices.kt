@@ -23,7 +23,7 @@ import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.Continuati
 data class DuchyDataServices(
   val computationsService: ComputationsCoroutineImplBase,
   val computationStatsService: ComputationStatsCoroutineImplBase,
-  val continuationTokensService: ContinuationTokensCoroutineImplBase
+  val continuationTokensService: ContinuationTokensCoroutineImplBase,
 )
 
 fun DuchyDataServices.toList(): List<BindableService> {

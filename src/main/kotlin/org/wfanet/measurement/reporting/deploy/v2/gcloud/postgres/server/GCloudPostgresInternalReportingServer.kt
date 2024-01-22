@@ -32,7 +32,7 @@ import picocli.CommandLine
   name = "GCloudPostgresInternalReportingServer",
   description = ["Start the internal Reporting data-layer services in a single blocking server."],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 class GCloudPostgresInternalReportingServer : InternalReportingServer() {
   @CommandLine.Mixin private lateinit var gCloudPostgresFlags: GCloudPostgresFlags

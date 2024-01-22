@@ -99,7 +99,7 @@ class RequisitionsServiceTest {
   private val service =
     RequisitionsService(
       InternalRequisitionsCoroutineStub(grpcTestServerRule.channel),
-      duchyIdProvider
+      duchyIdProvider,
     )
 
   @Test
@@ -133,7 +133,7 @@ class RequisitionsServiceTest {
       )
     verifyProtoArgument(
         internalRequisitionsServiceMock,
-        InternalRequisitionsCoroutineService::fulfillRequisition
+        InternalRequisitionsCoroutineService::fulfillRequisition,
       )
       .isEqualTo(
         internalFulfillRequisitionRequest {

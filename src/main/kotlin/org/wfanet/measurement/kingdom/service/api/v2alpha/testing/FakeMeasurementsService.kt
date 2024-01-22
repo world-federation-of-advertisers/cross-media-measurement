@@ -68,7 +68,7 @@ class FakeMeasurementsService(
         name =
           MeasurementKey(
               measurementConsumerId = measurementConsumerCertificateKey.measurementConsumerId,
-              measurementId = apiId
+              measurementId = apiId,
             )
             .toName()
         state = Measurement.State.AWAITING_REQUISITION_FULFILLMENT

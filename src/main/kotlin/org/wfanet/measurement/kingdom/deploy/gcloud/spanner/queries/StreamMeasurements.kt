@@ -29,7 +29,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementR
 class StreamMeasurements(
   view: Measurement.View,
   private val requestFilter: StreamMeasurementsRequest.Filter,
-  limit: Int = 0
+  limit: Int = 0,
 ) : SpannerQuery<MeasurementReader.Result, MeasurementReader.Result>() {
   override val reader =
     MeasurementReader(view).fillStatementBuilder {

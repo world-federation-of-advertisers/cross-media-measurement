@@ -36,7 +36,7 @@ class PostgresMeasurementConsumersService(
     } catch (e: MeasurementConsumerAlreadyExistsException) {
       throw e.asStatusRuntimeException(
         Status.Code.ALREADY_EXISTS,
-        "Measurement Consumer already exists"
+        "Measurement Consumer already exists",
       )
     }
   }

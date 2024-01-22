@@ -29,7 +29,7 @@ import picocli.CommandLine
   name = "ForwardedStoragePostgresDuchyDataServer",
   description = ["Server daemon for ${DuchyDataServer.SERVICE_NAME} service."],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 class ForwardedStoragePostgresDuchyDataServer : DuchyDataServer() {
   @CommandLine.Mixin private lateinit var postgresFlags: PostgresFlags
@@ -49,7 +49,7 @@ class ForwardedStoragePostgresDuchyDataServer : DuchyDataServer() {
         computationLogEntriesClient,
         duchyFlags.duchyName,
         idGenerator,
-        client
+        client,
       )
     )
   }

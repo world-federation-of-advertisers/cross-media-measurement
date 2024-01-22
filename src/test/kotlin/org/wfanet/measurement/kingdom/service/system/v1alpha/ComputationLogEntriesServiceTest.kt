@@ -62,7 +62,7 @@ private val COMPUTATION_LOG_ENTRY_NAME =
   ComputationLogEntryKey(
       EXTERNAL_COMPUTATION_ID_STRING,
       DUCHY_ID,
-      EXTERNAL_COMPUTATION_LOG_ENTRY_ID_STRING
+      EXTERNAL_COMPUTATION_LOG_ENTRY_ID_STRING,
     )
     .toName()
 
@@ -149,7 +149,7 @@ class ComputationLogEntriesServiceTest {
   private val service =
     ComputationLogEntriesService(
       MeasurementLogEntriesCoroutineStub(grpcTestServerRule.channel),
-      duchyIdProvider
+      duchyIdProvider,
     )
 
   @Test
@@ -170,7 +170,7 @@ class ComputationLogEntriesServiceTest {
 
     verifyProtoArgument(
         measurementLogEntriesServiceMock,
-        MeasurementLogEntriesCoroutineImplBase::createDuchyMeasurementLogEntry
+        MeasurementLogEntriesCoroutineImplBase::createDuchyMeasurementLogEntry,
       )
       .isEqualTo(
         CreateDuchyMeasurementLogEntryRequest.newBuilder()

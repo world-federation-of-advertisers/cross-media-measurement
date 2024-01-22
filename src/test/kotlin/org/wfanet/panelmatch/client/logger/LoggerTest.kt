@@ -102,7 +102,7 @@ class LoggerTest {
         val log = getAndClearTaskLog()
         assertThat(log).hasSize(2)
         log.forEach { assertThat(it).contains(ANOTHER_NAME) }
-      }
+      },
     )
   }
 

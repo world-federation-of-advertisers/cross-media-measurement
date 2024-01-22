@@ -26,7 +26,7 @@ class CompoundValidator(private val validators: Iterable<RequisitionValidator>) 
 
   override fun validate(
     requisition: Requisition,
-    requisitionSpec: RequisitionSpec
+    requisitionSpec: RequisitionSpec,
   ): List<Requisition.Refusal> =
     validators
       .map { it.validate(requisition, requisitionSpec) }

@@ -95,7 +95,7 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
     /** Reads the [InternalId] for a DataProvider given its [ExternalId]. */
     suspend fun readDataProviderId(
       readContext: AsyncDatabaseClient.ReadContext,
-      externalDataProviderId: ExternalId
+      externalDataProviderId: ExternalId,
     ): InternalId? {
       val column = "DataProviderId"
       val row: Struct =
@@ -103,7 +103,7 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
           "DataProviders",
           "DataProvidersByExternalId",
           Key.of(externalDataProviderId.value),
-          column
+          column,
         ) ?: return null
 
       return row.getInternalId(column)

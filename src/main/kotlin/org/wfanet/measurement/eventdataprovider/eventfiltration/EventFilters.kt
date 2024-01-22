@@ -51,7 +51,7 @@ object EventFilters {
   fun compileProgram(
     eventMessageDescriptor: Descriptors.Descriptor,
     celExpr: String,
-    operativeFields: Set<String> = emptySet()
+    operativeFields: Set<String> = emptySet(),
   ): Program {
     val env = createEnv(eventMessageDescriptor)
     val ast = compile(env, celExpr, operativeFields)
@@ -112,10 +112,7 @@ object EventFilters {
     val result: Program.EvalResult = program.eval(variables)
     val value: Val = result.`val`
     if (value is Err) {
-      throw EventFilterException(
-        EventFilterException.Code.EVALUATION_ERROR,
-        value.toString(),
-      )
+      throw EventFilterException(EventFilterException.Code.EVALUATION_ERROR, value.toString())
     }
     if (value !is BoolT) {
       throw EventFilterException(

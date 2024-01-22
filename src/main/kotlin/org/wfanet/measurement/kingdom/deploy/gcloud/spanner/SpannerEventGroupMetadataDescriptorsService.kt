@@ -39,7 +39,7 @@ class SpannerEventGroupMetadataDescriptorsService(
   private val client: AsyncDatabaseClient,
 ) : EventGroupMetadataDescriptorsCoroutineImplBase() {
   override suspend fun createEventGroupMetadataDescriptor(
-    request: EventGroupMetadataDescriptor,
+    request: EventGroupMetadataDescriptor
   ): EventGroupMetadataDescriptor {
     try {
       return CreateEventGroupMetadataDescriptor(request).execute(client, idGenerator)
@@ -51,20 +51,20 @@ class SpannerEventGroupMetadataDescriptorsService(
   }
 
   override suspend fun getEventGroupMetadataDescriptor(
-    request: GetEventGroupMetadataDescriptorRequest,
+    request: GetEventGroupMetadataDescriptorRequest
   ): EventGroupMetadataDescriptor {
     return EventGroupMetadataDescriptorReader()
       .readByExternalIds(
         client.singleUse(),
         request.externalDataProviderId,
-        request.externalEventGroupMetadataDescriptorId
+        request.externalEventGroupMetadataDescriptorId,
       )
       ?.eventGroupMetadataDescriptor
       ?: failGrpc(Status.NOT_FOUND) { "EventGroupMetadataDescriptor not found" }
   }
 
   override suspend fun updateEventGroupMetadataDescriptor(
-    request: UpdateEventGroupMetadataDescriptorRequest,
+    request: UpdateEventGroupMetadataDescriptorRequest
   ): EventGroupMetadataDescriptor {
     grpcRequire(request.eventGroupMetadataDescriptor.externalDataProviderId > 0L) {
       "ExternalDataProviderId unspecified"
@@ -78,7 +78,7 @@ class SpannerEventGroupMetadataDescriptorsService(
     } catch (e: EventGroupMetadataDescriptorNotFoundException) {
       throw e.asStatusRuntimeException(
         Status.Code.NOT_FOUND,
-        "EventGroupMetadataDescriptor not found."
+        "EventGroupMetadataDescriptor not found.",
       )
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error")
@@ -86,7 +86,7 @@ class SpannerEventGroupMetadataDescriptorsService(
   }
 
   override fun streamEventGroupMetadataDescriptors(
-    request: StreamEventGroupMetadataDescriptorsRequest,
+    request: StreamEventGroupMetadataDescriptorsRequest
   ): Flow<EventGroupMetadataDescriptor> {
     grpcRequire(request.limit >= 0) { "Limit cannot be less than 0" }
 

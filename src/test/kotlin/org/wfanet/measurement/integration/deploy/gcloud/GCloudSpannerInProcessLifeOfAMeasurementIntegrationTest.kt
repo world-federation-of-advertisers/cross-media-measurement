@@ -27,7 +27,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDataS
 class GCloudSpannerInProcessLifeOfAMeasurementIntegrationTest :
   InProcessLifeOfAMeasurementIntegrationTest(
     KingdomDataServicesProviderRule(),
-    SpannerDuchyDependencyProviderRule(ALL_DUCHY_NAMES)
+    SpannerDuchyDependencyProviderRule(ALL_DUCHY_NAMES),
   ) {
 
   /**

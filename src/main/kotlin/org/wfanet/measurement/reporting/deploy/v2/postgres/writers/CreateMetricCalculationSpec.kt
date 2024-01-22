@@ -51,12 +51,12 @@ class CreateMetricCalculationSpec(private val request: CreateMetricCalculationSp
       MetricCalculationSpecReader(transactionContext)
         .readMetricCalculationSpecByExternalId(
           metricCalculationSpec.cmmsMeasurementConsumerId,
-          externalMetricCalculationSpecId
+          externalMetricCalculationSpecId,
         ) != null
     ) {
       throw MetricCalculationSpecAlreadyExistsException(
         metricCalculationSpec.cmmsMeasurementConsumerId,
-        externalMetricCalculationSpecId
+        externalMetricCalculationSpecId,
       )
     }
 

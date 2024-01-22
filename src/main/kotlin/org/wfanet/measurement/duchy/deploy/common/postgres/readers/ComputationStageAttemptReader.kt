@@ -28,7 +28,7 @@ class ComputationStageAttemptReader {
     val computationId: Long,
     val computationStage: Long,
     val attempt: Long,
-    val details: ComputationStageAttemptDetails
+    val details: ComputationStageAttemptDetails,
   ) {
     constructor(
       row: ResultRow
@@ -36,7 +36,7 @@ class ComputationStageAttemptReader {
       computationId = row["ComputationId"],
       computationStage = row["ComputationStage"],
       attempt = row["Attempt"],
-      details = row.getProtoMessage("Details", ComputationStageAttemptDetails.parser())
+      details = row.getProtoMessage("Details", ComputationStageAttemptDetails.parser()),
     )
   }
 
@@ -52,7 +52,7 @@ class ComputationStageAttemptReader {
     readContext: ReadContext,
     localId: Long,
     stage: Long,
-    currentAttempt: Long
+    currentAttempt: Long,
   ): ComputationStageAttemptDetails? {
     val readComputationStageDetailsSql =
       boundStatement(
@@ -80,7 +80,7 @@ class ComputationStageAttemptReader {
 
   suspend fun readUnfinishedAttempts(
     readContext: ReadContext,
-    localComputationId: Long
+    localComputationId: Long,
   ): Flow<UnfinishedAttempt> {
     val sql =
       boundStatement(

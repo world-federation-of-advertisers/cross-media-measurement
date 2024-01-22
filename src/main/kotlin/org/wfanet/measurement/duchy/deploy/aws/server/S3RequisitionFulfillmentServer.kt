@@ -25,7 +25,7 @@ import picocli.CommandLine
   name = "S3RequisitionFulfillmentServer",
   description = ["Server daemon for ${RequisitionFulfillmentServer.SERVICE_NAME} service."],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 class S3RequisitionFulfillmentServer : RequisitionFulfillmentServer() {
   @CommandLine.Mixin private lateinit var s3Flags: S3Flags

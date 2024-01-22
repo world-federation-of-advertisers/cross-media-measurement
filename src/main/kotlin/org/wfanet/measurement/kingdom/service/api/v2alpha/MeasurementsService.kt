@@ -429,7 +429,7 @@ class MeasurementsService(
         dataProvidersMap,
         measurementSpec,
         noiseMechanisms.map { it.toInternal() },
-        reachOnlyLlV2Enabled
+        reachOnlyLlV2Enabled,
       )
 
     val requestId = this.requestId
@@ -547,7 +547,7 @@ private fun DataProviderEntry.validateAndMap(): Map.Entry<Long, DataProviderValu
 
   return AbstractMap.SimpleEntry(
     apiIdToExternalId(dataProviderKey.dataProviderId),
-    dataProviderValue
+    dataProviderValue,
   )
 }
 

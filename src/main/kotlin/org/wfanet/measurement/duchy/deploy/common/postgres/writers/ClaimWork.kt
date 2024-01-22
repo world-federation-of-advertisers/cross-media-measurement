@@ -89,7 +89,7 @@ class ClaimWork<ProtocolT, StageT>(
       unclaimedTask.computationId,
       writeTime,
       ownerId,
-      writeTime.plus(lockDuration)
+      writeTime.plus(lockDuration),
     )
     val stageLongValue = unclaimedTask.computationStage
 
@@ -98,13 +98,13 @@ class ClaimWork<ProtocolT, StageT>(
       stageLongValue,
       unclaimedTask.nextAttempt,
       beginTime = writeTime,
-      details = ComputationStageAttemptDetails.getDefaultInstance()
+      details = ComputationStageAttemptDetails.getDefaultInstance(),
     )
 
     updateComputationStage(
       unclaimedTask.computationId,
       stageLongValue,
-      nextAttempt = unclaimedTask.nextAttempt + 1
+      nextAttempt = unclaimedTask.nextAttempt + 1,
     )
 
     if (currentLockOwner.lockOwner != null) {
@@ -116,7 +116,7 @@ class ClaimWork<ProtocolT, StageT>(
             transactionContext,
             unclaimedTask.computationId,
             stageLongValue,
-            currentAttempt
+            currentAttempt,
           ) ?: throw IllegalStateException("Computation stage details is missing.")
       // If the computation was locked, but that lock was expired we need to finish off the
       // current attempt of the stage.
@@ -126,7 +126,7 @@ class ClaimWork<ProtocolT, StageT>(
         attempt = currentAttempt,
         endTime = writeTime,
         details =
-          details.copy { reasonEnded = ComputationStageAttemptDetails.EndReason.LOCK_OVERWRITTEN }
+          details.copy { reasonEnded = ComputationStageAttemptDetails.EndReason.LOCK_OVERWRITTEN },
       )
     }
     // The lock was acquired.

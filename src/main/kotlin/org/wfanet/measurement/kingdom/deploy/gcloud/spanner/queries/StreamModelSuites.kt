@@ -25,7 +25,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelSuiteRe
 
 class StreamModelSuites(
   private val requestFilter: StreamModelSuitesRequest.Filter,
-  limit: Int = 0
+  limit: Int = 0,
 ) : SimpleSpannerQuery<ModelSuiteReader.Result>() {
 
   override val reader =

@@ -167,7 +167,7 @@ class ModelShardsServiceTest {
           flowOf(
             INTERNAL_MODEL_SHARD,
             INTERNAL_MODEL_SHARD.copy { externalModelShardId = EXTERNAL_MODEL_SHARD_ID_2 },
-            INTERNAL_MODEL_SHARD.copy { externalModelShardId = EXTERNAL_MODEL_SHARD_ID_3 }
+            INTERNAL_MODEL_SHARD.copy { externalModelShardId = EXTERNAL_MODEL_SHARD_ID_3 },
           )
         }
       }
@@ -179,10 +179,7 @@ class ModelShardsServiceTest {
 
   @Before
   fun initService() {
-    service =
-      ModelShardsService(
-        ModelShardsCoroutineStub(grpcTestServerRule.channel),
-      )
+    service = ModelShardsService(ModelShardsCoroutineStub(grpcTestServerRule.channel))
   }
 
   @Test

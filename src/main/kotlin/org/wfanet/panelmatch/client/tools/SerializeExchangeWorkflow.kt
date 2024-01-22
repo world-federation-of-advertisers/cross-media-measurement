@@ -32,23 +32,23 @@ import picocli.CommandLine.Option
       "Serializes a textproto format wfa.measurement.api.v2alpha.ExchangeWorkflow.",
       "",
       "Note that this does not handle RLWE parameter types other than " +
-        "private_membership.batch.Parameters."
+        "private_membership.batch.Parameters.",
     ],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 class SerializeExchangeWorkflow : Runnable {
   @Option(
     names = ["--in"],
     description = ["Input ExchangeWorkflow file in textproto format"],
-    required = true
+    required = true,
   )
   private lateinit var input: File
 
   @Option(
     names = ["--out"],
     description = ["Output ExchangeWorkflow file in binary format"],
-    required = true
+    required = true,
   )
   private lateinit var output: File
 

@@ -27,7 +27,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelP
 
 class SpannerModelProvidersService(
   private val idGenerator: IdGenerator,
-  private val client: AsyncDatabaseClient
+  private val client: AsyncDatabaseClient,
 ) : ModelProvidersCoroutineImplBase() {
   override suspend fun createModelProvider(request: ModelProvider): ModelProvider {
     return CreateModelProvider().execute(client, idGenerator)
@@ -37,7 +37,7 @@ class SpannerModelProvidersService(
     return ModelProviderReader()
       .readByExternalModelProviderId(
         client.singleUse(),
-        ExternalId(request.externalModelProviderId)
+        ExternalId(request.externalModelProviderId),
       )
       ?.modelProvider ?: failGrpc(Status.NOT_FOUND) { "ModelProvider not found" }
   }

@@ -52,7 +52,7 @@ class ExchangeReader : SpannerReader<ExchangeReader.Result>() {
           state = struct.getProtoEnum("State", Exchange.State::forNumber)
           details = struct.getProtoMessage("ExchangeDetails", ExchangeDetails.parser())
         },
-      recurringExchangeId = struct.getLong("RecurringExchangeId")
+      recurringExchangeId = struct.getLong("RecurringExchangeId"),
     )
   }
 

@@ -37,7 +37,7 @@ sealed class ReportingInternalException : Exception {
 
   fun asStatusRuntimeException(
     statusCode: Status.Code,
-    message: String = this.message!!
+    message: String = this.message!!,
   ): StatusRuntimeException {
     val statusProto = status {
       code = statusCode.value()
@@ -99,7 +99,7 @@ class MeasurementCalculationTimeIntervalNotFoundException(
 ) :
   ReportingInternalException(
     ErrorCode.MEASUREMENT_CALCULATION_TIME_INTERVAL_NOT_FOUND,
-    provideDescription
+    provideDescription,
   ) {
   override val context
     get() = emptyMap<String, String>()
@@ -141,66 +141,66 @@ class MetricNotFoundException(provideDescription: () -> String = { "Metric not f
 class MetricCalculationSpecAlreadyExistsException(
   private val cmmsMeasurementConsumerId: String,
   private val externalMetricCalculationSpecId: String,
-  provideDescription: () -> String = { "Metric Calculation Spec already exists" }
+  provideDescription: () -> String = { "Metric Calculation Spec already exists" },
 ) :
   ReportingInternalException(ErrorCode.METRIC_CALCULATION_SPEC_ALREADY_EXISTS, provideDescription) {
   override val context: Map<String, String>
     get() =
       mapOf(
         "cmms_measurement_consumer_id" to cmmsMeasurementConsumerId,
-        "external_metric_calculation_spec_id" to externalMetricCalculationSpecId
+        "external_metric_calculation_spec_id" to externalMetricCalculationSpecId,
       )
 }
 
 class MetricCalculationSpecNotFoundException(
   private val cmmsMeasurementConsumerId: String,
   private val externalMetricCalculationSpecId: String,
-  provideDescription: () -> String = { "Metric Calculation Spec not found" }
+  provideDescription: () -> String = { "Metric Calculation Spec not found" },
 ) : ReportingInternalException(ErrorCode.METRIC_CALCULATION_SPEC_NOT_FOUND, provideDescription) {
   override val context: Map<String, String>
     get() =
       mapOf(
         "cmms_measurement_consumer_id" to cmmsMeasurementConsumerId,
-        "external_metric_calculation_spec_id" to externalMetricCalculationSpecId
+        "external_metric_calculation_spec_id" to externalMetricCalculationSpecId,
       )
 }
 
 class ReportScheduleAlreadyExistsException(
   private val cmmsMeasurementConsumerId: String,
   private val externalReportScheduleId: String,
-  provideDescription: () -> String = { "Report Schedule already exists" }
+  provideDescription: () -> String = { "Report Schedule already exists" },
 ) : ReportingInternalException(ErrorCode.REPORT_SCHEDULE_ALREADY_EXISTS, provideDescription) {
   override val context: Map<String, String>
     get() =
       mapOf(
         "cmms_measurement_consumer_id" to cmmsMeasurementConsumerId,
-        "external_report_schedule_id" to externalReportScheduleId
+        "external_report_schedule_id" to externalReportScheduleId,
       )
 }
 
 class ReportScheduleNotFoundException(
   private val cmmsMeasurementConsumerId: String,
   private val externalReportScheduleId: String,
-  provideDescription: () -> String = { "Report Schedule not found" }
+  provideDescription: () -> String = { "Report Schedule not found" },
 ) : ReportingInternalException(ErrorCode.REPORT_SCHEDULE_NOT_FOUND, provideDescription) {
   override val context: Map<String, String>
     get() =
       mapOf(
         "cmms_measurement_consumer_id" to cmmsMeasurementConsumerId,
-        "external_report_schedule_id" to externalReportScheduleId
+        "external_report_schedule_id" to externalReportScheduleId,
       )
 }
 
 class ReportScheduleStateInvalidException(
   private val cmmsMeasurementConsumerId: String,
   private val externalReportScheduleId: String,
-  provideDescription: () -> String = { "Report Schedule state invalid" }
+  provideDescription: () -> String = { "Report Schedule state invalid" },
 ) : ReportingInternalException(ErrorCode.REPORT_SCHEDULE_STATE_INVALID, provideDescription) {
   override val context: Map<String, String>
     get() =
       mapOf(
         "cmms_measurement_consumer_id" to cmmsMeasurementConsumerId,
-        "external_report_schedule_id" to externalReportScheduleId
+        "external_report_schedule_id" to externalReportScheduleId,
       )
 }
 
@@ -208,7 +208,7 @@ class ReportScheduleIterationNotFoundException(
   private val cmmsMeasurementConsumerId: String,
   private val externalReportScheduleId: String,
   private val externalReportScheduleIterationId: String,
-  provideDescription: () -> String = { "Report Schedule Iteration not found" }
+  provideDescription: () -> String = { "Report Schedule Iteration not found" },
 ) : ReportingInternalException(ErrorCode.REPORT_SCHEDULE_ITERATION_NOT_FOUND, provideDescription) {
   override val context: Map<String, String>
     get() =
@@ -223,11 +223,11 @@ class ReportScheduleIterationStateInvalidException(
   private val cmmsMeasurementConsumerId: String,
   private val externalReportScheduleId: String,
   private val externalReportScheduleIterationId: String,
-  provideDescription: () -> String = { "Report Schedule Iteration state invalid" }
+  provideDescription: () -> String = { "Report Schedule Iteration state invalid" },
 ) :
   ReportingInternalException(
     ErrorCode.REPORT_SCHEDULE_ITERATION_STATE_INVALID,
-    provideDescription
+    provideDescription,
   ) {
   override val context: Map<String, String>
     get() =

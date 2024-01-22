@@ -34,7 +34,7 @@ import org.wfanet.panelmatch.common.storage.StorageFactory
 class PrivateStorageSelector(
   private val privateStorageFactories:
     Map<PlatformCase, (StorageDetails, ExchangeDateKey) -> StorageFactory>,
-  private val storageDetailsProvider: StorageDetailsProvider
+  private val storageDetailsProvider: StorageDetailsProvider,
 ) {
   /** Builds the appropriate [StorageFactory] for the current Exchange. */
   suspend fun getStorageFactory(key: ExchangeDateKey): StorageFactory {
@@ -50,7 +50,7 @@ class PrivateStorageSelector(
 
   private fun getStorageFactory(
     storageDetails: StorageDetails,
-    key: ExchangeDateKey
+    key: ExchangeDateKey,
   ): StorageFactory {
     val platform = storageDetails.platformCase
     val buildStorageFactory =

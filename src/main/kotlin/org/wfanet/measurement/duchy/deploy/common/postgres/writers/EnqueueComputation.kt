@@ -66,6 +66,6 @@ suspend fun PostgresWriter.TransactionScope.enqueueComputation(
     // TODO(@renjiezh): Check to make sure the lock isn't actively held by someone other than
     // the caller.
     ownerId = null,
-    lockExpirationTime = writeTime.plusSeconds(delaySeconds)
+    lockExpirationTime = writeTime.plusSeconds(delaySeconds),
   )
 }

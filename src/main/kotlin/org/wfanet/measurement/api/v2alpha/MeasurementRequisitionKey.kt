@@ -22,12 +22,12 @@ import org.wfanet.measurement.common.api.ResourceKey
 /** [ResourceKey] of a Requisition with a Measurement parent. */
 data class MeasurementRequisitionKey(
   override val parentKey: MeasurementKey,
-  override val requisitionId: String
+  override val requisitionId: String,
 ) : RequisitionKey {
   constructor(
     measurementConsumerId: String,
     measurementId: String,
-    requisitionId: String
+    requisitionId: String,
   ) : this(MeasurementKey(measurementConsumerId, measurementId), requisitionId)
 
   val measurementConsumerId: String
@@ -41,7 +41,7 @@ data class MeasurementRequisitionKey(
       mapOf(
         IdVariable.MEASUREMENT_CONSUMER to measurementConsumerId,
         IdVariable.MEASUREMENT to measurementId,
-        IdVariable.REQUISITION to requisitionId
+        IdVariable.REQUISITION to requisitionId,
       )
     )
   }
@@ -59,7 +59,7 @@ data class MeasurementRequisitionKey(
       return MeasurementRequisitionKey(
         idVars.getValue(IdVariable.MEASUREMENT_CONSUMER),
         idVars.getValue(IdVariable.MEASUREMENT),
-        idVars.getValue(IdVariable.REQUISITION)
+        idVars.getValue(IdVariable.REQUISITION),
       )
     }
   }

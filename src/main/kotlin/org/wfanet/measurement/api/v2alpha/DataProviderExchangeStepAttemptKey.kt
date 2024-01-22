@@ -32,7 +32,7 @@ data class DataProviderExchangeStepAttemptKey(
     exchangeStepAttemptId: String,
   ) : this(
     DataProviderExchangeStepKey(dataProviderId, recurringExchangeId, exchangeId, exchangeStepId),
-    exchangeStepAttemptId
+    exchangeStepAttemptId,
   )
 
   val dataProviderId: String

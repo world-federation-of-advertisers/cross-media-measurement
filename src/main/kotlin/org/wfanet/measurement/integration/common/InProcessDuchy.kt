@@ -135,7 +135,7 @@ class InProcessDuchy(
         RequisitionFulfillmentService(
             systemRequisitionsClient,
             computationsClient,
-            RequisitionStore(duchyDependencies.storageClient)
+            RequisitionStore(duchyDependencies.storageClient),
           )
           .withMetadataPrincipalIdentities()
       )
@@ -149,7 +149,7 @@ class InProcessDuchy(
   private val computationControlServer =
     GrpcTestServerRule(
       computationControlChannelName(externalDuchyId),
-      logAllRequests = verboseGrpcLogging
+      logAllRequests = verboseGrpcLogging,
     ) {
       addService(
         ComputationControlService(asyncComputationControlClient, duchyDependencies.storageClient)
@@ -160,7 +160,7 @@ class InProcessDuchy(
   private val computationDataClients by lazy {
     ComputationDataClients(
       ComputationsCoroutineStub(computationsServer.channel),
-      duchyDependencies.storageClient
+      duchyDependencies.storageClient,
     )
   }
 
@@ -206,7 +206,7 @@ class InProcessDuchy(
     val signingPrivateKey =
       readPrivateKey(
         loadTestCertDerFile("${externalDuchyId}_cs_private.der"),
-        consentSignal509Cert.publicKey.algorithm
+        consentSignal509Cert.publicKey.algorithm,
       )
     llv2MillJob =
       daemonScope.launch(CoroutineName("$externalDuchyId LLv2 Mill")) {
@@ -291,7 +291,7 @@ class InProcessDuchy(
             requisitionFulfillmentServer,
             asyncComputationControlServer,
             computationControlServer,
-            channelCloserRule
+            channelCloserRule,
           )
         combinedRule.apply(statement, description).evaluate()
         daemonScope.cancel()

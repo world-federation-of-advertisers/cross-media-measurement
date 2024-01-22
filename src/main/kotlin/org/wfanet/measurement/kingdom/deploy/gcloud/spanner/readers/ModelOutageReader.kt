@@ -33,7 +33,7 @@ class ModelOutageReader : SpannerReader<ModelOutageReader.Result>() {
     val modelOutageId: InternalId,
     val modelLineId: InternalId,
     val modelSuiteId: InternalId,
-    val modelProviderId: InternalId
+    val modelProviderId: InternalId,
   )
 
   override val baseSql: String =
@@ -65,7 +65,7 @@ class ModelOutageReader : SpannerReader<ModelOutageReader.Result>() {
       InternalId(struct.getLong("ModelOutageId")),
       InternalId(struct.getLong("ModelLineId")),
       InternalId(struct.getLong("ModelSuiteId")),
-      InternalId(struct.getLong("ModelProviderId"))
+      InternalId(struct.getLong("ModelProviderId")),
     )
 
   private fun buildModelOutage(struct: Struct): ModelOutage = modelOutage {

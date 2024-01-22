@@ -32,7 +32,7 @@ interface EventQuery<out T : Message> {
    */
   data class EventGroupSpec(
     val eventGroup: EventGroup,
-    val spec: RequisitionSpec.EventGroupEntry.Value
+    val spec: RequisitionSpec.EventGroupEntry.Value,
   )
 
   /** Returns a [Sequence] of [LabeledEvent]. */
@@ -53,7 +53,7 @@ interface EventQuery<out T : Message> {
 
     fun compileProgram(
       eventFilter: EventFilter,
-      eventMessageDescriptor: Descriptors.Descriptor
+      eventMessageDescriptor: Descriptors.Descriptor,
     ): Program {
       // EventFilters should take care of this, but checking here is an optimization that can skip
       // creation of a CEL Env.

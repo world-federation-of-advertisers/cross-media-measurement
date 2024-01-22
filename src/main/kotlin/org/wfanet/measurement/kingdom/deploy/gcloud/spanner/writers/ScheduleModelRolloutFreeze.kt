@@ -33,7 +33,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelRollout
 
 class ScheduleModelRolloutFreeze(
   private val request: ScheduleModelRolloutFreezeRequest,
-  private val clock: Clock
+  private val clock: Clock,
 ) : SpannerWriter<ModelRollout, ModelRollout>() {
 
   override suspend fun TransactionScope.runTransaction(): ModelRollout {
@@ -42,7 +42,7 @@ class ScheduleModelRolloutFreeze(
         ExternalId(request.externalModelProviderId),
         ExternalId(request.externalModelSuiteId),
         ExternalId(request.externalModelLineId),
-        ExternalId(request.externalModelRolloutId)
+        ExternalId(request.externalModelRolloutId),
       )
 
     val now = clock.instant().toProtoTime()
@@ -50,7 +50,7 @@ class ScheduleModelRolloutFreeze(
       throw ModelRolloutInvalidArgsException(
         ExternalId(request.externalModelProviderId),
         ExternalId(request.externalModelSuiteId),
-        ExternalId(request.externalModelLineId)
+        ExternalId(request.externalModelLineId),
       ) {
         "RolloutFreezeTime must be in the future."
       }
@@ -59,13 +59,13 @@ class ScheduleModelRolloutFreeze(
     if (
       Timestamps.compare(
         modelRolloutResult.modelRollout.rolloutPeriodStartTime,
-        request.rolloutFreezeTime
+        request.rolloutFreezeTime,
       ) > 0
     ) {
       throw ModelRolloutInvalidArgsException(
         ExternalId(request.externalModelProviderId),
         ExternalId(request.externalModelSuiteId),
-        ExternalId(request.externalModelLineId)
+        ExternalId(request.externalModelLineId),
       ) {
         "RolloutFreezeTime cannot precede RolloutPeriodStartTime."
       }
@@ -74,13 +74,13 @@ class ScheduleModelRolloutFreeze(
     if (
       Timestamps.compare(
         request.rolloutFreezeTime,
-        modelRolloutResult.modelRollout.rolloutPeriodEndTime
+        modelRolloutResult.modelRollout.rolloutPeriodEndTime,
       ) >= 0
     ) {
       throw ModelRolloutInvalidArgsException(
         ExternalId(request.externalModelProviderId),
         ExternalId(request.externalModelSuiteId),
-        ExternalId(request.externalModelLineId)
+        ExternalId(request.externalModelLineId),
       ) {
         "RolloutFreezeTime cannot be equal or later than RolloutPeriodEndTime."
       }
@@ -109,13 +109,13 @@ class ScheduleModelRolloutFreeze(
         externalModelProviderId,
         externalModelSuiteId,
         externalModelLineId,
-        externalModelRolloutId
+        externalModelRolloutId,
       )
       ?: throw ModelRolloutNotFoundException(
         externalModelProviderId,
         externalModelSuiteId,
         externalModelLineId,
-        externalModelRolloutId
+        externalModelRolloutId,
       )
 
   override fun ResultScope<ModelRollout>.buildResult(): ModelRollout {

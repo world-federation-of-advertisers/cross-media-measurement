@@ -37,7 +37,7 @@ class StreamEventGroupMetadataDescriptors(
     }
 
   private fun Statement.Builder.appendWhereClause(
-    filter: StreamEventGroupMetadataDescriptorsRequest.Filter,
+    filter: StreamEventGroupMetadataDescriptorsRequest.Filter
   ) {
     val conjuncts = mutableListOf<String>()
     if (filter.externalEventGroupMetadataDescriptorIdsList.isNotEmpty()) {

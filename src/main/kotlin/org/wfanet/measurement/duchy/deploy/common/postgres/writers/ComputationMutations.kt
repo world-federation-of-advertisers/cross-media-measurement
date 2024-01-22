@@ -37,7 +37,7 @@ suspend fun PostgresWriter.TransactionScope.insertComputation(
   stage: Long? = null,
   lockOwner: String? = null,
   lockExpirationTime: Instant? = null,
-  details: Message? = null
+  details: Message? = null,
 ) {
 
   val insertComputationStatement =
@@ -133,7 +133,7 @@ suspend fun PostgresWriter.TransactionScope.updateComputation(
 suspend fun PostgresWriter.TransactionScope.extendComputationLock(
   localComputationId: Long,
   updateTime: Instant,
-  lockExpirationTime: Instant
+  lockExpirationTime: Instant,
 ) {
   val sql =
     boundStatement(
@@ -156,7 +156,7 @@ suspend fun PostgresWriter.TransactionScope.extendComputationLock(
 /** Release a lock by setting the owner and expiration to null. */
 suspend fun PostgresWriter.TransactionScope.releaseComputationLock(
   localComputationId: Long,
-  updateTime: Instant
+  updateTime: Instant,
 ) {
   setLock(transactionContext, localComputationId, updateTime)
 }
@@ -169,7 +169,7 @@ suspend fun PostgresWriter.TransactionScope.acquireComputationLock(
   localId: Long,
   updateTime: Instant,
   ownerId: String?,
-  lockExpirationTime: Instant
+  lockExpirationTime: Instant,
 ) {
   setLock(transactionContext, localId, updateTime, ownerId, lockExpirationTime)
 }
@@ -179,7 +179,7 @@ private suspend fun setLock(
   localId: Long,
   updateTime: Instant,
   ownerId: String? = null,
-  lockExpirationTime: Instant? = null
+  lockExpirationTime: Instant? = null,
 ) {
   val sql =
     boundStatement(
@@ -211,7 +211,7 @@ private suspend fun setLock(
  */
 suspend fun PostgresWriter.TransactionScope.checkComputationUnmodified(
   localId: Long,
-  editVersion: Long
+  editVersion: Long,
 ) {
   val sql =
     boundStatement(
@@ -244,7 +244,7 @@ suspend fun PostgresWriter.TransactionScope.checkComputationUnmodified(
       computationId = localId,
       version = updateTimeMillis,
       tokenVersion = editVersion,
-      message = message
+      message = message,
     )
   }
 }
@@ -255,9 +255,7 @@ suspend fun PostgresWriter.TransactionScope.checkComputationUnmodified(
  * @param localId local identifier of a computation
  * @return number of rows deleted
  */
-suspend fun PostgresWriter.TransactionScope.deleteComputationByLocalId(
-  localId: Long,
-): Long {
+suspend fun PostgresWriter.TransactionScope.deleteComputationByLocalId(localId: Long): Long {
   val sql =
     boundStatement(
       """
@@ -277,9 +275,7 @@ suspend fun PostgresWriter.TransactionScope.deleteComputationByLocalId(
  * @param globalId global identifier of a computation
  * @return number of rows deleted
  */
-suspend fun PostgresWriter.TransactionScope.deleteComputationByGlobalId(
-  globalId: String,
-): Long {
+suspend fun PostgresWriter.TransactionScope.deleteComputationByGlobalId(globalId: String): Long {
   val sql =
     boundStatement(
       """

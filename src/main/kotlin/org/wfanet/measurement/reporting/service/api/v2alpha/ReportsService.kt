@@ -88,7 +88,7 @@ class ReportsService(
   private data class InternalTimeRange(
     val canBeCumulative: Boolean,
     val timeIntervals: List<Interval>,
-    val cumulativeTimeIntervals: List<Interval>
+    val cumulativeTimeIntervals: List<Interval>,
   )
 
   private data class CreateReportInfo(
@@ -173,7 +173,7 @@ class ReportsService(
           subResults.map { internalReport ->
             convertInternalReportToPublic(internalReport, externalIdToMetricMap)
           },
-          request.filter
+          request.filter,
         )
 
       if (nextPageToken != null) {
@@ -300,7 +300,7 @@ class ReportsService(
     val externalIdToMetricCalculationSpecMap: Map<String, InternalMetricCalculationSpec> =
       createExternalIdToMetricCalculationSpecMap(
         parentKey.measurementConsumerId,
-        externalMetricCalculationSpecIds
+        externalMetricCalculationSpecIds,
       )
 
     // Build an internal CreateReportRequest.
@@ -360,7 +360,7 @@ class ReportsService(
                 externalIdToMetricCalculationSpecMap
                   .getValue(metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId)
                   .details
-                  .filter
+                  .filter,
               )
             }
           }
@@ -401,7 +401,7 @@ class ReportsService(
   /** Returns a map of external IDs to [InternalMetricCalculationSpec]. */
   private suspend fun createExternalIdToMetricCalculationSpecMap(
     cmmsMeasurementConsumerId: String,
-    externalMetricCalculationSpecIds: List<String>
+    externalMetricCalculationSpecIds: List<String>,
   ): Map<String, InternalMetricCalculationSpec> {
     return try {
       internalMetricCalculationSpecsStub
@@ -477,7 +477,7 @@ class ReportsService(
         val externalIdToMetricCalculationMap: Map<String, InternalMetricCalculationSpec> =
           createExternalIdToMetricCalculationSpecMap(
             internalReport.cmmsMeasurementConsumerId,
-            externalMetricCalculationSpecIds
+            externalMetricCalculationSpecIds,
           )
 
         this.metricCalculationResults +=
@@ -493,7 +493,7 @@ class ReportsService(
         reportSchedule =
           ReportScheduleKey(
               internalReport.cmmsMeasurementConsumerId,
-              internalReport.externalReportScheduleId
+              internalReport.externalReportScheduleId,
             )
             .toName()
       }
@@ -521,7 +521,7 @@ class ReportsService(
           this.metricCalculationSpec =
             MetricCalculationSpecKey(
                 metricCalculationSpec.cmmsMeasurementConsumerId,
-                metricCalculationSpec.externalMetricCalculationSpecId
+                metricCalculationSpec.externalMetricCalculationSpecId,
               )
               .toName()
           displayName = metricCalculationSpec.details.displayName
@@ -552,7 +552,7 @@ class ReportsService(
   /** Creates a batch of [Metric]s. */
   private suspend fun batchCreateMetrics(
     parent: String,
-    createMetricRequests: List<CreateMetricRequest>
+    createMetricRequests: List<CreateMetricRequest>,
   ): BatchCreateMetricsResponse {
     return try {
       metricsStub
@@ -599,11 +599,7 @@ class ReportsService(
           }
         }
 
-        InternalTimeRange(
-          false,
-          source.timeIntervals.timeIntervalsList,
-          listOf(),
-        )
+        InternalTimeRange(false, source.timeIntervals.timeIntervalsList, listOf())
       }
       Report.TimeCase.PERIODIC_TIME_INTERVAL -> {
         grpcRequire(

@@ -32,7 +32,7 @@ class ApacheBeamTask(
   private val outputLabels: Map<String, String>,
   private val outputManifests: Map<String, ShardedFileName>,
   private val skipReadInput: Boolean,
-  private val executeOnPipeline: suspend ApacheBeamContext.() -> Unit
+  private val executeOnPipeline: suspend ApacheBeamContext.() -> Unit,
 ) : ExchangeTask {
   override suspend fun execute(input: Map<String, Blob>): Map<String, Flow<ByteString>> {
     val context =

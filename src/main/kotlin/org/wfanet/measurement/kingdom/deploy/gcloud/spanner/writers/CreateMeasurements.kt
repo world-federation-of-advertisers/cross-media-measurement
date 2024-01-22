@@ -95,7 +95,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
 
   private suspend fun TransactionScope.createComputedMeasurement(
     createMeasurementRequest: CreateMeasurementRequest,
-    measurementConsumerId: InternalId
+    measurementConsumerId: InternalId,
   ): Measurement {
     val initialMeasurementState = Measurement.State.PENDING_REQUISITION_PARAMS
 
@@ -158,7 +158,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       measurementId,
       externalMeasurementId,
       externalComputationId,
-      initialMeasurementState
+      initialMeasurementState,
     )
 
     // Insert into Requisitions for each EDP
@@ -166,7 +166,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       measurementConsumerId,
       measurementId,
       createMeasurementRequest.measurement.dataProvidersMap,
-      Requisition.State.PENDING_PARAMS
+      Requisition.State.PENDING_PARAMS,
     )
 
     includedDuchyEntries.forEach { entry ->
@@ -186,7 +186,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
 
   private suspend fun TransactionScope.createDirectMeasurement(
     createMeasurementRequest: CreateMeasurementRequest,
-    measurementConsumerId: InternalId
+    measurementConsumerId: InternalId,
   ): Measurement {
     val initialMeasurementState = Measurement.State.PENDING_REQUISITION_FULFILLMENT
 
@@ -198,7 +198,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       measurementId,
       externalMeasurementId,
       null,
-      initialMeasurementState
+      initialMeasurementState,
     )
 
     // Insert into Requisitions for each EDP
@@ -206,7 +206,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       measurementConsumerId,
       measurementId,
       createMeasurementRequest.measurement.dataProvidersMap,
-      Requisition.State.UNFULFILLED
+      Requisition.State.UNFULFILLED,
     )
 
     return createMeasurementRequest.measurement.copy {
@@ -221,7 +221,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
     measurementId: InternalId,
     externalMeasurementId: ExternalId,
     externalComputationId: ExternalId?,
-    initialMeasurementState: Measurement.State
+    initialMeasurementState: Measurement.State,
   ) {
     val externalMeasurementConsumerId =
       ExternalId(createMeasurementRequest.measurement.externalMeasurementConsumerCertificateId)
@@ -232,7 +232,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       reader.execute(transactionContext).singleOrNull()?.let { validateCertificate(it) }
         ?: throw MeasurementConsumerCertificateNotFoundException(
           externalMeasurementConsumerId,
-          externalMeasurementId
+          externalMeasurementId,
         )
 
     transactionContext.bufferInsertMutation("Measurements") {
@@ -260,7 +260,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
   private fun TransactionScope.insertComputationParticipant(
     measurementConsumerId: InternalId,
     measurementId: InternalId,
-    duchyId: InternalId
+    duchyId: InternalId,
   ) {
     val participantDetails = ComputationParticipant.Details.getDefaultInstance()
     transactionContext.bufferInsertMutation("ComputationParticipants") {
@@ -286,7 +286,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         measurementId,
         ExternalId(externalDataProviderId),
         dataProviderValue,
-        initialRequisitionState
+        initialRequisitionState,
       )
     }
   }
@@ -296,7 +296,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
     measurementId: InternalId,
     externalDataProviderId: ExternalId,
     dataProviderValue: Measurement.DataProviderValue,
-    initialRequisitionState: Requisition.State
+    initialRequisitionState: Requisition.State,
   ) {
     val dataProviderId =
       DataProviderReader.readDataProviderId(transactionContext, externalDataProviderId)
@@ -305,14 +305,14 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       CertificateReader(CertificateReader.ParentType.DATA_PROVIDER)
         .bindWhereClause(
           dataProviderId,
-          ExternalId(dataProviderValue.externalDataProviderCertificateId)
+          ExternalId(dataProviderValue.externalDataProviderCertificateId),
         )
 
     val dataProviderCertificateId =
       reader.execute(transactionContext).singleOrNull()?.let { validateCertificate(it) }
         ?: throw DataProviderCertificateNotFoundException(
           externalDataProviderId,
-          ExternalId(dataProviderValue.externalDataProviderCertificateId)
+          ExternalId(dataProviderValue.externalDataProviderCertificateId),
         )
 
     val requisitionId = idGenerator.generateInternalId()
@@ -346,7 +346,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
 
   private suspend fun TransactionScope.findExistingMeasurement(
     createMeasurementRequest: CreateMeasurementRequest,
-    measurementConsumerId: InternalId
+    measurementConsumerId: InternalId,
   ): Measurement? {
     val params =
       object {
@@ -397,7 +397,7 @@ private suspend fun TransactionScope.readMeasurementConsumerId(
       "MeasurementConsumers",
       "MeasurementConsumersByExternalId",
       Key.of(externalMeasurementConsumerId.value),
-      column
+      column,
     )
     ?.let { struct -> InternalId(struct.getLong(column)) }
     ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId) {
@@ -422,9 +422,7 @@ private suspend fun TransactionScope.readDataProviderRequiredDuchies(
  *
  * Throws a [ErrorCode.CERTIFICATE_IS_INVALID] otherwise.
  */
-private fun validateCertificate(
-  certificateResult: CertificateReader.Result,
-): InternalId {
+private fun validateCertificate(certificateResult: CertificateReader.Result): InternalId {
   if (!certificateResult.isValid) {
     throw CertificateIsInvalidException()
   }

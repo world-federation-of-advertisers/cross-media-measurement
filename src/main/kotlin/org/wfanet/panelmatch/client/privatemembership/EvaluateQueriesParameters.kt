@@ -19,7 +19,7 @@ import java.io.Serializable
 data class EvaluateQueriesParameters(
   val numShards: Int,
   val numBucketsPerShard: Int,
-  val maxQueriesPerShard: Int
+  val maxQueriesPerShard: Int,
 ) : Serializable {
   init {
     require(numShards > 0)

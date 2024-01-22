@@ -80,8 +80,8 @@ class SpannerComputationStatsServiceTest : ComputationStatsServiceTest<Computati
           ComputationMutations(
             ComputationTypes,
             protocolStageEnumHelper,
-            computationProtocolStageDetails
-          )
+            computationProtocolStageDetails,
+          ),
       )
 
     computationsDatabase =
@@ -89,10 +89,14 @@ class SpannerComputationStatsServiceTest : ComputationStatsServiceTest<Computati
         ComputationsDatabase,
         ComputationsDatabaseReader by computationsDatabaseReader,
         ComputationsDatabaseTransactor<
-          ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails
+          ComputationType,
+          ComputationStage,
+          ComputationStageDetails,
+          ComputationDetails,
         > by computationsDatabaseTransactor,
         ComputationProtocolStagesEnumHelper<
-          ComputationType, ComputationStage
+          ComputationType,
+          ComputationStage,
         > by protocolStageEnumHelper {}
   }
 
@@ -111,7 +115,7 @@ class SpannerComputationStatsServiceTest : ComputationStatsServiceTest<Computati
       ComputationStore(storageClient),
       RequisitionStore(storageClient),
       ALSACE,
-      Clock.systemUTC()
+      Clock.systemUTC(),
     )
   }
 }

@@ -40,7 +40,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  */
 class RemoveMeasurementConsumerOwner(
   private val externalAccountId: ExternalId,
-  private val externalMeasurementConsumerId: ExternalId
+  private val externalMeasurementConsumerId: ExternalId,
 ) : SimpleSpannerWriter<MeasurementConsumer>() {
 
   override suspend fun TransactionScope.runTransaction(): MeasurementConsumer {
@@ -52,7 +52,7 @@ class RemoveMeasurementConsumerOwner(
         .checkOwnershipExist(
           transactionContext,
           internalAccountId = accountId,
-          externalMeasurementConsumerId = externalMeasurementConsumerId
+          externalMeasurementConsumerId = externalMeasurementConsumerId,
         ) == null
     ) {
       throw PermissionDeniedException()
@@ -61,7 +61,7 @@ class RemoveMeasurementConsumerOwner(
     transactionContext.buffer(
       Mutation.delete(
         "MeasurementConsumerOwners",
-        KeySet.singleKey(Key.of(accountId.value, measurementConsumerResult.measurementConsumerId))
+        KeySet.singleKey(Key.of(accountId.value, measurementConsumerResult.measurementConsumerId)),
       )
     )
 
