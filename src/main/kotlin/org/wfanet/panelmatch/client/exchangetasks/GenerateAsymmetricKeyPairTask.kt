@@ -33,7 +33,7 @@ class GenerateAsymmetricKeyPairTask(private val generateKeys: () -> AsymmetricKe
     val key = generateKeys()
     return mapOf(
       PUBLIC_KEY_LABEL to flowOf(key.serializedPublicKey),
-      PRIVATE_KEY_LABEL to flowOf(key.serializedPrivateKey)
+      PRIVATE_KEY_LABEL to flowOf(key.serializedPrivateKey),
     )
   }
 }

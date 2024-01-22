@@ -33,7 +33,7 @@ interface Variances {
   /** Computes variance of a reach measurement based on the methodology. */
   fun computeMeasurementVariance(
     methodology: Methodology,
-    measurementVarianceParams: ReachMeasurementVarianceParams
+    measurementVarianceParams: ReachMeasurementVarianceParams,
   ): Double
 
   /**
@@ -47,7 +47,7 @@ interface Variances {
   /** Computes variance of a frequency measurement based on the methodology. */
   fun computeMeasurementVariance(
     methodology: Methodology,
-    measurementVarianceParams: FrequencyMeasurementVarianceParams
+    measurementVarianceParams: FrequencyMeasurementVarianceParams,
   ): FrequencyVariances
 
   /**
@@ -61,7 +61,7 @@ interface Variances {
   /** Computes variance of an impression measurement based on the methodology. */
   fun computeMeasurementVariance(
     methodology: Methodology,
-    measurementVarianceParams: ImpressionMeasurementVarianceParams
+    measurementVarianceParams: ImpressionMeasurementVarianceParams,
   ): Double
 
   /**
@@ -75,7 +75,7 @@ interface Variances {
   /** Computes variance of a watch duration measurement based on the methodology. */
   fun computeMeasurementVariance(
     methodology: Methodology,
-    measurementVarianceParams: WatchDurationMeasurementVarianceParams
+    measurementVarianceParams: WatchDurationMeasurementVarianceParams,
   ): Double
 }
 
@@ -91,7 +91,7 @@ object VariancesImpl : Variances {
       params.measurementParams.vidSamplingInterval.width,
       params.measurementParams.dpParams,
       1.0,
-      params.measurementParams.noiseMechanism
+      params.measurementParams.noiseMechanism,
     )
   }
 
@@ -105,7 +105,7 @@ object VariancesImpl : Variances {
       params.measurementParams.vidSamplingInterval.width,
       params.measurementParams.dpParams,
       params.measurementParams.maximumFrequencyPerUser.toDouble(),
-      params.measurementParams.noiseMechanism
+      params.measurementParams.noiseMechanism,
     )
   }
 
@@ -119,7 +119,7 @@ object VariancesImpl : Variances {
       params.measurementParams.vidSamplingInterval.width,
       params.measurementParams.dpParams,
       params.measurementParams.maximumDurationPerUser,
-      params.measurementParams.noiseMechanism
+      params.measurementParams.noiseMechanism,
     )
   }
 
@@ -135,7 +135,7 @@ object VariancesImpl : Variances {
     return frequencyVariance(
       params,
       ::deterministicFrequencyRelativeVariance,
-      ::frequencyCountVariance
+      ::frequencyCountVariance,
     )
   }
 
@@ -149,7 +149,7 @@ object VariancesImpl : Variances {
     totalReach: Long,
     reachRatio: Double,
     measurementParams: FrequencyMeasurementParams,
-    multiplier: Int
+    multiplier: Int,
   ): Double {
     val frequencyNoiseVariance: Double =
       computeNoiseVariance(measurementParams.dpParams, measurementParams.noiseMechanism)
@@ -214,7 +214,7 @@ object VariancesImpl : Variances {
     val noiseVariance: Double =
       computeNoiseVariance(
         varianceParams.measurementParams.dpParams,
-        varianceParams.measurementParams.noiseMechanism
+        varianceParams.measurementParams.noiseMechanism,
       )
 
     val variance =
@@ -226,7 +226,7 @@ object VariancesImpl : Variances {
         samplingWidth = varianceParams.measurementParams.vidSamplingInterval.width,
         otherSamplingWidth = varianceParams.measurementParams.vidSamplingInterval.width,
         overlapSamplingWidth = varianceParams.measurementParams.vidSamplingInterval.width,
-        inflation = noiseVariance
+        inflation = noiseVariance,
       )
 
     return max(0.0, variance)
@@ -240,12 +240,12 @@ object VariancesImpl : Variances {
    */
   private fun computeLiquidLegionsSketchVariance(
     sketchParams: LiquidLegionsSketchParams,
-    params: FrequencyMeasurementVarianceParams
+    params: FrequencyMeasurementVarianceParams,
   ): FrequencyVariances {
     return frequencyVariance(
       params,
       constructLiquidLegionsSketchFrequencyRelativeVariance(sketchParams, params.measurementParams),
-      ::frequencyCountVariance
+      ::frequencyCountVariance,
     )
   }
 
@@ -260,7 +260,7 @@ object VariancesImpl : Variances {
     totalReach: Long,
     reachRatio: Double,
     measurementParams: FrequencyMeasurementParams,
-    multiplier: Int
+    multiplier: Int,
   ) -> Double {
     val frequencyNoiseVariance: Double =
       computeNoiseVariance(measurementParams.dpParams, measurementParams.noiseMechanism)
@@ -272,7 +272,7 @@ object VariancesImpl : Variances {
         totalReach = totalReach,
         reachRatio = reachRatio,
         frequencyMeasurementParams = freqParams,
-        multiplier = multiplier
+        multiplier = multiplier,
       )
     }
   }
@@ -285,7 +285,7 @@ object VariancesImpl : Variances {
     val distributedGaussianNoiseVariance: Double =
       computeDistributedNoiseVariance(
         varianceParams.measurementParams.dpParams,
-        varianceParams.measurementParams.noiseMechanism
+        varianceParams.measurementParams.noiseMechanism,
       )
 
     val variance =
@@ -297,7 +297,7 @@ object VariancesImpl : Variances {
         samplingWidth = varianceParams.measurementParams.vidSamplingInterval.width,
         otherSamplingWidth = varianceParams.measurementParams.vidSamplingInterval.width,
         overlapSamplingWidth = varianceParams.measurementParams.vidSamplingInterval.width,
-        inflation = distributedGaussianNoiseVariance
+        inflation = distributedGaussianNoiseVariance,
       )
 
     return max(0.0, variance)
@@ -309,12 +309,12 @@ object VariancesImpl : Variances {
    */
   private fun computeLiquidLegionsV2Variance(
     sketchParams: LiquidLegionsSketchParams,
-    params: FrequencyMeasurementVarianceParams
+    params: FrequencyMeasurementVarianceParams,
   ): FrequencyVariances {
     return frequencyVariance(
       params,
       constructLiquidLegionsV2FrequencyRelativeVariance(sketchParams, params.measurementParams),
-      ::frequencyCountVariance
+      ::frequencyCountVariance,
     )
   }
 
@@ -329,7 +329,7 @@ object VariancesImpl : Variances {
     totalReach: Long,
     reachRatio: Double,
     measurementParams: FrequencyMeasurementParams,
-    multiplier: Int
+    multiplier: Int,
   ) -> Double {
     val frequencyNoiseVariance: Double =
       computeDistributedNoiseVariance(measurementParams.dpParams, measurementParams.noiseMechanism)
@@ -342,16 +342,13 @@ object VariancesImpl : Variances {
         totalReach = totalReach,
         reachRatio = reachRatio,
         frequencyMeasurementParams = freqParams,
-        multiplier = multiplier
+        multiplier = multiplier,
       )
     }
   }
 
   /** Computes the noise variance based on the [DpParams] and the [NoiseMechanism]. */
-  private fun computeNoiseVariance(
-    dpParams: DpParams,
-    noiseMechanism: NoiseMechanism,
-  ): Double {
+  private fun computeNoiseVariance(dpParams: DpParams, noiseMechanism: NoiseMechanism): Double {
     return when (noiseMechanism) {
       NoiseMechanism.NONE -> 0.0
       NoiseMechanism.LAPLACE -> {
@@ -378,7 +375,7 @@ object VariancesImpl : Variances {
         // sigma of the noiser as sigmaDistributed = sigma / sqrt(contributorCount).
         AcdpParamsConverter.computeLlv2SigmaDistributedDiscreteGaussian(
             dpParams,
-            contributorCount = 1
+            contributorCount = 1,
           )
           .pow(2)
       }
@@ -393,15 +390,12 @@ object VariancesImpl : Variances {
         totalReach: Long,
         reachRatio: Double,
         measurementParams: FrequencyMeasurementParams,
-        multiplier: Int
+        multiplier: Int,
       ) -> Double,
     frequencyCountVarianceFun:
       (
-        totalReach: Long,
-        totalReachVariance: Double,
-        reachRatio: Double,
-        reachRatioVariance: Double,
-      ) -> Double
+        totalReach: Long, totalReachVariance: Double, reachRatio: Double, reachRatioVariance: Double,
+      ) -> Double,
   ): FrequencyVariances {
     require(params.totalReach >= 0.0) { "The total reach value cannot be negative." }
     require(params.reachMeasurementVariance >= 0.0) {
@@ -424,7 +418,7 @@ object VariancesImpl : Variances {
           params.totalReach,
           params.relativeFrequencyDistribution.getOrDefault(frequency, 0.0),
           params.measurementParams,
-          1
+          1,
         )
       }
 
@@ -434,7 +428,7 @@ object VariancesImpl : Variances {
           params.totalReach,
           kPlusRelativeFrequencyDistribution.getValue(frequency),
           params.measurementParams,
-          maximumFrequency - frequency + 1
+          maximumFrequency - frequency + 1,
         )
       }
 
@@ -444,7 +438,7 @@ object VariancesImpl : Variances {
           params.totalReach,
           params.reachMeasurementVariance,
           params.relativeFrequencyDistribution.getOrDefault(frequency, 0.0),
-          relativeVariances.getValue(frequency)
+          relativeVariances.getValue(frequency),
         )
       }
 
@@ -454,7 +448,7 @@ object VariancesImpl : Variances {
           params.totalReach,
           params.reachMeasurementVariance,
           kPlusRelativeFrequencyDistribution.getValue(frequency),
-          kPlusRelativeVariances.getValue(frequency)
+          kPlusRelativeVariances.getValue(frequency),
         )
       }
 
@@ -462,7 +456,7 @@ object VariancesImpl : Variances {
       relativeVariances,
       kPlusRelativeVariances,
       countVariances,
-      kPlusCountVariances
+      kPlusCountVariances,
     )
   }
   /**
@@ -475,11 +469,8 @@ object VariancesImpl : Variances {
     kPlusRelativeVariances: Map<Int, Double>,
     frequencyCountVarianceFun:
       (
-        totalReach: Long,
-        totalReachVariance: Double,
-        reachRatio: Double,
-        reachRatioVariance: Double,
-      ) -> Double
+        totalReach: Long, totalReachVariance: Double, reachRatio: Double, reachRatioVariance: Double,
+      ) -> Double,
   ): FrequencyVariances {
     require(params.totalReach >= 0.0) { "The total reach value cannot be negative." }
     require(params.reachMeasurementVariance >= 0.0) {
@@ -502,7 +493,7 @@ object VariancesImpl : Variances {
           params.totalReach,
           params.reachMeasurementVariance,
           params.relativeFrequencyDistribution.getOrDefault(frequency, 0.0),
-          relativeVariances.getValue(frequency)
+          relativeVariances.getValue(frequency),
         )
       }
 
@@ -512,7 +503,7 @@ object VariancesImpl : Variances {
           params.totalReach,
           params.reachMeasurementVariance,
           kPlusRelativeFrequencyDistribution.getValue(frequency),
-          kPlusRelativeVariances.getValue(frequency)
+          kPlusRelativeVariances.getValue(frequency),
         )
       }
 
@@ -520,7 +511,7 @@ object VariancesImpl : Variances {
       relativeVariances,
       kPlusRelativeVariances,
       countVariances,
-      kPlusCountVariances
+      kPlusCountVariances,
     )
   }
 
@@ -536,7 +527,7 @@ object VariancesImpl : Variances {
         weightedMeasurementVarianceParams.weight.square() *
           computeMeasurementVariance(
             weightedMeasurementVarianceParams.methodology,
-            weightedMeasurementVarianceParams.measurementVarianceParams
+            weightedMeasurementVarianceParams.measurementVarianceParams,
           )
       }
 
@@ -567,7 +558,7 @@ object VariancesImpl : Variances {
             Covariances.computeMeasurementCovariance(
               weightedMeasurementVarianceParams,
               otherWeightedMeasurementVarianceParams,
-              unionWeightedMeasurementVarianceParams
+              unionWeightedMeasurementVarianceParams,
             )
       }
     }
@@ -578,7 +569,7 @@ object VariancesImpl : Variances {
   /** Computes variance of a reach measurement based on the methodology. */
   override fun computeMeasurementVariance(
     methodology: Methodology,
-    measurementVarianceParams: ReachMeasurementVarianceParams
+    measurementVarianceParams: ReachMeasurementVarianceParams,
   ): Double {
     return when (methodology) {
       is CustomDirectScalarMethodology -> {
@@ -595,13 +586,13 @@ object VariancesImpl : Variances {
       is LiquidLegionsSketchMethodology -> {
         computeLiquidLegionsSketchVariance(
           LiquidLegionsSketchParams(methodology.decayRate, methodology.sketchSize),
-          measurementVarianceParams
+          measurementVarianceParams,
         )
       }
       is LiquidLegionsV2Methodology -> {
         computeLiquidLegionsV2Variance(
           LiquidLegionsSketchParams(methodology.decayRate, methodology.sketchSize),
-          measurementVarianceParams
+          measurementVarianceParams,
         )
       }
     }
@@ -630,7 +621,7 @@ object VariancesImpl : Variances {
     val frequencyVariances: FrequencyVariances =
       computeMeasurementVariance(
         weightedMeasurementVarianceParams.methodology,
-        weightedMeasurementVarianceParams.measurementVarianceParams
+        weightedMeasurementVarianceParams.measurementVarianceParams,
       )
 
     return FrequencyVariances(
@@ -646,7 +637,7 @@ object VariancesImpl : Variances {
   /** Computes variance of a frequency measurement based on the methodology. */
   override fun computeMeasurementVariance(
     methodology: Methodology,
-    measurementVarianceParams: FrequencyMeasurementVarianceParams
+    measurementVarianceParams: FrequencyMeasurementVarianceParams,
   ): FrequencyVariances {
     return when (methodology) {
       is CustomDirectScalarMethodology -> {
@@ -663,13 +654,13 @@ object VariancesImpl : Variances {
       is LiquidLegionsSketchMethodology -> {
         computeLiquidLegionsSketchVariance(
           LiquidLegionsSketchParams(methodology.decayRate, methodology.sketchSize),
-          measurementVarianceParams
+          measurementVarianceParams,
         )
       }
       is LiquidLegionsV2Methodology -> {
         computeLiquidLegionsV2Variance(
           LiquidLegionsSketchParams(methodology.decayRate, methodology.sketchSize),
-          measurementVarianceParams
+          measurementVarianceParams,
         )
       }
     }
@@ -689,7 +680,7 @@ object VariancesImpl : Variances {
       params,
       methodology.relativeVariances,
       methodology.kPlusRelativeVariances,
-      ::frequencyCountVariance
+      ::frequencyCountVariance,
     )
   }
 
@@ -714,7 +705,7 @@ object VariancesImpl : Variances {
     return weightedMeasurementVarianceParams.weight.square() *
       computeMeasurementVariance(
         weightedMeasurementVarianceParams.methodology,
-        weightedMeasurementVarianceParams.measurementVarianceParams
+        weightedMeasurementVarianceParams.measurementVarianceParams,
       )
   }
 
@@ -738,13 +729,13 @@ object VariancesImpl : Variances {
       is LiquidLegionsSketchMethodology -> {
         throw UnsupportedMethodologyUsageException(
           "Methodology LIQUID_LEGIONS_SKETCH is not supported for impression.",
-          IllegalArgumentException("Invalid methodology")
+          IllegalArgumentException("Invalid methodology"),
         )
       }
       is LiquidLegionsV2Methodology -> {
         throw UnsupportedMethodologyUsageException(
           "Methodology LIQUID_LEGIONS_V2 is not supported for impression.",
-          IllegalArgumentException("Invalid methodology")
+          IllegalArgumentException("Invalid methodology"),
         )
       }
     }
@@ -771,7 +762,7 @@ object VariancesImpl : Variances {
     return weightedMeasurementVarianceParams.weight.square() *
       computeMeasurementVariance(
         weightedMeasurementVarianceParams.methodology,
-        weightedMeasurementVarianceParams.measurementVarianceParams
+        weightedMeasurementVarianceParams.measurementVarianceParams,
       )
   }
 
@@ -795,13 +786,13 @@ object VariancesImpl : Variances {
       is LiquidLegionsSketchMethodology -> {
         throw UnsupportedMethodologyUsageException(
           "Methodology LIQUID_LEGIONS_SKETCH is not supported for watch duration.",
-          IllegalArgumentException("Invalid methodology")
+          IllegalArgumentException("Invalid methodology"),
         )
       }
       is LiquidLegionsV2Methodology -> {
         throw UnsupportedMethodologyUsageException(
           "Methodology LIQUID_LEGIONS_V2 is not supported for watch duration.",
-          IllegalArgumentException("Invalid methodology")
+          IllegalArgumentException("Invalid methodology"),
         )
       }
     }

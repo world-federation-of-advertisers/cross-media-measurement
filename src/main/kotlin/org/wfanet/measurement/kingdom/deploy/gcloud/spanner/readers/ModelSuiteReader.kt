@@ -30,7 +30,7 @@ class ModelSuiteReader : SpannerReader<ModelSuiteReader.Result>() {
   data class Result(
     val modelSuite: ModelSuite,
     val modelSuiteId: InternalId,
-    val modelProviderId: InternalId
+    val modelProviderId: InternalId,
   )
 
   override val baseSql: String =
@@ -52,7 +52,7 @@ class ModelSuiteReader : SpannerReader<ModelSuiteReader.Result>() {
     Result(
       buildModelSuite(struct),
       InternalId(struct.getLong("ModelSuiteId")),
-      InternalId(struct.getLong("ModelProviderId"))
+      InternalId(struct.getLong("ModelProviderId")),
     )
 
   private fun buildModelSuite(struct: Struct): ModelSuite = modelSuite {

@@ -28,7 +28,7 @@ suspend fun PostgresWriter.TransactionScope.insertComputationStageAttempt(
   attempt: Long,
   beginTime: Instant,
   endTime: Instant? = null,
-  details: ComputationStageAttemptDetails
+  details: ComputationStageAttemptDetails,
 ) {
   val sql =
     boundStatement(
@@ -65,7 +65,7 @@ suspend fun PostgresWriter.TransactionScope.updateComputationStageAttempt(
   attempt: Long,
   beginTime: Instant? = null,
   endTime: Instant? = null,
-  details: Message? = null
+  details: Message? = null,
 ) {
   val sql =
     boundStatement(

@@ -50,7 +50,7 @@ class DoubleBlindWorkflowTest : AbstractInProcessPanelMatchIntegrationTest() {
 
   override fun validateFinalState(
     dataProviderDaemon: ExchangeWorkflowDaemonForTest,
-    modelProviderDaemon: ExchangeWorkflowDaemonForTest
+    modelProviderDaemon: ExchangeWorkflowDaemonForTest,
   ) {
     val blob = modelProviderDaemon.readPrivateBlob("mp-decrypted-join-keys")
     assertThat(blob).isNotNull()

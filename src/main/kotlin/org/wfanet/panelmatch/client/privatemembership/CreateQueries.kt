@@ -59,12 +59,12 @@ fun createQueries(
   lookupKeyAndIds: PCollection<LookupKeyAndId>,
   privateMembershipKeys: PCollectionView<AsymmetricKeyPair>,
   parameters: CreateQueriesParameters,
-  privateMembershipCryptor: PrivateMembershipCryptor
+  privateMembershipCryptor: PrivateMembershipCryptor,
 ): CreateQueriesOutputs {
   val tuple: PCollectionTuple =
     lookupKeyAndIds.apply(
       "Create Queries",
-      CreateQueries(privateMembershipKeys, parameters, privateMembershipCryptor)
+      CreateQueries(privateMembershipKeys, parameters, privateMembershipCryptor),
     )
   return CreateQueriesOutputs(
     queryIdMap = tuple[CreateQueries.queryIdAndIdTag],
@@ -76,7 +76,7 @@ fun createQueries(
 data class CreateQueriesOutputs(
   val queryIdMap: PCollection<QueryIdAndId>,
   val encryptedQueryBundles: PCollection<EncryptedQueryBundle>,
-  val discardedJoinKeyCollection: PCollection<JoinKeyIdentifierCollection>
+  val discardedJoinKeyCollection: PCollection<JoinKeyIdentifierCollection>,
 )
 
 private class CreateQueries(
@@ -110,7 +110,7 @@ private class CreateQueries(
     val bucketing =
       Bucketing(
         numShards = parameters.numShards,
-        numBucketsPerShard = parameters.numBucketsPerShard
+        numBucketsPerShard = parameters.numBucketsPerShard,
       )
     return lookupKeys
       .map("Map to ShardId") { lookupKeyAndId: LookupKeyAndId ->
@@ -187,7 +187,7 @@ private class CreateQueries(
         // This is not urgent -- it is very typical to explicitly set Coders in Apache Beam.
         KvCoder.of(
           ProtoCoder.of(ShardId::class.java),
-          ListCoder.of(SerializableCoder.of(FullUnencryptedQuery::class.java))
+          ListCoder.of(SerializableCoder.of(FullUnencryptedQuery::class.java)),
         )
       )
   }
@@ -211,12 +211,12 @@ private class CreateQueries(
   /** Batch gets the oblivious queries grouped by [ShardId]. */
   private fun encryptQueries(
     unencryptedQueries: PCollection<KV<ShardId, List<FullUnencryptedQuery>>>,
-    privateMembershipKeys: PCollectionView<AsymmetricKeyPair>
+    privateMembershipKeys: PCollectionView<AsymmetricKeyPair>,
   ): PCollection<EncryptedQueryBundle> {
     return unencryptedQueries.apply(
       "Encrypt Queries per Shard",
       ParDo.of(EncryptQueriesFn(this.privateMembershipCryptor, privateMembershipKeys))
-        .withSideInputs(privateMembershipKeys)
+        .withSideInputs(privateMembershipKeys),
     )
   }
 
@@ -236,20 +236,20 @@ private class CreateQueries(
 private data class BucketQuery(
   val joinKeyIdentifier: JoinKeyIdentifier,
   val shardId: ShardId,
-  val bucketId: BucketId
+  val bucketId: BucketId,
 ) : Serializable
 
 /** An Unencrypted Query (shard id, bucket id, query id) tied back to a joinKeyIdentifier. */
 private data class FullUnencryptedQuery(
   val joinKeyIdentifier: JoinKeyIdentifier,
-  val unencryptedQuery: UnencryptedQuery
+  val unencryptedQuery: UnencryptedQuery,
 ) : Serializable
 
 private const val METRIC_NAMESPACE: String = "CreateQueries"
 
 private class EncryptQueriesFn(
   private val cryptor: PrivateMembershipCryptor,
-  private val keys: PCollectionView<AsymmetricKeyPair>
+  private val keys: PCollectionView<AsymmetricKeyPair>,
 ) : DoFn<KV<ShardId, List<@JvmWildcard FullUnencryptedQuery>>, EncryptedQueryBundle>() {
   /** Time (in nanos) to encrypt each query. */
   private val encryptionTimesDistribution =
@@ -290,7 +290,8 @@ private class EqualizeQueriesPerShardFn(
   private val paddingNonceBucket: BucketId,
 ) :
   DoFn<
-    KV<ShardId, Iterable<@JvmWildcard BucketQuery>>, KV<ShardId, Iterable<@JvmWildcard BucketQuery>>
+    KV<ShardId, Iterable<@JvmWildcard BucketQuery>>,
+    KV<ShardId, Iterable<@JvmWildcard BucketQuery>>,
   >() {
   /**
    * Number of discarded Queries. If unacceptably high, the totalQueriesPerShard parameter should be

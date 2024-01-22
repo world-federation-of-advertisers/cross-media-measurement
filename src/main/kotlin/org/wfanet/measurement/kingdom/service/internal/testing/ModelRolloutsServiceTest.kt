@@ -67,7 +67,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
     val modelLinesService: ModelLinesCoroutineImplBase,
     val modelReleasesService: ModelReleasesCoroutineImplBase,
     val populationsService: PopulationsCoroutineImplBase,
-    val dataProvidersService: DataProvidersCoroutineImplBase
+    val dataProvidersService: DataProvidersCoroutineImplBase,
   )
 
   protected val testClock: Clock = Clock.systemUTC()
@@ -122,7 +122,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
           externalModelSuiteId = modelLine.externalModelSuiteId
         },
         createdPopulation,
-        modelReleasesService
+        modelReleasesService,
       )
 
     val modelRollout = modelRollout {
@@ -160,7 +160,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
             externalModelSuiteId = modelLine.externalModelSuiteId
           },
           createdPopulation,
-          modelReleasesService
+          modelReleasesService,
         )
 
       val modelRollout = modelRollout {
@@ -196,7 +196,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
           externalModelSuiteId = modelLine.externalModelSuiteId
         },
         createdPopulation,
-        modelReleasesService
+        modelReleasesService,
       )
 
     val modelRollout = modelRollout {
@@ -239,7 +239,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
             externalModelSuiteId = modelLine.externalModelSuiteId
           },
           createdPopulation,
-          modelReleasesService
+          modelReleasesService,
         )
 
       val modelRollout = modelRollout {
@@ -281,7 +281,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
           externalModelSuiteId = modelLine.externalModelSuiteId
         },
         createdPopulation,
-        modelReleasesService
+        modelReleasesService,
       )
 
     val modelRollout = modelRollout {
@@ -316,7 +316,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
           externalModelSuiteId = modelLine.externalModelSuiteId
         },
         createdPopulation,
-        modelReleasesService
+        modelReleasesService,
       )
 
     val modelRollout = modelRollout {
@@ -394,7 +394,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
           externalModelSuiteId = modelLine.externalModelSuiteId
         },
         createdPopulation,
-        modelReleasesService
+        modelReleasesService,
       )
 
     val modelRollout = modelRollout {
@@ -430,7 +430,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
             externalModelSuiteId = modelLine.externalModelSuiteId
           },
           createdPopulation,
-          modelReleasesService
+          modelReleasesService,
         )
 
       val modelRollout = modelRollout {
@@ -488,7 +488,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
           externalModelSuiteId = modelLine.externalModelSuiteId
         },
         createdPopulation,
-        modelReleasesService
+        modelReleasesService,
       )
 
     val modelRollout = modelRollout {
@@ -541,7 +541,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
           externalModelSuiteId = modelLine.externalModelSuiteId
         },
         createdPopulation,
-        modelReleasesService
+        modelReleasesService,
       )
 
     val modelRollout = modelRollout {
@@ -585,7 +585,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
             externalModelSuiteId = modelLine.externalModelSuiteId
           },
           createdPopulation,
-          modelReleasesService
+          modelReleasesService,
         )
 
       val modelRollout = modelRollout {
@@ -631,7 +631,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
             externalModelSuiteId = modelLine.externalModelSuiteId
           },
           createdPopulation,
-          modelReleasesService
+          modelReleasesService,
         )
 
       val modelRollout = modelRollout {
@@ -694,7 +694,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
           externalModelSuiteId = modelLine.externalModelSuiteId
         },
         createdPopulation,
-        modelReleasesService
+        modelReleasesService,
       )
 
     val modelRollout = modelRollout {
@@ -830,7 +830,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
           externalModelSuiteId = modelLine.externalModelSuiteId
         },
         createdPopulation,
-        modelReleasesService
+        modelReleasesService,
       )
 
     val modelRollout = modelRollout {
@@ -881,7 +881,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
           externalModelSuiteId = modelLine.externalModelSuiteId
         },
         createdPopulation,
-        modelReleasesService
+        modelReleasesService,
       )
 
     val modelRollout = modelRollout {
@@ -954,7 +954,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
           externalModelSuiteId = modelLine.externalModelSuiteId
         },
         createdPopulation,
-        modelReleasesService
+        modelReleasesService,
       )
 
     val modelRollout = modelRollout {
@@ -1045,7 +1045,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
           externalModelSuiteId = modelLine.externalModelSuiteId
         },
         createdPopulation,
-        modelReleasesService
+        modelReleasesService,
       )
 
     val START_ROLLOUT_LIMIT_1 = Instant.now().plusSeconds(1000L).toProtoTime()
@@ -1133,7 +1133,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
           externalModelSuiteId = modelLine.externalModelSuiteId
         },
         createdPopulation,
-        modelReleasesService
+        modelReleasesService,
       )
 
     val modelRollout = modelRollout {
@@ -1185,7 +1185,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
             externalModelSuiteId = modelLine.externalModelSuiteId
           },
           createdPopulation,
-          modelReleasesService
+          modelReleasesService,
         )
 
       val modelRollout = modelRollout {

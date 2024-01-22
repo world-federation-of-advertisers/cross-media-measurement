@@ -34,7 +34,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementR
  */
 class CancelMeasurement(
   private val externalMeasurementConsumerId: ExternalId,
-  private val externalMeasurementId: ExternalId
+  private val externalMeasurementId: ExternalId,
 ) : SpannerWriter<Measurement, Measurement>() {
   override suspend fun TransactionScope.runTransaction(): Measurement {
     val (measurementConsumerId, measurementId, measurement) =
@@ -42,7 +42,7 @@ class CancelMeasurement(
         .readByExternalIds(transactionContext, externalMeasurementConsumerId, externalMeasurementId)
         ?: throw MeasurementNotFoundByMeasurementConsumerException(
           externalMeasurementConsumerId,
-          externalMeasurementId
+          externalMeasurementId,
         ) {
           "Measurement with external MeasurementConsumer ID $externalMeasurementConsumerId and " +
             "external Measurement ID $externalMeasurementId not found"
@@ -61,7 +61,7 @@ class CancelMeasurement(
         throw MeasurementStateIllegalException(
           externalMeasurementConsumerId,
           externalMeasurementId,
-          state
+          state,
         ) {
           "Unexpected Measurement state $state (${state.number})"
         }
@@ -76,7 +76,7 @@ class CancelMeasurement(
       measurementId = measurementId,
       nextState = Measurement.State.CANCELLED,
       previousState = measurement.state,
-      measurementLogEntryDetails = measurementLogEntryDetails
+      measurementLogEntryDetails = measurementLogEntryDetails,
     )
 
     return measurement.copy { this.state = Measurement.State.CANCELLED }

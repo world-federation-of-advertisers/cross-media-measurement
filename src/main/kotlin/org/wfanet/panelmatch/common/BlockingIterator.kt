@@ -23,7 +23,7 @@ import kotlinx.coroutines.runBlocking
 /** [Iterator] that wraps [channelIterator] using [runBlocking]. */
 class BlockingIterator<T : Any>(
   channel: ReceiveChannel<T>,
-  private val context: CoroutineContext = EmptyCoroutineContext
+  private val context: CoroutineContext = EmptyCoroutineContext,
 ) : Iterator<T> {
   private val channelIterator: ChannelIterator<T> = channel.iterator()
   private var next: T? = null

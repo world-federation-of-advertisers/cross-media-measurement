@@ -90,13 +90,13 @@ class AsyncComputationControlServiceTest {
   private val service: AsyncComputationControlService by lazy {
     AsyncComputationControlService(
       ComputationsCoroutineStub(grpcTestServerRule.channel),
-      maxAdvanceAttempts = Int.MAX_VALUE
+      maxAdvanceAttempts = Int.MAX_VALUE,
     )
   }
 
   private fun mockComputationsServiceCalls(
     tokenBeforeRecord: ComputationToken,
-    tokenAfterRecord: ComputationToken
+    tokenAfterRecord: ComputationToken,
   ) = runBlocking {
     whenever(mockComputationsService.getComputationToken(any())).thenAnswer {
       tokenBeforeRecord.toGetComputationTokenResponse()
@@ -409,7 +409,7 @@ class AsyncComputationControlServiceTest {
   private suspend fun verifyHmssAdvanceComputationToShuffleStage(
     initStage: HmssStage,
     requisitionFulfilled: Boolean,
-    supposedToAdvance: Boolean
+    supposedToAdvance: Boolean,
   ) {
     val token = computationToken {
       computationStage = initStage.toProtocolStage()
@@ -470,7 +470,7 @@ class AsyncComputationControlServiceTest {
       .isEqualTo(getComputationTokenRequest { globalComputationId = COMPUTATION_ID })
     verifyProtoArgument(
         mockComputationsService,
-        ComputationsCoroutineImplBase::updateComputationDetails
+        ComputationsCoroutineImplBase::updateComputationDetails,
       )
       .isEqualTo(
         updateComputationDetailsRequest {
@@ -481,7 +481,7 @@ class AsyncComputationControlServiceTest {
     if (supposedToAdvance) {
       verifyProtoArgument(
           mockComputationsService,
-          ComputationsCoroutineImplBase::advanceComputationStage
+          ComputationsCoroutineImplBase::advanceComputationStage,
         )
         .isEqualTo(
           advanceComputationStageRequest {
@@ -503,7 +503,7 @@ class AsyncComputationControlServiceTest {
       verifyHmssAdvanceComputationToShuffleStage(
         initStage = HmssStage.WAIT_ON_SHUFFLE_INPUT,
         requisitionFulfilled = true,
-        supposedToAdvance = true
+        supposedToAdvance = true,
       )
     }
 
@@ -512,7 +512,7 @@ class AsyncComputationControlServiceTest {
     verifyHmssAdvanceComputationToShuffleStage(
       initStage = HmssStage.INITIALIZED,
       requisitionFulfilled = false,
-      supposedToAdvance = false
+      supposedToAdvance = false,
     )
   }
 
@@ -521,7 +521,7 @@ class AsyncComputationControlServiceTest {
     verifyHmssAdvanceComputationToShuffleStage(
       initStage = HmssStage.SETUP_PHASE,
       requisitionFulfilled = true,
-      supposedToAdvance = false
+      supposedToAdvance = false,
     )
   }
 
@@ -531,7 +531,7 @@ class AsyncComputationControlServiceTest {
       verifyHmssAdvanceComputationToShuffleStage(
         initStage = HmssStage.WAIT_ON_SHUFFLE_INPUT,
         requisitionFulfilled = false,
-        supposedToAdvance = false
+        supposedToAdvance = false,
       )
     }
 
@@ -574,13 +574,13 @@ class AsyncComputationControlServiceTest {
 
       verifyProtoArgument(
           mockComputationsService,
-          ComputationsCoroutineImplBase::getComputationToken
+          ComputationsCoroutineImplBase::getComputationToken,
         )
         .isEqualTo(getComputationTokenRequest { globalComputationId = COMPUTATION_ID })
       verifyBlocking(mockComputationsService, never()) { updateComputationDetails(any()) }
       verifyProtoArgument(
           mockComputationsService,
-          ComputationsCoroutineImplBase::recordOutputBlobPath
+          ComputationsCoroutineImplBase::recordOutputBlobPath,
         )
         .isEqualTo(
           recordOutputBlobPathRequest {
@@ -591,7 +591,7 @@ class AsyncComputationControlServiceTest {
         )
       verifyProtoArgument(
           mockComputationsService,
-          ComputationsCoroutineImplBase::advanceComputationStage
+          ComputationsCoroutineImplBase::advanceComputationStage,
         )
         .isEqualTo(
           advanceComputationStageRequest {
@@ -645,13 +645,13 @@ class AsyncComputationControlServiceTest {
 
       verifyProtoArgument(
           mockComputationsService,
-          ComputationsCoroutineImplBase::getComputationToken
+          ComputationsCoroutineImplBase::getComputationToken,
         )
         .isEqualTo(getComputationTokenRequest { globalComputationId = COMPUTATION_ID })
       verifyBlocking(mockComputationsService, never()) { updateComputationDetails(any()) }
       verifyProtoArgument(
           mockComputationsService,
-          ComputationsCoroutineImplBase::recordOutputBlobPath
+          ComputationsCoroutineImplBase::recordOutputBlobPath,
         )
         .isEqualTo(
           recordOutputBlobPathRequest {

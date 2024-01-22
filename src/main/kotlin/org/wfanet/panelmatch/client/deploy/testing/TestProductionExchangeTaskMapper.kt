@@ -26,10 +26,7 @@ import org.wfanet.panelmatch.client.storage.SharedStorageSelector
 import org.wfanet.panelmatch.common.certificates.testing.TestCertificateManager
 
 private val preprocessingParameters =
-  PreprocessingParameters(
-    maxByteSize = 1024 * 1024,
-    fileCount = 1,
-  )
+  PreprocessingParameters(maxByteSize = 1024 * 1024, fileCount = 1)
 private val taskContext = TaskParameters(setOf(preprocessingParameters))
 private val clock = Clock.systemUTC()
 

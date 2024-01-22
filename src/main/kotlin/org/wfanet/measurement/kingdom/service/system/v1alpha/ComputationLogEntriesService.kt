@@ -30,7 +30,7 @@ import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
 
 class ComputationLogEntriesService(
   private val measurementLogEntriesService: MeasurementLogEntriesCoroutineStub,
-  private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext
+  private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext,
 ) : ComputationLogEntriesCoroutineImplBase() {
   override suspend fun createComputationLogEntry(
     request: CreateComputationLogEntryRequest

@@ -106,7 +106,7 @@ class ComputationsServiceTest {
       computationStore,
       requisitionStore,
       DUCHY_NAME,
-      Clock.systemUTC()
+      Clock.systemUTC(),
     )
   }
 
@@ -123,7 +123,7 @@ class ComputationsServiceTest {
       globalId = id,
       stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
       computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
-      requisitions = listOf(requisitionMetadata)
+      requisitions = listOf(requisitionMetadata),
     )
 
     val expectedToken = computationToken {
@@ -149,7 +149,7 @@ class ComputationsServiceTest {
     fakeDatabase.addComputation(
       globalId = id,
       stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
-      computationDetails = AGGREGATOR_COMPUTATION_DETAILS
+      computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
     )
     val tokenAtStart = service.getComputationToken(id.toGetTokenRequest()).token
     val newComputationDetails =
@@ -195,8 +195,8 @@ class ComputationsServiceTest {
       requisitions =
         listOf(
           requisitionMetadata { externalKey = requisition1Key },
-          requisitionMetadata { externalKey = requisition2Key }
-        )
+          requisitionMetadata { externalKey = requisition2Key },
+        ),
     )
     val tokenAtStart = service.getComputationToken(id.toGetTokenRequest()).token
     val newComputationDetails =
@@ -247,7 +247,7 @@ class ComputationsServiceTest {
     fakeDatabase.addComputation(
       globalId = id,
       stage = LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage(),
-      computationDetails = AGGREGATOR_COMPUTATION_DETAILS
+      computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
     )
     val tokenAtStart = service.getComputationToken(id.toGetTokenRequest()).token
     val request =
@@ -275,7 +275,7 @@ class ComputationsServiceTest {
 
     verifyProtoArgument(
         mockComputationLogEntriesService,
-        ComputationLogEntriesCoroutineImplBase::createComputationLogEntry
+        ComputationLogEntriesCoroutineImplBase::createComputationLogEntry,
       )
       .comparingExpectedFieldsOnly()
       .isEqualTo(
@@ -305,8 +305,8 @@ class ComputationsServiceTest {
       blobs =
         listOf(
           newInputBlobMetadata(id = 0L, key = "an_input_blob"),
-          newEmptyOutputBlobMetadata(id = 1L)
-        )
+          newEmptyOutputBlobMetadata(id = 1L),
+        ),
     )
     val tokenAtStart = service.getComputationToken(id.toGetTokenRequest()).token
 
@@ -356,7 +356,7 @@ class ComputationsServiceTest {
 
     verifyProtoArgument(
         mockComputationLogEntriesService,
-        ComputationLogEntriesCoroutineImplBase::createComputationLogEntry
+        ComputationLogEntriesCoroutineImplBase::createComputationLogEntry,
       )
       .comparingExpectedFieldsOnly()
       .isEqualTo(
@@ -386,19 +386,19 @@ class ComputationsServiceTest {
     fakeDatabase.addComputation(
       globalId = blindId,
       stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
-      computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS
+      computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
     )
     fakeDatabase.addComputation(
       completedId,
       LiquidLegionsSketchAggregationV2.Stage.COMPLETE.toProtocolStage(),
       NON_AGGREGATOR_COMPUTATION_DETAILS,
-      listOf()
+      listOf(),
     )
     fakeDatabase.addComputation(
       decryptId,
       LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_THREE.toProtocolStage(),
       NON_AGGREGATOR_COMPUTATION_DETAILS,
-      listOf()
+      listOf(),
     )
     val getIdsInMillStagesRequest =
       GetComputationIdsRequest.newBuilder()
@@ -406,7 +406,7 @@ class ComputationsServiceTest {
           addAllStages(
             setOf(
               LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
-              LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_THREE.toProtocolStage()
+              LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_THREE.toProtocolStage(),
             )
           )
         }
@@ -426,14 +426,14 @@ class ComputationsServiceTest {
     fakeDatabase.addComputation(
       globalId = unclaimed,
       stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
-      computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS
+      computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
     )
     val unclaimedAtStart = service.getComputationToken(unclaimed.toGetTokenRequest()).token
     fakeDatabase.addComputation(
       claimed,
       LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
       NON_AGGREGATOR_COMPUTATION_DETAILS,
-      listOf()
+      listOf(),
     )
     fakeDatabase.claimedComputationIds.add(claimed)
     val claimedAtStart = service.getComputationToken(claimed.toGetTokenRequest()).token
@@ -453,7 +453,7 @@ class ComputationsServiceTest {
 
     verifyProtoArgument(
         mockComputationLogEntriesService,
-        ComputationLogEntriesCoroutineImplBase::createComputationLogEntry
+        ComputationLogEntriesCoroutineImplBase::createComputationLogEntry,
       )
       .comparingExpectedFieldsOnly()
       .isEqualTo(
@@ -484,7 +484,7 @@ class ComputationsServiceTest {
       globalId = id,
       stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
       computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
-      requisitions = listOf(requisitionMetadata { externalKey = requisitionKey })
+      requisitions = listOf(requisitionMetadata { externalKey = requisitionKey }),
     )
 
     val tokenAtStart = service.getComputationToken(id.toGetTokenRequest()).token
@@ -526,7 +526,7 @@ class ComputationsServiceTest {
       globalId = id,
       stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
       computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
-      requisitions = listOf(requisitionMetadata { externalKey = requisitionKey })
+      requisitions = listOf(requisitionMetadata { externalKey = requisitionKey }),
     )
 
     val tokenAtStart = service.getComputationToken(id.toGetTokenRequest()).token
@@ -580,8 +580,8 @@ class ComputationsServiceTest {
           requisitionMetadata {
             externalKey = requisition2Key
             path = requisitionBlobPath2
-          }
-        )
+          },
+        ),
     )
     storageClient.writeBlob(requisitionBlobPath1, "requisition_1".toByteStringUtf8())
     storageClient.writeBlob(requisitionBlobPath2, "requisition_2".toByteStringUtf8())

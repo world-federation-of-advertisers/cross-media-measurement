@@ -28,7 +28,7 @@ import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.api.ResourceKey
 
 class EventGroupMetadataDescriptorsService(
-  private val eventGroupMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub,
+  private val eventGroupMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub
 ) : EventGroupMetadataDescriptorsCoroutineImplBase() {
   override suspend fun getEventGroupMetadataDescriptor(
     request: GetEventGroupMetadataDescriptorRequest

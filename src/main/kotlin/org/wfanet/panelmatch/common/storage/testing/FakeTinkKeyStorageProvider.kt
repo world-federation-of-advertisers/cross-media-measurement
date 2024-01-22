@@ -29,7 +29,7 @@ class FakeTinkKeyStorageProvider : KeyStorageProvider<TinkKeyId, TinkPrivateKeyH
 
   override fun makeKmsPrivateKeyStore(
     store: KeyBlobStore,
-    keyUri: String
+    keyUri: String,
   ): CryptoPrivateKeyStore<TinkKeyId, TinkPrivateKeyHandle> {
     return FakePrivateKeyStore()
   }

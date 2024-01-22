@@ -86,7 +86,7 @@ class V2AlphaCertificateManagerTest {
       privateKeys,
       PRIVATE_KEY.algorithm,
       TestCertificateAuthority,
-      LOCAL_NAME
+      LOCAL_NAME,
     )
   }
 

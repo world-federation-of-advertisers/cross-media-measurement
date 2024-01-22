@@ -77,7 +77,7 @@ class PostgresMetricsService(
     } catch (e: MeasurementConsumerNotFoundException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Measurement Consumer not found."
+        "Measurement Consumer not found.",
       )
     } catch (e: MetricAlreadyExistsException) {
       throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS, "Metric already exists")
@@ -124,7 +124,7 @@ class PostgresMetricsService(
     } catch (e: MeasurementConsumerNotFoundException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Measurement Consumer not found."
+        "Measurement Consumer not found.",
       )
     } catch (e: MetricAlreadyExistsException) {
       throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS, "Metric already exists")

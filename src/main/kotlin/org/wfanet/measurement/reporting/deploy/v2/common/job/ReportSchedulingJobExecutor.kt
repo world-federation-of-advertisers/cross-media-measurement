@@ -65,7 +65,7 @@ import picocli.CommandLine
   name = "ReportSchedulingJobExecutor",
   description = ["Process for Reporting V2Alpha Report Scheduling."],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 private fun run(
   @CommandLine.Mixin reportingApiServerFlags: ReportingApiServerFlags,
@@ -78,13 +78,13 @@ private fun run(
     SigningCerts.fromPemFiles(
       certificateFile = commonServerFlags.tlsFlags.certFile,
       privateKeyFile = commonServerFlags.tlsFlags.privateKeyFile,
-      trustedCertCollectionFile = commonServerFlags.tlsFlags.certCollectionFile
+      trustedCertCollectionFile = commonServerFlags.tlsFlags.certCollectionFile,
     )
   val channel: Channel =
     buildMutualTlsChannel(
         reportingApiServerFlags.internalApiFlags.target,
         clientCerts,
-        reportingApiServerFlags.internalApiFlags.certHost
+        reportingApiServerFlags.internalApiFlags.certHost,
       )
       .withShutdownTimeout(Duration.ofSeconds(5))
       .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
@@ -93,7 +93,7 @@ private fun run(
     buildMutualTlsChannel(
         target = kingdomApiFlags.target,
         clientCerts = clientCerts,
-        hostName = kingdomApiFlags.certHost
+        hostName = kingdomApiFlags.certHost,
       )
       .withShutdownTimeout(Duration.ofSeconds(5))
       .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
@@ -101,7 +101,7 @@ private fun run(
   val measurementConsumerConfigs =
     parseTextProto(
       v2AlphaFlags.measurementConsumerConfigFile,
-      MeasurementConsumerConfigs.getDefaultInstance()
+      MeasurementConsumerConfigs.getDefaultInstance(),
     )
 
   val metricSpecConfig =
@@ -122,7 +122,7 @@ private fun run(
       SecureRandom(),
       v2AlphaFlags.signingPrivateKeyStoreDir,
       commonServerFlags.tlsFlags.signingCerts.trustedCertificates,
-      Dispatchers.IO
+      Dispatchers.IO,
     )
 
   val inProcessMetricsServerName = InProcessServerBuilder.generateName()
@@ -130,7 +130,7 @@ private fun run(
     startInProcessServerWithService(
       inProcessMetricsServerName,
       commonServerFlags,
-      metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs)
+      metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs),
     )
   val inProcessMetricsChannel =
     InProcessChannelBuilder.forName(inProcessMetricsServerName)
@@ -143,7 +143,7 @@ private fun run(
       InternalReportsCoroutineStub(channel),
       InternalMetricCalculationSpecsCoroutineStub(channel),
       MetricsCoroutineStub(inProcessMetricsChannel),
-      metricSpecConfig
+      metricSpecConfig,
     )
 
   val inProcessReportsServerName = InProcessServerBuilder.generateName()
@@ -153,7 +153,7 @@ private fun run(
       commonServerFlags,
       reportsService
         .withMetadataPrincipalIdentities(measurementConsumerConfigs)
-        .withReportScheduleInfoInterceptor()
+        .withReportScheduleInfoInterceptor(),
     )
   val inProcessReportsChannel =
     InProcessChannelBuilder.forName(inProcessReportsServerName)

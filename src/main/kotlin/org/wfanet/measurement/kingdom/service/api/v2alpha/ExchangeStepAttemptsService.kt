@@ -47,7 +47,7 @@ import org.wfanet.measurement.internal.kingdom.getExchangeStepRequest as interna
 
 class ExchangeStepAttemptsService(
   private val internalExchangeStepAttempts: InternalExchangeStepAttemptsCoroutineStub,
-  private val internalExchangeSteps: InternalExchangeStepsCoroutineStub
+  private val internalExchangeSteps: InternalExchangeStepsCoroutineStub,
 ) : ExchangeStepAttemptsCoroutineImplBase() {
 
   private enum class Permission {

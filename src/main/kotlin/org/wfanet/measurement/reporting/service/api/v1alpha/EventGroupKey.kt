@@ -27,14 +27,14 @@ private val parser =
 class EventGroupKey(
   val measurementConsumerReferenceId: String,
   val dataProviderReferenceId: String,
-  val eventGroupReferenceId: String
+  val eventGroupReferenceId: String,
 ) : ResourceKey {
   override fun toName(): String {
     return parser.assembleName(
       mapOf(
         IdVariable.MEASUREMENT_CONSUMER to measurementConsumerReferenceId,
         IdVariable.DATA_PROVIDER to dataProviderReferenceId,
-        IdVariable.EVENT_GROUP to eventGroupReferenceId
+        IdVariable.EVENT_GROUP to eventGroupReferenceId,
       )
     )
   }
@@ -47,7 +47,7 @@ class EventGroupKey(
         EventGroupKey(
           it.getValue(IdVariable.MEASUREMENT_CONSUMER),
           it.getValue(IdVariable.DATA_PROVIDER),
-          it.getValue(IdVariable.EVENT_GROUP)
+          it.getValue(IdVariable.EVENT_GROUP),
         )
       }
     }

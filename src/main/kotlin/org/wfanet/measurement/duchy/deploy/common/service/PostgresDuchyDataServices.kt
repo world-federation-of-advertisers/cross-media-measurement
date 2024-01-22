@@ -42,7 +42,7 @@ object PostgresDuchyDataServices {
     computationLogEntriesClient: ComputationLogEntriesCoroutineStub,
     duchyName: String,
     idGenerator: IdGenerator,
-    client: DatabaseClient
+    client: DatabaseClient,
   ): DuchyDataServices {
     val computationTypeEnumHelper: ComputationTypeEnumHelper<ComputationType> = ComputationTypes
     val protocolStagesEnumHelper:
@@ -50,7 +50,10 @@ object PostgresDuchyDataServices {
       ComputationProtocolStages
     val computationProtocolStageDetailsHelper:
       ComputationProtocolStageDetailsHelper<
-        ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails
+        ComputationType,
+        ComputationStage,
+        ComputationStageDetails,
+        ComputationDetails,
       > =
       ComputationProtocolStageDetails
 
@@ -68,7 +71,7 @@ object PostgresDuchyDataServices {
         idGenerator = idGenerator,
       ),
       PostgresComputationStatsService(client, idGenerator),
-      PostgresContinuationTokensService(client, idGenerator)
+      PostgresContinuationTokensService(client, idGenerator),
     )
   }
 }

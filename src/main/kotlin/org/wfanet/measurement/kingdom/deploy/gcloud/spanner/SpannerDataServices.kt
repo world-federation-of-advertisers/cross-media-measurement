@@ -23,7 +23,7 @@ import org.wfanet.measurement.kingdom.deploy.common.service.KingdomDataServices
 class SpannerDataServices(
   private val clock: Clock,
   private val idGenerator: IdGenerator,
-  private val client: AsyncDatabaseClient
+  private val client: AsyncDatabaseClient,
 ) : DataServices {
   override fun buildDataServices(): KingdomDataServices {
     return KingdomDataServices(
@@ -50,7 +50,7 @@ class SpannerDataServices(
       SpannerModelReleasesService(idGenerator, client),
       SpannerModelShardsService(idGenerator, client),
       SpannerModelRolloutsService(clock, idGenerator, client),
-      SpannerPopulationsService(idGenerator, client)
+      SpannerPopulationsService(idGenerator, client),
     )
   }
 }

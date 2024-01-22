@@ -151,7 +151,7 @@ class CertificatesServiceTest {
 
     verifyProtoArgument(
         internalCertificatesMock,
-        InternalCertificatesCoroutineService::getCertificate
+        InternalCertificatesCoroutineService::getCertificate,
       )
       .comparingExpectedFieldsOnly()
       .isEqualTo(expectedInternalRequest)
@@ -166,7 +166,7 @@ class CertificatesServiceTest {
     caller: MeasurementPrincipal,
     parentName: String,
     certificate: Certificate,
-    expectedInternalCertificate: InternalCertificate
+    expectedInternalCertificate: InternalCertificate,
   ) {
     runBlocking {
       whenever(internalCertificatesMock.createCertificate(any())).thenReturn(mockedInternalResponse)
@@ -180,7 +180,7 @@ class CertificatesServiceTest {
 
     verifyProtoArgument(
         internalCertificatesMock,
-        InternalCertificatesCoroutineService::createCertificate
+        InternalCertificatesCoroutineService::createCertificate,
       )
       .comparingExpectedFieldsOnly()
       .isEqualTo(expectedInternalCertificate)
@@ -193,7 +193,7 @@ class CertificatesServiceTest {
     caller: MeasurementPrincipal,
     certificateName: String,
     expectedInternalRequest: InternalRevokeCertificateRequest,
-    expectedCertificate: Certificate
+    expectedCertificate: Certificate,
   ) {
     runBlocking {
       whenever(internalCertificatesMock.revokeCertificate(any())).thenReturn(mockedInternalResponse)
@@ -208,7 +208,7 @@ class CertificatesServiceTest {
 
     verifyProtoArgument(
         internalCertificatesMock,
-        InternalCertificatesCoroutineService::revokeCertificate
+        InternalCertificatesCoroutineService::revokeCertificate,
       )
       .comparingExpectedFieldsOnly()
       .isEqualTo(expectedInternalRequest)
@@ -221,7 +221,7 @@ class CertificatesServiceTest {
     caller: MeasurementPrincipal,
     certificateName: String,
     expectedInternalRequest: InternalReleaseCertificateHoldRequest,
-    expectedCertificate: Certificate
+    expectedCertificate: Certificate,
   ) {
     runBlocking {
       whenever(internalCertificatesMock.releaseCertificateHold(any()))
@@ -234,7 +234,7 @@ class CertificatesServiceTest {
 
     verifyProtoArgument(
         internalCertificatesMock,
-        InternalCertificatesCoroutineService::releaseCertificateHold
+        InternalCertificatesCoroutineService::releaseCertificateHold,
       )
       .comparingExpectedFieldsOnly()
       .isEqualTo(expectedInternalRequest)
@@ -251,7 +251,7 @@ class CertificatesServiceTest {
         val key = DataProviderCertificateKey.fromName(DATA_PROVIDER_CERTIFICATE_NAME)!!
         externalDataProviderId = apiIdToExternalId(key.dataProviderId)
         externalCertificateId = apiIdToExternalId(key.certificateId)
-      }
+      },
     )
   }
 
@@ -265,7 +265,7 @@ class CertificatesServiceTest {
           MeasurementConsumerCertificateKey.fromName(MEASUREMENT_CONSUMER_CERTIFICATE_NAME)!!
         externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
         externalCertificateId = apiIdToExternalId(key.certificateId)
-      }
+      },
     )
   }
 
@@ -278,7 +278,7 @@ class CertificatesServiceTest {
         val key = DuchyCertificateKey.fromName(DUCHY_CERTIFICATE_NAME)!!
         externalDuchyId = key.duchyId
         externalCertificateId = apiIdToExternalId(key.certificateId)
-      }
+      },
     )
   }
 
@@ -292,7 +292,7 @@ class CertificatesServiceTest {
           MeasurementConsumerCertificateKey.fromName(MEASUREMENT_CONSUMER_CERTIFICATE_NAME)!!
         externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
         externalCertificateId = apiIdToExternalId(key.certificateId)
-      }
+      },
     )
   }
 
@@ -305,7 +305,7 @@ class CertificatesServiceTest {
         val key = DataProviderCertificateKey.fromName(DATA_PROVIDER_CERTIFICATE_NAME)!!
         externalDataProviderId = apiIdToExternalId(key.dataProviderId)
         externalCertificateId = apiIdToExternalId(key.certificateId)
-      }
+      },
     )
   }
 
@@ -318,7 +318,7 @@ class CertificatesServiceTest {
         val key = DuchyCertificateKey.fromName(DUCHY_CERTIFICATE_NAME)!!
         externalDuchyId = key.duchyId
         externalCertificateId = apiIdToExternalId(key.certificateId)
-      }
+      },
     )
   }
 
@@ -331,7 +331,7 @@ class CertificatesServiceTest {
         val key = DuchyCertificateKey.fromName(DUCHY_CERTIFICATE_NAME)!!
         externalDuchyId = key.duchyId
         externalCertificateId = apiIdToExternalId(key.certificateId)
-      }
+      },
     )
   }
 
@@ -344,7 +344,7 @@ class CertificatesServiceTest {
         val key = ModelProviderCertificateKey.fromName(MODEL_PROVIDER_CERTIFICATE_NAME)!!
         externalModelProviderId = apiIdToExternalId(key.modelProviderId)
         externalCertificateId = apiIdToExternalId(key.certificateId)
-      }
+      },
     )
   }
 
@@ -357,7 +357,7 @@ class CertificatesServiceTest {
         val key = DuchyCertificateKey.fromName(DUCHY_CERTIFICATE_NAME)!!
         externalDuchyId = key.duchyId
         externalCertificateId = apiIdToExternalId(key.certificateId)
-      }
+      },
     )
   }
 
@@ -413,7 +413,7 @@ class CertificatesServiceTest {
     val internalCertificates =
       listOf(
         INTERNAL_CERTIFICATE,
-        INTERNAL_CERTIFICATE.copy { externalCertificateId = externalCertificate2Id.value }
+        INTERNAL_CERTIFICATE.copy { externalCertificateId = externalCertificate2Id.value },
       )
     internalCertificatesMock.stub {
       onBlocking { streamCertificates(any()) }.thenReturn(internalCertificates.asFlow())
@@ -430,7 +430,7 @@ class CertificatesServiceTest {
 
     verifyProtoArgument(
         internalCertificatesMock,
-        InternalCertificatesCoroutineService::streamCertificates
+        InternalCertificatesCoroutineService::streamCertificates,
       )
       .isEqualTo(
         streamCertificatesRequest {
@@ -451,7 +451,7 @@ class CertificatesServiceTest {
               name =
                 DataProviderCertificateKey(
                     DATA_PROVIDER_KEY.dataProviderId,
-                    externalCertificate2Id.apiId.value
+                    externalCertificate2Id.apiId.value,
                   )
                   .toName()
             }
@@ -465,7 +465,7 @@ class CertificatesServiceTest {
     val internalCertificates =
       listOf(
         INTERNAL_CERTIFICATE,
-        INTERNAL_CERTIFICATE.copy { externalCertificateId = externalCertificate2Id.value }
+        INTERNAL_CERTIFICATE.copy { externalCertificateId = externalCertificate2Id.value },
       )
     internalCertificatesMock.stub {
       onBlocking { streamCertificates(any()) }.thenReturn(internalCertificates.asFlow())
@@ -482,7 +482,7 @@ class CertificatesServiceTest {
 
     verifyProtoArgument(
         internalCertificatesMock,
-        InternalCertificatesCoroutineService::streamCertificates
+        InternalCertificatesCoroutineService::streamCertificates,
       )
       .isEqualTo(
         streamCertificatesRequest {
@@ -553,7 +553,7 @@ class CertificatesServiceTest {
 
     verifyProtoArgument(
         internalCertificatesMock,
-        InternalCertificatesCoroutineService::streamCertificates
+        InternalCertificatesCoroutineService::streamCertificates,
       )
       .isEqualTo(
         streamCertificatesRequest {
@@ -579,7 +579,7 @@ class CertificatesServiceTest {
               name =
                 DataProviderCertificateKey(
                     DATA_PROVIDER_KEY.dataProviderId,
-                    externalCertificate2Id.apiId.value
+                    externalCertificate2Id.apiId.value,
                   )
                   .toName()
             }
@@ -594,7 +594,7 @@ class CertificatesServiceTest {
       DataProviderPrincipal(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!),
       DATA_PROVIDER_NAME,
       CERTIFICATE,
-      INTERNAL_CERTIFICATE.copy { clearExternalCertificateId() }
+      INTERNAL_CERTIFICATE.copy { clearExternalCertificateId() },
     )
   }
 
@@ -617,7 +617,7 @@ class CertificatesServiceTest {
         clearExternalDataProviderId()
         clearExternalCertificateId()
         this.externalMeasurementConsumerId = externalMeasurementConsumerId
-      }
+      },
     )
   }
 
@@ -639,7 +639,7 @@ class CertificatesServiceTest {
         clearExternalDataProviderId()
         clearExternalCertificateId()
         externalDuchyId = key.duchyId
-      }
+      },
     )
   }
 
@@ -662,7 +662,7 @@ class CertificatesServiceTest {
         clearExternalDataProviderId()
         clearExternalCertificateId()
         this.externalModelProviderId = externalModelProviderId
-      }
+      },
     )
   }
 
@@ -842,7 +842,7 @@ class CertificatesServiceTest {
         externalCertificateId = apiIdToExternalId(key.certificateId)
         revocationState = InternalCertificate.RevocationState.REVOKED
       },
-      CERTIFICATE.copy { revocationState = Certificate.RevocationState.REVOKED }
+      CERTIFICATE.copy { revocationState = Certificate.RevocationState.REVOKED },
     )
   }
 
@@ -869,7 +869,7 @@ class CertificatesServiceTest {
       CERTIFICATE.copy {
         name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
         revocationState = Certificate.RevocationState.REVOKED
-      }
+      },
     )
   }
 
@@ -895,7 +895,7 @@ class CertificatesServiceTest {
       CERTIFICATE.copy {
         name = DUCHY_CERTIFICATE_NAME
         revocationState = Certificate.RevocationState.REVOKED
-      }
+      },
     )
   }
 
@@ -922,7 +922,7 @@ class CertificatesServiceTest {
       CERTIFICATE.copy {
         name = MODEL_PROVIDER_CERTIFICATE_NAME
         revocationState = Certificate.RevocationState.REVOKED
-      }
+      },
     )
   }
 
@@ -1101,7 +1101,7 @@ class CertificatesServiceTest {
         externalDataProviderId = apiIdToExternalId(key.dataProviderId)
         externalCertificateId = apiIdToExternalId(key.certificateId)
       },
-      CERTIFICATE
+      CERTIFICATE,
     )
   }
 
@@ -1123,7 +1123,7 @@ class CertificatesServiceTest {
         this.externalMeasurementConsumerId = externalMeasurementConsumerId
         this.externalCertificateId = externalCertificateId
       },
-      CERTIFICATE.copy { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME }
+      CERTIFICATE.copy { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME },
     )
   }
 
@@ -1145,7 +1145,7 @@ class CertificatesServiceTest {
         this.externalModelProviderId = externalModelProviderId
         this.externalCertificateId = externalCertificateId
       },
-      CERTIFICATE.copy { name = MODEL_PROVIDER_CERTIFICATE_NAME }
+      CERTIFICATE.copy { name = MODEL_PROVIDER_CERTIFICATE_NAME },
     )
   }
 
@@ -1166,7 +1166,7 @@ class CertificatesServiceTest {
         externalDuchyId = key.duchyId
         this.externalCertificateId = externalCertificateId
       },
-      CERTIFICATE.copy { name = DUCHY_CERTIFICATE_NAME }
+      CERTIFICATE.copy { name = DUCHY_CERTIFICATE_NAME },
     )
   }
 
@@ -1307,7 +1307,7 @@ class CertificatesServiceTest {
     private val DATA_PROVIDER_CERTIFICATE_KEY =
       DataProviderCertificateKey(
         DATA_PROVIDER_KEY.dataProviderId,
-        EXTERNAL_CERTIFICATE_ID.apiId.value
+        EXTERNAL_CERTIFICATE_ID.apiId.value,
       )
     private val DATA_PROVIDER_CERTIFICATE_NAME = DATA_PROVIDER_CERTIFICATE_KEY.toName()
 

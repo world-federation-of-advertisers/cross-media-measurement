@@ -29,7 +29,7 @@ data class ModelOutageKey(
   val modelProviderId: String,
   val modelSuiteId: String,
   val modelLineId: String,
-  val modelOutageId: String
+  val modelOutageId: String,
 ) : ResourceKey {
   override fun toName(): String {
     return parser.assembleName(
@@ -37,7 +37,7 @@ data class ModelOutageKey(
         IdVariable.MODEL_PROVIDER to modelProviderId,
         IdVariable.MODEL_SUITE to modelSuiteId,
         IdVariable.MODEL_LINE to modelLineId,
-        IdVariable.MODEL_OUTAGE to modelOutageId
+        IdVariable.MODEL_OUTAGE to modelOutageId,
       )
     )
   }
@@ -51,7 +51,7 @@ data class ModelOutageKey(
           it.getValue(IdVariable.MODEL_PROVIDER),
           it.getValue(IdVariable.MODEL_SUITE),
           it.getValue(IdVariable.MODEL_LINE),
-          it.getValue(IdVariable.MODEL_OUTAGE)
+          it.getValue(IdVariable.MODEL_OUTAGE),
         )
       }
     }

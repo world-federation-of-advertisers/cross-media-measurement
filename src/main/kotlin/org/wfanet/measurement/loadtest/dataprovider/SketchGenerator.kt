@@ -35,7 +35,7 @@ import org.wfanet.measurement.loadtest.config.VidSampling
 class SketchGenerator(
   private val eventQuery: EventQuery<Message>,
   private val sketchConfig: SketchConfig,
-  private val vidSamplingInterval: MeasurementSpec.VidSamplingInterval
+  private val vidSamplingInterval: MeasurementSpec.VidSamplingInterval,
 ) {
 
   /** Generates a [Sketch] for the specified [eventGroupSpecs]. */
@@ -55,7 +55,7 @@ class SketchGenerator(
         VidSampling.sampler.vidIsInSamplingBucket(
           it,
           vidSamplingInterval.start,
-          vidSamplingInterval.width
+          vidSamplingInterval.width,
         )
       }
       .forEach { insert(it, mapOf("frequency" to 1L)) }

@@ -24,7 +24,7 @@ import org.wfanet.measurement.storage.StorageClient
  */
 class SizeLimitedStorageClient(
   private val sizeLimitBytes: Long,
-  private val delegate: StorageClient
+  private val delegate: StorageClient,
 ) : StorageClient {
 
   override suspend fun writeBlob(blobKey: String, content: Flow<ByteString>): StorageClient.Blob {

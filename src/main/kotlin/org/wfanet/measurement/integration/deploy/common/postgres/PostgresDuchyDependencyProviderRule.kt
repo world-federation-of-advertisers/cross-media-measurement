@@ -31,7 +31,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.Computa
 /** [TestRule] which provides [InProcessDuchy.DuchyDependencies] factories using Postgres. */
 class PostgresDuchyDependencyProviderRule(
   private val databaseProvider: PostgresDatabaseProvider,
-  private val duchies: Iterable<String>
+  private val duchies: Iterable<String>,
 ) : ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies> {
   private val temporaryFolder = TemporaryFolder()
   private val idGenerator = RandomIdGenerator(Clock.systemUTC())
@@ -45,7 +45,7 @@ class PostgresDuchyDependencyProviderRule(
 
   private fun buildDuchyDependencies(
     duchyId: String,
-    logEntryClient: ComputationLogEntriesCoroutineStub
+    logEntryClient: ComputationLogEntriesCoroutineStub,
   ): InProcessDuchy.DuchyDependencies {
     val computationsDatabase =
       computationsDatabases[duchyId]

@@ -43,7 +43,7 @@ class GenerateHybridEncryptionKeyPairTask : ExchangeTask {
     val publicKeyHandle = privateKeysetHandle.publicKeysetHandle
     return mapOf(
       PUBLIC_KEY_LABEL to flowOf(publicKeyHandle.toByteString()),
-      PRIVATE_KEY_LABEL to flowOf(cleartextPrivateKeysetHandle)
+      PRIVATE_KEY_LABEL to flowOf(cleartextPrivateKeysetHandle),
     )
   }
 

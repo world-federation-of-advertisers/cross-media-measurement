@@ -88,7 +88,7 @@ private val EXPECTED_RESULT_FOR_ALL_UNION_SET_OPERATION =
 private val EXPECTED_RESULT_FOR_ALL_UNION_BUT_ONE_SET_OPERATION =
   listOf(
     WeightedMeasurement(EXPECTED_REPORTING_SET_NAMES_LIST_ALL_UNION, coefficient = 1),
-    WeightedMeasurement(listOf(EXPECTED_REPORTING_SET_NAMES_LIST_ALL_UNION[1]), coefficient = -1)
+    WeightedMeasurement(listOf(EXPECTED_REPORTING_SET_NAMES_LIST_ALL_UNION[1]), coefficient = -1),
   )
 
 private val EXPECTED_CACHE_FOR_ALL_UNION_SET_OPERATION =

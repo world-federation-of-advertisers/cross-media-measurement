@@ -25,7 +25,7 @@ import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
 internal fun SpannerWriter.TransactionScope.updateExchangeStepsToReady(
   steps: List<ExchangeWorkflow.Step>,
   recurringExchangeId: Long,
-  date: Date
+  date: Date,
 ) {
   for (step in steps) {
     transactionContext.bufferUpdateMutation("ExchangeSteps") {
@@ -41,7 +41,7 @@ internal fun SpannerWriter.TransactionScope.updateExchangeStepsToReady(
 internal fun SpannerWriter.TransactionScope.updateExchangeStepState(
   exchangeStep: ExchangeStep,
   recurringExchangeId: Long,
-  state: ExchangeStep.State
+  state: ExchangeStep.State,
 ) {
   // TODO(yunyeng): Add logger and log exceptional cases like this.
   if (exchangeStep.state == state) return

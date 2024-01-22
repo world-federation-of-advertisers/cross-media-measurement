@@ -32,7 +32,10 @@ import org.wfanet.measurement.internal.duchy.RequisitionEntry
 interface ComputationsDatabase :
   ComputationsDatabaseReader,
   ComputationsDatabaseTransactor<
-    ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails
+    ComputationType,
+    ComputationStage,
+    ComputationStageDetails,
+    ComputationDetails,
   >,
   ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
 
@@ -56,7 +59,7 @@ interface ComputationsDatabaseReader {
    */
   suspend fun readGlobalComputationIds(
     stages: Set<ComputationStage>,
-    updatedBefore: Instant? = null
+    updatedBefore: Instant? = null,
   ): Set<String>
 
   /** Gets all blobKeys of a Computation's data */
@@ -91,7 +94,7 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
     initialStage: StageT,
     stageDetails: StageDetailsT,
     computationDetails: ComputationDetailsT,
-    requisitions: List<RequisitionEntry> = listOf()
+    requisitions: List<RequisitionEntry> = listOf(),
   )
 
   /**
@@ -148,7 +151,7 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
     outputBlobs: Int,
     afterTransition: AfterTransition,
     nextStageDetails: StageDetailsT,
-    lockExtension: Duration?
+    lockExtension: Duration?,
   )
 
   /**
@@ -163,7 +166,7 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
     token: ComputationEditToken<ProtocolT, StageT>,
     endingStage: StageT,
     endComputationReason: EndComputationReason,
-    computationDetails: ComputationDetailsT
+    computationDetails: ComputationDetailsT,
   )
 
   /**
@@ -177,7 +180,7 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
   suspend fun updateComputationDetails(
     token: ComputationEditToken<ProtocolT, StageT>,
     computationDetails: ComputationDetailsT,
-    requisitions: List<RequisitionEntry> = listOf()
+    requisitions: List<RequisitionEntry> = listOf(),
   )
 
   /**
@@ -190,21 +193,21 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
    */
   suspend fun writeOutputBlobReference(
     token: ComputationEditToken<ProtocolT, StageT>,
-    blobRef: BlobRef
+    blobRef: BlobRef,
   )
 
   /** Writes the path to a blob needed for an output blob from a stage. */
   suspend fun writeRequisitionBlobPath(
     token: ComputationEditToken<ProtocolT, StageT>,
     externalRequisitionKey: ExternalRequisitionKey,
-    pathToBlob: String
+    pathToBlob: String,
   )
 
   /** Writes the seed of a requisition fulfillment. */
   suspend fun writeRequisitionSeed(
     token: ComputationEditToken<ProtocolT, StageT>,
     externalRequisitionKey: ExternalRequisitionKey,
-    seed: ByteString
+    seed: ByteString,
   )
 
   /** Inserts the specified [ComputationStatMetric] into the database. */
@@ -212,7 +215,7 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
     localId: Long,
     stage: StageT,
     attempt: Long,
-    metric: ComputationStatMetric
+    metric: ComputationStatMetric,
   )
 }
 

@@ -23,7 +23,7 @@ import kotlinx.coroutines.runBlocking
 fun runSubprocess(
   command: String,
   redirectErrorStream: Boolean = true,
-  exitOnFail: Boolean = true
+  exitOnFail: Boolean = true,
 ) {
   logger.info("*** RUNNING: $command***")
 
@@ -33,7 +33,7 @@ fun runSubprocess(
   runBlocking {
     joinAll(
       launch { process.errorStream.bufferedReader().forEachLine(logger::severe) },
-      launch { process.inputStream.bufferedReader().forEachLine(logger::info) }
+      launch { process.inputStream.bufferedReader().forEachLine(logger::info) },
     )
   }
 

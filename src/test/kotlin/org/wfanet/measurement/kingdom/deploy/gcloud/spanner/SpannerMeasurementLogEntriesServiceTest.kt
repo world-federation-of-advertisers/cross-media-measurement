@@ -41,7 +41,7 @@ class SpannerMeasurementLogEntriesServiceTest :
       spannerServices.measurementsService,
       spannerServices.measurementConsumersService,
       spannerServices.dataProvidersService,
-      spannerServices.accountsService
+      spannerServices.accountsService,
     )
   }
 }

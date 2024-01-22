@@ -65,7 +65,7 @@ class OpenSslCertificateAuthorityTest {
         CONTEXT,
         rootPrivateKeyFile,
         FIXED_CA_CERT_PEM_FILE,
-        temporaryFolder.root
+        temporaryFolder.root,
       )
 
     val (x509, privateKey) =

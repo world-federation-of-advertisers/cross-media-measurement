@@ -113,7 +113,7 @@ class DynamicClipping(
    */
   private fun generateCumulativeHistogram(
     histogramList: List<Long>,
-    durationTruncatedList: List<Double> = List(histogramList.size) { 0.0 }
+    durationTruncatedList: List<Double> = List(histogramList.size) { 0.0 },
   ): List<Double> {
     var remainingCount = histogramList.sum()
     // histogramList.size - 1 since the first element in histogramList is 0.
@@ -157,7 +157,7 @@ class DynamicClipping(
   private fun defaultChooseThreshold(
     noisedCumulativeHistogramList: List<Double>,
     maxThreshold: Int,
-    rho: Double
+    rho: Double,
   ): Int {
     val terminationSum = (slidingWindowSize.toDouble() * BAR_SENSITIVITY / sqrt(2 * rho))
 
@@ -192,7 +192,7 @@ class DynamicClipping(
   private fun useRemainingCharge(
     noisedCumulativeHistogramList1: List<Double>,
     maxThreshold: Int,
-    rhoRemaining: Double
+    rhoRemaining: Double,
   ): List<Double> {
     val noisedCumulativeHistogramList2 =
       generateNoisedCumulativeHistogram(maxThreshold, rhoRemaining)

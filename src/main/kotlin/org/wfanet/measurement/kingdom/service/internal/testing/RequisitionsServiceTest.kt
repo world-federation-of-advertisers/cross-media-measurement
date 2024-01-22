@@ -131,7 +131,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
     val measurementConsumer =
       population.createMeasurementConsumer(
         dataServices.measurementConsumersService,
-        dataServices.accountsService
+        dataServices.accountsService,
       )
     val dataProvider1 = population.createDataProvider(dataServices.dataProvidersService)
     val dataProvider2 = population.createDataProvider(dataServices.dataProvidersService)
@@ -141,23 +141,23 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         measurementConsumer,
         "measurement 1",
         dataProvider1,
-        dataProvider2
+        dataProvider2,
       )
     val measurement2 =
       population.createComputedMeasurement(
         dataServices.measurementsService,
         measurementConsumer,
         "measurement 2",
-        dataProvider1
+        dataProvider1,
       )
     population.createComputedMeasurement(
       dataServices.measurementsService,
       population.createMeasurementConsumer(
         dataServices.measurementConsumersService,
-        dataServices.accountsService
+        dataServices.accountsService,
       ),
       "other MC measurement",
-      dataProvider1
+      dataProvider1,
     )
 
     val requisitions: List<Requisition> =
@@ -188,7 +188,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
           externalMeasurementId = measurement2.externalMeasurementId
           externalDataProviderId = dataProvider1.externalDataProviderId
-        }
+        },
       )
   }
 
@@ -198,7 +198,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
       val measurementConsumer =
         population.createMeasurementConsumer(
           dataServices.measurementConsumersService,
-          dataServices.accountsService
+          dataServices.accountsService,
         )
       val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
       val dataProvider2 = population.createDataProvider(dataServices.dataProvidersService)
@@ -207,14 +207,14 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           dataServices.measurementsService,
           measurementConsumer,
           "measurement",
-          dataProvider
+          dataProvider,
         )
 
       population.createComputedMeasurement(
         dataServices.measurementsService,
         measurementConsumer,
         "measurement2",
-        dataProvider2
+        dataProvider2,
       )
       for (duchyCertificate in duchyCertificates.values) {
         dataServices.computationParticipantsService.setParticipantRequisitionParams(
@@ -269,7 +269,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
     val measurementConsumer =
       population.createMeasurementConsumer(
         dataServices.measurementConsumersService,
-        dataServices.accountsService
+        dataServices.accountsService,
       )
     val dataProvider1 = population.createDataProvider(dataServices.dataProvidersService)
     val dataProvider2 = population.createDataProvider(dataServices.dataProvidersService)
@@ -279,13 +279,13 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         measurementConsumer,
         "measurement 1",
         dataProvider1,
-        dataProvider2
+        dataProvider2,
       )
     population.createComputedMeasurement(
       dataServices.measurementsService,
       measurementConsumer,
       "measurement 2",
-      dataProvider1
+      dataProvider1,
     )
 
     val requisitions: List<Requisition> =
@@ -312,7 +312,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
           externalMeasurementId = measurement.externalMeasurementId
           externalDataProviderId = dataProvider2.externalDataProviderId
-        }
+        },
       )
   }
 
@@ -322,7 +322,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
       val measurementConsumer =
         population.createMeasurementConsumer(
           dataServices.measurementConsumersService,
-          dataServices.accountsService
+          dataServices.accountsService,
         )
       val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
       val measurement1 =
@@ -330,14 +330,14 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           dataServices.measurementsService,
           measurementConsumer,
           "measurement 1",
-          dataProvider
+          dataProvider,
         )
       val measurement2 =
         population.createComputedMeasurement(
           dataServices.measurementsService,
           measurementConsumer,
           "measurement 2",
-          dataProvider
+          dataProvider,
         )
       dataServices.measurementsService.cancelMeasurement(
         cancelMeasurementRequest {
@@ -374,7 +374,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
     val measurementConsumer =
       population.createMeasurementConsumer(
         dataServices.measurementConsumersService,
-        dataServices.accountsService
+        dataServices.accountsService,
       )
     val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
     val measurement1 =
@@ -382,20 +382,20 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         dataServices.measurementsService,
         measurementConsumer,
         "measurement 1",
-        dataProvider
+        dataProvider,
       )
     val measurement2 =
       population.createComputedMeasurement(
         dataServices.measurementsService,
         measurementConsumer,
         "measurement 2",
-        dataProvider
+        dataProvider,
       )
     population.createComputedMeasurement(
       dataServices.measurementsService,
       measurementConsumer,
       "measurement 3",
-      population.createDataProvider(dataServices.dataProvidersService)
+      population.createDataProvider(dataServices.dataProvidersService),
     )
 
     val requisitions: List<Requisition> =
@@ -425,21 +425,21 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
     val measurementConsumer =
       population.createMeasurementConsumer(
         dataServices.measurementConsumersService,
-        dataServices.accountsService
+        dataServices.accountsService,
       )
     val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
     population.createComputedMeasurement(
       dataServices.measurementsService,
       measurementConsumer,
       "measurement 1",
-      dataProvider
+      dataProvider,
     )
 
     population.createComputedMeasurement(
       dataServices.measurementsService,
       measurementConsumer,
       "measurement 2",
-      dataProvider
+      dataProvider,
     )
 
     val requisitions: List<Requisition> =
@@ -462,21 +462,21 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
     val measurementConsumer =
       population.createMeasurementConsumer(
         dataServices.measurementConsumersService,
-        dataServices.accountsService
+        dataServices.accountsService,
       )
     val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
     population.createComputedMeasurement(
       dataServices.measurementsService,
       measurementConsumer,
       "measurement 1",
-      dataProvider
+      dataProvider,
     )
 
     population.createComputedMeasurement(
       dataServices.measurementsService,
       measurementConsumer,
       "measurement 2",
-      dataProvider
+      dataProvider,
     )
 
     val requisitions: List<Requisition> =
@@ -519,7 +519,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
     val measurementConsumer =
       population.createMeasurementConsumer(
         dataServices.measurementConsumersService,
-        dataServices.accountsService
+        dataServices.accountsService,
       )
     val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
     val dataProviderValue = dataProvider.toDataProviderValue()
@@ -529,7 +529,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         dataServices.measurementsService,
         measurementConsumer,
         providedMeasurementId,
-        mapOf(dataProvider.externalDataProviderId to dataProviderValue)
+        mapOf(dataProvider.externalDataProviderId to dataProviderValue),
       )
 
     val externalDataProviderId = dataProvider.externalDataProviderId
@@ -599,7 +599,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         Population.WORKER1_DUCHY.externalDuchyId,
         Requisition.DuchyValue.getDefaultInstance(),
         Population.WORKER2_DUCHY.externalDuchyId,
-        Requisition.DuchyValue.getDefaultInstance()
+        Requisition.DuchyValue.getDefaultInstance(),
       )
     assertThat(requisition).isEqualTo(listedRequisition)
   }
@@ -613,10 +613,10 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         dataServices.measurementsService,
         population.createMeasurementConsumer(
           dataServices.measurementConsumersService,
-          dataServices.accountsService
+          dataServices.accountsService,
         ),
         "direct_measurement",
-        mapOf(dataProvider.externalDataProviderId to dataProviderValue)
+        mapOf(dataProvider.externalDataProviderId to dataProviderValue),
       )
 
     val listedRequisition =
@@ -684,11 +684,11 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         dataServices.measurementsService,
         population.createMeasurementConsumer(
           dataServices.measurementConsumersService,
-          dataServices.accountsService
+          dataServices.accountsService,
         ),
         "measurement",
         population.createDataProvider(dataServices.dataProvidersService),
-        population.createDataProvider(dataServices.dataProvidersService)
+        population.createDataProvider(dataServices.dataProvidersService),
       )
     for (duchyCertificate in duchyCertificates.values) {
       dataServices.computationParticipantsService.setParticipantRequisitionParams(
@@ -746,11 +746,11 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         dataServices.measurementsService,
         population.createMeasurementConsumer(
           dataServices.measurementConsumersService,
-          dataServices.accountsService
+          dataServices.accountsService,
         ),
         "measurement",
         population.createDataProvider(dataServices.dataProvidersService),
-        population.createDataProvider(dataServices.dataProvidersService)
+        population.createDataProvider(dataServices.dataProvidersService),
       )
     for (duchyCertificate in duchyCertificates.values) {
       dataServices.computationParticipantsService.setParticipantRequisitionParams(
@@ -816,10 +816,10 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         dataServices.measurementsService,
         population.createMeasurementConsumer(
           dataServices.measurementConsumersService,
-          dataServices.accountsService
+          dataServices.accountsService,
         ),
         "measurement",
-        dataProvider
+        dataProvider,
       )
 
     val nonExistentExternalRequisitionId = idGenerator.generateExternalId()
@@ -848,10 +848,10 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         dataServices.measurementsService,
         population.createMeasurementConsumer(
           dataServices.measurementConsumersService,
-          dataServices.accountsService
+          dataServices.accountsService,
         ),
         "measurement",
-        dataProvider
+        dataProvider,
       )
     val requisition =
       service
@@ -891,11 +891,11 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           dataServices.measurementsService,
           population.createMeasurementConsumer(
             dataServices.measurementConsumersService,
-            dataServices.accountsService
+            dataServices.accountsService,
           ),
           "measurement",
           population.createDataProvider(dataServices.dataProvidersService),
-          population.createDataProvider(dataServices.dataProvidersService)
+          population.createDataProvider(dataServices.dataProvidersService),
         )
       val requisition =
         service
@@ -933,11 +933,11 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         dataServices.measurementsService,
         population.createMeasurementConsumer(
           dataServices.measurementConsumersService,
-          dataServices.accountsService
+          dataServices.accountsService,
         ),
         "measurement",
         population.createDataProvider(dataServices.dataProvidersService),
-        population.createDataProvider(dataServices.dataProvidersService)
+        population.createDataProvider(dataServices.dataProvidersService),
       )
     for (duchyCertificate in duchyCertificates.values) {
       dataServices.computationParticipantsService.setParticipantRequisitionParams(
@@ -983,7 +983,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         dataServices.measurementsService,
         population.createMeasurementConsumer(
           dataServices.measurementConsumersService,
-          dataServices.accountsService
+          dataServices.accountsService,
         ),
         "direct_measurement",
         population.createDataProvider(dataServices.dataProvidersService),
@@ -1038,7 +1038,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           dataServices.measurementsService,
           population.createMeasurementConsumer(
             dataServices.measurementConsumersService,
-            dataServices.accountsService
+            dataServices.accountsService,
           ),
           "direct_measurement",
           population.createDataProvider(dataServices.dataProvidersService),
@@ -1103,7 +1103,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           dataServices.measurementsService,
           population.createMeasurementConsumer(
             dataServices.measurementConsumersService,
-            dataServices.accountsService
+            dataServices.accountsService,
           ),
           "direct_measurement",
           population.createDataProvider(dataServices.dataProvidersService),
@@ -1171,7 +1171,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             externalCertificateId = requisitions[1].dataProviderCertificate.externalCertificateId
             encryptedResult = REQUISITION_ENCRYPTED_DATA
             apiVersion = PUBLIC_API_VERSION
-          }
+          },
         )
     }
 
@@ -1182,10 +1182,10 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
       dataServices.measurementsService,
       population.createMeasurementConsumer(
         dataServices.measurementConsumersService,
-        dataServices.accountsService
+        dataServices.accountsService,
       ),
       "direct_measurement",
-      provider
+      provider,
     )
 
     val nonExistentExternalRequisitionId = idGenerator.generateExternalId()
@@ -1215,11 +1215,11 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         dataServices.measurementsService,
         population.createMeasurementConsumer(
           dataServices.measurementConsumersService,
-          dataServices.accountsService
+          dataServices.accountsService,
         ),
         "measurement",
         population.createDataProvider(dataServices.dataProvidersService),
-        population.createDataProvider(dataServices.dataProvidersService)
+        population.createDataProvider(dataServices.dataProvidersService),
       )
     for (duchyCertificate in duchyCertificates.values) {
       dataServices.computationParticipantsService.setParticipantRequisitionParams(
@@ -1284,11 +1284,11 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           dataServices.measurementsService,
           population.createMeasurementConsumer(
             dataServices.measurementConsumersService,
-            dataServices.accountsService
+            dataServices.accountsService,
           ),
           "measurement",
           population.createDataProvider(dataServices.dataProvidersService),
-          population.createDataProvider(dataServices.dataProvidersService)
+          population.createDataProvider(dataServices.dataProvidersService),
         )
       val requisition =
         service
@@ -1323,10 +1323,10 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
       dataServices.measurementsService,
       population.createMeasurementConsumer(
         dataServices.measurementConsumersService,
-        dataServices.accountsService
+        dataServices.accountsService,
       ),
       "measurement",
-      dataProvider
+      dataProvider,
     )
 
     val nonExistentExternalRequisitionId = idGenerator.generateExternalId()
@@ -1352,11 +1352,11 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           dataServices.measurementsService,
           population.createMeasurementConsumer(
             dataServices.measurementConsumersService,
-            dataServices.accountsService
+            dataServices.accountsService,
           ),
           "measurement",
           population.createDataProvider(dataServices.dataProvidersService),
-          population.createDataProvider(dataServices.dataProvidersService)
+          population.createDataProvider(dataServices.dataProvidersService),
         )
       for (duchyCertificate in duchyCertificates.values) {
         dataServices.computationParticipantsService.setParticipantRequisitionParams(
@@ -1400,7 +1400,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         ProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
         DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
         setOf(Population.AGGREGATOR_DUCHY.externalDuchyId),
-        2
+        2,
       )
     }
 

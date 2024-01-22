@@ -27,7 +27,7 @@ abstract class ReportingDataServer : Runnable {
   data class Services(
     val measurementsService: MeasurementsGrpcKt.MeasurementsCoroutineImplBase,
     val reportingSetsService: ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase,
-    val reportsService: ReportsGrpcKt.ReportsCoroutineImplBase
+    val reportsService: ReportsGrpcKt.ReportsCoroutineImplBase,
   )
 
   @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags

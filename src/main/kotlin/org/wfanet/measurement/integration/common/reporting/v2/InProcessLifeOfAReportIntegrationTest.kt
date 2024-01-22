@@ -123,9 +123,9 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   duchyDependenciesRule:
     ProviderRule<
       (
-        String, ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
+        String, ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub,
       ) -> InProcessDuchy.DuchyDependencies
-    >
+    >,
 ) {
   private val inProcessCmmsComponents: InProcessCmmsComponents =
     InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule)
@@ -345,7 +345,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
         eventGroups[0],
         "(${primitiveReportingSet.filter}) || (${primitiveReportingSet2.filter})",
-        EVENT_RANGE.toInterval()
+        EVENT_RANGE.toInterval(),
       )
     val sampledVids =
       vids.calculateSampledVids(createdMetricCalculationSpec.metricSpecsList[0].vidSamplingInterval)
@@ -497,7 +497,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
         eventGroup,
         "(${primitiveReportingSet.filter}) || (${primitiveReportingSet2.filter})",
-        EVENT_RANGE.toInterval()
+        EVENT_RANGE.toInterval(),
       )
     val sampledVidsLhs =
       vidsLhs.calculateSampledVids(
@@ -509,7 +509,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
         eventGroup,
         primitiveReportingSet2.filter,
-        EVENT_RANGE.toInterval()
+        EVENT_RANGE.toInterval(),
       )
     val sampledVidsRhs =
       vidsRhs.calculateSampledVids(
@@ -655,7 +655,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
         eventGroup,
         "(${primitiveReportingSet.filter}) && (${primitiveReportingSet2.filter})",
-        EVENT_RANGE.toInterval()
+        EVENT_RANGE.toInterval(),
       )
     val sampledVids =
       vids.calculateSampledVids(createdMetricCalculationSpec.metricSpecsList[0].vidSamplingInterval)
@@ -757,7 +757,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
         eventGroup,
         primitiveReportingSet.filter,
-        EVENT_RANGE.toInterval()
+        EVENT_RANGE.toInterval(),
       )
     val sampledVids =
       vids.calculateSampledVids(createdMetricCalculationSpec.metricSpecsList[0].vidSamplingInterval)
@@ -851,7 +851,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
         eventGroup,
         primitiveReportingSet.filter,
-        EVENT_RANGE.toInterval()
+        EVENT_RANGE.toInterval(),
       )
     val sampledVids =
       vids.calculateSampledVids(createdMetricCalculationSpec.metricSpecsList[0].vidSamplingInterval)
@@ -866,7 +866,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       if (
         Timestamps.compare(
           resultAttribute.timeInterval.startTime,
-          EVENT_RANGE.toInterval().startTime
+          EVENT_RANGE.toInterval().startTime,
         ) == 0
       ) {
         assertThat(actualResult).reachValue().isWithinPercent(0.5).of(expectedResult.reach.value)
@@ -952,7 +952,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
         eventGroup,
         primitiveReportingSet.filter,
-        EVENT_RANGE.toInterval()
+        EVENT_RANGE.toInterval(),
       )
     val sampledVids =
       vids.calculateSampledVids(createdMetricCalculationSpec.metricSpecsList[0].vidSamplingInterval)
@@ -967,7 +967,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       if (
         Timestamps.compare(
           resultAttribute.timeInterval.startTime,
-          EVENT_RANGE.toInterval().startTime
+          EVENT_RANGE.toInterval().startTime,
         ) == 0
       ) {
         assertThat(actualResult).reachValue().isWithinPercent(0.5).of(expectedResult.reach.value)
@@ -1054,7 +1054,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
           eventGroup,
           primitiveReportingSet.filter,
-          resultAttribute.timeInterval
+          resultAttribute.timeInterval,
         )
       val sampledVids =
         vids.calculateSampledVids(
@@ -1168,7 +1168,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
             SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
               eventGroup,
               "$grouping1Predicate1 && $grouping2Predicate1",
-              EVENT_RANGE.toInterval()
+              EVENT_RANGE.toInterval(),
             )
           val sampledVids = vids.calculateSampledVids(vidSamplingInterval)
           val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
@@ -1179,7 +1179,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
             SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
               eventGroup,
               "$grouping1Predicate1 && $grouping2Predicate2",
-              EVENT_RANGE.toInterval()
+              EVENT_RANGE.toInterval(),
             )
           val sampledVids = vids.calculateSampledVids(vidSamplingInterval)
           val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
@@ -1192,7 +1192,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
             SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
               eventGroup,
               "$grouping1Predicate2 && $grouping2Predicate1",
-              EVENT_RANGE.toInterval()
+              EVENT_RANGE.toInterval(),
             )
           val sampledVids = vids.calculateSampledVids(vidSamplingInterval)
           val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
@@ -1203,7 +1203,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
             SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
               eventGroup,
               "$grouping1Predicate2 && $grouping2Predicate2",
-              EVENT_RANGE.toInterval()
+              EVENT_RANGE.toInterval(),
             )
           val sampledVids = vids.calculateSampledVids(vidSamplingInterval)
           val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
@@ -1311,7 +1311,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           Report.NAME_FIELD_NUMBER,
           Report.STATE_FIELD_NUMBER,
           Report.CREATE_TIME_FIELD_NUMBER,
-          Report.METRIC_CALCULATION_RESULTS_FIELD_NUMBER
+          Report.METRIC_CALCULATION_RESULTS_FIELD_NUMBER,
         )
         .isEqualTo(report)
     }
@@ -1369,7 +1369,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
         eventGroup,
         primitiveReportingSet.filter,
-        EVENT_RANGE.toInterval()
+        EVENT_RANGE.toInterval(),
       )
     val sampledVids = vids.calculateSampledVids(metric.metricSpec.vidSamplingInterval)
     val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
@@ -1439,13 +1439,13 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
         eventGroup,
         primitiveReportingSet.filter,
-        EVENT_RANGE.toInterval()
+        EVENT_RANGE.toInterval(),
       )
     val sampledVids = vids.calculateSampledVids(metric.metricSpec.vidSamplingInterval)
     val expectedResult =
       calculateExpectedReachAndFrequencyMeasurementResult(
         sampledVids,
-        metric.metricSpec.reachAndFrequency.maximumFrequency
+        metric.metricSpec.reachAndFrequency.maximumFrequency,
       )
 
     val reach = retrievedMetric.result.reachAndFrequency.reach.value
@@ -1624,7 +1624,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
         eventGroup,
         "(${metric.filtersList[0]}) && (${primitiveReportingSet.filter})",
-        EVENT_RANGE.toInterval()
+        EVENT_RANGE.toInterval(),
       )
     val sampledVids = vids.calculateSampledVids(metric.metricSpec.vidSamplingInterval)
     val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
@@ -1710,7 +1710,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           Metric.NAME_FIELD_NUMBER,
           Metric.STATE_FIELD_NUMBER,
           Metric.CREATE_TIME_FIELD_NUMBER,
-          Metric.RESULT_FIELD_NUMBER
+          Metric.RESULT_FIELD_NUMBER,
         )
         .isEqualTo(metric)
     }
@@ -1823,7 +1823,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
   private suspend fun pollForCompletedReport(
     measurementConsumerName: String,
-    reportName: String
+    reportName: String,
   ): Report {
     while (true) {
       val retrievedReport =
@@ -1844,7 +1844,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
   private suspend fun pollForCompletedMetric(
     measurementConsumerName: String,
-    metricName: String
+    metricName: String,
   ): Metric {
     while (true) {
       val retrievedMetric =
@@ -1874,7 +1874,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
   private fun calculateExpectedReachAndFrequencyMeasurementResult(
     sampledVids: Sequence<Long>,
-    maxFrequency: Int
+    maxFrequency: Int,
   ): Measurement.Result {
     val reachAndFrequency =
       MeasurementResults.computeReachAndFrequency(sampledVids.asIterable(), maxFrequency)
@@ -1892,7 +1892,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   private fun SyntheticGeneratorEventQuery.getUserVirtualIds(
     eventGroup: EventGroup,
     filter: String,
-    collectionInterval: Interval
+    collectionInterval: Interval,
   ): Sequence<Long> {
     val cmmsMetadata =
       CmmsEventGroupKt.metadata {
@@ -1911,7 +1911,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         RequisitionSpecKt.EventGroupEntryKt.value {
           this.collectionInterval = collectionInterval
           this.filter = eventFilter
-        }
+        },
       )
     )
   }
@@ -1923,7 +1923,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       VidSampling.sampler.vidIsInSamplingBucket(
         vid,
         vidSamplingInterval.start,
-        vidSamplingInterval.width
+        vidSamplingInterval.width,
       )
     }
   }
@@ -1931,14 +1931,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   companion object {
     private val SECRETS_DIR: File =
       getRuntimePath(
-          Paths.get(
-            "wfa_measurement_system",
-            "src",
-            "main",
-            "k8s",
-            "testing",
-            "secretfiles",
-          )
+          Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
         )!!
         .toFile()
 
@@ -1952,7 +1945,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     private val SYNTHETIC_EVENT_QUERY =
       MetadataSyntheticGeneratorEventQuery(
         SyntheticGenerationSpecs.POPULATION_SPEC,
-        InProcessCmmsComponents.MC_ENCRYPTION_PRIVATE_KEY
+        InProcessCmmsComponents.MC_ENCRYPTION_PRIVATE_KEY,
       )
 
     private val EVENT_RANGE =

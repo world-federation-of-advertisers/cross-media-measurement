@@ -41,7 +41,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ScheduleMode
 class SpannerModelRolloutsService(
   private val clock: Clock,
   private val idGenerator: IdGenerator,
-  private val client: AsyncDatabaseClient
+  private val client: AsyncDatabaseClient,
 ) : ModelRolloutsCoroutineImplBase() {
 
   override suspend fun createModelRollout(request: ModelRollout): ModelRollout {
@@ -90,22 +90,14 @@ class SpannerModelRolloutsService(
           request.filter.after.externalModelSuiteId == 0L ||
           request.filter.after.externalModelProviderId == 0L)
     ) {
-      failGrpc(
-        Status.INVALID_ARGUMENT,
-      ) {
-        "Missing After filter fields"
-      }
+      failGrpc(Status.INVALID_ARGUMENT) { "Missing After filter fields" }
     }
     if (
       request.filter.hasRolloutPeriod() &&
         (!request.filter.rolloutPeriod.hasRolloutPeriodStartTime() ||
           !request.filter.rolloutPeriod.hasRolloutPeriodEndTime())
     ) {
-      failGrpc(
-        Status.INVALID_ARGUMENT,
-      ) {
-        "Missing RolloutPeriod fields"
-      }
+      failGrpc(Status.INVALID_ARGUMENT) { "Missing RolloutPeriod fields" }
     }
     return StreamModelRollouts(request.filter, request.limit).execute(client.singleUse()).map {
       it.modelRollout
@@ -124,7 +116,7 @@ class SpannerModelRolloutsService(
     } catch (e: ModelRolloutInvalidArgsException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "RolloutStartTime already passed"
+        "RolloutStartTime already passed",
       )
     }
   }

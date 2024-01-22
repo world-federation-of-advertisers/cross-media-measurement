@@ -14,7 +14,4 @@
 
 package org.wfanet.panelmatch.client.eventpreprocessing
 
-data class PreprocessingParameters(
-  val maxByteSize: Long,
-  val fileCount: Int,
-)
+data class PreprocessingParameters(val maxByteSize: Long, val fileCount: Int)

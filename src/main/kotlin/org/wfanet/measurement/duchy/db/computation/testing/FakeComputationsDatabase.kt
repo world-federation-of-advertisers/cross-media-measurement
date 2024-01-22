@@ -52,12 +52,13 @@ private constructor(
   /** Map of local computation ID to [ComputationToken]. */
   private val tokens: MutableMap<Long, ComputationToken>,
   /** Map of [ExternalRequisitionKey] to local computation ID. */
-  private val requisitionMap: MutableMap<ExternalRequisitionKey, Long>
+  private val requisitionMap: MutableMap<ExternalRequisitionKey, Long>,
 ) :
   Map<Long, ComputationToken> by tokens,
   ComputationsDatabase,
   ComputationProtocolStagesEnumHelper<
-    ComputationType, ComputationStage
+    ComputationType,
+    ComputationStage,
   > by ComputationProtocolStages {
 
   constructor() : this(tokens = mutableMapOf(), requisitionMap = mutableMapOf())
@@ -72,7 +73,7 @@ private constructor(
     initialStage: ComputationStage,
     stageDetails: ComputationStageDetails,
     computationDetails: ComputationDetails,
-    requisitions: List<RequisitionEntry>
+    requisitions: List<RequisitionEntry>,
   ) {
     if (globalId.toLong() in tokens) {
       throw Status.fromCode(Status.Code.ALREADY_EXISTS).asRuntimeException()
@@ -89,7 +90,7 @@ private constructor(
             externalKey = it.key
             details = it.value
           }
-        }
+        },
     )
   }
 
@@ -104,7 +105,7 @@ private constructor(
     computationDetails: ComputationDetails,
     blobs: List<ComputationStageBlobMetadata> = listOf(),
     stageDetails: ComputationStageDetails = ComputationStageDetails.getDefaultInstance(),
-    requisitions: List<RequisitionMetadata> = listOf()
+    requisitions: List<RequisitionMetadata> = listOf(),
   ) {
     require(localId !in tokens) { "Cannot add multiple computations with the same id. $localId" }
     require(blobs.distinctBy { it.blobId }.size == blobs.size) { "Blobs must have distinct IDs" }
@@ -130,7 +131,7 @@ private constructor(
     computationDetails: ComputationDetails,
     blobs: List<ComputationStageBlobMetadata> = listOf(),
     stageDetails: ComputationStageDetails = ComputationStageDetails.getDefaultInstance(),
-    requisitions: List<RequisitionMetadata> = listOf()
+    requisitions: List<RequisitionMetadata> = listOf(),
   ) {
     addComputation(
       // For the purpose of a fake it is fine to assume that the globalId can be parsed as Long
@@ -140,7 +141,7 @@ private constructor(
       computationDetails = computationDetails,
       blobs = blobs,
       stageDetails = stageDetails,
-      requisitions = requisitions
+      requisitions = requisitions,
     )
   }
 
@@ -156,7 +157,7 @@ private constructor(
   @OverloadResolutionByLambdaReturnType
   private fun updateToken(
     tokenToUpdate: ComputationEditToken<ComputationType, ComputationStage>,
-    changedTokenBuilderFunc: (ComputationToken) -> ComputationToken.Builder
+    changedTokenBuilderFunc: (ComputationToken) -> ComputationToken.Builder,
   ) {
     val current = requireTokenFromCurrent(tokenToUpdate)
     tokens[tokenToUpdate.localId] =
@@ -167,7 +168,7 @@ private constructor(
   @JvmName("updateTokenDsl")
   private inline fun updateToken(
     tokenToUpdate: ComputationEditToken<ComputationType, ComputationStage>,
-    fillUpdatedToken: ComputationTokenKt.Dsl.() -> Unit
+    fillUpdatedToken: ComputationTokenKt.Dsl.() -> Unit,
   ) {
     val current = requireTokenFromCurrent(tokenToUpdate)
     tokens[tokenToUpdate.localId] =
@@ -188,7 +189,7 @@ private constructor(
         computationId = token.localId,
         version = current.version,
         tokenVersion = token.editVersion,
-        message = "Token provided $token != current token $current"
+        message = "Token provided $token != current token $current",
       )
     }
     return current
@@ -205,7 +206,7 @@ private constructor(
     outputBlobs: Int,
     afterTransition: AfterTransition,
     nextStageDetails: ComputationStageDetails,
-    lockExtension: Duration?
+    lockExtension: Duration?,
   ) {
     updateToken(token) { existing ->
       require(validTransition(existing.computationStage, nextStage))
@@ -262,7 +263,7 @@ private constructor(
   override suspend fun updateComputationDetails(
     token: ComputationEditToken<ComputationType, ComputationStage>,
     computationDetails: ComputationDetails,
-    requisitions: List<RequisitionEntry>
+    requisitions: List<RequisitionEntry>,
   ) {
     @Suppress("CANDIDATE_CHOSEN_USING_OVERLOAD_RESOLUTION_BY_LAMBDA_ANNOTATION")
     updateToken(token) {
@@ -287,7 +288,7 @@ private constructor(
     token: ComputationEditToken<ComputationType, ComputationStage>,
     endingStage: ComputationStage,
     endComputationReason: EndComputationReason,
-    computationDetails: ComputationDetails
+    computationDetails: ComputationDetails,
   ) {
     require(validTerminalStage(token.protocol, endingStage))
     updateToken(token) { existing ->
@@ -303,7 +304,7 @@ private constructor(
 
   override suspend fun writeOutputBlobReference(
     token: ComputationEditToken<ComputationType, ComputationStage>,
-    blobRef: BlobRef
+    blobRef: BlobRef,
   ) {
     updateToken(token) { existing ->
       val existingBlobInToken = newEmptyOutputBlobMetadata(blobRef.idInRelationalDatabase)
@@ -319,7 +320,7 @@ private constructor(
   override suspend fun writeRequisitionBlobPath(
     token: ComputationEditToken<ComputationType, ComputationStage>,
     externalRequisitionKey: ExternalRequisitionKey,
-    pathToBlob: String
+    pathToBlob: String,
   ) {
     @Suppress("CANDIDATE_CHOSEN_USING_OVERLOAD_RESOLUTION_BY_LAMBDA_ANNOTATION")
     updateToken(token) {
@@ -334,7 +335,7 @@ private constructor(
   override suspend fun writeRequisitionSeed(
     token: ComputationEditToken<ComputationType, ComputationStage>,
     externalRequisitionKey: ExternalRequisitionKey,
-    seed: ByteString
+    seed: ByteString,
   ) {
     @Suppress("CANDIDATE_CHOSEN_USING_OVERLOAD_RESOLUTION_BY_LAMBDA_ANNOTATION")
     updateToken(token) {
@@ -348,7 +349,7 @@ private constructor(
 
   override suspend fun enqueue(
     token: ComputationEditToken<ComputationType, ComputationStage>,
-    delaySecond: Int
+    delaySecond: Int,
   ) {
     // ignore the delaySecond in the fake
     updateToken(token) { existing ->
@@ -360,7 +361,7 @@ private constructor(
   override suspend fun claimTask(
     protocol: ComputationType,
     ownerId: String,
-    lockDuration: Duration
+    lockDuration: Duration,
   ): String? {
     val claimed =
       tokens.values
@@ -401,7 +402,7 @@ private constructor(
 
   override suspend fun readGlobalComputationIds(
     stages: Set<ComputationStage>,
-    updatedBefore: Instant?
+    updatedBefore: Instant?,
   ): Set<String> =
     tokens.filterValues { it.computationStage in stages }.map { it.key.toString() }.toSet()
 
@@ -410,7 +411,7 @@ private constructor(
     localId: Long,
     stage: ComputationStage,
     attempt: Long,
-    metric: ComputationStatMetric
+    metric: ComputationStatMetric,
   ) {
     require(metric.name.isNotEmpty())
   }

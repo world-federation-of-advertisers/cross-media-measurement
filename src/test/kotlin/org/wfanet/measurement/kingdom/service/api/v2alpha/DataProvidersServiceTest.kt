@@ -217,7 +217,7 @@ class DataProvidersServiceTest {
     assertThat(dataProvider).isEqualTo(DATA_PROVIDER)
     verifyProtoArgument(
         internalServiceMock,
-        InternalDataProvidersService::replaceDataProviderRequiredDuchies
+        InternalDataProvidersService::replaceDataProviderRequiredDuchies,
       )
       .isEqualTo(
         internalReplaceDataProviderRequiredDuchiesRequest {
@@ -369,7 +369,7 @@ class DataProvidersServiceTest {
 
     verifyProtoArgument(
         internalServiceMock,
-        InternalDataProvidersService::replaceDataAvailabilityInterval
+        InternalDataProvidersService::replaceDataAvailabilityInterval,
       )
       .isEqualTo(
         internalReplaceDataAvailabilityIntervalRequest {

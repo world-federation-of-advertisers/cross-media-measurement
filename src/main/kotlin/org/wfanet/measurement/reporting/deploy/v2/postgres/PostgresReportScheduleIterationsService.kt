@@ -46,7 +46,7 @@ class PostgresReportScheduleIterationsService(
     } catch (e: ReportScheduleNotFoundException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Report Schedule not found."
+        "Report Schedule not found.",
       )
     }
   }
@@ -72,7 +72,7 @@ class PostgresReportScheduleIterationsService(
         .readReportScheduleIterationByExternalId(
           cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId,
           externalReportScheduleId = request.externalReportScheduleId,
-          externalReportScheduleIterationId = request.externalReportScheduleIterationId
+          externalReportScheduleIterationId = request.externalReportScheduleIterationId,
         )
         ?.reportScheduleIteration
         ?: throw Status.NOT_FOUND.withDescription("Report Schedule Iteration not found.")
@@ -122,12 +122,12 @@ class PostgresReportScheduleIterationsService(
     } catch (e: ReportScheduleIterationNotFoundException) {
       throw e.asStatusRuntimeException(
         Status.Code.NOT_FOUND,
-        "Report Schedule Iteration not found."
+        "Report Schedule Iteration not found.",
       )
     } catch (e: ReportScheduleIterationStateInvalidException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Report Schedule Iteration is already in the REPORT_CREATED state"
+        "Report Schedule Iteration is already in the REPORT_CREATED state",
       )
     }
   }

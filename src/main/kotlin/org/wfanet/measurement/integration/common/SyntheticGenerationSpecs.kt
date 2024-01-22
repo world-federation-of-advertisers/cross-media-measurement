@@ -33,7 +33,7 @@ object SyntheticGenerationSpecs {
   val POPULATION_SPEC: SyntheticPopulationSpec by lazy {
     loadTestData(
       "synthetic_population_spec.textproto",
-      SyntheticPopulationSpec.getDefaultInstance()
+      SyntheticPopulationSpec.getDefaultInstance(),
     )
   }
 
@@ -42,12 +42,12 @@ object SyntheticGenerationSpecs {
     listOf(
       loadTestData(
         "synthetic_event_group_spec_1.textproto",
-        SyntheticEventGroupSpec.getDefaultInstance()
+        SyntheticEventGroupSpec.getDefaultInstance(),
       ),
       loadTestData(
         "synthetic_event_group_spec_2.textproto",
-        SyntheticEventGroupSpec.getDefaultInstance()
-      )
+        SyntheticEventGroupSpec.getDefaultInstance(),
+      ),
     )
   }
 
@@ -60,16 +60,16 @@ object SyntheticGenerationSpecs {
     listOf(
       loadTestData(
         "synthetic_event_group_spec_1.textproto",
-        SyntheticEventGroupSpec.getDefaultInstance()
+        SyntheticEventGroupSpec.getDefaultInstance(),
       ),
       loadTestData(
         "synthetic_event_group_spec_2.textproto",
-        SyntheticEventGroupSpec.getDefaultInstance()
+        SyntheticEventGroupSpec.getDefaultInstance(),
       ),
       loadTestData(
         "synthetic_event_group_spec_3.textproto",
-        SyntheticEventGroupSpec.getDefaultInstance()
-      )
+        SyntheticEventGroupSpec.getDefaultInstance(),
+      ),
     )
   }
 
