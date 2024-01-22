@@ -291,7 +291,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           measurementConsumersService,
           accountsService,
           notValidBefore = clock.instant().plus(1L, ChronoUnit.DAYS),
-          notValidAfter = clock.instant().plus(10L, ChronoUnit.DAYS)
+          notValidAfter = clock.instant().plus(10L, ChronoUnit.DAYS),
         )
 
       val exception =
@@ -319,7 +319,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         measurementConsumersService,
         accountsService,
         notValidBefore = clock.instant().minus(10L, ChronoUnit.DAYS),
-        notValidAfter = clock.instant().minus(1L, ChronoUnit.DAYS)
+        notValidAfter = clock.instant().minus(1L, ChronoUnit.DAYS),
       )
 
     val exception =
@@ -383,7 +383,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         population.createDataProvider(
           dataProvidersService,
           notValidBefore = clock.instant().plus(1L, ChronoUnit.DAYS),
-          notValidAfter = clock.instant().plus(10L, ChronoUnit.DAYS)
+          notValidAfter = clock.instant().plus(10L, ChronoUnit.DAYS),
         )
 
       val exception =
@@ -415,7 +415,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         population.createDataProvider(
           dataProvidersService,
           notValidBefore = clock.instant().minus(10L, ChronoUnit.DAYS),
-          notValidAfter = clock.instant().minus(1L, ChronoUnit.DAYS)
+          notValidAfter = clock.instant().minus(1L, ChronoUnit.DAYS),
         )
 
       val exception =
@@ -579,7 +579,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val dataProvider =
       population.createDataProvider(
         dataProvidersService,
-        customize = { requiredExternalDuchyIds += INVALID_WORKER_DUCHY.externalDuchyId }
+        customize = { requiredExternalDuchyIds += INVALID_WORKER_DUCHY.externalDuchyId },
       )
 
     val exception =
@@ -852,7 +852,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     assertThat(measurement)
       .ignoringFields(
         Measurement.REQUISITIONS_FIELD_NUMBER,
-        Measurement.COMPUTATION_PARTICIPANTS_FIELD_NUMBER
+        Measurement.COMPUTATION_PARTICIPANTS_FIELD_NUMBER,
       )
       .isEqualTo(createdMeasurement)
   }
@@ -913,7 +913,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       assertThat(measurement)
         .ignoringFields(
           Measurement.REQUISITIONS_FIELD_NUMBER,
-          Measurement.COMPUTATION_PARTICIPANTS_FIELD_NUMBER
+          Measurement.COMPUTATION_PARTICIPANTS_FIELD_NUMBER,
         )
         .isEqualTo(createdMeasurement.copy { dataProviders.clear() })
       assertThat(measurement.requisitionsList)
@@ -980,7 +980,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             externalDuchyId = Population.AGGREGATOR_DUCHY.externalDuchyId
           },
           templateParticipant.copy { externalDuchyId = Population.WORKER1_DUCHY.externalDuchyId },
-          templateParticipant.copy { externalDuchyId = Population.WORKER2_DUCHY.externalDuchyId }
+          templateParticipant.copy { externalDuchyId = Population.WORKER2_DUCHY.externalDuchyId },
         )
     }
 
@@ -2562,18 +2562,18 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
         setOf(
           Population.AGGREGATOR_DUCHY.externalDuchyId,
-          Population.WORKER1_DUCHY.externalDuchyId
+          Population.WORKER1_DUCHY.externalDuchyId,
         ),
-        2
+        2,
       )
       RoLlv2ProtocolConfig.setForTest(
         ProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
         DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
         setOf(
           Population.AGGREGATOR_DUCHY.externalDuchyId,
-          Population.WORKER1_DUCHY.externalDuchyId
+          Population.WORKER1_DUCHY.externalDuchyId,
         ),
-        2
+        2,
       )
       HmssProtocolConfig.setForTest(
         ProtocolConfig.HonestMajorityShareShuffle.getDefaultInstance(),
@@ -2581,7 +2581,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           Population.AGGREGATOR_DUCHY.externalDuchyId,
           Population.WORKER1_DUCHY.externalDuchyId,
           Population.WORKER2_DUCHY.externalDuchyId,
-        )
+        ),
       )
     }
   }

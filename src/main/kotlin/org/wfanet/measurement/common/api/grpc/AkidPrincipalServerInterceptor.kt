@@ -47,12 +47,12 @@ class AkidPrincipalServerInterceptor<T : Principal>(
   private val principalContextKey: Context.Key<T>,
   private val akidsContextKey: Context.Key<List<ByteString>>,
   private val akidPrincipalLookup: PrincipalLookup<T, ByteString>,
-  coroutineContext: CoroutineContext = EmptyCoroutineContext
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : SuspendableServerInterceptor(coroutineContext) {
   override suspend fun <ReqT : Any, RespT : Any> interceptCallSuspending(
     call: ServerCall<ReqT, RespT>,
     headers: Metadata,
-    next: ServerCallHandler<ReqT, RespT>
+    next: ServerCallHandler<ReqT, RespT>,
   ): ServerCall.Listener<ReqT> {
     var rpcContext = Context.current()
     if (principalContextKey.get() != null) {

@@ -25,10 +25,7 @@ private val parser = ResourceNameParser("dataProviders/{data_provider}/modelShar
 data class ModelShardKey(val dataProviderId: String, val modelShardId: String) : ResourceKey {
   override fun toName(): String {
     return parser.assembleName(
-      mapOf(
-        IdVariable.DATA_PROVIDER to dataProviderId,
-        IdVariable.MODEL_SHARD to modelShardId,
-      )
+      mapOf(IdVariable.DATA_PROVIDER to dataProviderId, IdVariable.MODEL_SHARD to modelShardId)
     )
   }
 
@@ -37,10 +34,7 @@ data class ModelShardKey(val dataProviderId: String, val modelShardId: String) :
 
     override fun fromName(resourceName: String): ModelShardKey? {
       return parser.parseIdVars(resourceName)?.let {
-        ModelShardKey(
-          it.getValue(IdVariable.DATA_PROVIDER),
-          it.getValue(IdVariable.MODEL_SHARD),
-        )
+        ModelShardKey(it.getValue(IdVariable.DATA_PROVIDER), it.getValue(IdVariable.MODEL_SHARD))
       }
     }
   }

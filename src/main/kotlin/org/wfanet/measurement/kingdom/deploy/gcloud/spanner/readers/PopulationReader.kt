@@ -52,7 +52,7 @@ class PopulationReader : SpannerReader<PopulationReader.Result>() {
   suspend fun readByExternalPopulationId(
     readContext: AsyncDatabaseClient.ReadContext,
     externalDataProviderId: ExternalId,
-    externalPopulationId: ExternalId
+    externalPopulationId: ExternalId,
   ): Result? {
     return fillStatementBuilder {
         appendClause(

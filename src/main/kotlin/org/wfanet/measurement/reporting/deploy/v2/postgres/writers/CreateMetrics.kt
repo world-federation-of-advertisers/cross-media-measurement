@@ -249,7 +249,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                   bind<Long?>("$13", null)
                   bind(
                     "$14",
-                    PostgresInterval.of(watchDuration.maximumWatchDurationPerUser.toDuration())
+                    PostgresInterval.of(watchDuration.maximumWatchDurationPerUser.toDuration()),
                   )
                   bind<Long?>("$20", null)
                 }
@@ -294,7 +294,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                 measurementConsumerId = measurementConsumerId,
                 metricId = metricId,
                 it.metric.weightedMeasurementsList,
-                reportingSetMap
+                reportingSetMap,
               )
 
             metrics.add(
@@ -483,7 +483,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
           measurementConsumerId = measurementConsumerId,
           measurementId = measurementId,
           it.measurement.primitiveReportingSetBasesList,
-          reportingSetMap
+          reportingSetMap,
         )
 
       primitiveReportingSetBasesBinders.addAll(
@@ -503,7 +503,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
       metricMeasurementsBinders = metricMeasurementsBinders,
       primitiveReportingSetBasesBinders = primitiveReportingSetBasesBinders,
       primitiveReportingSetBasisFiltersBinders = primitiveReportingSetBasisFiltersBinders,
-      measurementPrimitiveReportingSetBasesBinders = measurementPrimitiveReportingSetBasesBinders
+      measurementPrimitiveReportingSetBasesBinders = measurementPrimitiveReportingSetBasesBinders,
     )
   }
 
@@ -546,7 +546,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
     return PrimitiveReportingSetBasesBinders(
       primitiveReportingSetBasesBinders = primitiveReportingSetBasesBinders,
       primitiveReportingSetBasisFiltersBinders = primitiveReportingSetBasisFiltersBinders,
-      measurementPrimitiveReportingSetBasesBinders = measurementPrimitiveReportingSetBasesBinders
+      measurementPrimitiveReportingSetBasesBinders = measurementPrimitiveReportingSetBasesBinders,
     )
   }
 }

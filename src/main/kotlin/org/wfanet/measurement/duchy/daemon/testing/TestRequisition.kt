@@ -30,7 +30,7 @@ import org.wfanet.measurement.system.v1alpha.requisition
 
 data class TestRequisition(
   val externalRequisitionId: String,
-  val serializedMeasurementSpecProvider: () -> ByteString
+  val serializedMeasurementSpecProvider: () -> ByteString,
 ) {
   val requisitionSpecHash: ByteString = Random.Default.nextBytes(32).toByteString()
   val nonce: Long = Random.Default.nextLong()
@@ -41,7 +41,7 @@ data class TestRequisition(
   fun toSystemRequisition(
     globalId: String,
     state: Requisition.State,
-    externalDuchyId: String = ""
+    externalDuchyId: String = "",
   ) = requisition {
     name = RequisitionKey(globalId, externalRequisitionId).toName()
     requisitionSpecHash = this@TestRequisition.requisitionSpecHash

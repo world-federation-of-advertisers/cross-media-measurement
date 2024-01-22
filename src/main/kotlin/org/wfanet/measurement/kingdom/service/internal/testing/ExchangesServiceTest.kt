@@ -60,7 +60,7 @@ private const val EXTERNAL_RECURRING_EXCHANGE_ID = 222L
 private val idGenerator =
   FixedIdGenerator(
     InternalId(INTERNAL_RECURRING_EXCHANGE_ID),
-    ExternalId(EXTERNAL_RECURRING_EXCHANGE_ID)
+    ExternalId(EXTERNAL_RECURRING_EXCHANGE_ID),
   )
 
 private const val INTERNAL_DATA_PROVIDER_ID = 333L

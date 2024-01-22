@@ -46,7 +46,7 @@ class MeasurementReader {
   suspend fun readMeasurementByReferenceIds(
     readContext: ReadContext,
     measurementConsumerReferenceId: String,
-    measurementReferenceId: String
+    measurementReferenceId: String,
   ): Result? {
     val builder =
       boundStatement(

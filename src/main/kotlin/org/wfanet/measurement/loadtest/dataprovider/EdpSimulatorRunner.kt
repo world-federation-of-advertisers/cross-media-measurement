@@ -43,20 +43,20 @@ abstract class EdpSimulatorRunner : Runnable {
 
   protected fun run(
     eventQuery: EventQuery<Message>,
-    metadataByReferenceIdSuffix: Map<String, Message>
+    metadataByReferenceIdSuffix: Map<String, Message>,
   ) {
     val clientCerts =
       SigningCerts.fromPemFiles(
         certificateFile = flags.tlsFlags.certFile,
         privateKeyFile = flags.tlsFlags.privateKeyFile,
-        trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
+        trustedCertCollectionFile = flags.tlsFlags.certCollectionFile,
       )
 
     val v2AlphaPublicApiChannel: ManagedChannel =
       buildMutualTlsChannel(
         flags.kingdomPublicApiFlags.target,
         clientCerts,
-        flags.kingdomPublicApiFlags.certHost
+        flags.kingdomPublicApiFlags.certHost,
       )
     val requisitionsStub = RequisitionsCoroutineStub(v2AlphaPublicApiChannel)
     val eventGroupsStub = EventGroupsCoroutineStub(v2AlphaPublicApiChannel)

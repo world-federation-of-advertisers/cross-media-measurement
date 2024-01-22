@@ -28,7 +28,7 @@ import org.joda.time.Instant
  */
 class BatchingDoFn<T>(
   private val maxByteSize: Long,
-  private val getElementByteSize: SerializableFunction<T, Int>
+  private val getElementByteSize: SerializableFunction<T, Int>,
 ) : DoFn<T, MutableList<T>>() {
   private var buffer = mutableListOf<T>()
   private var size: Long = 0L

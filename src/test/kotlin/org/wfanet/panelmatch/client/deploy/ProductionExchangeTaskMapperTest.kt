@@ -46,7 +46,7 @@ class ProductionExchangeTaskMapperTest {
   private val exchangeTaskMapper =
     TestProductionExchangeTaskMapper(
       testPrivateStorageSelector.selector,
-      testSharedStorageSelector.selector
+      testSharedStorageSelector.selector,
     )
 
   private val testPrivateStorageDetails = storageDetails {
@@ -131,7 +131,7 @@ class ProductionExchangeTaskMapperTest {
         RECURRING_EXCHANGE_ID,
         "some-exchange",
         "some-step",
-        "some-attempt"
+        "some-attempt",
       )
   }
 }

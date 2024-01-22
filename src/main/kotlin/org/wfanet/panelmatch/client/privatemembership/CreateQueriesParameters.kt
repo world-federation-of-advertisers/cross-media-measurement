@@ -18,7 +18,7 @@ data class CreateQueriesParameters(
   val numShards: Int,
   val numBucketsPerShard: Int,
   val maxQueriesPerShard: Int,
-  val padQueries: Boolean
+  val padQueries: Boolean,
 ) {
   init {
     require(numShards > 0)

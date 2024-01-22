@@ -38,7 +38,7 @@ class MiniWorkflowTest : AbstractInProcessPanelMatchIntegrationTest() {
 
   override fun validateFinalState(
     dataProviderDaemon: ExchangeWorkflowDaemonForTest,
-    modelProviderDaemon: ExchangeWorkflowDaemonForTest
+    modelProviderDaemon: ExchangeWorkflowDaemonForTest,
   ) {
     assertThat(modelProviderDaemon.readPrivateBlob("mp-hkdf-pepper")).isEqualTo(HKDF_PEPPER)
   }

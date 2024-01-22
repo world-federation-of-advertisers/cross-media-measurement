@@ -64,7 +64,7 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
     val measurementsService: MeasurementsCoroutineImplBase,
     val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
     val dataProvidersService: DataProvidersCoroutineImplBase,
-    val accountsService: AccountsCoroutineImplBase
+    val accountsService: AccountsCoroutineImplBase,
   )
 
   private val testClock: Clock = Clock.systemUTC()
@@ -131,7 +131,7 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
         measurementsService,
         measurementConsumer,
         "measurement 1",
-        dataProvider
+        dataProvider,
       )
 
     val exception =
@@ -188,7 +188,7 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
         measurementsService,
         measurementConsumer,
         "measurement 1",
-        dataProvider
+        dataProvider,
       )
 
     val measurementLogEntryDetails =
@@ -244,7 +244,7 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
         measurementsService,
         measurementConsumer,
         "measurement 1",
-        dataProvider
+        dataProvider,
       )
 
     val measurementLogEntryDetails = MeasurementLogEntryKt.details { logMessage = "This is a log." }
@@ -292,7 +292,7 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
         measurementsService,
         measurementConsumer,
         "measurement 1",
-        dataProvider
+        dataProvider,
       )
     // Set terminal Measurement state CANCELED
     measurementsService.cancelMeasurement(
@@ -343,7 +343,7 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
           measurementsService,
           measurementConsumer,
           "measurement 1",
-          dataProvider
+          dataProvider,
         )
 
       measurement =
@@ -378,7 +378,7 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
         ProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
         DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
         setOf(Population.AGGREGATOR_DUCHY.externalDuchyId),
-        2
+        2,
       )
     }
   }

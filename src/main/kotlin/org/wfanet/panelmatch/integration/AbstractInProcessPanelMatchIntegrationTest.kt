@@ -81,7 +81,7 @@ private val READY_STEP_STATES =
   setOf(
     ExchangeStep.State.IN_PROGRESS,
     ExchangeStep.State.READY,
-    ExchangeStep.State.READY_FOR_RETRY
+    ExchangeStep.State.READY_FOR_RETRY,
   )
 private val TERMINAL_EXCHANGE_STATES = setOf(Exchange.State.SUCCEEDED, Exchange.State.FAILED)
 
@@ -98,13 +98,13 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
   /** This is responsible for making an assertions about the final state of the workflow. */
   protected abstract fun validateFinalState(
     dataProviderDaemon: ExchangeWorkflowDaemonForTest,
-    modelProviderDaemon: ExchangeWorkflowDaemonForTest
+    modelProviderDaemon: ExchangeWorkflowDaemonForTest,
   )
 
   /** Used to validate the state of shared storage. */
   private suspend fun validateSharedStorageState(
     specialSharedStorageSelector: PrivateStorageSelector,
-    exchangeDateKey: ExchangeDateKey
+    exchangeDateKey: ExchangeDateKey,
   ) {
     for ((key, value) in finalSharedOutputs) {
       assertThat(specialSharedStorageSelector.readSharedBlob(key, exchangeDateKey)).isEqualTo(value)
@@ -136,7 +136,7 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
   private data class ProviderContext(
     val key: ResourceKey,
     val privateStoragePath: Path,
-    val scope: CoroutineScope
+    val scope: CoroutineScope,
   )
 
   private fun makeExchangesServiceClient(principal: String): ExchangesCoroutineStub {
@@ -203,7 +203,7 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
 
   private fun makeDaemon(
     owner: ProviderContext,
-    exchangeDateKey: ExchangeDateKey
+    exchangeDateKey: ExchangeDateKey,
   ): ExchangeWorkflowDaemonForTest {
     return ExchangeWorkflowDaemonForTest(
       v2alphaChannel = inProcessKingdom.publicApiChannel,
@@ -237,14 +237,14 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
   private suspend fun PrivateStorageSelector.writeSharedBlob(
     blobKey: String,
     contents: ByteString,
-    exchangeDateKey: ExchangeDateKey
+    exchangeDateKey: ExchangeDateKey,
   ) {
     getStorageClient(exchangeDateKey).writeBlob(blobKey, flowOf(contents))
   }
 
   private suspend fun PrivateStorageSelector.readSharedBlob(
     blobKey: String,
-    exchangeDateKey: ExchangeDateKey
+    exchangeDateKey: ExchangeDateKey,
   ): ByteString? {
     return getStorageClient(exchangeDateKey).getBlob(blobKey)?.toByteString()
   }
@@ -261,11 +261,8 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
           encryptionPublicKey =
             encryptionPublicKey { data = ByteString.copyFromUtf8("testMCPublicKey") },
           signingKey =
-            SigningKeyHandle(
-              TestCertificateManager.CERTIFICATE,
-              TestCertificateManager.PRIVATE_KEY
-            ),
-        )
+            SigningKeyHandle(TestCertificateManager.CERTIFICATE, TestCertificateManager.PRIVATE_KEY),
+        ),
       )
     exchangesClient = makeExchangesServiceClient(keys.modelProviderKey.toName())
     exchangeStepsClient = makeExchangeStepsServiceClient(keys.modelProviderKey.toName())
@@ -273,19 +270,19 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
     exchangeKey =
       CanonicalExchangeKey(
         recurringExchangeId = recurringExchangeId,
-        exchangeId = EXCHANGE_DATE.toString()
+        exchangeId = EXCHANGE_DATE.toString(),
       )
     dataProviderContext =
       ProviderContext(
         keys.dataProviderKey,
         dataProviderFolder.root.toPath(),
-        createScope("EDP_SCOPE")
+        createScope("EDP_SCOPE"),
       )
     modelProviderContext =
       ProviderContext(
         keys.modelProviderKey,
         modelProviderFolder.root.toPath(),
-        createScope("MP_SCOPE")
+        createScope("MP_SCOPE"),
       )
   }
 
@@ -310,14 +307,14 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
       DaemonStorageClientDefaults(
         modelProviderRootStorageClient,
         tinkKeyUri,
-        FakeTinkKeyStorageProvider()
+        FakeTinkKeyStorageProvider(),
       )
     }
     val dataProviderDefaults by lazy {
       DaemonStorageClientDefaults(
         dataProviderRootStorageClient,
         tinkKeyUri,
-        FakeTinkKeyStorageProvider()
+        FakeTinkKeyStorageProvider(),
       )
     }
 
@@ -329,11 +326,11 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
 
     modelProviderAddResource.addRootCertificates(
       dataProviderContext.key.toName(),
-      TestCertificateManager.CERTIFICATE
+      TestCertificateManager.CERTIFICATE,
     )
     dataProviderAddResource.addRootCertificates(
       modelProviderContext.key.toName(),
-      TestCertificateManager.CERTIFICATE
+      TestCertificateManager.CERTIFICATE,
     )
 
     val modelProviderPrivateStorageDetails = storageDetails {
@@ -343,7 +340,7 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
     }
     modelProviderAddResource.addPrivateStorageInfo(
       recurringExchangeId,
-      modelProviderPrivateStorageDetails
+      modelProviderPrivateStorageDetails,
     )
     val dataProviderPrivateStorageDetails = storageDetails {
       file =
@@ -352,7 +349,7 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
     }
     dataProviderAddResource.addPrivateStorageInfo(
       recurringExchangeId,
-      dataProviderPrivateStorageDetails
+      dataProviderPrivateStorageDetails,
     )
 
     val sharedStorageDetails = storageDetails {
@@ -372,7 +369,7 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
         EXCHANGE_DATE,
         privateStorageFactories,
         blobKey,
-        value
+        value,
       )
     }
 
@@ -382,7 +379,7 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
         EXCHANGE_DATE,
         privateStorageFactories,
         blobKey,
-        value
+        value,
       )
     }
 

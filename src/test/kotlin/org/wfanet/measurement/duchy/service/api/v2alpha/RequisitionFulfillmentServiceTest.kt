@@ -160,7 +160,7 @@ class RequisitionFulfillmentServiceTest {
     assertThat(blob).contentEqualTo(TEST_REQUISITION_DATA)
     verifyProtoArgument(
         computationsServiceMock,
-        ComputationsCoroutineImplBase::recordRequisitionBlobPath
+        ComputationsCoroutineImplBase::recordRequisitionBlobPath,
       )
       .isEqualTo(
         recordRequisitionBlobPathRequest {
@@ -230,7 +230,7 @@ class RequisitionFulfillmentServiceTest {
     assertThat(response).isEqualTo(FULFILLED_RESPONSE)
     verifyProtoArgument(
         computationsServiceMock,
-        ComputationsCoroutineImplBase::recordRequisitionSeed
+        ComputationsCoroutineImplBase::recordRequisitionSeed,
       )
       .isEqualTo(
         recordRequisitionSeedRequest {
@@ -375,7 +375,7 @@ class RequisitionFulfillmentServiceTest {
 
   private fun FulfillRequisitionRequest.Header.withSeedAndData(
     randomSeed: ByteString,
-    vararg bodyContent: ByteString
+    vararg bodyContent: ByteString,
   ): Flow<FulfillRequisitionRequest> {
     return bodyContent
       .asSequence()

@@ -50,7 +50,7 @@ class UpdatePublicKey(private val request: UpdatePublicKeyRequest) : SimpleSpann
         MeasurementConsumerReader()
           .readByExternalMeasurementConsumerId(
             transactionContext,
-            ExternalId(request.externalMeasurementConsumerId)
+            ExternalId(request.externalMeasurementConsumerId),
           )
           ?: throw MeasurementConsumerNotFoundException(
             ExternalId(request.externalMeasurementConsumerId)
@@ -61,11 +61,11 @@ class UpdatePublicKey(private val request: UpdatePublicKeyRequest) : SimpleSpann
           .readMeasurementConsumerCertificateIdByExternalId(
             transactionContext,
             InternalId(measurementConsumerResult.measurementConsumerId),
-            ExternalId(request.externalCertificateId)
+            ExternalId(request.externalCertificateId),
           )
           ?: throw MeasurementConsumerCertificateNotFoundException(
             ExternalId(request.externalMeasurementConsumerId),
-            ExternalId(request.externalCertificateId)
+            ExternalId(request.externalCertificateId),
           )
 
       val measurementConsumerDetails =
@@ -87,7 +87,7 @@ class UpdatePublicKey(private val request: UpdatePublicKeyRequest) : SimpleSpann
         DataProviderReader()
           .readByExternalDataProviderId(
             transactionContext,
-            ExternalId(request.externalDataProviderId)
+            ExternalId(request.externalDataProviderId),
           ) ?: throw DataProviderNotFoundException(ExternalId(request.externalDataProviderId))
 
       val certificateId: InternalId =
@@ -95,11 +95,11 @@ class UpdatePublicKey(private val request: UpdatePublicKeyRequest) : SimpleSpann
           .readDataProviderCertificateIdByExternalId(
             transactionContext,
             InternalId(dataProviderResult.dataProviderId),
-            ExternalId(request.externalCertificateId)
+            ExternalId(request.externalCertificateId),
           )
           ?: throw DataProviderCertificateNotFoundException(
             ExternalId(request.externalDataProviderId),
-            ExternalId(request.externalCertificateId)
+            ExternalId(request.externalCertificateId),
           )
 
       val dataProviderDetails =

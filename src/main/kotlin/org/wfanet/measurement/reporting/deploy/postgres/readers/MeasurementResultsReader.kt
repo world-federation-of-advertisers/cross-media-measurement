@@ -26,7 +26,7 @@ class MeasurementResultsReader {
     val reportId: InternalId,
     val measurementReferenceId: String,
     val state: Measurement.State,
-    val result: Measurement.Result?
+    val result: Measurement.Result?,
   )
 
   private val sql =
@@ -55,13 +55,13 @@ class MeasurementResultsReader {
       reportId = row["ReportId"],
       measurementReferenceId = row["MeasurementReferenceId"],
       state = Measurement.State.forNumber(row["State"]),
-      result = row.getProtoMessage("Result", Measurement.Result.parser())
+      result = row.getProtoMessage("Result", Measurement.Result.parser()),
     )
 
   suspend fun listMeasurementsForReportsByMeasurementReferenceId(
     readContext: ReadContext,
     measurementConsumerReferenceId: String,
-    measurementReferenceId: String
+    measurementReferenceId: String,
   ): Flow<Result> {
     val statement =
       boundStatement(sql) {

@@ -47,7 +47,7 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
   private data class LatestModelRolloutResult(
     val modelRolloutId: Long,
     val externalModelRolloutId: Long,
-    val rolloutPeriodStartTime: Timestamp?
+    val rolloutPeriodStartTime: Timestamp?,
   )
 
   override suspend fun TransactionScope.runTransaction(): ModelRollout {
@@ -56,7 +56,7 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
       throw ModelRolloutInvalidArgsException(
         ExternalId(modelRollout.externalModelProviderId),
         ExternalId(modelRollout.externalModelSuiteId),
-        ExternalId(modelRollout.externalModelLineId)
+        ExternalId(modelRollout.externalModelLineId),
       ) {
         "RolloutPeriodStartTime must be in the future."
       }
@@ -67,7 +67,7 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
       throw ModelRolloutInvalidArgsException(
         ExternalId(modelRollout.externalModelProviderId),
         ExternalId(modelRollout.externalModelSuiteId),
-        ExternalId(modelRollout.externalModelLineId)
+        ExternalId(modelRollout.externalModelLineId),
       ) {
         "RolloutPeriodEndTime cannot precede RolloutPeriodStartTime."
       }
@@ -91,7 +91,7 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
       throw ModelRolloutInvalidArgsException(
         ExternalId(modelRollout.externalModelProviderId),
         ExternalId(modelRollout.externalModelSuiteId),
-        ExternalId(modelRollout.externalModelLineId)
+        ExternalId(modelRollout.externalModelLineId),
       ) {
         "RolloutPeriodStartTime cannot precede that of previous ModelRollout."
       }
@@ -100,12 +100,12 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
       readModelLineData(
         ExternalId(modelRollout.externalModelProviderId),
         ExternalId(modelRollout.externalModelSuiteId),
-        ExternalId(modelRollout.externalModelLineId)
+        ExternalId(modelRollout.externalModelLineId),
       )
         ?: throw ModelLineNotFoundException(
           ExternalId(modelRollout.externalModelProviderId),
           ExternalId(modelRollout.externalModelSuiteId),
-          ExternalId(modelRollout.externalModelLineId)
+          ExternalId(modelRollout.externalModelLineId),
         )
 
     val modelReleaseResult =
@@ -114,12 +114,12 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
           transactionContext,
           ExternalId(modelRollout.externalModelReleaseId),
           ExternalId(modelRollout.externalModelSuiteId),
-          ExternalId(modelRollout.externalModelProviderId)
+          ExternalId(modelRollout.externalModelProviderId),
         )
         ?: throw ModelReleaseNotFoundException(
           ExternalId(modelRollout.externalModelProviderId),
           ExternalId(modelRollout.externalModelSuiteId),
-          ExternalId(modelRollout.externalModelReleaseId)
+          ExternalId(modelRollout.externalModelReleaseId),
         )
 
     val internalModelRolloutId = idGenerator.generateInternalId()
@@ -152,7 +152,7 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
   private suspend fun TransactionScope.readModelLineData(
     externalModelProviderId: ExternalId,
     externalModelSuiteId: ExternalId,
-    externalModelLineId: ExternalId
+    externalModelLineId: ExternalId,
   ): Struct? {
     val sql =
       """
@@ -220,7 +220,7 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
       LatestModelRolloutResult(
         result.getLong("ModelRolloutId"),
         result.getLong("ExternalModelRolloutId"),
-        result.getTimestamp("RolloutPeriodStartTime")
+        result.getTimestamp("RolloutPeriodStartTime"),
       )
   }
 

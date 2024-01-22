@@ -68,7 +68,7 @@ object ReachOnlyLiquidLegionsSketchAggregationV2Protocol {
           WAIT_SETUP_PHASE_INPUTS to setOf(SETUP_PHASE),
           SETUP_PHASE to setOf(WAIT_EXECUTION_PHASE_INPUTS),
           WAIT_EXECUTION_PHASE_INPUTS to setOf(EXECUTION_PHASE),
-          EXECUTION_PHASE to setOf()
+          EXECUTION_PHASE to setOf(),
         )
         .withDefault { setOf() }
 
@@ -90,12 +90,12 @@ object ReachOnlyLiquidLegionsSketchAggregationV2Protocol {
       ProtocolStageDetails<
         ReachOnlyLiquidLegionsSketchAggregationV2.Stage,
         ComputationStageDetails,
-        ReachOnlyLiquidLegionsSketchAggregationV2.ComputationDetails
+        ReachOnlyLiquidLegionsSketchAggregationV2.ComputationDetails,
       > {
 
       override fun validateRoleForStage(
         stage: ReachOnlyLiquidLegionsSketchAggregationV2.Stage,
-        details: ReachOnlyLiquidLegionsSketchAggregationV2.ComputationDetails
+        details: ReachOnlyLiquidLegionsSketchAggregationV2.ComputationDetails,
       ): Boolean {
         return when (stage) {
           WAIT_TO_START -> details.role == RoleInComputation.NON_AGGREGATOR
@@ -126,7 +126,7 @@ object ReachOnlyLiquidLegionsSketchAggregationV2Protocol {
 
       override fun outputBlobNumbersForStage(
         stage: ReachOnlyLiquidLegionsSketchAggregationV2.Stage,
-        computationDetails: ReachOnlyLiquidLegionsSketchAggregationV2.ComputationDetails
+        computationDetails: ReachOnlyLiquidLegionsSketchAggregationV2.ComputationDetails,
       ): Int {
         return when (stage) {
           WAIT_REQUISITIONS_AND_KEY_SET,
@@ -152,7 +152,7 @@ object ReachOnlyLiquidLegionsSketchAggregationV2Protocol {
 
       override fun detailsFor(
         stage: ReachOnlyLiquidLegionsSketchAggregationV2.Stage,
-        computationDetails: ReachOnlyLiquidLegionsSketchAggregationV2.ComputationDetails
+        computationDetails: ReachOnlyLiquidLegionsSketchAggregationV2.ComputationDetails,
       ): ComputationStageDetails {
         return when (stage) {
           WAIT_SETUP_PHASE_INPUTS ->
@@ -203,11 +203,11 @@ object ReachOnlyLiquidLegionsSketchAggregationV2Protocol {
       ProtocolStageDetails<ComputationStage, ComputationStageDetails, ComputationDetails> {
       override fun validateRoleForStage(
         stage: ComputationStage,
-        details: ComputationDetails
+        details: ComputationDetails,
       ): Boolean {
         return EnumStages.Details.validateRoleForStage(
           stage.reachOnlyLiquidLegionsSketchAggregationV2,
-          details.reachOnlyLiquidLegionsV2
+          details.reachOnlyLiquidLegionsV2,
         )
       }
 
@@ -219,21 +219,21 @@ object ReachOnlyLiquidLegionsSketchAggregationV2Protocol {
 
       override fun outputBlobNumbersForStage(
         stage: ComputationStage,
-        computationDetails: ComputationDetails
+        computationDetails: ComputationDetails,
       ): Int {
         return EnumStages.Details.outputBlobNumbersForStage(
           stage.reachOnlyLiquidLegionsSketchAggregationV2,
-          computationDetails.reachOnlyLiquidLegionsV2
+          computationDetails.reachOnlyLiquidLegionsV2,
         )
       }
 
       override fun detailsFor(
         stage: ComputationStage,
-        computationDetails: ComputationDetails
+        computationDetails: ComputationDetails,
       ): ComputationStageDetails =
         EnumStages.Details.detailsFor(
           stage.reachOnlyLiquidLegionsSketchAggregationV2,
-          computationDetails.reachOnlyLiquidLegionsV2
+          computationDetails.reachOnlyLiquidLegionsV2,
         )
 
       override fun parseDetails(bytes: ByteArray): ComputationStageDetails =

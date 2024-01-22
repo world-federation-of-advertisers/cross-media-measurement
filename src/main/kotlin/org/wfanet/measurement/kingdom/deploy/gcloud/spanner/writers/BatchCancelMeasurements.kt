@@ -41,9 +41,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementR
  * * [MeasurementStateIllegalException] when a Measurement state is not in pending
  * * [MeasurementEtagMismatchException] when requested etag does not match actual etag
  */
-class BatchCancelMeasurements(
-  private val requests: BatchCancelMeasurementsRequest,
-) : SpannerWriter<BatchCancelMeasurementsResponse, BatchCancelMeasurementsResponse>() {
+class BatchCancelMeasurements(private val requests: BatchCancelMeasurementsRequest) :
+  SpannerWriter<BatchCancelMeasurementsResponse, BatchCancelMeasurementsResponse>() {
 
   override suspend fun TransactionScope.runTransaction(): BatchCancelMeasurementsResponse {
     val resultsList = mutableListOf<MeasurementReader.Result>()
@@ -56,11 +55,11 @@ class BatchCancelMeasurements(
           .readByExternalIds(
             transactionContext,
             externalMeasurementConsumerId,
-            externalMeasurementId
+            externalMeasurementId,
           )
           ?: throw MeasurementNotFoundByMeasurementConsumerException(
             externalMeasurementConsumerId,
-            externalMeasurementId
+            externalMeasurementId,
           ) {
             "Measurement with external MeasurementConsumer ID $externalMeasurementConsumerId and " +
               "external Measurement ID $externalMeasurementId not found"
@@ -69,16 +68,16 @@ class BatchCancelMeasurements(
         Measurement.State.PENDING_REQUISITION_PARAMS,
         Measurement.State.PENDING_REQUISITION_FULFILLMENT,
         Measurement.State.PENDING_PARTICIPANT_CONFIRMATION,
-        Measurement.State.PENDING_COMPUTATION, -> {}
+        Measurement.State.PENDING_COMPUTATION -> {}
         Measurement.State.SUCCEEDED,
         Measurement.State.FAILED,
         Measurement.State.CANCELLED,
         Measurement.State.STATE_UNSPECIFIED,
-        Measurement.State.UNRECOGNIZED, -> {
+        Measurement.State.UNRECOGNIZED -> {
           throw MeasurementStateIllegalException(
             externalMeasurementConsumerId,
             externalMeasurementId,
-            state
+            state,
           ) {
             "Unexpected Measurement state $state (${state.number})"
           }
@@ -88,7 +87,7 @@ class BatchCancelMeasurements(
         val actualEtag =
           readEtag(
             transactionContext,
-            Key.of(result.measurementConsumerId.value, result.measurementId.value)
+            Key.of(result.measurementConsumerId.value, result.measurementId.value),
           )
         if (actualEtag != request.etag) {
           throw MeasurementEtagMismatchException(actualEtag, request.etag) {
@@ -110,7 +109,7 @@ class BatchCancelMeasurements(
         measurementId = result.measurementId,
         nextState = Measurement.State.CANCELLED,
         previousState = result.measurement.state,
-        measurementLogEntryDetails = measurementLogEntryDetails
+        measurementLogEntryDetails = measurementLogEntryDetails,
       )
     }
 

@@ -2430,13 +2430,13 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       createCreateMetricRequest(
         CMMS_MEASUREMENT_CONSUMER_ID,
         reportingSetsService,
-        "externalMetricId1"
+        "externalMetricId1",
       )
     val createdMetricRequest2 =
       createCreateMetricRequest(
         CMMS_MEASUREMENT_CONSUMER_ID,
         reportingSetsService,
-        "externalMetricId2"
+        "externalMetricId2",
       )
     val createdMetric = service.createMetric(createMetricRequest)
     val createdMetric2 = service.createMetric(createdMetricRequest2)
@@ -2566,13 +2566,13 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       createCreateMetricRequest(
         CMMS_MEASUREMENT_CONSUMER_ID,
         reportingSetsService,
-        "externalMetricId1"
+        "externalMetricId1",
       )
     val createMetricRequest2 =
       createCreateMetricRequest(
         differentCmmsMeasurementConsumerId,
         reportingSetsService,
-        "externalMetricId2"
+        "externalMetricId2",
       )
     val createdMetric = service.createMetric(createMetricRequest)
     service.createMetric(createMetricRequest2)
@@ -2600,13 +2600,13 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       createCreateMetricRequest(
         CMMS_MEASUREMENT_CONSUMER_ID,
         reportingSetsService,
-        "externalMetricId1"
+        "externalMetricId1",
       )
     val createMetricRequest2 =
       createCreateMetricRequest(
         CMMS_MEASUREMENT_CONSUMER_ID,
         reportingSetsService,
-        "externalMetricId2"
+        "externalMetricId2",
       )
 
     val createdMetric = service.createMetric(createMetricRequest)
@@ -2644,19 +2644,19 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       createCreateMetricRequest(
         CMMS_MEASUREMENT_CONSUMER_ID,
         reportingSetsService,
-        "externalMetricId1"
+        "externalMetricId1",
       )
     val createMetricRequest2 =
       createCreateMetricRequest(
         CMMS_MEASUREMENT_CONSUMER_ID,
         reportingSetsService,
-        "externalMetricId2"
+        "externalMetricId2",
       )
     val createMetricRequest3 =
       createCreateMetricRequest(
         differentCmmsMeasurementConsumerId,
         reportingSetsService,
-        "externalMetricId3"
+        "externalMetricId3",
       )
 
     val createdMetric = service.createMetric(createMetricRequest)
@@ -2693,13 +2693,13 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       createCreateMetricRequest(
         CMMS_MEASUREMENT_CONSUMER_ID,
         reportingSetsService,
-        "externalMetricId1"
+        "externalMetricId1",
       )
     val createMetricRequest2 =
       createCreateMetricRequest(
         CMMS_MEASUREMENT_CONSUMER_ID,
         reportingSetsService,
-        "externalMetricId2"
+        "externalMetricId2",
       )
 
     val createdMetric = service.createMetric(createMetricRequest)
@@ -2756,13 +2756,13 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     private suspend fun createCreateMetricRequest(
       cmmsMeasurementConsumerId: String,
       reportingSetsService: ReportingSetsCoroutineImplBase,
-      externalMetricId: String = "external-metric-id"
+      externalMetricId: String = "external-metric-id",
     ): CreateMetricRequest {
       val createdReportingSet =
         createReportingSet(
           cmmsMeasurementConsumerId,
           reportingSetsService,
-          externalMetricId + "reporting-set-id"
+          externalMetricId + "reporting-set-id",
         )
 
       val metric = metric {
@@ -2851,7 +2851,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     private suspend fun createReportingSet(
       cmmsMeasurementConsumerId: String,
       reportingSetsService: ReportingSetsCoroutineImplBase,
-      externalReportingSetId: String = "external-reporting-set-id"
+      externalReportingSetId: String = "external-reporting-set-id",
     ): ReportingSet {
       val reportingSet = reportingSet {
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId

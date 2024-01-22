@@ -40,7 +40,7 @@ private val FIXTURES_FILES_PATH: Path =
         "wfanet",
         "panelmatch",
         "integration",
-        "fixtures"
+        "fixtures",
       )
     )
   )
@@ -48,7 +48,7 @@ private val FIXTURES_FILES_PATH: Path =
 @RunWith(Parameterized::class)
 class SingleStepTest(
   private val filteredStep: ExchangeWorkflow.Step,
-  override val exchangeWorkflowResourcePath: String
+  override val exchangeWorkflowResourcePath: String,
 ) : AbstractInProcessPanelMatchIntegrationTest() {
   private val party: ExchangeWorkflow.Party = filteredStep.party
   private val neededInputs: Map<String, String> = filteredStep.inputLabelsMap
@@ -101,7 +101,7 @@ class SingleStepTest(
 
   override fun validateFinalState(
     dataProviderDaemon: ExchangeWorkflowDaemonForTest,
-    modelProviderDaemon: ExchangeWorkflowDaemonForTest
+    modelProviderDaemon: ExchangeWorkflowDaemonForTest,
   ) {
     for ((key, value) in dataProviderOutputs) {
       assertThat(dataProviderDaemon.readPrivateBlob(key)).isEqualTo(value)
@@ -160,7 +160,7 @@ class SingleStepTest(
     /** Reads in golden data for use as test inputs and to verify test outputs. */
     private fun getData(
       neededData: Map<String, String>,
-      currentParty: ExchangeWorkflow.Party?
+      currentParty: ExchangeWorkflow.Party?,
     ): MutableMap<String, ByteString> {
       val inputs = mutableMapOf<String, ByteString>()
       val folderName =

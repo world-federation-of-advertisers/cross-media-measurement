@@ -333,7 +333,7 @@ class EdpSimulatorTest {
     vidRange: LongRange,
     date: LocalDate,
     ageGroup: Person.AgeGroup,
-    gender: Person.Gender
+    gender: Person.Gender,
   ): List<LabeledTestEvent> {
     val timestamp = date.atStartOfDay().toInstant(ZoneOffset.UTC)
     val message = testEvent {
@@ -362,7 +362,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        compositionMechanism = COMPOSITION_MECHANISM
+        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { edpSimulator.ensureEventGroup(SYNTHETIC_DATA_SPEC) }
@@ -371,7 +371,7 @@ class EdpSimulatorTest {
     val createDescriptorRequest: CreateEventGroupMetadataDescriptorRequest =
       verifyAndCapture(
         eventGroupMetadataDescriptorsServiceMock,
-        EventGroupMetadataDescriptorsCoroutineImplBase::createEventGroupMetadataDescriptor
+        EventGroupMetadataDescriptorsCoroutineImplBase::createEventGroupMetadataDescriptor,
       )
     val descriptors =
       ProtoReflection.buildDescriptors(
@@ -395,7 +395,7 @@ class EdpSimulatorTest {
       .containsAtLeast(
         Person.getDescriptor().fullName,
         Video.getDescriptor().fullName,
-        Banner.getDescriptor().fullName
+        Banner.getDescriptor().fullName,
       )
   }
 
@@ -429,7 +429,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        compositionMechanism = COMPOSITION_MECHANISM
+        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { edpSimulator.ensureEventGroup(SYNTHETIC_DATA_SPEC) }
@@ -449,7 +449,7 @@ class EdpSimulatorTest {
       .containsAtLeast(
         Person.getDescriptor().fullName,
         Video.getDescriptor().fullName,
-        Banner.getDescriptor().fullName
+        Banner.getDescriptor().fullName,
       )
   }
 
@@ -480,7 +480,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        compositionMechanism = COMPOSITION_MECHANISM
+        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { edpSimulator.ensureEventGroup(SYNTHETIC_DATA_SPEC) }
@@ -488,7 +488,7 @@ class EdpSimulatorTest {
     val updateRequest: UpdateEventGroupMetadataDescriptorRequest =
       verifyAndCapture(
         eventGroupMetadataDescriptorsServiceMock,
-        EventGroupMetadataDescriptorsCoroutineImplBase::updateEventGroupMetadataDescriptor
+        EventGroupMetadataDescriptorsCoroutineImplBase::updateEventGroupMetadataDescriptor,
       )
     assertThat(updateRequest.eventGroupMetadataDescriptor.descriptorSet)
       .isEqualTo(ProtoReflection.buildFileDescriptorSet(SyntheticEventGroupSpec.getDescriptor()))
@@ -511,12 +511,12 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        compositionMechanism = COMPOSITION_MECHANISM
+        compositionMechanism = COMPOSITION_MECHANISM,
       )
     val metadataByReferenceIdSuffix =
       mapOf(
         "-foo" to SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS[0],
-        "-bar" to SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS[1]
+        "-bar" to SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS[1],
       )
 
     runBlocking { edpSimulator.ensureEventGroups(metadataByReferenceIdSuffix) }
@@ -525,7 +525,7 @@ class EdpSimulatorTest {
     val createDescriptorRequest: CreateEventGroupMetadataDescriptorRequest =
       verifyAndCapture(
         eventGroupMetadataDescriptorsServiceMock,
-        EventGroupMetadataDescriptorsCoroutineImplBase::createEventGroupMetadataDescriptor
+        EventGroupMetadataDescriptorsCoroutineImplBase::createEventGroupMetadataDescriptor,
       )
     val descriptors =
       ProtoReflection.buildDescriptors(
@@ -539,7 +539,7 @@ class EdpSimulatorTest {
       verifyAndCapture(
         eventGroupsServiceMock,
         EventGroupsCoroutineImplBase::createEventGroup,
-        times(2)
+        times(2),
       )
     for (createRequest in createRequests) {
       val metadata: EventGroup.Metadata =
@@ -572,7 +572,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        compositionMechanism = COMPOSITION_MECHANISM
+        compositionMechanism = COMPOSITION_MECHANISM,
       )
     val metadataByReferenceIdSuffix = mapOf("-foo" to SYNTHETIC_DATA_SPEC, "-bar" to TEST_METADATA)
 
@@ -591,31 +591,31 @@ class EdpSimulatorTest {
         1L..10L,
         FIRST_EVENT_DATE,
         Person.AgeGroup.YEARS_18_TO_34,
-        Person.Gender.FEMALE
+        Person.Gender.FEMALE,
       ) +
         generateEvents(
           11L..15L,
           FIRST_EVENT_DATE,
           Person.AgeGroup.YEARS_35_TO_54,
-          Person.Gender.FEMALE
+          Person.Gender.FEMALE,
         ) +
         generateEvents(
           16L..20L,
           FIRST_EVENT_DATE,
           Person.AgeGroup.YEARS_55_PLUS,
-          Person.Gender.FEMALE
+          Person.Gender.FEMALE,
         ) +
         generateEvents(
           21L..25L,
           FIRST_EVENT_DATE,
           Person.AgeGroup.YEARS_18_TO_34,
-          Person.Gender.MALE
+          Person.Gender.MALE,
         ) +
         generateEvents(
           26L..30L,
           FIRST_EVENT_DATE,
           Person.AgeGroup.YEARS_35_TO_54,
-          Person.Gender.MALE
+          Person.Gender.MALE,
         )
 
     val edpSimulator =
@@ -633,7 +633,7 @@ class EdpSimulatorTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        compositionMechanism = COMPOSITION_MECHANISM
+        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking {
@@ -687,32 +687,32 @@ class EdpSimulatorTest {
         1L..10L,
         FIRST_EVENT_DATE,
         Person.AgeGroup.YEARS_18_TO_34,
-        Person.Gender.FEMALE
+        Person.Gender.FEMALE,
       )
     val nonMatchingEvents =
       generateEvents(
         11L..15L,
         FIRST_EVENT_DATE,
         Person.AgeGroup.YEARS_35_TO_54,
-        Person.Gender.FEMALE
+        Person.Gender.FEMALE,
       ) +
         generateEvents(
           16L..20L,
           FIRST_EVENT_DATE,
           Person.AgeGroup.YEARS_55_PLUS,
-          Person.Gender.FEMALE
+          Person.Gender.FEMALE,
         ) +
         generateEvents(
           21L..25L,
           FIRST_EVENT_DATE,
           Person.AgeGroup.YEARS_18_TO_34,
-          Person.Gender.MALE
+          Person.Gender.MALE,
         ) +
         generateEvents(
           26L..30L,
           FIRST_EVENT_DATE,
           Person.AgeGroup.YEARS_35_TO_54,
-          Person.Gender.MALE
+          Person.Gender.MALE,
         )
 
     val allEvents = matchingEvents + nonMatchingEvents
@@ -732,7 +732,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        compositionMechanism = CompositionMechanism.DP_ADVANCED
+        compositionMechanism = CompositionMechanism.DP_ADVANCED,
       )
     runBlocking {
       edpSimulator.ensureEventGroup(TEST_METADATA)
@@ -760,7 +760,7 @@ class EdpSimulatorTest {
           PrivacyLandscapeAge.RANGE_18_34,
           PrivacyLandscapeGender.FEMALE,
           0.0f,
-          PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           MC_NAME,
@@ -769,7 +769,7 @@ class EdpSimulatorTest {
           PrivacyLandscapeAge.RANGE_18_34,
           PrivacyLandscapeGender.FEMALE,
           0.0f,
-          PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           MC_NAME,
@@ -778,7 +778,7 @@ class EdpSimulatorTest {
           PrivacyLandscapeAge.RANGE_18_34,
           PrivacyLandscapeGender.FEMALE,
           PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-          PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
         PrivacyBucketGroup(
           MC_NAME,
@@ -787,7 +787,7 @@ class EdpSimulatorTest {
           PrivacyLandscapeAge.RANGE_18_34,
           PrivacyLandscapeGender.FEMALE,
           PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-          PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         ),
       )
   }
@@ -817,32 +817,32 @@ class EdpSimulatorTest {
           1L..10L,
           FIRST_EVENT_DATE,
           Person.AgeGroup.YEARS_18_TO_34,
-          Person.Gender.FEMALE
+          Person.Gender.FEMALE,
         )
       val nonMatchingEvents =
         generateEvents(
           11L..15L,
           FIRST_EVENT_DATE,
           Person.AgeGroup.YEARS_35_TO_54,
-          Person.Gender.FEMALE
+          Person.Gender.FEMALE,
         ) +
           generateEvents(
             16L..20L,
             FIRST_EVENT_DATE,
             Person.AgeGroup.YEARS_55_PLUS,
-            Person.Gender.FEMALE
+            Person.Gender.FEMALE,
           ) +
           generateEvents(
             21L..25L,
             FIRST_EVENT_DATE,
             Person.AgeGroup.YEARS_18_TO_34,
-            Person.Gender.MALE
+            Person.Gender.MALE,
           ) +
           generateEvents(
             26L..30L,
             FIRST_EVENT_DATE,
             Person.AgeGroup.YEARS_35_TO_54,
-            Person.Gender.MALE
+            Person.Gender.MALE,
           )
 
       val allEvents = matchingEvents + nonMatchingEvents
@@ -862,7 +862,7 @@ class EdpSimulatorTest {
           dummyThrottler,
           privacyBudgetManager,
           TRUSTED_CERTIFICATES,
-          compositionMechanism = CompositionMechanism.ACDP
+          compositionMechanism = CompositionMechanism.ACDP,
         )
       runBlocking {
         edpSimulator.ensureEventGroup(TEST_METADATA)
@@ -888,7 +888,7 @@ class EdpSimulatorTest {
             PrivacyLandscapeAge.RANGE_18_34,
             PrivacyLandscapeGender.FEMALE,
             0.0f,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
           ),
           PrivacyBucketGroup(
             MC_NAME,
@@ -897,7 +897,7 @@ class EdpSimulatorTest {
             PrivacyLandscapeAge.RANGE_18_34,
             PrivacyLandscapeGender.FEMALE,
             0.0f,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
           ),
           PrivacyBucketGroup(
             MC_NAME,
@@ -906,7 +906,7 @@ class EdpSimulatorTest {
             PrivacyLandscapeAge.RANGE_18_34,
             PrivacyLandscapeGender.FEMALE,
             PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
           ),
           PrivacyBucketGroup(
             MC_NAME,
@@ -915,7 +915,7 @@ class EdpSimulatorTest {
             PrivacyLandscapeAge.RANGE_18_34,
             PrivacyLandscapeGender.FEMALE,
             PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
           ),
         )
     }
@@ -966,32 +966,32 @@ class EdpSimulatorTest {
           1L..10L,
           FIRST_EVENT_DATE,
           Person.AgeGroup.YEARS_18_TO_34,
-          Person.Gender.FEMALE
+          Person.Gender.FEMALE,
         )
       val nonMatchingEvents =
         generateEvents(
           11L..15L,
           FIRST_EVENT_DATE,
           Person.AgeGroup.YEARS_35_TO_54,
-          Person.Gender.FEMALE
+          Person.Gender.FEMALE,
         ) +
           generateEvents(
             16L..20L,
             FIRST_EVENT_DATE,
             Person.AgeGroup.YEARS_55_PLUS,
-            Person.Gender.FEMALE
+            Person.Gender.FEMALE,
           ) +
           generateEvents(
             21L..25L,
             FIRST_EVENT_DATE,
             Person.AgeGroup.YEARS_18_TO_34,
-            Person.Gender.MALE
+            Person.Gender.MALE,
           ) +
           generateEvents(
             26L..30L,
             FIRST_EVENT_DATE,
             Person.AgeGroup.YEARS_35_TO_54,
-            Person.Gender.MALE
+            Person.Gender.MALE,
           )
 
       val allEvents = matchingEvents + nonMatchingEvents
@@ -1011,7 +1011,7 @@ class EdpSimulatorTest {
           dummyThrottler,
           privacyBudgetManager,
           TRUSTED_CERTIFICATES,
-          compositionMechanism = CompositionMechanism.ACDP
+          compositionMechanism = CompositionMechanism.ACDP,
         )
       runBlocking {
         edpSimulator.ensureEventGroup(TEST_METADATA)
@@ -1036,7 +1036,7 @@ class EdpSimulatorTest {
             PrivacyLandscapeAge.RANGE_18_34,
             PrivacyLandscapeGender.FEMALE,
             0.0f,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
           ),
           PrivacyBucketGroup(
             MC_NAME,
@@ -1045,7 +1045,7 @@ class EdpSimulatorTest {
             PrivacyLandscapeAge.RANGE_18_34,
             PrivacyLandscapeGender.FEMALE,
             0.0f,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
           ),
           PrivacyBucketGroup(
             MC_NAME,
@@ -1054,7 +1054,7 @@ class EdpSimulatorTest {
             PrivacyLandscapeAge.RANGE_18_34,
             PrivacyLandscapeGender.FEMALE,
             PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
           ),
           PrivacyBucketGroup(
             MC_NAME,
@@ -1063,7 +1063,7 @@ class EdpSimulatorTest {
             PrivacyLandscapeAge.RANGE_18_34,
             PrivacyLandscapeGender.FEMALE,
             PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
           ),
         )
     }
@@ -1076,31 +1076,31 @@ class EdpSimulatorTest {
         1L..10L,
         FIRST_EVENT_DATE,
         Person.AgeGroup.YEARS_18_TO_34,
-        Person.Gender.FEMALE
+        Person.Gender.FEMALE,
       ) +
         generateEvents(
           11L..15L,
           FIRST_EVENT_DATE,
           Person.AgeGroup.YEARS_35_TO_54,
-          Person.Gender.FEMALE
+          Person.Gender.FEMALE,
         ) +
         generateEvents(
           16L..20L,
           FIRST_EVENT_DATE,
           Person.AgeGroup.YEARS_55_PLUS,
-          Person.Gender.FEMALE
+          Person.Gender.FEMALE,
         ) +
         generateEvents(
           21L..25L,
           FIRST_EVENT_DATE,
           Person.AgeGroup.YEARS_18_TO_34,
-          Person.Gender.MALE
+          Person.Gender.MALE,
         ) +
         generateEvents(
           26L..30L,
           FIRST_EVENT_DATE,
           Person.AgeGroup.YEARS_35_TO_54,
-          Person.Gender.MALE
+          Person.Gender.MALE,
         )
     val eventQuery = InMemoryEventQuery(events)
     val edpSimulator =
@@ -1119,7 +1119,7 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         sketchEncrypter = fakeSketchEncrypter,
-        compositionMechanism = COMPOSITION_MECHANISM
+        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
@@ -1134,7 +1134,7 @@ class EdpSimulatorTest {
           requisitionFingerprint =
             computeRequisitionFingerprint(
               REQUISITION.measurementSpec.message.value,
-              Hashing.hashSha256(REQUISITION.encryptedRequisitionSpec.ciphertext)
+              Hashing.hashSha256(REQUISITION.encryptedRequisitionSpec.ciphertext),
             )
           nonce = REQUISITION_SPEC.nonce
         }
@@ -1176,7 +1176,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        compositionMechanism = COMPOSITION_MECHANISM
+        compositionMechanism = COMPOSITION_MECHANISM,
       )
     val requisition =
       REQUISITION.copy {
@@ -1236,7 +1236,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        compositionMechanism = COMPOSITION_MECHANISM
+        compositionMechanism = COMPOSITION_MECHANISM,
       )
     eventGroupsServiceMock.stub {
       onBlocking { getEventGroup(any()) }.thenThrow(Status.NOT_FOUND.asRuntimeException())
@@ -1307,7 +1307,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        compositionMechanism = CompositionMechanism.ACDP
+        compositionMechanism = CompositionMechanism.ACDP,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1376,7 +1376,7 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random = Random(RANDOM_SEED),
-        compositionMechanism = CompositionMechanism.ACDP
+        compositionMechanism = CompositionMechanism.ACDP,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1418,7 +1418,7 @@ class EdpSimulatorTest {
     val encryptedRequisitionSpec =
       encryptRequisitionSpec(
         signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
-        DATA_PROVIDER_PUBLIC_KEY
+        DATA_PROVIDER_PUBLIC_KEY,
       )
 
     val requisition = REQUISITION.copy { this.encryptedRequisitionSpec = encryptedRequisitionSpec }
@@ -1443,7 +1443,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        compositionMechanism = COMPOSITION_MECHANISM
+        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1484,7 +1484,7 @@ class EdpSimulatorTest {
     val encryptedRequisitionSpec =
       encryptRequisitionSpec(
         signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
-        DATA_PROVIDER_PUBLIC_KEY
+        DATA_PROVIDER_PUBLIC_KEY,
       )
 
     val requisition = REQUISITION.copy { this.encryptedRequisitionSpec = encryptedRequisitionSpec }
@@ -1509,7 +1509,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        compositionMechanism = COMPOSITION_MECHANISM
+        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1550,7 +1550,7 @@ class EdpSimulatorTest {
     val encryptedRequisitionSpec =
       encryptRequisitionSpec(
         signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
-        DATA_PROVIDER_PUBLIC_KEY
+        DATA_PROVIDER_PUBLIC_KEY,
       )
 
     val requisition = REQUISITION.copy { this.encryptedRequisitionSpec = encryptedRequisitionSpec }
@@ -1575,7 +1575,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        compositionMechanism = COMPOSITION_MECHANISM
+        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1616,7 +1616,7 @@ class EdpSimulatorTest {
     val encryptedRequisitionSpec =
       encryptRequisitionSpec(
         signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
-        DATA_PROVIDER_PUBLIC_KEY
+        DATA_PROVIDER_PUBLIC_KEY,
       )
 
     val requisition = REQUISITION.copy { this.encryptedRequisitionSpec = encryptedRequisitionSpec }
@@ -1641,7 +1641,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        compositionMechanism = COMPOSITION_MECHANISM
+        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1682,7 +1682,7 @@ class EdpSimulatorTest {
     val encryptedRequisitionSpec =
       encryptRequisitionSpec(
         signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
-        DATA_PROVIDER_PUBLIC_KEY
+        DATA_PROVIDER_PUBLIC_KEY,
       )
 
     val requisition = REQUISITION.copy { this.encryptedRequisitionSpec = encryptedRequisitionSpec }
@@ -1707,7 +1707,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        compositionMechanism = COMPOSITION_MECHANISM
+        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1771,7 +1771,7 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random = Random(RANDOM_SEED),
-        compositionMechanism = COMPOSITION_MECHANISM
+        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1828,7 +1828,7 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random = Random(RANDOM_SEED),
-        compositionMechanism = COMPOSITION_MECHANISM
+        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1836,7 +1836,7 @@ class EdpSimulatorTest {
     val request: FulfillDirectRequisitionRequest =
       verifyAndCapture(
         requisitionsServiceMock,
-        RequisitionsCoroutineImplBase::fulfillDirectRequisition
+        RequisitionsCoroutineImplBase::fulfillDirectRequisition,
       )
     val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
     assertThat(result.reach.noiseMechanism == noiseMechanismOption)
@@ -1877,7 +1877,7 @@ class EdpSimulatorTest {
     val encryptedRequisitionSpec =
       encryptRequisitionSpec(
         signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
-        DATA_PROVIDER_PUBLIC_KEY
+        DATA_PROVIDER_PUBLIC_KEY,
       )
 
     val requisition =
@@ -1919,7 +1919,7 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random = Random(RANDOM_SEED),
-        compositionMechanism = COMPOSITION_MECHANISM
+        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1927,7 +1927,7 @@ class EdpSimulatorTest {
     val request: FulfillDirectRequisitionRequest =
       verifyAndCapture(
         requisitionsServiceMock,
-        RequisitionsCoroutineImplBase::fulfillDirectRequisition
+        RequisitionsCoroutineImplBase::fulfillDirectRequisition,
       )
     val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
     assertThat(result.reach.noiseMechanism == noiseMechanismOption)
@@ -1986,7 +1986,7 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random = Random(RANDOM_SEED),
-        compositionMechanism = COMPOSITION_MECHANISM
+        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1994,7 +1994,7 @@ class EdpSimulatorTest {
     val request: FulfillDirectRequisitionRequest =
       verifyAndCapture(
         requisitionsServiceMock,
-        RequisitionsCoroutineImplBase::fulfillDirectRequisition
+        RequisitionsCoroutineImplBase::fulfillDirectRequisition,
       )
     val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
 
@@ -2050,7 +2050,7 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random = Random(RANDOM_SEED),
-        compositionMechanism = COMPOSITION_MECHANISM
+        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2108,7 +2108,7 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random = Random(RANDOM_SEED),
-        compositionMechanism = COMPOSITION_MECHANISM
+        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2173,7 +2173,7 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random = Random(RANDOM_SEED),
-        compositionMechanism = COMPOSITION_MECHANISM
+        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2181,7 +2181,7 @@ class EdpSimulatorTest {
     val request: FulfillDirectRequisitionRequest =
       verifyAndCapture(
         requisitionsServiceMock,
-        RequisitionsCoroutineImplBase::fulfillDirectRequisition
+        RequisitionsCoroutineImplBase::fulfillDirectRequisition,
       )
     val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
 
@@ -2235,7 +2235,7 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random = Random(RANDOM_SEED),
-        compositionMechanism = COMPOSITION_MECHANISM
+        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2243,7 +2243,7 @@ class EdpSimulatorTest {
     val request: FulfillDirectRequisitionRequest =
       verifyAndCapture(
         requisitionsServiceMock,
-        RequisitionsCoroutineImplBase::fulfillDirectRequisition
+        RequisitionsCoroutineImplBase::fulfillDirectRequisition,
       )
     val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
 
@@ -2297,7 +2297,7 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random = Random(RANDOM_SEED),
-        compositionMechanism = COMPOSITION_MECHANISM
+        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2360,7 +2360,7 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random = Random(RANDOM_SEED),
-        compositionMechanism = COMPOSITION_MECHANISM
+        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2418,7 +2418,7 @@ class EdpSimulatorTest {
     private val EDP_RESULT_SIGNING_KEY =
       loadSigningKey(
         "${EDP_DISPLAY_NAME}_result_cs_cert.der",
-        "${EDP_DISPLAY_NAME}_result_cs_private.der"
+        "${EDP_DISPLAY_NAME}_result_cs_private.der",
       )
     private val DATA_PROVIDER_CERTIFICATE_KEY =
       DataProviderCertificateKey(EDP_ID, externalIdToApiId(8L))
@@ -2441,7 +2441,7 @@ class EdpSimulatorTest {
         EDP_DISPLAY_NAME,
         loadEncryptionPrivateKey("${EDP_DISPLAY_NAME}_enc_private.tink"),
         EDP_RESULT_SIGNING_KEY,
-        DATA_PROVIDER_RESULT_CERTIFICATE_KEY
+        DATA_PROVIDER_RESULT_CERTIFICATE_KEY,
       )
 
     private val MC_PUBLIC_KEY =
@@ -2479,7 +2479,7 @@ class EdpSimulatorTest {
     private val ENCRYPTED_REQUISITION_SPEC =
       encryptRequisitionSpec(
         signRequisitionSpec(REQUISITION_SPEC, MC_SIGNING_KEY),
-        DATA_PROVIDER_PUBLIC_KEY
+        DATA_PROVIDER_PUBLIC_KEY,
       )
 
     private val OUTPUT_DP_PARAMS = differentialPrivacyParams {
@@ -2566,7 +2566,7 @@ class EdpSimulatorTest {
       object :
         SyntheticGeneratorEventQuery(
           SyntheticGenerationSpecs.POPULATION_SPEC,
-          TestEvent.getDescriptor()
+          TestEvent.getDescriptor(),
         ) {
         override fun getSyntheticDataSpec(eventGroup: EventGroup): SyntheticEventGroupSpec {
           return SYNTHETIC_DATA_SPEC
@@ -2588,7 +2588,7 @@ class EdpSimulatorTest {
           sketch: Sketch,
           ellipticCurveId: Int,
           encryptionKey: ElGamalPublicKey,
-          maximumValue: Int
+          maximumValue: Int,
         ): ByteString {
           return sketch.toByteString()
         }
@@ -2596,7 +2596,7 @@ class EdpSimulatorTest {
         override fun encrypt(
           sketch: Sketch,
           ellipticCurveId: Int,
-          encryptionKey: ElGamalPublicKey
+          encryptionKey: ElGamalPublicKey,
         ): ByteString {
           return sketch.toByteString()
         }
@@ -2604,11 +2604,11 @@ class EdpSimulatorTest {
 
     private fun loadSigningKey(
       certDerFileName: String,
-      privateKeyDerFileName: String
+      privateKeyDerFileName: String,
     ): SigningKeyHandle {
       return loadSigningKey(
         SECRET_FILES_PATH.resolve(certDerFileName).toFile(),
-        SECRET_FILES_PATH.resolve(privateKeyDerFileName).toFile()
+        SECRET_FILES_PATH.resolve(privateKeyDerFileName).toFile(),
       )
     }
 

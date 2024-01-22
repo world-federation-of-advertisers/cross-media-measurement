@@ -42,12 +42,12 @@ sealed interface ExchangeStepKey : ChildResourceKey {
 /** Canonical [ResourceKey] of an ExchangeStep */
 data class CanonicalExchangeStepKey(
   override val parentKey: CanonicalExchangeKey,
-  override val exchangeStepId: String
+  override val exchangeStepId: String,
 ) : ExchangeStepKey {
   constructor(
     recurringExchangeId: String,
     exchangeId: String,
-    exchangeStepId: String
+    exchangeStepId: String,
   ) : this(CanonicalExchangeKey(recurringExchangeId, exchangeId), exchangeStepId)
 
   override fun toName(): String {
@@ -55,7 +55,7 @@ data class CanonicalExchangeStepKey(
       mapOf(
         IdVariable.RECURRING_EXCHANGE to recurringExchangeId,
         IdVariable.EXCHANGE to exchangeId,
-        IdVariable.EXCHANGE_STEP to exchangeStepId
+        IdVariable.EXCHANGE_STEP to exchangeStepId,
       )
     )
   }
@@ -72,7 +72,7 @@ data class CanonicalExchangeStepKey(
         CanonicalExchangeStepKey(
           it.getValue(IdVariable.RECURRING_EXCHANGE),
           it.getValue(IdVariable.EXCHANGE),
-          it.getValue(IdVariable.EXCHANGE_STEP)
+          it.getValue(IdVariable.EXCHANGE_STEP),
         )
       }
     }

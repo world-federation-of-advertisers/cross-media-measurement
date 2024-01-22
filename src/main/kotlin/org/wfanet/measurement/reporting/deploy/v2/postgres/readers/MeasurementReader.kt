@@ -37,7 +37,7 @@ class MeasurementReader(private val readContext: ReadContext) {
   data class Result(
     val measurementConsumerId: InternalId,
     val measurementId: InternalId,
-    val measurement: Measurement
+    val measurement: Measurement,
   )
 
   private data class MeasurementInfo(
@@ -87,7 +87,7 @@ class MeasurementReader(private val readContext: ReadContext) {
 
   fun readMeasurementsByCmmsCreateRequestId(
     measurementConsumerId: InternalId,
-    cmmsCreateMeasurementRequestIds: Collection<String>
+    cmmsCreateMeasurementRequestIds: Collection<String>,
   ): Flow<Result> {
     if (cmmsCreateMeasurementRequestIds.isEmpty()) {
       return emptyFlow()
@@ -125,7 +125,7 @@ class MeasurementReader(private val readContext: ReadContext) {
 
   fun readMeasurementsByCmmsId(
     measurementConsumerId: InternalId,
-    cmmsMeasurementIds: Collection<String>
+    cmmsMeasurementIds: Collection<String>,
   ): Flow<Result> {
     if (cmmsMeasurementIds.isEmpty()) {
       return emptyFlow()
@@ -245,7 +245,7 @@ class MeasurementReader(private val readContext: ReadContext) {
         ) {
           PrimitiveReportingSetBasisInfo(
             externalReportingSetId = primitiveExternalReportingSetId,
-            filterSet = mutableSetOf()
+            filterSet = mutableSetOf(),
           )
         }
 

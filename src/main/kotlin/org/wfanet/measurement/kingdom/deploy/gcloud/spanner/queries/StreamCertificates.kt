@@ -28,7 +28,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateR
 class StreamCertificates(
   parentType: CertificateReader.ParentType,
   requestFilter: StreamCertificatesRequest.Filter,
-  limit: Int = 0
+  limit: Int = 0,
 ) : SimpleSpannerQuery<CertificateReader.Result>() {
   override val reader =
     CertificateReader(parentType).fillStatementBuilder {
@@ -62,7 +62,7 @@ class StreamCertificates(
 
     private fun Statement.Builder.bindWhereClause(
       parentType: CertificateReader.ParentType,
-      requestFilter: StreamCertificatesRequest.Filter
+      requestFilter: StreamCertificatesRequest.Filter,
     ) {
       val conjuncts = mutableListOf<String>()
       if (requestFilter.hasAfter()) {

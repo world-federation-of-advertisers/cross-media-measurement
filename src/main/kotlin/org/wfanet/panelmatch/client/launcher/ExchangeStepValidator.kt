@@ -24,7 +24,7 @@ interface ExchangeStepValidator {
   data class ValidatedExchangeStep(
     val workflow: ExchangeWorkflow,
     val step: ExchangeWorkflow.Step,
-    val date: LocalDate
+    val date: LocalDate,
   )
 
   /** Throws [InvalidExchangeStepException] if [exchangeStep] is invalid. */

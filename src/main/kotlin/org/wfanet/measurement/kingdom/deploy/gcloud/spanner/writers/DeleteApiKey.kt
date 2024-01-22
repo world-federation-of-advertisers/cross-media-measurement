@@ -47,7 +47,7 @@ class DeleteApiKey(
     transactionContext.buffer(
       Mutation.delete(
         "MeasurementConsumerApiKeys",
-        KeySet.singleKey(Key.of(measurementConsumerId.value, apiKeyResult.apiKeyId))
+        KeySet.singleKey(Key.of(measurementConsumerId.value, apiKeyResult.apiKeyId)),
       )
     )
 
@@ -59,7 +59,7 @@ class DeleteApiKey(
   ): InternalId =
     MeasurementConsumerReader.readMeasurementConsumerId(
       transactionContext,
-      externalMeasurementConsumerId
+      externalMeasurementConsumerId,
     ) ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
 
   private suspend fun TransactionScope.readApiKey(

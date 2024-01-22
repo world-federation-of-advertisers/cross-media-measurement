@@ -22,7 +22,7 @@ import picocli.CommandLine
   name = "ForwardedStorageLiquidLegionsV2MillDaemon",
   description = ["LiquidLegionsV2 Mill daemon."],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 class ForwardedStorageLiquidLegionsV2MillDaemon : LiquidLegionsV2MillDaemon() {
   @CommandLine.Mixin private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags

@@ -91,7 +91,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
         insertPeriodicTimeInterval(
           report.measurementConsumerReferenceId,
           internalReportId,
-          report.periodicTimeInterval
+          report.periodicTimeInterval,
         )
       }
       insertMeasurements(request.measurementsList)
@@ -143,7 +143,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
 
   private suspend fun TransactionScope.insertReportMeasurements(
     measurements: Collection<MeasurementKey>,
-    reportId: Long
+    reportId: Long,
   ) {
     val sql =
       StringBuilder(
@@ -175,7 +175,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
   private suspend fun TransactionScope.insertPeriodicTimeInterval(
     measurementConsumerReferenceId: String,
     reportId: Long,
-    periodicTimeInterval: PeriodicTimeInterval
+    periodicTimeInterval: PeriodicTimeInterval,
   ) {
     val statement =
       boundStatement(
@@ -199,7 +199,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
   private suspend fun TransactionScope.insertTimeIntervals(
     measurementConsumerReferenceId: String,
     reportId: Long,
-    timeIntervals: Collection<TimeInterval>
+    timeIntervals: Collection<TimeInterval>,
   ): Map<TimeInterval, Long> {
     val sql =
       StringBuilder(
@@ -244,7 +244,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
     measurementConsumerReferenceId: String,
     reportId: Long,
     timeIntervalMap: Map<TimeInterval, Long>,
-    metric: Metric
+    metric: Metric,
   ) {
     val metricId = idGenerator.generateInternalId().value
 
@@ -269,7 +269,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
         reportId,
         metricId,
         timeIntervalMap,
-        it
+        it,
       )
     }
   }
@@ -279,7 +279,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
     reportId: Long,
     metricId: Long,
     timeIntervalMap: Map<TimeInterval, Long>,
-    namedSetOperation: NamedSetOperation
+    namedSetOperation: NamedSetOperation,
   ) {
     val namedSetOperationId = idGenerator.generateInternalId().value
     val setOperationId =
@@ -287,7 +287,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
         measurementConsumerReferenceId,
         reportId,
         metricId,
-        namedSetOperation.setOperation
+        namedSetOperation.setOperation,
       )
 
     val statement =
@@ -315,7 +315,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
         namedSetOperationId,
         timeIntervalMap[it.timeInterval]
           ?: throw MeasurementCalculationTimeIntervalNotFoundException(),
-        it
+        it,
       )
     }
   }
@@ -326,7 +326,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
     metricId: Long,
     namedSetOperationId: Long,
     timeIntervalId: Long,
-    measurementCalculation: Metric.MeasurementCalculation
+    measurementCalculation: Metric.MeasurementCalculation,
   ) {
     val measurementCalculationId = idGenerator.generateInternalId().value
     val statement =
@@ -351,7 +351,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
       metricId,
       namedSetOperationId,
       measurementCalculationId,
-      measurementCalculation.weightedMeasurementsList
+      measurementCalculation.weightedMeasurementsList,
     )
   }
 
@@ -361,7 +361,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
     metricId: Long,
     namedSetOperationId: Long,
     measurementCalculationId: Long,
-    weightedMeasurements: Collection<WeightedMeasurement>
+    weightedMeasurements: Collection<WeightedMeasurement>,
   ) {
     transactionContext.run {
       weightedMeasurements.forEach {
@@ -391,7 +391,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
     measurementConsumerReferenceId: String,
     reportId: Long,
     metricId: Long,
-    setOperation: SetOperation
+    setOperation: SetOperation,
   ): Long {
     val setOperationId = idGenerator.generateInternalId().value
     val lhsReportingSetId: Long?
@@ -408,7 +408,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
             .readReportingSetByExternalId(
               transactionContext,
               measurementConsumerReferenceId,
-              ExternalId(setOperation.lhs.reportingSetId.externalReportingSetId)
+              ExternalId(setOperation.lhs.reportingSetId.externalReportingSetId),
             )
         lhsReportingSetId = reportingSetResult.reportingSetId.value
       }
@@ -418,7 +418,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
             measurementConsumerReferenceId,
             reportId,
             metricId,
-            setOperation.lhs.operation
+            setOperation.lhs.operation,
           )
         lhsReportingSetId = null
       }
@@ -437,7 +437,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
             .readReportingSetByExternalId(
               transactionContext,
               measurementConsumerReferenceId,
-              ExternalId(setOperation.rhs.reportingSetId.externalReportingSetId)
+              ExternalId(setOperation.rhs.reportingSetId.externalReportingSetId),
             )
         rhsReportingSetId = reportingSetResult.reportingSetId.value
       }
@@ -447,7 +447,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
             measurementConsumerReferenceId,
             reportId,
             metricId,
-            setOperation.rhs.operation
+            setOperation.rhs.operation,
           )
         rhsReportingSetId = null
       }

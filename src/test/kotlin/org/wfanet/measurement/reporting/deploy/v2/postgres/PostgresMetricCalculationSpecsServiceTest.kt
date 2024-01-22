@@ -36,12 +36,12 @@ import org.wfanet.measurement.reporting.service.internal.testing.v2.MetricCalcul
 class PostgresMetricCalculationSpecsServiceTest :
   MetricCalculationSpecsServiceTest<PostgresMetricCalculationSpecsService>() {
   override fun newServices(
-    idGenerator: IdGenerator,
+    idGenerator: IdGenerator
   ): Services<PostgresMetricCalculationSpecsService> {
     val client: PostgresDatabaseClient = databaseProvider.createDatabase()
     return Services(
       PostgresMetricCalculationSpecsService(idGenerator, client),
-      PostgresMeasurementConsumersService(idGenerator, client)
+      PostgresMeasurementConsumersService(idGenerator, client),
     )
   }
 

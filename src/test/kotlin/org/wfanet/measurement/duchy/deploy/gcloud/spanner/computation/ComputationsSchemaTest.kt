@@ -48,7 +48,7 @@ class ComputationsSchemaTest : UsingSpannerEmulator(Schemata.DUCHY_CHANGELOG_PAT
         .to(computationId)
         .set("ComputationStage")
         .to(1)
-        .build()
+        .build(),
     )
   }
 
@@ -99,7 +99,7 @@ class ComputationsSchemaTest : UsingSpannerEmulator(Schemata.DUCHY_CHANGELOG_PAT
         .to(2)
         .set("NextAttempt")
         .to(3)
-        .build()
+        .build(),
     )
     assertQueryReturns(
       dbClient,
@@ -119,7 +119,7 @@ class ComputationsSchemaTest : UsingSpannerEmulator(Schemata.DUCHY_CHANGELOG_PAT
         .to(ByteArray.copyFrom("123456"))
         .set("RequisitionDetailsJSON")
         .to("123456")
-        .build()
+        .build(),
     )
   }
 

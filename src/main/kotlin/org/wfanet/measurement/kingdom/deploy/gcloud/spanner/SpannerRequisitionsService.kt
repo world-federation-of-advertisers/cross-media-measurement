@@ -40,7 +40,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.RefuseRequis
 
 class SpannerRequisitionsService(
   private val idGenerator: IdGenerator,
-  private val client: AsyncDatabaseClient
+  private val client: AsyncDatabaseClient,
 ) : RequisitionsCoroutineImplBase() {
 
   override suspend fun getRequisition(request: GetRequisitionRequest): Requisition {
@@ -48,7 +48,7 @@ class SpannerRequisitionsService(
       .readByExternalDataProviderId(
         client.singleUse(),
         externalDataProviderId = request.externalDataProviderId,
-        externalRequisitionId = request.externalRequisitionId
+        externalRequisitionId = request.externalRequisitionId,
       )
       ?.requisition ?: failGrpc(Status.NOT_FOUND) { "Requisition not found" }
   }
@@ -99,12 +99,12 @@ class SpannerRequisitionsService(
     } catch (e: RequisitionStateIllegalException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Requisition state illegal."
+        "Requisition state illegal.",
       )
     } catch (e: MeasurementStateIllegalException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Measurement state illegal."
+        "Measurement state illegal.",
       )
     } catch (e: DuchyNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Duchy not found.")
@@ -132,12 +132,12 @@ class SpannerRequisitionsService(
     } catch (e: RequisitionStateIllegalException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Requisition state illegal."
+        "Requisition state illegal.",
       )
     } catch (e: MeasurementStateIllegalException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Measurement state illegal."
+        "Measurement state illegal.",
       )
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")

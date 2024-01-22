@@ -22,28 +22,28 @@ class CertificateAuthorityFlags {
   @Option(
     names = ["--x509-common-name"],
     description = ["X509 Certificate Common Name (CN)"],
-    required = true
+    required = true,
   )
   private lateinit var commonName: String
 
   @Option(
     names = ["--x509-organization"],
     description = ["X509 Certificate Organization (O)"],
-    required = true
+    required = true,
   )
   private lateinit var organization: String
 
   @Option(
     names = ["--x509-dns-name"],
     description = ["X509 Certificate Alt Subject DNS name"],
-    required = true
+    required = true,
   )
   private lateinit var dnsName: String
 
   @set:Option(
     names = ["--x509-valid-days"],
     description = ["X509 Certificate lifespan"],
-    required = true
+    required = true,
   )
   private var validDays: Int by Delegates.notNull()
 

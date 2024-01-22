@@ -70,7 +70,7 @@ private class Flags {
   @CommandLine.Option(
     names = ["--protocols-setup-config"],
     description = ["ProtocolsSetupConfig proto message in text format."],
-    required = true
+    required = true,
   )
   lateinit var protocolsSetupConfig: File
     private set
@@ -90,7 +90,7 @@ private class Flags {
   @set:CommandLine.Option(
     names = ["--debug-verbose-grpc-client-logging"],
     description = ["Enables full gRPC request and response logging for outgoing gRPCs"],
-    defaultValue = "false"
+    defaultValue = "false",
   )
   var verboseGrpcClientLogging by Delegates.notNull<Boolean>()
     private set
@@ -99,14 +99,14 @@ private class Flags {
 @CommandLine.Command(
   name = "HeraldDaemon",
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 private fun run(@CommandLine.Mixin flags: Flags) {
   val clientCerts =
     SigningCerts.fromPemFiles(
       certificateFile = flags.tlsFlags.certFile,
       privateKeyFile = flags.tlsFlags.privateKeyFile,
-      trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
+      trustedCertCollectionFile = flags.tlsFlags.certCollectionFile,
     )
 
   val systemServiceChannel =
@@ -123,7 +123,7 @@ private fun run(@CommandLine.Mixin flags: Flags) {
     buildMutualTlsChannel(
         flags.computationsServiceFlags.target,
         clientCerts,
-        flags.computationsServiceFlags.certHost
+        flags.computationsServiceFlags.certHost,
       )
       .withShutdownTimeout(flags.channelShutdownTimeout)
       .withDefaultDeadline(flags.computationsServiceFlags.defaultDeadlineDuration)
@@ -148,7 +148,7 @@ private fun run(@CommandLine.Mixin flags: Flags) {
           parseTextProto(it, ProtocolsSetupConfig.getDefaultInstance())
         },
       clock = Clock.systemUTC(),
-      deletableComputationStates = flags.deletableComputationStates
+      deletableComputationStates = flags.deletableComputationStates,
     )
   runBlocking { herald.continuallySyncStatuses() }
 }

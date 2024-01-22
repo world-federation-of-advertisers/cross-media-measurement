@@ -26,7 +26,7 @@ class EventGroupKey(val cmmsMeasurementConsumerId: String, val cmmsEventGroupId:
     return parser.assembleName(
       mapOf(
         IdVariable.MEASUREMENT_CONSUMER to cmmsMeasurementConsumerId,
-        IdVariable.EVENT_GROUP to cmmsEventGroupId
+        IdVariable.EVENT_GROUP to cmmsEventGroupId,
       )
     )
   }
@@ -41,7 +41,7 @@ class EventGroupKey(val cmmsMeasurementConsumerId: String, val cmmsEventGroupId:
       val idVars: Map<IdVariable, String> = parser.parseIdVars(resourceName) ?: return null
       return EventGroupKey(
         idVars.getValue(IdVariable.MEASUREMENT_CONSUMER),
-        idVars.getValue(IdVariable.EVENT_GROUP)
+        idVars.getValue(IdVariable.EVENT_GROUP),
       )
     }
   }

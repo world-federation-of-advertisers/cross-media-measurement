@@ -34,7 +34,7 @@ sealed class DuchyInternalException(
 
   fun asStatusRuntimeException(
     statusCode: Status.Code,
-    message: String = this.message
+    message: String = this.message,
   ): StatusRuntimeException {
     val statusProto = status {
       code = statusCode.value()
@@ -52,18 +52,14 @@ sealed class DuchyInternalException(
   }
 }
 
-class ContinuationTokenInvalidException(
-  val continuationToken: String,
-  message: String,
-) : DuchyInternalException(ErrorCode.CONTINUATION_TOKEN_INVALID, message) {
+class ContinuationTokenInvalidException(val continuationToken: String, message: String) :
+  DuchyInternalException(ErrorCode.CONTINUATION_TOKEN_INVALID, message) {
   override val context
     get() = mapOf("continuation_token" to continuationToken)
 }
 
-class ContinuationTokenMalformedException(
-  val continuationToken: String,
-  message: String,
-) : DuchyInternalException(ErrorCode.CONTINUATION_TOKEN_MALFORMED, message) {
+class ContinuationTokenMalformedException(val continuationToken: String, message: String) :
+  DuchyInternalException(ErrorCode.CONTINUATION_TOKEN_MALFORMED, message) {
   override val context
     get() = mapOf("continuation_token" to continuationToken)
 }
@@ -87,7 +83,7 @@ class ComputationDetailsNotFoundException(
       mapOf(
         "computation_id" to computationId.toString(),
         "computation_stage" to computationStage,
-        "attempt" to attempt.toString()
+        "attempt" to attempt.toString(),
       )
 }
 
@@ -119,6 +115,6 @@ class ComputationTokenVersionMismatchException(
       mapOf(
         "computation_id" to computationId.toString(),
         "version" to version.toString(),
-        "token_version" to tokenVersion.toString()
+        "token_version" to tokenVersion.toString(),
       )
 }

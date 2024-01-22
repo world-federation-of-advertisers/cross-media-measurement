@@ -33,7 +33,7 @@ import software.amazon.awssdk.services.sts.model.AssumeRoleRequest
 /** [StorageFactory] for [S3StorageClient]. */
 class S3StorageFactory(
   private val storageDetails: StorageDetails,
-  private val exchangeDateKey: ExchangeDateKey
+  private val exchangeDateKey: ExchangeDateKey,
 ) : StorageFactory {
 
   override fun build(options: PipelineOptions?): StorageClient {
@@ -41,17 +41,11 @@ class S3StorageFactory(
       return build()
     }
     val beamOptions = options.`as`(BeamOptions::class.java)
-    @Suppress(
-      "USELESS_ELVIS",
-    ) // Beam returns String?
+    @Suppress("USELESS_ELVIS") // Beam returns String?
     val accessKey = beamOptions.awsAccessKey ?: ""
-    @Suppress(
-      "USELESS_ELVIS",
-    ) // Beam returns String?
+    @Suppress("USELESS_ELVIS") // Beam returns String?
     val secretAccessKey = beamOptions.awsSecretAccessKey ?: ""
-    @Suppress(
-      "USELESS_ELVIS",
-    ) // Beam returns String?
+    @Suppress("USELESS_ELVIS") // Beam returns String?
     val sessionToken = beamOptions.awsSessionToken ?: ""
     if (accessKey.isEmpty() || secretAccessKey.isEmpty() || sessionToken.isEmpty()) {
       return build()
@@ -62,7 +56,7 @@ class S3StorageFactory(
           .region(Region.of(storageDetails.aws.region))
           .credentialsProvider(StaticCredentialsProvider.create(builtCredentials))
           .build(),
-        storageDetails.aws.bucket
+        storageDetails.aws.bucket,
       )
       .withPrefix(exchangeDateKey.path)
   }
@@ -71,7 +65,7 @@ class S3StorageFactory(
     if (storageDetails.aws.role.roleArn.isEmpty()) {
       return S3StorageClient(
           S3AsyncClient.builder().region(Region.of(storageDetails.aws.region)).build(),
-          storageDetails.aws.bucket
+          storageDetails.aws.bucket,
         )
         .withPrefix(exchangeDateKey.path)
     } else {
@@ -97,7 +91,7 @@ class S3StorageFactory(
                 .build()
             )
             .build(),
-          storageDetails.aws.bucket
+          storageDetails.aws.bucket,
         )
         .withPrefix(exchangeDateKey.path)
     }

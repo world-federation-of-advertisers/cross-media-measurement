@@ -23,7 +23,7 @@ private val parser =
 /** [ResourceKey] of a MeasurementConsumer Certificate. */
 data class MeasurementConsumerCertificateKey(
   val measurementConsumerId: String,
-  override val certificateId: String
+  override val certificateId: String,
 ) : CertificateKey {
   override val parentKey = MeasurementConsumerKey(measurementConsumerId)
 
@@ -31,7 +31,7 @@ data class MeasurementConsumerCertificateKey(
     return parser.assembleName(
       mapOf(
         IdVariable.MEASUREMENT_CONSUMER to measurementConsumerId,
-        IdVariable.CERTIFICATE to certificateId
+        IdVariable.CERTIFICATE to certificateId,
       )
     )
   }
@@ -43,7 +43,7 @@ data class MeasurementConsumerCertificateKey(
       return parser.parseIdVars(resourceName)?.let {
         MeasurementConsumerCertificateKey(
           it.getValue(IdVariable.MEASUREMENT_CONSUMER),
-          it.getValue(IdVariable.CERTIFICATE)
+          it.getValue(IdVariable.CERTIFICATE),
         )
       }
     }

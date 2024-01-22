@@ -59,7 +59,7 @@ class JniQueryEvaluatorTestHelper(private val context: JniQueryEvaluatorContext)
 
   override fun makeQueryBundle(
     shard: ShardId,
-    queries: List<Pair<QueryId, BucketId>>
+    queries: List<Pair<QueryId, BucketId>>,
   ): EncryptedQueryBundle {
     val request = encryptQueriesRequest {
       parameters = context.privateMembershipParameters
@@ -80,7 +80,7 @@ class JniQueryEvaluatorTestHelper(private val context: JniQueryEvaluatorContext)
     return encryptedQueryBundleOf(
       shard,
       queries.map { it.first },
-      response.encryptedQueries.toByteString()
+      response.encryptedQueries.toByteString(),
     )
   }
 
@@ -91,7 +91,7 @@ class JniQueryEvaluatorTestHelper(private val context: JniQueryEvaluatorContext)
         listOf(databaseShardOf(shardIdOf(0), listOf(bucketOf(bucketIdOf(0), listOf(rawPayload))))),
         listOf(makeQueryBundle(shardIdOf(0), listOf(query to bucketIdOf(0)))),
         mapOf(query to paddingNonce {}),
-        serializedPublicKey
+        serializedPublicKey,
       )
       .single()
   }
@@ -101,7 +101,7 @@ class JniQueryEvaluatorTestHelper(private val context: JniQueryEvaluatorContext)
     val databaseShard =
       databaseShardOf(
         shardIdOf(0),
-        listOf(bucketOf(bucketIdOf(1), listOf("some-unused-payload".toByteStringUtf8())))
+        listOf(bucketOf(bucketIdOf(1), listOf("some-unused-payload".toByteStringUtf8()))),
       )
     val queryBundle = makeQueryBundle(shardIdOf(0), listOf(query to bucketIdOf(0)))
     val paddingNonces = mapOf(query to paddingNonce {})
@@ -111,7 +111,7 @@ class JniQueryEvaluatorTestHelper(private val context: JniQueryEvaluatorContext)
         listOf(databaseShard),
         listOf(queryBundle),
         paddingNonces,
-        serializedPublicKey
+        serializedPublicKey,
       )
       .single()
   }

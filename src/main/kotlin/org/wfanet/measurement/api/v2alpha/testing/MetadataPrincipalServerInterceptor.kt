@@ -52,7 +52,7 @@ class MetadataPrincipalServerInterceptor : ServerInterceptor {
   override fun <ReqT, RespT> interceptCall(
     call: ServerCall<ReqT, RespT>,
     headers: Metadata,
-    next: ServerCallHandler<ReqT, RespT>
+    next: ServerCallHandler<ReqT, RespT>,
   ): ServerCall.Listener<ReqT> {
     if (ContextKeys.PRINCIPAL_CONTEXT_KEY.get() != null) {
       return Contexts.interceptCall(Context.current(), call, headers, next)
@@ -62,7 +62,7 @@ class MetadataPrincipalServerInterceptor : ServerInterceptor {
     if (principalName == null) {
       call.close(
         Status.UNAUTHENTICATED.withDescription("$PRINCIPAL_METADATA_KEY not found"),
-        Metadata()
+        Metadata(),
       )
       return object : ServerCall.Listener<ReqT>() {}
     }

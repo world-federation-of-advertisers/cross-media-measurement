@@ -27,7 +27,7 @@ private val PLAINTEXTS: List<ByteString> =
     "some plaintext1".toByteStringUtf8(),
     "some plaintext2".toByteStringUtf8(),
     "some plaintext3".toByteStringUtf8(),
-    "some plaintext4".toByteStringUtf8()
+    "some plaintext4".toByteStringUtf8(),
   )
 
 abstract class AbstractSymmetricCryptorTest {

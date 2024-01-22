@@ -98,7 +98,7 @@ class InProcessEdpSimulator(
         object :
           SyntheticGeneratorEventQuery(
             SyntheticGenerationSpecs.POPULATION_SPEC,
-            TestEvent.getDescriptor()
+            TestEvent.getDescriptor(),
           ) {
           override fun getSyntheticDataSpec(eventGroup: EventGroup) = syntheticDataSpec
         },
@@ -108,7 +108,7 @@ class InProcessEdpSimulator(
           PrivacyBucketFilter(TestPrivacyBucketMapper()),
           InMemoryBackingStore(),
           100.0f,
-          100.0f
+          100.0f,
         ),
       trustedCertificates = trustedCertificates,
       random = random,
@@ -136,7 +136,7 @@ class InProcessEdpSimulator(
       certificateKey = certificateKey,
       privateEncryptionKey = loadEncryptionPrivateKey("${displayName}_enc_private.tink"),
       signingKeyHandle =
-        loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der")
+        loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der"),
     )
 
   companion object {

@@ -51,7 +51,7 @@ class EventTemplateValidator : Runnable {
       [
         "Path to a serialized FileDescriptorSet containing an event message type and/or its " +
           "dependencies.",
-        "This can be specified multiple times."
+        "This can be specified multiple times.",
       ],
   )
   private lateinit var descriptorSetFiles: List<File>
@@ -118,11 +118,11 @@ class EventTemplateValidator : Runnable {
         Descriptors.FieldDescriptor.Type.DOUBLE,
         Descriptors.FieldDescriptor.Type.FLOAT,
         Descriptors.FieldDescriptor.Type.INT32,
-        Descriptors.FieldDescriptor.Type.INT64, -> {}
+        Descriptors.FieldDescriptor.Type.INT64 -> {}
         Descriptors.FieldDescriptor.Type.MESSAGE ->
           when (val messageName = field.messageType.fullName) {
             Duration.getDescriptor().fullName,
-            Timestamp.getDescriptor().fullName, -> {}
+            Timestamp.getDescriptor().fullName -> {}
             else -> throw ValidationException("$fieldRef has unsupported type $messageName")
           }
         Descriptors.FieldDescriptor.Type.UINT64,
@@ -134,7 +134,7 @@ class EventTemplateValidator : Runnable {
         Descriptors.FieldDescriptor.Type.SFIXED32,
         Descriptors.FieldDescriptor.Type.SFIXED64,
         Descriptors.FieldDescriptor.Type.SINT32,
-        Descriptors.FieldDescriptor.Type.SINT64, ->
+        Descriptors.FieldDescriptor.Type.SINT64 ->
           throw ValidationException("$fieldRef has unsupported type ${field.type.name.lowercase()}")
       }
     }

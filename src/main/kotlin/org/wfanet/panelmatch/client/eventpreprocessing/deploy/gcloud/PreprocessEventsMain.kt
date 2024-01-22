@@ -119,7 +119,7 @@ fun main(args: Array<String>) {
         HardCodedDeterministicCommutativeCipherKeyProvider(options.cryptokey.toByteStringUtf8()),
         JniEventPreprocessor(),
         compressionParameters,
-      )
+      ),
     )
 
   writeToBigQuery(encryptedEvents, options.bigQueryOutputTable)
@@ -131,7 +131,7 @@ fun main(args: Array<String>) {
 
 private fun readFromBigQuery(
   inputTable: String,
-  pipeline: Pipeline
+  pipeline: Pipeline,
 ): PCollection<UnprocessedEvent> {
   // Build the read options proto for the read operation.
   val rowsFromBigQuery =
@@ -140,7 +140,7 @@ private fun readFromBigQuery(
       BigQueryIO.readTableRows()
         .from(inputTable)
         .withMethod(Method.DIRECT_READ)
-        .withSelectedFields(mutableListOf("UserId", "UserEvent"))
+        .withSelectedFields(mutableListOf("UserId", "UserEvent")),
     )
   // Convert TableRow to KV<Long,ByteString>
   return rowsFromBigQuery.map(name = "Map to ByteStrings") {
@@ -156,7 +156,7 @@ private fun writeToBigQuery(encryptedEvents: PCollection<DatabaseEntry>, outputT
   val fields =
     listOf<TableFieldSchema>(
       TableFieldSchema().setName("EncryptedId").setType("INT64"),
-      TableFieldSchema().setName("EncryptedData").setType("BYTES")
+      TableFieldSchema().setName("EncryptedData").setType("BYTES"),
     )
   val schema = TableSchema().setFields(fields)
 
@@ -175,7 +175,7 @@ private fun writeToBigQuery(encryptedEvents: PCollection<DatabaseEntry>, outputT
       .to(outputTable)
       .withSchema(schema)
       .withCreateDisposition(BigQueryIO.Write.CreateDisposition.CREATE_IF_NEEDED)
-      .withWriteDisposition(BigQueryIO.Write.WriteDisposition.WRITE_TRUNCATE)
+      .withWriteDisposition(BigQueryIO.Write.WriteDisposition.WRITE_TRUNCATE),
   )
 }
 

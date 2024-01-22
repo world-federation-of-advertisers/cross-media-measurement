@@ -45,13 +45,13 @@ class DeleteModelOutage(private val modelOutage: ModelOutage) :
           ExternalId(modelOutage.externalModelProviderId),
           ExternalId(modelOutage.externalModelSuiteId),
           ExternalId(modelOutage.externalModelLineId),
-          ExternalId(modelOutage.externalModelOutageId)
+          ExternalId(modelOutage.externalModelOutageId),
         )
         ?: throw ModelOutageNotFoundException(
           ExternalId(modelOutage.externalModelProviderId),
           ExternalId(modelOutage.externalModelSuiteId),
           ExternalId(modelOutage.externalModelLineId),
-          ExternalId(modelOutage.externalModelOutageId)
+          ExternalId(modelOutage.externalModelOutageId),
         )
 
     if (internalModelOutageResult.modelOutage.state == ModelOutage.State.DELETED) {
@@ -60,7 +60,7 @@ class DeleteModelOutage(private val modelOutage: ModelOutage) :
         ExternalId(modelOutage.externalModelSuiteId),
         ExternalId(modelOutage.externalModelLineId),
         ExternalId(modelOutage.externalModelOutageId),
-        internalModelOutageResult.modelOutage.state
+        internalModelOutageResult.modelOutage.state,
       )
     }
 
