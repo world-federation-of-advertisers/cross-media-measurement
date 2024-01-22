@@ -877,7 +877,9 @@ private fun ListReportsRequest.toListReportsPageToken(): ListReportsPageToken {
 
 /**
  * Validate [Report] time fields.
- * @throws [StatusRuntimeException] with [Status.INVALID_ARGUMENT] if error found.
+ *
+ * @throws
+ * * [StatusRuntimeException] with [Status.INVALID_ARGUMENT] if error found.
  */
 private fun validateTime(report: Report) {
   if (report.hasTimeIntervals()) {
