@@ -404,7 +404,7 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
       .containsExactly(
         createdMetricCalculationSpec,
         createdMetricCalculationSpec2,
-        createdMetricCalculationSpec3
+        createdMetricCalculationSpec3,
       )
   }
 

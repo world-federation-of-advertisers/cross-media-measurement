@@ -233,7 +233,7 @@ class MetricCalculationSpecsServiceTest {
 
       verifyProtoArgument(
           internalMetricCalculationSpecsMock,
-          MetricCalculationSpecsCoroutineImplBase::createMetricCalculationSpec
+          MetricCalculationSpecsCoroutineImplBase::createMetricCalculationSpec,
         )
         .isEqualTo(
           internalCreateMetricCalculationSpecRequest {
@@ -287,7 +287,7 @@ class MetricCalculationSpecsServiceTest {
 
       verifyProtoArgument(
           internalMetricCalculationSpecsMock,
-          MetricCalculationSpecsCoroutineImplBase::createMetricCalculationSpec
+          MetricCalculationSpecsCoroutineImplBase::createMetricCalculationSpec,
         )
         .isEqualTo(
           internalCreateMetricCalculationSpecRequest {
@@ -341,7 +341,7 @@ class MetricCalculationSpecsServiceTest {
 
       verifyProtoArgument(
           internalMetricCalculationSpecsMock,
-          MetricCalculationSpecsCoroutineImplBase::createMetricCalculationSpec
+          MetricCalculationSpecsCoroutineImplBase::createMetricCalculationSpec,
         )
         .isEqualTo(
           internalCreateMetricCalculationSpecRequest {
@@ -393,7 +393,7 @@ class MetricCalculationSpecsServiceTest {
 
       verifyProtoArgument(
           internalMetricCalculationSpecsMock,
-          MetricCalculationSpecsCoroutineImplBase::createMetricCalculationSpec
+          MetricCalculationSpecsCoroutineImplBase::createMetricCalculationSpec,
         )
         .isEqualTo(
           internalCreateMetricCalculationSpecRequest {
@@ -429,7 +429,7 @@ class MetricCalculationSpecsServiceTest {
 
       verifyProtoArgument(
           internalMetricCalculationSpecsMock,
-          MetricCalculationSpecsCoroutineImplBase::createMetricCalculationSpec
+          MetricCalculationSpecsCoroutineImplBase::createMetricCalculationSpec,
         )
         .isEqualTo(
           internalCreateMetricCalculationSpecRequest {

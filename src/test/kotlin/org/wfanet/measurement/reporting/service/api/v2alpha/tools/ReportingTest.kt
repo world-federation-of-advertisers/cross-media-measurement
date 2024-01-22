@@ -495,7 +495,7 @@ class ReportingTest {
             reportingMetricEntries +=
               parseTextProto(
                 textFormatReportingMetricEntryFile,
-                Report.ReportingMetricEntry.getDefaultInstance()
+                Report.ReportingMetricEntry.getDefaultInstance(),
               )
             reportingInterval =
               ReportKt.reportingInterval {

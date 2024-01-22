@@ -158,7 +158,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       .ignoringFields(
         Report.EXTERNAL_REPORT_ID_FIELD_NUMBER,
         Report.CREATE_TIME_FIELD_NUMBER,
-        Report.REPORTING_METRIC_ENTRIES_FIELD_NUMBER
+        Report.REPORTING_METRIC_ENTRIES_FIELD_NUMBER,
       )
       .isEqualTo(createdReport)
     assertThat(createdReport.externalReportId).isNotEmpty()
@@ -296,7 +296,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       .ignoringFields(
         Report.EXTERNAL_REPORT_ID_FIELD_NUMBER,
         Report.CREATE_TIME_FIELD_NUMBER,
-        Report.REPORTING_METRIC_ENTRIES_FIELD_NUMBER
+        Report.REPORTING_METRIC_ENTRIES_FIELD_NUMBER,
       )
       .isEqualTo(createdReport)
     assertThat(createdReport.externalReportId).isNotEmpty()
@@ -412,7 +412,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       .ignoringFields(
         Report.EXTERNAL_REPORT_ID_FIELD_NUMBER,
         Report.CREATE_TIME_FIELD_NUMBER,
-        Report.REPORTING_METRIC_ENTRIES_FIELD_NUMBER
+        Report.REPORTING_METRIC_ENTRIES_FIELD_NUMBER,
       )
       .isEqualTo(createdReport)
     assertThat(createdReport.externalReportId).isNotEmpty()
@@ -502,7 +502,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         Report.EXTERNAL_REPORT_ID_FIELD_NUMBER,
         Report.CREATE_TIME_FIELD_NUMBER,
         Report.REPORTING_METRIC_ENTRIES_FIELD_NUMBER,
-        Report.EXTERNAL_REPORT_SCHEDULE_ID_FIELD_NUMBER
+        Report.EXTERNAL_REPORT_SCHEDULE_ID_FIELD_NUMBER,
       )
       .isEqualTo(createdReport)
     assertThat(createdReport.externalReportId).isNotEmpty()
@@ -998,7 +998,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         createReportingSet(
           CMMS_MEASUREMENT_CONSUMER_ID,
           reportingSetsService,
-          "reporting-set-for-report-schedule"
+          "reporting-set-for-report-schedule",
         )
       val createdMetricCalculationSpec =
         createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)

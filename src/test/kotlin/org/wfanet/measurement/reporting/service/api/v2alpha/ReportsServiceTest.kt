@@ -641,7 +641,7 @@ class ReportsServiceTest {
       reportingInterval,
       timeIntervals,
       frequencySpec,
-      trailingWindow
+      trailingWindow,
     )
   }
 
@@ -702,7 +702,7 @@ class ReportsServiceTest {
         reportingInterval,
         timeIntervals,
         frequencySpec,
-        trailingWindow
+        trailingWindow,
       )
     }
 
@@ -773,7 +773,7 @@ class ReportsServiceTest {
         reportingInterval,
         timeIntervals,
         frequencySpec,
-        trailingWindow
+        trailingWindow,
       )
     }
 
@@ -833,7 +833,7 @@ class ReportsServiceTest {
         reportingInterval,
         timeIntervals,
         frequencySpec,
-        trailingWindow
+        trailingWindow,
       )
     }
 
@@ -893,7 +893,7 @@ class ReportsServiceTest {
         reportingInterval,
         timeIntervals,
         frequencySpec,
-        trailingWindow
+        trailingWindow,
       )
     }
 
@@ -963,7 +963,7 @@ class ReportsServiceTest {
         reportingInterval,
         timeIntervals,
         frequencySpec,
-        trailingWindow
+        trailingWindow,
       )
     }
 
@@ -1022,7 +1022,7 @@ class ReportsServiceTest {
       reportingInterval,
       timeIntervals,
       frequencySpec,
-      trailingWindow
+      trailingWindow,
     )
   }
 
@@ -1082,7 +1082,7 @@ class ReportsServiceTest {
         reportingInterval,
         timeIntervals,
         frequencySpec,
-        trailingWindow
+        trailingWindow,
       )
     }
 
@@ -4074,7 +4074,7 @@ class ReportsServiceTest {
     reportingInterval: ReportingInterval,
     timeIntervals: List<Interval>,
     metricCalculationSpecFrequency: MetricCalculationSpec.MetricFrequencySpec?,
-    metricCalculationSpecTrailingWindow: MetricCalculationSpec.TrailingWindow? = null
+    metricCalculationSpecTrailingWindow: MetricCalculationSpec.TrailingWindow? = null,
   ) = runBlocking {
     val targetReportingSet = PRIMITIVE_REPORTING_SETS.first()
     val predicates = listOf("gender == MALE", "gender == FEMALE")
@@ -4125,7 +4125,7 @@ class ReportsServiceTest {
           InternalReportKt.DetailsKt.reportingInterval {
             reportStart = reportingInterval.reportStart
             reportEnd = reportingInterval.reportEnd
-          }
+          },
       )
 
     whenever(internalReportsMock.createReport(any())).thenReturn(internalInitialReport)
@@ -4166,7 +4166,7 @@ class ReportsServiceTest {
                 name =
                   MetricKey(
                       MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                      ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value
+                      ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value,
                     )
                     .toName()
                 state = Metric.State.RUNNING
@@ -4186,7 +4186,7 @@ class ReportsServiceTest {
               metricCalculationSpecs +=
                 MetricCalculationSpecKey(
                     MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                    internalMetricCalculationSpec.externalMetricCalculationSpecId
+                    internalMetricCalculationSpec.externalMetricCalculationSpecId,
                   )
                   .toName()
             }
@@ -4279,7 +4279,7 @@ class ReportsServiceTest {
       metricCalculationSpecId: String,
       reportIdBase: String = "",
       metricIdBaseLong: Long = REACH_METRIC_ID_BASE_LONG,
-      reportingInterval: InternalReport.Details.ReportingInterval? = null
+      reportingInterval: InternalReport.Details.ReportingInterval? = null,
     ): InternalReports {
       // Internal reports of reach
       val internalRequestingReport = internalReport {

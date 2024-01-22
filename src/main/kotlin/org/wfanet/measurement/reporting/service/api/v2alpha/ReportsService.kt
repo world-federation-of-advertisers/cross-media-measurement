@@ -646,7 +646,7 @@ class ReportsService(
           request.parent,
           request.requestId,
           request.report.timeIntervals.timeIntervalsList,
-          null
+          null,
         )
       } else {
         CreateReportInfo(request.parent, request.requestId, null, request.report.reportingInterval)
@@ -721,13 +721,13 @@ class ReportsService(
             generateTimeIntervals(
               checkNotNull(createReportInfo.reportingInterval),
               internalMetricCalculationSpec.details.metricFrequencySpec,
-              trailingWindow
+              trailingWindow,
             )
           grpcRequire(generatedTimeIntervals.isNotEmpty()) {
             "No time intervals can be generated from the combination of the reporting_interval and metric_calculation_spec ${
               MetricCalculationSpecKey(
                 internalMetricCalculationSpec.cmmsMeasurementConsumerId,
-                internalMetricCalculationSpec.externalMetricCalculationSpecId
+                internalMetricCalculationSpec.externalMetricCalculationSpecId,
               ).toName()
             }"
           }
@@ -974,7 +974,7 @@ private fun generateTimeIntervals(
         offsetDateTime,
         reportEndDateTime.toOffsetDateTime(),
         checkNotNull(frequencySpec),
-        trailingWindow
+        trailingWindow,
       )
     }
   } else {
@@ -997,7 +997,7 @@ private fun generateTimeIntervals(
         zonedDateTime,
         reportEndDateTime.toZonedDateTime(),
         checkNotNull(frequencySpec),
-        trailingWindow
+        trailingWindow,
       )
     }
   }
@@ -1041,7 +1041,7 @@ private fun generateTimeIntervals(
               date.withDayOfMonth(
                 minOf(
                   nextMonthEndTemporal.get(ChronoField.DAY_OF_MONTH),
-                  frequencySpec.monthly.dayOfMonth
+                  frequencySpec.monthly.dayOfMonth,
                 )
               )
             }
@@ -1079,7 +1079,7 @@ private fun generateTimeIntervals(
             val newTimestamp =
               buildReportTimeIntervalStartTimestamp(
                 checkNotNull(trailingWindow),
-                nextTimeIntervalEndTemporal
+                nextTimeIntervalEndTemporal,
               )
 
             // The start of any interval to be created is bounded by the report start.
@@ -1121,7 +1121,7 @@ private fun generateTimeIntervals(
                 date.withDayOfMonth(
                   minOf(
                     nextMonthEndTemporal.get(ChronoField.DAY_OF_MONTH),
-                    frequencySpec.monthly.dayOfMonth
+                    frequencySpec.monthly.dayOfMonth,
                   )
                 )
               }
@@ -1153,7 +1153,7 @@ private fun buildReportTimeIntervalStartTimestamp(
     MetricCalculationSpec.TrailingWindow.Increment.MONTH ->
       intervalEndTemporal.minus(Period.ofMonths(trailingWindow.count))
     MetricCalculationSpec.TrailingWindow.Increment.INCREMENT_UNSPECIFIED,
-    MetricCalculationSpec.TrailingWindow.Increment.UNRECOGNIZED, ->
+    MetricCalculationSpec.TrailingWindow.Increment.UNRECOGNIZED ->
       error("trailing_window missing increment")
   }.toTimestamp()
 }

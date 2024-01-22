@@ -451,7 +451,7 @@ class ReportSchedulingJob(
 
     private fun getNextReportCreationTime(
       temporal: Temporal,
-      frequency: ReportSchedule.Frequency
+      frequency: ReportSchedule.Frequency,
     ): Timestamp {
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       return when (frequency.frequencyCase) {
@@ -471,7 +471,7 @@ class ReportSchedulingJob(
               date.withDayOfMonth(
                 minOf(
                   nextMonthEndTemporal.get(ChronoField.DAY_OF_MONTH),
-                  frequency.monthly.dayOfMonth
+                  frequency.monthly.dayOfMonth,
                 )
               )
             }

@@ -295,14 +295,14 @@ class CreateReportCommand : Runnable {
       @CommandLine.ArgGroup(
         exclusive = true,
         multiplicity = "1",
-        heading = "UTC offset or time zone\n"
+        heading = "UTC offset or time zone\n",
       )
       lateinit var reportingIntervalReportStartTimeOffset: TimeOffset
 
       @CommandLine.Option(
         names = ["--reporting-interval-report-end"],
         description = ["End of the report in yyyy-mm-dd"],
-        required = true
+        required = true,
       )
       lateinit var reportingIntervalReportEnd: LocalDate
         private set
@@ -315,7 +315,7 @@ class CreateReportCommand : Runnable {
     @CommandLine.ArgGroup(
       exclusive = false,
       multiplicity = "1",
-      heading = "Reporting interval specification\n"
+      heading = "Reporting interval specification\n",
     )
     var reportingIntervalInput: ReportingIntervalInput? = null
       private set
@@ -324,7 +324,7 @@ class CreateReportCommand : Runnable {
   @CommandLine.ArgGroup(
     exclusive = true,
     multiplicity = "1",
-    heading = "Time interval or reporting interval\n"
+    heading = "Time interval or reporting interval\n",
   )
   private lateinit var timeInput: TimeInput
 
