@@ -99,7 +99,7 @@ abstract class ExchangeWorkflowDaemon : Runnable {
         privateStorageSelector = privateStorageSelector,
         exchangeTaskMapper = exchangeTaskMapper
       )
-    CoroutineLauncher(stepExecutor = stepExecutor)
+    CoroutineLauncher(stepExecutor = stepExecutor, apiClient = apiClient)
   }
 
   override fun run() = runBlocking { runSuspending() }

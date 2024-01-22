@@ -61,6 +61,7 @@ class ExchangeTaskExecutor(
       try {
         context.tryExecute()
       } catch (e: Exception) {
+        logger.addToTaskLog("Caught Exception in task execution:", Level.SEVERE)
         logger.addToTaskLog(e, Level.SEVERE)
         val attemptState =
           when (e) {

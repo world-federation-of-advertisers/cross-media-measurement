@@ -154,7 +154,7 @@ private class AwsExampleDaemon : ExampleDaemon() {
         privateStorageSelector = privateStorageSelector,
         exchangeTaskMapper = exchangeTaskMapper
       )
-    CoroutineLauncher(stepExecutor = stepExecutor, maxCoroutines = 1)
+    CoroutineLauncher(stepExecutor = stepExecutor, apiClient = apiClient, maxCoroutines = 1)
   }
 }
 
