@@ -1047,6 +1047,7 @@ private fun InternalReportSchedule.ReportWindow.toPublic(): ReportSchedule.Repor
 }
 
 /**
+ * TODO(@tristanvuong2021): Move to common-jvm
  * Converts a proto [DateTime] to an [OffsetDateTime].
  *
  * @throws
@@ -1068,6 +1069,7 @@ fun DateTime.toOffsetDateTime(): OffsetDateTime {
 }
 
 /**
+ * TODO(@tristanvuong2021): Move to common-jvm
  * Converts a proto [DateTime] to a [ZonedDateTime].
  *
  * @throws
@@ -1089,7 +1091,10 @@ fun DateTime.toZonedDateTime(): ZonedDateTime {
   )
 }
 
-/** Converts an [OffsetDateTime] or a [ZonedDateTime] to a [Timestamp]. */
+/**
+ * TODO(@tristanvuong2021): Move to common-jvm
+ * Converts an [OffsetDateTime] or a [ZonedDateTime] to a [Timestamp].
+ */
 fun Temporal.toTimestamp(): Timestamp {
   return when (val source = this) {
     is OffsetDateTime -> {

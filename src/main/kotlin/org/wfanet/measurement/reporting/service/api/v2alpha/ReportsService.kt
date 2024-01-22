@@ -25,6 +25,7 @@ import com.google.type.date
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
+import io.grpc.StatusRuntimeException
 import java.time.DateTimeException
 import java.time.LocalDate
 import java.time.Period
@@ -874,7 +875,10 @@ private fun ListReportsRequest.toListReportsPageToken(): ListReportsPageToken {
   }
 }
 
-/** Validate [Report] time fields. Throws grpc exception if error found. */
+/**
+ * Validate [Report] time fields.
+ * @throws [StatusRuntimeException] with [Status.INVALID_ARGUMENT] if error found.
+ */
 private fun validateTime(report: Report) {
   if (report.hasTimeIntervals()) {
     grpcRequire(report.timeIntervals.timeIntervalsList.isNotEmpty()) {
