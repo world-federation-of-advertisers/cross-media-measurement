@@ -34,7 +34,7 @@ class EncryptEventsDoFn(
   private val identifierHashPepperProvider: IdentifierHashPepperProvider,
   private val hkdfPepperProvider: HkdfPepperProvider,
   private val deterministicCommutativeCipherKeyProvider: DeterministicCommutativeCipherKeyProvider,
-  private val compressionParametersView: PCollectionView<CompressionParameters>
+  private val compressionParametersView: PCollectionView<CompressionParameters>,
 ) : DoFn<MutableList<KV<ByteString, ByteString>>, KV<Long, ByteString>>() {
   private val jniCallTimeDistribution =
     Metrics.distribution(BatchingDoFn::class.java, "jni-call-time-micros")

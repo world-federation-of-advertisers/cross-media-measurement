@@ -24,7 +24,7 @@ import picocli.CommandLine
   name = "CsvEdpSimulatorRunner",
   description = ["EdpSimulator Daemon"],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 /** Implementation of [EdpSimulatorRunner] using [CsvEventQuery]. */
 class CsvEdpSimulatorRunner : EdpSimulatorRunner() {
@@ -40,7 +40,7 @@ class CsvEdpSimulatorRunner : EdpSimulatorRunner() {
   @set:CommandLine.Option(
     names = ["--publisher-id"],
     description = ["ID of the publisher within the test dataset"],
-    required = true
+    required = true,
   )
   var publisherId by Delegates.notNull<Int>()
     private set

@@ -144,7 +144,7 @@ class ExchangeTaskExecutorTest {
       apiClient,
       timeout,
       testPrivateStorageSelector.selector,
-      exchangeTaskMapper
+      exchangeTaskMapper,
     )
   }
 }

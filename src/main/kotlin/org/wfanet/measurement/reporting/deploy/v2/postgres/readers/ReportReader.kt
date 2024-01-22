@@ -45,7 +45,7 @@ class ReportReader(private val readContext: ReadContext) {
     val measurementConsumerId: InternalId,
     val reportId: InternalId,
     val createReportRequestId: String,
-    val report: Report
+    val report: Report,
   )
 
   private data class ReportInfo(
@@ -61,17 +61,17 @@ class ReportReader(private val readContext: ReadContext) {
     val reportingSetReportingMetricCalculationSpecInfoMap:
       MutableMap<String, ReportingMetricCalculationSpecInfo>,
     val details: Report.Details,
-    val externalReportScheduleId: String?
+    val externalReportScheduleId: String?,
   )
 
   private data class ReportingMetricCalculationSpecInfo(
     /** Map of external metric calculation spec ID to [MetricCalculationSpecInfo]. */
-    val metricCalculationSpecInfoMap: MutableMap<String, MetricCalculationSpecInfo>,
+    val metricCalculationSpecInfoMap: MutableMap<String, MetricCalculationSpecInfo>
   )
 
   private data class MetricCalculationSpecInfo(
     // Key is createMetricRequestId.
-    val reportingMetricMap: MutableMap<String, Report.ReportingMetric>,
+    val reportingMetricMap: MutableMap<String, Report.ReportingMetric>
   )
 
   private val baseSqlSelect: String =
@@ -156,9 +156,7 @@ class ReportReader(private val readContext: ReadContext) {
     return createResultFlow(statement).firstOrNull()
   }
 
-  fun readReports(
-    request: StreamReportsRequest,
-  ): Flow<Result> {
+  fun readReports(request: StreamReportsRequest): Flow<Result> {
     val fromClause =
       StringBuilder(
           """
@@ -243,7 +241,7 @@ class ReportReader(private val readContext: ReadContext) {
             periodic = periodic,
             reportingSetReportingMetricCalculationSpecInfoMap = mutableMapOf(),
             details = reportDetails,
-            externalReportScheduleId = externalReportScheduleId
+            externalReportScheduleId = externalReportScheduleId,
           )
       } else if (
         accumulator!!.externalReportId != externalReportId ||
@@ -262,7 +260,7 @@ class ReportReader(private val readContext: ReadContext) {
             periodic = periodic,
             reportingSetReportingMetricCalculationSpecInfoMap = mutableMapOf(),
             details = reportDetails,
-            externalReportScheduleId = externalReportScheduleId
+            externalReportScheduleId = externalReportScheduleId,
           )
       }
 
@@ -303,18 +301,14 @@ class ReportReader(private val readContext: ReadContext) {
 
     val reportingMetricCalculationSpecInfo =
       reportingSetReportingMetricCalculationSpecInfoMap.computeIfAbsent(externalReportingSetId) {
-        ReportingMetricCalculationSpecInfo(
-          metricCalculationSpecInfoMap = mutableMapOf(),
-        )
+        ReportingMetricCalculationSpecInfo(metricCalculationSpecInfoMap = mutableMapOf())
       }
 
     val metricCalculationSpecInfo =
       reportingMetricCalculationSpecInfo.metricCalculationSpecInfoMap.computeIfAbsent(
         externalMetricCalculationSpecId
       ) {
-        MetricCalculationSpecInfo(
-          reportingMetricMap = mutableMapOf(),
-        )
+        MetricCalculationSpecInfo(reportingMetricMap = mutableMapOf())
       }
 
     metricCalculationSpecInfo.reportingMetricMap.computeIfAbsent(createMetricRequestId) {

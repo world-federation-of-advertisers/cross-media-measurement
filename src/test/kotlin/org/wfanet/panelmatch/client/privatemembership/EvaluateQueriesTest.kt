@@ -44,18 +44,18 @@ class EvaluateQueriesTest : BeamTestBase() {
   private fun runWorkflow(
     queryBundles: List<EncryptedQueryBundle>,
     paddingNonces: Map<QueryId, PaddingNonce>,
-    parameters: EvaluateQueriesParameters
+    parameters: EvaluateQueriesParameters,
   ): PCollection<EncryptedQueryResult> {
     return evaluateQueries(
       database,
       pcollectionOf("Create Query Bundles", queryBundles),
       pcollectionViewOf(
         "Create SerializedPublicKey",
-        PlaintextQueryEvaluatorTestHelper.serializedPublicKey
+        PlaintextQueryEvaluatorTestHelper.serializedPublicKey,
       ),
       pcollectionViewOf("Create Padding Nonces", paddingNonces, coder = paddingNonceMapCoder),
       parameters,
-      PlaintextQueryEvaluator(parameters.numBucketsPerShard)
+      PlaintextQueryEvaluator(parameters.numBucketsPerShard),
     )
   }
 
@@ -93,7 +93,7 @@ class EvaluateQueriesTest : BeamTestBase() {
       .containsInAnyOrder(
         PlaintextQueryEvaluatorTestHelper.makeResult(
           paddingNonces.keys.single(),
-          paddingNonces.values.single().nonce
+          paddingNonces.values.single().nonce,
         )
       )
   }
@@ -109,7 +109,7 @@ class EvaluateQueriesTest : BeamTestBase() {
     val queryBundles =
       listOf(
         encryptedQueryBundleOf(shard = 0, listOf(100 to 4)),
-        encryptedQueryBundleOf(shard = 1, listOf(101 to 0, 102 to 0, 103 to 1))
+        encryptedQueryBundleOf(shard = 1, listOf(101 to 0, 102 to 0, 103 to 1)),
       )
 
     val paddingNonces = makePaddingNonces(100..103)
@@ -119,7 +119,7 @@ class EvaluateQueriesTest : BeamTestBase() {
         encryptedQueryResultOf(100, "def"),
         encryptedQueryResultOf(101, "ghi"),
         encryptedQueryResultOf(102, "ghi"),
-        encryptedQueryResultOf(103, "abc")
+        encryptedQueryResultOf(103, "abc"),
       )
   }
 
@@ -146,7 +146,7 @@ class EvaluateQueriesTest : BeamTestBase() {
         encryptedQueryResultOf(101, "abc"),
         encryptedQueryResultOf(102, "jkl"),
         encryptedQueryResultOf(103, "ghi"),
-        encryptedQueryResultOf(104, "abc")
+        encryptedQueryResultOf(104, "abc"),
       )
   }
 
@@ -211,7 +211,7 @@ class EvaluateQueriesTest : BeamTestBase() {
       "Create Database",
       entries.map {
         databaseEntryOf(lookupKeyOf(it.first), encryptedEntryOf(it.second.toByteStringUtf8()))
-      }
+      },
     )
   }
 }
@@ -219,17 +219,17 @@ class EvaluateQueriesTest : BeamTestBase() {
 private fun encryptedQueryResultOf(query: Int, rawPayload: String): EncryptedQueryResult {
   return PlaintextQueryEvaluatorTestHelper.makeResult(
     queryIdOf(query),
-    bucketContents { items += rawPayload.toByteStringUtf8() }.toByteString()
+    bucketContents { items += rawPayload.toByteStringUtf8() }.toByteString(),
   )
 }
 
 private fun encryptedQueryBundleOf(
   shard: Int,
-  queries: List<Pair<Int, Int>>
+  queries: List<Pair<Int, Int>>,
 ): EncryptedQueryBundle {
   return PlaintextQueryEvaluatorTestHelper.makeQueryBundle(
     shardIdOf(shard),
-    queries.map { queryIdOf(it.first) to bucketIdOf(it.second) }
+    queries.map { queryIdOf(it.first) to bucketIdOf(it.second) },
   )
 }
 

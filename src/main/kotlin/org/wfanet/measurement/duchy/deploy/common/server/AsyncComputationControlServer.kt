@@ -65,7 +65,7 @@ class AsyncComputationControlServiceFlags {
   name = SERVER_NAME,
   description = ["Server daemon for $SERVICE_NAME service."],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 private fun run(@CommandLine.Mixin flags: AsyncComputationControlServiceFlags) {
   DuchyInfo.initializeFromFlags(flags.duchyInfo)
@@ -74,21 +74,21 @@ private fun run(@CommandLine.Mixin flags: AsyncComputationControlServiceFlags) {
     SigningCerts.fromPemFiles(
       certificateFile = flags.server.tlsFlags.certFile,
       privateKeyFile = flags.server.tlsFlags.privateKeyFile,
-      trustedCertCollectionFile = flags.server.tlsFlags.certCollectionFile
+      trustedCertCollectionFile = flags.server.tlsFlags.certCollectionFile,
     )
 
   val channel: Channel =
     buildMutualTlsChannel(
         flags.computationsServiceFlags.target,
         clientCerts,
-        flags.computationsServiceFlags.certHost
+        flags.computationsServiceFlags.certHost,
       )
       .withDefaultDeadline(flags.computationsServiceFlags.defaultDeadlineDuration)
 
   CommonServer.fromFlags(
       flags.server,
       SERVER_NAME,
-      AsyncComputationControlService(ComputationsCoroutineStub(channel), flags.maxAdvanceAttempts)
+      AsyncComputationControlService(ComputationsCoroutineStub(channel), flags.maxAdvanceAttempts),
     )
     .start()
     .blockUntilShutdown()

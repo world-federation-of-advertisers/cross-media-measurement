@@ -79,7 +79,7 @@ private class ExchangesRetentionFlags {
     description =
       ["Option to print the Exchanges that would be deleted instead of performing the deletion."],
     required = false,
-    defaultValue = "false"
+    defaultValue = "false",
   )
   var dryRun by Delegates.notNull<Boolean>()
     private set
@@ -88,21 +88,21 @@ private class ExchangesRetentionFlags {
 @CommandLine.Command(
   name = "ExchangeDeletionJob",
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 private fun run(@CommandLine.Mixin flags: ExchangesRetentionFlags) {
   val clientCerts =
     SigningCerts.fromPemFiles(
       certificateFile = flags.tlsFlags.certFile,
       privateKeyFile = flags.tlsFlags.privateKeyFile,
-      trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
+      trustedCertCollectionFile = flags.tlsFlags.certCollectionFile,
     )
 
   val channel =
     buildMutualTlsChannel(
         flags.kingdomApiServerFlags.internalApiFlags.target,
         clientCerts,
-        flags.kingdomApiServerFlags.internalApiFlags.certHost
+        flags.kingdomApiServerFlags.internalApiFlags.certHost,
       )
       .withVerboseLogging(flags.kingdomApiServerFlags.debugVerboseGrpcClientLogging)
       .withDefaultDeadline(flags.kingdomApiServerFlags.internalApiFlags.defaultDeadlineDuration)
@@ -136,7 +136,7 @@ private fun run(@CommandLine.Mixin flags: ExchangesRetentionFlags) {
       internalExchangesClient,
       flags.exchangesDaysToLive,
       flags.dryRun,
-      openTelemetry
+      openTelemetry,
     )
   exchangesDeletion.run()
 }

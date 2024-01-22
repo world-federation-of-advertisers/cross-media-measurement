@@ -53,10 +53,7 @@ import org.wfanet.panelmatch.common.parseDelimitedMessages
 import org.wfanet.panelmatch.common.storage.toByteString
 import org.wfanet.panelmatch.integration.testing.parsePlaintextResults
 
-data class EntitiesData(
-  val externalDataProviderId: Long,
-  val externalModelProviderId: Long,
-)
+data class EntitiesData(val externalDataProviderId: Long, val externalModelProviderId: Long)
 
 /** Simulator for PanelMatch flows. */
 class PanelMatchSimulator(
@@ -83,7 +80,7 @@ class PanelMatchSimulator(
     setOf(
       ExchangeStep.State.IN_PROGRESS,
       ExchangeStep.State.READY,
-      ExchangeStep.State.READY_FOR_RETRY
+      ExchangeStep.State.READY_FOR_RETRY,
     )
   private val TERMINAL_EXCHANGE_STATES = setOf(Exchange.State.SUCCEEDED, Exchange.State.FAILED)
   private val logger = Logger.getLogger(this::class.java.name)
@@ -198,7 +195,7 @@ class PanelMatchSimulator(
   private suspend fun setupWorkflow(
     exchangeWorkflow: ExchangeWorkflow,
     initialDataProviderInputs: Map<String, ByteString>,
-    initialModelProviderInputs: Map<String, ByteString>
+    initialModelProviderInputs: Map<String, ByteString>,
   ) {
 
     val externalRecurringExchangeId = createRecurringExchange(exchangeWorkflow)
@@ -209,21 +206,21 @@ class PanelMatchSimulator(
     exchangeKey =
       CanonicalExchangeKey(
         recurringExchangeId = recurringExchangeKey.recurringExchangeId,
-        exchangeId = exchangeDate.toString()
+        exchangeId = exchangeDate.toString(),
       )
 
     // Setup data provider storage
     dataProviderDefaults.validExchangeWorkflows.put(
       recurringExchangeKey.recurringExchangeId,
-      exchangeWorkflow.toByteString()
+      exchangeWorkflow.toByteString(),
     )
     dataProviderDefaults.privateStorageInfo.put(
       recurringExchangeKey.recurringExchangeId,
-      dataProviderPrivateStorageDetails
+      dataProviderPrivateStorageDetails,
     )
     dataProviderDefaults.sharedStorageInfo.put(
       recurringExchangeKey.recurringExchangeId,
-      dataProviderSharedStorageDetails
+      dataProviderSharedStorageDetails,
     )
     for ((blobKey, value) in initialDataProviderInputs) {
       dpForwardedStorage.writeBlob(blobKey, value)
@@ -232,15 +229,15 @@ class PanelMatchSimulator(
     // Setup model provider storage
     modelProviderDefaults.validExchangeWorkflows.put(
       recurringExchangeKey.recurringExchangeId,
-      exchangeWorkflow.toByteString()
+      exchangeWorkflow.toByteString(),
     )
     modelProviderDefaults.privateStorageInfo.put(
       recurringExchangeKey.recurringExchangeId,
-      modelProviderPrivateStorageDetails
+      modelProviderPrivateStorageDetails,
     )
     modelProviderDefaults.sharedStorageInfo.put(
       recurringExchangeKey.recurringExchangeId,
-      modelProviderSharedStorageDetails
+      modelProviderSharedStorageDetails,
     )
     for ((blobKey, value) in initialModelProviderInputs) {
       mpForwardedStorage.writeBlob(blobKey, value)

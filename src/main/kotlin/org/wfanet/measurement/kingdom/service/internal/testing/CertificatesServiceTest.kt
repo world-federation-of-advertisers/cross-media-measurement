@@ -90,7 +90,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val dataProvidersService: DataProvidersCoroutineImplBase,
     val modelProvidersService: ModelProvidersCoroutineImplBase,
     val computationParticipantsService: ComputationParticipantsCoroutineImplBase,
-    val accountsService: AccountsCoroutineImplBase
+    val accountsService: AccountsCoroutineImplBase,
   )
 
   private val clock: Clock = Clock.systemUTC()
@@ -185,7 +185,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   private fun assertCreateFailsWithMissingOwner(
     expectedMessage: String,
-    init: CertificateKt.Dsl.() -> Unit
+    init: CertificateKt.Dsl.() -> Unit,
   ) {
     val certificate = CERTIFICATE.copy { init() }
     val exception =
@@ -299,13 +299,13 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       population.createDataProviderCertificate(
         certificatesService,
         dataProvider,
-        notValidBefore = now
+        notValidBefore = now,
       )
     val dataProviderCertificate3 =
       population.createDataProviderCertificate(
         certificatesService,
         dataProvider,
-        notValidBefore = yesterday
+        notValidBefore = yesterday,
       )
 
     val responses: List<Certificate> =
@@ -335,13 +335,13 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       population.createDataProviderCertificate(
         certificatesService,
         dataProvider,
-        notValidBefore = now
+        notValidBefore = now,
       )
     val dataProviderCertificate3 =
       population.createDataProviderCertificate(
         certificatesService,
         dataProvider,
-        notValidBefore = yesterday
+        notValidBefore = yesterday,
       )
 
     val responses: List<Certificate> =
@@ -373,13 +373,13 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       population.createDataProviderCertificate(
         certificatesService,
         dataProvider,
-        notValidBefore = now
+        notValidBefore = now,
       )
     val dataProviderCertificate3 =
       population.createDataProviderCertificate(
         certificatesService,
         dataProvider,
-        notValidBefore = yesterday
+        notValidBefore = yesterday,
       )
 
     val responses: List<Certificate> =
@@ -413,19 +413,19 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       population.createDuchyCertificate(
         certificatesService,
         duchy.externalDuchyId,
-        notValidBefore = yesterday
+        notValidBefore = yesterday,
       )
     val duchyCertificate2 =
       population.createDuchyCertificate(
         certificatesService,
         duchy.externalDuchyId,
-        notValidBefore = now
+        notValidBefore = now,
       )
     val duchyCertificate3 =
       population.createDuchyCertificate(
         certificatesService,
         duchy.externalDuchyId,
-        notValidBefore = yesterday
+        notValidBefore = yesterday,
       )
 
     val responses: List<Certificate> =
@@ -547,14 +547,14 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         measurementsService,
         measurementConsumer,
         "measurement one",
-        dataProvider
+        dataProvider,
       )
     val measurementTwo =
       population.createComputedMeasurement(
         measurementsService,
         measurementConsumer,
         "measurement two",
-        dataProvider
+        dataProvider,
       )
     measurementsService.cancelMeasurement(
       cancelMeasurementRequest {
@@ -677,13 +677,13 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       population.createComputedMeasurement(
         measurementsService,
         measurementConsumer,
-        "measurement one"
+        "measurement one",
       )
     val measurementTwo =
       population.createComputedMeasurement(
         measurementsService,
         measurementConsumer,
-        "measurement two"
+        "measurement two",
       )
     measurementsService.cancelMeasurement(
       cancelMeasurementRequest {
@@ -799,13 +799,13 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       population.createComputedMeasurement(
         measurementsService,
         measurementConsumer,
-        "measurement one"
+        "measurement one",
       )
     val measurementTwo =
       population.createComputedMeasurement(
         measurementsService,
         measurementConsumer,
-        "measurement two"
+        "measurement two",
       )
     measurementsService.cancelMeasurement(
       cancelMeasurementRequest {
@@ -1213,7 +1213,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         ProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
         DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
         setOf(Population.AGGREGATOR_DUCHY.externalDuchyId),
-        2
+        2,
       )
     }
   }

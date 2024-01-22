@@ -41,12 +41,12 @@ class SetActiveEndTime(private val request: SetActiveEndTimeRequest, private val
           transactionContext,
           ExternalId(request.externalModelProviderId),
           ExternalId(request.externalModelSuiteId),
-          ExternalId(request.externalModelLineId)
+          ExternalId(request.externalModelLineId),
         )
         ?: throw ModelLineNotFoundException(
           ExternalId(request.externalModelProviderId),
           ExternalId(request.externalModelSuiteId),
-          ExternalId(request.externalModelLineId)
+          ExternalId(request.externalModelLineId),
         )
 
     val now = clock.instant().toProtoTime()
@@ -56,7 +56,7 @@ class SetActiveEndTime(private val request: SetActiveEndTimeRequest, private val
       throw ModelLineInvalidArgsException(
         ExternalId(request.externalModelProviderId),
         ExternalId(request.externalModelSuiteId),
-        ExternalId(request.externalModelLineId)
+        ExternalId(request.externalModelLineId),
       ) {
         "ActiveEndTime must be in the future."
       }
@@ -66,7 +66,7 @@ class SetActiveEndTime(private val request: SetActiveEndTimeRequest, private val
       throw ModelLineInvalidArgsException(
         ExternalId(request.externalModelProviderId),
         ExternalId(request.externalModelSuiteId),
-        ExternalId(request.externalModelLineId)
+        ExternalId(request.externalModelLineId),
       ) {
         "ActiveEndTime must be later than ActiveStartTime."
       }

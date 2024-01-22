@@ -138,19 +138,14 @@ class BeamTest : BeamTestBase() {
         kvOf(1, "[A] and [a, b]"),
         kvOf(2, "[B] and []"),
         kvOf(3, "[C] and []"),
-        kvOf(4, "[] and [c]")
+        kvOf(4, "[] and [c]"),
       )
   }
 
   @Test
   fun strictOneToOneJoin() {
     val result: PCollection<KV<String, Char>> = collection.strictOneToOneJoin(yetAnotherCollection)
-    assertThat(result)
-      .containsInAnyOrder(
-        kvOf("A", 'a'),
-        kvOf("B", 'b'),
-        kvOf("C", 'c'),
-      )
+    assertThat(result).containsInAnyOrder(kvOf("A", 'a'), kvOf("B", 'b'), kvOf("C", 'c'))
   }
 
   @Test
@@ -175,7 +170,7 @@ class BeamTest : BeamTestBase() {
       .containsInAnyOrder(
         kvOf("only-on-left", null),
         kvOf(null, "only-on-right"),
-        kvOf("in-both:left", "in-both:right")
+        kvOf("in-both:left", "in-both:right"),
       )
   }
 

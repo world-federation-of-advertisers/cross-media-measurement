@@ -54,7 +54,7 @@ class HonestMajorityShareShuffleProtocolEnumStagesDetailsTest {
             participants += "worker_2"
             participants += "worker_3"
             participants += "aggregator"
-          }
+          },
         )
       ProtoTruth.assertThat(stageProto).isEqualTo(expected)
       ProtoTruth.assertThat(Details.parseDetails(stageProto.toByteArray())).isEqualTo(stageProto)

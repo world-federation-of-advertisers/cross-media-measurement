@@ -37,7 +37,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetParticipa
 
 class SpannerComputationParticipantsService(
   private val idGenerator: IdGenerator,
-  private val client: AsyncDatabaseClient
+  private val client: AsyncDatabaseClient,
 ) : ComputationParticipantsCoroutineImplBase() {
   override suspend fun setParticipantRequisitionParams(
     request: SetParticipantRequisitionParamsRequest
@@ -47,12 +47,12 @@ class SpannerComputationParticipantsService(
     } catch (e: ComputationParticipantStateIllegalException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "ComputationParticipant not in CREATED state."
+        "ComputationParticipant not in CREATED state.",
       )
     } catch (e: MeasurementStateIllegalException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Measurement not in PENDING_REQUISITION_PARAMS state."
+        "Measurement not in PENDING_REQUISITION_PARAMS state.",
       )
     } catch (e: ComputationParticipantNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ComputationParticipant not found.")
@@ -61,19 +61,19 @@ class SpannerComputationParticipantsService(
     } catch (e: DuchyCertificateNotFoundException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Duchy's Certificate not found."
+        "Duchy's Certificate not found.",
       )
     } catch (e: CertificateIsInvalidException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Certificate is invalid.")
     } catch (e: DuplicateAccountIdentityException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Account Identity duplicated."
+        "Account Identity duplicated.",
       )
     } catch (e: AccountActivationStateIllegalException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Account activation state illegal."
+        "Account activation state illegal.",
       )
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
@@ -92,7 +92,7 @@ class SpannerComputationParticipantsService(
     } catch (e: MeasurementStateIllegalException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Measurement state is illegal."
+        "Measurement state is illegal.",
       )
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
@@ -109,14 +109,14 @@ class SpannerComputationParticipantsService(
     } catch (e: ComputationParticipantStateIllegalException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "ComputationParticipant in illegal state."
+        "ComputationParticipant in illegal state.",
       )
     } catch (e: DuchyNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Duchy not found.")
     } catch (e: MeasurementStateIllegalException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Measurement in illegal state."
+        "Measurement in illegal state.",
       )
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")

@@ -71,7 +71,7 @@ private val EXCHANGE_STEP_KEY =
   CanonicalExchangeStepKey(
     recurringExchangeId = RECURRING_EXCHANGE_ID,
     exchangeId = EXCHANGE_ID,
-    exchangeStepId = EXCHANGE_STEP_ID
+    exchangeStepId = EXCHANGE_STEP_ID,
   )
 
 private val EXCHANGE_STEP: ExchangeStep = exchangeStep {
@@ -84,7 +84,7 @@ private val EXCHANGE_STEP_ATTEMPT_KEY: CanonicalExchangeStepAttemptKey =
     recurringExchangeId = RECURRING_EXCHANGE_ID,
     exchangeId = EXCHANGE_ID,
     exchangeStepId = EXCHANGE_STEP_ID,
-    exchangeStepAttemptId = EXCHANGE_STEP_ATTEMPT_ID
+    exchangeStepAttemptId = EXCHANGE_STEP_ATTEMPT_ID,
   )
 
 private val FULL_CLAIM_READY_EXCHANGE_STEP_RESPONSE = claimReadyExchangeStepResponse {
@@ -146,7 +146,7 @@ class GrpcApiClientTest {
 
     verifyProtoArgument(
         exchangeStepsServiceMock,
-        ExchangeStepsCoroutineImplBase::claimReadyExchangeStep
+        ExchangeStepsCoroutineImplBase::claimReadyExchangeStep,
       )
       .isEqualTo(
         claimReadyExchangeStepRequest { parent = DataProviderKey(DATA_PROVIDER_ID).toName() }
@@ -184,7 +184,7 @@ class GrpcApiClientTest {
 
     verifyProtoArgument(
         exchangeStepsServiceMock,
-        ExchangeStepsCoroutineImplBase::claimReadyExchangeStep
+        ExchangeStepsCoroutineImplBase::claimReadyExchangeStep,
       )
       .isEqualTo(
         claimReadyExchangeStepRequest { parent = ModelProviderKey(MODEL_PROVIDER_ID).toName() }
@@ -203,7 +203,7 @@ class GrpcApiClientTest {
 
     verifyProtoArgument(
         exchangeStepsAttemptsServiceMock,
-        ExchangeStepAttemptsCoroutineImplBase::appendExchangeStepAttemptLogEntry
+        ExchangeStepAttemptsCoroutineImplBase::appendExchangeStepAttemptLogEntry,
       )
       .isEqualTo(
         appendExchangeStepAttemptLogEntryRequest {
@@ -225,7 +225,7 @@ class GrpcApiClientTest {
         .finishExchangeStepAttempt(
           EXCHANGE_STEP_ATTEMPT_KEY,
           ExchangeStepAttempt.State.SUCCEEDED,
-          listOf("message-1", "message-2")
+          listOf("message-1", "message-2"),
         )
       makeClient()
         .finishExchangeStepAttempt(EXCHANGE_STEP_ATTEMPT_KEY, ExchangeStepAttempt.State.FAILED_STEP)
@@ -308,7 +308,7 @@ class GrpcApiClientTest {
       client.finishExchangeStepAttempt(
         EXCHANGE_STEP_ATTEMPT_KEY,
         ExchangeStepAttempt.State.SUCCEEDED,
-        listOf("message-1", "message-2")
+        listOf("message-1", "message-2"),
       )
       client.claimExchangeStep()
     }

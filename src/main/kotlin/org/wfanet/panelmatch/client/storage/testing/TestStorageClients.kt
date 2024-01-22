@@ -44,28 +44,28 @@ private fun makeTestStorageFactoryMap(
   return mapOf(
     PlatformCase.FILE to builder,
     PlatformCase.AWS to builder,
-    PlatformCase.GCS to builder
+    PlatformCase.GCS to builder,
   )
 }
 
 fun makeTestPrivateStorageSelector(
   secretMap: MutableSecretMap,
-  underlyingClient: InMemoryStorageClient
+  underlyingClient: InMemoryStorageClient,
 ): PrivateStorageSelector {
   return PrivateStorageSelector(
     makeTestStorageFactoryMap(InMemoryStorageFactory(underlyingClient)),
-    StorageDetailsProvider(secretMap)
+    StorageDetailsProvider(secretMap),
   )
 }
 
 fun makeTestSharedStorageSelector(
   secretMap: MutableSecretMap,
-  underlyingClient: InMemoryStorageClient
+  underlyingClient: InMemoryStorageClient,
 ): SharedStorageSelector {
   return SharedStorageSelector(
     TestCertificateManager,
     makeTestStorageFactoryMap(InMemoryStorageFactory(underlyingClient)),
-    StorageDetailsProvider(secretMap)
+    StorageDetailsProvider(secretMap),
   )
 }
 
@@ -83,11 +83,11 @@ private val TEST_CONTEXT =
       "some-recurring-exchange-id",
       "some-exchange-id",
       "some-step-id",
-      "some-attempt-id"
+      "some-attempt-id",
     ),
     LocalDate.of(2020, 10, 6),
     WORKFLOW,
-    WORKFLOW.stepsList.first()
+    WORKFLOW.stepsList.first(),
   )
 
 fun makeTestVerifyingStorageClient(
@@ -103,6 +103,6 @@ fun makeTestSigningStorageClient(
     { underlyingClient },
     TestCertificateManager.CERTIFICATE,
     TestCertificateManager.PRIVATE_KEY,
-    namedSignature { certificateName = TestCertificateManager.RESOURCE_NAME }
+    namedSignature { certificateName = TestCertificateManager.RESOURCE_NAME },
   )
 }

@@ -50,7 +50,7 @@ class MeasurementReader(private val view: Measurement.View) :
   data class Result(
     val measurementConsumerId: InternalId,
     val measurementId: InternalId,
-    val measurement: Measurement
+    val measurement: Measurement,
   )
 
   private fun constructBaseSql(view: Measurement.View): String {
@@ -68,13 +68,13 @@ class MeasurementReader(private val view: Measurement.View) :
     Result(
       struct.getInternalId("MeasurementConsumerId"),
       struct.getInternalId("MeasurementId"),
-      buildMeasurement(struct)
+      buildMeasurement(struct),
     )
 
   suspend fun readByExternalIds(
     readContext: AsyncDatabaseClient.ReadContext,
     externalMeasurementConsumerId: ExternalId,
-    externalMeasurementId: ExternalId
+    externalMeasurementId: ExternalId,
   ): Result? {
     return fillStatementBuilder {
         appendClause(
@@ -95,7 +95,7 @@ class MeasurementReader(private val view: Measurement.View) :
   suspend fun readByExternalIds(
     readContext: AsyncDatabaseClient.ReadContext,
     externalMeasurementConsumerId: ExternalId,
-    externalMeasurementIds: List<ExternalId>
+    externalMeasurementIds: List<ExternalId>,
   ): List<Result> {
     return fillStatementBuilder {
         appendClause(
@@ -140,14 +140,14 @@ class MeasurementReader(private val view: Measurement.View) :
     suspend fun readMeasurementState(
       readContext: AsyncDatabaseClient.ReadContext,
       measurementConsumerId: InternalId,
-      measurementId: InternalId
+      measurementId: InternalId,
     ): Measurement.State {
       val column = "State"
       return readContext
         .readRow(
           "Measurements",
           Key.of(measurementConsumerId.value, measurementId.value),
-          listOf(column)
+          listOf(column),
         )
         ?.getProtoEnum(column, Measurement.State::forNumber)
         ?: throw MeasurementNotFoundException() { "Measurement not found $measurementId" }
@@ -191,7 +191,7 @@ class MeasurementReader(private val view: Measurement.View) :
 
       return Key.of(
         row.getInternalId("measurementConsumerId").value,
-        row.getInternalId("measurementId").value
+        row.getInternalId("measurementId").value,
       )
     }
 
@@ -202,7 +202,7 @@ class MeasurementReader(private val view: Measurement.View) :
      */
     suspend fun readEtag(
       readContext: AsyncDatabaseClient.ReadContext,
-      measurementKey: Key
+      measurementKey: Key,
     ): String {
       val column = "UpdateTime"
       val updateTime =
@@ -476,7 +476,7 @@ private fun MeasurementKt.Dsl.fillComputationView(struct: Struct) {
         externalDuchyId = externalDuchyId,
         externalComputationId = externalComputationId,
         measurementDetails = details,
-        struct = participantStruct
+        struct = participantStruct,
       )
   }
 
@@ -486,7 +486,7 @@ private fun MeasurementKt.Dsl.fillComputationView(struct: Struct) {
         struct,
         requisitionStruct,
         participantStructs,
-        dataProvidersCount
+        dataProvidersCount,
       )
   }
 }

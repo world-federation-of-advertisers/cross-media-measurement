@@ -36,7 +36,7 @@ class GaussianNoiserTest {
         -3.9883454237630307,
         -7.156064121340545,
         -4.0956149786203895,
-        -7.333487792497553
+        -7.333487792497553,
       )
 
     assertThat(expectedSamples).isEqualTo(samples)

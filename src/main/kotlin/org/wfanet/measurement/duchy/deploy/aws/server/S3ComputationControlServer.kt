@@ -25,7 +25,7 @@ import picocli.CommandLine
   name = "S3ComputationControlServer",
   description = ["Server daemon for ${ComputationControlServer.SERVICE_NAME} service."],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 class S3ComputationControlServer : ComputationControlServer() {
   @CommandLine.Mixin private lateinit var s3Flags: S3Flags

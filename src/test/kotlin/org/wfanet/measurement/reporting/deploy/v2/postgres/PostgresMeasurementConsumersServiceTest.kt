@@ -29,9 +29,7 @@ import org.wfanet.measurement.reporting.service.internal.testing.v2.MeasurementC
 class PostgresMeasurementConsumersServiceTest :
   MeasurementConsumersServiceTest<PostgresMeasurementConsumersService>() {
 
-  override fun newService(
-    idGenerator: IdGenerator,
-  ): PostgresMeasurementConsumersService {
+  override fun newService(idGenerator: IdGenerator): PostgresMeasurementConsumersService {
     val client: PostgresDatabaseClient = databaseProvider.createDatabase()
     return PostgresMeasurementConsumersService(idGenerator, client)
   }

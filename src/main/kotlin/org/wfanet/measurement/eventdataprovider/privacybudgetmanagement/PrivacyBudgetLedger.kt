@@ -33,9 +33,7 @@ class PrivacyBudgetLedger(
    *   unsuccessful. Possible causes could include exceeding available privacy budget or an
    *   inability to commit an update to the database.
    */
-  @Deprecated(
-    "Should be removed after completely switching to Gaussian noise and ACDP composition",
-  )
+  @Deprecated("Should be removed after completely switching to Gaussian noise and ACDP composition")
   suspend fun charge(
     reference: Reference,
     privacyBucketGroups: Set<PrivacyBucketGroup>,
@@ -101,12 +99,10 @@ class PrivacyBudgetLedger(
    * @throws PrivacyBudgetManagerException if there is an error committing the transaction to the
    *   database.
    */
-  @Deprecated(
-    "Should be removed after completely switching to Gaussian noise and ACDP composition",
-  )
+  @Deprecated("Should be removed after completely switching to Gaussian noise and ACDP composition")
   suspend fun chargingWillExceedPrivacyBudget(
     privacyBucketGroups: Set<PrivacyBucketGroup>,
-    dpCharges: Set<DpCharge>
+    dpCharges: Set<DpCharge>,
   ): Boolean {
     if (privacyBucketGroups.isEmpty() || dpCharges.isEmpty()) {
       return false
@@ -132,7 +128,7 @@ class PrivacyBudgetLedger(
    */
   suspend fun chargingWillExceedPrivacyBudgetInAcdp(
     privacyBucketGroups: Set<PrivacyBucketGroup>,
-    acdpCharges: Set<AcdpCharge>
+    acdpCharges: Set<AcdpCharge>,
   ): Boolean {
     if (privacyBucketGroups.isEmpty() || acdpCharges.isEmpty()) {
       return false
@@ -208,7 +204,7 @@ class PrivacyBudgetLedger(
   private suspend fun getExceededPrivacyBuckets(
     context: PrivacyBudgetLedgerTransactionContext,
     privacyBucketGroups: Set<PrivacyBucketGroup>,
-    dpCharges: Set<DpCharge>
+    dpCharges: Set<DpCharge>,
   ): List<PrivacyBucketGroup> =
     privacyBucketGroups.filter {
       privacyBudgetIsExceeded(context.findIntersectingBalanceEntries(it).toSet(), dpCharges)
@@ -217,7 +213,7 @@ class PrivacyBudgetLedger(
   private suspend fun getExceededPrivacyBucketsInAcdp(
     context: PrivacyBudgetLedgerTransactionContext,
     privacyBucketGroups: Set<PrivacyBucketGroup>,
-    acdpCharges: Set<AcdpCharge>
+    acdpCharges: Set<AcdpCharge>,
   ): List<PrivacyBucketGroup> =
     privacyBucketGroups.filter { privacyBucketGroup ->
       val acdpBalanceEntries = setOf(context.findAcdpBalanceEntry(privacyBucketGroup))
@@ -228,12 +224,12 @@ class PrivacyBudgetLedger(
   private fun exceedsUnderAdvancedComposition(
     chargeEpsilon: Float,
     chargeDelta: Float,
-    numCharges: Int
+    numCharges: Int,
   ): Boolean =
     Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
       DpCharge(chargeEpsilon, chargeDelta),
       numCharges,
-      maximumTotalDpParams.delta.toFloat()
+      maximumTotalDpParams.delta.toFloat(),
     ) > maximumTotalDpParams.epsilon.toFloat()
 
   private fun exceedsUnderSimpleComposition(dpCharges: List<DpChargeWithRepetitions>) =
@@ -243,7 +239,7 @@ class PrivacyBudgetLedger(
   private fun exceedsUnderAcdpComposition(acdpCharges: List<AcdpCharge>) =
     (Composition.totalPrivacyBudgetUsageUnderAcdpComposition(
       acdpCharges,
-      maximumTotalDpParams.epsilon
+      maximumTotalDpParams.epsilon,
     ) > maximumTotalDpParams.delta)
 
   /**
@@ -257,7 +253,7 @@ class PrivacyBudgetLedger(
    */
   private fun privacyBudgetIsExceeded(
     balanceEntries: Set<PrivacyBudgetBalanceEntry>,
-    dpCharges: Set<DpCharge>
+    dpCharges: Set<DpCharge>,
   ): Boolean {
     val allDpCharges: List<DpChargeWithRepetitions> =
       dpCharges.map { it.toChargeWithRepetitions(1) } +
@@ -269,7 +265,7 @@ class PrivacyBudgetLedger(
       exceedsUnderAdvancedComposition(
         allDpCharges[0].epsilon,
         allDpCharges[0].delta,
-        allDpCharges.sumOf { it.count }
+        allDpCharges.sumOf { it.count },
       )
     else exceedsUnderSimpleComposition(allDpCharges)
   }

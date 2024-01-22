@@ -149,7 +149,7 @@ class ReachFrequencyLiquidLegionsV2Mill(
     openTelemetry,
     requestChunkSizeBytes,
     maximumAttempts,
-    clock
+    clock,
   ) {
   private val meter: Meter =
     openTelemetry.getMeter(ReachFrequencyLiquidLegionsV2Mill::class.java.name)
@@ -191,7 +191,7 @@ class ReachFrequencyLiquidLegionsV2Mill(
       Pair(Stage.EXECUTION_PHASE_TWO, NON_AGGREGATOR) to ::completeExecutionPhaseTwoAtNonAggregator,
       Pair(Stage.EXECUTION_PHASE_THREE, AGGREGATOR) to ::completeExecutionPhaseThreeAtAggregator,
       Pair(Stage.EXECUTION_PHASE_THREE, NON_AGGREGATOR) to
-        ::completeExecutionPhaseThreeAtNonAggregator
+        ::completeExecutionPhaseThreeAtNonAggregator,
     )
 
   override suspend fun processComputationImpl(token: ComputationToken) {
@@ -217,7 +217,7 @@ class ReachFrequencyLiquidLegionsV2Mill(
         Version.V2_ALPHA ->
           signElgamalPublicKey(
             llv2ComputationDetails.localElgamalKey.publicKey.toV2AlphaElGamalPublicKey(),
-            signingKey
+            signingKey,
           )
       }
 
@@ -268,7 +268,7 @@ class ReachFrequencyLiquidLegionsV2Mill(
           token,
           CRYPTO_LIB_CPU_DURATION,
           cryptoResult.elapsedCpuTimeMillis,
-          initializationPhaseCryptoCpuTimeDurationHistogram
+          initializationPhaseCryptoCpuTimeDurationHistogram,
         )
 
         // Updates the newly generated localElgamalKey to the ComputationDetails.
@@ -290,7 +290,7 @@ class ReachFrequencyLiquidLegionsV2Mill(
 
     return dataClients.transitionComputationToStage(
       nextToken,
-      stage = Stage.WAIT_REQUISITIONS_AND_KEY_SET.toProtocolStage()
+      stage = Stage.WAIT_REQUISITIONS_AND_KEY_SET.toProtocolStage(),
     )
   }
 
@@ -326,7 +326,7 @@ class ReachFrequencyLiquidLegionsV2Mill(
           fullParticipantList
             .subList(
               fullParticipantList.indexOfFirst { it.duchyId == duchyId } + 1,
-              fullParticipantList.size
+              fullParticipantList.size,
             )
             .map { it.publicKey }
             .toCombinedPublicKey(llv2Details.parameters.ellipticCurveId)
@@ -377,7 +377,7 @@ class ReachFrequencyLiquidLegionsV2Mill(
           AGGREGATOR -> Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
           NON_AGGREGATOR -> Stage.WAIT_TO_START.toProtocolStage()
           else -> error("Unknown role: ${latestToken.computationDetails.liquidLegionsV2.role}")
-        }
+        },
     )
   }
 
@@ -413,14 +413,14 @@ class ReachFrequencyLiquidLegionsV2Mill(
             combinedRegisterVector,
             llv2Details,
             token.requisitionsCount,
-            token.participantCount
+            token.participantCount,
           )
         val cryptoResult: CompleteSetupPhaseResponse = cryptoWorker.completeSetupPhase(request)
         logStageDurationMetric(
           token,
           CRYPTO_LIB_CPU_DURATION,
           cryptoResult.elapsedCpuTimeMillis,
-          setupPhaseCryptoCpuTimeDurationHistogram
+          setupPhaseCryptoCpuTimeDurationHistogram,
         )
         cryptoResult.combinedRegisterVector
       }
@@ -429,16 +429,16 @@ class ReachFrequencyLiquidLegionsV2Mill(
       header =
         advanceComputationHeader(
           LiquidLegionsV2.Description.EXECUTION_PHASE_ONE_INPUT,
-          token.globalComputationId
+          token.globalComputationId,
         ),
       content = addLoggingHook(token, bytes),
-      stub = nextDuchyStub(llv2Details.participantList)
+      stub = nextDuchyStub(llv2Details.participantList),
     )
 
     return dataClients.transitionComputationToStage(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
-      stage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
+      stage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage(),
     )
   }
 
@@ -454,14 +454,14 @@ class ReachFrequencyLiquidLegionsV2Mill(
             ByteString.EMPTY,
             llv2Details,
             token.requisitionsCount,
-            token.participantCount
+            token.participantCount,
           )
         val cryptoResult: CompleteSetupPhaseResponse = cryptoWorker.completeSetupPhase(request)
         logStageDurationMetric(
           token,
           CRYPTO_LIB_CPU_DURATION,
           cryptoResult.elapsedCpuTimeMillis,
-          setupPhaseCryptoCpuTimeDurationHistogram
+          setupPhaseCryptoCpuTimeDurationHistogram,
         )
         cryptoResult.combinedRegisterVector
       }
@@ -470,16 +470,16 @@ class ReachFrequencyLiquidLegionsV2Mill(
       header =
         advanceComputationHeader(
           LiquidLegionsV2.Description.SETUP_PHASE_INPUT,
-          token.globalComputationId
+          token.globalComputationId,
         ),
       content = addLoggingHook(token, bytes),
-      stub = aggregatorDuchyStub(llv2Details.participantList.last().duchyId)
+      stub = aggregatorDuchyStub(llv2Details.participantList.last().duchyId),
     )
 
     return dataClients.transitionComputationToStage(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
-      stage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
+      stage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage(),
     )
   }
 
@@ -510,7 +510,7 @@ class ReachFrequencyLiquidLegionsV2Mill(
           token,
           CRYPTO_LIB_CPU_DURATION,
           cryptoResult.elapsedCpuTimeMillis,
-          executionPhaseOneCryptoCpuTimeDurationHistogram
+          executionPhaseOneCryptoCpuTimeDurationHistogram,
         )
         cryptoResult.flagCountTuples
       }
@@ -520,16 +520,16 @@ class ReachFrequencyLiquidLegionsV2Mill(
       header =
         advanceComputationHeader(
           LiquidLegionsV2.Description.EXECUTION_PHASE_TWO_INPUT,
-          token.globalComputationId
+          token.globalComputationId,
         ),
       content = addLoggingHook(token, bytes),
-      stub = nextDuchyStub(llv2Details.participantList)
+      stub = nextDuchyStub(llv2Details.participantList),
     )
 
     return dataClients.transitionComputationToStage(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
-      stage = Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS.toProtocolStage()
+      stage = Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS.toProtocolStage(),
     )
   }
 
@@ -556,7 +556,7 @@ class ReachFrequencyLiquidLegionsV2Mill(
           token,
           CRYPTO_LIB_CPU_DURATION,
           cryptoResult.elapsedCpuTimeMillis,
-          executionPhaseOneCryptoCpuTimeDurationHistogram
+          executionPhaseOneCryptoCpuTimeDurationHistogram,
         )
         cryptoResult.combinedRegisterVector
       }
@@ -566,16 +566,16 @@ class ReachFrequencyLiquidLegionsV2Mill(
       header =
         advanceComputationHeader(
           LiquidLegionsV2.Description.EXECUTION_PHASE_ONE_INPUT,
-          token.globalComputationId
+          token.globalComputationId,
         ),
       content = addLoggingHook(token, bytes),
-      stub = nextDuchyStub(llv2Details.participantList)
+      stub = nextDuchyStub(llv2Details.participantList),
     )
 
     return dataClients.transitionComputationToStage(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
-      stage = Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS.toProtocolStage()
+      stage = Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS.toProtocolStage(),
     )
   }
 
@@ -635,7 +635,7 @@ class ReachFrequencyLiquidLegionsV2Mill(
           token,
           CRYPTO_LIB_CPU_DURATION,
           cryptoResult.elapsedCpuTimeMillis,
-          executionPhaseTwoCryptoCpuTimeDurationHistogram
+          executionPhaseTwoCryptoCpuTimeDurationHistogram,
         )
         reach = cryptoResult.reach
         cryptoResult.sameKeyAggregatorMatrix
@@ -672,16 +672,16 @@ class ReachFrequencyLiquidLegionsV2Mill(
       header =
         advanceComputationHeader(
           LiquidLegionsV2.Description.EXECUTION_PHASE_THREE_INPUT,
-          token.globalComputationId
+          token.globalComputationId,
         ),
       content = addLoggingHook(token, bytes),
-      stub = nextDuchyStub(llv2Details.participantList)
+      stub = nextDuchyStub(llv2Details.participantList),
     )
 
     return dataClients.transitionComputationToStage(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
-      stage = Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS.toProtocolStage()
+      stage = Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS.toProtocolStage(),
     )
   }
 
@@ -715,7 +715,7 @@ class ReachFrequencyLiquidLegionsV2Mill(
           token,
           CRYPTO_LIB_CPU_DURATION,
           cryptoResult.elapsedCpuTimeMillis,
-          executionPhaseTwoCryptoCpuTimeDurationHistogram
+          executionPhaseTwoCryptoCpuTimeDurationHistogram,
         )
         cryptoResult.flagCountTuples
       }
@@ -725,10 +725,10 @@ class ReachFrequencyLiquidLegionsV2Mill(
       header =
         advanceComputationHeader(
           LiquidLegionsV2.Description.EXECUTION_PHASE_TWO_INPUT,
-          token.globalComputationId
+          token.globalComputationId,
         ),
       content = addLoggingHook(token, bytes),
-      stub = nextDuchyStub(llv2Details.participantList)
+      stub = nextDuchyStub(llv2Details.participantList),
     )
 
     // If this is a reach-only computation, then our job is done.
@@ -739,7 +739,7 @@ class ReachFrequencyLiquidLegionsV2Mill(
     return dataClients.transitionComputationToStage(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
-      stage = Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS.toProtocolStage()
+      stage = Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS.toProtocolStage(),
     )
   }
 
@@ -772,7 +772,7 @@ class ReachFrequencyLiquidLegionsV2Mill(
           token,
           CRYPTO_LIB_CPU_DURATION,
           cryptoResult.elapsedCpuTimeMillis,
-          executionPhaseThreeCryptoCpuTimeDurationHistogram
+          executionPhaseThreeCryptoCpuTimeDurationHistogram,
         )
         cryptoResult.toByteString()
       }
@@ -783,7 +783,7 @@ class ReachFrequencyLiquidLegionsV2Mill(
 
     sendResultToKingdom(
       token,
-      ReachAndFrequencyResult(llv2Details.reachEstimate.reach, frequencyDistributionMap)
+      ReachAndFrequencyResult(llv2Details.reachEstimate.reach, frequencyDistributionMap),
     )
     return completeComputation(nextToken, CompletedReason.SUCCEEDED)
   }
@@ -811,7 +811,7 @@ class ReachFrequencyLiquidLegionsV2Mill(
           token,
           CRYPTO_LIB_CPU_DURATION,
           cryptoResult.elapsedCpuTimeMillis,
-          executionPhaseThreeCryptoCpuTimeDurationHistogram
+          executionPhaseThreeCryptoCpuTimeDurationHistogram,
         )
         cryptoResult.sameKeyAggregatorMatrix
       }
@@ -821,10 +821,10 @@ class ReachFrequencyLiquidLegionsV2Mill(
       header =
         advanceComputationHeader(
           LiquidLegionsV2.Description.EXECUTION_PHASE_THREE_INPUT,
-          token.globalComputationId
+          token.globalComputationId,
         ),
       content = addLoggingHook(token, bytes),
-      stub = nextDuchyStub(llv2Details.participantList)
+      stub = nextDuchyStub(llv2Details.participantList),
     )
 
     // This duchy's responsibility for the computation is done. Mark it COMPLETED locally.

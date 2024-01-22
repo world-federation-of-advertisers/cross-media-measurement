@@ -41,7 +41,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetModelLine
 class SpannerModelLinesService(
   private val clock: Clock,
   private val idGenerator: IdGenerator,
-  private val client: AsyncDatabaseClient
+  private val client: AsyncDatabaseClient,
 ) : ModelLinesCoroutineImplBase() {
 
   override suspend fun createModelLine(request: ModelLine): ModelLine {
@@ -57,12 +57,12 @@ class SpannerModelLinesService(
       throw e.asStatusRuntimeException(
         Status.Code.INVALID_ARGUMENT,
         e.message
-          ?: "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'."
+          ?: "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'.",
       )
     } catch (e: ModelLineInvalidArgsException) {
       throw e.asStatusRuntimeException(
         Status.Code.INVALID_ARGUMENT,
-        e.message ?: "ActiveStartTime and/or ActiveEndTime is invalid."
+        e.message ?: "ActiveStartTime and/or ActiveEndTime is invalid.",
       )
     }
   }
@@ -76,7 +76,7 @@ class SpannerModelLinesService(
     } catch (e: ModelLineInvalidArgsException) {
       throw e.asStatusRuntimeException(
         Status.Code.INVALID_ARGUMENT,
-        e.message ?: "ModelLine invalid active time argument."
+        e.message ?: "ModelLine invalid active time argument.",
       )
     }
   }
@@ -90,11 +90,7 @@ class SpannerModelLinesService(
           request.filter.after.externalModelSuiteId == 0L ||
           request.filter.after.externalModelProviderId == 0L)
     ) {
-      failGrpc(
-        Status.INVALID_ARGUMENT,
-      ) {
-        "Missing After filter fields"
-      }
+      failGrpc(Status.INVALID_ARGUMENT) { "Missing After filter fields" }
     }
     return StreamModelLines(request.filter, request.limit).execute(client.singleUse()).map {
       it.modelLine
@@ -132,7 +128,7 @@ class SpannerModelLinesService(
       throw e.asStatusRuntimeException(
         Status.Code.INVALID_ARGUMENT,
         e.message
-          ?: "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'."
+          ?: "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'.",
       )
     }
   }

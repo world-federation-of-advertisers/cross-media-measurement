@@ -65,7 +65,7 @@ class CreateModelRelease(private val modelRelease: ModelRelease) :
 
   private suspend fun TransactionScope.readModelSuiteData(
     externalModelProviderId: ExternalId,
-    externalModelSuiteId: ExternalId
+    externalModelSuiteId: ExternalId,
   ): Struct? {
     val sql =
       """
@@ -88,7 +88,7 @@ class CreateModelRelease(private val modelRelease: ModelRelease) :
 
   private suspend fun TransactionScope.readPopulationData(
     externalDataProviderId: ExternalId,
-    externalPopulationId: ExternalId
+    externalPopulationId: ExternalId,
   ): Struct? {
     val sql =
       """

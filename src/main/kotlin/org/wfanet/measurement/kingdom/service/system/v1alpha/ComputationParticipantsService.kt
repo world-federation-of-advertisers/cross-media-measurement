@@ -40,7 +40,7 @@ import org.wfanet.measurement.system.v1alpha.SetParticipantRequisitionParamsRequ
 
 class ComputationParticipantsService(
   private val internalComputationParticipantsClient: InternalComputationParticipantsCoroutineStub,
-  private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext
+  private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext,
 ) : ComputationParticipantsCoroutineImplBase() {
   override suspend fun setParticipantRequisitionParams(
     request: SetParticipantRequisitionParamsRequest

@@ -30,7 +30,7 @@ class CreateMeasurementFlags {
   @Option(
     names = ["--measurement-consumer"],
     description = ["API resource name of the MeasurementConsumer"],
-    required = true
+    required = true,
   )
   lateinit var measurementConsumer: String
 
@@ -45,7 +45,7 @@ class CreateMeasurementFlags {
   @Option(
     names = ["--private-key-der-file"],
     description = ["Private key for MeasurementConsumer"],
-    required = true
+    required = true,
   )
   lateinit var privateKeyDerFile: File
 
@@ -53,14 +53,14 @@ class CreateMeasurementFlags {
     names = ["--measurement-ref-id"],
     description = ["Measurement reference id"],
     required = false,
-    defaultValue = ""
+    defaultValue = "",
   )
   lateinit var measurementReferenceId: String
 
   @ArgGroup(
     exclusive = true,
     multiplicity = "1",
-    heading = "Specify either Event or Population Measurement with its params\n"
+    heading = "Specify either Event or Population Measurement with its params\n",
   )
   lateinit var measurementParams: MeasurementParams
 
@@ -79,7 +79,7 @@ class CreateMeasurementFlags {
     @ArgGroup(
       exclusive = false,
       multiplicity = "1",
-      heading = "Population Measurement and params\n"
+      heading = "Population Measurement and params\n",
     )
     var populationMeasurementParams = PopulationMeasurementParams()
 
@@ -96,7 +96,7 @@ class CreateMeasurementFlags {
         @ArgGroup(
           exclusive = false,
           multiplicity = "1..*",
-          heading = "Add EventGroups for an Event Data Provider\n"
+          heading = "Add EventGroups for an Event Data Provider\n",
         )
         lateinit var eventGroupInputs: List<EventGroupInput>
           private set
@@ -115,7 +115,7 @@ class CreateMeasurementFlags {
           names = ["--event-filter"],
           description = ["Raw CEL expression of EventFilter"],
           required = false,
-          defaultValue = ""
+          defaultValue = "",
         )
         lateinit var eventFilter: String
           private set
@@ -327,7 +327,7 @@ class CreateMeasurementFlags {
           names = ["--population-filter"],
           description = ["Raw CEL expression of Population Filter"],
           required = false,
-          defaultValue = ""
+          defaultValue = "",
         )
         lateinit var filter: String
           private set
@@ -366,11 +366,7 @@ class CreateMeasurementFlags {
       @ArgGroup(exclusive = false, heading = "Set Population Data Provider\n")
       lateinit var populationDataProviderInput: PopulationDataProviderInput
 
-      @Option(
-        names = ["--population"],
-        description = ["Population Measurement"],
-        required = true,
-      )
+      @Option(names = ["--population"], description = ["Population Measurement"], required = true)
       var selected = false
         private set
     }

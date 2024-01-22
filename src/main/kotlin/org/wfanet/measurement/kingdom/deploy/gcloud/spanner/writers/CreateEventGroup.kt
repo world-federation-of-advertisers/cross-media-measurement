@@ -45,7 +45,7 @@ class CreateEventGroup(private val request: CreateEventGroupRequest) :
     val measurementConsumerId: InternalId =
       MeasurementConsumerReader.readMeasurementConsumerId(
         transactionContext,
-        externalMeasurementConsumerId
+        externalMeasurementConsumerId,
       ) ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
 
     val externalDataProviderId = ExternalId(request.eventGroup.externalDataProviderId)
@@ -64,7 +64,7 @@ class CreateEventGroup(private val request: CreateEventGroupRequest) :
 
   private fun TransactionScope.createNewEventGroup(
     dataProviderId: InternalId,
-    measurementConsumerId: InternalId
+    measurementConsumerId: InternalId,
   ): EventGroup {
     val internalEventGroupId: InternalId = idGenerator.generateInternalId()
     val externalEventGroupId: ExternalId = idGenerator.generateExternalId()

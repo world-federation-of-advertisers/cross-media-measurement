@@ -28,7 +28,7 @@ import org.wfanet.panelmatch.common.storage.withPrefix
 
 class GcsStorageFactory(
   private val storageDetails: StorageDetails,
-  private val exchangeDateKey: ExchangeDateKey
+  private val exchangeDateKey: ExchangeDateKey,
 ) : StorageFactory {
   override fun build(): StorageClient {
     val gcs = storageDetails.gcs
@@ -47,7 +47,7 @@ class GcsStorageFactory(
       }
     return GcsStorageClient(
         StorageOptions.newBuilder().setProjectId(gcs.projectName).build().service,
-        bucketId
+        bucketId,
       )
       .withPrefix(exchangeDateKey.path)
   }

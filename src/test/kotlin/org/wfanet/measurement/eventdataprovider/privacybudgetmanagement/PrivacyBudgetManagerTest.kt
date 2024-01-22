@@ -236,7 +236,7 @@ class PrivacyBudgetManagerTest {
     private val timeRange =
       OpenEndTimeRange(
         yesterday.toInstant(ZoneOffset.UTC),
-        startOfTomorrow.toInstant(ZoneOffset.UTC)
+        startOfTomorrow.toInstant(ZoneOffset.UTC),
       )
     private val privacyBucketFilter = PrivacyBucketFilter(TestPrivacyBucketMapper())
 
@@ -254,9 +254,7 @@ class PrivacyBudgetManagerTest {
         AcdpCharge(0.04, 5.0E-6),
       )
 
-    private suspend fun PrivacyBudgetManager.assertChargeExceedsPrivacyBudget(
-      dpQuery: DpQuery,
-    ) {
+    private suspend fun PrivacyBudgetManager.assertChargeExceedsPrivacyBudget(dpQuery: DpQuery) {
       val exception =
         assertFailsWith<PrivacyBudgetManagerException> { chargePrivacyBudget(dpQuery) }
       assertThat(exception.errorType)
@@ -264,7 +262,7 @@ class PrivacyBudgetManagerTest {
     }
 
     private suspend fun PrivacyBudgetManager.assertChargeExceedsPrivacyBudgetInAcdp(
-      acdpQuery: AcdpQuery,
+      acdpQuery: AcdpQuery
     ) {
       val exception =
         assertFailsWith<PrivacyBudgetManagerException> { chargePrivacyBudgetInAcdp(acdpQuery) }

@@ -26,7 +26,7 @@ data class ApiKeyKey(val measurementConsumerId: String, val apiKeyId: String) : 
     return parser.assembleName(
       mapOf(
         IdVariable.MEASUREMENT_CONSUMER to measurementConsumerId,
-        IdVariable.API_KEY to apiKeyId
+        IdVariable.API_KEY to apiKeyId,
       )
     )
   }

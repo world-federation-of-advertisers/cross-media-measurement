@@ -30,7 +30,7 @@ class PostgresMeasurementsServiceTest : MeasurementsServiceTest<PostgresMeasurem
     val client: PostgresDatabaseClient = databaseProvider.createDatabase()
     return Services(
       PostgresMeasurementsService(idGenerator, client),
-      PostgresReportsService(idGenerator, client)
+      PostgresReportsService(idGenerator, client),
     )
   }
 

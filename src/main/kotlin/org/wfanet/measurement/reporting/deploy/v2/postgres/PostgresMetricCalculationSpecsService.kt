@@ -56,12 +56,12 @@ class PostgresMetricCalculationSpecsService(
     } catch (e: MetricCalculationSpecAlreadyExistsException) {
       throw e.asStatusRuntimeException(
         Status.Code.ALREADY_EXISTS,
-        "Metric Calculation Spec already exists"
+        "Metric Calculation Spec already exists",
       )
     } catch (e: MeasurementConsumerNotFoundException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Measurement Consumer not found"
+        "Measurement Consumer not found",
       )
     }
   }
@@ -82,7 +82,7 @@ class PostgresMetricCalculationSpecsService(
       MetricCalculationSpecReader(readContext)
         .readMetricCalculationSpecByExternalId(
           request.cmmsMeasurementConsumerId,
-          request.externalMetricCalculationSpecId
+          request.externalMetricCalculationSpecId,
         )
         ?.metricCalculationSpec
         ?: throw Status.NOT_FOUND.withDescription("Metric Calculation Spec not found.")
@@ -136,7 +136,7 @@ class PostgresMetricCalculationSpecsService(
       MetricCalculationSpecReader(readContext)
         .batchReadByExternalIds(
           request.cmmsMeasurementConsumerId,
-          request.externalMetricCalculationSpecIdsList
+          request.externalMetricCalculationSpecIdsList,
         )
         .let {
           if (it.size < request.externalMetricCalculationSpecIdsList.size) {

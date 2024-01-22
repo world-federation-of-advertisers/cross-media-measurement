@@ -54,7 +54,7 @@ class JoinKeyHashingExchangeTaskTest {
   private val blobOfJoinKeys = runBlocking {
     storage.writeBlob(
       "join-keys",
-      joinKeyAndIdCollection { joinKeyAndIds += PLAINTEXT_JOIN_KEYS }.toByteString()
+      joinKeyAndIdCollection { joinKeyAndIds += PLAINTEXT_JOIN_KEYS }.toByteString(),
     )
   }
 

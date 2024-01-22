@@ -107,7 +107,7 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
   suspend fun readByExternalComputationId(
     readContext: AsyncDatabaseClient.ReadContext,
     externalComputationId: ExternalId,
-    duchyId: InternalId
+    duchyId: InternalId,
   ): Result? {
     fillStatementBuilder {
       appendClause(
@@ -131,7 +131,7 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
       struct.getLong("MeasurementId"),
       struct.getLong("MeasurementConsumerId"),
       struct.getProtoEnum("MeasurementState", Measurement.State::forNumber),
-      struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
+      struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser()),
     )
 
   private fun buildComputationParticipant(struct: Struct): ComputationParticipant {
@@ -151,7 +151,7 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
       externalDuchyId = externalDuchyId,
       externalComputationId = externalComputationId,
       measurementDetails = measurementDetails,
-      struct = struct
+      struct = struct,
     )
   }
 
@@ -162,7 +162,7 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
       externalDuchyId: String,
       externalComputationId: ExternalId,
       measurementDetails: Measurement.Details,
-      struct: Struct
+      struct: Struct,
     ) = computationParticipant {
       this.externalMeasurementConsumerId = externalMeasurementConsumerId.value
       this.externalMeasurementId = externalMeasurementId.value
@@ -181,7 +181,7 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
           externalMeasurementConsumerId,
           externalMeasurementId,
           externalDuchyId,
-          struct.getStructList("DuchyMeasurementLogEntries")
+          struct.getStructList("DuchyMeasurementLogEntries"),
         )
         ?.let { failureLogEntry = it }
     }
@@ -190,7 +190,7 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
       externalMeasurementConsumerId: ExternalId,
       externalMeasurementId: ExternalId,
       externalDuchyId: String,
-      logEntryStructs: Iterable<Struct>
+      logEntryStructs: Iterable<Struct>,
     ): DuchyMeasurementLogEntry? {
       return logEntryStructs
         .asSequence()
@@ -211,7 +211,7 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
             details =
               struct.getProtoMessage(
                 "DuchyMeasurementLogDetails",
-                DuchyMeasurementLogEntry.Details.parser()
+                DuchyMeasurementLogEntry.Details.parser(),
               )
           }
         }
@@ -223,20 +223,20 @@ suspend fun readComputationParticipantState(
   readContext: AsyncDatabaseClient.ReadContext,
   measurementConsumerId: InternalId,
   measurementId: InternalId,
-  duchyId: InternalId
+  duchyId: InternalId,
 ): ComputationParticipant.State {
   val column = "State"
   return readContext
     .readRow(
       "ComputationParticipants",
       Key.of(measurementConsumerId.value, measurementId.value, duchyId.value),
-      listOf(column)
+      listOf(column),
     )
     ?.getProtoEnum(column, ComputationParticipant.State::forNumber)
     ?: throw ComputationParticipantNotFoundByMeasurementException(
       measurementConsumerId,
       measurementConsumerId,
-      duchyId
+      duchyId,
     ) {
       "ComputationParticipant not found $duchyId"
     }
@@ -247,7 +247,7 @@ suspend fun computationParticipantsInState(
   duchyIds: List<InternalId>,
   measurementConsumerId: InternalId,
   measurementId: InternalId,
-  state: ComputationParticipant.State
+  state: ComputationParticipant.State,
 ): Boolean {
   val wrongState =
     duchyIds

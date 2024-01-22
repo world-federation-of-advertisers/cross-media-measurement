@@ -23,11 +23,11 @@ import org.wfanet.measurement.common.api.ResourceKey
 /** [ResourceKey] of a RecurringExchange with a DataProvider parent. */
 data class DataProviderRecurringExchangeKey(
   override val parentKey: DataProviderKey,
-  override val recurringExchangeId: String
+  override val recurringExchangeId: String,
 ) : RecurringExchangeKey, ChildResourceKey {
   constructor(
     dataProviderId: String,
-    recurringExchangeId: String
+    recurringExchangeId: String,
   ) : this(DataProviderKey(dataProviderId), recurringExchangeId)
 
   val dataProviderId: String
@@ -37,7 +37,7 @@ data class DataProviderRecurringExchangeKey(
     return parser.assembleName(
       mapOf(
         IdVariable.DATA_PROVIDER to dataProviderId,
-        IdVariable.RECURRING_EXCHANGE to recurringExchangeId
+        IdVariable.RECURRING_EXCHANGE to recurringExchangeId,
       )
     )
   }
@@ -50,7 +50,7 @@ data class DataProviderRecurringExchangeKey(
       val idVars: Map<IdVariable, String> = parser.parseIdVars(resourceName) ?: return null
       return DataProviderRecurringExchangeKey(
         idVars.getValue(IdVariable.DATA_PROVIDER),
-        idVars.getValue(IdVariable.RECURRING_EXCHANGE)
+        idVars.getValue(IdVariable.RECURRING_EXCHANGE),
       )
     }
   }

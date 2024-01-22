@@ -41,7 +41,7 @@ data class EventGroupParentKey(
       return parser.parseIdVars(resourceName)?.let {
         EventGroupParentKey(
           it.getValue(IdVariable.MEASUREMENT_CONSUMER),
-          it.getValue(IdVariable.DATA_PROVIDER)
+          it.getValue(IdVariable.DATA_PROVIDER),
         )
       }
     }

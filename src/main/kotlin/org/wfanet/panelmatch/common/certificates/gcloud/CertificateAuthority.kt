@@ -67,7 +67,7 @@ class CertificateAuthority(
   poolId: String,
   private val certificateAuthorityName: String,
   private val client: CreateCertificateClient,
-  private val generateKeyPair: () -> KeyPair = { generateKeyPair("EC") }
+  private val generateKeyPair: () -> KeyPair = { generateKeyPair("EC") },
 ) : CertificateAuthority {
 
   private val subjectConfig =

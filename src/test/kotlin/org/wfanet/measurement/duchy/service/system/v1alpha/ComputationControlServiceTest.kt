@@ -118,7 +118,7 @@ class ComputationControlServiceTest {
 
   private suspend fun <R> withSender(
     sender: DuchyIdentity,
-    rpcCall: suspend ComputationControlService.() -> R
+    rpcCall: suspend ComputationControlService.() -> R,
   ) = senderContext.withSender(sender, rpcCall)
 
   @Before
@@ -131,7 +131,7 @@ class ComputationControlServiceTest {
         ComputationControlService(
           AsyncComputationControlCoroutineStub(grpcTestServerRule.channel),
           computationStore,
-          duchyIdProvider
+          duchyIdProvider,
         )
       service
     }
@@ -147,7 +147,7 @@ class ComputationControlServiceTest {
 
     verifyProtoArgument(
         mockAsyncControlService,
-        AsyncComputationControlCoroutineImplBase::getOutputBlobMetadata
+        AsyncComputationControlCoroutineImplBase::getOutputBlobMetadata,
       )
       .isEqualTo(
         getOutputBlobMetadataRequest {
@@ -181,7 +181,7 @@ class ComputationControlServiceTest {
 
     verifyProtoArgument(
         mockAsyncControlService,
-        AsyncComputationControlCoroutineImplBase::getOutputBlobMetadata
+        AsyncComputationControlCoroutineImplBase::getOutputBlobMetadata,
       )
       .isEqualTo(
         getOutputBlobMetadataRequest {
@@ -216,7 +216,7 @@ class ComputationControlServiceTest {
 
     verifyProtoArgument(
         mockAsyncControlService,
-        AsyncComputationControlCoroutineImplBase::getOutputBlobMetadata
+        AsyncComputationControlCoroutineImplBase::getOutputBlobMetadata,
       )
       .isEqualTo(
         getOutputBlobMetadataRequest {
@@ -252,7 +252,7 @@ class ComputationControlServiceTest {
 
     verifyProtoArgument(
         mockAsyncControlService,
-        AsyncComputationControlCoroutineImplBase::getOutputBlobMetadata
+        AsyncComputationControlCoroutineImplBase::getOutputBlobMetadata,
       )
       .isEqualTo(
         getOutputBlobMetadataRequest {
@@ -291,7 +291,7 @@ class ComputationControlServiceTest {
                 .setHeader(
                   advanceComputationHeader(
                     LiquidLegionsV2.Description.EXECUTION_PHASE_TWO_INPUT,
-                    "1234"
+                    "1234",
                   )
                 )
                 .build()
@@ -340,7 +340,7 @@ class ComputationControlServiceTest {
 
     verifyProtoArgument(
         mockAsyncControlService,
-        AsyncComputationControlCoroutineImplBase::getOutputBlobMetadata
+        AsyncComputationControlCoroutineImplBase::getOutputBlobMetadata,
       )
       .isEqualTo(
         getOutputBlobMetadataRequest {
@@ -373,7 +373,7 @@ class ComputationControlServiceTest {
 
     verifyProtoArgument(
         mockAsyncControlService,
-        AsyncComputationControlCoroutineImplBase::getOutputBlobMetadata
+        AsyncComputationControlCoroutineImplBase::getOutputBlobMetadata,
       )
       .isEqualTo(
         getOutputBlobMetadataRequest {
@@ -407,7 +407,7 @@ class ComputationControlServiceTest {
 
     verifyProtoArgument(
         mockAsyncControlService,
-        AsyncComputationControlCoroutineImplBase::getOutputBlobMetadata
+        AsyncComputationControlCoroutineImplBase::getOutputBlobMetadata,
       )
       .isEqualTo(
         getOutputBlobMetadataRequest {

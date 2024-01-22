@@ -155,7 +155,7 @@ private val VISIBLE_REQUISITION_STATES: Set<InternalRequisition.State> =
   setOf(
     InternalRequisition.State.UNFULFILLED,
     InternalRequisition.State.FULFILLED,
-    InternalRequisition.State.REFUSED
+    InternalRequisition.State.REFUSED,
   )
 
 @RunWith(JUnit4::class)
@@ -726,7 +726,7 @@ class RequisitionsServiceTest {
       val expected = fulfillDirectRequisitionResponse { state = State.FULFILLED }
       verifyProtoArgument(
           internalRequisitionMock,
-          RequisitionsCoroutineImplBase::fulfillRequisition
+          RequisitionsCoroutineImplBase::fulfillRequisition,
         )
         .comparingExpectedFieldsOnly()
         .isEqualTo(
@@ -770,7 +770,7 @@ class RequisitionsServiceTest {
       val expected = fulfillDirectRequisitionResponse { state = State.FULFILLED }
       verifyProtoArgument(
           internalRequisitionMock,
-          RequisitionsCoroutineImplBase::fulfillRequisition
+          RequisitionsCoroutineImplBase::fulfillRequisition,
         )
         .comparingExpectedFieldsOnly()
         .isEqualTo(
@@ -822,7 +822,7 @@ class RequisitionsServiceTest {
 
       verifyProtoArgument(
           internalRequisitionMock,
-          RequisitionsCoroutineImplBase::fulfillRequisition
+          RequisitionsCoroutineImplBase::fulfillRequisition,
         )
         .comparingExpectedFieldsOnly()
         .isEqualTo(
@@ -1053,14 +1053,14 @@ class RequisitionsServiceTest {
       name =
         CanonicalRequisitionKey(
             externalIdToApiId(INTERNAL_REQUISITION.externalDataProviderId),
-            externalIdToApiId(INTERNAL_REQUISITION.externalRequisitionId)
+            externalIdToApiId(INTERNAL_REQUISITION.externalRequisitionId),
           )
           .toName()
 
       measurement =
         MeasurementKey(
             externalIdToApiId(INTERNAL_REQUISITION.externalMeasurementConsumerId),
-            externalIdToApiId(INTERNAL_REQUISITION.externalMeasurementId)
+            externalIdToApiId(INTERNAL_REQUISITION.externalMeasurementId),
           )
           .toName()
       measurementConsumerCertificate =
@@ -1068,7 +1068,7 @@ class RequisitionsServiceTest {
             externalIdToApiId(INTERNAL_REQUISITION.externalMeasurementConsumerId),
             externalIdToApiId(
               INTERNAL_REQUISITION.parentMeasurement.externalMeasurementConsumerCertificateId
-            )
+            ),
           )
           .toName()
       measurementSpec = signedMessage {
@@ -1085,7 +1085,7 @@ class RequisitionsServiceTest {
       dataProviderCertificate =
         DataProviderCertificateKey(
             externalIdToApiId(INTERNAL_REQUISITION.externalDataProviderId),
-            externalIdToApiId(INTERNAL_REQUISITION.dataProviderCertificate.externalCertificateId)
+            externalIdToApiId(INTERNAL_REQUISITION.dataProviderCertificate.externalCertificateId),
           )
           .toName()
       dataProviderPublicKey = PACKED_DATA_PROVIDER_PUBLIC_KEY

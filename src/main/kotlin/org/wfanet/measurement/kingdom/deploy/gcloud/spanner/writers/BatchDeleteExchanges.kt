@@ -46,7 +46,7 @@ class BatchDeleteExchanges(private val requests: BatchDeleteExchangesRequest) :
         ExchangeReader.readKeyByExternalIds(
           transactionContext,
           externalRecurringExchangeId,
-          request.date.toCloudDate()
+          request.date.toCloudDate(),
         )
           ?: throw ExchangeNotFoundException(externalRecurringExchangeId, request.date) {
             "Exchange with external RecurringExchange ID $externalRecurringExchangeId and date" +

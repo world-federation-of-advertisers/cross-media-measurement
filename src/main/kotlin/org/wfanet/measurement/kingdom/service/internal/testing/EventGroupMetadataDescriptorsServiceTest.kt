@@ -53,7 +53,7 @@ private val DETAILS = details {
 
 @RunWith(JUnit4::class)
 abstract class EventGroupMetadataDescriptorsServiceTest<
-  T : EventGroupMetadataDescriptorsCoroutineImplBase,
+  T : EventGroupMetadataDescriptorsCoroutineImplBase
 > {
 
   @get:Rule val duchyIdSetter = DuchyIdSetter(Population.DUCHIES)
@@ -68,7 +68,7 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
     private set
 
   protected abstract fun newServices(
-    idGenerator: IdGenerator,
+    idGenerator: IdGenerator
   ): EventGroupMetadataDescriptorsAndHelperServices<T>
 
   @Before
@@ -436,7 +436,7 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
 }
 
 data class EventGroupMetadataDescriptorsAndHelperServices<
-  T : EventGroupMetadataDescriptorsCoroutineImplBase,
+  T : EventGroupMetadataDescriptorsCoroutineImplBase
 >(
   val eventGroupMetadataDescriptorService: T,
   val dataProvidersService: DataProvidersCoroutineImplBase,

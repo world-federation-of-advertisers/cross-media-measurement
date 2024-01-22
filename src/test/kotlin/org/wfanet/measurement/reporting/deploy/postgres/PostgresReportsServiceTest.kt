@@ -25,9 +25,7 @@ import org.wfanet.measurement.reporting.service.internal.testing.ReportsServiceT
 
 @RunWith(JUnit4::class)
 class PostgresReportsServiceTest : ReportsServiceTest<PostgresReportsService>() {
-  override fun newServices(
-    idGenerator: IdGenerator,
-  ): Services<PostgresReportsService> {
+  override fun newServices(idGenerator: IdGenerator): Services<PostgresReportsService> {
     val client: PostgresDatabaseClient = databaseProvider.createDatabase()
     return Services(
       PostgresReportsService(idGenerator, client),

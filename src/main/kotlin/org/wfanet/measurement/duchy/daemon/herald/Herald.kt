@@ -185,7 +185,7 @@ class Herald(
           logger.log(Level.SEVERE, "[id=$globalId] Non-transient error:", e)
           failComputationAtKingdom(
             computation,
-            "Herald failed after $attemptNumber attempts. ${e.message}"
+            "Herald failed after $attemptNumber attempts. ${e.message}",
           )
           failComputationAtDuchy(computation)
           return
@@ -231,14 +231,14 @@ class Herald(
             internalComputationsClient,
             systemComputation,
             protocolsSetupConfig.liquidLegionsV2,
-            blobStorageBucket
+            blobStorageBucket,
           )
         Computation.MpcProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
           ReachOnlyLiquidLegionsV2Starter.createComputation(
             internalComputationsClient,
             systemComputation,
             protocolsSetupConfig.reachOnlyLiquidLegionsV2,
-            blobStorageBucket
+            blobStorageBucket,
           )
         else -> error("Unknown or unsupported protocol for creation.")
       }
@@ -268,7 +268,7 @@ class Herald(
    */
   private suspend fun <R> runWithRetries(
     systemComputation: Computation,
-    block: suspend (systemComputation: Computation) -> R
+    block: suspend (systemComputation: Computation) -> R,
   ): R {
     val globalId = systemComputation.key.computationId
     val finalResult =
@@ -302,14 +302,14 @@ class Herald(
             token,
             internalComputationsClient,
             systemComputation,
-            protocolsSetupConfig.liquidLegionsV2.externalAggregatorDuchyId
+            protocolsSetupConfig.liquidLegionsV2.externalAggregatorDuchyId,
           )
         ComputationDetails.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
           ReachOnlyLiquidLegionsV2Starter.updateRequisitionsAndKeySets(
             token,
             internalComputationsClient,
             systemComputation,
-            protocolsSetupConfig.reachOnlyLiquidLegionsV2.externalAggregatorDuchyId
+            protocolsSetupConfig.reachOnlyLiquidLegionsV2.externalAggregatorDuchyId,
           )
         else -> error("Unknown or unsupported protocol.")
       }
