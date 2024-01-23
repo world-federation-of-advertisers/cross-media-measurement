@@ -14,47 +14,48 @@
 
 package org.wfanet.panelmatch.client.launcher
 
+import java.util.logging.Level
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.sync.Semaphore
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.panelmatch.client.launcher.InvalidExchangeStepException.FailureType.PERMANENT
 import org.wfanet.panelmatch.client.launcher.InvalidExchangeStepException.FailureType.TRANSIENT
+import org.wfanet.panelmatch.common.loggerFor
 
 /** Finds an [ExchangeStep], validates it, and starts executing the work. */
 class ExchangeStepLauncher(
   private val apiClient: ApiClient,
   private val validator: ExchangeStepValidator,
-  private val jobLauncher: JobLauncher
+  private val taskLauncher: ExchangeStepExecutor,
+  maxTaskCoroutines: Int? = null
 ) {
+  private val semaphore = if (maxTaskCoroutines !== null) Semaphore(maxTaskCoroutines) else null
 
   /**
-   * Finds a single ready Exchange Step and starts executing. If an Exchange Step is found,
-   * validates it, and starts executing. If not found simply returns.
+   * Finds a single ready Exchange Step and starts executing. If an Exchange Step is found, this
+   * passes it to the executor for validation and execution. If not found simply returns.
+   *
+   * If [maxTaskCoroutines] is set, this will try to acquire a permit before claiming a task. If it
+   * is unable to, it will return before even trying to claim an exchange step.
    */
   suspend fun findAndRunExchangeStep() {
-    val (exchangeStep, attemptKey) = apiClient.claimExchangeStep() ?: return
-
-    try {
-      val validatedExchangeStep = validator.validate(exchangeStep)
-      jobLauncher.execute(validatedExchangeStep, attemptKey)
-    } catch (e: Exception) {
-      invalidateAttempt(attemptKey, e)
+    if(semaphore == null || semaphore.tryAcquire()) {
+      val numPermits = semaphore?.availablePermits ?: "unlimited"
+      logger.log(
+        Level.INFO,
+        "Claiming an Exchange Step, $numPermits task permits remain.")
+      val (exchangeStep, attemptKey) = apiClient.claimExchangeStep() ?: return
+      taskLauncher.execute(exchangeStep, attemptKey)
+      semaphore?.release()
+    } else {
+      logger.log(Level.INFO, "No available permits to claim and run a task.")
     }
   }
 
-  private suspend fun invalidateAttempt(attemptKey: ExchangeStepAttemptKey, exception: Exception) {
-    val state =
-      when (exception) {
-        is InvalidExchangeStepException ->
-          when (exception.type) {
-            PERMANENT -> ExchangeStepAttempt.State.FAILED_STEP
-            TRANSIENT -> ExchangeStepAttempt.State.FAILED
-          }
-        else -> ExchangeStepAttempt.State.FAILED
-      }
-
-    // TODO: log an error or retry a few times if this fails.
-    // TODO: add API-level support for some type of justification about what went wrong.
-    apiClient.finishExchangeStepAttempt(attemptKey, state, listOfNotNull(exception.message))
+  companion object {
+    private val logger by loggerFor()
   }
 }

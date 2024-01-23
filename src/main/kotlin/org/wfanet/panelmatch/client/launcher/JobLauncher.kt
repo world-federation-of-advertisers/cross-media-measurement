@@ -16,7 +16,6 @@ package org.wfanet.panelmatch.client.launcher
 
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
-import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidatedExchangeStep
 
 /** Executes an [ExchangeStep]. This may be locally or remotely. */
 interface JobLauncher {
@@ -27,5 +26,5 @@ interface JobLauncher {
    *
    * This could run [step] in-process or enqueue/start work remotely, e.g. via an RPC call.
    */
-  suspend fun execute(step: ValidatedExchangeStep, attemptKey: ExchangeStepAttemptKey)
+  suspend fun execute(step: ExchangeStep, attemptKey: ExchangeStepAttemptKey)
 }

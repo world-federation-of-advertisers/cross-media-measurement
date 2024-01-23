@@ -41,11 +41,4 @@ interface ApiClient {
     finalState: ExchangeStepAttempt.State,
     logEntryMessages: Iterable<String> = emptyList()
   )
-
-  /** Marks an ExchangeStepAttempt as complete (successfully or otherwise). */
-  suspend fun finishExchangeStepAttempt(
-    keyName: String,
-    finalState: ExchangeStepAttempt.State,
-    logEntryMessages: Iterable<String> = emptyList()
-  )
 }

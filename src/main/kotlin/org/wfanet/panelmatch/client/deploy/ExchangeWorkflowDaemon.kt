@@ -15,6 +15,7 @@
 package org.wfanet.panelmatch.client.deploy
 
 import java.time.Clock
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.throttler.Throttler
@@ -90,15 +91,17 @@ abstract class ExchangeWorkflowDaemon : Runnable {
   protected val sharedStorageSelector: SharedStorageSelector by lazy {
     SharedStorageSelector(certificateManager, sharedStorageFactories, sharedStorageInfo)
   }
+  protected open val stepExecutor by lazy {
+    ExchangeTaskExecutor(
+      apiClient = apiClient,
+      timeout = taskTimeout,
+      privateStorageSelector = privateStorageSelector,
+      validator = ExchangeStepValidatorImpl(identity.party, validExchangeWorkflows, clock),
+      exchangeTaskMapper = exchangeTaskMapper
+    )
+  }
 
   protected open val launcher by lazy {
-    val stepExecutor =
-      ExchangeTaskExecutor(
-        apiClient = apiClient,
-        timeout = taskTimeout,
-        privateStorageSelector = privateStorageSelector,
-        exchangeTaskMapper = exchangeTaskMapper
-      )
     CoroutineLauncher(stepExecutor = stepExecutor, apiClient = apiClient)
   }
 
@@ -110,7 +113,7 @@ abstract class ExchangeWorkflowDaemon : Runnable {
       ExchangeStepLauncher(
         apiClient = apiClient,
         validator = ExchangeStepValidatorImpl(identity.party, validExchangeWorkflows, clock),
-        jobLauncher = launcher
+        taskLauncher = stepExecutor
       )
     runDaemon(exchangeStepLauncher)
   }

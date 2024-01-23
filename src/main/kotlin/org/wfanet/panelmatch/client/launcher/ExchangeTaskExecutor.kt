@@ -16,8 +16,15 @@ package org.wfanet.panelmatch.client.launcher
 
 import com.google.protobuf.ByteString
 import java.util.logging.Level
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step
@@ -27,8 +34,6 @@ import org.wfanet.panelmatch.client.common.ExchangeContext
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskFailedException
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
-import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidatedExchangeStep
-import org.wfanet.panelmatch.client.logger.TaskLog
 import org.wfanet.panelmatch.client.logger.addToTaskLog
 import org.wfanet.panelmatch.client.logger.getAndClearTaskLog
 import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
@@ -38,7 +43,7 @@ import org.wfanet.panelmatch.common.loggerFor
 private const val DONE_TASKS_PATH: String = "done-tasks"
 
 /**
- * Executes the work required for [ValidatedExchangeStep]s.
+ * Validates and Executes the work required for [ExchangeStep]s.
  *
  * This involves finding the appropriate [ExchangeTask], reading the inputs, executing the
  * [ExchangeTask], and saving the outputs.
@@ -47,18 +52,40 @@ class ExchangeTaskExecutor(
   private val apiClient: ApiClient,
   private val timeout: Timeout,
   private val privateStorageSelector: PrivateStorageSelector,
-  private val exchangeTaskMapper: ExchangeTaskMapper
+  private val exchangeTaskMapper: ExchangeTaskMapper,
+  private val validator: ExchangeStepValidator
 ) : ExchangeStepExecutor {
 
+  private fun exchangeTaskScope(
+    attemptKey: ExchangeStepAttemptKey
+  ): CoroutineScope {
+    val handler = CoroutineExceptionHandler { _, e ->
+      logger.severe("Uncaught Exception in child coroutine:")
+      logger.log(Level.SEVERE, logger.name, e)
+
+      val attemptState =
+        when (e) {
+          is ExchangeTaskFailedException -> e.attemptState
+          else -> ExchangeStepAttempt.State.FAILED
+        }
+
+      runBlocking {
+        apiClient.finishExchangeStepAttempt(attemptKey, attemptState)
+      }
+    }
+    return CoroutineScope(
+      SupervisorJob() + Dispatchers.Default + handler + CoroutineName(attemptKey.toName()))
+  }
+
   override suspend fun execute(
-    validatedStep: ValidatedExchangeStep,
+    exchangeStep: ExchangeStep,
     attemptKey: ExchangeStepAttemptKey
   ) {
-    val name = "${validatedStep.step.stepId}@${attemptKey.toName()}"
-    withContext(TaskLog(name)) {
-      val context =
-        ExchangeContext(attemptKey, validatedStep.date, validatedStep.workflow, validatedStep.step)
+    exchangeTaskScope(attemptKey).launch {
       try {
+        val validatedStep = validator.validate(exchangeStep)
+        val context =
+          ExchangeContext(attemptKey, validatedStep.date, validatedStep.workflow, validatedStep.step)
         context.tryExecute()
       } catch (e: Exception) {
         logger.addToTaskLog("Caught Exception in task execution:", Level.SEVERE)

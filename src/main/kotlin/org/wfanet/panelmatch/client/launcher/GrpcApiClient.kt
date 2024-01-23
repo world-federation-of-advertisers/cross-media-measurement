@@ -77,7 +77,7 @@ class GrpcApiClient(
     )
   }
 
-  override suspend fun finishExchangeStepAttempt(
+  suspend fun finishExchangeStepAttempt(
     keyName: String,
     finalState: ExchangeStepAttempt.State,
     logEntryMessages: Iterable<String>
