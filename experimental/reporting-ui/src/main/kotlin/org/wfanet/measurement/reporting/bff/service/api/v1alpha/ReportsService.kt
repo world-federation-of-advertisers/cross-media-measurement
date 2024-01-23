@@ -39,12 +39,6 @@ import org.wfanet.measurement.reporting.v2alpha.getReportRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportingSetsRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
 
-val UNIQUE_TYPE_TAG = "unique"
-val UNION_TYPE_TAG = "union"
-val ID_TAG = "ui.halo-cmm.org/reporting_set_id"
-val TYPE_TAG = "ui.halo-cmm.org/reporting_set_type"
-val DISPLAY_NAME_TAG = "ui.halo-cmm.org/display_name"
-
 class ReportsService(
   private val backendReportsStub: BackendReportsGrpcKt.ReportsCoroutineStub,
   private val reportingSetsServiceStub: ReportingSetsGrpcKt.ReportingSetsCoroutineStub,
@@ -81,23 +75,17 @@ class ReportsService(
       logger.warning { "Additional ListReport items. Not Loopping through additional pages." }
     }
 
-    val view =
-      if (request.view == ReportView.REPORT_VIEW_UNSPECIFIED) ReportView.REPORT_VIEW_BASIC
-      else request.view
     val results = listReportsResponse {
       resp.reportsList
         .filter { it.tagsMap.containsKey("ui.halo-cmm.org") }
         .forEach {
           reports +=
-            when (view) {
-              ReportView.REPORT_VIEW_BASIC -> it.toBasicReport()
+            when (request.view) {
+              ReportView.REPORT_VIEW_BASIC, ReportView.REPORT_VIEW_UNSPECIFIED, ReportView.UNRECOGNIZED, null -> it.toBasicReport()
               ReportView.REPORT_VIEW_FULL -> {
                 val listReportingSetsResponse = listReportingSets(request.parent)
                 it.toFullReport(listReportingSetsResponse)
               }
-              else ->
-                throw Status.INVALID_ARGUMENT.withDescription("View type must be specified")
-                  .asRuntimeException()
             }
         }
     }
@@ -127,20 +115,13 @@ class ReportsService(
         .asRuntimeException()
     }
 
-    val view =
-      if (request.view == ReportView.REPORT_VIEW_UNSPECIFIED) ReportView.REPORT_VIEW_FULL
-      else request.view
-
     val result =
-      when (view) {
+      when (request.view) {
         ReportView.REPORT_VIEW_BASIC -> resp.toBasicReport()
-        ReportView.REPORT_VIEW_FULL -> {
+        ReportView.REPORT_VIEW_FULL, ReportView.REPORT_VIEW_UNSPECIFIED, ReportView.UNRECOGNIZED, null -> {
           val listReportingSetsResponse = listReportingSets(request.parent)
           resp.toFullReport(listReportingSetsResponse)
         }
-        else ->
-          throw Status.INVALID_ARGUMENT.withDescription("View type must be specified")
-            .asRuntimeException()
       }
     return result
   }
@@ -353,5 +334,11 @@ class ReportsService(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private const val UNIQUE_TYPE_TAG = "unique"
+    private const val UNION_TYPE_TAG = "union"
+    private const val ID_TAG = "ui.halo-cmm.org/reporting_set_id"
+    private const val TYPE_TAG = "ui.halo-cmm.org/reporting_set_type"
+    // TODO (@bdomen-ggl): Remove display name after it's added to the backend report proto.
+    private const val DISPLAY_NAME_TAG = "ui.halo-cmm.org/display_name"
   }
 }
