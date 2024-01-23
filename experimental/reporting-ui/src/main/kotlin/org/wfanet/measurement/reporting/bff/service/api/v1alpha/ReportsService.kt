@@ -88,9 +88,9 @@ class ReportsService(
                 val listReportingSetsResponse = listReportingSets(request.parent)
                 it.toFullReport(listReportingSetsResponse)
               }
-              ReportView.UNRECOGNIZED -> throw Status.INVALID_ARGUMENT
-                .withDescription("UNRECOGNIZED is not a valid view.")
-                .asRuntimeException() 
+              ReportView.UNRECOGNIZED ->
+                throw Status.INVALID_ARGUMENT.withDescription("UNRECOGNIZED is not a valid view.")
+                  .asRuntimeException()
             }
         }
     }
@@ -129,9 +129,9 @@ class ReportsService(
           val listReportingSetsResponse = listReportingSets(request.parent)
           resp.toFullReport(listReportingSetsResponse)
         }
-        ReportView.UNRECOGNIZED -> throw Status.INVALID_ARGUMENT
-          .withDescription("UNRECOGNIZED is not a valid view.")
-          .asRuntimeException() 
+        ReportView.UNRECOGNIZED ->
+          throw Status.INVALID_ARGUMENT.withDescription("UNRECOGNIZED is not a valid view.")
+            .asRuntimeException()
       }
     return result
   }
@@ -348,9 +348,7 @@ class ReportsService(
     private const val UNION_TYPE_TAG = "union"
     private const val ID_TAG = "ui.halo-cmm.org/reporting_set_id"
     private const val TYPE_TAG = "ui.halo-cmm.org/reporting_set_type"
-    /**
-     * TODO (@bdomen-ggl): Remove display name after it's added to the backend report proto.
-     */
+    /** TODO (@bdomen-ggl): Remove display name after it's added to the backend report proto. */
     private const val DISPLAY_NAME_TAG = "ui.halo-cmm.org/display_name"
   }
 }
