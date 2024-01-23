@@ -83,12 +83,14 @@ class ReportsService(
             @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
             when (request.view) {
               ReportView.REPORT_VIEW_BASIC,
-              ReportView.REPORT_VIEW_UNSPECIFIED,
-              ReportView.UNRECOGNIZED -> it.toBasicReport()
+              ReportView.REPORT_VIEW_UNSPECIFIED -> it.toBasicReport()
               ReportView.REPORT_VIEW_FULL -> {
                 val listReportingSetsResponse = listReportingSets(request.parent)
                 it.toFullReport(listReportingSetsResponse)
               }
+              ReportView.UNRECOGNIZED -> throw Status.INVALID_ARGUMENT
+                .withDescription("UNRECOGNIZED is not a valid view.")
+                .asRuntimeException() 
             }
         }
     }
@@ -123,11 +125,13 @@ class ReportsService(
       when (request.view) {
         ReportView.REPORT_VIEW_BASIC -> resp.toBasicReport()
         ReportView.REPORT_VIEW_FULL,
-        ReportView.REPORT_VIEW_UNSPECIFIED,
-        ReportView.UNRECOGNIZED -> {
+        ReportView.REPORT_VIEW_UNSPECIFIED -> {
           val listReportingSetsResponse = listReportingSets(request.parent)
           resp.toFullReport(listReportingSetsResponse)
         }
+        ReportView.UNRECOGNIZED -> throw Status.INVALID_ARGUMENT
+          .withDescription("UNRECOGNIZED is not a valid view.")
+          .asRuntimeException() 
       }
     return result
   }
@@ -344,7 +348,9 @@ class ReportsService(
     private const val UNION_TYPE_TAG = "union"
     private const val ID_TAG = "ui.halo-cmm.org/reporting_set_id"
     private const val TYPE_TAG = "ui.halo-cmm.org/reporting_set_type"
-    // TODO (@bdomen-ggl): Remove display name after it's added to the backend report proto.
+    /**
+     * TODO (@bdomen-ggl): Remove display name after it's added to the backend report proto.
+     */
     private const val DISPLAY_NAME_TAG = "ui.halo-cmm.org/display_name"
   }
 }
