@@ -37,6 +37,12 @@ private constructor(failureMetadata: FailureMetadata, subject: Measurement.Resul
       .that(actual.frequency.relativeFrequencyDistributionMap)
   }
 
+  fun impressionValue(): FuzzyLongSubject {
+    return check("impression.value")
+      .about(FuzzyLongSubject.fuzzyLongs())
+      .that(actual.impression.value)
+  }
+
   companion object {
     fun measurementResults():
       (failureMetadata: FailureMetadata, subject: Measurement.Result) -> MeasurementResultSubject =

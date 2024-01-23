@@ -49,4 +49,11 @@ object MeasurementResults {
   fun computeReach(sampledVids: Iterable<Long>): Int {
     return sampledVids.distinct().size
   }
+
+  /** Computes impression using the "deterministic count" methodology. */
+  fun computeImpression(sampledVids: Iterable<Long>, maxFrequency: Int): Long {
+    val eventsPerVid: Map<Long, Int> = sampledVids.groupingBy { it }.eachCount()
+    // Cap each count at `maxFrequency`.
+    return eventsPerVid.values.sumOf { count -> count.coerceAtMost(maxFrequency).toLong() }
+  }
 }
