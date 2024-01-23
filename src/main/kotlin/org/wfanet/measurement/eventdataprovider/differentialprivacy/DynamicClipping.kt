@@ -15,6 +15,7 @@ package org.wfanet.measurement.eventdataprovider.differentialprivacy
 
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 import kotlin.math.sqrt
 import org.apache.commons.math3.distribution.NormalDistribution
 import org.jetbrains.annotations.VisibleForTesting
@@ -31,14 +32,9 @@ import org.jetbrains.annotations.VisibleForTesting
 class DynamicClipping(
   private val queryRho: Double,
   measurementType: MeasurementType,
-  private val maxThreshold: Int = defaultMaxThreshold(measurementType),
+  private val maxThreshold: Int = measurementType.defaultMaxThreshold,
 ) {
-  private lateinit var cumulativeHistogramList: List<Double>
-  private val slidingWindowSize: Int =
-    when (measurementType) {
-      MeasurementType.IMPRESSION -> IMPRESSION_SLIDING_WINDOW_SIZE
-      MeasurementType.DURATION -> DURATION_SLIDING_WINDOW_SIZE
-    }
+  private val slidingWindowSize: Int = measurementType.defaultSlidingWindowSize
 
   /**
    * Computes impression's capped noised cumulative histogram and optimized dynamic threshold.
@@ -53,10 +49,12 @@ class DynamicClipping(
    * @return [Result] Data class of noisedCumulativeHistogramList and threshold.
    */
   fun computeImpressionCappedHistogram(frequencyMap: Map<Long, Long>): Result {
-    cumulativeHistogramList = generateCumulativeHistogram(frequencyHistogramMapToList(frequencyMap))
+    val cumulativeHistogramList =
+      generateCumulativeHistogram(frequencyHistogramMapToList(frequencyMap))
 
     var localMaxThreshold = maxThreshold
-    var noisedCumulativeHistogramList = generateNoisedCumulativeHistogram(maxThreshold, queryRho)
+    var noisedCumulativeHistogramList =
+      generateNoisedCumulativeHistogram(cumulativeHistogramList, maxThreshold, queryRho)
 
     // Find out the threshold we stopped at based on the stopping criterion.
     var threshold = defaultChooseThreshold(noisedCumulativeHistogramList, maxThreshold, queryRho)
@@ -75,9 +73,15 @@ class DynamicClipping(
       // histogram by linearly combining it with the previous noisedCumulativeHistogramList inside
       // useRemainingCharge.
       noisedCumulativeHistogramList =
-        useRemainingCharge(noisedCumulativeHistogramList, refinedLocalMaxThreshold, rhoRemaining)
+        useRemainingCharge(
+          cumulativeHistogramList,
+          noisedCumulativeHistogramList,
+          refinedLocalMaxThreshold,
+          rhoRemaining,
+        )
       // Update the maximum threshold and based on it, we find a new threshold we stopped at based
       // on the stopping criterion.
+
       localMaxThreshold = refinedLocalMaxThreshold
       val newThreshold =
         defaultChooseThreshold(noisedCumulativeHistogramList, localMaxThreshold, queryRho)
@@ -90,7 +94,12 @@ class DynamicClipping(
     if (threshold < localMaxThreshold) {
       val rhoRemaining = (localMaxThreshold - threshold) * queryRho / localMaxThreshold
       noisedCumulativeHistogramList =
-        useRemainingCharge(noisedCumulativeHistogramList, threshold, rhoRemaining)
+        useRemainingCharge(
+          cumulativeHistogramList,
+          noisedCumulativeHistogramList,
+          threshold,
+          rhoRemaining,
+        )
     }
 
     return Result(noisedCumulativeHistogramList, threshold)
@@ -128,20 +137,24 @@ class DynamicClipping(
   }
 
   /**
-   * Use privacy charge to generate a noised cumulative histogram from property
-   * cumulativeHistogramList.
+   * Use privacy charge to generate a noised cumulative histogram from cumulativeHistogramList.
    *
+   * @param cumulativeHistogramList The cumulative list of frequency histogram.
    * @param maxThreshold The maximum threshold in the cumulativeHistogramList.
    * @param rho ACDP rho param.
-   * @return noisedCumulativeHistogramList which is a list of [Double] since the continuous Gaussian
-   *   noise sample is [Double].
+   * @return noisedCumulativeHistogramList.
    */
-  private fun generateNoisedCumulativeHistogram(maxThreshold: Int, rho: Double): List<Double> {
+  private fun generateNoisedCumulativeHistogram(
+    cumulativeHistogramList: List<Double>,
+    maxThreshold: Int,
+    rho: Double,
+  ): List<Double> {
     val sigma = BAR_SENSITIVITY * sqrt(maxThreshold.toDouble() / (2 * rho))
     // Generate noise samples from Gaussian distribution.
     val normalDistribution = NormalDistribution(0.0, sigma)
 
-    return cumulativeHistogramList.map { it + normalDistribution.sample() }
+    // Round the noise for privacy.
+    return cumulativeHistogramList.map { it + normalDistribution.sample().roundToInt() }
   }
 
   /**
@@ -149,7 +162,7 @@ class DynamicClipping(
    * that to be a valid threshold method for the algorithm, it can't read any indices of
    * noisedCumulativeHistogramList past the final chosen threshold.
    *
-   * @param noisedCumulativeHistogramList A list of [Double]
+   * @param noisedCumulativeHistogramList A list of [Double].
    * @param maxThreshold The maximum threshold in the cumulativeHistogramList.
    * @param rho ACDP rho param.
    * @return chosen threshold in noisedCumulativeHistogramList.
@@ -184,18 +197,20 @@ class DynamicClipping(
    * the noised cumulative histogram estimates of all histogram bars below the threshold by using
    * the "remaining" privacy charge to noise the bars only below the threshold.
    *
+   * @param cumulativeHistogramList The cumulative list of frequency histogram.
    * @param noisedCumulativeHistogramList1 A list of [Double].
    * @param maxThreshold The maximum threshold in the cumulativeHistogramList.
    * @param rhoRemaining Remaining privacy charge if estimate only the bars below the threshold.
    * @return A new noisedCumulativeHistogramList.
    */
   private fun useRemainingCharge(
+    cumulativeHistogramList: List<Double>,
     noisedCumulativeHistogramList1: List<Double>,
     maxThreshold: Int,
     rhoRemaining: Double,
   ): List<Double> {
     val noisedCumulativeHistogramList2 =
-      generateNoisedCumulativeHistogram(maxThreshold, rhoRemaining)
+      generateNoisedCumulativeHistogram(cumulativeHistogramList, maxThreshold, rhoRemaining)
 
     //  Optimally combine two noisy cumulative histogram list by variance weights.
     val variance1 = 1.toDouble() / (queryRho - rhoRemaining)
@@ -212,17 +227,22 @@ class DynamicClipping(
   }
 
   /** Dynamic Clipping only supports impression and duration measurements */
-  enum class MeasurementType {
-    IMPRESSION,
-    DURATION
+  enum class MeasurementType(val defaultMaxThreshold: Int, val defaultSlidingWindowSize: Int) {
+    IMPRESSION(
+      defaultMaxThreshold = IMPRESSION_MAX_THRESHOLD,
+      defaultSlidingWindowSize = IMPRESSION_SLIDING_WINDOW_SIZE,
+    ),
+    DURATION(
+      defaultMaxThreshold = DURATION_MAX_THRESHOLD,
+      defaultSlidingWindowSize = DURATION_SLIDING_WINDOW_SIZE,
+    )
   }
 
   /**
    * Represents the Dynamic Clipping result for impression or duration.
    *
    * @param noisedCumulativeHistogramList cumulativeHistogramList with Gaussian noise added to each
-   *   histogram bar. It's a list of [Double] since the continuous Gaussian noise sample is
-   *   [Double].The total impression/duration count will be the sum of all the bars.
+   *   histogram bar. The total impression/duration count will be the sum of all the bars.
    * @param threshold Optimized dynamic impression/duration cutoff threshold.
    */
   data class Result(val noisedCumulativeHistogramList: List<Double>, val threshold: Int)
@@ -235,12 +255,6 @@ class DynamicClipping(
     private const val IMPRESSION_SLIDING_WINDOW_SIZE = 3
     private const val DURATION_SLIDING_WINDOW_SIZE = 30
     private const val BAR_SENSITIVITY = 1.0
-
-    private fun defaultMaxThreshold(measurementType: MeasurementType) =
-      when (measurementType) {
-        MeasurementType.IMPRESSION -> IMPRESSION_MAX_THRESHOLD
-        MeasurementType.DURATION -> DURATION_MAX_THRESHOLD
-      }
 
     /** A helper function to convert frequencyHistogramMap to histogramList for DynamicClipping */
     @VisibleForTesting

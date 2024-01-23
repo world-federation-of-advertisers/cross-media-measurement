@@ -130,6 +130,11 @@ kt_jvm_library(
 kt_jvm_library(
     name = "measurement_results",
     srcs = ["MeasurementResults.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/differentialprivacy:dynamic_clipping",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/api/v2alpha:privacy_query_mapper",
+    ],
 )
 
 kt_jvm_library(

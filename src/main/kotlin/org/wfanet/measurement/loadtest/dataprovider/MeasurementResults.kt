@@ -16,6 +16,11 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import org.wfanet.measurement.eventdataprovider.differentialprivacy.DynamicClipping
+import org.wfanet.measurement.eventdataprovider.noiser.DpParams
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AcdpParamsConverter
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper
+
 /** Utilities for computing Measurement results. */
 object MeasurementResults {
   data class ReachAndFrequency(val reach: Int, val relativeFrequencyDistribution: Map<Int, Double>)
@@ -55,5 +60,26 @@ object MeasurementResults {
     val eventsPerVid: Map<Long, Int> = sampledVids.groupingBy { it }.eachCount()
     // Cap each count at `maxFrequency`.
     return eventsPerVid.values.sumOf { count -> count.coerceAtMost(maxFrequency).toLong() }
+  }
+
+  /** Computes impression using the "Dynamic Clipping" methodology. */
+  fun computeDynamicClipImpression(
+    sampledVids: Iterable<Long>,
+    privacyParams: DpParams,
+  ): DynamicClipping.Result {
+    val eventsPerVid: Map<Long, Int> = sampledVids.groupingBy { it }.eachCount()
+
+    val frequencyHistogram = mutableMapOf<Long, Long>()
+    for (value in eventsPerVid.values) {
+      val bucket = value.toLong()
+      frequencyHistogram[bucket] = frequencyHistogram.getOrDefault(bucket, 0) + 1
+    }
+
+    val acdpCharge =
+      AcdpParamsConverter.getDirectAcdpCharge(privacyParams, PrivacyQueryMapper.SENSITIVITY)
+    val dynamicClipping =
+      DynamicClipping(acdpCharge.rho, DynamicClipping.MeasurementType.IMPRESSION)
+
+    return dynamicClipping.computeImpressionCappedHistogram(frequencyHistogram)
   }
 }
