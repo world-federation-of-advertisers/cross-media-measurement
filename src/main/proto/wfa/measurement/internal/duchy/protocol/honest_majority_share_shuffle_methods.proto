@@ -32,10 +32,8 @@ message CompleteShufflePhaseRequest {
   // The sketch params for the Computation.
   ShareShuffleSketchParams sketch_params = 1;
 
-  // Random seed from the worker itself.
-  bytes own_common_random_seeds = 2;
-  // Random seed from the peer worker.
-  bytes peer_common_random_seeds = 3;
+  // Common random seed between the workers.
+  bytes common_random_seed = 2;
 
   // The order of the non-aggregator worker.
   enum NonAggregatorOrder {
@@ -47,31 +45,37 @@ message CompleteShufflePhaseRequest {
     // share.
     SECOND = 2;
   }
-  NonAggregatorOrder order = 4;
+  NonAggregatorOrder order = 3;
 
-  DifferentialPrivacyParams dp_params = 5;
+  DifferentialPrivacyParams dp_params = 4;
+
   // Noise mechanism used for generating noise.
-  NoiseMechanism noise_mechanism = 6;
+  NoiseMechanism noise_mechanism = 5;
 
   // Sketch shares from EDPs in format of either data or seed.
   //
   // Sorted by ExternalRequisitionId so that non-aggregators follow the same
   // order.
   message SketchShare {
+    message UInt32Array {
+      repeated uint32 values = 1;
+    }
     oneof share_type {
-      bytes data = 1;
+      UInt32Array data = 1;
       bytes seed = 2;
     }
   }
   // Sketch shares ordered by the external key.
-  repeated SketchShare sketch_shares = 9;
+  repeated SketchShare sketch_shares = 8;
 }
 
 // For non-aggregator.
 // The content will be sent to the aggregator.
 message CompleteShufflePhaseResponse {
   // Combination of sketches. It is combined, noisy, and shuffled.
-  bytes combined_sketch = 1;
+  repeated uint32 combined_sketch = 1;
+  // The CPU time of processing the request.
+  int64 elapsed_cpu_time_millis = 2;
 }
 
 // For aggregators.
@@ -97,4 +101,6 @@ message CompleteAggregationPhaseResponse {
   int64 reach = 1;
   // Normalized histogram of frequency.
   map<int64, double> frequency_distribution = 2;
+  // The CPU time of processing the request.
+  int64 elapsed_cpu_time_millis = 3;
 }
