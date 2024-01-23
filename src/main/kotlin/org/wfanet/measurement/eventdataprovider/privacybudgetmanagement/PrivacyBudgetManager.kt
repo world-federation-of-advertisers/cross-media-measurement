@@ -49,22 +49,6 @@ class PrivacyBudgetManager(
 
   /**
    * Checks if charging all the PrivacyBucketGroups identified by the given measurementSpec and
-   * requisitionSpec would not exceed DP privacy budget.
-   *
-   * @param dpQuery represents the [DpQuery] that specifies charges and buckets to be charged.
-   * @throws PrivacyBudgetManagerException if an error occurs in handling this request. Possible
-   *   exceptions could include running out of privacy budget or a failure to commit the transaction
-   *   to the database.
-   */
-  @Deprecated("Should be removed after completely switching to Gaussian noise and ACDP composition")
-  suspend fun chargingWillExceedPrivacyBudget(dpQuery: DpQuery) =
-    ledger.chargingWillExceedPrivacyBudget(
-      filter.getPrivacyBucketGroups(dpQuery.reference.measurementConsumerId, dpQuery.landscapeMask),
-      setOf(dpQuery.dpCharge),
-    )
-
-  /**
-   * Checks if charging all the PrivacyBucketGroups identified by the given measurementSpec and
    * requisitionSpec in ACDP composition would not exceed ACDP privacy budget.
    *
    * @param acdpQuery represents the [AcdpQuery] that specifies charges and buckets to be charged.
@@ -79,25 +63,6 @@ class PrivacyBudgetManager(
         acdpQuery.landscapeMask,
       ),
       setOf(acdpQuery.acdpCharge),
-    )
-
-  /**
-   * Checks if charging all the PrivacyBucketGroups identified by the given measurementSpec and
-   * requisitionSpec would not exceed DP privacy budget, and charge the dpCharge.
-   *
-   * @param dpQuery A data class contains Reference: representing the reference
-   *   keys(measurementConsumerId and referenceId which is usually requisitionId) and if the charge
-   *   is a refund. LandscapeMask: eventGroupSpecs and vidSampleStart and vidSampleWidth. DpCharge:
-   *   the DpCharge with epsilon and delta.
-   * @throws PrivacyBudgetManagerException if an error occurs in handling this request. Possible
-   *   exceptions could include a failure to commit the transaction to the database.
-   */
-  @Deprecated("Should be removed after completely switching to Gaussian noise and ACDP composition")
-  suspend fun chargePrivacyBudget(dpQuery: DpQuery) =
-    ledger.charge(
-      dpQuery.reference,
-      filter.getPrivacyBucketGroups(dpQuery.reference.measurementConsumerId, dpQuery.landscapeMask),
-      setOf(dpQuery.dpCharge),
     )
 
   /**

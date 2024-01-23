@@ -43,7 +43,6 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.CompositionMechanism
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.InMemoryBackingStore
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
@@ -109,7 +108,6 @@ class InProcessEdpSimulator(
         ),
       trustedCertificates = trustedCertificates,
       random = random,
-      compositionMechanism = COMPOSITION_MECHANISM,
     )
 
   private lateinit var edpJob: Job
@@ -140,6 +138,5 @@ class InProcessEdpSimulator(
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val RANDOM_SEED: Long = 1
     private val random = Random(RANDOM_SEED)
-    private val COMPOSITION_MECHANISM = CompositionMechanism.ACDP
   }
 }

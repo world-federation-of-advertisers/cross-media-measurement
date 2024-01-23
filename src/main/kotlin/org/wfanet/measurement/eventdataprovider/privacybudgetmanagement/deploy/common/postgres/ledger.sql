@@ -20,27 +20,6 @@ AS ENUM('18_34', '35_54', '55+');
 
 -- TODO(@uakyol): consider normalizing this table by splitting (Delta, Epsilon) pair to other table
 -- TODO(@uakyol): migrate this to Liquibase changelog format.
-CREATE TABLE PrivacyBucketCharges(
-  -- Which Measurement Consumer this PrivacyBucket belongs to.
-  MeasurementConsumerId text NOT NULL,
-  -- Day for this PrivacyBucket. DD-MM-YYYY.
-  Date Date NOT NULL,
-  -- Age for this PrivacyBucket.
-  AgeGroup AgeGroup NOT NULL,
-  -- Gender for this PrivacyBucket.
-  Gender Gender NOT NULL,
-  -- Start of the Vid range for this PrivacyBucket. Bucket vid's ranges from VidStart to VidStart + 0.1.
-  VidStart real NOT NULL,
-  -- Delta for the charge of this ledger entry.
-  Delta real NOT NULL,
-  -- Epsilon for the charge of this ledger entry.
-  Epsilon real NOT NULL,
-  -- How many times this charge is applied to this Privacy Bucket.
-  RepetitionCount integer NOT NULL,
-  -- Used to query entries efficiently to update RepetitionCount
-  PRIMARY KEY (MeasurementConsumerId, Date, AgeGroup, Gender, VidStart, Delta, Epsilon)
-  );
-
 CREATE TABLE PrivacyBucketAcdpCharges(
   -- Which Measurement Consumer this PrivacyBucket belongs to.
   MeasurementConsumerId text NOT NULL,

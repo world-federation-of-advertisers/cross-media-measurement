@@ -156,12 +156,9 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurement
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AcdpCharge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup as PrivacyLandscapeAge
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.CompositionMechanism
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.DpCharge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender as PrivacyLandscapeGender
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetBalanceEntry
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestInMemoryBackingStore
@@ -210,7 +207,6 @@ private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..
 
 private const val DUCHY_ID = "worker1"
 private const val RANDOM_SEED: Long = 0
-private val COMPOSITION_MECHANISM = CompositionMechanism.ACDP
 
 // Resource ID for EventGroup that fails Requisitions with CONSENT_SIGNAL_INVALID if used.
 private const val CONSENT_SIGNAL_INVALID_EVENT_GROUP_ID = "consent-signal-invalid"
@@ -349,7 +345,6 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { edpSimulator.ensureEventGroup(SYNTHETIC_DATA_SPEC) }
@@ -415,7 +410,6 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { edpSimulator.ensureEventGroup(SYNTHETIC_DATA_SPEC) }
@@ -465,7 +459,6 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { edpSimulator.ensureEventGroup(SYNTHETIC_DATA_SPEC) }
@@ -495,7 +488,6 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        compositionMechanism = COMPOSITION_MECHANISM,
       )
     val metadataByReferenceIdSuffix =
       mapOf(
@@ -555,7 +547,6 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        compositionMechanism = COMPOSITION_MECHANISM,
       )
     val metadataByReferenceIdSuffix = mapOf("-foo" to SYNTHETIC_DATA_SPEC, "-bar" to TEST_METADATA)
 
@@ -615,7 +606,6 @@ class EdpSimulatorTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking {
@@ -628,153 +618,7 @@ class EdpSimulatorTest {
   }
 
   @Test
-  fun `charges privacy budget with Geometric noise and DP_ADVANCED composition mechanism for mpc reach and frequency Requisition`() {
-    val measurementSpec =
-      MEASUREMENT_SPEC.copy {
-        vidSamplingInterval =
-          vidSamplingInterval.copy {
-            start = 0.0f
-            width = PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          }
-      }
-    val requisitionGeometric =
-      REQUISITION.copy {
-        this.measurementSpec = signMeasurementSpec(measurementSpec, MC_SIGNING_KEY)
-        protocolConfig =
-          protocolConfig.copy {
-            protocols.clear()
-            protocols +=
-              ProtocolConfigKt.protocol {
-                liquidLegionsV2 =
-                  ProtocolConfigKt.liquidLegionsV2 {
-                    noiseMechanism = ProtocolConfig.NoiseMechanism.GEOMETRIC
-                    sketchParams = liquidLegionsSketchParams {
-                      decayRate = LLV2_DECAY_RATE
-                      maxSize = LLV2_MAX_SIZE
-                      samplingIndicatorSize = 10_000_000
-                    }
-                    ellipticCurveId = 415
-                  }
-              }
-          }
-      }
-
-    requisitionsServiceMock.stub {
-      onBlocking { listRequisitions(any()) }
-        .thenReturn(listRequisitionsResponse { requisitions += requisitionGeometric })
-    }
-
-    val matchingEvents =
-      generateEvents(
-        1L..10L,
-        FIRST_EVENT_DATE,
-        Person.AgeGroup.YEARS_18_TO_34,
-        Person.Gender.FEMALE,
-      )
-    val nonMatchingEvents =
-      generateEvents(
-        11L..15L,
-        FIRST_EVENT_DATE,
-        Person.AgeGroup.YEARS_35_TO_54,
-        Person.Gender.FEMALE,
-      ) +
-        generateEvents(
-          16L..20L,
-          FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_55_PLUS,
-          Person.Gender.FEMALE,
-        ) +
-        generateEvents(
-          21L..25L,
-          FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_18_TO_34,
-          Person.Gender.MALE,
-        ) +
-        generateEvents(
-          26L..30L,
-          FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_35_TO_54,
-          Person.Gender.MALE,
-        )
-
-    val allEvents = matchingEvents + nonMatchingEvents
-
-    val edpSimulator =
-      EdpSimulator(
-        EDP_DATA,
-        MC_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStub,
-        InMemoryEventQuery(allEvents),
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        compositionMechanism = CompositionMechanism.DP_ADVANCED,
-      )
-    runBlocking {
-      edpSimulator.ensureEventGroup(TEST_METADATA)
-      edpSimulator.executeRequisitionFulfillingWorkflow()
-    }
-
-    val balanceLedger: Map<PrivacyBucketGroup, MutableMap<DpCharge, PrivacyBudgetBalanceEntry>> =
-      backingStore.getDpBalancesMap()
-
-    // Verify that each bucket is only charged once.
-    for (bucketBalances in balanceLedger.values) {
-      assertThat(bucketBalances).hasSize(1)
-      for (balanceEntry in bucketBalances.values) {
-        assertThat(balanceEntry.repetitionCount).isEqualTo(1)
-      }
-    }
-
-    // The list of all the charged privacy bucket groups should be correct based on the filter.
-    assertThat(balanceLedger.keys)
-      .containsExactly(
-        PrivacyBucketGroup(
-          MC_NAME,
-          FIRST_EVENT_DATE,
-          FIRST_EVENT_DATE,
-          PrivacyLandscapeAge.RANGE_18_34,
-          PrivacyLandscapeGender.FEMALE,
-          0.0f,
-          PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-        ),
-        PrivacyBucketGroup(
-          MC_NAME,
-          LAST_EVENT_DATE,
-          LAST_EVENT_DATE,
-          PrivacyLandscapeAge.RANGE_18_34,
-          PrivacyLandscapeGender.FEMALE,
-          0.0f,
-          PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-        ),
-        PrivacyBucketGroup(
-          MC_NAME,
-          FIRST_EVENT_DATE,
-          FIRST_EVENT_DATE,
-          PrivacyLandscapeAge.RANGE_18_34,
-          PrivacyLandscapeGender.FEMALE,
-          PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-          PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-        ),
-        PrivacyBucketGroup(
-          MC_NAME,
-          LAST_EVENT_DATE,
-          LAST_EVENT_DATE,
-          PrivacyLandscapeAge.RANGE_18_34,
-          PrivacyLandscapeGender.FEMALE,
-          PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-          PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-        ),
-      )
-  }
-
-  @Test
-  fun `charges privacy budget with discrete Gaussian noise and ACDP composition mechanism for mpc reach and frequency Requisition`() {
+  fun `charges privacy budget with discrete Gaussian noise and ACDP composition for mpc LLV2 reach and frequency Requisition`() {
     runBlocking {
       val measurementSpec =
         MEASUREMENT_SPEC.copy {
@@ -842,7 +686,6 @@ class EdpSimulatorTest {
           dummyThrottler,
           privacyBudgetManager,
           TRUSTED_CERTIFICATES,
-          compositionMechanism = CompositionMechanism.ACDP,
         )
       runBlocking {
         edpSimulator.ensureEventGroup(TEST_METADATA)
@@ -902,7 +745,7 @@ class EdpSimulatorTest {
   }
 
   @Test
-  fun `charges privacy budget with Gaussian noise and ACDP composition mechanism for direct reach and frequency Requisition`() {
+  fun `charges privacy budget with continuous Gaussian noise and ACDP composition for direct reach and frequency Requisition`() {
     runBlocking {
       val measurementSpec =
         MEASUREMENT_SPEC.copy {
@@ -990,7 +833,6 @@ class EdpSimulatorTest {
           dummyThrottler,
           privacyBudgetManager,
           TRUSTED_CERTIFICATES,
-          compositionMechanism = CompositionMechanism.ACDP,
         )
       runBlocking {
         edpSimulator.ensureEventGroup(TEST_METADATA)
@@ -1097,7 +939,6 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         sketchEncrypter = fakeSketchEncrypter,
-        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
@@ -1153,7 +994,6 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        compositionMechanism = COMPOSITION_MECHANISM,
       )
     val requisition =
       REQUISITION.copy {
@@ -1212,7 +1052,6 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        compositionMechanism = COMPOSITION_MECHANISM,
       )
     eventGroupsServiceMock.stub {
       onBlocking { getEventGroup(any()) }.thenThrow(Status.NOT_FOUND.asRuntimeException())
@@ -1241,7 +1080,7 @@ class EdpSimulatorTest {
   }
 
   @Test
-  fun `refuses Requisition when noiseMechanism is GEOMETRIC and compositionMechanism is ACDP`() {
+  fun `refuses Requisition when noiseMechanism is GEOMETRIC and PBM uses ACDP composition`() {
     val requisitionGeometric =
       REQUISITION.copy {
         protocolConfig =
@@ -1282,7 +1121,6 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        compositionMechanism = CompositionMechanism.ACDP,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1308,7 +1146,7 @@ class EdpSimulatorTest {
   }
 
   @Test
-  fun `refuses Requisition when directNoiseMechanism option provided by Kingdom is not CONTINUOUS_GAUSSIAN and compositionMechanism is ACDP`() {
+  fun `refuses Requisition when directNoiseMechanism option provided by Kingdom is not CONTINUOUS_GAUSSIAN and PBM uses ACDP composition`() {
     val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE
     val requisition =
       REQUISITION.copy {
@@ -1350,7 +1188,6 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random = Random(RANDOM_SEED),
-        compositionMechanism = CompositionMechanism.ACDP,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1416,7 +1253,6 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1481,7 +1317,6 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1546,7 +1381,6 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1611,7 +1445,6 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1676,7 +1509,6 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1739,7 +1571,6 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random = Random(RANDOM_SEED),
-        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1795,7 +1626,6 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random = Random(RANDOM_SEED),
-        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1898,7 +1728,6 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random = Random(RANDOM_SEED),
-        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1968,7 +1797,6 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random = Random(RANDOM_SEED),
-        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2038,7 +1866,6 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random = Random(RANDOM_SEED),
-        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2095,7 +1922,6 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random = Random(RANDOM_SEED),
-        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2159,7 +1985,6 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random = Random(RANDOM_SEED),
-        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2223,7 +2048,6 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random = Random(RANDOM_SEED),
-        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2288,7 +2112,6 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random = Random(RANDOM_SEED),
-        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2350,7 +2173,6 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random = Random(RANDOM_SEED),
-        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2413,7 +2235,6 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random = Random(RANDOM_SEED),
-        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2479,7 +2300,6 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random = Random(RANDOM_SEED),
-        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2540,7 +2360,6 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random = Random(RANDOM_SEED),
-        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2598,7 +2417,6 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random = Random(RANDOM_SEED),
-        compositionMechanism = COMPOSITION_MECHANISM,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }

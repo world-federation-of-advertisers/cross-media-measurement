@@ -18,59 +18,6 @@ import org.junit.Test
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 
 class CompositionTest {
-  @Test
-  fun `advanced composition computation works as expected`() {
-    assertThat(
-        Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(DpCharge(1.0f, 0.0f), 30, 0.0f)
-      )
-      .isEqualTo(30.0f)
-    assertThat(
-        Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
-          DpCharge(1.0f, 0.001f),
-          30,
-          0.06f,
-        )
-      )
-      .isEqualTo(22.0f)
-    assertThat(
-        Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
-          DpCharge(1.0f, 0.001f),
-          30,
-          0.1f,
-        )
-      )
-      .isEqualTo(20.0f)
-    assertThat(
-        Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(DpCharge(1.0f, 0.2f), 1, 0.1f)
-      )
-      .isEqualTo(Float.MAX_VALUE)
-    assertThat(
-        Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
-          DpCharge(1.0f, 0.01f),
-          30,
-          0.26f,
-        )
-      )
-      .isEqualTo(Float.MAX_VALUE)
-    assertThat(
-        Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
-          DpCharge(0.01f, 1.0e-12.toFloat()),
-          200,
-          1.0e-9.toFloat(),
-        )
-      )
-      .isWithin(0.0001f)
-      .of(0.78f)
-    assertThat(
-        Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
-          DpCharge(0.0042f, 0.0f),
-          1880,
-          1.0e-9.toFloat(),
-        )
-      )
-      .isWithin(0.001f)
-      .of(1.0f)
-  }
 
   @Test
   fun `acdp composition works as expected for single acdpCharge`() {
