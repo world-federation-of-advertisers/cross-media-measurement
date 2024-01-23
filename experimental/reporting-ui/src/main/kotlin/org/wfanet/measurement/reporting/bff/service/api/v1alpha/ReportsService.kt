@@ -125,9 +125,9 @@ class ReportsService(
         ReportView.REPORT_VIEW_UNSPECIFIED,
         ReportView.UNRECOGNIZED,
         null -> {
-           val listReportingSetsResponse = listReportingSets(request.parent)
-           resp.toFullReport(listReportingSetsResponse)
-         }
+          val listReportingSetsResponse = listReportingSets(request.parent)
+          resp.toFullReport(listReportingSetsResponse)
+        }
       }
     return result
   }
