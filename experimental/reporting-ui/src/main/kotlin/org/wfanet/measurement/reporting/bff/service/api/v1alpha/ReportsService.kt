@@ -80,11 +80,11 @@ class ReportsService(
         .filter { it.tagsMap.containsKey("ui.halo-cmm.org") }
         .forEach {
           reports +=
+            @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
             when (request.view) {
               ReportView.REPORT_VIEW_BASIC,
               ReportView.REPORT_VIEW_UNSPECIFIED,
-              ReportView.UNRECOGNIZED,
-              null -> it.toBasicReport()
+              ReportView.UNRECOGNIZED -> it.toBasicReport()
               ReportView.REPORT_VIEW_FULL -> {
                 val listReportingSetsResponse = listReportingSets(request.parent)
                 it.toFullReport(listReportingSetsResponse)
@@ -119,12 +119,12 @@ class ReportsService(
     }
 
     val result =
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (request.view) {
         ReportView.REPORT_VIEW_BASIC -> resp.toBasicReport()
         ReportView.REPORT_VIEW_FULL,
         ReportView.REPORT_VIEW_UNSPECIFIED,
-        ReportView.UNRECOGNIZED,
-        null -> {
+        ReportView.UNRECOGNIZED -> {
           val listReportingSetsResponse = listReportingSets(request.parent)
           resp.toFullReport(listReportingSetsResponse)
         }
