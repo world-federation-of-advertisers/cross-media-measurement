@@ -81,7 +81,10 @@ class ReportsService(
         .forEach {
           reports +=
             when (request.view) {
-              ReportView.REPORT_VIEW_BASIC, ReportView.REPORT_VIEW_UNSPECIFIED, ReportView.UNRECOGNIZED, null -> it.toBasicReport()
+              ReportView.REPORT_VIEW_BASIC,
+              ReportView.REPORT_VIEW_UNSPECIFIED,
+              ReportView.UNRECOGNIZED,
+              null -> it.toBasicReport()
               ReportView.REPORT_VIEW_FULL -> {
                 val listReportingSetsResponse = listReportingSets(request.parent)
                 it.toFullReport(listReportingSetsResponse)
@@ -118,10 +121,13 @@ class ReportsService(
     val result =
       when (request.view) {
         ReportView.REPORT_VIEW_BASIC -> resp.toBasicReport()
-        ReportView.REPORT_VIEW_FULL, ReportView.REPORT_VIEW_UNSPECIFIED, ReportView.UNRECOGNIZED, null -> {
-          val listReportingSetsResponse = listReportingSets(request.parent)
-          resp.toFullReport(listReportingSetsResponse)
-        }
+        ReportView.REPORT_VIEW_FULL,
+        ReportView.REPORT_VIEW_UNSPECIFIED,
+        ReportView.UNRECOGNIZED,
+        null -> {
+           val listReportingSetsResponse = listReportingSets(request.parent)
+           resp.toFullReport(listReportingSetsResponse)
+         }
       }
     return result
   }
