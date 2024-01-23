@@ -46,6 +46,10 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
 
   override val clock: Clock = Clock.systemUTC()
 
+  override val maxConcurrentTasks: Int? by lazy {
+    flags.maxConcurrentTasks
+  }
+
   /**
    * Maps Exchange paths (i.e. recurring_exchanges/{recurring_exchange_id}/exchanges/{date}) to
    * serialized SigningKeys protos.

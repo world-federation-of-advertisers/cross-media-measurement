@@ -28,7 +28,6 @@ import org.wfanet.panelmatch.common.loggerFor
 /** Finds an [ExchangeStep], validates it, and starts executing the work. */
 class ExchangeStepLauncher(
   private val apiClient: ApiClient,
-  private val validator: ExchangeStepValidator,
   private val taskLauncher: ExchangeStepExecutor,
   maxTaskCoroutines: Int? = null
 ) {

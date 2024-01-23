@@ -29,12 +29,17 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
+import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt.State
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
+import org.wfanet.measurement.api.v2alpha.ExchangeStepKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.commutativeDeterministicEncryptStep
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
+import org.wfanet.measurement.api.v2alpha.exchangeStep
 import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
 import org.wfanet.measurement.common.asBufferedFlow
+import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskFailedException
@@ -50,6 +55,8 @@ import org.wfanet.panelmatch.common.storage.toStringUtf8
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 
 private const val RECURRING_EXCHANGE_ID = "some-recurring-exchange-id"
+private const val EXCHANGE_ID = "some-exchange-id"
+private const val EXCHANGE_STEP_ID = "some-step-id"
 private val ATTEMPT_KEY = ExchangeStepAttemptKey(RECURRING_EXCHANGE_ID, "x", "y", "z")
 
 private val DATE = LocalDate.of(2021, 11, 3)
@@ -62,10 +69,26 @@ private val WORKFLOW = exchangeWorkflow {
   }
 }
 
+private val EXCHANGE_STEP_KEY =
+  ExchangeStepKey(
+    recurringExchangeId = RECURRING_EXCHANGE_ID,
+    exchangeId = EXCHANGE_ID,
+    exchangeStepId = EXCHANGE_STEP_ID
+  )
+
+private val EXCHANGE_STEP: ExchangeStep = exchangeStep {
+  name = EXCHANGE_STEP_KEY.toName()
+  state = ExchangeStep.State.READY_FOR_RETRY
+  stepIndex = 2
+  serializedExchangeWorkflow = WORKFLOW.toByteString()
+  exchangeDate = DATE.toProtoDate()
+}
+
 private val VALIDATED_EXCHANGE_STEP = ValidatedExchangeStep(WORKFLOW, WORKFLOW.getSteps(0), DATE)
 
 @RunWith(JUnit4::class)
 class ExchangeTaskExecutorTest {
+  private val validator: ExchangeStepValidator = mock()
   private val testPrivateStorageSelector = TestPrivateStorageSelector()
   private val apiClient: ApiClient = mock()
   private val timeout = FakeTimeout()
@@ -86,8 +109,9 @@ class ExchangeTaskExecutorTest {
   @Test
   fun `reads inputs and writes outputs`() = runBlockingTest {
     prepareBlob("some-blob")
+    whenever(validator.validate(any())).thenReturn(VALIDATED_EXCHANGE_STEP)
 
-    exchangeTaskExecutor.execute(VALIDATED_EXCHANGE_STEP, ATTEMPT_KEY)
+    exchangeTaskExecutor.execute(EXCHANGE_STEP, ATTEMPT_KEY)
 
     assertThat(testPrivateStorageSelector.storageClient.getBlob("c")?.toStringUtf8())
       .isEqualTo("Out:commutative-deterministic-encrypt-some-blob")
@@ -96,9 +120,10 @@ class ExchangeTaskExecutorTest {
   @Test
   fun timeout() = runBlockingTest {
     timeout.expired = true
+    whenever(validator.validate(any())).thenReturn(VALIDATED_EXCHANGE_STEP)
 
     assertFailsWith<CancellationException> {
-      exchangeTaskExecutor.execute(VALIDATED_EXCHANGE_STEP, ATTEMPT_KEY)
+      exchangeTaskExecutor.execute(EXCHANGE_STEP, ATTEMPT_KEY)
     }
 
     assertThat(testPrivateStorageSelector.storageClient.getBlob("c")).isNull()
@@ -107,12 +132,13 @@ class ExchangeTaskExecutorTest {
   @Test
   fun `fails with transient attempt state from ExchangeTaskFailedException`() = runBlockingTest {
     prepareBlob("some-blob")
+    whenever(validator.validate(any())).thenReturn(VALIDATED_EXCHANGE_STEP)
 
     val exchangeTaskExecutor =
       createExchangeTaskExecutor(FakeExchangeTaskMapper(::TransientThrowingExchangeTask))
 
     assertFailsWith<ExchangeTaskFailedException> {
-      exchangeTaskExecutor.execute(VALIDATED_EXCHANGE_STEP, ATTEMPT_KEY)
+      exchangeTaskExecutor.execute(EXCHANGE_STEP, ATTEMPT_KEY)
     }
 
     verify(apiClient).finishExchangeStepAttempt(eq(ATTEMPT_KEY), eq(State.FAILED), any())
@@ -121,12 +147,13 @@ class ExchangeTaskExecutorTest {
   @Test
   fun `fails with permanent attempt state from ExchangeTaskFailedException`() = runBlockingTest {
     prepareBlob("some-blob")
+    whenever(validator.validate(any())).thenReturn(VALIDATED_EXCHANGE_STEP)
 
     val exchangeTaskExecutor =
       createExchangeTaskExecutor(FakeExchangeTaskMapper(::PermanentThrowingExchangeTask))
 
     assertFailsWith<ExchangeTaskFailedException> {
-      exchangeTaskExecutor.execute(VALIDATED_EXCHANGE_STEP, ATTEMPT_KEY)
+      exchangeTaskExecutor.execute(EXCHANGE_STEP, ATTEMPT_KEY)
     }
 
     verify(apiClient).finishExchangeStepAttempt(eq(ATTEMPT_KEY), eq(State.FAILED_STEP), any())
@@ -144,7 +171,8 @@ class ExchangeTaskExecutorTest {
       apiClient,
       timeout,
       testPrivateStorageSelector.selector,
-      exchangeTaskMapper
+      exchangeTaskMapper,
+      validator
     )
   }
 }

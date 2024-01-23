@@ -158,7 +158,10 @@ private class AwsExampleDaemon : ExampleDaemon() {
   }
 
   override val launcher by lazy {
-    CoroutineLauncher(stepExecutor = stepExecutor, apiClient = apiClient, maxCoroutines = 1)
+    CoroutineLauncher(
+      stepExecutor = stepExecutor,
+      apiClient = apiClient,
+      maxCoroutines = maxConcurrentTasks)
   }
 }
 

@@ -82,6 +82,8 @@ abstract class ExchangeWorkflowDaemon : Runnable {
   /** [CertificateManager] for [sharedStorageSelector]. */
   protected abstract val certificateManager: CertificateManager
 
+  protected abstract val maxConcurrentTasks: Int?
+
   /** [PrivateStorageSelector] for writing to local (non-shared) storage. */
   protected val privateStorageSelector: PrivateStorageSelector by lazy {
     PrivateStorageSelector(privateStorageFactories, privateStorageInfo)
@@ -112,8 +114,8 @@ abstract class ExchangeWorkflowDaemon : Runnable {
     val exchangeStepLauncher =
       ExchangeStepLauncher(
         apiClient = apiClient,
-        validator = ExchangeStepValidatorImpl(identity.party, validExchangeWorkflows, clock),
-        taskLauncher = stepExecutor
+        taskLauncher = stepExecutor,
+        maxTaskCoroutines = maxConcurrentTasks
       )
     runDaemon(exchangeStepLauncher)
   }
