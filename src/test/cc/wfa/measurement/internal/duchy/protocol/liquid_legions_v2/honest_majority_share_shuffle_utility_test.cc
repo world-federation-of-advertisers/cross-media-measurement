@@ -131,8 +131,8 @@ class ShufflePhaseTestData {
     key.resize(kBytesPerAes256Key);
     iv.resize(kBytesPerAes256Iv);
 
-    RAND_bytes((uint8_t*)key.data(), key.size());
-    RAND_bytes((uint8_t*)iv.data(), iv.size());
+    RAND_bytes(reinterpret_cast<uint8_t*>(key.data()), key.size());
+    RAND_bytes(reinterpret_cast<uint8_t*>(iv.data()), iv.size());
 
     PrngSeed seed;
     *seed.mutable_key() = key;
