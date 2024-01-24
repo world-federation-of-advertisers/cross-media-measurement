@@ -86,21 +86,14 @@ const getDefaultSummaryPublisherData = (sourceName: string, pubDataByPub: Map<st
 const setSummaryPublisherData = (source: Metric, pubDataByPub: Map<string, SummaryPublisherData>, lastDay: boolean) => {
   const summaryPubData = pubDataByPub.get(source.sourceName)
     || getDefaultSummaryPublisherData(source.sourceName, pubDataByPub);
-  // if(source.cumulative && lastDay) {
-  if (false) {
+  if (source.cumulative && lastDay) {
     // Take the frequencies from the last day.
     summaryPubData.impressions = fixNumber(source.impressionCount.count);
     summaryPubData.reach = fixNumber(source.reach);
     summaryPubData.uniqueReach = fixNumber(source.uniqueReach)
     summaryPubData.averageFrequency = summaryPubData.impressions / summaryPubData.reach
-  } else {
-    // Add up the frequencies over every day.
-    // TODO(@bdomen): Finish implementing
-    summaryPubData.impressions += fixNumber(source.impressionCount.count);
-    summaryPubData.reach += fixNumber(source.reach);
-    summaryPubData.uniqueReach += fixNumber(source.uniqueReach)
-    summaryPubData.averageFrequency = summaryPubData.impressions / summaryPubData.reach
   }
+  // No else, these have to be cumulative data.
 }
 
 const setImpressions = (source: Metric, time: Date, demoCategory: string, impArr: ChartGroup[]) => {
@@ -112,7 +105,7 @@ const setImpressions = (source: Metric, time: Date, demoCategory: string, impArr
   impArr.push(imp);
 }
 
-const setFrequencies = (source: Metric, intervalIndex: number, demoCategory: string, freqArr: ChartGroup[], lastDay: boolean) => {
+const setFrequencies = (source: Metric, demoCategory: string, freqArr: ChartGroup[], lastDay: boolean) => {
   if (source.cumulative && lastDay) {
     // Take the frequencies from the last day.
     Object.entries(source.frequencyHistogram).forEach(([key, value]) => {
@@ -131,14 +124,12 @@ const setFrequencies = (source: Metric, intervalIndex: number, demoCategory: str
 
 const setOverview = (source: Metric, lastDay: boolean, overview: Overview) => {
   if(source.cumulative && lastDay) {
-    // Take the values from the last day.
+    // Take the values from the last day of the cumulative source.
     overview.totalImpressions = fixNumber(source.impressionCount.count);
     overview.totalReach = fixNumber(source.reach);
     overview.totalAverageFrequency = overview.totalImpressions / overview.totalReach;
-  } else {
-    // Add up the values over every day.
-    // TODO(@bdomen): Finish implementing
   }
+  // No else, must use the cumulative union
 }
 
 const getReportChartAndMeta = (report: Report): ChartAndMetaData => {
@@ -172,15 +163,15 @@ const getReportChartAndMeta = (report: Report): ChartAndMetaData => {
         setSummaryPublisherData(pps, pubDatabyPub, lastDay);
         const impArr = pps.cumulative ? cumulativeImpressions : impressions;
         setImpressions(pps, ti.timeInterval.startTime, db.demoCategoryName, impArr);
-        setFrequencies(pps, intervalIndex, db.demoCategoryName, frequencies, lastDay);
-      })
-      
+        setFrequencies(pps, db.demoCategoryName, frequencies, lastDay);
+      });
+
       db.unionSource.forEach(us => {
         const reachArr = us.cumulative ? totalCumulativeReach : totalReach;
         setReach(us, ti.timeInterval.startTime, db.demoCategoryName, reachArr);
         const impArr = us.cumulative ? cumulativeImpressions : impressions;
         setImpressions(us, ti.timeInterval.startTime, db.demoCategoryName, impArr);
-        setFrequencies(us, intervalIndex, db.demoCategoryName, frequencies, lastDay);
+        setFrequencies(us, db.demoCategoryName, frequencies, lastDay);
         setOverview(us, lastDay, overview);
       });
     });
@@ -231,12 +222,11 @@ const handleUiReport = (report: Report|undefined): UiReport|null => {
   return uiReport;
 };
 
-// TODO(@bdomen-ggl): Stubbed. Finish implementing
+// TODO(@bdomen-ggl): Mostly stubbed. Finish implementing the filtering.
 const filter = (data: ChartGroup[], filters: 'all'|string[] = 'all'): ChartGroup[] => {
   // Remove data points that aren't contained in the filters
   // If 'all' then skip this step
   if (filters !== 'all') {
-  } else {
 
   }
 
