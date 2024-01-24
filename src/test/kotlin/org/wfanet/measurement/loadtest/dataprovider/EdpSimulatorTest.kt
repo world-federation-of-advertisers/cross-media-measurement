@@ -69,6 +69,8 @@ import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
@@ -83,6 +85,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.liquidLegio
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
@@ -164,6 +167,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyL
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestInMemoryBackingStore
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
+import org.wfanet.measurement.loadtest.common.sampleVids
 import org.wfanet.measurement.loadtest.config.EventGroupMetadata
 import org.wfanet.measurement.loadtest.config.TestIdentifiers
 
@@ -1802,12 +1806,25 @@ class EdpSimulatorTest {
         RequisitionsCoroutineImplBase::fulfillDirectRequisition,
       )
     val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
+    val expectedReach: Long =
+      computeExpectedReach(REQUISITION_SPEC.events.eventGroupsList, MEASUREMENT_SPEC)
+    val expectedFrequencyDistribution: Map<Long, Double> =
+      computeExpectedFrequencyDistribution(
+        REQUISITION_SPEC.events.eventGroupsList,
+        MEASUREMENT_SPEC,
+      )
     assertThat(result.reach.noiseMechanism == noiseMechanismOption)
     assertThat(result.reach.hasDeterministicCountDistinct())
     assertThat(result.frequency.noiseMechanism == noiseMechanismOption)
     assertThat(result.frequency.hasDeterministicDistribution())
-    assertThat(result).reachValue().isWithin(2.0).of(2000L)
-    assertThat(result).frequencyDistribution().isWithin(0.01).of(mapOf(2L to 0.5, 4L to 0.5))
+    assertThat(result)
+      .reachValue()
+      .isWithin(REACH_TOLERANCE / MEASUREMENT_SPEC.vidSamplingInterval.width)
+      .of(expectedReach)
+    assertThat(result)
+      .frequencyDistribution()
+      .isWithin(FREQUENCY_DISTRIBUTION_TOLERANCE)
+      .of(expectedFrequencyDistribution)
   }
 
   @Test
@@ -1896,18 +1913,22 @@ class EdpSimulatorTest {
     assertThat(result.reach.hasDeterministicCountDistinct())
     assertThat(result.frequency.noiseMechanism == noiseMechanismOption)
     assertThat(result.frequency.hasDeterministicDistribution())
-    assertThat(result).reachValue().isWithin(2.0).of(0L)
+    assertThat(result).reachValue().isWithin(REACH_TOLERANCE).of(0L)
     // TODO(world-federation-of-advertisers/cross-media-measurement#1388): Remove this check after
-    // the issue is resolved.
+    //  the issue is resolved.
     assertThat(result.frequency.relativeFrequencyDistributionMap.values.all { !it.isNaN() })
       .isTrue()
-    assertThat(result).frequencyDistribution().isWithin(0.01)
+    assertThat(result).frequencyDistribution().isWithin(FREQUENCY_DISTRIBUTION_TOLERANCE)
   }
 
   @Test
   fun `fulfills direct reach and frequency Requisition with sampling rate less than 1`() {
+    val vidSamplingIntervalWidth = 0.1
     val measurementSpec =
-      MEASUREMENT_SPEC.copy { vidSamplingInterval = vidSamplingInterval.copy { width = 0.1f } }
+      MEASUREMENT_SPEC.copy {
+        vidSamplingInterval =
+          vidSamplingInterval.copy { width = vidSamplingIntervalWidth.toFloat() }
+      }
     val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
     val requisition =
       REQUISITION.copy {
@@ -1958,16 +1979,23 @@ class EdpSimulatorTest {
         RequisitionsCoroutineImplBase::fulfillDirectRequisition,
       )
     val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
+    val expectedReach: Long =
+      computeExpectedReach(REQUISITION_SPEC.events.eventGroupsList, measurementSpec)
+    val expectedFrequencyDistribution: Map<Long, Double> =
+      computeExpectedFrequencyDistribution(REQUISITION_SPEC.events.eventGroupsList, measurementSpec)
 
     assertThat(result.reach.noiseMechanism == noiseMechanismOption)
     assertThat(result.reach.hasDeterministicCountDistinct())
     assertThat(result.frequency.noiseMechanism == noiseMechanismOption)
     assertThat(result.frequency.hasDeterministicDistribution())
-    assertThat(result).reachValue().isWithin(10.0).of(1920)
+    assertThat(result)
+      .reachValue()
+      .isWithin(REACH_TOLERANCE / vidSamplingIntervalWidth)
+      .of(expectedReach)
     assertThat(result)
       .frequencyDistribution()
-      .isWithin(0.07)
-      .of(mapOf(2L to 0.49479664833057146, 4L to 0.5052080336866532))
+      .isWithin(FREQUENCY_DISTRIBUTION_TOLERANCE / vidSamplingIntervalWidth)
+      .of(expectedFrequencyDistribution)
   }
 
   @Test
@@ -2142,18 +2170,21 @@ class EdpSimulatorTest {
         RequisitionsCoroutineImplBase::fulfillDirectRequisition,
       )
     val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
-
+    val expectedReach: Long =
+      computeExpectedReach(REQUISITION_SPEC.events.eventGroupsList, measurementSpec)
     assertThat(result.reach.noiseMechanism == noiseMechanismOption)
     assertThat(result.reach.hasDeterministicCountDistinct())
-    assertThat(result).reachValue().isWithin(2.0).of(2000L)
+    assertThat(result).reachValue().isWithin(REACH_TOLERANCE).of(expectedReach)
     assertThat(result.hasFrequency()).isFalse()
   }
 
   @Test
   fun `fulfills direct reach-only Requisition with sampling rate less than 1`() {
+    val vidSamplingIntervalWidth = 0.1
     val measurementSpec =
       REACH_ONLY_MEASUREMENT_SPEC.copy {
-        vidSamplingInterval = vidSamplingInterval.copy { width = 0.1f }
+        vidSamplingInterval =
+          vidSamplingInterval.copy { width = vidSamplingIntervalWidth.toFloat() }
       }
     val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
     val requisition =
@@ -2203,10 +2234,14 @@ class EdpSimulatorTest {
         RequisitionsCoroutineImplBase::fulfillDirectRequisition,
       )
     val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
-
+    val expectedReach: Long =
+      computeExpectedReach(REQUISITION_SPEC.events.eventGroupsList, measurementSpec)
     assertThat(result.reach.noiseMechanism == noiseMechanismOption)
     assertThat(result.reach.hasDeterministicCountDistinct())
-    assertThat(result).reachValue().isWithin(10.0).of(1920L)
+    assertThat(result)
+      .reachValue()
+      .isWithin(REACH_TOLERANCE / vidSamplingIntervalWidth)
+      .of(expectedReach)
     assertThat(result.hasFrequency()).isFalse()
   }
 
@@ -2287,6 +2322,254 @@ class EdpSimulatorTest {
     val requisition =
       REQUISITION.copy {
         this.measurementSpec = signMeasurementSpec(measurementSpec, MC_SIGNING_KEY)
+        protocolConfig =
+          protocolConfig.copy {
+            protocols.clear()
+            protocols +=
+              ProtocolConfigKt.protocol {
+                direct = ProtocolConfigKt.direct { noiseMechanisms += noiseMechanismOption }
+              }
+          }
+      }
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
+    val simulator =
+      EdpSimulator(
+        EDP_DATA,
+        MC_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        syntheticGeneratorEventQuery,
+        dummyThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        random = Random(RANDOM_SEED),
+        compositionMechanism = COMPOSITION_MECHANISM,
+      )
+
+    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+
+    val refuseRequest: RefuseRequisitionRequest =
+      verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
+    assertThat(refuseRequest)
+      .ignoringFieldScope(
+        FieldScopes.allowingFieldDescriptors(
+          Refusal.getDescriptor().findFieldByNumber(Refusal.MESSAGE_FIELD_NUMBER)
+        )
+      )
+      .isEqualTo(
+        refuseRequisitionRequest {
+          name = REQUISITION.name
+          refusal = refusal { justification = Refusal.Justification.DECLINED }
+        }
+      )
+    assertThat(refuseRequest.refusal.message).contains("No valid methodologies")
+    assertThat(fakeRequisitionFulfillmentService.fullfillRequisitionInvocations).isEmpty()
+    verifyBlocking(requisitionsServiceMock, never()) { fulfillDirectRequisition(any()) }
+  }
+
+  @Test
+  fun `fulfills impression Requisition`() {
+    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+    val requisition =
+      REQUISITION.copy {
+        measurementSpec = signMeasurementSpec(IMPRESSION_MEASUREMENT_SPEC, MC_SIGNING_KEY)
+        protocolConfig =
+          protocolConfig.copy {
+            protocols.clear()
+            protocols +=
+              ProtocolConfigKt.protocol {
+                direct =
+                  ProtocolConfigKt.direct {
+                    noiseMechanisms += noiseMechanismOption
+                    deterministicCount =
+                      ProtocolConfig.Direct.DeterministicCount.getDefaultInstance()
+                  }
+              }
+          }
+      }
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
+    val simulator =
+      EdpSimulator(
+        EDP_DATA,
+        MC_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        syntheticGeneratorEventQuery,
+        dummyThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        random = Random(RANDOM_SEED),
+        compositionMechanism = COMPOSITION_MECHANISM,
+      )
+
+    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+
+    val request: FulfillDirectRequisitionRequest =
+      verifyAndCapture(
+        requisitionsServiceMock,
+        RequisitionsCoroutineImplBase::fulfillDirectRequisition,
+      )
+    val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
+    val expectedImpression =
+      computeExpectedImpression(
+        REQUISITION_SPEC.events.eventGroupsList,
+        IMPRESSION_MEASUREMENT_SPEC,
+      )
+
+    assertThat(result.impression.noiseMechanism == noiseMechanismOption)
+    assertThat(result.impression.hasDeterministicCount())
+    assertThat(result).impressionValue().isWithin(IMPRESSION_TOLERANCE).of(expectedImpression)
+  }
+
+  @Test
+  fun `fulfills impression requisition with sampling rate less than 1`() {
+    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+    val vidSamplingWidth = 0.1
+    val measurementSpec =
+      IMPRESSION_MEASUREMENT_SPEC.copy {
+        vidSamplingInterval = vidSamplingInterval.copy { width = vidSamplingWidth.toFloat() }
+      }
+    val requisition =
+      REQUISITION.copy {
+        this.measurementSpec = signMeasurementSpec(measurementSpec, MC_SIGNING_KEY)
+        protocolConfig =
+          protocolConfig.copy {
+            protocols.clear()
+            protocols +=
+              ProtocolConfigKt.protocol {
+                direct =
+                  ProtocolConfigKt.direct {
+                    noiseMechanisms += noiseMechanismOption
+                    deterministicCount =
+                      ProtocolConfig.Direct.DeterministicCount.getDefaultInstance()
+                  }
+              }
+          }
+      }
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
+    val simulator =
+      EdpSimulator(
+        EDP_DATA,
+        MC_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        syntheticGeneratorEventQuery,
+        dummyThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        random = Random(RANDOM_SEED),
+        compositionMechanism = COMPOSITION_MECHANISM,
+      )
+
+    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+
+    val request: FulfillDirectRequisitionRequest =
+      verifyAndCapture(
+        requisitionsServiceMock,
+        RequisitionsCoroutineImplBase::fulfillDirectRequisition,
+      )
+    val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
+    val expectedImpression =
+      computeExpectedImpression(REQUISITION_SPEC.events.eventGroupsList, measurementSpec)
+
+    assertThat(result.impression.noiseMechanism == noiseMechanismOption)
+    assertThat(result.impression.hasDeterministicCount())
+    assertThat(result)
+      .impressionValue()
+      .isWithin(IMPRESSION_TOLERANCE / vidSamplingWidth)
+      .of(expectedImpression)
+  }
+
+  @Test
+  fun `fails to fulfill impression Requisition when no direct noise mechanism is picked by EDP`() {
+    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.NONE
+    val requisition =
+      REQUISITION.copy {
+        measurementSpec = signMeasurementSpec(IMPRESSION_MEASUREMENT_SPEC, MC_SIGNING_KEY)
+        protocolConfig =
+          protocolConfig.copy {
+            protocols.clear()
+            protocols +=
+              ProtocolConfigKt.protocol {
+                direct =
+                  ProtocolConfigKt.direct {
+                    noiseMechanisms += noiseMechanismOption
+                    deterministicCount =
+                      ProtocolConfig.Direct.DeterministicCount.getDefaultInstance()
+                  }
+              }
+          }
+      }
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
+    val simulator =
+      EdpSimulator(
+        EDP_DATA,
+        MC_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        syntheticGeneratorEventQuery,
+        dummyThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        random = Random(RANDOM_SEED),
+        compositionMechanism = COMPOSITION_MECHANISM,
+      )
+
+    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+
+    val refuseRequest: RefuseRequisitionRequest =
+      verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
+    assertThat(refuseRequest)
+      .ignoringFieldScope(
+        FieldScopes.allowingFieldDescriptors(
+          Refusal.getDescriptor().findFieldByNumber(Refusal.MESSAGE_FIELD_NUMBER)
+        )
+      )
+      .isEqualTo(
+        refuseRequisitionRequest {
+          name = REQUISITION.name
+          refusal = refusal { justification = Refusal.Justification.SPEC_INVALID }
+        }
+      )
+    assertThat(refuseRequest.refusal.message).contains("No valid noise mechanism option")
+    assertThat(fakeRequisitionFulfillmentService.fullfillRequisitionInvocations).isEmpty()
+    verifyBlocking(requisitionsServiceMock, never()) { fulfillDirectRequisition(any()) }
+  }
+
+  @Test
+  fun `fails to fulfill impression Requisition when no direct methodology is picked by EDP`() {
+    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+    val requisition =
+      REQUISITION.copy {
+        measurementSpec = signMeasurementSpec(IMPRESSION_MEASUREMENT_SPEC, MC_SIGNING_KEY)
         protocolConfig =
           protocolConfig.copy {
             protocols.clear()
@@ -2459,6 +2742,21 @@ class EdpSimulatorTest {
         clearReachAndFrequency()
         reach = reach { privacyParams = OUTPUT_DP_PARAMS }
       }
+    private val IMPRESSION_MEASUREMENT_SPEC = measurementSpec {
+      measurementPublicKey = MC_PUBLIC_KEY.pack()
+      impression = impression {
+        privacyParams = differentialPrivacyParams {
+          epsilon = 10.0
+          delta = 1E-12
+        }
+        maximumFrequencyPerUser = 10
+      }
+      vidSamplingInterval = vidSamplingInterval {
+        start = 0.0f
+        width = 1.0f
+      }
+      nonceHashes += Hashing.hashSha256(REQUISITION_SPEC.nonce)
+    }
 
     private val LIQUID_LEGIONS_SKETCH_PARAMS = liquidLegionsSketchParams {
       decayRate = LLV2_DECAY_RATE
@@ -2567,8 +2865,69 @@ class EdpSimulatorTest {
       )
     }
 
+    private const val REACH_TOLERANCE = 1.0
+    private const val FREQUENCY_DISTRIBUTION_TOLERANCE = 1.0
+    private const val IMPRESSION_TOLERANCE = 1.0
+
     private fun loadEncryptionPrivateKey(fileName: String): TinkPrivateKeyHandle {
       return loadPrivateKey(SECRET_FILES_PATH.resolve(fileName).toFile())
+    }
+
+    private fun computeExpectedReach(
+      eventGroupsList: List<RequisitionSpec.EventGroupEntry>,
+      measurementSpec: MeasurementSpec,
+    ): Long {
+      val sampledVids = sampleVids(eventGroupsList, measurementSpec)
+      val sampledReach = MeasurementResults.computeReach(sampledVids)
+      return (sampledReach / measurementSpec.vidSamplingInterval.width).toLong()
+    }
+
+    private fun computeExpectedFrequencyDistribution(
+      eventGroupsList: List<RequisitionSpec.EventGroupEntry>,
+      measurementSpec: MeasurementSpec,
+    ): Map<Long, Double> {
+      val sampledVids = sampleVids(eventGroupsList, measurementSpec)
+      val (_, frequencyMap) =
+        MeasurementResults.computeReachAndFrequency(
+          sampledVids,
+          measurementSpec.reachAndFrequency.maximumFrequency,
+        )
+      return frequencyMap.mapKeys { it.key.toLong() }
+    }
+
+    private fun computeExpectedImpression(
+      eventGroupsList: List<RequisitionSpec.EventGroupEntry>,
+      measurementSpec: MeasurementSpec,
+    ): Long {
+      val sampledVids = sampleVids(eventGroupsList, measurementSpec)
+      val sampledImpression =
+        MeasurementResults.computeImpression(
+          sampledVids,
+          measurementSpec.impression.maximumFrequencyPerUser,
+        )
+      return (sampledImpression / measurementSpec.vidSamplingInterval.width).toLong()
+    }
+
+    private fun sampleVids(
+      eventGroupsList: List<RequisitionSpec.EventGroupEntry>,
+      measurementSpec: MeasurementSpec,
+    ): Iterable<Long> {
+      val eventGroupSpecs =
+        eventGroupsList.map {
+          EventQuery.EventGroupSpec(
+            eventGroup {
+              name = it.key
+              eventGroupReferenceId = TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
+            },
+            it.value,
+          )
+        }
+      return sampleVids(
+        syntheticGeneratorEventQuery,
+        eventGroupSpecs,
+        measurementSpec.vidSamplingInterval.start,
+        measurementSpec.vidSamplingInterval.width,
+      )
     }
   }
 }
