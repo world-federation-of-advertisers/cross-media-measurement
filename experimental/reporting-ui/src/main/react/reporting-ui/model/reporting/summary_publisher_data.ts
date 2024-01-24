@@ -13,7 +13,7 @@
 // limitations under the License.
 
 export type SummaryPublisherData = {
-  id: number|string;
+  id: string;
   publisher: string;
   impressions: number;
   reach: number;

@@ -129,18 +129,15 @@ const setUpLinearYScale = (svg, data, dimensions, margins, isPercent = false) =>
 
 const drawMultiLines = (svg, groups, groupColors) => {
     // Draw the lines.
-    var color = d3.scaleOrdinal()
-        .range(['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628','#f781bf','#999999'])
-
     const line = d3.line().curve(d3.curveMonotoneX);;
     svg.append("g")
         .attr("fill", "none")
         .attr("stroke-width", 1.5)
         .attr("stroke-linejoin", "round")
         .attr("stroke-linecap", "round")
-        .selectAll("path")
-        .data(groups.values())
-        .join("path")
+      .selectAll("path")
+      .data(groups.values())
+      .join("path")
         .attr("stroke", function(d){ return groupColors[d.z] })
         .style("mix-blend-mode", "multiply")
         .attr("d", line);
@@ -218,9 +215,10 @@ export const createBarChart = (cardId, data, dimensions, margins, colorMap) => {
 
     drawBar(svg, data, x, y, colorMap);
 
-    // TODO: Can calculate width based on longest length of string plus icon plus padding
-    // TODO: Can calculate height based on number of strings plus icon plus padding
-    // TODO: Can display legend horizontally based on container sizing
+    // TODO (@bdomen-ggl):
+    //   Can calculate width based on longest length of string plus icon plus padding.
+    //   Can calculate height based on number of strings plus icon plus padding
+    //   Can display legend horizontally based on dimensions
     const legendDimensions = {
         width: 100,
         height: 100,
@@ -232,7 +230,7 @@ export const createBarChart = (cardId, data, dimensions, margins, colorMap) => {
 
 const addLegend = (svg, keys, colorMap) => {
     var size = 20
-    svg.selectAll("mydots")
+    svg.selectAll("legendDots")
         .data(keys)
         .enter()
         .append("rect")
@@ -242,7 +240,7 @@ const addLegend = (svg, keys, colorMap) => {
             .attr("height", size)
             .style("fill", function(d){ return colorMap[d]})
         
-    svg.selectAll("mylabels")
+    svg.selectAll("legendLabels")
         .data(keys)
         .enter()
         .append("text")

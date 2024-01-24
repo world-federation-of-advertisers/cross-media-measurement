@@ -25,7 +25,6 @@ const MAGNITUDES = Object.freeze({
   24: 'Y',
   27: 'R',
   30: 'Q',
-
 });
 
 export const formatNumberWithMagnitude = (

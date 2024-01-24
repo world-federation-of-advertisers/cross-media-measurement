@@ -14,10 +14,8 @@ limitations under the License. */
 
 import React from 'react';
 import './loader.css';
-import { sendMetric } from '../../util/google_analytics'
 
 export function Loader () {
-  sendMetric('test_event', {'hello': 'world'})
   return(
     <div className='loader' />
   );
