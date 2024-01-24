@@ -28,7 +28,6 @@ import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.deploy.CertificateAuthorityFlags
 import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
 import org.wfanet.panelmatch.client.deploy.example.ExampleDaemon
-import org.wfanet.panelmatch.client.launcher.CoroutineLauncher
 import org.wfanet.panelmatch.client.launcher.ExchangeStepValidatorImpl
 import org.wfanet.panelmatch.client.launcher.ExchangeTaskExecutor
 import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
@@ -152,16 +151,9 @@ private class AwsExampleDaemon : ExampleDaemon() {
       apiClient = apiClient,
       timeout = taskTimeout,
       privateStorageSelector = privateStorageSelector,
-      validator = ExchangeStepValidatorImpl(identity.party, validExchangeWorkflows, clock),
-      exchangeTaskMapper = exchangeTaskMapper
+      exchangeTaskMapper = exchangeTaskMapper,
+      validator = ExchangeStepValidatorImpl(identity.party, validExchangeWorkflows, clock)
     )
-  }
-
-  override val launcher by lazy {
-    CoroutineLauncher(
-      stepExecutor = stepExecutor,
-      apiClient = apiClient,
-      maxCoroutines = maxConcurrentTasks)
   }
 }
 

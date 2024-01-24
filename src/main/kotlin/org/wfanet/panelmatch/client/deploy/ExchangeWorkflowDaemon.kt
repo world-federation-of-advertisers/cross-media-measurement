@@ -22,7 +22,6 @@ import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.panelmatch.client.common.Identity
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 import org.wfanet.panelmatch.client.launcher.ApiClient
-import org.wfanet.panelmatch.client.launcher.CoroutineLauncher
 import org.wfanet.panelmatch.client.launcher.ExchangeStepLauncher
 import org.wfanet.panelmatch.client.launcher.ExchangeStepValidatorImpl
 import org.wfanet.panelmatch.client.launcher.ExchangeTaskExecutor
@@ -98,13 +97,9 @@ abstract class ExchangeWorkflowDaemon : Runnable {
       apiClient = apiClient,
       timeout = taskTimeout,
       privateStorageSelector = privateStorageSelector,
-      validator = ExchangeStepValidatorImpl(identity.party, validExchangeWorkflows, clock),
-      exchangeTaskMapper = exchangeTaskMapper
+      exchangeTaskMapper = exchangeTaskMapper,
+      validator = ExchangeStepValidatorImpl(identity.party, validExchangeWorkflows, clock)
     )
-  }
-
-  protected open val launcher by lazy {
-    CoroutineLauncher(stepExecutor = stepExecutor, apiClient = apiClient)
   }
 
   override fun run() = runBlocking { runSuspending() }

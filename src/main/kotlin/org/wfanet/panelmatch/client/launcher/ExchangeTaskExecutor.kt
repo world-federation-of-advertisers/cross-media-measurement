@@ -16,11 +16,15 @@ package org.wfanet.panelmatch.client.launcher
 
 import com.google.protobuf.ByteString
 import java.util.logging.Level
+import java.util.logging.Logger
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -38,7 +42,6 @@ import org.wfanet.panelmatch.client.logger.addToTaskLog
 import org.wfanet.panelmatch.client.logger.getAndClearTaskLog
 import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
 import org.wfanet.panelmatch.common.Timeout
-import org.wfanet.panelmatch.common.loggerFor
 
 private const val DONE_TASKS_PATH: String = "done-tasks"
 
@@ -53,15 +56,16 @@ class ExchangeTaskExecutor(
   private val timeout: Timeout,
   private val privateStorageSelector: PrivateStorageSelector,
   private val exchangeTaskMapper: ExchangeTaskMapper,
-  private val validator: ExchangeStepValidator
+  private val validator: ExchangeStepValidator,
 ) : ExchangeStepExecutor {
 
-  private fun exchangeTaskScope(
+  private fun makeExchangeTaskHandler(
     attemptKey: ExchangeStepAttemptKey
-  ): CoroutineScope {
-    val handler = CoroutineExceptionHandler { _, e ->
+  ): CoroutineExceptionHandler {
+    return CoroutineExceptionHandler { _, e ->
       logger.severe("Uncaught Exception in child coroutine:")
       logger.log(Level.SEVERE, logger.name, e)
+      logger.log(Level.SEVERE, logger.name, e.stackTrace)
 
       val attemptState =
         when (e) {
@@ -73,17 +77,18 @@ class ExchangeTaskExecutor(
         apiClient.finishExchangeStepAttempt(attemptKey, attemptState)
       }
     }
-    return CoroutineScope(
-      SupervisorJob() + Dispatchers.Default + handler + CoroutineName(attemptKey.toName()))
   }
 
-  override suspend fun execute(
+  suspend fun executeWithScope(
     exchangeStep: ExchangeStep,
-    attemptKey: ExchangeStepAttemptKey
-  ) {
-    exchangeTaskScope(attemptKey).launch {
+    attemptKey: ExchangeStepAttemptKey,
+    scope: CoroutineScope
+  ) : Job {
+    return scope.launch(makeExchangeTaskHandler(attemptKey) + CoroutineName(attemptKey.toName())) {
       try {
+        logger.severe("validating")
         val validatedStep = validator.validate(exchangeStep)
+        logger.severe("validated")
         val context =
           ExchangeContext(attemptKey, validatedStep.date, validatedStep.workflow, validatedStep.step)
         context.tryExecute()
@@ -96,9 +101,15 @@ class ExchangeTaskExecutor(
             else -> ExchangeStepAttempt.State.FAILED
           }
         markAsFinished(attemptKey, attemptState)
-        throw e
       }
     }
+  }
+
+  override suspend fun execute(
+    exchangeStep: ExchangeStep,
+    attemptKey: ExchangeStepAttemptKey
+  ) {
+    executeWithScope(exchangeStep, attemptKey, CoroutineScope(SupervisorJob()))
   }
 
   private suspend fun readInputs(step: Step, privateStorage: StorageClient): Map<String, Blob> {
@@ -168,6 +179,6 @@ class ExchangeTaskExecutor(
   }
 
   companion object {
-    private val logger by loggerFor()
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

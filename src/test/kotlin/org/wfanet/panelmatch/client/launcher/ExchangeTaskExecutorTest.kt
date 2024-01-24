@@ -20,6 +20,9 @@ import com.google.protobuf.kotlin.toByteStringUtf8
 import java.time.LocalDate
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import org.junit.Before
 import org.junit.Test
@@ -57,7 +60,7 @@ import org.wfanet.panelmatch.common.testing.runBlockingTest
 private const val RECURRING_EXCHANGE_ID = "some-recurring-exchange-id"
 private const val EXCHANGE_ID = "some-exchange-id"
 private const val EXCHANGE_STEP_ID = "some-step-id"
-private val ATTEMPT_KEY = ExchangeStepAttemptKey(RECURRING_EXCHANGE_ID, "x", "y", "z")
+private val ATTEMPT_KEY = ExchangeStepAttemptKey(RECURRING_EXCHANGE_ID, "EXCHANGE_ID", "EXCHANGE_STEP_ID", "z")
 
 private val DATE = LocalDate.of(2021, 11, 3)
 
@@ -111,7 +114,11 @@ class ExchangeTaskExecutorTest {
     prepareBlob("some-blob")
     whenever(validator.validate(any())).thenReturn(VALIDATED_EXCHANGE_STEP)
 
-    exchangeTaskExecutor.execute(EXCHANGE_STEP, ATTEMPT_KEY)
+    val taskJob = exchangeTaskExecutor.executeWithScope(
+      EXCHANGE_STEP,
+      ATTEMPT_KEY,
+      CoroutineScope((SupervisorJob())))
+    taskJob.join()
 
     assertThat(testPrivateStorageSelector.storageClient.getBlob("c")?.toStringUtf8())
       .isEqualTo("Out:commutative-deterministic-encrypt-some-blob")
@@ -122,9 +129,11 @@ class ExchangeTaskExecutorTest {
     timeout.expired = true
     whenever(validator.validate(any())).thenReturn(VALIDATED_EXCHANGE_STEP)
 
-    assertFailsWith<CancellationException> {
-      exchangeTaskExecutor.execute(EXCHANGE_STEP, ATTEMPT_KEY)
-    }
+    val taskJob = exchangeTaskExecutor.executeWithScope(
+      EXCHANGE_STEP,
+      ATTEMPT_KEY,
+      CoroutineScope((SupervisorJob())))
+    taskJob.join()
 
     assertThat(testPrivateStorageSelector.storageClient.getBlob("c")).isNull()
   }
@@ -137,9 +146,11 @@ class ExchangeTaskExecutorTest {
     val exchangeTaskExecutor =
       createExchangeTaskExecutor(FakeExchangeTaskMapper(::TransientThrowingExchangeTask))
 
-    assertFailsWith<ExchangeTaskFailedException> {
-      exchangeTaskExecutor.execute(EXCHANGE_STEP, ATTEMPT_KEY)
-    }
+    val taskJob = exchangeTaskExecutor.executeWithScope(
+      EXCHANGE_STEP,
+      ATTEMPT_KEY,
+      CoroutineScope((SupervisorJob())))
+    taskJob.join()
 
     verify(apiClient).finishExchangeStepAttempt(eq(ATTEMPT_KEY), eq(State.FAILED), any())
   }
@@ -152,9 +163,11 @@ class ExchangeTaskExecutorTest {
     val exchangeTaskExecutor =
       createExchangeTaskExecutor(FakeExchangeTaskMapper(::PermanentThrowingExchangeTask))
 
-    assertFailsWith<ExchangeTaskFailedException> {
-      exchangeTaskExecutor.execute(EXCHANGE_STEP, ATTEMPT_KEY)
-    }
+    val taskJob = exchangeTaskExecutor.executeWithScope(
+      EXCHANGE_STEP,
+      ATTEMPT_KEY,
+      CoroutineScope((SupervisorJob())))
+    taskJob.join()
 
     verify(apiClient).finishExchangeStepAttempt(eq(ATTEMPT_KEY), eq(State.FAILED_STEP), any())
   }
@@ -162,6 +175,11 @@ class ExchangeTaskExecutorTest {
   private suspend fun prepareBlob(contents: String) {
     val contentsAsFlow = contents.toByteStringUtf8().asBufferedFlow(1024)
     testPrivateStorageSelector.storageClient.writeBlob("b", contentsAsFlow)
+  }
+
+  private suspend fun prepareScope(): Pair<CoroutineScope, Job> {
+    val supervisorJob = SupervisorJob()
+    return CoroutineScope(supervisorJob) to supervisorJob
   }
 
   private fun createExchangeTaskExecutor(
