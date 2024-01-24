@@ -12,12 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export type Overview = {
-  totalImpressions: number;
-  totalReach: number;
-  totalOnTargetReach: number;
-  totalUniqueReach: number;
-  totalAverageFrequency: number;
-  startDate: string,
-  endDate: string,
+export type ImpressionCount = {
+  count: number,
+  standardDeviation: number,
+}
+
+export type Metric = {
+  sourceName: string,
+  impressionCount: ImpressionCount,
+  frequencyHistogram: { [id: number] : number; },
+  reach: number,
+  uniqueReach: number,
+  cumulative: boolean,
+};
+
+export type Bucket = {
+  demoCategoryName: string,
+  perPublisherSource: Metric[],
+  unionSource: Metric[],
+};
+
+export type Interval = {
+  startTime: Date,
+  endTime: Date,
+};
+
+export type TimeInterval = {
+  timeInterval: Interval;
+  demoBucket: Bucket[];
 };

@@ -14,84 +14,58 @@
 
 import React from 'react';
 import Col from 'react-bootstrap/Col';
+import Container from 'react-bootstrap/Container';
 import Row from 'react-bootstrap/Row';
-import { Demographic, Reach, TargetReach, UniqueReach } from '../../../model/reporting';
-import { OnTargetReach } from '../../../component/chart/on_target_reach/on_target_reach';
 import { TotalReach } from '../../../component/chart/total_reach/total_reach';
-import { OnTargetXmediaReachByFreq } from '../../../component/chart/on_target_xmedia_reach_by_freq/on_target_xmedia_reach_by_freq';
-import { XmediaReachByFreq } from '../../../component/chart/xmedia_reach_by_freq/xmedia_reach_by_freq';
-import { DedupedReachByDemo } from '../../../component/chart/deduped_reach_by_demo/deduped_reach_by_demo';
-import { OnTargetUniqueReachByPlat } from '../../../component/chart/on_target_unique_reach_by_plat/on_target_unique_reach_by_plat';
 import { UniqueReqchByPlat } from '../../../component/chart/unique_reach_by_plat/unique_reach_by_plat';
+import { ChartGroup } from '../../../view_model/report/report_view_model';
+import { Impressions } from '../../../component/chart/impressions/impressions';
+import { Frequencies } from '../../../component/chart/frequencies/frequencies';
 
 type ChartProps = {
-  targetReach: Reach[],
-  totalReach: Reach[],
-  xmediaReach: TargetReach[],
-  onTargetReach: TargetReach[],
-  demo: Demographic[],
-  onTargetUniqueReach: UniqueReach[],
-  uniqueReachByPlat: UniqueReach[],
+  impressions: ChartGroup[],
+  cumulativeImpressions: ChartGroup[],
+  uniqueReach: ChartGroup[],
+  totalReach: ChartGroup[],
+  totalCumulativeReach: ChartGroup[],
+  frequencies: ChartGroup[],
   pubColors: { [Name: string]: string},
 }
 
 export function Charts({
-  targetReach,
+  impressions,
+  cumulativeImpressions,
+  uniqueReach,
   totalReach,
-  xmediaReach,
-  onTargetReach,
-  demo,
-  onTargetUniqueReach,
-  uniqueReachByPlat,
+  totalCumulativeReach,
+  frequencies,
   pubColors,
 }: ChartProps) {
+  const smSize = 6;
     return (
       <React.Fragment>
         <Row className="report-charts">
-          <Col className="report-chart">
-            <OnTargetReach id={'target-reach'} reach={targetReach} pubColors={pubColors} />
+          <Col className="report-chart mb-3" sm={smSize}>
+            <Impressions id={'impressions'} impressions={impressions} pubColors={pubColors} />
           </Col>
-          <Col className="report-chart">
+          <Col className="report-chart mb-3" sm={smSize}>
+            <Impressions id={'impressions-cumulative'} title={'Cumulative Impressions'} impressions={cumulativeImpressions} pubColors={pubColors} />
+          </Col>
+          <Col className="report-chart mb-3" sm={smSize}>
             <TotalReach id={'total-reach'} reach={totalReach} pubColors={pubColors} />
           </Col>
-        </Row>
-        <Row className="report-charts">
-          <Col className="report-chart">
-            <OnTargetXmediaReachByFreq
-              id={'target-xmedia-reach'}
-              reach={onTargetReach}
-            />
+          <Col className="report-chart mb-3" sm={smSize}>
+            <TotalReach id={'total-reach-cumulative'} title={'Total Cumulative Reach'} reach={totalCumulativeReach} pubColors={pubColors} />
           </Col>
-          <Col className="report-chart">
-            <XmediaReachByFreq
-              id={'xmedia-reach'}
-              reach={xmediaReach}
-            />
-          </Col>
-        </Row>
-        <Row className="report-charts">
-          <Col className="report-chart">
-            <DedupedReachByDemo
-              id={'deduped-reach'}
-              demo={demo}
-              pubColors={pubColors}
-            />
-          </Col>
-        </Row>
-        <Row className="report-charts">
-          <Col className="report-chart">
-            <OnTargetUniqueReachByPlat
-              id={'target-unique-reach'}
-              reach={onTargetUniqueReach}
-              pubColors={pubColors}
-            />
-          </Col>
-          <Col className="report-chart">
+          <Col className="report-chart mb-3" sm={12}>
             <UniqueReqchByPlat
-              id={'id7'}
-              reach={uniqueReachByPlat}
+              id={'uniqueReach'}
+              reach={uniqueReach}
               pubColors={pubColors}
             />
+          </Col>
+          <Col className="report-chart mb-3" sm={12}>
+            <Frequencies id={'frequencies'} frequencies={frequencies} pubColors={pubColors} />
           </Col>
         </Row>
       </React.Fragment>

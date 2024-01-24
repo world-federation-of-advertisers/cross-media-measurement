@@ -21,5 +21,6 @@ export type {Demographic} from './demographic';
 export type {Overview} from './overview';
 export type {Reach, TargetReach} from './reach';
 export type {SummaryPublisherData} from './summary_publisher_data';
+export type {TimeInterval} from './time_interval';
 export type {UniqueReach} from './unique_reach';
-export {ReportState, TERMINAL_STATES} from './report_state';
+export {TERMINAL_STATES} from './report_state';

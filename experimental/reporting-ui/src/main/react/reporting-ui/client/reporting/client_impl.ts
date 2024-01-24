@@ -47,12 +47,12 @@ export class ReportingClientImpl {
     }
 
     const res = await fetch(this.baseUrl.toString() + `v1alpha/measurementConsumers/${this.measurementConsumer}/reports/${req.id}`);
-    const report: Report = await res.json();
+    const report: Report = await (res.json() as Promise<Report>);
     const response = Object.freeze({
       report,
     });
 
-    if (TERMINAL_STATES.includes(report.status)) {
+    if (TERMINAL_STATES.includes(report.state)) {
       this.cache.set(key, response);
     }
 

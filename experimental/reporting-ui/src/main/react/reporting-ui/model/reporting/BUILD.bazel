@@ -20,6 +20,7 @@ js_library(
         "report.ts",
         "report_state.ts",
         "summary_publisher_data.ts",
+        "time_interval.ts",
         "unique_reach.ts",
     ],
 )

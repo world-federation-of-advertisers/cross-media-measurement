@@ -13,28 +13,28 @@
 // limitations under the License.
 
 import React from 'react';
-import Navbar from 'react-bootstrap/Navbar';
-import {
-  AddIcon,
-  DownloadIcon,
-  FilterIcon,
-  MenuIcon,
-  TrailingIcon,
-} from '../../../public/asset/icon';
-import './header.css';
+import { Chart, ChartType } from '../chart';
+import { ChartGroup } from '../../../view_model/report/report_view_model';
 
-type HeaderProps = {
-};
+type OnTargetReachProps = {
+    id: string,
+    title?: string,
+    impressions: ChartGroup[],
+    pubColors: { [Name: string]: string}
+}
 
-export function Header({}: HeaderProps) {
-  return (
-    <React.Fragment>
-      <Navbar id="get-report-header" className="bg-body-tertiary">
-        <div id="get-report-header-menu">
-          <MenuIcon />
-        </div>
-        <Navbar.Brand id="header-title">Reporting UI Demo - Halo</Navbar.Brand>
-      </Navbar>
-    </React.Fragment>
-  );
+export function Impressions({id, title='Impressions', impressions, pubColors}: OnTargetReachProps) {
+    const config = {
+        pubColors,
+    }
+
+    return (
+        <Chart
+            cardId={id}
+            title={title}
+            data={impressions}
+            config={config}
+            type={ChartType.multiLine}
+        />
+    )
 }

@@ -15,21 +15,23 @@
 import React from 'react';
 import { Chart, ChartType } from '../chart';
 import { Reach } from '../../../model/reporting';
+import { ChartGroup } from '../../../view_model/report/report_view_model';
 
 type TotalReachProps = {
     id: string,
-    reach: Reach[],
+    title?: string,
+    reach: ChartGroup[],
     pubColors: { [Name: string]: string},
 }
 
-export function TotalReach({id, reach, pubColors}: TotalReachProps) {
+export function TotalReach({id, title='Total reach', reach, pubColors}: TotalReachProps) {
     const config = {
         pubColors,
     }
     return (
         <Chart
             cardId={id}
-            title='Total reach'
+            title={title}
             data={reach}
             config={config}
             type={ChartType.multiLine}

@@ -12,12 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export type Overview = {
-  totalImpressions: number;
-  totalReach: number;
-  totalOnTargetReach: number;
-  totalUniqueReach: number;
-  totalAverageFrequency: number;
-  startDate: string,
-  endDate: string,
-};
+import React from 'react';
+import { Chart, ChartType } from '../chart';
+import { ChartGroup } from '../../../view_model/report/report_view_model';
+
+type FrequenciesProps = {
+    id: string,
+    frequencies: ChartGroup[],
+    pubColors: { [Name: string]: string},
+}
+
+export function Frequencies({id, frequencies, pubColors}: FrequenciesProps) {
+    const config = {
+        pubColors,
+    }
+
+    return (
+        <Chart
+            cardId={id}
+            title='K+ Reach'
+            data={frequencies}
+            config={config}
+            type={ChartType.bar}
+        />
+    )
+}

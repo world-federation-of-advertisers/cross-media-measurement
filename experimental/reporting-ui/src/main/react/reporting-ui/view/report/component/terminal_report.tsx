@@ -13,11 +13,13 @@
 // limitations under the License.
 
 import React from 'react';
+import Alert from 'react-bootstrap/Alert';
 import { Header } from './header';
 import { ReportOverviewStats } from './overview';
 import { SummaryTable } from './summary_table';
-import { Demographic, Overview, Reach, SummaryPublisherData, TargetReach, UniqueReach } from '../../../model/reporting';
+import { Overview, SummaryPublisherData } from '../../../model/reporting';
 import { Charts } from './charts';
+import { ChartGroup } from '../../../view_model/report/report_view_model';
 
 const COLORS = Object.freeze([
   '#FFA300',
@@ -30,45 +32,47 @@ type TerminalReportProps = {
   name: string;
   overview: Overview,
   summaries: SummaryPublisherData[],
-  targetReach: Reach[],
-  totalReach: Reach[],
-  xmediaReach: TargetReach[],
-  onTargetReach: TargetReach[],
-  onTargetUniqueReach: UniqueReach[],
-  uniqueReachByPlat: UniqueReach[],
-  demo: Demographic[],
+  impressions: ChartGroup[],
+  cumulativeImpressions: ChartGroup[],
+  uniqueReach: ChartGroup[],
+  totalReach: ChartGroup[],
+  totalCumulativeReach: ChartGroup[],
+  frequencies: ChartGroup[],
 }
 
 export const TerminalReport = ({
   name,
   overview,
   summaries,
-  targetReach,
+  impressions,
+  cumulativeImpressions,
+  uniqueReach,
   totalReach,
-  xmediaReach,
-  onTargetReach,
-  onTargetUniqueReach,
-  uniqueReachByPlat,
-  demo,
+  totalCumulativeReach,
+  frequencies,
 }: TerminalReportProps) => {
   // Assign a color to each publisher
   const pubIds = summaries.map(x => x.id);
-  const pubColors = {};
+  const pubColors = {'All EDPs': '#363636'};
   pubIds.forEach((pub_id, index) => pubColors[pub_id] = COLORS[index]);
 
   return (
     <React.Fragment>
-      <Header reportName={name} />
+      <div className='sticky'>
+        <Header reportName={name} />
+        <Alert variant='warning' dismissible>
+          This prototype illustrates basic outputs available by using the Halo framework. Local market level outputs and interfaces will vary.
+        </Alert>
+      </div>
       <ReportOverviewStats reportOverview={overview} />
       <SummaryTable reportSummaries={summaries} publisherColors={pubColors} />
       <Charts
-        targetReach={targetReach}
+        impressions={impressions}
+        cumulativeImpressions={cumulativeImpressions}
+        uniqueReach={uniqueReach}
         totalReach={totalReach}
-        xmediaReach={xmediaReach}
-        onTargetReach={onTargetReach}
-        demo={demo}
-        onTargetUniqueReach={onTargetUniqueReach}
-        uniqueReachByPlat={uniqueReachByPlat}
+        totalCumulativeReach={totalCumulativeReach}
+        frequencies={frequencies}
         pubColors={pubColors}
       />
     </React.Fragment>

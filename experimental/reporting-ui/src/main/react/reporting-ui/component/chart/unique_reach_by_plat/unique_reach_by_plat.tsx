@@ -15,10 +15,11 @@
 import React from 'react';
 import { UniqueReach } from '../../../model/reporting';
 import { Chart, ChartType } from '../chart';
+import { ChartGroup } from '../../../view_model/report/report_view_model';
 
 type UniqueReqchByPlatProps = {
     id: string,
-    reach: UniqueReach[],
+    reach: ChartGroup[],
     pubColors: { [Name: string]: string}
 }
 
@@ -29,7 +30,7 @@ export function UniqueReqchByPlat({id, reach, pubColors}: UniqueReqchByPlatProps
     return (
         <Chart
             cardId={id}
-            title='Unique reach by platform'
+            title='Unique reach'
             data={reach}
             config={config}
             type={ChartType.multiLine}
