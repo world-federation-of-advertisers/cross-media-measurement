@@ -57,11 +57,11 @@ message CompleteShufflePhaseRequest {
   // Sorted by ExternalRequisitionId so that non-aggregators follow the same
   // order.
   message SketchShare {
-    message UInt32Array {
+    message ShareData {
       repeated uint32 values = 1;
     }
     oneof share_type {
-      UInt32Array data = 1;
+      ShareData data = 1;
       bytes seed = 2;
     }
   }

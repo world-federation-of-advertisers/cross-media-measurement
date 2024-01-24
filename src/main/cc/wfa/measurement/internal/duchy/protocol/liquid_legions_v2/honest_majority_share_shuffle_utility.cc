@@ -49,29 +49,30 @@ using ::wfa::measurement::common::crypto::SecureShuffleWithSeed;
 absl::StatusOr<std::vector<uint32_t>> GenerateNoiseRegisters(
     const ShareShuffleSketchParams& sketch_param,
     const math::DistributedNoiser& distributed_noiser) {
-  if (sketch_param.ring_modulus() <= sketch_param.maximum_frequency() + 1) {
+  if (sketch_param.ring_modulus() <=
+      sketch_param.maximum_combined_frequency() + 1) {
     return absl::InvalidArgumentError(
-        "Ring modulus must be greater than maximum frequency plus 1.");
+        "Ring modulus must be greater than maximum combined frequency plus 1.");
   }
 
   int64_t total_noise_registers_count =
       distributed_noiser.options().shift_offset * 2 *
-      (1 + sketch_param.maximum_frequency());
+      (1 + sketch_param.maximum_combined_frequency());
   // Sets all noise registers to the sentinel value (q-1).
-  std::vector<uint32_t> ret(total_noise_registers_count,
-                            sketch_param.ring_modulus() - 1);
+  std::vector<uint32_t> noise_registers(total_noise_registers_count,
+                                        sketch_param.ring_modulus() - 1);
 
   int current_index = 0;
-  for (int k = 0; k <= sketch_param.maximum_frequency(); k++) {
+  for (int k = 0; k <= sketch_param.maximum_combined_frequency(); k++) {
     ASSIGN_OR_RETURN(int64_t noise_register_count_for_bucket_k,
                      distributed_noiser.GenerateNoiseComponent());
     for (int i = 0; i < noise_register_count_for_bucket_k; i++) {
-      ret[current_index] = k;
+      noise_registers[current_index] = k;
       current_index++;
     }
   }
 
-  return ret;
+  return noise_registers;
 }
 
 absl::StatusOr<PrngSeed> GetPrngSeedFromString(const std::string& seed_str) {
@@ -119,9 +120,10 @@ absl::Status VerifySketchParameters(const ShareShuffleSketchParams& params) {
   if (params.ring_modulus() < 2) {
     return absl::InvalidArgumentError("The ring modulus must be at least 2.");
   }
-  if (params.ring_modulus() <= params.maximum_frequency() + 1) {
+  if (params.ring_modulus() <= params.maximum_combined_frequency() + 1) {
     return absl::InvalidArgumentError(
-        "The ring modulus must be greater than maximum frequency plus one.");
+        "The ring modulus must be greater than maximum combined frequency plus "
+        "one.");
   }
   if (params.ring_modulus() > (1 << (8 * params.bytes_per_register()))) {
     return absl::InvalidArgumentError(
@@ -143,44 +145,41 @@ absl::StatusOr<CompleteShufflePhaseResponse> CompleteShufflePhase(
     return absl::InvalidArgumentError("Sketch shares must not be empty.");
   }
 
-  int sketch_size = request.sketch_params().register_count();
+  const int sketch_size = request.sketch_params().register_count();
 
   // Combines the input shares.
   std::vector<uint32_t> combined_sketch(sketch_size, 0);
   for (int i = 0; i < request.sketch_shares().size(); i++) {
+    std::vector<uint32_t> share_vector;
     switch (request.sketch_shares().Get(i).share_type_case()) {
       case CompleteShufflePhaseRequest::SketchShare::kData:
-        if (request.sketch_shares().Get(i).data().values().size() !=
-            request.sketch_params().register_count()) {
-          return absl::InvalidArgumentError("Invalid input size.");
-        }
-        for (int j = 0; j < sketch_size; j++) {
-          // It's guaranteed that (combined_sketch[j] +
-          // request.sketch_shares().Get(i).data().values(j)) is not greater
-          // than 2^{32}-1.
-          combined_sketch[j] =
-              (combined_sketch[j] +
-               request.sketch_shares().Get(i).data().values(j)) %
-              request.sketch_params().ring_modulus();
-        }
+        share_vector =
+            std::vector(request.sketch_shares().Get(i).data().values().begin(),
+                        request.sketch_shares().Get(i).data().values().end());
         break;
       case CompleteShufflePhaseRequest::SketchShare::kSeed: {
         ASSIGN_OR_RETURN(
             PrngSeed seed,
             GetPrngSeedFromString(request.sketch_shares().Get(i).seed()));
-        ASSIGN_OR_RETURN(std::vector<uint32_t> share_from_seed,
+        ASSIGN_OR_RETURN(share_vector,
                          GenerateShareFromSeed(request.sketch_params(), seed));
-        for (int j = 0; j < sketch_size; j++) {
-          // It's guaranteed that (combined_sketch[j] + share_from_seed[j]) is
-          // not greater than 2^{32}-1.
-          combined_sketch[j] = (combined_sketch[j] + share_from_seed[j]) %
-                               request.sketch_params().ring_modulus();
-        }
         break;
       }
       case CompleteShufflePhaseRequest::SketchShare::SHARE_TYPE_NOT_SET:
         return absl::InvalidArgumentError("Share type is not defined.");
         break;
+    }
+    if (share_vector.size() != sketch_size) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "The $0-th sketch share has invalid size. Expect $1 but the "
+          "actual is $2.",
+          i, sketch_size, share_vector.size()));
+    }
+    for (int j = 0; j < sketch_size; j++) {
+      // It's guaranteed that (combined_sketch[j] + share_vector[j]) is
+      // not greater than 2^{32}-1.
+      combined_sketch[j] = (combined_sketch[j] + share_vector[j]) %
+                           request.sketch_params().ring_modulus();
     }
   }
 
@@ -211,11 +210,12 @@ absl::StatusOr<CompleteShufflePhaseResponse> CompleteShufflePhase(
     // Two workers generates shares of noise as below:
     // Worker 1: rand_vec_1 || rand_vec_2 <-- PRNG(seed).
     // Worker 2: rand_vec_2 || rand_vec_2 <-- PRNG(seed).
-    // Worker 1 obtains shares: {first_local_noise_share ||
-    // second_local_noise_share} = {(noise_registers_1 - rand_vec_1) ||
-    // rand_vec_2}. Worker 2 obtains shares: {first_local_noise_share ||
-    // second_local_noise_share} = {rand_vec_1 || (noise_registers_2 -
-    // rand_vec_2)}.
+    // Worker 1 obtains shares:
+    // {first_local_noise_share || second_local_noise_share}
+    // = {(noise_registers_1 - rand_vec_1) || rand_vec_2}.
+    // Worker 2 obtains shares:
+    // {first_local_noise_share ||second_local_noise_share}
+    // = {rand_vec_1 || (noise_registers_2 - rand_vec_2)}.
     if (request.order() == CompleteShufflePhaseRequest::FIRST) {
       ASSIGN_OR_RETURN(
           std::vector<uint32_t> first_peer_noise_share,

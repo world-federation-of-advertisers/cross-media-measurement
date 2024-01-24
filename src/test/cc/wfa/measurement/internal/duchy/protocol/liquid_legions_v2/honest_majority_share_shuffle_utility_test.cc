@@ -64,11 +64,11 @@ using ::wfa::measurement::internal::duchy::protocol::
 using ::wfa::measurement::internal::duchy::protocol::
     CompleteShufflePhaseResponse;
 
-constexpr int kEDPCount = 5;
+constexpr int kEdpCount = 5;
 constexpr int kRegisterCount = 10;
 constexpr int kBytesPerRegister = 1;
-constexpr int kMaxFrequencyPerEDP = 10;
-constexpr int kMaxFrequency = 1 + kEDPCount * kMaxFrequencyPerEDP;
+constexpr int kMaxFrequencyPerEdp = 10;
+constexpr int kMaxCombinedFrequency = 1 + kEdpCount * kMaxFrequencyPerEdp;
 constexpr int kRingModulus = 128;
 constexpr double kEpsilon = 1.0;
 constexpr double kDelta = 0.000001;
@@ -93,11 +93,12 @@ class ShufflePhaseTestData {
   }
 
   void SetSketchParams(int register_count, int bytes_per_register,
-                       int max_frequency, int ring_modulus) {
+                       int maximum_combined_frequency, int ring_modulus) {
     request_.mutable_sketch_params()->set_register_count(register_count);
     request_.mutable_sketch_params()->set_bytes_per_register(
         bytes_per_register);
-    request_.mutable_sketch_params()->set_maximum_frequency(max_frequency);
+    request_.mutable_sketch_params()->set_maximum_combined_frequency(
+        maximum_combined_frequency);
     request_.mutable_sketch_params()->set_ring_modulus(ring_modulus);
   }
 
@@ -162,7 +163,8 @@ class ShufflePhaseTestData {
 TEST(ShufflePhaseAtNonAggregator, InvalidRegisterCountFails) {
   ShufflePhaseTestData test_data;
   test_data.SetSketchParams(/*register_count=*/0, /*bytes_per_registers=*/1,
-                            /*max_frequency=*/10, /*ring_modulus=*/128);
+                            /*maximum_combined_frequency=*/10,
+                            /*ring_modulus=*/128);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
   EXPECT_THAT(test_data.RunShufflePhase().status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "register count"));
@@ -171,7 +173,8 @@ TEST(ShufflePhaseAtNonAggregator, InvalidRegisterCountFails) {
 TEST(ShufflePhaseAtNonAggregator, InvalidRingModulusFails) {
   ShufflePhaseTestData test_data;
   test_data.SetSketchParams(/*register_count=*/100, /*bytes_per_registers=*/1,
-                            /*max_frequency=*/10, /*ring_modulus=*/1);
+                            /*maximum_combined_frequency=*/10,
+                            /*ring_modulus=*/1);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
   EXPECT_THAT(test_data.RunShufflePhase().status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "at least 2"));
@@ -180,7 +183,8 @@ TEST(ShufflePhaseAtNonAggregator, InvalidRingModulusFails) {
 TEST(ShufflePhaseAtNonAggregator, InvalidRingModulusAndMaxFrequencyPairFails) {
   ShufflePhaseTestData test_data;
   test_data.SetSketchParams(/*register_count=*/100, /*bytes_per_registers=*/1,
-                            /*max_frequency=*/4, /*ring_modulus=*/5);
+                            /*maximum_combined_frequency=*/4,
+                            /*ring_modulus=*/5);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
   EXPECT_THAT(test_data.RunShufflePhase().status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "plus one"));
@@ -189,7 +193,8 @@ TEST(ShufflePhaseAtNonAggregator, InvalidRingModulusAndMaxFrequencyPairFails) {
 TEST(ShufflePhaseAtNonAggregator, RingModulusDoesNotFitTheRegisterFails) {
   ShufflePhaseTestData test_data;
   test_data.SetSketchParams(/*register_count=*/100, /*bytes_per_registers=*/1,
-                            /*max_frequency=*/127, /*ring_modulus=*/257);
+                            /*maximum_combined_frequency=*/127,
+                            /*ring_modulus=*/257);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
   EXPECT_THAT(test_data.RunShufflePhase().status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "bit length"));
@@ -197,20 +202,19 @@ TEST(ShufflePhaseAtNonAggregator, RingModulusDoesNotFitTheRegisterFails) {
 
 TEST(ShufflePhaseAtNonAggregator, InputSizeDoesNotMatchTheConfigFails) {
   ShufflePhaseTestData test_data;
-  test_data.SetSketchParams(kRegisterCount, kBytesPerRegister, kMaxFrequency,
-                            kRingModulus);
+  test_data.SetSketchParams(kRegisterCount, kBytesPerRegister,
+                            kMaxCombinedFrequency, kRingModulus);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
   std::vector<uint32_t> share_data(kRegisterCount - 1, 1);
   test_data.AddShareToSketchShares(share_data);
-  EXPECT_THAT(
-      test_data.RunShufflePhase().status(),
-      StatusIs(absl::StatusCode::kInvalidArgument, "Invalid input size"));
+  EXPECT_THAT(test_data.RunShufflePhase().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "invalid size"));
 }
 
 TEST(ShufflePhaseAtNonAggregator, EmptySketchSharesFails) {
   ShufflePhaseTestData test_data;
-  test_data.SetSketchParams(kRegisterCount, kBytesPerRegister, kMaxFrequency,
-                            kRingModulus);
+  test_data.SetSketchParams(kRegisterCount, kBytesPerRegister,
+                            kMaxCombinedFrequency, kRingModulus);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
   EXPECT_THAT(test_data.RunShufflePhase().status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "empty"));
@@ -219,8 +223,8 @@ TEST(ShufflePhaseAtNonAggregator, EmptySketchSharesFails) {
 TEST(ShufflePhaseAtNonAggregator,
      NonAggregatorOrderNotSpecifiedAndDpParamsNotSpecifiedSucceeds) {
   ShufflePhaseTestData test_data;
-  test_data.SetSketchParams(kRegisterCount, kBytesPerRegister, kMaxFrequency,
-                            kRingModulus);
+  test_data.SetSketchParams(kRegisterCount, kBytesPerRegister,
+                            kMaxCombinedFrequency, kRingModulus);
   std::vector<uint32_t> share_data(kRegisterCount, 1);
   test_data.AddShareToSketchShares(share_data);
   EXPECT_EQ(test_data.RunShufflePhase().status(), absl::OkStatus());
@@ -229,8 +233,8 @@ TEST(ShufflePhaseAtNonAggregator,
 TEST(ShufflePhaseAtNonAggregator,
      NonAggregatorOrderNotSpecifiedAndDpParamsSpecifiedFails) {
   ShufflePhaseTestData test_data;
-  test_data.SetSketchParams(kRegisterCount, kBytesPerRegister, kMaxFrequency,
-                            kRingModulus);
+  test_data.SetSketchParams(kRegisterCount, kBytesPerRegister,
+                            kMaxCombinedFrequency, kRingModulus);
   test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   std::vector<uint32_t> share_data(kRegisterCount, 1);
   test_data.AddShareToSketchShares(share_data);
@@ -241,13 +245,13 @@ TEST(ShufflePhaseAtNonAggregator,
 TEST(ShufflePhaseAtNonAggregator,
      SketchSharesContainOnlyShareVectorAndNoDpNoiseSucceeds) {
   ShufflePhaseTestData test_data;
-  test_data.SetSketchParams(kRegisterCount, kBytesPerRegister, kMaxFrequency,
-                            kRingModulus);
+  test_data.SetSketchParams(kRegisterCount, kBytesPerRegister,
+                            kMaxCombinedFrequency, kRingModulus);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
   ASSERT_OK_AND_ASSIGN(
       std::vector<uint32_t> share_vector,
       test_data.GenerateUniformRandomRange(kRegisterCount, kRingModulus));
-  for (int i = 0; i < kEDPCount; i++) {
+  for (int i = 0; i < kEdpCount; i++) {
     test_data.AddShareToSketchShares(share_vector);
   }
 
@@ -260,7 +264,7 @@ TEST(ShufflePhaseAtNonAggregator,
 
   std::vector<uint32_t> expected_combined_sketch(kRegisterCount);
   for (int i = 0; i < expected_combined_sketch.size(); i++) {
-    expected_combined_sketch[i] = kEDPCount * share_vector[i] % kRingModulus;
+    expected_combined_sketch[i] = kEdpCount * share_vector[i] % kRingModulus;
   }
 
   EXPECT_THAT(combined_sketch,
@@ -270,11 +274,11 @@ TEST(ShufflePhaseAtNonAggregator,
 TEST(ShufflePhaseAtNonAggregator,
      SketchSharesContainOnlySeedsAndNoDpNoiseSucceeds) {
   ShufflePhaseTestData test_data;
-  test_data.SetSketchParams(kRegisterCount, kBytesPerRegister, kMaxFrequency,
-                            kRingModulus);
+  test_data.SetSketchParams(kRegisterCount, kBytesPerRegister,
+                            kMaxCombinedFrequency, kRingModulus);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
   std::string share_seed(kBytesPerAes256Key + kBytesPerAes256Iv, 'c');
-  for (int i = 0; i < kEDPCount; i++) {
+  for (int i = 0; i < kEdpCount; i++) {
     test_data.AddSeedToSketchShares(share_seed);
   }
   ASSERT_OK_AND_ASSIGN(CompleteShufflePhaseResponse ret,
@@ -296,7 +300,7 @@ TEST(ShufflePhaseAtNonAggregator,
   std::vector<uint32_t> expected_combined_sketch(kRegisterCount);
   for (int i = 0; i < expected_combined_sketch.size(); i++) {
     expected_combined_sketch[i] =
-        kEDPCount * expected_single_share_vector[i] % kRingModulus;
+        kEdpCount * expected_single_share_vector[i] % kRingModulus;
   }
 
   EXPECT_THAT(combined_sketch,
@@ -306,8 +310,8 @@ TEST(ShufflePhaseAtNonAggregator,
 TEST(ShufflePhaseAtNonAggregator,
      SketchSharesContainShareVectorAndSeedsAndNoDpNoiseSucceeds) {
   ShufflePhaseTestData test_data;
-  test_data.SetSketchParams(kRegisterCount, kBytesPerRegister, kMaxFrequency,
-                            kRingModulus);
+  test_data.SetSketchParams(kRegisterCount, kBytesPerRegister,
+                            kMaxCombinedFrequency, kRingModulus);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
 
   ASSERT_OK_AND_ASSIGN(
@@ -346,8 +350,8 @@ TEST(ShufflePhaseAtNonAggregator,
 
 TEST(ShufflePhaseAtNonAggregator, ShufflePhaseWithDpNoiseSucceeds) {
   ShufflePhaseTestData test_data;
-  test_data.SetSketchParams(kRegisterCount, kBytesPerRegister, kMaxFrequency,
-                            kRingModulus);
+  test_data.SetSketchParams(kRegisterCount, kBytesPerRegister,
+                            kMaxCombinedFrequency, kRingModulus);
   test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
 
@@ -370,7 +374,7 @@ TEST(ShufflePhaseAtNonAggregator, ShufflePhaseWithDpNoiseSucceeds) {
                                         /*contributors_count=*/2,
                                         NoiseMechanism::DISCRETE_GAUSSIAN);
   int64_t total_noise_registers_count_per_duchy =
-      noiser->options().shift_offset * 2 * (1 + kMaxFrequency);
+      noiser->options().shift_offset * 2 * (1 + kMaxCombinedFrequency);
 
   ASSERT_THAT(
       combined_sketch,
@@ -399,21 +403,21 @@ TEST(ShufflePhaseAtNonAggregator, ShufflePhaseWithDpNoiseSucceeds) {
 TEST(ShufflePhaseAtNonAggregator,
      ShufflePhaseSimulationForTwoDuchiesWithoutDpNoiseSucceeds) {
   ShufflePhaseTestData test_data_1;
-  test_data_1.SetSketchParams(kRegisterCount, kBytesPerRegister, kMaxFrequency,
-                              kRingModulus);
+  test_data_1.SetSketchParams(kRegisterCount, kBytesPerRegister,
+                              kMaxCombinedFrequency, kRingModulus);
   test_data_1.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
 
   ShufflePhaseTestData test_data_2;
-  test_data_2.SetSketchParams(kRegisterCount, kBytesPerRegister, kMaxFrequency,
-                              kRingModulus);
+  test_data_2.SetSketchParams(kRegisterCount, kBytesPerRegister,
+                              kMaxCombinedFrequency, kRingModulus);
   test_data_2.SetNonAggregatorOrder(CompleteShufflePhaseRequest::SECOND);
 
   ASSERT_OK_AND_ASSIGN(std::vector<uint32_t> input_a,
                        test_data_1.GenerateUniformRandomRange(
-                           kRegisterCount, kMaxFrequencyPerEDP));
+                           kRegisterCount, kMaxFrequencyPerEdp));
   ASSERT_OK_AND_ASSIGN(std::vector<uint32_t> input_b,
                        test_data_2.GenerateUniformRandomRange(
-                           kRegisterCount, kMaxFrequencyPerEDP));
+                           kRegisterCount, kMaxFrequencyPerEdp));
 
   SecretShareParameter ss_params;
   ss_params.set_modulus(kRingModulus);
@@ -458,23 +462,23 @@ TEST(ShufflePhaseAtNonAggregator,
 TEST(ShufflePhaseAtNonAggregator,
      ShufflePhaseSimulationForTwoDuchiesWithDpNoiseSucceeds) {
   ShufflePhaseTestData test_data_1;
-  test_data_1.SetSketchParams(kRegisterCount, kBytesPerRegister, kMaxFrequency,
-                              kRingModulus);
+  test_data_1.SetSketchParams(kRegisterCount, kBytesPerRegister,
+                              kMaxCombinedFrequency, kRingModulus);
   test_data_1.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   test_data_1.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
 
   ShufflePhaseTestData test_data_2;
-  test_data_2.SetSketchParams(kRegisterCount, kBytesPerRegister, kMaxFrequency,
-                              kRingModulus);
+  test_data_2.SetSketchParams(kRegisterCount, kBytesPerRegister,
+                              kMaxCombinedFrequency, kRingModulus);
   test_data_2.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   test_data_2.SetNonAggregatorOrder(CompleteShufflePhaseRequest::SECOND);
 
   ASSERT_OK_AND_ASSIGN(std::vector<uint32_t> input_a,
                        test_data_1.GenerateUniformRandomRange(
-                           kRegisterCount, kMaxFrequencyPerEDP));
+                           kRegisterCount, kMaxFrequencyPerEdp));
   ASSERT_OK_AND_ASSIGN(std::vector<uint32_t> input_b,
                        test_data_2.GenerateUniformRandomRange(
-                           kRegisterCount, kMaxFrequencyPerEDP));
+                           kRegisterCount, kMaxFrequencyPerEdp));
 
   SecretShareParameter ss_params;
   ss_params.set_modulus(kRingModulus);
@@ -519,7 +523,7 @@ TEST(ShufflePhaseAtNonAggregator,
                                         /*contributors_count=*/2,
                                         NoiseMechanism::DISCRETE_GAUSSIAN);
   int64_t total_noise_registers_count_per_duchy =
-      noiser->options().shift_offset * 2 * (1 + kMaxFrequency);
+      noiser->options().shift_offset * 2 * (1 + kMaxCombinedFrequency);
 
   ASSERT_THAT(
       combined_sketch,
@@ -539,15 +543,15 @@ TEST(ShufflePhaseAtNonAggregator,
   int total_noise_added = 2 * total_noise_registers_count_per_duchy;
 
   // Verifies that all noises are within the bound.
-  for (int i = 0; i <= kMaxFrequency; i++) {
+  for (int i = 0; i <= kMaxCombinedFrequency; i++) {
     EXPECT_LE(combined_input_frequency[i], noisy_frequency[i]);
     EXPECT_LE(noisy_frequency[i] - combined_input_frequency[i],
               total_noise_added);
   }
 
-  // The noisy frequency map [f_0, ..., f_{kMaxFrequency}, f_{kRingModulus-1}]
-  // have exactly (2 + kMaxFrequency) elements.
-  EXPECT_EQ(noisy_frequency.size(), 2 + kMaxFrequency);
+  // The noisy frequency map [f_0, ..., f_{kMaxCombinedFrequency},
+  // f_{kRingModulus-1}] have exactly (2 + kMaxCombinedFrequency) elements.
+  EXPECT_EQ(noisy_frequency.size(), 2 + kMaxCombinedFrequency);
 }
 
 }  // namespace
