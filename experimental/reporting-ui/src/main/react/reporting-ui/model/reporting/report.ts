@@ -13,25 +13,12 @@
 // limitations under the License.
 
 import {
-  Demographic,
-  Overview,
-  SummaryPublisherData,
-  TargetReach,
-  Reach,
-  UniqueReach,
-  ReportState,
+  TimeInterval as BffTimeInterval,
 } from '.';
 
 export type Report = {
-  id: string;
+  reportId: string;
   name: string;
-  overview: Overview;
-  summary: SummaryPublisherData[];
-  status: ReportState;
-  targetUniqueReachByPlatform: UniqueReach[];
-  targetXmediaReachByFreq: TargetReach[];
-  totalReach: Reach[];
-  targetReach: Reach[];
-  demo: Demographic[];
-  uniqueReachByPlatform: UniqueReach[];
+  state: string;
+  timeInterval: BffTimeInterval[];
 };

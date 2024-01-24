@@ -12,8 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export type UniqueReach = {
-  pub: number;
-  value: number;
-  date: Date;
-};
+import React from 'react';
+import { Chart, ChartType } from '../chart';
+import { ChartGroup } from '../../../model/chart_group';
+
+type OnTargetReachProps = {
+    id: string,
+    title?: string,
+    impressions: ChartGroup[],
+    pubColors: { [Name: string]: string}
+}
+
+export function Impressions({id, title='Impressions', impressions, pubColors}: OnTargetReachProps) {
+    const config = {
+        pubColors,
+    }
+
+    return (
+        <Chart
+            cardId={id}
+            title={title}
+            data={impressions}
+            config={config}
+            type={ChartType.multiLine}
+        />
+    )
+}
