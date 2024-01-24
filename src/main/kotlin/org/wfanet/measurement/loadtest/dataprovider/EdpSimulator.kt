@@ -50,6 +50,7 @@ import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt.variance
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.DeterministicCount
 import org.wfanet.measurement.api.v2alpha.DeterministicCountDistinct
 import org.wfanet.measurement.api.v2alpha.DeterministicDistribution
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
@@ -144,8 +145,9 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Referenc
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getDirectAcdpQuery
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getDpQuery
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getLiquidLegionsV2AcdpQuery
+import org.wfanet.measurement.loadtest.common.sampleVids
 import org.wfanet.measurement.loadtest.config.TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
-import org.wfanet.measurement.loadtest.config.VidSampling
+import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults.computeImpression
 
 data class EdpData(
   /** The EDP's public API resource name. */
@@ -1182,50 +1184,37 @@ class EdpSimulator(
     )
 
     logger.info("Calculating direct reach and frequency...")
-    val vidSamplingInterval = measurementSpec.vidSamplingInterval
-    val vidSamplingIntervalStart = vidSamplingInterval.start
-    val vidSamplingIntervalWidth = vidSamplingInterval.width
-
-    require(vidSamplingIntervalWidth > 0 && vidSamplingIntervalWidth <= 1.0) {
-      "Invalid vidSamplingIntervalWidth $vidSamplingIntervalWidth"
-    }
-    require(
-      vidSamplingIntervalStart < 1 &&
-        vidSamplingIntervalStart >= 0 &&
-        vidSamplingIntervalWidth > 0 &&
-        vidSamplingIntervalStart + vidSamplingIntervalWidth <= 1
-    ) {
-      "Invalid vidSamplingInterval: $vidSamplingInterval"
-    }
-
-    val sampledVids: Sequence<Long> =
-      try {
-        eventGroupSpecs
-          .asSequence()
-          .flatMap { eventQuery.getUserVirtualIds(it) }
-          .filter { vid ->
-            VidSampling.sampler.vidIsInSamplingBucket(
-              vid,
-              vidSamplingIntervalStart,
-              vidSamplingIntervalWidth,
-            )
-          }
-      } catch (e: EventFilterValidationException) {
-        logger.log(
-          Level.WARNING,
-          "RequisitionFulfillmentWorkflow failed due to invalid event filter",
-          e,
-        )
-        throw RequisitionRefusalException(
-          Requisition.Refusal.Justification.SPEC_INVALID,
-          "Invalid event filter (${e.code}): ${e.code.description}",
-        )
-      }
-
     val measurementResult =
-      buildDirectMeasurementResult(directProtocol, measurementSpec, sampledVids.asIterable())
+      buildDirectMeasurementResult(
+        directProtocol,
+        measurementSpec,
+        sampleVids(eventGroupSpecs, measurementSpec.vidSamplingInterval),
+      )
 
     fulfillDirectMeasurement(requisition, measurementSpec, nonce, measurementResult)
+  }
+
+  /**
+   * Samples VIDs from multiple [EventQuery.EventGroupSpec]s with a
+   * [MeasurementSpec.VidSamplingInterval].
+   */
+  private fun sampleVids(
+    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
+    vidSamplingInterval: MeasurementSpec.VidSamplingInterval,
+  ): Iterable<Long> {
+    return try {
+      sampleVids(eventQuery, eventGroupSpecs, vidSamplingInterval.start, vidSamplingInterval.width)
+    } catch (e: EventFilterValidationException) {
+      logger.log(
+        Level.WARNING,
+        "RequisitionFulfillmentWorkflow failed due to invalid event filter",
+        e,
+      )
+      throw RequisitionRefusalException(
+        Requisition.Refusal.Justification.SPEC_INVALID,
+        "Invalid event filter (${e.code}): ${e.code.description}",
+      )
+    }
   }
 
   private fun getPublisherNoiser(
@@ -1301,6 +1290,26 @@ class EdpSimulator(
   }
 
   /**
+   * Add publisher noise to calculated impression.
+   *
+   * @param impressionValue Impression value.
+   * @param impressionMeasurementSpec Measurement spec of impression.
+   * @param directNoiseMechanism Selected noise mechanism for impression.
+   * @return Noised non-negative impression value.
+   */
+  private fun addImpressionPublisherNoise(
+    impressionValue: Long,
+    impressionMeasurementSpec: MeasurementSpec.Impression,
+    directNoiseMechanism: DirectNoiseMechanism,
+  ): Long {
+    val noiser: AbstractNoiser =
+      getPublisherNoiser(impressionMeasurementSpec.privacyParams, directNoiseMechanism, random)
+    // Noise needs to be scaled by maximumFrequencyPerUser.
+    val noise = noiser.sample() * impressionMeasurementSpec.maximumFrequencyPerUser
+    return max(0L, impressionValue + noise.roundToInt())
+  }
+
+  /**
    * Build [Measurement.Result] of the measurement type specified in [MeasurementSpec].
    *
    * @param measurementSpec Measurement spec.
@@ -1370,15 +1379,31 @@ class EdpSimulator(
         }
       }
       MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
+        if (!directProtocolConfig.hasDeterministicCount()) {
+          throw RequisitionRefusalException(
+            Requisition.Refusal.Justification.DECLINED,
+            "No valid methodologies for impression computation.",
+          )
+        }
+
+        val sampledImpressionCount =
+          computeImpression(samples, measurementSpec.impression.maximumFrequencyPerUser)
+
+        logger.info("Adding $directNoiseMechanism publisher noise to impression...")
+        val sampledNoisedImpressionCount =
+          addImpressionPublisherNoise(
+            sampledImpressionCount,
+            measurementSpec.impression,
+            directNoiseMechanism,
+          )
+        val scaledNoisedImpressionCount =
+          (sampledNoisedImpressionCount / measurementSpec.vidSamplingInterval.width).toLong()
+
         MeasurementKt.result {
           impression = impression {
-            // Use externalDataProviderId since it's a known value the FrontendSimulator can verify.
-            // TODO: Calculate impression from data.
-            value = apiIdToExternalId(DataProviderKey.fromName(edpData.name)!!.dataProviderId)
+            value = scaledNoisedImpressionCount
             noiseMechanism = protocolConfigNoiseMechanism
-            customDirectMethodology = customDirectMethodology {
-              variance = variance { scalar = 0.0 }
-            }
+            deterministicCount = DeterministicCount.getDefaultInstance()
           }
         }
       }
@@ -1524,8 +1549,13 @@ class EdpSimulator(
       directProtocol.selectedDirectNoiseMechanism,
     )
 
+    logger.info("Calculating impression...")
     val measurementResult =
-      buildDirectMeasurementResult(directProtocol, measurementSpec, listOf<Long>().asIterable())
+      buildDirectMeasurementResult(
+        directProtocol,
+        measurementSpec,
+        sampleVids(eventGroupSpecs, measurementSpec.vidSamplingInterval),
+      )
 
     fulfillDirectMeasurement(requisition, measurementSpec, requisitionSpec.nonce, measurementResult)
   }
