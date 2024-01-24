@@ -19,7 +19,8 @@ import {
   SummaryPublisherData,
 } from '../../model/reporting';
 import { ReportRepository } from '../../model/report/report_repository';
-import { Metric } from '../../model/reporting/time_interval';
+import { Metric } from '../../model/reporting';
+import { ChartGroup } from '../../model/chart_group';
 
 type UiReport = {
   id: string,
@@ -35,67 +36,15 @@ type UiReport = {
   averageFrequency: ChartGroup[],
 }
 
-export type ChartGroup = {
-  date: Date|string;
-  value: number;
-  group: string;
-}
-
-type iAndF = {
+type ChartAndMetaData = {
   impressions: ChartGroup[],
   cumulativeImpressions: ChartGroup[],
   frequencies: ChartGroup[],
-  summary: SummaryPublisherData[],
-  overview: any,
-}
-
-type Reaches = {
   uniqueReach: ChartGroup[],
   totalReach: ChartGroup[],
   totalCumulativeReach: ChartGroup[],
-}
-
-const getReaches = (report: Report): Reaches => {
-  const uniqueReach: ChartGroup[] = [];
-  const totalReach: ChartGroup[] = [];
-  const totalCumulativeReach: ChartGroup[] = [];
-
-  const getReachGroup = (source: Metric, startTime: Date, demoCategoryName: string): ChartGroup => {
-    const imp = {
-      group: `${source.sourceName}|${demoCategoryName}`,
-      value: fixNumber(source.reach),
-      date: new Date(startTime),
-    };
-    return imp;
-  }
-
-  report.timeInterval.forEach(ti => {
-    ti.demoBucket.forEach(db => {
-      db.perPublisherSource.forEach(pub => {
-        const arr = pub.cumulative ? totalCumulativeReach : totalReach;
-        const imp = getReachGroup(pub, ti.timeInterval.startTime, db.demoCategoryName);
-        arr.push(imp);
-
-        uniqueReach.push({
-          value: fixNumber(pub.uniqueReach),
-          group: `${pub.sourceName}|${db.demoCategoryName}`,
-          date: new Date(ti.timeInterval.startTime),
-        })
-      })
-
-      db.unionSource.forEach(us => {
-        const arr = us.cumulative ? totalCumulativeReach : totalReach;
-        const imp = getReachGroup(us, ti.timeInterval.startTime, db.demoCategoryName);
-        arr.push(imp);
-      })
-    });
-  });
-
-  return {
-    uniqueReach,
-    totalReach,
-    totalCumulativeReach,
-  };
+  summary: SummaryPublisherData[],
+  overview: Overview,
 }
 
 const fixNumber = (num: number): number => {
@@ -103,11 +52,102 @@ const fixNumber = (num: number): number => {
   return Number.isNaN(newNum) || newNum < 0 ? 0 : newNum;
 }
 
-const getImpressionsAndFrequencies = (report: Report): iAndF => {
-  const test: Map<string, Map<string,number>> = new Map(); // pub -> freq label -> value
+const setReach = (source: Metric, time: Date, demoCategory: string, reachArr: ChartGroup[]) => {
+  const reach = {
+    group: `${source.sourceName}|${demoCategory}`,
+    value: fixNumber(source.reach),
+    date: new Date(time),
+  };
+  reachArr.push(reach);
+}
+
+const setUniqueReach = (source: Metric, time: Date, demoCategory: string, reachArr: ChartGroup[]) => {
+  reachArr.push({
+    value: fixNumber(source.uniqueReach),
+    group: `${source.sourceName}|${demoCategory}`,
+    date: new Date(time),
+  });
+}
+
+const getDefaultSummaryPublisherData = (sourceName: string, pubDataByPub: Map<string, SummaryPublisherData>) => {
+  const summaryPublisherData = {
+    id: sourceName,
+    publisher: sourceName,
+    impressions: 0,
+    reach: 0,
+    onTargetReach: 0,
+    uniqueReach: 0,
+    averageFrequency: 0,
+  }
+  pubDataByPub.set(sourceName, summaryPublisherData);
+  return summaryPublisherData;
+};
+
+const setSummaryPublisherData = (source: Metric, pubDataByPub: Map<string, SummaryPublisherData>, lastDay: boolean) => {
+  const summaryPubData = pubDataByPub.get(source.sourceName)
+    || getDefaultSummaryPublisherData(source.sourceName, pubDataByPub);
+  // if(source.cumulative && lastDay) {
+  if (false) {
+    // Take the frequencies from the last day.
+    summaryPubData.impressions = fixNumber(source.impressionCount.count);
+    summaryPubData.reach = fixNumber(source.reach);
+    summaryPubData.uniqueReach = fixNumber(source.uniqueReach)
+    summaryPubData.averageFrequency = summaryPubData.impressions / summaryPubData.reach
+  } else {
+    // Add up the frequencies over every day.
+    // TODO(@bdomen): Finish implementing
+    summaryPubData.impressions += fixNumber(source.impressionCount.count);
+    summaryPubData.reach += fixNumber(source.reach);
+    summaryPubData.uniqueReach += fixNumber(source.uniqueReach)
+    summaryPubData.averageFrequency = summaryPubData.impressions / summaryPubData.reach
+  }
+}
+
+const setImpressions = (source: Metric, time: Date, demoCategory: string, impArr: ChartGroup[]) => {
+  const imp = {
+    group: `${source.sourceName}|${demoCategory}`,
+    value: fixNumber(source.impressionCount.count),
+    date: new Date(time),
+  };
+  impArr.push(imp);
+}
+
+const setFrequencies = (source: Metric, intervalIndex: number, demoCategory: string, freqArr: ChartGroup[], lastDay: boolean) => {
+  if (source.cumulative && lastDay) {
+    // Take the frequencies from the last day.
+    Object.entries(source.frequencyHistogram).forEach(([key, value]) => {
+      const frequency = {
+        group: `${source.sourceName}|${demoCategory}`,
+        value,
+        date: `${key}+`
+      };
+      freqArr.push(frequency)
+    });
+  } else {
+    // Add up the frequencies over every day.
+    // TODO(@bdomen): Finish implementing
+  }
+}
+
+const setOverview = (source: Metric, lastDay: boolean, overview: Overview) => {
+  if(source.cumulative && lastDay) {
+    // Take the values from the last day.
+    overview.totalImpressions = fixNumber(source.impressionCount.count);
+    overview.totalReach = fixNumber(source.reach);
+    overview.totalAverageFrequency = overview.totalImpressions / overview.totalReach;
+  } else {
+    // Add up the values over every day.
+    // TODO(@bdomen): Finish implementing
+  }
+}
+
+const getReportChartAndMeta = (report: Report): ChartAndMetaData => {
+  const frequencies: ChartGroup[] = [];
   const impressions: ChartGroup[] = [];
   const cumulativeImpressions: ChartGroup[] = [];
-  const frequencies: ChartGroup[] = [];
+  const uniqueReach: ChartGroup[] = [];
+  const totalReach: ChartGroup[] = [];
+  const totalCumulativeReach: ChartGroup[] = [];
   const overview: Overview = {
     totalImpressions: 0,
     totalReach: 0,
@@ -119,116 +159,42 @@ const getImpressionsAndFrequencies = (report: Report): iAndF => {
     endDate: new Date(2024, 0, 30).toLocaleDateString(),
   }
 
-  const getImpressionGroup = (source: Metric, startTime: Date, demoCategoryName: string): ChartGroup => {
-    const imp = {
-      group: `${source.sourceName}|${demoCategoryName}`,
-      value: fixNumber(source.impressionCount.count),
-      date: new Date(startTime),
-    };
-    return imp;
-  }
-
   // Don't add the complements or union
-  const dict: { [id: string] : SummaryPublisherData; } = {};
+  const pubDatabyPub = new Map<string, SummaryPublisherData>();
 
   report.timeInterval.forEach((ti, intervalIndex) => {
     ti.demoBucket.forEach(db => {
+      const lastDay = intervalIndex == report.timeInterval.length - 1;
       db.perPublisherSource.forEach(pps => {
-        if (!Object.keys(dict).includes(pps.sourceName)) {
-          dict[pps.sourceName] = {
-            id: pps.sourceName,
-            publisher: pps.sourceName,
-            impressions: 0,
-            reach: 0,
-            onTargetReach: 0,
-            uniqueReach: 0,
-            averageFrequency: 0,
-          }
-        }
-        if(pps.cumulative) {
-          dict[pps.sourceName].impressions = fixNumber(pps.impressionCount.count);
-          dict[pps.sourceName].reach = fixNumber(pps.reach);
-          dict[pps.sourceName].uniqueReach = fixNumber(pps.uniqueReach)
-        } else {
-          // TODO: handle if we have no cumulative or both
-        }
-
-        // Just get the impressions
-        const arr = pps.cumulative ? cumulativeImpressions : impressions;
-        const imp = getImpressionGroup(pps, ti.timeInterval.startTime, db.demoCategoryName);
-        arr.push(imp);
-
-        // Add up the frequencies over every day.
-        if (pps.cumulative && intervalIndex == report.timeInterval.length - 1) {
-          Object.entries(pps.frequencyHistogram).forEach(([key, value]) => {
-            const groupName = `${pps.sourceName}|${db.demoCategoryName}`
-            const group = test.get(groupName);
-            const binLabel = `${key}+`;
-            if (!group) {
-              test.set(groupName, new Map([[binLabel, value]]))
-            } else {
-              const runningTotal = group.get(binLabel)
-              // group.set(binLabel, !runningTotal ? value : runningTotal + value);
-              group.set(binLabel, value);
-            }
-          });
-        } else {
-          // TODO: Handle if there are both or no union
-        }
+        const reachArr = pps.cumulative ? totalCumulativeReach : totalReach;
+        setReach(pps, ti.timeInterval.startTime, db.demoCategoryName, reachArr);
+        setUniqueReach(pps, ti.timeInterval.startTime, db.demoCategoryName, uniqueReach)
+        setSummaryPublisherData(pps, pubDatabyPub, lastDay);
+        const impArr = pps.cumulative ? cumulativeImpressions : impressions;
+        setImpressions(pps, ti.timeInterval.startTime, db.demoCategoryName, impArr);
+        setFrequencies(pps, intervalIndex, db.demoCategoryName, frequencies, lastDay);
       })
       
       db.unionSource.forEach(us => {
-        // Get Union Impressions
-        const arr = us.cumulative ? cumulativeImpressions : impressions;
-        const imp = getImpressionGroup(us, ti.timeInterval.startTime, db.demoCategoryName);
-        arr.push(imp);
-
-        // Get Union Frequencies
-        if (us.cumulative) {
-          Object.entries(us.frequencyHistogram).forEach(([key, value]) => {
-            const groupName = `${us.sourceName}|${db.demoCategoryName}`
-            const group = test.get(groupName);
-            const binLabel = `${key}+`;
-            if (!group) {
-              test.set(groupName, new Map([[binLabel, value]]))
-            } else {
-              const runningTotal = group.get(binLabel)
-              // group.set(binLabel, !runningTotal ? value : runningTotal + value);
-              group.set(binLabel, value);        }
-          });
-        } else {
-          // TODO: Handle if there are both or no union
-        }
-        if(us.cumulative) {
-          overview.totalImpressions = fixNumber(us.impressionCount.count);
-          overview.totalReach = fixNumber(us.reach);
-          overview.totalAverageFrequency = overview.totalImpressions / overview.totalReach;
-        }
+        const reachArr = us.cumulative ? totalCumulativeReach : totalReach;
+        setReach(us, ti.timeInterval.startTime, db.demoCategoryName, reachArr);
+        const impArr = us.cumulative ? cumulativeImpressions : impressions;
+        setImpressions(us, ti.timeInterval.startTime, db.demoCategoryName, impArr);
+        setFrequencies(us, intervalIndex, db.demoCategoryName, frequencies, lastDay);
+        setOverview(us, lastDay, overview);
       });
-
     });
   });
-
-  for (let [pub, bins] of test) {
-    for (let [label, value] of bins) {
-      frequencies.push({
-        group: pub,
-        value,
-        date: label
-      })
-    }
-  }
-
-  for (let pub of Object.values(dict)) {
-    pub.averageFrequency = pub.impressions / pub.reach
-  }
 
   return {
     impressions,
     cumulativeImpressions,
     frequencies,
+    uniqueReach,
+    totalReach,
+    totalCumulativeReach,
     overview,
-    summary: Object.values(dict),
+    summary: Array.from(pubDatabyPub.values()),
   }
 }
 
@@ -243,36 +209,35 @@ const handleUiReport = (report: Report|undefined): UiReport|null => {
     frequencies,
     summary,
     overview,
-  } = getImpressionsAndFrequencies(report)
-  const {
     uniqueReach,
     totalReach,
     totalCumulativeReach,
-  } = getReaches(report);
+  } = getReportChartAndMeta(report)
 
-  const res =  {
+  const uiReport = {
     id: report.reportId,
     name: report.name,
     status: report.state,
     overview,
     summary,
-    impressions: filter(impressions, 'all'),
-    cumulativeImpressions: filter(cumulativeImpressions, 'all'),
-    uniqueReach: filter(uniqueReach, 'all'),
-    totalReach: filter(totalReach, 'all'),
-    totalCumulativeReach: filter(totalCumulativeReach, 'all'),
-    averageFrequency: filter(frequencies, 'all'),
+    impressions: filter(impressions),
+    cumulativeImpressions: filter(cumulativeImpressions),
+    uniqueReach: filter(uniqueReach),
+    totalReach: filter(totalReach),
+    totalCumulativeReach: filter(totalCumulativeReach),
+    averageFrequency: filter(frequencies),
   };
-  return res;
+
+  return uiReport;
 };
 
-const filter = (data: ChartGroup[], filters: 'all'|string[]): ChartGroup[] => {
+// TODO(@bdomen-ggl): Stubbed. Finish implementing
+const filter = (data: ChartGroup[], filters: 'all'|string[] = 'all'): ChartGroup[] => {
   // Remove data points that aren't contained in the filters
   // If 'all' then skip this step
   if (filters !== 'all') {
-
   } else {
-    // ... do stuff ...
+
   }
 
   // Combine the remaining data points by date/publisher by summing the values

@@ -18,7 +18,7 @@ import Container from 'react-bootstrap/Container';
 import Row from 'react-bootstrap/Row';
 import { TotalReach } from '../../../component/chart/total_reach/total_reach';
 import { UniqueReqchByPlat } from '../../../component/chart/unique_reach_by_plat/unique_reach_by_plat';
-import { ChartGroup } from '../../../view_model/report/report_view_model';
+import { ChartGroup } from '../../../model/chart_group';
 import { Impressions } from '../../../component/chart/impressions/impressions';
 import { Frequencies } from '../../../component/chart/frequencies/frequencies';
 

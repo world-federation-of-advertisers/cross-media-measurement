@@ -14,8 +14,7 @@
 
 import React from 'react';
 import { Chart, ChartType } from '../chart';
-import { Reach } from '../../../model/reporting';
-import { ChartGroup } from '../../../view_model/report/report_view_model';
+import { ChartGroup } from '../../../model/chart_group';
 
 type TotalReachProps = {
     id: string,

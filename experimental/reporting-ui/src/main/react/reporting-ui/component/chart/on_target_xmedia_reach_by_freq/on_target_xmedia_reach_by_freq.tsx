@@ -14,7 +14,7 @@
 
 import React from 'react';
 import { Chart, ChartType } from '../chart';
-import { TargetReach } from '../../../model/reporting';
+import { ChartGroup } from '../../../model/chart_group';
 
 const neutralColors = [
     "#CACACA",
@@ -24,7 +24,7 @@ const neutralColors = [
 
 type OnTargetXmediaReachByFreqProps = {
     id: string,
-    reach: TargetReach[],
+    reach: ChartGroup[],
 }
 
 export function OnTargetXmediaReachByFreq({id, reach}: OnTargetXmediaReachByFreqProps) {
@@ -32,7 +32,7 @@ export function OnTargetXmediaReachByFreq({id, reach}: OnTargetXmediaReachByFreq
         catColors: {}
     }
     const colors = {}
-    const unique = [...new Set(reach?.map(item => item.cat))];
+    const unique = [...new Set(reach?.map(item => item.group))];
     unique.forEach((x: any, i) => colors[x] = neutralColors[i])
     config.catColors = colors;
 

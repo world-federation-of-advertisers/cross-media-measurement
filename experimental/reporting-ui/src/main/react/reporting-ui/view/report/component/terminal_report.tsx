@@ -19,7 +19,7 @@ import { ReportOverviewStats } from './overview';
 import { SummaryTable } from './summary_table';
 import { Overview, SummaryPublisherData } from '../../../model/reporting';
 import { Charts } from './charts';
-import { ChartGroup } from '../../../view_model/report/report_view_model';
+import { ChartGroup } from '../../../model/chart_group';
 
 const COLORS = Object.freeze([
   '#FFA300',
