@@ -13,7 +13,7 @@ jobs:
 
   update-reporting-v2:
     uses: ./.github/workflows/configure-reporting-v2.yml
-    needs: [ publish-images, terraform ]
+    needs: [ terraform ]
     with:
       image-tag: latest
       environment: dev
