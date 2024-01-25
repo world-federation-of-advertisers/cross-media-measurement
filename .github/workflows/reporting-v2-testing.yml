@@ -3,13 +3,7 @@ name: Reporting V2 Testing
 on:
   pull_request:
 
-permissions:
-  id-token: write
-
 jobs:
-  publish-images:
-    uses: ./.github/workflows/push-images.yml
-
   terraform:
     uses: ./.github/workflows/terraform-cmms.yml
     secrets: inherit
