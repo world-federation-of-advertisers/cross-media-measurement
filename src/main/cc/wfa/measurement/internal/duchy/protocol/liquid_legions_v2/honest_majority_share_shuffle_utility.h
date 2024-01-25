@@ -18,6 +18,7 @@
 #include "absl/status/statusor.h"
 #include "wfa/measurement/internal/duchy/protocol/honest_majority_share_shuffle_methods.pb.h"
 
+// TODO(@ple13): Move the HMSS protocol to a sibling folder of LLv2.
 namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
 
 using ::wfa::measurement::internal::duchy::protocol::
