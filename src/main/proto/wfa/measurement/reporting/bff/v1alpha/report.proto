@@ -76,10 +76,11 @@ message Report {
         // Impression count with standard deviation.
         message ImpressionCountResult {
           // The number of impressions.
-          int64 impression_count = 1;
+          int64 count = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
 
           // The standard deviation for determining confidence intervals.
-          double standard_deviation = 2;
+          double standard_deviation = 2
+              [(google.api.field_behavior) = OUTPUT_ONLY];
         }
 
         // The number of impressions.
@@ -97,6 +98,11 @@ message Report {
 
         // The reach value.
         int64 reach = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+        // The unique reach value.
+        int64 uniqueReach = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+        bool cumulative = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
       }
 
       // The sources (excluding union) where the metrics came from.
@@ -105,7 +111,7 @@ message Report {
           [(google.api.field_behavior) = OUTPUT_ONLY];
 
       // Full union metric set.
-      SourceMetrics union_source = 3
+      repeated SourceMetrics union_source = 3
           [(google.api.field_behavior) = OUTPUT_ONLY];
     }
 
