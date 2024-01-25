@@ -1,0 +1,8 @@
+name: Reporting V2 Testing
+
+on:
+  pull_request:
+
+jobs:
+  push-images:
+    uses: ./.github/workflows/push-images.yml
