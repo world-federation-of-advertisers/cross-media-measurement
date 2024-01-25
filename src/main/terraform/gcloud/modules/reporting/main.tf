@@ -25,7 +25,7 @@ module "reporting_internal" {
   source = "../workload-identity-user"
 
   k8s_service_account_name        = "internal-reporting-server"
-  iam_service_account_name        = "reporting-internal"
+  iam_service_account_name        = var.iam_service_account_name
   iam_service_account_description = "Reporting internal API server."
 }
 

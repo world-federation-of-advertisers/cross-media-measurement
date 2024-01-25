@@ -27,3 +27,9 @@ variable "postgres_database_name" {
   nullable = false
 }
 
+variable "iam_service_account_name" {
+  description = "IAM `google_service_account.name`."
+  type = string
+  nullable = false
+}
+
