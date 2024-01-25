@@ -41,6 +41,6 @@ module "reporting_v2_default_node_pool" {
 module "reporting_v2" {
   source = "../modules/reporting"
 
-  postgres_instance = google_sql_database_instance.postgres
-  postgres_database = "reporting-v2"
+  postgres_instance      = google_sql_database_instance.postgres
+  postgres_database_name = "reporting-v2"
 }
