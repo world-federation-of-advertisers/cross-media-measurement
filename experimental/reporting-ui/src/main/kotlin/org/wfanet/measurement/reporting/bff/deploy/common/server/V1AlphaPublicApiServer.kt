@@ -1,4 +1,4 @@
-// Copyright 2023 The Cross-Media Measurement Authors
+// Copyright 2024 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.reporting.bff.service.api.v1alpha.ReportsService
 import org.wfanet.measurement.reporting.bff.v1alpha.ReportsGrpcKt.ReportsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt as HaloReportingSetsGrpcKt
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt as HaloReportsGrpcKt
 import picocli.CommandLine
 
@@ -32,7 +33,7 @@ private const val SERVER_NAME = "V1AlphaPublicUiServer"
   name = SERVER_NAME,
   description = ["Ui server daemon for Reporting v1alpha public API services."],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 private fun run(
   @CommandLine.Mixin reportingApiServerFlags: ReportingApiServerFlags,
@@ -42,18 +43,24 @@ private fun run(
     SigningCerts.fromPemFiles(
       certificateFile = commonServerFlags.tlsFlags.certFile,
       privateKeyFile = commonServerFlags.tlsFlags.privateKeyFile,
-      trustedCertCollectionFile = commonServerFlags.tlsFlags.certCollectionFile
+      trustedCertCollectionFile = commonServerFlags.tlsFlags.certCollectionFile,
     )
   val channel: Channel =
     buildMutualTlsChannel(
         reportingApiServerFlags.reportingApiFlags.target,
         clientCerts,
-        reportingApiServerFlags.reportingApiFlags.certHost
+        reportingApiServerFlags.reportingApiFlags.certHost,
       )
       .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
 
   val services: List<ServerServiceDefinition> =
-    listOf(ReportsService(HaloReportsGrpcKt.ReportsCoroutineStub(channel)).bindService())
+    listOf(
+      ReportsService(
+          HaloReportsGrpcKt.ReportsCoroutineStub(channel),
+          HaloReportingSetsGrpcKt.ReportingSetsCoroutineStub(channel),
+        )
+        .bindService()
+    )
   CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
 }
 
