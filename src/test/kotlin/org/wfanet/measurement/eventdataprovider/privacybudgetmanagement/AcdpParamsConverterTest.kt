@@ -80,9 +80,37 @@ class AcdpParamsConverterTest {
   }
 
   @Test
+  fun `llv2 rho and theta should be correct when epsilon is 1 in dpParams and three contributors`() {
+    val acdpCharge = AcdpParamsConverter.getLlv2AcdpCharge(DpParams(1.0, 1e-15), 3)
+    val expectedAcdpCharge = AcdpCharge(0.007051178301426351, 3.0946438646612866E-17)
+
+    assertThat(acdpCharge.rho).isWithin(TOLERANCE).of(expectedAcdpCharge.rho)
+    assertThat(acdpCharge.theta).isWithin(TOLERANCE).of(expectedAcdpCharge.theta)
+  }
+
+  @Test
   fun `direct rho and theta should be correct with given dpParams`() {
     val acdpCharge = AcdpParamsConverter.getDirectAcdpCharge(DP_PARAMS, SENSITIVITY)
     val expectedAcdpCharge = AcdpCharge(4.946819611450154E-4, 0.0)
+
+    assertThat(acdpCharge.rho).isWithin(TOLERANCE).of(expectedAcdpCharge.rho)
+    assertThat(acdpCharge.theta).isWithin(TOLERANCE).of(expectedAcdpCharge.theta)
+  }
+
+  @Test
+  fun `direct rho and theta should be correct when epsilon is 1 in dpParams`() {
+    // epsilon should be generally smaller than 1.0.
+    val acdpCharge = AcdpParamsConverter.getDirectAcdpCharge(DpParams(1.0, 1e-15), SENSITIVITY)
+    val expectedAcdpCharge = AcdpCharge(0.00887936992063019, 0.0)
+
+    assertThat(acdpCharge.rho).isWithin(TOLERANCE).of(expectedAcdpCharge.rho)
+    assertThat(acdpCharge.theta).isWithin(TOLERANCE).of(expectedAcdpCharge.theta)
+  }
+
+  @Test
+  fun `direct rho is large with large delta in dpParams`() {
+    val acdpCharge = AcdpParamsConverter.getDirectAcdpCharge(DpParams(0.1, 1.0), SENSITIVITY)
+    val expectedAcdpCharge = AcdpCharge(1996099.4646044022, 0.0)
 
     assertThat(acdpCharge.rho).isWithin(TOLERANCE).of(expectedAcdpCharge.rho)
     assertThat(acdpCharge.theta).isWithin(TOLERANCE).of(expectedAcdpCharge.theta)

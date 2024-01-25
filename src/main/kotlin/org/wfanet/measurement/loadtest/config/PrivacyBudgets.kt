@@ -53,7 +53,7 @@ object PrivacyBudgets {
     return PrivacyBudgetManager(
       PrivacyBucketFilter(TestPrivacyBucketMapper()),
       InMemoryBackingStore(),
-      1000.0f,
+      10.0f,
       1000.0f,
     )
   }

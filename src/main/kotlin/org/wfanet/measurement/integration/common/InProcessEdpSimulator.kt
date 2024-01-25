@@ -104,7 +104,7 @@ class InProcessEdpSimulator(
         PrivacyBudgetManager(
           PrivacyBucketFilter(TestPrivacyBucketMapper()),
           InMemoryBackingStore(),
-          100.0f,
+          10.0f,
           100.0f,
         ),
       trustedCertificates = trustedCertificates,
