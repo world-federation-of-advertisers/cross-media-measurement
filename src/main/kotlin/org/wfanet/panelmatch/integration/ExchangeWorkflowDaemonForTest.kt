@@ -94,6 +94,8 @@ class ExchangeWorkflowDaemonForTest(
 
   override val identity: Identity = Identity.fromResourceKey(provider)
 
+  override val maxConcurrentTasks = null
+
   override val apiClient: ApiClient by lazy {
     val providerName = provider.toName()
     val exchangeStepsClient =

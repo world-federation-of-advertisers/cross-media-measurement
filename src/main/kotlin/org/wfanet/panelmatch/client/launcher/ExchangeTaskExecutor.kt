@@ -16,8 +16,20 @@ package org.wfanet.panelmatch.client.launcher
 
 import com.google.protobuf.ByteString
 import java.util.logging.Level
+import java.util.logging.Logger
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.supervisorScope
+import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step
@@ -27,18 +39,16 @@ import org.wfanet.panelmatch.client.common.ExchangeContext
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskFailedException
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
-import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidatedExchangeStep
 import org.wfanet.panelmatch.client.logger.TaskLog
 import org.wfanet.panelmatch.client.logger.addToTaskLog
 import org.wfanet.panelmatch.client.logger.getAndClearTaskLog
 import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
 import org.wfanet.panelmatch.common.Timeout
-import org.wfanet.panelmatch.common.loggerFor
 
 private const val DONE_TASKS_PATH: String = "done-tasks"
 
 /**
- * Executes the work required for [ValidatedExchangeStep]s.
+ * Validates and Executes the work required for [ExchangeStep]s.
  *
  * This involves finding the appropriate [ExchangeTask], reading the inputs, executing the
  * [ExchangeTask], and saving the outputs.
@@ -47,20 +57,49 @@ class ExchangeTaskExecutor(
   private val apiClient: ApiClient,
   private val timeout: Timeout,
   private val privateStorageSelector: PrivateStorageSelector,
-  private val exchangeTaskMapper: ExchangeTaskMapper
+  private val exchangeTaskMapper: ExchangeTaskMapper,
+  private val validator: ExchangeStepValidator,
+  private val dispatcher: CoroutineDispatcher = Dispatchers.Default
 ) : ExchangeStepExecutor {
 
-  override suspend fun execute(
-    validatedStep: ValidatedExchangeStep,
+  private fun taskExceptionHandler(
     attemptKey: ExchangeStepAttemptKey
-  ) {
-    val name = "${validatedStep.step.stepId}@${attemptKey.toName()}"
-    withContext(TaskLog(name)) {
-      val context =
-        ExchangeContext(attemptKey, validatedStep.date, validatedStep.workflow, validatedStep.step)
+  ): CoroutineExceptionHandler {
+    return CoroutineExceptionHandler { _, e ->
+      logger.severe("Uncaught Exception in child coroutine:")
+      logger.severe(e.message)
+      logger.severe(e.stackTraceToString())
+
+      val attemptState =
+        when (e) {
+          is ExchangeTaskFailedException -> e.attemptState
+          else -> ExchangeStepAttempt.State.FAILED
+        }
+
+      runBlocking {
+        apiClient.finishExchangeStepAttempt(attemptKey, attemptState)
+      }
+    }
+  }
+
+  suspend fun executeWithScope(
+    exchangeStep: ExchangeStep,
+    attemptKey: ExchangeStepAttemptKey,
+    scope: CoroutineScope
+  ) : Job {
+    return scope.launch(
+  dispatcher
+        + CoroutineName(attemptKey.toName())
+        + TaskLog(attemptKey.toName())
+        + taskExceptionHandler(attemptKey)) {
+      println("I'm working in thread ${Thread.currentThread().name}")
       try {
+        val validatedStep = validator.validate(exchangeStep)
+        val context =
+          ExchangeContext(attemptKey, validatedStep.date, validatedStep.workflow, validatedStep.step)
         context.tryExecute()
       } catch (e: Exception) {
+        logger.addToTaskLog("Caught Exception in task execution:", Level.SEVERE)
         logger.addToTaskLog(e, Level.SEVERE)
         val attemptState =
           when (e) {
@@ -68,8 +107,16 @@ class ExchangeTaskExecutor(
             else -> ExchangeStepAttempt.State.FAILED
           }
         markAsFinished(attemptKey, attemptState)
-        throw e
       }
+    }
+  }
+
+  override suspend fun execute(
+    exchangeStep: ExchangeStep,
+    attemptKey: ExchangeStepAttemptKey
+  ) {
+    supervisorScope {
+      executeWithScope(exchangeStep, attemptKey, this)
     }
   }
 
@@ -140,6 +187,6 @@ class ExchangeTaskExecutor(
   }
 
   companion object {
-    private val logger by loggerFor()
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

@@ -28,7 +28,7 @@ import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.deploy.CertificateAuthorityFlags
 import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
 import org.wfanet.panelmatch.client.deploy.example.ExampleDaemon
-import org.wfanet.panelmatch.client.launcher.CoroutineLauncher
+import org.wfanet.panelmatch.client.launcher.ExchangeStepValidatorImpl
 import org.wfanet.panelmatch.client.launcher.ExchangeTaskExecutor
 import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
 import org.wfanet.panelmatch.common.beam.BeamOptions
@@ -79,7 +79,7 @@ private class AwsExampleDaemon : ExampleDaemon() {
   @set:Option(
     names = ["--s3-from-beam"],
     description = ["Whether to configure s3 access from Apache Beam."],
-    defaultValue = "true"
+    defaultValue = "false"
   )
   private var s3FromBeam by Delegates.notNull<Boolean>()
 
@@ -146,15 +146,14 @@ private class AwsExampleDaemon : ExampleDaemon() {
     )
   }
 
-  override val launcher by lazy {
-    val stepExecutor =
-      ExchangeTaskExecutor(
-        apiClient = apiClient,
-        timeout = taskTimeout,
-        privateStorageSelector = privateStorageSelector,
-        exchangeTaskMapper = exchangeTaskMapper
-      )
-    CoroutineLauncher(stepExecutor = stepExecutor, maxCoroutines = 1)
+  override val stepExecutor by lazy {
+    ExchangeTaskExecutor(
+      apiClient = apiClient,
+      timeout = taskTimeout,
+      privateStorageSelector = privateStorageSelector,
+      exchangeTaskMapper = exchangeTaskMapper,
+      validator = ExchangeStepValidatorImpl(identity.party, validExchangeWorkflows, clock)
+    )
   }
 }
 

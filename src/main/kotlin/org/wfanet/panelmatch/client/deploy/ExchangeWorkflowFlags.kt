@@ -98,7 +98,7 @@ class ExchangeWorkflowFlags {
   var debugVerboseGrpcClientLogging = false
     private set
 
-  @set:CommandLine.Option(
+  @set:Option(
     names = ["--preprocessing-max-byte-size"],
     defaultValue = "1000000",
     description = ["Max batch size for processing"],
@@ -107,12 +107,20 @@ class ExchangeWorkflowFlags {
   var preProcessingMaxByteSize by Delegates.notNull<Long>()
     private set
 
-  @set:CommandLine.Option(
+  @set:Option(
     names = ["--preprocessing-file-count"],
     defaultValue = "1000",
     description = ["Number of output files from event preprocessing step"],
     required = true
   )
   var preProcessingFileCount by Delegates.notNull<Int>()
+    private set
+
+  @Option(
+    names = ["--max-concurrent-tasks"],
+    description = ["Maximum number of concurrent tasks to allow the daemon to run."],
+    required = false,
+  )
+  var maxConcurrentTasks: Int? = null
     private set
 }

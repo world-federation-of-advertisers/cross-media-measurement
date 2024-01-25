@@ -15,13 +15,13 @@
 package org.wfanet.panelmatch.client.deploy
 
 import java.time.Clock
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.panelmatch.client.common.Identity
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 import org.wfanet.panelmatch.client.launcher.ApiClient
-import org.wfanet.panelmatch.client.launcher.CoroutineLauncher
 import org.wfanet.panelmatch.client.launcher.ExchangeStepLauncher
 import org.wfanet.panelmatch.client.launcher.ExchangeStepValidatorImpl
 import org.wfanet.panelmatch.client.launcher.ExchangeTaskExecutor
@@ -81,6 +81,8 @@ abstract class ExchangeWorkflowDaemon : Runnable {
   /** [CertificateManager] for [sharedStorageSelector]. */
   protected abstract val certificateManager: CertificateManager
 
+  protected abstract val maxConcurrentTasks: Int?
+
   /** [PrivateStorageSelector] for writing to local (non-shared) storage. */
   protected val privateStorageSelector: PrivateStorageSelector by lazy {
     PrivateStorageSelector(privateStorageFactories, privateStorageInfo)
@@ -90,16 +92,14 @@ abstract class ExchangeWorkflowDaemon : Runnable {
   protected val sharedStorageSelector: SharedStorageSelector by lazy {
     SharedStorageSelector(certificateManager, sharedStorageFactories, sharedStorageInfo)
   }
-
-  protected open val launcher by lazy {
-    val stepExecutor =
-      ExchangeTaskExecutor(
-        apiClient = apiClient,
-        timeout = taskTimeout,
-        privateStorageSelector = privateStorageSelector,
-        exchangeTaskMapper = exchangeTaskMapper
-      )
-    CoroutineLauncher(stepExecutor = stepExecutor)
+  protected open val stepExecutor by lazy {
+    ExchangeTaskExecutor(
+      apiClient = apiClient,
+      timeout = taskTimeout,
+      privateStorageSelector = privateStorageSelector,
+      exchangeTaskMapper = exchangeTaskMapper,
+      validator = ExchangeStepValidatorImpl(identity.party, validExchangeWorkflows, clock)
+    )
   }
 
   override fun run() = runBlocking { runSuspending() }
@@ -109,8 +109,8 @@ abstract class ExchangeWorkflowDaemon : Runnable {
     val exchangeStepLauncher =
       ExchangeStepLauncher(
         apiClient = apiClient,
-        validator = ExchangeStepValidatorImpl(identity.party, validExchangeWorkflows, clock),
-        jobLauncher = launcher
+        taskLauncher = stepExecutor,
+        maxTaskCoroutines = maxConcurrentTasks
       )
     runDaemon(exchangeStepLauncher)
   }
