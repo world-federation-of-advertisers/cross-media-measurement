@@ -28,6 +28,7 @@ import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.job
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.supervisorScope
 import org.junit.Before
@@ -129,6 +130,22 @@ class ExchangeTaskExecutorTest {
       )
       taskJob.join()
     }
+
+    assertThat(testPrivateStorageSelector.storageClient.getBlob("c")?.toStringUtf8())
+      .isEqualTo("Out:commutative-deterministic-encrypt-some-blob")
+  }
+
+  @Test
+  fun `naive executor reads inputs and writes outputs`() = runBlockingTest {
+    prepareBlob("some-blob")
+    whenever(validator.validate(any())).thenReturn(VALIDATED_EXCHANGE_STEP)
+
+    exchangeTaskExecutor.execute(
+      EXCHANGE_STEP,
+      ATTEMPT_KEY
+    )
+
+    this.coroutineContext.job.children.toList().joinAll()
 
     assertThat(testPrivateStorageSelector.storageClient.getBlob("c")?.toStringUtf8())
       .isEqualTo("Out:commutative-deterministic-encrypt-some-blob")
