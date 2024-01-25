@@ -1,4 +1,4 @@
-// Copyright 2023 The Cross-Media Measurement Authors
+// Copyright 2024 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,14 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export type TargetReach = {
-  cat: string; // The category of the values
-  value: number; // The value (y-axis)
-  x: number; // The x-axis
+export type Metric = {
+  sourceName: string,
+  impressionCount: ImpressionCount,
+  frequencyHistogram: { [id: number] : number; },
+  reach: number,
+  uniqueReach: number,
+  cumulative: boolean,
 };
 
-export type Reach = {
-  pub: number; // The publisher of the Reach
-  value: number; // The value (y-axis)
-  date: Date; // The date of the value (x-asix)
-};
+type ImpressionCount = {
+  count: number,
+  standardDeviation: number,
+}

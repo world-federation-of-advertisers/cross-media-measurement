@@ -14,11 +14,11 @@
 
 import React from 'react';
 import { Chart, ChartType } from '../chart';
-import { Reach } from '../../../model/reporting';
+import { ChartGroup } from '../../../model/chart_group';
 
 type OnTargetReachProps = {
     id: string,
-    reach: Reach[],
+    reach: ChartGroup[],
     pubColors: { [Name: string]: string}
 }
 

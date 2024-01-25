@@ -1,4 +1,4 @@
-// Copyright 2023 The Cross-Media Measurement Authors
+// Copyright 2024 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,10 +14,17 @@
 
 // In powers of 10
 const MAGNITUDES = Object.freeze({
-  3: 'K',
+  0: '',
+  3: 'k',
   6: 'M',
   9: 'B',
   12: 'T',
+  15: 'P',
+  18: 'E',
+  21: 'Z',
+  24: 'Y',
+  27: 'R',
+  30: 'Q',
 });
 
 export const formatNumberWithMagnitude = (
@@ -32,13 +39,9 @@ export const formatNumberWithMagnitude = (
       power += 3;
   }
 
-  if (power === 0) {
-      return num.toString();
-  } else {
-      const value = (newNumber.toFixed(decimals));
+  const value = (newNumber.toFixed(decimals));
 
-      return trailingZeros ?
-          value.toString() + MAGNITUDES[power]
-          : value.toString().replace(/\.0+$/, '') + MAGNITUDES[power]
-  }
+  return trailingZeros ?
+      value.toString() + MAGNITUDES[power]
+      : value.toString().replace(/\.0+$/, '') + MAGNITUDES[power]
 }
