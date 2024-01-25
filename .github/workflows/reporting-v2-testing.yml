@@ -4,9 +4,6 @@ on:
   push:
 
 jobs:
-  push-images:
-    uses: ./.github/workflows/push-images.yml
-
   terraform:
     uses: ./.github/workflows/terraform-cmms.yml
     secrets: inherit
