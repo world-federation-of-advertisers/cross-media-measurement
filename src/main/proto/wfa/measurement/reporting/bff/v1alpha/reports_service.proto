@@ -33,9 +33,9 @@ service Reports {
   // Returns the `Report` with the specified resource key.
   rpc GetReport(GetReportRequest) returns (Report) {
     option (google.api.http) = {
-      get: "/v1alpha/{name=measurementConsumers/*/reports/*}"
+      get: "/v1alpha/{parent=measurementConsumers/*}/reports/*"
     };
-    option (google.api.method_signature) = "name";
+    option (google.api.method_signature) = "parent";
   }
 
   // Lists `Report`s.
@@ -71,6 +71,14 @@ message GetReportRequest {
 
   // Defaults to REPORT_VIEW_FULL
   ReportView view = 2;
+
+  // Format: measurementConsumers/{measurement_consumer}
+  string parent = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "ui.reporting.halo-cmm.org/Report"
+    }
+  ];
 }
 
 // Request message for `ListReports` method.
