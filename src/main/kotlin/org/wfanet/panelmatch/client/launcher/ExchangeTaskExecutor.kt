@@ -28,6 +28,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.supervisorScope
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
@@ -84,16 +85,13 @@ class ExchangeTaskExecutor(
   suspend fun executeWithScope(
     exchangeStep: ExchangeStep,
     attemptKey: ExchangeStepAttemptKey,
-    parent: Job? = null
-  ) : Pair<Job, Job> {
-    val superJob = SupervisorJob(parent)
-    return superJob to CoroutineScope(
-      dispatcher
-        + superJob
+    scope: CoroutineScope
+  ) : Job {
+    return scope.launch(
+  dispatcher
         + CoroutineName(attemptKey.toName())
         + TaskLog(attemptKey.toName())
-        + taskExceptionHandler(attemptKey)
-    ).launch {
+        + taskExceptionHandler(attemptKey)) {
       println("I'm working in thread ${Thread.currentThread().name}")
       try {
         val validatedStep = validator.validate(exchangeStep)
@@ -117,7 +115,9 @@ class ExchangeTaskExecutor(
     exchangeStep: ExchangeStep,
     attemptKey: ExchangeStepAttemptKey
   ) {
-    executeWithScope(exchangeStep, attemptKey)
+    supervisorScope {
+      executeWithScope(exchangeStep, attemptKey, this)
+    }
   }
 
   private suspend fun readInputs(step: Step, privateStorage: StorageClient): Map<String, Blob> {

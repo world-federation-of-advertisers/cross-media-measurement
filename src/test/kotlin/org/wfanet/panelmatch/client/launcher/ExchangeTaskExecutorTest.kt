@@ -121,17 +121,14 @@ class ExchangeTaskExecutorTest {
     prepareBlob("some-blob")
     whenever(validator.validate(any())).thenReturn(VALIDATED_EXCHANGE_STEP)
 
-    val (superJob, taskJob) = exchangeTaskExecutor.executeWithScope(
-      EXCHANGE_STEP,
-      ATTEMPT_KEY,
-      this.coroutineContext.job
-    )
-    for (entry in testPrivateStorageSelector.storageClient.contents.keys) {
-      println("key: $entry, value: ${testPrivateStorageSelector.storageClient.contents[entry]}")
+    supervisorScope {
+      val taskJob = exchangeTaskExecutor.executeWithScope(
+        EXCHANGE_STEP,
+        ATTEMPT_KEY,
+        this@supervisorScope
+      )
+      taskJob.join()
     }
-    println("length: ${testPrivateStorageSelector.storageClient.contents.size}")
-    taskJob.join()
-    superJob.cancel()
 
     assertThat(testPrivateStorageSelector.storageClient.getBlob("c")?.toStringUtf8())
       .isEqualTo("Out:commutative-deterministic-encrypt-some-blob")
@@ -142,12 +139,14 @@ class ExchangeTaskExecutorTest {
     timeout.expired = true
     whenever(validator.validate(any())).thenReturn(VALIDATED_EXCHANGE_STEP)
 
-    val (superJob, taskJob) = exchangeTaskExecutor.executeWithScope(
-      EXCHANGE_STEP,
-      ATTEMPT_KEY,
-      this.coroutineContext.job)
-    taskJob.join()
-    superJob.cancel()
+    supervisorScope {
+      val taskJob = exchangeTaskExecutor.executeWithScope(
+        EXCHANGE_STEP,
+        ATTEMPT_KEY,
+        this@supervisorScope
+      )
+      taskJob.join()
+    }
 
     assertThat(testPrivateStorageSelector.storageClient.getBlob("c")).isNull()
   }
@@ -159,13 +158,14 @@ class ExchangeTaskExecutorTest {
 
     val exchangeTaskExecutor =
       createExchangeTaskExecutor(FakeExchangeTaskMapper(::TransientThrowingExchangeTask))
-
-    val (superJob, taskJob) = exchangeTaskExecutor.executeWithScope(
-      EXCHANGE_STEP,
-      ATTEMPT_KEY,
-      this.coroutineContext.job)
-    taskJob.join()
-    superJob.cancel()
+    supervisorScope {
+      val taskJob = exchangeTaskExecutor.executeWithScope(
+        EXCHANGE_STEP,
+        ATTEMPT_KEY,
+        this@supervisorScope
+      )
+      taskJob.join()
+    }
 
     verify(apiClient).finishExchangeStepAttempt(eq(ATTEMPT_KEY), eq(State.FAILED), any())
   }
@@ -178,12 +178,14 @@ class ExchangeTaskExecutorTest {
     val exchangeTaskExecutor =
       createExchangeTaskExecutor(FakeExchangeTaskMapper(::PermanentThrowingExchangeTask))
 
-    val (superJob, taskJob) = exchangeTaskExecutor.executeWithScope(
-      EXCHANGE_STEP,
-      ATTEMPT_KEY,
-      this.coroutineContext.job)
-    taskJob.join()
-    superJob.cancel()
+    supervisorScope {
+      val taskJob = exchangeTaskExecutor.executeWithScope(
+        EXCHANGE_STEP,
+        ATTEMPT_KEY,
+        this@supervisorScope
+      )
+      taskJob.join()
+    }
 
     verify(apiClient).finishExchangeStepAttempt(eq(ATTEMPT_KEY), eq(State.FAILED_STEP), any())
   }
