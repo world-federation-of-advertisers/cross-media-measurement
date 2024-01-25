@@ -31,6 +31,7 @@ import java.security.SecureRandom
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.max
@@ -147,7 +148,6 @@ import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchMetho
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
-import java.util.concurrent.ConcurrentHashMap
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
@@ -551,14 +551,15 @@ class MetricsService(
                         .getCertificate(getCertificateRequest { name = dataProvider.certificate })
                     } catch (e: StatusException) {
                       throw when (e.status.code) {
-                        Status.Code.NOT_FOUND ->
-                          Status.NOT_FOUND.withDescription("${dataProvider.certificate} not found.")
-
-                        else ->
-                          Status.UNKNOWN.withDescription(
-                            "Unable to retrieve Certificate ${dataProvider.certificate}."
-                          )
-                      }
+                          Status.Code.NOT_FOUND ->
+                            Status.NOT_FOUND.withDescription(
+                              "${dataProvider.certificate} not found."
+                            )
+                          else ->
+                            Status.UNKNOWN.withDescription(
+                              "Unable to retrieve Certificate ${dataProvider.certificate}."
+                            )
+                        }
                         .withCause(e)
                         .asRuntimeException()
                     }
@@ -756,22 +757,21 @@ class MetricsService(
             try {
               certificatesStub
                 .withAuthenticationKey(principal.config.apiKey)
-                .getCertificate(getCertificateRequest {
-                  name = principal.config.signingCertificateName
-                })
+                .getCertificate(
+                  getCertificateRequest { name = principal.config.signingCertificateName }
+                )
             } catch (e: StatusException) {
               throw when (e.status.code) {
-                Status.Code.NOT_FOUND ->
-                  Status.NOT_FOUND.withDescription(
-                    "${principal.config.signingCertificateName} not found."
-                  )
-
-                else ->
-                  Status.UNKNOWN.withDescription(
-                    "Unable to retrieve the signing certificate " +
-                      "[${principal.config.signingCertificateName}] for the measurement consumer."
-                  )
-              }
+                  Status.Code.NOT_FOUND ->
+                    Status.NOT_FOUND.withDescription(
+                      "${principal.config.signingCertificateName} not found."
+                    )
+                  else ->
+                    Status.UNKNOWN.withDescription(
+                      "Unable to retrieve the signing certificate " +
+                        "[${principal.config.signingCertificateName}] for the measurement consumer."
+                    )
+                }
                 .withCause(e)
                 .asRuntimeException()
             }
@@ -1028,19 +1028,21 @@ class MetricsService(
             try {
               certificatesStub
                 .withAuthenticationKey(apiAuthenticationKey)
-                .getCertificate(getCertificateRequest { name = measurementResultOutput.certificate })
+                .getCertificate(
+                  getCertificateRequest { name = measurementResultOutput.certificate }
+                )
             } catch (e: StatusException) {
               throw when (e.status.code) {
-                Status.Code.NOT_FOUND ->
-                  Status.NOT_FOUND.withDescription(
-                    "${measurementResultOutput.certificate} not found."
-                  )
-                else ->
-                  Status.UNKNOWN.withDescription(
-                    "Unable to retrieve the certificate " +
-                      "[${measurementResultOutput.certificate}] for the measurement consumer."
-                  )
-              }
+                  Status.Code.NOT_FOUND ->
+                    Status.NOT_FOUND.withDescription(
+                      "${measurementResultOutput.certificate} not found."
+                    )
+                  else ->
+                    Status.UNKNOWN.withDescription(
+                      "Unable to retrieve the certificate " +
+                        "[${measurementResultOutput.certificate}] for the measurement consumer."
+                    )
+                }
                 .withCause(e)
                 .asRuntimeException()
             }
