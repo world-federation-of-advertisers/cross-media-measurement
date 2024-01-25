@@ -2,6 +2,14 @@ name: Reporting V2 Testing
 
 on:
   pull_request:
+    inputs:
+      environment:
+        type: string
+        required: true
+      apply:
+        description: "Apply the new configuration"
+        type: boolean
+        required: true
 
 jobs:
   terraform:
