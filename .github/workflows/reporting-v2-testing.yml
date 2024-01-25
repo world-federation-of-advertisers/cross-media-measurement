@@ -1,28 +1,20 @@
 name: Reporting V2 Testing
 
 on:
-  pull_request:
-    inputs:
-      environment:
-        type: string
-        required: true
-      apply:
-        description: "Apply the new configuration"
-        type: boolean
-        required: true
+  push:
 
 jobs:
   terraform:
     uses: ./.github/workflows/terraform-cmms.yml
     secrets: inherit
     with:
-      environment: ${{ inputs.environment }}
-      apply: ${{ inputs.apply }}
+      environment: dev
+      apply: true
 
   update-reporting-v2:
     uses: ./.github/workflows/configure-reporting-v2.yml
     needs: [ publish-images, terraform ]
     with:
-      image-tag: ${{ needs.publish-images.outputs.image-tag }}
-      environment: ${{ inputs.environment }}
-      apply: ${{ inputs.apply }}
+      image-tag: latest
+      environment: dev
+      apply: true
