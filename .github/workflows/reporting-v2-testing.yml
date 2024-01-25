@@ -18,6 +18,6 @@ jobs:
     uses: ./.github/workflows/configure-reporting-v2.yml
     needs: [ terraform ]
     with:
-      image-tag: e17049db6f5eb6bb9ff9437390806f2dcba28eea
+      image-tag: c556971a519b8830abe141ae38a8962bec99a943
       environment: dev
       apply: true
