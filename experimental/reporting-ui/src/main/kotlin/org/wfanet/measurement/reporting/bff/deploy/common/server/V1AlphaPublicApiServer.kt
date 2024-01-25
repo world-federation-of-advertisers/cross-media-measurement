@@ -53,7 +53,13 @@ private fun run(
       .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
 
   val services: List<ServerServiceDefinition> =
-    listOf(ReportsService(HaloReportsGrpcKt.ReportsCoroutineStub(channel)).bindService())
+    listOf(
+      ReportsService(
+          HaloReportsGrpcKt.ReportsCoroutineStub(channel),
+          reportingApiServerFlags.measurementConsumer
+        )
+        .bindService()
+    )
   CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
 }
 

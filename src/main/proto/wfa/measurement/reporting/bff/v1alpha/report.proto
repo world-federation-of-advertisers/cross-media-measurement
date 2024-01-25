@@ -34,7 +34,7 @@ option go_package = "wfa/measurement/reporting/bff/v1alpha/reportingpb";
 message Report {
   option (google.api.resource) = {
     type: "ui.reporting.halo-cmm.org/Report"
-    pattern: "measurementConsumers/{measurement_consumer}/reports/{report}"
+    pattern: "reports/{report}"
   };
 
   // The human understandable name of the report.
