@@ -51,7 +51,7 @@ env:
   KUSTOMIZATION_PATH: "k8s/reporting_v2"
 
 jobs:
-  update-reporting:
+  update-reporting-v2:
     runs-on: ubuntu-20.04
     environment: ${{ inputs.environment }}
     steps:
@@ -71,7 +71,7 @@ jobs:
     - name: Get GKE cluster credentials
       uses: google-github-actions/get-gke-credentials@v1
       with:
-        cluster_name: reporting
+        cluster_name: reporting-v2
         location: ${{ vars.GCLOUD_ZONE }}
 
     - name: Configure metrics

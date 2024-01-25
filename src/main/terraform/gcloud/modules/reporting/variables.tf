@@ -20,3 +20,10 @@ variable "postgres_instance" {
   })
   nullable = false
 }
+
+variable "postgres_database_name" {
+  description = "PostgreSQL `google_sql_database.name`."
+  type = string
+  nullable = false
+}
+

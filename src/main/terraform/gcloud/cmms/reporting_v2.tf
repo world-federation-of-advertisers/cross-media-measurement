@@ -1,4 +1,4 @@
-# Copyright 2023 The Cross-Media Measurement Authors
+# Copyright 2024 The Cross-Media Measurement Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 module "reporting_cluster" {
   source = "../modules/cluster"
 
-  name       = local.reporting_cluster_name
+  name       = local.reporting_v2_cluster_name
   location   = local.cluster_location
   secret_key = module.common.cluster_secret_key
 }
@@ -42,5 +42,5 @@ module "reporting" {
   source = "../modules/reporting"
 
   postgres_instance = google_sql_database_instance.postgres
-  postgres_database = "reporting"
+  postgres_database = "reporting-v2"
 }
