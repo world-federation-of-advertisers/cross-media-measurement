@@ -19,12 +19,15 @@ import com.google.protobuf.Descriptors
 import com.google.protobuf.Message
 import com.google.protobuf.duration
 import com.google.protobuf.kotlin.unpack
+import com.google.protobuf.timestamp
+import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
 import java.security.GeneralSecurityException
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
+import java.time.Instant
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.math.log2
@@ -46,6 +49,7 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCorouti
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt.variance
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DeterministicCount
 import org.wfanet.measurement.api.v2alpha.DeterministicCountDistinct
 import org.wfanet.measurement.api.v2alpha.DeterministicDistribution
@@ -101,6 +105,7 @@ import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.v2alpha.updateEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
@@ -113,6 +118,7 @@ import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.NonceMismatchException
 import org.wfanet.measurement.consent.client.common.PublicKeyMismatchException
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
@@ -162,6 +168,7 @@ class EdpSimulator(
   private val measurementConsumerName: String,
   private val measurementConsumersStub: MeasurementConsumersCoroutineStub,
   private val certificatesStub: CertificatesCoroutineStub,
+  private val dataProvidersStub: DataProvidersCoroutineStub,
   private val eventGroupsStub: EventGroupsCoroutineStub,
   private val eventGroupMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub,
   private val requisitionsStub: RequisitionsCoroutineStub,
@@ -178,6 +185,17 @@ class EdpSimulator(
 
   /** A sequence of operations done in the simulator. */
   suspend fun run() {
+    dataProvidersStub.replaceDataAvailabilityInterval(
+      replaceDataAvailabilityIntervalRequest {
+        name = edpData.name
+        dataAvailabilityInterval = interval {
+          startTime = timestamp {
+            seconds = 1577865600 // January 1, 2020 12:00:00 AM, America/Los_Angeles
+          }
+          endTime = Instant.now().toProtoTime()
+        }
+      }
+    )
     throttler.loopOnReady { executeRequisitionFulfillingWorkflow() }
   }
 
