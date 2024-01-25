@@ -44,7 +44,6 @@ object SyntheticDataGeneration {
    * @param messageInstance an instance of the event message type [T]
    * @param populationSpec specification of the synthetic population
    * @param syntheticEventGroupSpec specification of the synthetic event group
-   * @param random object to be used in sampling vids when sampleSize is provided in specification
    */
   fun <T : Message> generateEvents(
     messageInstance: T,

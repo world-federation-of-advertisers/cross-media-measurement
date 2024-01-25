@@ -136,6 +136,7 @@ message SyntheticEventGroupSpec {
   repeated DateSpec date_specs = 2;
 
   // Random seed to be fed into the random number generator to sample vids.
+  // Required if any VidRangeSpec specifies a sample_size.
   int64 random_seed = 3;
 
   // Type of random number generator to sample vids.
@@ -146,6 +147,6 @@ message SyntheticEventGroupSpec {
     KOTLIN_RANDOM = 1;
   }
 
-  // Activation state of this `Account`. Output-only.
+  // Random Number Generator type for this `SyntheticEventGroupSpec`.
   RngType rng_type = 4;
 }
