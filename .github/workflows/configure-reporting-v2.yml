@@ -86,7 +86,7 @@ jobs:
         KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
       run: >
         bazelisk build 
-        "//src/main/k8s/dev:reporting_v2.tar"
+        //src/main/k8s/dev:reporting_v2.tar
         //src/main/k8s/testing/secretfiles:archive
         --config ghcr
         --define "image_tag=$IMAGE_TAG"
