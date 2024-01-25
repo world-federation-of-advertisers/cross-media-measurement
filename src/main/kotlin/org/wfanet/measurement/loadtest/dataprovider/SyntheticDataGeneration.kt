@@ -50,8 +50,12 @@ object SyntheticDataGeneration {
     messageInstance: T,
     populationSpec: SyntheticPopulationSpec,
     syntheticEventGroupSpec: SyntheticEventGroupSpec,
-    random: Random = Random(),
   ): Sequence<LabeledEvent<T>> {
+
+    check(syntheticEventGroupSpec.rngType == SyntheticEventGroupSpec.RngType.KOTLIN_RANDOM) {
+      "Expecting KOTLIN_RANDOM rng type, got ${syntheticEventGroupSpec.rngType}"
+    }
+    val random = Random(syntheticEventGroupSpec.randomSeed)
     val subPopulations = populationSpec.subPopulationsList
 
     return sequence {

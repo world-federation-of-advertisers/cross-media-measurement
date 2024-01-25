@@ -134,4 +134,18 @@ message SyntheticEventGroupSpec {
   }
   // `DateSpec`s should describe non-overlapping date ranges.
   repeated DateSpec date_specs = 2;
+
+  // Random seed to be fed into the random number generator to sample vids.
+  int64 random_seed = 3;
+
+  // Type of random number generator to sample vids.
+  enum RngType {
+    // Default value used if the rng type is omitted.
+    RNG_TYPE_UNSPECIFIED = 0;
+    // Signals kotlin.random.Random should be used for sampling.
+    KOTLIN_RANDOM = 1;
+  }
+
+  // Activation state of this `Account`. Output-only.
+  RngType rng_type = 4;
 }

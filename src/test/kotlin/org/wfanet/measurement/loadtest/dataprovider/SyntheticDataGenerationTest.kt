@@ -21,11 +21,11 @@ import com.google.type.date
 import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneOffset
-import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpecKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpecKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.fieldValue
@@ -87,6 +87,7 @@ class SyntheticDataGenerationTest {
     }
     val eventGroupSpec = syntheticEventGroupSpec {
       description = "event group 1"
+      rngType = SyntheticEventGroupSpec.RngType.KOTLIN_RANDOM
 
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {
@@ -190,7 +191,7 @@ class SyntheticDataGenerationTest {
       SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           population,
-          eventGroupSpec
+          eventGroupSpec,
         )
         .toList()
 
@@ -300,6 +301,8 @@ class SyntheticDataGenerationTest {
     }
     val eventGroupSpec = syntheticEventGroupSpec {
       description = "event group 1"
+      randomSeed = 42L
+      rngType = SyntheticEventGroupSpec.RngType.KOTLIN_RANDOM
 
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {
@@ -376,7 +379,7 @@ class SyntheticDataGenerationTest {
       SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           population,
-          eventGroupSpec
+          eventGroupSpec,
         )
         .toList()
     val expectedNumberOfEvents =
@@ -428,6 +431,7 @@ class SyntheticDataGenerationTest {
     }
     val eventGroupSpec = syntheticEventGroupSpec {
       description = "event group 1"
+      rngType = SyntheticEventGroupSpec.RngType.KOTLIN_RANDOM
 
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {
@@ -483,7 +487,6 @@ class SyntheticDataGenerationTest {
           TestEvent.getDefaultInstance(),
           population,
           eventGroupSpec,
-          Random(42L),
         )
         .toList()
     }
@@ -509,6 +512,7 @@ class SyntheticDataGenerationTest {
     }
     val videoLength = Duration.ofMinutes(5).toProtoDuration()
     val eventGroupSpec = syntheticEventGroupSpec {
+      rngType = SyntheticEventGroupSpec.RngType.KOTLIN_RANDOM
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {
           dateRange =
@@ -543,7 +547,7 @@ class SyntheticDataGenerationTest {
       SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           populationSpec,
-          eventGroupSpec
+          eventGroupSpec,
         )
         .map { TestEvent.parseFrom(it.message.toByteString()) }
         .toList()
@@ -583,6 +587,7 @@ class SyntheticDataGenerationTest {
     }
     val eventGroupSpec = syntheticEventGroupSpec {
       description = "event group"
+      rngType = SyntheticEventGroupSpec.RngType.KOTLIN_RANDOM
 
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {
@@ -618,7 +623,7 @@ class SyntheticDataGenerationTest {
       SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           population,
-          eventGroupSpec
+          eventGroupSpec,
         )
         .toList()
     }
@@ -651,6 +656,7 @@ class SyntheticDataGenerationTest {
     }
     val eventGroupSpec = syntheticEventGroupSpec {
       description = "event group"
+      rngType = SyntheticEventGroupSpec.RngType.KOTLIN_RANDOM
 
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {
@@ -688,7 +694,7 @@ class SyntheticDataGenerationTest {
       SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           population,
-          eventGroupSpec
+          eventGroupSpec,
         )
         .toList()
     }
@@ -721,6 +727,7 @@ class SyntheticDataGenerationTest {
     }
     val eventGroupSpec = syntheticEventGroupSpec {
       description = "event group"
+      rngType = SyntheticEventGroupSpec.RngType.KOTLIN_RANDOM
 
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {
@@ -758,7 +765,7 @@ class SyntheticDataGenerationTest {
       SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           population,
-          eventGroupSpec
+          eventGroupSpec,
         )
         .toList()
     }
@@ -791,6 +798,7 @@ class SyntheticDataGenerationTest {
     }
     val eventGroupSpec = syntheticEventGroupSpec {
       description = "event group"
+      rngType = SyntheticEventGroupSpec.RngType.KOTLIN_RANDOM
 
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {
@@ -828,7 +836,7 @@ class SyntheticDataGenerationTest {
       SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           population,
-          eventGroupSpec
+          eventGroupSpec,
         )
         .toList()
     }
