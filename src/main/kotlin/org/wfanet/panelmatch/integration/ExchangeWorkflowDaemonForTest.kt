@@ -101,7 +101,7 @@ class ExchangeWorkflowDaemonForTest(
     val exchangeStepAttemptsClient =
       ExchangeStepAttemptsCoroutineStub(v2alphaChannel).withPrincipalName(providerName)
 
-    GrpcApiClient(identity, exchangeStepsClient, exchangeStepAttemptsClient, clock, -1)
+    GrpcApiClient(identity, exchangeStepsClient, exchangeStepAttemptsClient, clock)
   }
 
   override val throttler: Throttler = MinimumIntervalThrottler(clock, pollingInterval)

@@ -111,18 +111,10 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
     )
   }
 
-  private val maxParallelClaimedExchangeSteps: Int by lazy { flags.maxParallelClaimedExchangeSteps }
-
   override val apiClient: ApiClient by lazy {
     val exchangeStepsClient = ExchangeStepsCoroutineStub(channel)
     val exchangeStepAttemptsClient = ExchangeStepAttemptsCoroutineStub(channel)
-    GrpcApiClient(
-      identity,
-      exchangeStepsClient,
-      exchangeStepAttemptsClient,
-      Clock.systemUTC(),
-      maxParallelClaimedExchangeSteps
-    )
+    GrpcApiClient(identity, exchangeStepsClient, exchangeStepAttemptsClient, Clock.systemUTC())
   }
 
   override val taskTimeout: Timeout by lazy { flags.taskTimeout.asTimeout() }
