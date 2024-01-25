@@ -38,7 +38,7 @@ module "reporting_v2_default_node_pool" {
   max_node_count  = 8
 }
 
-module "reporting" {
+module "reporting_v2" {
   source = "../modules/reporting"
 
   postgres_instance = google_sql_database_instance.postgres
