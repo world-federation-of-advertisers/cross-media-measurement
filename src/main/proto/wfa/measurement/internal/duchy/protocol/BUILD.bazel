@@ -206,6 +206,7 @@ proto_library(
         ":share_shuffle_sketch_params_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_proto",
+        "@com_google_protobuf//:duration_proto",
     ],
 )
 

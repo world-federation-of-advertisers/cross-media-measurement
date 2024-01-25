@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package wfa.measurement.internal.duchy.protocol;
 
+import "google/protobuf/duration.proto";
+
 import "wfa/measurement/internal/duchy/differential_privacy.proto";
 import "wfa/measurement/internal/duchy/noise_mechanism.proto";
 import "wfa/measurement/internal/duchy/protocol/share_shuffle_sketch_params.proto";
@@ -75,7 +77,7 @@ message CompleteShufflePhaseResponse {
   // Combination of sketches. It is combined, noisy, and shuffled.
   repeated uint32 combined_sketch = 1;
   // The CPU time of processing the request.
-  int64 elapsed_cpu_time_millis = 2;
+  google.protobuf.Duration elapsed_cpu_time = 2;
 }
 
 // For aggregators.
