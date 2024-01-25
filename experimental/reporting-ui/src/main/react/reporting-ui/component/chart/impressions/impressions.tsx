@@ -1,4 +1,4 @@
-// Copyright 2023 The Cross-Media Measurement Authors
+// Copyright 2024 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,22 +16,23 @@ import React from 'react';
 import { Chart, ChartType } from '../chart';
 import { ChartGroup } from '../../../model/chart_group';
 
-type TotalReachProps = {
+type OnTargetReachProps = {
     id: string,
     title?: string,
-    reach: ChartGroup[],
-    pubColors: { [Name: string]: string},
+    impressions: ChartGroup[],
+    pubColors: { [Name: string]: string}
 }
 
-export function TotalReach({id, title='Total reach', reach, pubColors}: TotalReachProps) {
+export function Impressions({id, title='Impressions', impressions, pubColors}: OnTargetReachProps) {
     const config = {
         pubColors,
     }
+
     return (
         <Chart
             cardId={id}
             title={title}
-            data={reach}
+            data={impressions}
             config={config}
             type={ChartType.multiLine}
         />
