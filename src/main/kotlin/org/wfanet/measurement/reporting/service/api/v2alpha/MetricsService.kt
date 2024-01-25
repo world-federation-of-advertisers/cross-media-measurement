@@ -147,6 +147,7 @@ import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchMetho
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
+import java.util.concurrent.ConcurrentHashMap
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
@@ -252,6 +253,9 @@ class MetricsService(
     private val trustedCertificates: Map<ByteString, X509Certificate>,
     private val coroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
   ) {
+    // Map of resource name to Certificate.
+    private val certificateMap: ConcurrentHashMap<String, Certificate> = ConcurrentHashMap()
+
     /**
      * Creates CMM public [Measurement]s and [InternalMeasurement]s from a list of [InternalMetric].
      */
@@ -300,6 +304,8 @@ class MetricsService(
       val dataProviderInfoMap: Map<String, DataProviderInfo> =
         buildDataProviderInfoMap(principal.config.apiKey, dataProviderNames)
 
+      val measurementConsumerSigningKey = getMeasurementConsumerSigningKey(principal)
+
       val cmmsCreateMeasurementRequests: List<CreateMeasurementRequest> =
         internalMetricsList.flatMap { internalMetric ->
           internalMetric.weightedMeasurementsList
@@ -312,6 +318,7 @@ class MetricsService(
                 measurementConsumer,
                 principal,
                 dataProviderInfoMap,
+                measurementConsumerSigningKey,
               )
             }
         }
@@ -405,18 +412,17 @@ class MetricsService(
     }
 
     /** Builds a CMMS [CreateMeasurementRequest]. */
-    private suspend fun buildCreateMeasurementRequest(
+    private fun buildCreateMeasurementRequest(
       internalMeasurement: InternalMeasurement,
       metricSpec: InternalMetricSpec,
       internalPrimitiveReportingSetMap: Map<String, InternalReportingSet>,
       measurementConsumer: MeasurementConsumer,
       principal: MeasurementConsumerPrincipal,
       dataProviderInfoMap: Map<String, DataProviderInfo>,
+      measurementConsumerSigningKey: SigningKeyHandle,
     ): CreateMeasurementRequest {
       val eventGroupEntriesByDataProvider =
         groupEventGroupEntriesByDataProvider(internalMeasurement, internalPrimitiveReportingSetMap)
-
-      val measurementConsumerSigningKey = getMeasurementConsumerSigningKey(principal)
       val packedMeasurementEncryptionPublicKey = measurementConsumer.publicKey.message
 
       return createMeasurementRequest {
@@ -533,23 +539,33 @@ class MetricsService(
                     .asRuntimeException()
                 }
 
+              val certificateFromMap: Certificate? = certificateMap[dataProvider.certificate]
               val certificate: Certificate =
-                try {
-                  certificatesStub
-                    .withAuthenticationKey(apiAuthenticationKey)
-                    .getCertificate(getCertificateRequest { name = dataProvider.certificate })
-                } catch (e: StatusException) {
-                  throw when (e.status.code) {
-                      Status.Code.NOT_FOUND ->
-                        Status.NOT_FOUND.withDescription("${dataProvider.certificate} not found.")
-                      else ->
-                        Status.UNKNOWN.withDescription(
-                          "Unable to retrieve Certificate ${dataProvider.certificate}."
-                        )
+                if (certificateFromMap != null) {
+                  certificateFromMap
+                } else {
+                  val tempCertificate =
+                    try {
+                      certificatesStub
+                        .withAuthenticationKey(apiAuthenticationKey)
+                        .getCertificate(getCertificateRequest { name = dataProvider.certificate })
+                    } catch (e: StatusException) {
+                      throw when (e.status.code) {
+                        Status.Code.NOT_FOUND ->
+                          Status.NOT_FOUND.withDescription("${dataProvider.certificate} not found.")
+
+                        else ->
+                          Status.UNKNOWN.withDescription(
+                            "Unable to retrieve Certificate ${dataProvider.certificate}."
+                          )
+                      }
+                        .withCause(e)
+                        .asRuntimeException()
                     }
-                    .withCause(e)
-                    .asRuntimeException()
+                  certificateMap[dataProvider.certificate] = tempCertificate
+                  tempCertificate
                 }
+
               if (
                 certificate.revocationState !=
                   Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED
@@ -731,28 +747,39 @@ class MetricsService(
     private suspend fun getSigningCertificateDer(
       principal: MeasurementConsumerPrincipal
     ): ByteString {
-      // TODO: Replace this with caching certificates or having them stored alongside the private
-      // key.
-      return try {
-        certificatesStub
-          .withAuthenticationKey(principal.config.apiKey)
-          .getCertificate(getCertificateRequest { name = principal.config.signingCertificateName })
-          .x509Der
-      } catch (e: StatusException) {
-        throw when (e.status.code) {
-            Status.Code.NOT_FOUND ->
-              Status.NOT_FOUND.withDescription(
-                "${principal.config.signingCertificateName} not found."
-              )
-            else ->
-              Status.UNKNOWN.withDescription(
-                "Unable to retrieve the signing certificate " +
-                  "[${principal.config.signingCertificateName}] for the measurement consumer."
-              )
-          }
-          .withCause(e)
-          .asRuntimeException()
-      }
+      val certificateFromMap: Certificate? = certificateMap[principal.config.signingCertificateName]
+      val certificate =
+        if (certificateFromMap != null) {
+          certificateFromMap
+        } else {
+          val tempCertificate =
+            try {
+              certificatesStub
+                .withAuthenticationKey(principal.config.apiKey)
+                .getCertificate(getCertificateRequest {
+                  name = principal.config.signingCertificateName
+                })
+            } catch (e: StatusException) {
+              throw when (e.status.code) {
+                Status.Code.NOT_FOUND ->
+                  Status.NOT_FOUND.withDescription(
+                    "${principal.config.signingCertificateName} not found."
+                  )
+
+                else ->
+                  Status.UNKNOWN.withDescription(
+                    "Unable to retrieve the signing certificate " +
+                      "[${principal.config.signingCertificateName}] for the measurement consumer."
+                  )
+              }
+                .withCause(e)
+                .asRuntimeException()
+            }
+          certificateMap[principal.config.signingCertificateName] = tempCertificate
+          tempCertificate
+        }
+
+      return certificate.x509Der
     }
 
     /**
@@ -992,26 +1019,33 @@ class MetricsService(
       encryptionPrivateKeyHandle: PrivateKeyHandle,
       apiAuthenticationKey: String,
     ): Measurement.Result {
-      // TODO: Cache the certificate
+      val certificateFromMap: Certificate? = certificateMap[measurementResultOutput.certificate]
       val certificate =
-        try {
-          certificatesStub
-            .withAuthenticationKey(apiAuthenticationKey)
-            .getCertificate(getCertificateRequest { name = measurementResultOutput.certificate })
-        } catch (e: StatusException) {
-          throw when (e.status.code) {
-              Status.Code.NOT_FOUND ->
-                Status.NOT_FOUND.withDescription(
-                  "${measurementResultOutput.certificate} not found."
-                )
-              else ->
-                Status.UNKNOWN.withDescription(
-                  "Unable to retrieve the certificate " +
-                    "[${measurementResultOutput.certificate}] for the measurement consumer."
-                )
+        if (certificateFromMap != null) {
+          certificateFromMap
+        } else {
+          val tempCertificate =
+            try {
+              certificatesStub
+                .withAuthenticationKey(apiAuthenticationKey)
+                .getCertificate(getCertificateRequest { name = measurementResultOutput.certificate })
+            } catch (e: StatusException) {
+              throw when (e.status.code) {
+                Status.Code.NOT_FOUND ->
+                  Status.NOT_FOUND.withDescription(
+                    "${measurementResultOutput.certificate} not found."
+                  )
+                else ->
+                  Status.UNKNOWN.withDescription(
+                    "Unable to retrieve the certificate " +
+                      "[${measurementResultOutput.certificate}] for the measurement consumer."
+                  )
+              }
+                .withCause(e)
+                .asRuntimeException()
             }
-            .withCause(e)
-            .asRuntimeException()
+          certificateMap[measurementResultOutput.certificate] = tempCertificate
+          tempCertificate
         }
 
       val signedResult =
