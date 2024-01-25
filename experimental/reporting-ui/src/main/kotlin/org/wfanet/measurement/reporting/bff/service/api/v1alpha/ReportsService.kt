@@ -350,7 +350,7 @@ class ReportsService(
     private const val TYPE_TAG = "ui.halo-cmm.org/reporting_set_type"
     /**
      * Key to get the display name for the Report from the tagsMap.
-     * 
+     *
      * TODO (@bdomen-ggl): Remove display name after it's added to the backend report proto.
      */
     private const val DISPLAY_NAME_TAG = "ui.halo-cmm.org/display_name"
