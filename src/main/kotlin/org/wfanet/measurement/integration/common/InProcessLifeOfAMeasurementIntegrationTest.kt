@@ -171,9 +171,12 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
   // TODO(@renjiez): Add Multi-round test given the same input to verify correctness.
 
   companion object {
+    // Epsilon can vary from 0.0001 to 1.0, delta = 1e-15 is a realistic value.
+    // Set epsilon higher without exceeding privacy budget so the noise is smaller in the
+    // integration test. Check sample values in CompositionTest.kt.
     private val OUTPUT_DP_PARAMS = differentialPrivacyParams {
       epsilon = 1.0
-      delta = 1.0
+      delta = 1e-15
     }
     private val RESULT_POLLING_DELAY = Duration.ofSeconds(10)
 
