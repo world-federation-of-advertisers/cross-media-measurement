@@ -52,6 +52,7 @@ import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairSto
 import org.wfanet.measurement.reporting.service.api.v1alpha.EventGroupsService
 import org.wfanet.measurement.reporting.service.api.v1alpha.ReportingSetsService
 import org.wfanet.measurement.reporting.service.api.v1alpha.ReportsService
+import org.wfanet.measurement.reporting.v1alpha.EventGroup
 
 /** TestRule that starts and stops all Reporting Server gRPC services. */
 class InProcessReportingServer(
@@ -111,10 +112,10 @@ class InProcessReportingServer(
               it.keyPairsList.map { keyPair ->
                 Pair(
                   signingPrivateKeyDir.resolve(keyPair.publicKeyFile).readByteString(),
-                  loadPrivateKey(signingPrivateKeyDir.resolve(keyPair.privateKeyFile))
+                  loadPrivateKey(signingPrivateKeyDir.resolve(keyPair.privateKeyFile)),
                 )
               }
-            }
+            },
           )
         )
 
@@ -123,6 +124,7 @@ class InProcessReportingServer(
           publicKingdomEventGroupMetadataDescriptorsClient.withAuthenticationKey(
             measurementConsumerConfig.apiKey
           ),
+          EventGroup.getDescriptor(),
           Duration.ofSeconds(5),
           Dispatchers.Default,
         )
@@ -148,9 +150,9 @@ class InProcessReportingServer(
               SecureRandom(),
               signingPrivateKeyDir,
               trustedCertificates,
-              MEASUREMENT_SPEC_CONFIG
+              MEASUREMENT_SPEC_CONFIG,
             )
-            .withMetadataPrincipalIdentities(measurementConsumerConfig)
+            .withMetadataPrincipalIdentities(measurementConsumerConfig),
         )
         .forEach { addService(it.withVerboseLogging(verboseGrpcLogging)) }
     }

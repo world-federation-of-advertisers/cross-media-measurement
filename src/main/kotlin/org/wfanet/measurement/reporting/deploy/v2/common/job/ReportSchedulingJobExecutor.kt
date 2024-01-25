@@ -17,7 +17,11 @@
 package org.wfanet.measurement.reporting.deploy.v2.common.job
 
 import io.grpc.Channel
+import io.grpc.Server
+import io.grpc.inprocess.InProcessChannelBuilder
+import io.grpc.inprocess.InProcessServerBuilder
 import java.security.SecureRandom
+import java.time.Duration
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as KingdomCertificatesCoroutineStub
@@ -29,6 +33,7 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
@@ -60,7 +65,7 @@ import picocli.CommandLine
   name = "ReportSchedulingJobExecutor",
   description = ["Process for Reporting V2Alpha Report Scheduling."],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 private fun run(
   @CommandLine.Mixin reportingApiServerFlags: ReportingApiServerFlags,
@@ -73,28 +78,30 @@ private fun run(
     SigningCerts.fromPemFiles(
       certificateFile = commonServerFlags.tlsFlags.certFile,
       privateKeyFile = commonServerFlags.tlsFlags.privateKeyFile,
-      trustedCertCollectionFile = commonServerFlags.tlsFlags.certCollectionFile
+      trustedCertCollectionFile = commonServerFlags.tlsFlags.certCollectionFile,
     )
   val channel: Channel =
     buildMutualTlsChannel(
         reportingApiServerFlags.internalApiFlags.target,
         clientCerts,
-        reportingApiServerFlags.internalApiFlags.certHost
+        reportingApiServerFlags.internalApiFlags.certHost,
       )
+      .withShutdownTimeout(Duration.ofSeconds(5))
       .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
 
   val kingdomChannel: Channel =
     buildMutualTlsChannel(
         target = kingdomApiFlags.target,
         clientCerts = clientCerts,
-        hostName = kingdomApiFlags.certHost
+        hostName = kingdomApiFlags.certHost,
       )
+      .withShutdownTimeout(Duration.ofSeconds(5))
       .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
 
   val measurementConsumerConfigs =
     parseTextProto(
       v2AlphaFlags.measurementConsumerConfigFile,
-      MeasurementConsumerConfigs.getDefaultInstance()
+      MeasurementConsumerConfigs.getDefaultInstance(),
     )
 
   val metricSpecConfig =
@@ -115,30 +122,44 @@ private fun run(
       SecureRandom(),
       v2AlphaFlags.signingPrivateKeyStoreDir,
       commonServerFlags.tlsFlags.signingCerts.trustedCertificates,
-      Dispatchers.IO
+      Dispatchers.IO,
     )
 
-  val inProcessMetricsChannel =
+  val inProcessMetricsServerName = InProcessServerBuilder.generateName()
+  val inProcessMetricsServer: Server =
     startInProcessServerWithService(
+      inProcessMetricsServerName,
       commonServerFlags,
-      metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs)
+      metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs),
     )
+  val inProcessMetricsChannel =
+    InProcessChannelBuilder.forName(inProcessMetricsServerName)
+      .directExecutor()
+      .build()
+      .withShutdownTimeout(Duration.ofSeconds(5))
 
   val reportsService =
     ReportsService(
       InternalReportsCoroutineStub(channel),
       InternalMetricCalculationSpecsCoroutineStub(channel),
       MetricsCoroutineStub(inProcessMetricsChannel),
-      metricSpecConfig
+      metricSpecConfig,
     )
 
-  val inProcessReportsChannel =
+  val inProcessReportsServerName = InProcessServerBuilder.generateName()
+  val inProcessReportsServer: Server =
     startInProcessServerWithService(
+      inProcessReportsServerName,
       commonServerFlags,
       reportsService
         .withMetadataPrincipalIdentities(measurementConsumerConfigs)
-        .withReportScheduleInfoInterceptor()
+        .withReportScheduleInfoInterceptor(),
     )
+  val inProcessReportsChannel =
+    InProcessChannelBuilder.forName(inProcessReportsServerName)
+      .directExecutor()
+      .build()
+      .withShutdownTimeout(Duration.ofSeconds(5))
 
   val reportSchedulingJob =
     ReportSchedulingJob(
@@ -152,6 +173,12 @@ private fun run(
     )
 
   runBlocking { reportSchedulingJob.execute() }
+  inProcessMetricsChannel.shutdown()
+  inProcessReportsChannel.shutdown()
+  inProcessMetricsServer.shutdown()
+  inProcessReportsServer.shutdown()
+  inProcessMetricsServer.awaitTermination()
+  inProcessReportsServer.awaitTermination()
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)

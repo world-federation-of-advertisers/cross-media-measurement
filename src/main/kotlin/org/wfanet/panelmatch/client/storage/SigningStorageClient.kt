@@ -45,7 +45,7 @@ class SigningStorageClient(
   suspend fun writeBlob(
     blobKey: String,
     content: Flow<ByteString>,
-    pipelineOptions: PipelineOptions? = null
+    pipelineOptions: PipelineOptions? = null,
   ) {
     val sharedStorage: StorageClient = sharedStorageFactory.build(pipelineOptions)
 
@@ -63,6 +63,6 @@ class SigningStorageClient(
   suspend fun writeBlob(
     blobKey: String,
     content: ByteString,
-    pipelineOptions: PipelineOptions? = null
+    pipelineOptions: PipelineOptions? = null,
   ) = writeBlob(blobKey, flowOf(content), pipelineOptions)
 }

@@ -38,9 +38,9 @@ import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleases
 import org.wfanet.measurement.internal.kingdom.ModelShard
 import org.wfanet.measurement.internal.kingdom.ModelShardsGrpcKt.ModelShardsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamModelShardsRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.StreamModelShardsRequestKt.filter
-import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.deleteModelShardRequest
 import org.wfanet.measurement.internal.kingdom.modelShard
 import org.wfanet.measurement.internal.kingdom.modelSuite
@@ -58,7 +58,8 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
     val dataProvidersService: DataProvidersCoroutineImplBase,
     val modelProvidersService: ModelProvidersCoroutineImplBase,
     val modelSuitesService: ModelSuitesCoroutineImplBase,
-    val modelReleasesService: ModelReleasesCoroutineImplBase
+    val modelReleasesService: ModelReleasesCoroutineImplBase,
+    val populationsService: PopulationsCoroutineImplBase,
   )
 
   protected val clock: Clock = Clock.systemUTC()
@@ -80,6 +81,9 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
   protected lateinit var modelReleasesService: ModelReleasesCoroutineImplBase
     private set
 
+  protected lateinit var populationsService: PopulationsCoroutineImplBase
+    private set
+
   protected abstract fun newServices(clock: Clock, idGenerator: IdGenerator): Services<T>
 
   @Before
@@ -90,19 +94,23 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
     modelProvidersService = services.modelProvidersService
     modelSuitesService = services.modelSuitesService
     modelReleasesService = services.modelReleasesService
+    populationsService = services.populationsService
   }
 
   @Test
   fun `createModelShard succeeds`() = runBlocking {
     val dataProvider = population.createDataProvider(dataProvidersService)
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+    val populationDataProvider = population.createDataProvider(dataProvidersService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
           externalModelProviderId = modelSuite.externalModelProviderId
           externalModelSuiteId = modelSuite.externalModelSuiteId
         },
-        modelReleasesService
+        createdPopulation,
+        modelReleasesService,
       )
 
     val modelShard = modelShard {
@@ -116,9 +124,7 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
     val createdModelShard = modelShardsService.createModelShard(modelShard)
 
     assertThat(createdModelShard)
-      .ignoringFields(
-        ModelShard.CREATE_TIME_FIELD_NUMBER,
-      )
+      .ignoringFields(ModelShard.CREATE_TIME_FIELD_NUMBER)
       .isEqualTo(
         modelShard {
           externalDataProviderId = createdModelShard.externalDataProviderId
@@ -176,13 +182,16 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
   fun `createModelShard fails when Model Suite is not found`() = runBlocking {
     val dataProvider = population.createDataProvider(dataProvidersService)
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+    val populationDataProvider = population.createDataProvider(dataProvidersService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
           externalModelProviderId = modelSuite.externalModelProviderId
           externalModelSuiteId = modelSuite.externalModelSuiteId
         },
-        modelReleasesService
+        createdPopulation,
+        modelReleasesService,
       )
 
     val modelShard = modelShard {
@@ -223,13 +232,16 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
   fun `deleteModelShard succeeds`() = runBlocking {
     val dataProvider = population.createDataProvider(dataProvidersService)
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+    val populationDataProvider = population.createDataProvider(dataProvidersService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
           externalModelProviderId = modelSuite.externalModelProviderId
           externalModelSuiteId = modelSuite.externalModelSuiteId
         },
-        modelReleasesService
+        createdPopulation,
+        modelReleasesService,
       )
 
     val modelShard = modelShard {
@@ -266,6 +278,9 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
       val dataProvider = population.createDataProvider(dataProvidersService)
       val modelSuite1 = population.createModelSuite(modelProvidersService, modelSuitesService)
       val modelSuite2 = population.createModelSuite(modelProvidersService, modelSuitesService)
+      val populationDataProvider = population.createDataProvider(dataProvidersService)
+      val createdPopulation =
+        population.createPopulation(populationDataProvider, populationsService)
 
       val modelRelease =
         population.createModelRelease(
@@ -273,7 +288,8 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
             externalModelProviderId = modelSuite1.externalModelProviderId
             externalModelSuiteId = modelSuite1.externalModelSuiteId
           },
-          modelReleasesService
+          createdPopulation,
+          modelReleasesService,
         )
 
       val modelShard = modelShard {
@@ -364,13 +380,16 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
   fun `streamModelShards returns all model shards`(): Unit = runBlocking {
     val dataProvider = population.createDataProvider(dataProvidersService)
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+    val populationDataProvider = population.createDataProvider(dataProvidersService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
           externalModelProviderId = modelSuite.externalModelProviderId
           externalModelSuiteId = modelSuite.externalModelSuiteId
         },
-        modelReleasesService
+        createdPopulation,
+        modelReleasesService,
       )
 
     val modelShard = modelShard {
@@ -404,13 +423,16 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
     val dataProvider = population.createDataProvider(dataProvidersService)
     val modelSuite1 = population.createModelSuite(modelProvidersService, modelSuitesService)
     val modelSuite2 = population.createModelSuite(modelProvidersService, modelSuitesService)
+    val populationDataProvider = population.createDataProvider(dataProvidersService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease1 =
       population.createModelRelease(
         modelSuite {
           externalModelProviderId = modelSuite1.externalModelProviderId
           externalModelSuiteId = modelSuite1.externalModelSuiteId
         },
-        modelReleasesService
+        createdPopulation,
+        modelReleasesService,
       )
 
     val modelRelease2 =
@@ -419,7 +441,8 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
           externalModelProviderId = modelSuite2.externalModelProviderId
           externalModelSuiteId = modelSuite2.externalModelSuiteId
         },
-        modelReleasesService
+        createdPopulation,
+        modelReleasesService,
       )
 
     val modelShardProto1 = modelShard {
@@ -460,13 +483,16 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
   fun `streamModelShards can get one page at a time`(): Unit = runBlocking {
     val dataProvider = population.createDataProvider(dataProvidersService)
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+    val populationDataProvider = population.createDataProvider(dataProvidersService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
           externalModelProviderId = modelSuite.externalModelProviderId
           externalModelSuiteId = modelSuite.externalModelSuiteId
         },
-        modelReleasesService
+        createdPopulation,
+        modelReleasesService,
       )
 
     val modelShard = modelShard {
@@ -518,13 +544,16 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
   fun `streamModelShards fails for missing after filter fields`(): Unit = runBlocking {
     val dataProvider = population.createDataProvider(dataProvidersService)
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+    val populationDataProvider = population.createDataProvider(dataProvidersService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
     val modelRelease =
       population.createModelRelease(
         modelSuite {
           externalModelProviderId = modelSuite.externalModelProviderId
           externalModelSuiteId = modelSuite.externalModelSuiteId
         },
-        modelReleasesService
+        createdPopulation,
+        modelReleasesService,
       )
 
     val modelShard = modelShard {

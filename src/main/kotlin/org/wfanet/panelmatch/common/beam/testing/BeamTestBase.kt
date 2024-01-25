@@ -53,7 +53,7 @@ open class BeamTestBase {
   inline fun <reified T> pcollectionOf(
     name: String,
     vararg values: T,
-    coder: Coder<T>? = null
+    coder: Coder<T>? = null,
   ): PCollection<T> {
     return pcollectionOf(name, values.asIterable(), coder)
   }
@@ -61,7 +61,7 @@ open class BeamTestBase {
   inline fun <reified T> pcollectionOf(
     name: String,
     values: Iterable<T>,
-    coder: Coder<T>? = null
+    coder: Coder<T>? = null,
   ): PCollection<T> {
     if (coder != null) {
       return pipeline.apply(name, Create.of(values).withCoder(coder))
@@ -72,7 +72,7 @@ open class BeamTestBase {
   inline fun <reified T : Any> pcollectionViewOf(
     name: String,
     value: T,
-    coder: Coder<T>? = null
+    coder: Coder<T>? = null,
   ): PCollectionView<T> {
     return pcollectionOf("$name:Create", value, coder = coder)
       .apply("$name:View", View.asSingleton())

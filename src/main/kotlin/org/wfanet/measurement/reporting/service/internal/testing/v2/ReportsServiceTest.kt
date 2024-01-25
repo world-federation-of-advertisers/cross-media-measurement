@@ -116,7 +116,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       createReportingSet(
         CMMS_MEASUREMENT_CONSUMER_ID,
         reportingSetsService,
-        "reporting-set-for-report-schedule"
+        "reporting-set-for-report-schedule",
       )
     val createdMetricCalculationSpec =
       createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
@@ -163,7 +163,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       createReportingSet(
         CMMS_MEASUREMENT_CONSUMER_ID,
         reportingSetsService,
-        "reporting-set-for-report-schedule"
+        "reporting-set-for-report-schedule",
       )
     val createdMetricCalculationSpec =
       createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
@@ -205,13 +205,13 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       createReportingSet(
         CMMS_MEASUREMENT_CONSUMER_ID,
         reportingSetsService,
-        "external-reporting-set-id"
+        "external-reporting-set-id",
       )
     val createdReportingSet2 =
       createReportingSet(
         CMMS_MEASUREMENT_CONSUMER_ID,
         reportingSetsService,
-        "external-reporting-set-id-2"
+        "external-reporting-set-id-2",
       )
 
     val createdMetricCalculationSpec =
@@ -333,7 +333,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       createReportingSet(
         CMMS_MEASUREMENT_CONSUMER_ID,
         reportingSetsService,
-        "external-reporting-set-id"
+        "external-reporting-set-id",
       )
     val createdMetricCalculationSpec =
       createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
@@ -439,7 +439,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       createReportingSet(
         CMMS_MEASUREMENT_CONSUMER_ID,
         reportingSetsService,
-        "reporting-set-for-report-schedule"
+        "reporting-set-for-report-schedule",
       )
     val createdMetricCalculationSpec =
       createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
@@ -475,7 +475,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       createReportingSet(
         CMMS_MEASUREMENT_CONSUMER_ID,
         reportingSetsService,
-        "reporting-set-for-report-schedule"
+        "reporting-set-for-report-schedule",
       )
     val createdMetricCalculationSpec =
       createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
@@ -484,7 +484,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         CMMS_MEASUREMENT_CONSUMER_ID,
         createdReportingSet,
         createdMetricCalculationSpec,
-        reportSchedulesService
+        reportSchedulesService,
       )
     val baseReport = createReportForRequest(createdReportingSet, createdMetricCalculationSpec)
 
@@ -539,7 +539,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
           createMetricCalculationSpec(
             CMMS_MEASUREMENT_CONSUMER_ID,
             metricCalculationSpecsService,
-            externalMetricCalculationSpecId
+            externalMetricCalculationSpecId,
           )
       }
     val createdReportingSetsByExternalId =
@@ -551,7 +551,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
             reportingSetsService,
             externalReportingSetId,
             "data-provider-id${it % 3}",
-            "event-group-id$it"
+            "event-group-id$it",
           )
       }
 
@@ -570,7 +570,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         interval {
           startTime = timestamp { seconds = 100 }
           endTime = timestamp { seconds = 300 }
-        }
+        },
       )
 
     val reportingMetrics =
@@ -649,7 +649,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
                 externalMetricId,
                 reportingSet,
                 reportingMetric,
-                metricCalculationSpecFilter
+                metricCalculationSpecFilter,
               )
             }
           }
@@ -711,7 +711,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       createReportingSet(
         CMMS_MEASUREMENT_CONSUMER_ID,
         reportingSetsService,
-        "reporting-set-for-report-schedule"
+        "reporting-set-for-report-schedule",
       )
     val createdMetricCalculationSpec =
       createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
@@ -979,7 +979,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       createReportingSet(
         CMMS_MEASUREMENT_CONSUMER_ID,
         reportingSetsService,
-        "reporting-set-for-report-schedule"
+        "reporting-set-for-report-schedule",
       )
     val createdMetricCalculationSpec =
       createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
@@ -1036,7 +1036,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       createReportingSet(
         CMMS_MEASUREMENT_CONSUMER_ID,
         reportingSetsService,
-        "reporting-set-for-report-schedule"
+        "reporting-set-for-report-schedule",
       )
     val createdMetricCalculationSpec =
       createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
@@ -1065,7 +1065,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       createReportingSet(
         CMMS_MEASUREMENT_CONSUMER_ID,
         reportingSetsService,
-        "reporting-set-for-report-schedule"
+        "reporting-set-for-report-schedule",
       )
     val createdMetricCalculationSpec =
       createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
@@ -1102,7 +1102,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         service,
         usePeriodicTimeInterval = false,
         createdReportingSet,
-        createdMetricCalculationSpec
+        createdMetricCalculationSpec,
       )
 
     val retrievedReport =
@@ -1128,7 +1128,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         service,
         usePeriodicTimeInterval = true,
         createdReportingSet,
-        createdMetricCalculationSpec
+        createdMetricCalculationSpec,
       )
 
     val retrievedReport =
@@ -1149,7 +1149,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       createReportingSet(
         CMMS_MEASUREMENT_CONSUMER_ID,
         reportingSetsService,
-        "reporting-set-for-report-schedule"
+        "reporting-set-for-report-schedule",
       )
     val createdMetricCalculationSpec =
       createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
@@ -1158,7 +1158,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         CMMS_MEASUREMENT_CONSUMER_ID,
         createdReportingSet,
         createdMetricCalculationSpec,
-        reportSchedulesService
+        reportSchedulesService,
       )
     val createdReport =
       createReport(
@@ -1167,7 +1167,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         true,
         createdReportingSet,
         createdMetricCalculationSpec,
-        createdReportSchedule
+        createdReportSchedule,
       )
 
     val retrievedReport =
@@ -1194,13 +1194,13 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         createReportingSet(
           CMMS_MEASUREMENT_CONSUMER_ID,
           reportingSetsService,
-          "external-reporting-set-id"
+          "external-reporting-set-id",
         )
       val createdReportingSet2 =
         createReportingSet(
           CMMS_MEASUREMENT_CONSUMER_ID,
           reportingSetsService,
-          "external-reporting-set-id2"
+          "external-reporting-set-id2",
         )
 
       val reportingMetricCalculationSpec =
@@ -1384,7 +1384,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
               "externalMetricId",
               createdReportingSet,
               reportingMetric,
-              createdMetricCalculationSpec.details.filter
+              createdMetricCalculationSpec.details.filter,
             )
           metricsService.createMetric(request)
         }
@@ -1421,7 +1421,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         service,
         usePeriodicTimeInterval = false,
         createdReportingSet,
-        createdMetricCalculationSpec
+        createdMetricCalculationSpec,
       )
 
     val exception =
@@ -1452,7 +1452,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         createdReportingSet,
         createdMetricCalculationSpec,
         null,
-        "external-report-id"
+        "external-report-id",
       )
     val createdReport2 =
       createReport(
@@ -1462,7 +1462,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         createdReportingSet,
         createdMetricCalculationSpec,
         null,
-        "external-report-id2"
+        "external-report-id2",
       )
 
     val retrievedReports =
@@ -1492,7 +1492,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         reportingSetsService,
         "external-reporting-set-id",
         "data-provider-id",
-        "event-group-id"
+        "event-group-id",
       )
     val createdReportingSet2 =
       createReportingSet(
@@ -1500,7 +1500,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         reportingSetsService,
         "external-reporting-set-id",
         "data-provider-id",
-        "event-group-id2"
+        "event-group-id2",
       )
     val createdMetricCalculationSpec =
       createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
@@ -1525,7 +1525,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       createdReportingSet2,
       createdMetricCalculationSpec2,
       null,
-      "external-report-id2"
+      "external-report-id2",
     )
 
     val retrievedReports =
@@ -1560,7 +1560,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
           createdReportingSet,
           createdMetricCalculationSpec,
           null,
-          "external-report-id"
+          "external-report-id",
         )
       val createdReport2 =
         createReport(
@@ -1570,7 +1570,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
           createdReportingSet,
           createdMetricCalculationSpec,
           null,
-          "external-report-id2"
+          "external-report-id2",
         )
 
       val retrievedReports =
@@ -1610,7 +1610,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
           createdReportingSet,
           createdMetricCalculationSpec,
           null,
-          "external-report-id"
+          "external-report-id",
         )
       val createdReport2 =
         createReport(
@@ -1620,7 +1620,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
           createdReportingSet,
           createdMetricCalculationSpec,
           null,
-          "external-report-id2"
+          "external-report-id2",
         )
 
       val retrievedReports =
@@ -1654,7 +1654,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       createdReportingSet,
       createdMetricCalculationSpec,
       null,
-      "external-report-id"
+      "external-report-id",
     )
     val createdReport2 =
       createReport(
@@ -1664,7 +1664,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         createdReportingSet,
         createdMetricCalculationSpec,
         null,
-        "external-report-id2"
+        "external-report-id2",
       )
 
     val retrievedReports =
@@ -1694,7 +1694,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       service,
       usePeriodicTimeInterval = false,
       createdReportingSet,
-      createdMetricCalculationSpec
+      createdMetricCalculationSpec,
     )
 
     val exception =

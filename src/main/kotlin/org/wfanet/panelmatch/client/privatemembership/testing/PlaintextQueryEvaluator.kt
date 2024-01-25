@@ -49,7 +49,7 @@ class PlaintextQueryEvaluator(private val bucketsPerShard: Int) : QueryEvaluator
     shards: List<DatabaseShard>,
     queryBundles: List<EncryptedQueryBundle>,
     paddingNonces: Map<QueryId, PaddingNonce>,
-    serializedPublicKey: ByteString
+    serializedPublicKey: ByteString,
   ): List<EncryptedQueryResult> {
     val results = mutableListOf<EncryptedQueryResult>()
     for (shard in shards) {
@@ -85,7 +85,7 @@ class PlaintextQueryEvaluator(private val bucketsPerShard: Int) : QueryEvaluator
   private fun queryShard(
     bucketId: BucketId,
     buckets: List<Bucket>,
-    paddingNonce: PaddingNonce
+    paddingNonce: PaddingNonce,
   ): ByteString {
     if (bucketId.id == bucketsPerShard) {
       return paddingNonce.nonce

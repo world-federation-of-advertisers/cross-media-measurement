@@ -49,7 +49,7 @@ private val ATTEMPT_KEY =
     RECURRING_EXCHANGE_ID,
     "some-exchange",
     "some-step",
-    "some-attempt"
+    "some-attempt",
   )
 
 @RunWith(JUnit4::class)

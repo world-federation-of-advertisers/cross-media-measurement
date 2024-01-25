@@ -45,7 +45,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.Computa
 abstract class InProcessLifeOfAMeasurementIntegrationTest(
   kingdomDataServicesRule: ProviderRule<DataServices>,
   duchyDependenciesRule:
-    ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>
+    ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>,
 ) {
 
   @get:Rule
@@ -84,7 +84,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
     val eventQuery =
       MetadataSyntheticGeneratorEventQuery(
         SyntheticGenerationSpecs.POPULATION_SPEC,
-        InProcessCmmsComponents.MC_ENCRYPTION_PRIVATE_KEY
+        InProcessCmmsComponents.MC_ENCRYPTION_PRIVATE_KEY,
       )
     mcSimulator =
       MeasurementConsumerSimulator(
@@ -92,7 +92,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
           measurementConsumerData.name,
           InProcessCmmsComponents.MC_ENTITY_CONTENT.signingKey,
           InProcessCmmsComponents.MC_ENCRYPTION_PRIVATE_KEY,
-          measurementConsumerData.apiAuthenticationKey
+          measurementConsumerData.apiAuthenticationKey,
         ),
         OUTPUT_DP_PARAMS,
         publicDataProvidersClient,
@@ -103,7 +103,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
         RESULT_POLLING_DELAY,
         InProcessCmmsComponents.TRUSTED_CERTIFICATES,
         eventQuery,
-        NoiseMechanism.CONTINUOUS_GAUSSIAN
+        NoiseMechanism.CONTINUOUS_GAUSSIAN,
       )
   }
 
@@ -130,6 +130,13 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
       // Use frontend simulator to create a direct reach and frequency measurement and verify its
       // result.
       mcSimulator.testDirectReachAndFrequency("1234")
+    }
+
+  @Test
+  fun `create a direct reach-only measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      // Use frontend simulator to create a direct reach-only measurement and verify its result.
+      mcSimulator.testDirectReachOnly("1234")
     }
 
   @Test

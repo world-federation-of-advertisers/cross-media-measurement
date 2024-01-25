@@ -27,7 +27,7 @@ class CompositionTest {
         Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
           DpCharge(1.0f, 0.001f),
           30,
-          0.06f
+          0.06f,
         )
       )
       .isEqualTo(22.0f)
@@ -35,7 +35,7 @@ class CompositionTest {
         Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
           DpCharge(1.0f, 0.001f),
           30,
-          0.1f
+          0.1f,
         )
       )
       .isEqualTo(20.0f)
@@ -47,7 +47,7 @@ class CompositionTest {
         Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
           DpCharge(1.0f, 0.01f),
           30,
-          0.26f
+          0.26f,
         )
       )
       .isEqualTo(Float.MAX_VALUE)
@@ -55,7 +55,7 @@ class CompositionTest {
         Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
           DpCharge(0.01f, 1.0e-12.toFloat()),
           200,
-          1.0e-9.toFloat()
+          1.0e-9.toFloat(),
         )
       )
       .isWithin(0.0001f)
@@ -64,7 +64,7 @@ class CompositionTest {
         Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
           DpCharge(0.0042f, 0.0f),
           1880,
-          1.0e-9.toFloat()
+          1.0e-9.toFloat(),
         )
       )
       .isWithin(0.001f)

@@ -27,7 +27,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry.Details
 internal fun SpannerWriter.TransactionScope.insertMeasurementLogEntry(
   measurementId: InternalId,
   measurementConsumerId: InternalId,
-  logDetails: Details
+  logDetails: Details,
 ) {
 
   require(logDetails.logMessage != null && !logDetails.logMessage.isEmpty())
@@ -63,7 +63,7 @@ internal fun SpannerWriter.TransactionScope.insertDuchyMeasurementLogEntry(
   measurementId: InternalId,
   measurementConsumerId: InternalId,
   duchyId: InternalId,
-  logDetails: DuchyMeasurementLogEntry.Details
+  logDetails: DuchyMeasurementLogEntry.Details,
 ): ExternalId {
   val externalComputationLogEntryId = idGenerator.generateExternalId()
 

@@ -22,19 +22,22 @@ import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 /** Deals with stage specific details for a computation protocol. */
 object ComputationProtocolStageDetails :
   ComputationProtocolStageDetailsHelper<
-    ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails
+    ComputationType,
+    ComputationStage,
+    ComputationStageDetails,
+    ComputationDetails,
   > {
 
   override fun validateRoleForStage(
     stage: ComputationStage,
-    computationDetails: ComputationDetails
+    computationDetails: ComputationDetails,
   ): Boolean {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     return when (stage.stageCase) {
       ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         LiquidLegionsSketchAggregationV2Protocol.ComputationStages.Details.validateRoleForStage(
           stage,
-          computationDetails
+          computationDetails,
         )
       ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         ReachOnlyLiquidLegionsSketchAggregationV2Protocol.ComputationStages.Details
@@ -42,7 +45,7 @@ object ComputationProtocolStageDetails :
       ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
         HonestMajorityShareShuffleProtocol.ComputationStages.Details.validateRoleForStage(
           stage,
-          computationDetails
+          computationDetails,
         )
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
@@ -66,7 +69,7 @@ object ComputationProtocolStageDetails :
 
   override fun outputBlobNumbersForStage(
     stage: ComputationStage,
-    computationDetails: ComputationDetails
+    computationDetails: ComputationDetails,
   ): Int {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     return when (stage.stageCase) {
@@ -79,7 +82,7 @@ object ComputationProtocolStageDetails :
       ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
         HonestMajorityShareShuffleProtocol.ComputationStages.Details.outputBlobNumbersForStage(
           stage,
-          computationDetails
+          computationDetails,
         )
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
@@ -87,24 +90,24 @@ object ComputationProtocolStageDetails :
 
   override fun detailsFor(
     stage: ComputationStage,
-    computationDetails: ComputationDetails
+    computationDetails: ComputationDetails,
   ): ComputationStageDetails {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     return when (stage.stageCase) {
       ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         LiquidLegionsSketchAggregationV2Protocol.ComputationStages.Details.detailsFor(
           stage,
-          computationDetails
+          computationDetails,
         )
       ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         ReachOnlyLiquidLegionsSketchAggregationV2Protocol.ComputationStages.Details.detailsFor(
           stage,
-          computationDetails
+          computationDetails,
         )
       ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
         HonestMajorityShareShuffleProtocol.ComputationStages.Details.detailsFor(
           stage,
-          computationDetails
+          computationDetails,
         )
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
@@ -128,7 +131,7 @@ object ComputationProtocolStageDetails :
 
   override fun setEndingState(
     details: ComputationDetails,
-    reason: EndComputationReason
+    reason: EndComputationReason,
   ): ComputationDetails {
     return details.toBuilder().setEndingState(reason.toCompletedReason()).build()
   }

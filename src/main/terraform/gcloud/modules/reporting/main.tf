@@ -58,3 +58,15 @@ resource "postgresql_grant" "db" {
   object_type = "database"
   privileges  = local.all_db_privileges
 }
+
+resource "google_sql_database" "db2" {
+  name     = "reporting-v2"
+  instance = var.postgres_instance.name
+}
+
+resource "postgresql_grant" "db2" {
+  role        = google_sql_user.reporting_internal.name
+  database    = google_sql_database.db2.name
+  object_type = "database"
+  privileges  = local.all_db_privileges
+}

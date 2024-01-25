@@ -82,12 +82,12 @@ object HonestMajorityShareShuffleProtocol {
       ProtocolStageDetails<
         HonestMajorityShareShuffle.Stage,
         ComputationStageDetails,
-        HonestMajorityShareShuffle.ComputationDetails
+        HonestMajorityShareShuffle.ComputationDetails,
       > {
 
       override fun validateRoleForStage(
         stage: HonestMajorityShareShuffle.Stage,
-        details: HonestMajorityShareShuffle.ComputationDetails
+        details: HonestMajorityShareShuffle.ComputationDetails,
       ): Boolean {
         return when (stage) {
           INITIALIZED,
@@ -118,17 +118,17 @@ object HonestMajorityShareShuffleProtocol {
 
       override fun outputBlobNumbersForStage(
         stage: HonestMajorityShareShuffle.Stage,
-        computationDetails: HonestMajorityShareShuffle.ComputationDetails
+        computationDetails: HonestMajorityShareShuffle.ComputationDetails,
       ): Int {
         return when (stage) {
           SETUP_PHASE,
-          WAIT_ON_SHUFFLE_INPUT -> 0
-          SHUFFLE_PHASE,
+          WAIT_ON_SHUFFLE_INPUT,
+          SHUFFLE_PHASE -> 0
+          WAIT_ON_AGGREGATION_INPUT -> 2
           AGGREGATION_PHASE ->
             // The output is the intermediate computation result either received from another duchy
             // or computed locally.
             1
-          WAIT_ON_AGGREGATION_INPUT -> 2
           // Mill have nothing to do for this stage.
           COMPLETE -> error("Computation should be ended with call to endComputation(...)")
           // Stages that we can't transition to ever.
@@ -140,7 +140,7 @@ object HonestMajorityShareShuffleProtocol {
 
       override fun detailsFor(
         stage: HonestMajorityShareShuffle.Stage,
-        computationDetails: HonestMajorityShareShuffle.ComputationDetails
+        computationDetails: HonestMajorityShareShuffle.ComputationDetails,
       ): ComputationStageDetails {
         return when (stage) {
           WAIT_ON_AGGREGATION_INPUT ->
@@ -191,11 +191,11 @@ object HonestMajorityShareShuffleProtocol {
       ProtocolStageDetails<ComputationStage, ComputationStageDetails, ComputationDetails> {
       override fun validateRoleForStage(
         stage: ComputationStage,
-        details: ComputationDetails
+        details: ComputationDetails,
       ): Boolean {
         return EnumStages.Details.validateRoleForStage(
           stage.honestMajorityShareShuffle,
-          details.honestMajorityShareShuffle
+          details.honestMajorityShareShuffle,
         )
       }
 
@@ -205,21 +205,21 @@ object HonestMajorityShareShuffleProtocol {
 
       override fun outputBlobNumbersForStage(
         stage: ComputationStage,
-        computationDetails: ComputationDetails
+        computationDetails: ComputationDetails,
       ): Int {
         return EnumStages.Details.outputBlobNumbersForStage(
           stage.honestMajorityShareShuffle,
-          computationDetails.honestMajorityShareShuffle
+          computationDetails.honestMajorityShareShuffle,
         )
       }
 
       override fun detailsFor(
         stage: ComputationStage,
-        computationDetails: ComputationDetails
+        computationDetails: ComputationDetails,
       ): ComputationStageDetails =
         EnumStages.Details.detailsFor(
           stage.honestMajorityShareShuffle,
-          computationDetails.honestMajorityShareShuffle
+          computationDetails.honestMajorityShareShuffle,
         )
 
       override fun parseDetails(bytes: ByteArray): ComputationStageDetails =

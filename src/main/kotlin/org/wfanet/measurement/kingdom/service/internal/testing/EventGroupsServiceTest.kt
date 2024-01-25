@@ -121,7 +121,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         "external_data_provider_id",
         "404",
         "external_event_group_id",
-        EXTERNAL_EVENT_GROUP_ID.toString()
+        EXTERNAL_EVENT_GROUP_ID.toString(),
       )
   }
 

@@ -191,7 +191,7 @@ class ModelRolloutsServiceTest {
         flowOf(
           INTERNAL_MODEL_ROLLOUT,
           INTERNAL_MODEL_ROLLOUT.copy { externalModelRolloutId = EXTERNAL_MODEL_ROLLOUT_ID_2 },
-          INTERNAL_MODEL_ROLLOUT.copy { externalModelRolloutId = EXTERNAL_MODEL_ROLLOUT_ID_3 }
+          INTERNAL_MODEL_ROLLOUT.copy { externalModelRolloutId = EXTERNAL_MODEL_ROLLOUT_ID_3 },
         )
       )
   }
@@ -202,10 +202,7 @@ class ModelRolloutsServiceTest {
 
   @Before
   fun initService() {
-    service =
-      ModelRolloutsService(
-        ModelRolloutsCoroutineStub(grpcTestServerRule.channel),
-      )
+    service = ModelRolloutsService(ModelRolloutsCoroutineStub(grpcTestServerRule.channel))
   }
 
   @Test
@@ -224,7 +221,7 @@ class ModelRolloutsServiceTest {
 
     verifyProtoArgument(
         internalModelRolloutsMock,
-        ModelRolloutsCoroutineImplBase::createModelRollout
+        ModelRolloutsCoroutineImplBase::createModelRollout,
       )
       .isEqualTo(
         INTERNAL_MODEL_ROLLOUT.copy {
@@ -395,7 +392,7 @@ class ModelRolloutsServiceTest {
 
     verifyProtoArgument(
         internalModelRolloutsMock,
-        ModelRolloutsCoroutineImplBase::scheduleModelRolloutFreeze
+        ModelRolloutsCoroutineImplBase::scheduleModelRolloutFreeze,
       )
       .isEqualTo(
         internalScheduleModelRolloutFreezeRequest {
@@ -516,7 +513,7 @@ class ModelRolloutsServiceTest {
 
     verifyProtoArgument(
         internalModelRolloutsMock,
-        ModelRolloutsCoroutineImplBase::deleteModelRollout
+        ModelRolloutsCoroutineImplBase::deleteModelRollout,
       )
       .isEqualTo(
         internalDeleteModelRolloutRequest {

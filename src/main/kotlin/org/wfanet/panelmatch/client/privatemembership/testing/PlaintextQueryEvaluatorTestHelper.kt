@@ -40,7 +40,7 @@ object PlaintextQueryEvaluatorTestHelper : QueryEvaluatorTestHelper {
 
   override fun makeQueryBundle(
     shard: ShardId,
-    queries: List<Pair<QueryId, BucketId>>
+    queries: List<Pair<QueryId, BucketId>>,
   ): EncryptedQueryBundle {
     return encryptedQueryBundleOf(
       shard,
@@ -50,7 +50,7 @@ object PlaintextQueryEvaluatorTestHelper : QueryEvaluatorTestHelper {
             values += value { stringValue = query.second.id.toString() }
           }
         }
-        .toByteString()
+        .toByteString(),
     )
   }
 

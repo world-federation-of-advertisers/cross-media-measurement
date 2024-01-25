@@ -51,6 +51,7 @@ import org.wfanet.measurement.reporting.service.api.v1alpha.ReportingPrincipal
 import org.wfanet.measurement.reporting.service.api.v1alpha.ReportingSetsService
 import org.wfanet.measurement.reporting.service.api.v1alpha.ReportsService
 import org.wfanet.measurement.reporting.service.api.v1alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
+import org.wfanet.measurement.reporting.v1alpha.EventGroup
 import picocli.CommandLine
 
 private const val SERVER_NAME = "V1AlphaPublicApiServer"
@@ -59,7 +60,7 @@ private const val SERVER_NAME = "V1AlphaPublicApiServer"
   name = SERVER_NAME,
   description = ["Server daemon for Reporting v1alpha public API services."],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 private fun run(
   @CommandLine.Mixin reportingApiServerFlags: ReportingApiServerFlags,
@@ -72,13 +73,13 @@ private fun run(
     SigningCerts.fromPemFiles(
       certificateFile = commonServerFlags.tlsFlags.certFile,
       privateKeyFile = commonServerFlags.tlsFlags.privateKeyFile,
-      trustedCertCollectionFile = commonServerFlags.tlsFlags.certCollectionFile
+      trustedCertCollectionFile = commonServerFlags.tlsFlags.certCollectionFile,
     )
   val channel: Channel =
     buildMutualTlsChannel(
         reportingApiServerFlags.internalApiFlags.target,
         clientCerts,
-        reportingApiServerFlags.internalApiFlags.certHost
+        reportingApiServerFlags.internalApiFlags.certHost,
       )
       .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
 
@@ -86,21 +87,21 @@ private fun run(
     buildMutualTlsChannel(
         target = kingdomApiFlags.target,
         clientCerts = clientCerts,
-        hostName = kingdomApiFlags.certHost
+        hostName = kingdomApiFlags.certHost,
       )
       .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
 
   val principalLookup: PrincipalLookup<ReportingPrincipal, ByteString> =
     AkidPrincipalLookup(
         v1AlphaFlags.authorityKeyIdentifierToPrincipalMapFile,
-        v1AlphaFlags.measurementConsumerConfigFile
+        v1AlphaFlags.measurementConsumerConfigFile,
       )
       .memoizing()
 
   val measurementConsumerConfigs =
     parseTextProto(
       v1AlphaFlags.measurementConsumerConfigFile,
-      MeasurementConsumerConfigs.getDefaultInstance()
+      MeasurementConsumerConfigs.getDefaultInstance(),
     )
 
   val apiKey = measurementConsumerConfigs.configsMap.values.first().apiKey
@@ -108,6 +109,7 @@ private fun run(
     CelEnvCacheProvider(
       KingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomChannel)
         .withAuthenticationKey(apiKey),
+      EventGroup.getDescriptor(),
       reportingApiServerFlags.eventGroupMetadataDescriptorCacheDuration,
       Dispatchers.Default,
     )
@@ -115,7 +117,7 @@ private fun run(
   val measurementSpecConfig =
     parseTextProto(
       v1AlphaFlags.measurementSpecConfigFile,
-      MeasurementSpecConfig.getDefaultInstance()
+      MeasurementSpecConfig.getDefaultInstance(),
     )
 
   try {
@@ -146,9 +148,9 @@ private fun run(
           SecureRandom(),
           v1AlphaFlags.signingPrivateKeyStoreDir,
           commonServerFlags.tlsFlags.signingCerts.trustedCertificates,
-          measurementSpecConfig
+          measurementSpecConfig,
         )
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
     )
   CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
 }

@@ -42,7 +42,7 @@ class PlaintextPrivateMembershipCryptorHelper : PrivateMembershipCryptorHelper {
 
   override fun makeEncryptedQueryBundle(
     shard: ShardId,
-    queries: List<Pair<QueryId, BucketId>>
+    queries: List<Pair<QueryId, BucketId>>,
   ): EncryptedQueryBundle {
     return encryptedQueryBundleOf(
       shard,
@@ -52,7 +52,7 @@ class PlaintextPrivateMembershipCryptorHelper : PrivateMembershipCryptorHelper {
             values += value { stringValue = query.second.id.toString() }
           }
         }
-        .toByteString()
+        .toByteString(),
     )
   }
 
@@ -71,11 +71,11 @@ class PlaintextPrivateMembershipCryptorHelper : PrivateMembershipCryptorHelper {
 
   override fun makeEncryptedQueryResult(
     keys: AsymmetricKeyPair,
-    encryptedEventDataSet: EncryptedEventDataSet
+    encryptedEventDataSet: EncryptedEventDataSet,
   ): EncryptedQueryResult {
     return encryptedQueryResultOf(
       encryptedEventDataSet.queryId,
-      encryptedEventDataSet.encryptedEventData.toByteString()
+      encryptedEventDataSet.encryptedEventData.toByteString(),
     )
   }
 
@@ -88,7 +88,7 @@ class PlaintextPrivateMembershipCryptorHelper : PrivateMembershipCryptorHelper {
 
   override fun makeEncryptedEventDataSet(
     plaintext: DecryptedEventDataSet,
-    joinkey: Pair<QueryId, JoinKey>
+    joinkey: Pair<QueryId, JoinKey>,
   ): EncryptedEventDataSet {
     require(plaintext.queryId == joinkey.first) { "QueryId must be the same" }
     return encryptedEventDataSet {

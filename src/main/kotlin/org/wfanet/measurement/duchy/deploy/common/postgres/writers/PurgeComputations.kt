@@ -23,21 +23,14 @@ class PurgeComputations(
   private val stages: List<ComputationStage>,
   private val updatedBefore: Instant,
   private val force: Boolean,
-  private val computationReader: ComputationReader
+  private val computationReader: ComputationReader,
 ) : PostgresWriter<PurgeComputations.PurgeResult>() {
-  data class PurgeResult(
-    val purgeCount: Int,
-    val purgeSamples: Set<String> = emptySet(),
-  )
+  data class PurgeResult(val purgeCount: Int, val purgeSamples: Set<String> = emptySet())
 
   override suspend fun TransactionScope.runTransaction(): PurgeResult {
     var deleted = 0
     val globalIds: Set<String> =
-      computationReader.readGlobalComputationIds(
-        transactionContext,
-        stages,
-        updatedBefore,
-      )
+      computationReader.readGlobalComputationIds(transactionContext, stages, updatedBefore)
     if (!force) {
       return PurgeResult(globalIds.size, globalIds)
     }

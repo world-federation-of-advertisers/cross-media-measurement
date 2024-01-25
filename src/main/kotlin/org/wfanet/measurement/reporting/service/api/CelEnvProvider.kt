@@ -49,16 +49,12 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt
 import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.common.ProtoReflection
-import org.wfanet.measurement.reporting.v1alpha.EventGroup
 
 private const val METADATA_FIELD = "metadata.metadata"
 private const val MAX_PAGE_SIZE = 1000
 
 interface CelEnvProvider {
-  data class TypeRegistryAndEnv(
-    val typeRegistry: TypeRegistry,
-    val env: Env,
-  )
+  data class TypeRegistryAndEnv(val typeRegistry: TypeRegistry, val env: Env)
 
   suspend fun getTypeRegistryAndEnv(): TypeRegistryAndEnv
 }
@@ -66,6 +62,8 @@ interface CelEnvProvider {
 class CelEnvCacheProvider(
   private val eventGroupsMetadataDescriptorsStub:
     EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub,
+  /** Protobuf descriptor of Reporting EventGroup message type. */
+  private val reportingEventGroupDescriptor: Descriptors.Descriptor,
   private val cacheRefreshInterval: Duration,
   coroutineContext: CoroutineContext,
   private val numRetriesInitialSync: Int = 3,
@@ -136,33 +134,29 @@ class CelEnvCacheProvider(
     return CelEnvProvider.TypeRegistryAndEnv(typeRegistry, env)
   }
 
-  private fun buildCelEnvironment(
-    descriptors: List<Descriptors.Descriptor>,
-  ): Env {
+  private fun buildCelEnvironment(descriptors: List<Descriptors.Descriptor>): Env {
     // Build CEL ProtoTypeRegistry.
     val celTypeRegistry = ProtoTypeRegistry.newRegistry()
     descriptors.forEach { celTypeRegistry.registerDescriptor(it.file) }
-
-    celTypeRegistry.registerMessage(EventGroup.getDefaultInstance())
+    celTypeRegistry.registerDescriptor(reportingEventGroupDescriptor.file)
 
     // Build CEL Env.
-    val eventGroupDescriptor = EventGroup.getDescriptor()
     val env =
       Env.newEnv(
-        EnvOption.container(eventGroupDescriptor.fullName),
+        EnvOption.container(reportingEventGroupDescriptor.fullName),
         EnvOption.customTypeProvider(celTypeRegistry),
         EnvOption.customTypeAdapter(celTypeRegistry),
         EnvOption.declarations(
-          eventGroupDescriptor.fields
+          reportingEventGroupDescriptor.fields
             .map {
               Decls.newVar(
                 it.name,
-                celTypeRegistry.findFieldType(eventGroupDescriptor.fullName, it.name).type
+                celTypeRegistry.findFieldType(reportingEventGroupDescriptor.fullName, it.name).type,
               )
             }
             // TODO(projectnessie/cel-java#295): Remove when fixed.
             .plus(Decls.newVar(METADATA_FIELD, Checked.checkedAny))
-        )
+        ),
       )
     return env
   }
@@ -202,9 +196,7 @@ class CelEnvCacheProvider(
     }
   }
 
-  private fun buildTypeRegistry(
-    descriptors: List<Descriptors.Descriptor>,
-  ): TypeRegistry {
+  private fun buildTypeRegistry(descriptors: List<Descriptors.Descriptor>): TypeRegistry {
     return TypeRegistry.newBuilder()
       .apply {
         for (descriptor in descriptors) {

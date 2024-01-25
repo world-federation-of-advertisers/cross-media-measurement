@@ -65,7 +65,7 @@ class ReleaseCertificateHold(private val request: ReleaseCertificateHoldRequest)
           reader.execute(transactionContext).singleOrNull()
             ?: throw DataProviderCertificateNotFoundException(
               externalDataProviderId,
-              externalCertificateId
+              externalCertificateId,
             )
         }
         ReleaseCertificateHoldRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> {
@@ -76,7 +76,7 @@ class ReleaseCertificateHold(private val request: ReleaseCertificateHoldRequest)
           reader.execute(transactionContext).singleOrNull()
             ?: throw MeasurementConsumerCertificateNotFoundException(
               externalMeasurementConsumerId,
-              externalCertificateId
+              externalCertificateId,
             ) {
               "Certificate not found."
             }
@@ -89,7 +89,7 @@ class ReleaseCertificateHold(private val request: ReleaseCertificateHoldRequest)
           reader.execute(transactionContext).singleOrNull()
             ?: throw ModelProviderCertificateNotFoundException(
               externalModelProviderId,
-              externalCertificateId
+              externalCertificateId,
             ) {
               "Certificate not found."
             }
@@ -106,7 +106,7 @@ class ReleaseCertificateHold(private val request: ReleaseCertificateHoldRequest)
           reader.execute(transactionContext).singleOrNull()
             ?: throw DuchyCertificateNotFoundException(
               request.externalDuchyId,
-              externalCertificateId
+              externalCertificateId,
             ) {
               "Certificate not found."
             }
@@ -131,7 +131,7 @@ class ReleaseCertificateHold(private val request: ReleaseCertificateHoldRequest)
       RevocationState.REVOCATION_STATE_UNSPECIFIED ->
         throw CertificateRevocationStateIllegalException(
           ExternalId(externalCertificateId.value),
-          certificateRevocationState
+          certificateRevocationState,
         ) {
           "Certificate is in $certificateRevocationState state, cannot release hold."
         }

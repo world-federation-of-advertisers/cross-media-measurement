@@ -40,19 +40,22 @@ abstract class EdpSimulatorRunner : Runnable {
   protected lateinit var flags: EdpSimulatorFlags
     private set
 
-  protected fun run(eventQuery: EventQuery<Message>, eventGroupMetadata: Message) {
+  protected fun run(
+    eventQuery: EventQuery<Message>,
+    metadataByReferenceIdSuffix: Map<String, Message>,
+  ) {
     val clientCerts =
       SigningCerts.fromPemFiles(
         certificateFile = flags.tlsFlags.certFile,
         privateKeyFile = flags.tlsFlags.privateKeyFile,
-        trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
+        trustedCertCollectionFile = flags.tlsFlags.certCollectionFile,
       )
 
     val v2AlphaPublicApiChannel: ManagedChannel =
       buildMutualTlsChannel(
         flags.kingdomPublicApiFlags.target,
         clientCerts,
-        flags.kingdomPublicApiFlags.certHost
+        flags.kingdomPublicApiFlags.certHost,
       )
     val requisitionsStub = RequisitionsCoroutineStub(v2AlphaPublicApiChannel)
     val eventGroupsStub = EventGroupsCoroutineStub(v2AlphaPublicApiChannel)
@@ -108,7 +111,7 @@ abstract class EdpSimulatorRunner : Runnable {
         compositionMechanism = flags.compositionMechanism,
       )
     runBlocking {
-      edpSimulator.ensureEventGroup(eventGroupMetadata)
+      edpSimulator.ensureEventGroups(metadataByReferenceIdSuffix)
       edpSimulator.run()
     }
   }

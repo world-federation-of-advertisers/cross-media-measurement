@@ -85,7 +85,7 @@ class CreateComputation<ProtocolT : Any, ComputationDT : Message, StageT : Any, 
         computationProtocolStagesEnumHelper.computationStageEnumToLongValues(initialStage).stage,
       lockOwner = lockOwner,
       lockExpirationTime = writeTimestamp,
-      details = computationDetails
+      details = computationDetails,
     )
 
     insertComputationStage(
@@ -96,7 +96,7 @@ class CreateComputation<ProtocolT : Any, ComputationDT : Message, StageT : Any, 
       endTime = writeTimestamp,
       previousStage = null,
       followingStage = null,
-      details = stageDetails
+      details = stageDetails,
     )
 
     requisitions.map {
@@ -107,7 +107,7 @@ class CreateComputation<ProtocolT : Any, ComputationDT : Message, StageT : Any, 
         requisitionFingerprint = it.key.requisitionFingerprint,
         requisitionDetails = it.value,
         creationTime = writeTimestamp,
-        updateTime = writeTimestamp
+        updateTime = writeTimestamp,
       )
     }
 

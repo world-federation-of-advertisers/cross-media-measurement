@@ -189,7 +189,7 @@ class SyntheticDataGenerationTest {
       SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           population,
-          eventGroupSpec
+          eventGroupSpec,
         )
         .toList()
 
@@ -303,7 +303,7 @@ class SyntheticDataGenerationTest {
       SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           populationSpec,
-          eventGroupSpec
+          eventGroupSpec,
         )
         .map { TestEvent.parseFrom(it.message.toByteString()) }
         .toList()
@@ -378,7 +378,7 @@ class SyntheticDataGenerationTest {
       SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           population,
-          eventGroupSpec
+          eventGroupSpec,
         )
         .toList()
     }
@@ -448,7 +448,7 @@ class SyntheticDataGenerationTest {
       SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           population,
-          eventGroupSpec
+          eventGroupSpec,
         )
         .toList()
     }
@@ -518,7 +518,7 @@ class SyntheticDataGenerationTest {
       SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           population,
-          eventGroupSpec
+          eventGroupSpec,
         )
         .toList()
     }
@@ -588,7 +588,7 @@ class SyntheticDataGenerationTest {
       SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           population,
-          eventGroupSpec
+          eventGroupSpec,
         )
         .toList()
     }

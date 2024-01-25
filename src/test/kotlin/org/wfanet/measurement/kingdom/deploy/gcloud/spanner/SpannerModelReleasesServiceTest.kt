@@ -29,7 +29,7 @@ class SpannerModelReleasesServiceTest : ModelReleasesServiceTest<SpannerModelRel
 
   override fun newServices(
     clock: Clock,
-    idGenerator: IdGenerator
+    idGenerator: IdGenerator,
   ): Services<SpannerModelReleasesService> {
     val spannerServices =
       SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient).buildDataServices()
@@ -37,7 +37,9 @@ class SpannerModelReleasesServiceTest : ModelReleasesServiceTest<SpannerModelRel
     return Services(
       spannerServices.modelReleasesService as SpannerModelReleasesService,
       spannerServices.modelSuitesService,
-      spannerServices.modelProvidersService
+      spannerServices.modelProvidersService,
+      spannerServices.dataProvidersService,
+      spannerServices.populationsService,
     )
   }
 }

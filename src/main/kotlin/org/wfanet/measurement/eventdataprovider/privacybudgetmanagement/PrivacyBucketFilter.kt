@@ -17,11 +17,10 @@ import java.time.Clock
 import java.time.ZoneOffset
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.rangeTo
-import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 class PrivacyBucketFilter(
   private val privacyBucketMapper: PrivacyBucketMapper,
-  private val clock: Clock = Clock.systemUTC()
+  private val clock: Clock = Clock.systemUTC(),
 ) {
   /**
    * Returns a list of privacy bucket groups that might be affected by a query.
@@ -36,7 +35,7 @@ class PrivacyBucketFilter(
    */
   fun getPrivacyBucketGroups(
     measurementConsumerId: String,
-    privacyLandscapeMask: LandscapeMask
+    privacyLandscapeMask: LandscapeMask,
   ): Set<PrivacyBucketGroup> {
 
     return privacyLandscapeMask.eventGroupSpecs
@@ -45,7 +44,7 @@ class PrivacyBucketFilter(
           measurementConsumerId,
           it,
           privacyLandscapeMask.vidSampleStart,
-          privacyLandscapeMask.vidSampleStart + privacyLandscapeMask.vidSampleWidth
+          privacyLandscapeMask.vidSampleStart + privacyLandscapeMask.vidSampleWidth,
         )
       }
       .toSet()
@@ -55,7 +54,7 @@ class PrivacyBucketFilter(
     measurementConsumerId: String,
     eventSpec: EventGroupSpec,
     vidSamplingIntervalStart: Float,
-    vidSamplingIntervalEnd: Float
+    vidSamplingIntervalEnd: Float,
   ): Sequence<PrivacyBucketGroup> {
     val program = privacyBucketMapper.toPrivacyFilterProgram(eventSpec.eventFilter)
 
@@ -82,14 +81,9 @@ class PrivacyBucketFilter(
                   ageGroup,
                   gender,
                   vidsIntervalStartPoint,
-                  PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+                  PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
                 )
-              if (
-                EventFilters.matches(
-                  privacyBucketMapper.toEventMessage(privacyBucketGroup),
-                  program
-                )
-              ) {
+              if (privacyBucketMapper.matches(privacyBucketGroup, program)) {
                 yield(privacyBucketGroup)
               }
             }

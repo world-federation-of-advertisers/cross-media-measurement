@@ -107,7 +107,7 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
         insertReportingSetEventGroups(
           measurementConsumerId,
           reportingSetId,
-          request.reportingSet.primitive.eventGroupKeysList
+          request.reportingSet.primitive.eventGroupKeysList,
         )
       }
       ReportingSet.ValueCase.COMPOSITE -> {
@@ -136,7 +136,7 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
               measurementConsumerId = measurementConsumerId,
               reportingSetId = reportingSetId,
               request.reportingSet.composite,
-              reportingSetMap
+              reportingSetMap,
             )
           }
         transactionContext.executeStatement(setExpressionsStatement)
@@ -159,7 +159,7 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
           measurementConsumerId,
           reportingSetId,
           request.reportingSet.weightedSubsetUnionsList,
-          reportingSetMap
+          reportingSetMap,
         )
       }
       ReportingSet.ValueCase.VALUE_NOT_SET -> {
@@ -189,7 +189,7 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
   private suspend fun TransactionScope.insertReportingSetEventGroups(
     measurementConsumerId: InternalId,
     reportingSetId: InternalId,
-    eventGroups: List<ReportingSet.Primitive.EventGroupKey>
+    eventGroups: List<ReportingSet.Primitive.EventGroupKey>,
   ) {
     // Map of Primitive Reporting Set EventGroupKey to internal EventGroup ID.
     val eventGroupMap = mutableMapOf<ReportingSet.Primitive.EventGroupKey, InternalId>()
@@ -198,7 +198,7 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
       eventGroups.distinct().map {
         EventGroupReader.CmmsEventGroupKey(
           cmmsDataProviderId = it.cmmsDataProviderId,
-          cmmsEventGroupId = it.cmmsEventGroupId
+          cmmsEventGroupId = it.cmmsEventGroupId,
         )
       }
 
@@ -315,7 +315,7 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
     measurementConsumerId: InternalId,
     reportingSetId: InternalId,
     setExpression: SetExpression,
-    reportingSetMap: Map<String, InternalId> = mapOf()
+    reportingSetMap: Map<String, InternalId> = mapOf(),
   ) {
     val leftHandSetExpressionId: InternalId?
     val leftHandReportingSetId: InternalId?
@@ -332,7 +332,7 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
           measurementConsumerId,
           reportingSetId,
           setExpression.lhs.expression,
-          reportingSetMap
+          reportingSetMap,
         )
         leftHandReportingSetId = null
       }
@@ -358,7 +358,7 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
           measurementConsumerId,
           reportingSetId,
           setExpression.rhs.expression,
-          reportingSetMap
+          reportingSetMap,
         )
         rightHandReportingSetId = null
       }
@@ -390,7 +390,7 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
     measurementConsumerId: InternalId,
     reportingSetId: InternalId,
     weightedSubsetUnions: List<WeightedSubsetUnion>,
-    reportingSetMap: Map<String, InternalId> = mapOf()
+    reportingSetMap: Map<String, InternalId> = mapOf(),
   ) {
     val weightedSubsetUnionsBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
     val primitiveReportingSetBasesBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
@@ -415,7 +415,7 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
             reportingSetId,
             weightedSubsetUnionId,
             it,
-            reportingSetMap
+            reportingSetMap,
           )
         primitiveReportingSetBasesBinders.addAll(binders.primitiveReportingSetBasesBinders)
         weightedSubsetUnionPrimitiveReportingSetBasesBinders.addAll(
@@ -482,7 +482,7 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
     reportingSetId: InternalId,
     weightedSubsetUnionId: InternalId,
     primitiveReportingSetBasis: PrimitiveReportingSetBasis,
-    reportingSetMap: Map<String, InternalId> = mapOf()
+    reportingSetMap: Map<String, InternalId> = mapOf(),
   ): PrimitiveReportingSetBasesBinders {
     val primitiveReportingSetBasisId = idGenerator.generateInternalId()
 
@@ -509,7 +509,7 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
         insertPrimitiveReportingSetBasisFilter(
           measurementConsumerId,
           primitiveReportingSetBasisId,
-          it
+          it,
         )
       )
     }
@@ -518,14 +518,14 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
       primitiveReportingSetBasesBinders = listOf(primitiveReportingSetBasesBinder),
       weightedSubsetUnionPrimitiveReportingSetBasesBinders =
         listOf(weightedSubsetUnionPrimitiveReportingSetBasesBinder),
-      primitiveReportingSetBasisFiltersBinders
+      primitiveReportingSetBasisFiltersBinders,
     )
   }
 
   private fun TransactionScope.insertPrimitiveReportingSetBasisFilter(
     measurementConsumerId: InternalId,
     primitiveReportingSetBasisId: InternalId,
-    filter: String
+    filter: String,
   ): BoundStatement.Binder.() -> Unit {
     val primitiveReportingSetBasisFilterId = idGenerator.generateInternalId()
 

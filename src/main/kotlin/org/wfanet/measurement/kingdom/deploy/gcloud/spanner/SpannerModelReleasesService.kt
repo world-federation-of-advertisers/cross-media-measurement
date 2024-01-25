@@ -35,7 +35,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelR
 
 class SpannerModelReleasesService(
   private val idGenerator: IdGenerator,
-  private val client: AsyncDatabaseClient
+  private val client: AsyncDatabaseClient,
 ) : ModelReleasesCoroutineImplBase() {
 
   override suspend fun createModelRelease(request: ModelRelease): ModelRelease {
@@ -52,7 +52,7 @@ class SpannerModelReleasesService(
         client.singleUse(),
         ExternalId(request.externalModelReleaseId),
         ExternalId(request.externalModelSuiteId),
-        ExternalId(request.externalModelProviderId)
+        ExternalId(request.externalModelProviderId),
       )
       ?.modelRelease ?: failGrpc(Status.NOT_FOUND) { "ModelRelease not found." }
   }
@@ -66,11 +66,7 @@ class SpannerModelReleasesService(
           request.filter.after.externalModelSuiteId == 0L ||
           request.filter.after.externalModelProviderId == 0L)
     ) {
-      failGrpc(
-        Status.INVALID_ARGUMENT,
-      ) {
-        "Missing After filter fields"
-      }
+      failGrpc(Status.INVALID_ARGUMENT) { "Missing After filter fields" }
     }
     return StreamModelReleases(request.filter, request.limit).execute(client.singleUse()).map {
       it.modelRelease

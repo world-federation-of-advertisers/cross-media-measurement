@@ -33,13 +33,13 @@ import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
 class GcpSpannerComputationsDatabaseReader(
   private val databaseClient: AsyncDatabaseClient,
   private val computationProtocolStagesHelper:
-    ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
+    ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>,
 ) : ComputationsDatabaseReader {
 
   override suspend fun readComputationToken(globalId: String): ComputationToken? {
     return ComputationTokenProtoQuery(
         parseStageEnum = computationProtocolStagesHelper::longValuesToComputationStageEnum,
-        globalId = globalId
+        globalId = globalId,
       )
       .execute(databaseClient)
       .singleOrNull()
@@ -50,7 +50,7 @@ class GcpSpannerComputationsDatabaseReader(
   ): ComputationToken? {
     return ComputationTokenProtoQuery(
         parseStageEnum = computationProtocolStagesHelper::longValuesToComputationStageEnum,
-        externalRequisitionKey = externalRequisitionKey
+        externalRequisitionKey = externalRequisitionKey,
       )
       .execute(databaseClient)
       .singleOrNull()
@@ -58,7 +58,7 @@ class GcpSpannerComputationsDatabaseReader(
 
   override suspend fun readGlobalComputationIds(
     stages: Set<ComputationStage>,
-    updatedBefore: Instant?
+    updatedBefore: Instant?,
   ): Set<String> {
     val computationTypes = stages.map { stageToProtocol(it) }.distinct()
     grpcRequire(computationTypes.count() == 1) {
@@ -69,7 +69,7 @@ class GcpSpannerComputationsDatabaseReader(
         ComputationProtocolStages::computationStageEnumToLongValues,
         stages,
         computationTypes[0],
-        updatedBefore?.toGcloudTimestamp()
+        updatedBefore?.toGcloudTimestamp(),
       )
       .execute(databaseClient)
       .toCollection(mutableSetOf())

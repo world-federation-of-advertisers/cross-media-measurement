@@ -49,7 +49,7 @@ class CertificateAuthority(
   private val context: CertificateAuthority.Context,
   private val certificateAuthorityArn: String,
   private val client: CreateCertificateClient,
-  private val generateKeyPair: () -> KeyPair = { generateKeyPair("RSA") }
+  private val generateKeyPair: () -> KeyPair = { generateKeyPair("RSA") },
 ) : CertificateAuthority {
 
   private val certificateParams =

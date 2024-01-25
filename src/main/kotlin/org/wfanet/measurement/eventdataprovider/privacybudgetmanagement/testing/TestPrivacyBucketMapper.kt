@@ -30,17 +30,16 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 
 /** [PrivacyBucketMapper] for [TestEvent] instances. */
 class TestPrivacyBucketMapper : PrivacyBucketMapper {
+
+  override val operativeFields = setOf("person.age_group", "person.gender")
+
   override fun toPrivacyFilterProgram(filterExpression: String): Program =
     try {
-      compileProgram(
-        TestEvent.getDescriptor(),
-        filterExpression,
-        setOf("person.age_group", "person.gender")
-      )
+      compileProgram(TestEvent.getDescriptor(), filterExpression, operativeFields)
     } catch (e: EventFilterValidationException) {
       throw PrivacyBudgetManagerException(
         PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER,
-        e
+        e,
       )
     }
 

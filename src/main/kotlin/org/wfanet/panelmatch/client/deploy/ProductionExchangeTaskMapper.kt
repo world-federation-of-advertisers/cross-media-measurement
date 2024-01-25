@@ -159,7 +159,7 @@ open class ProductionExchangeTaskMapper(
       EvaluateQueriesParameters(
         numShards = stepDetails.shardCount,
         numBucketsPerShard = stepDetails.bucketsPerShard,
-        maxQueriesPerShard = stepDetails.maxQueriesPerShard
+        maxQueriesPerShard = stepDetails.maxQueriesPerShard,
       )
 
     val queryResultsEvaluator = JniQueryEvaluator(stepDetails.parameters)
@@ -211,7 +211,7 @@ open class ProductionExchangeTaskMapper(
     return IntersectValidateTask(
       maxSize = maxSize,
       maximumNewItemsAllowed = maximumNewItemsAllowed,
-      isFirstExchange = date == workflow.firstExchangeDate.toLocalDate()
+      isFirstExchange = date == workflow.firstExchangeDate.toLocalDate(),
     )
   }
 
@@ -235,7 +235,7 @@ open class ProductionExchangeTaskMapper(
       return InputTask(
         previousBlobKey,
         inputTaskThrottler,
-        privateStorageSelector.getStorageClient(exchangeDateKey)
+        privateStorageSelector.getStorageClient(exchangeDateKey),
       )
     }
 
@@ -243,7 +243,7 @@ open class ProductionExchangeTaskMapper(
       privateStorageSelector,
       workflow.repetitionSchedule,
       exchangeDateKey,
-      previousBlobKey
+      previousBlobKey,
     )
   }
 
@@ -257,7 +257,7 @@ open class ProductionExchangeTaskMapper(
       sharedStorageSelector.getVerifyingStorage(
         sourceBlobKey,
         workflow.exchangeIdentifiers.storage,
-        this
+        this,
       )
 
     return when (copyOptions.labelType) {
@@ -267,21 +267,21 @@ open class ProductionExchangeTaskMapper(
           destination = privateStorageSelector.getStorageClient(exchangeDateKey),
           copyOptions = copyOptions,
           sourceBlobKey = sourceBlobKey,
-          destinationBlobKey = destinationBlobKey
+          destinationBlobKey = destinationBlobKey,
         )
       }
       MANIFEST -> {
         apacheBeamTaskFor(
           outputManifests = mapOf(),
           outputBlobs = emptyList(),
-          skipReadInput = true
+          skipReadInput = true,
         ) {
           copyFromSharedStorage(
             source = source,
             destinationFactory = privateStorageSelector.getStorageFactory(exchangeDateKey),
             copyOptions = copyOptions,
             sourceManifestBlobKey = sourceBlobKey,
-            destinationManifestBlobKey = destinationBlobKey
+            destinationManifestBlobKey = destinationBlobKey,
           )
         }
       }
@@ -306,7 +306,7 @@ open class ProductionExchangeTaskMapper(
           destination = destination,
           copyOptions = copyOptions,
           sourceBlobKey = sourceBlobKey,
-          destinationBlobKey = destinationBlobKey
+          destinationBlobKey = destinationBlobKey,
         )
       }
       MANIFEST -> {
@@ -316,7 +316,7 @@ open class ProductionExchangeTaskMapper(
             destination = destination,
             copyOptions = copyOptions,
             sourceManifestLabel = sourceLabel,
-            destinationManifestBlobKey = destinationBlobKey
+            destinationManifestBlobKey = destinationBlobKey,
           )
         }
       }
@@ -349,7 +349,7 @@ open class ProductionExchangeTaskMapper(
     outputManifests: Map<String, Int>,
     outputBlobs: List<String>,
     skipReadInput: Boolean = false,
-    execute: suspend ApacheBeamContext.() -> Unit
+    execute: suspend ApacheBeamContext.() -> Unit,
   ): ApacheBeamTask {
     val pipelineOptions = makePipelineOptions()
     pipelineOptions.jobName =
@@ -357,7 +357,7 @@ open class ProductionExchangeTaskMapper(
           exchangeDateKey.recurringExchangeId,
           exchangeDateKey.date.format(DateTimeFormatter.ofPattern("yyyyMMdd")),
           step.stepId,
-          attemptKey.exchangeStepAttemptId
+          attemptKey.exchangeStepAttemptId,
         )
         .joinToString("-")
         .replace('_', '-')
@@ -369,7 +369,7 @@ open class ProductionExchangeTaskMapper(
       outputBlobs.associateWith { step.outputLabelsMap.getValue(it) },
       outputManifests.mapValues { (k, v) -> ShardedFileName(step.outputLabelsMap.getValue(k), v) },
       skipReadInput,
-      execute
+      execute,
     )
   }
 }

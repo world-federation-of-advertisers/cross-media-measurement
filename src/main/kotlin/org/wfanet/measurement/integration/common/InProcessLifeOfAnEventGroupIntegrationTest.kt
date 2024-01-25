@@ -60,7 +60,7 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
     InProcessKingdom(
       dataServicesProvider = { kingdomDataServices },
       verboseGrpcLogging = false,
-      REDIRECT_URI
+      REDIRECT_URI,
     )
 
   @get:Rule
@@ -90,7 +90,7 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
         internalCertificatesClient = kingdom.internalCertificatesClient,
         measurementConsumersClient = publicMeasurementConsumersClient,
         runId = "67890",
-        requiredDuchies = listOf()
+        requiredDuchies = listOf(),
       )
     // Create the MC.
     val measurementConsumer =

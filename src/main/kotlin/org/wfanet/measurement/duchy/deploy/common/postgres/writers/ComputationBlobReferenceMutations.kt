@@ -27,7 +27,7 @@ suspend fun PostgresWriter.TransactionScope.insertComputationBlobReference(
   stage: Long,
   blobId: Long,
   pathToBlob: String?,
-  dependencyType: ComputationBlobDependency
+  dependencyType: ComputationBlobDependency,
 ): ComputationStageAttemptDetails? {
   val sql =
     boundStatement(
@@ -66,7 +66,7 @@ suspend fun PostgresWriter.TransactionScope.updateComputationBlobReference(
   stage: Long,
   blobId: Long,
   pathToBlob: String? = null,
-  dependencyType: ComputationBlobDependency? = null
+  dependencyType: ComputationBlobDependency? = null,
 ) {
   val sql =
     boundStatement(

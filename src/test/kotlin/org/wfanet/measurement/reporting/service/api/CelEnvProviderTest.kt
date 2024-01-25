@@ -96,8 +96,9 @@ class CelEnvProviderTest {
           EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
             grpcTestServerRule.channel
           ),
+          REPORTING_EVENT_GROUP_DESCRIPTOR,
           Duration.ofMinutes(5),
-          coroutineContext
+          coroutineContext,
         )
         .use { it.getTypeRegistryAndEnv() }
     }
@@ -105,7 +106,7 @@ class CelEnvProviderTest {
     verifyTypeRegistryAndEnv(typeRegistryAndEnv)
     verifyProtoArgument(
         cmmsEventGroupMetadataDescriptorsServiceMock,
-        EventGroupMetadataDescriptorsCoroutineImplBase::listEventGroupMetadataDescriptors
+        EventGroupMetadataDescriptorsCoroutineImplBase::listEventGroupMetadataDescriptors,
       )
       .isEqualTo(
         listEventGroupMetadataDescriptorsRequest {
@@ -132,9 +133,10 @@ class CelEnvProviderTest {
           EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
             grpcTestServerRule.channel
           ),
+          REPORTING_EVENT_GROUP_DESCRIPTOR,
           Duration.ofMinutes(5),
           coroutineContext,
-          1
+          1,
         )
         .use {
           advanceTimeBy(CelEnvCacheProvider.RETRY_DELAY.toMillis())
@@ -171,9 +173,10 @@ class CelEnvProviderTest {
               EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
                 grpcTestServerRule.channel
               ),
+              REPORTING_EVENT_GROUP_DESCRIPTOR,
               Duration.ofMinutes(5),
               coroutineContext,
-              numRetries
+              numRetries,
             )
             .use { it.getTypeRegistryAndEnv() }
         }
@@ -201,9 +204,10 @@ class CelEnvProviderTest {
               EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
                 grpcTestServerRule.channel
               ),
+              REPORTING_EVENT_GROUP_DESCRIPTOR,
               Duration.ofMinutes(5),
               coroutineContext,
-              numRetries
+              numRetries,
             )
             .use { it.getTypeRegistryAndEnv() }
         }
@@ -245,8 +249,9 @@ class CelEnvProviderTest {
             EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
               grpcTestServerRule.channel
             ),
+            REPORTING_EVENT_GROUP_DESCRIPTOR,
             cacheRefreshInterval,
-            coroutineContext
+            coroutineContext,
           )
           .use {
             it.getTypeRegistryAndEnv()
@@ -270,6 +275,8 @@ class CelEnvProviderTest {
   }
 
   companion object {
+    private val REPORTING_EVENT_GROUP_DESCRIPTOR = EventGroup.getDescriptor()
+
     private fun verifyTypeRegistryAndEnv(typeRegistryAndEnv: CelEnvProvider.TypeRegistryAndEnv) {
       val eventGroup = eventGroup {
         metadata =
@@ -294,7 +301,7 @@ class CelEnvProviderTest {
     private fun filterEventGroups(
       eventGroups: Iterable<EventGroup>,
       filter: String,
-      typeRegistryAndEnv: CelEnvProvider.TypeRegistryAndEnv
+      typeRegistryAndEnv: CelEnvProvider.TypeRegistryAndEnv,
     ): List<EventGroup> {
       val env = typeRegistryAndEnv.env
       val typeRegistry = typeRegistryAndEnv.typeRegistry
@@ -325,8 +332,8 @@ class CelEnvProviderTest {
                 METADATA_FIELD,
                 DynamicMessage.parseFrom(
                   typeRegistry.getDescriptorForTypeUrl(metadata.typeUrl),
-                  metadata.value
-                )
+                  metadata.value,
+                ),
               )
             }
           }

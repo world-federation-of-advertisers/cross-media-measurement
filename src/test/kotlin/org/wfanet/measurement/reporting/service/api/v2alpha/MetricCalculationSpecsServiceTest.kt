@@ -110,9 +110,42 @@ class MetricCalculationSpecsServiceTest {
 
   @Test
   fun `createMetricCalculationSpec returns metric calculation spec`() = runBlocking {
+    val reachMetricSpec = metricSpec {
+      reach =
+        MetricSpecKt.reachParams {
+          privacyParams =
+            MetricSpecKt.differentialPrivacyParams {
+              epsilon = REACH_ONLY_REACH_EPSILON
+              delta = DIFFERENTIAL_PRIVACY_DELTA
+            }
+        }
+      vidSamplingInterval =
+        MetricSpecKt.vidSamplingInterval {
+          start = REACH_ONLY_VID_SAMPLING_START
+          width = REACH_ONLY_VID_SAMPLING_WIDTH
+        }
+    }
+
+    val metricCalculationSpec = metricCalculationSpec {
+      name = METRIC_CALCULATION_SPEC_NAME
+      displayName = "displayName"
+      metricSpecs += reachMetricSpec
+      groupings +=
+        listOf(
+          MetricCalculationSpecKt.grouping {
+            predicates += listOf("gender == MALE", "gender == FEMALE")
+          },
+          MetricCalculationSpecKt.grouping {
+            predicates += listOf("age == 18_34", "age == 55_PLUS")
+          },
+        )
+      cumulative = false
+      tags["year"] = "2024"
+    }
+
     val request = createMetricCalculationSpecRequest {
       parent = MEASUREMENT_CONSUMER_NAME
-      metricCalculationSpec = METRIC_CALCULATION_SPEC
+      this.metricCalculationSpec = metricCalculationSpec
       metricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
     }
 
@@ -125,14 +158,42 @@ class MetricCalculationSpecsServiceTest {
 
     assertThat(createdMetricCalculationSpec).isEqualTo(expected)
 
+    val internalReachMetricSpec = internalMetricSpec {
+      reach =
+        InternalMetricSpecKt.reachParams {
+          privacyParams =
+            InternalMetricSpecKt.differentialPrivacyParams {
+              epsilon = REACH_ONLY_REACH_EPSILON
+              delta = DIFFERENTIAL_PRIVACY_DELTA
+            }
+        }
+      vidSamplingInterval =
+        InternalMetricSpecKt.vidSamplingInterval {
+          start = REACH_ONLY_VID_SAMPLING_START
+          width = REACH_ONLY_VID_SAMPLING_WIDTH
+        }
+    }
+
     verifyProtoArgument(
         internalMetricCalculationSpecsMock,
-        MetricCalculationSpecsCoroutineImplBase::createMetricCalculationSpec
+        MetricCalculationSpecsCoroutineImplBase::createMetricCalculationSpec,
       )
       .isEqualTo(
         internalCreateMetricCalculationSpecRequest {
-          metricCalculationSpec =
-            INTERNAL_METRIC_CALCULATION_SPEC.copy { clearExternalMetricCalculationSpecId() }
+          this.metricCalculationSpec = internalMetricCalculationSpec {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            details =
+              InternalMetricCalculationSpecKt.details {
+                displayName = metricCalculationSpec.displayName
+                metricSpecs += internalReachMetricSpec
+                groupings +=
+                  metricCalculationSpec.groupingsList.map {
+                    InternalMetricCalculationSpecKt.grouping { predicates += it.predicatesList }
+                  }
+                cumulative = metricCalculationSpec.cumulative
+                tags.putAll(metricCalculationSpec.tagsMap)
+              }
+          }
           externalMetricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
         }
       )
@@ -339,7 +400,7 @@ class MetricCalculationSpecsServiceTest {
 
     verifyProtoArgument(
         internalMetricCalculationSpecsMock,
-        MetricCalculationSpecsCoroutineImplBase::getMetricCalculationSpec
+        MetricCalculationSpecsCoroutineImplBase::getMetricCalculationSpec,
       )
       .isEqualTo(
         internalGetMetricCalculationSpecRequest {
@@ -464,7 +525,7 @@ class MetricCalculationSpecsServiceTest {
 
     verifyProtoArgument(
         internalMetricCalculationSpecsMock,
-        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs
+        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs,
       )
       .isEqualTo(
         internalListMetricCalculationSpecsRequest {
@@ -496,7 +557,7 @@ class MetricCalculationSpecsServiceTest {
 
     verifyProtoArgument(
         internalMetricCalculationSpecsMock,
-        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs
+        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs,
       )
       .isEqualTo(
         internalListMetricCalculationSpecsRequest {
@@ -540,7 +601,7 @@ class MetricCalculationSpecsServiceTest {
 
     verifyProtoArgument(
         internalMetricCalculationSpecsMock,
-        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs
+        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs,
       )
       .isEqualTo(
         internalListMetricCalculationSpecsRequest {
@@ -573,7 +634,7 @@ class MetricCalculationSpecsServiceTest {
 
     verifyProtoArgument(
         internalMetricCalculationSpecsMock,
-        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs
+        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs,
       )
       .isEqualTo(
         internalListMetricCalculationSpecsRequest {
@@ -618,7 +679,7 @@ class MetricCalculationSpecsServiceTest {
 
     verifyProtoArgument(
         internalMetricCalculationSpecsMock,
-        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs
+        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs,
       )
       .isEqualTo(
         internalListMetricCalculationSpecsRequest {
@@ -647,7 +708,7 @@ class MetricCalculationSpecsServiceTest {
 
     verifyProtoArgument(
         internalMetricCalculationSpecsMock,
-        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs
+        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs,
       )
       .isEqualTo(
         internalListMetricCalculationSpecsRequest {
@@ -692,7 +753,7 @@ class MetricCalculationSpecsServiceTest {
 
     verifyProtoArgument(
         internalMetricCalculationSpecsMock,
-        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs
+        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs,
       )
       .isEqualTo(
         internalListMetricCalculationSpecsRequest {
@@ -725,7 +786,7 @@ class MetricCalculationSpecsServiceTest {
 
     verifyProtoArgument(
         internalMetricCalculationSpecsMock,
-        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs
+        MetricCalculationSpecsCoroutineImplBase::listMetricCalculationSpecs,
       )
       .isEqualTo(
         internalListMetricCalculationSpecsRequest {
@@ -943,9 +1004,10 @@ class MetricCalculationSpecsServiceTest {
           },
           MetricCalculationSpecKt.grouping {
             predicates += listOf("age == 18_34", "age == 55_PLUS")
-          }
+          },
         )
       cumulative = false
+      tags["year"] = "2024"
     }
 
     private val METRIC_CALCULATION_SPEC_WITH_GREATER_ID =
@@ -980,6 +1042,7 @@ class MetricCalculationSpecsServiceTest {
                 InternalMetricCalculationSpecKt.grouping { predicates += it.predicatesList }
               }
             cumulative = METRIC_CALCULATION_SPEC.cumulative
+            tags.putAll(METRIC_CALCULATION_SPEC.tagsMap)
           }
       }
 

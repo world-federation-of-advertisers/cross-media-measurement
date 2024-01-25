@@ -68,6 +68,7 @@ import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
 import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
+import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupKt
 import org.wfanet.measurement.reporting.v2alpha.eventGroup
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
@@ -108,6 +109,7 @@ class EventGroupsServiceTest {
     val celEnvCacheProvider =
       CelEnvCacheProvider(
         EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
+        EventGroup.getDescriptor(),
         Duration.ofSeconds(5),
         Dispatchers.Default,
       )
@@ -116,7 +118,7 @@ class EventGroupsServiceTest {
       EventGroupsService(
         EventGroupsCoroutineStub(grpcTestServerRule.channel),
         ENCRYPTION_KEY_PAIR_STORE,
-        celEnvCacheProvider
+        celEnvCacheProvider,
       )
   }
 
@@ -153,7 +155,7 @@ class EventGroupsServiceTest {
               eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
               metadata = Any.pack(testMessage)
             },
-            ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey()
+            ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey(),
           )
       }
 
@@ -508,6 +510,7 @@ class EventGroupsServiceTest {
     val celEnvCacheProvider =
       CelEnvCacheProvider(
         EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
+        EventGroup.getDescriptor(),
         Duration.ofSeconds(5),
         Dispatchers.Default,
       )
@@ -516,7 +519,7 @@ class EventGroupsServiceTest {
       EventGroupsService(
         EventGroupsCoroutineStub(grpcTestServerRule.channel),
         InMemoryEncryptionKeyPairStore(mapOf()),
-        celEnvCacheProvider
+        celEnvCacheProvider,
       )
 
     val exception =
@@ -601,7 +604,7 @@ class EventGroupsServiceTest {
             eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
             metadata = Any.pack(TEST_MESSAGE)
           },
-          ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey()
+          ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey(),
         )
       state = CmmsEventGroup.State.ACTIVE
     }
@@ -622,7 +625,7 @@ class EventGroupsServiceTest {
             eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
             metadata = Any.pack(TEST_MESSAGE)
           },
-          ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey()
+          ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey(),
         )
       state = CmmsEventGroup.State.ACTIVE
     }

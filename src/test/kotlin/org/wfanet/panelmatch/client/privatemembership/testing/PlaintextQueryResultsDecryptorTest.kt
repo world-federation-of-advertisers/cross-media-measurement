@@ -32,13 +32,13 @@ private val PLAINTEXTS: List<Pair<Int, List<Plaintext>>> =
   listOf(
     1 to listOf(plaintextOf("<some long data a>"), plaintextOf("<some long data b>")),
     2 to listOf(plaintextOf("<some long data c>"), plaintextOf("<some long data d>")),
-    3 to listOf(plaintextOf("<some long data e>"))
+    3 to listOf(plaintextOf("<some long data e>")),
   )
 private val DECRYPTED_JOIN_KEYS =
   listOf(
     1 to "some-join-decrypted-key-1",
     2 to "some-join-decrypted-key-2",
-    3 to "some-join-decrypted-key-3"
+    3 to "some-join-decrypted-key-3",
   )
 private val HKDF_PEPPER = "some-pepper".toByteStringUtf8()
 private val PARAMETERS = "some-serialized-parameters"
@@ -60,7 +60,7 @@ class PlaintextQueryResultsDecryptorTest {
             queryId = queryIdOf(it.first.first)
             decryptedEventData += it.first.second
           },
-          queryIdOf(it.second.first) to joinKeyOf(it.second.second)
+          queryIdOf(it.second.first) to joinKeyOf(it.second.second),
         )
       }
     val encryptedQueryResults =
@@ -78,7 +78,7 @@ class PlaintextQueryResultsDecryptorTest {
               decryptedJoinKey = joinKeyOf(joinkeyList.second),
               encryptedQueryResults = listOf(encryptedQueryResult),
               compressionParameters = compressionParameters {},
-              hkdfPepper = HKDF_PEPPER
+              hkdfPepper = HKDF_PEPPER,
             )
           queryResultsDecryptor.decryptQueryResults(request).eventDataSetsList.map { eventSet ->
             eventSet.decryptedEventDataList.map { Pair(eventSet.queryId, it) }

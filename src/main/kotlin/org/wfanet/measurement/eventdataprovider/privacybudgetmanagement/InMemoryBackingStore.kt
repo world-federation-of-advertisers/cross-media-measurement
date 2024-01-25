@@ -47,7 +47,7 @@ class InMemoryBackingStoreTransactionContext(
   private val referenceLedger: MutableMap<String, MutableList<PrivacyBudgetLedgerEntry>>,
   private val dpBalances:
     MutableMap<PrivacyBucketGroup, MutableMap<DpCharge, PrivacyBudgetBalanceEntry>>,
-  private val acdpBalances: MutableMap<PrivacyBucketGroup, AcdpCharge>
+  private val acdpBalances: MutableMap<PrivacyBucketGroup, AcdpCharge>,
 ) : PrivacyBudgetLedgerTransactionContext {
 
   private var transactionDpBalances = dpBalances.toMutableMap()
@@ -64,7 +64,7 @@ class InMemoryBackingStoreTransactionContext(
         reference.measurementConsumerId,
         reference.referenceId,
         reference.isRefund,
-        Instant.now()
+        Instant.now(),
       )
     )
   }
@@ -79,13 +79,13 @@ class InMemoryBackingStoreTransactionContext(
   }
 
   override suspend fun findIntersectingBalanceEntries(
-    privacyBucketGroup: PrivacyBucketGroup,
+    privacyBucketGroup: PrivacyBucketGroup
   ): List<PrivacyBudgetBalanceEntry> {
     return transactionDpBalances.getOrDefault(privacyBucketGroup, mapOf()).values.toList()
   }
 
   override suspend fun findAcdpBalanceEntry(
-    privacyBucketGroup: PrivacyBucketGroup,
+    privacyBucketGroup: PrivacyBucketGroup
   ): PrivacyBudgetAcdpBalanceEntry {
     val acdpCharge = transactionAcdpBalances.getOrDefault(privacyBucketGroup, AcdpCharge(0.0, 0.0))
 
@@ -95,7 +95,7 @@ class InMemoryBackingStoreTransactionContext(
   override suspend fun addLedgerEntries(
     privacyBucketGroups: Set<PrivacyBucketGroup>,
     dpCharges: Set<DpCharge>,
-    reference: Reference
+    reference: Reference,
   ) {
     // Update the balance for all the charges.
     for (queryBucketGroup in privacyBucketGroups) {
@@ -111,7 +111,7 @@ class InMemoryBackingStoreTransactionContext(
             queryBucketGroup,
             dpCharge,
             if (reference.isRefund) dpBalanceEntry.repetitionCount - 1
-            else dpBalanceEntry.repetitionCount + 1
+            else dpBalanceEntry.repetitionCount + 1,
           )
       }
     }
@@ -123,7 +123,7 @@ class InMemoryBackingStoreTransactionContext(
   override suspend fun addAcdpLedgerEntries(
     privacyBucketGroups: Set<PrivacyBucketGroup>,
     acdpCharges: Set<AcdpCharge>,
-    reference: Reference
+    reference: Reference,
   ) {
     val queryTotalAcdpCharge = getQueryTotalAcdpCharge(acdpCharges, reference.isRefund)
 

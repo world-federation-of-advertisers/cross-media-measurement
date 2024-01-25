@@ -68,10 +68,10 @@ class ExchangeStepAttemptReader : SpannerReader<ExchangeStepAttemptReader.Result
           details =
             struct.getProtoMessage(
               "ExchangeStepAttemptDetails",
-              ExchangeStepAttemptDetails.parser()
+              ExchangeStepAttemptDetails.parser(),
             )
         },
-      recurringExchangeId = struct.getLong("RecurringExchangeId")
+      recurringExchangeId = struct.getLong("RecurringExchangeId"),
     )
   }
 
@@ -80,7 +80,7 @@ class ExchangeStepAttemptReader : SpannerReader<ExchangeStepAttemptReader.Result
     externalRecurringExchangeId: ExternalId,
     exchangeDate: Date,
     stepIndex: Int,
-    attemptNumber: Int
+    attemptNumber: Int,
   ): Result? {
     fillStatementBuilder {
       appendClause(
@@ -114,7 +114,7 @@ class ExchangeStepAttemptReader : SpannerReader<ExchangeStepAttemptReader.Result
       party: ExchangeWorkflow.Party,
       externalPartyId: ExternalId,
       clock: Clock,
-      limit: Long = 10
+      limit: Long = 10,
     ): SpannerReader<Result> {
       return ExchangeStepAttemptReader().fillStatementBuilder {
         val conjuncts =

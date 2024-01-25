@@ -59,7 +59,7 @@ object DuchyInfo {
   data class Entry(
     val duchyId: String,
     val computationControlServiceCertHost: String,
-    val rootCertificateSkid: ByteString
+    val rootCertificateSkid: ByteString,
   )
 }
 
@@ -67,7 +67,7 @@ class DuchyInfoFlags {
   @CommandLine.Option(
     names = ["--duchy-info-config"],
     description = ["DuchyCertConfig proto message in text format."],
-    required = true
+    required = true,
   )
   lateinit var config: File
     private set

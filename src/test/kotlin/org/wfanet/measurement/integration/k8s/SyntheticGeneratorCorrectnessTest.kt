@@ -79,14 +79,14 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
           TEST_CONFIG.measurementConsumer,
           MC_SIGNING_KEY,
           MC_ENCRYPTION_PRIVATE_KEY,
-          TEST_CONFIG.apiAuthenticationKey
+          TEST_CONFIG.apiAuthenticationKey,
         )
 
       val publicApiChannel =
         buildMutualTlsChannel(
             TEST_CONFIG.kingdomPublicApiTarget,
             MEASUREMENT_CONSUMER_SIGNING_CERTS,
-            TEST_CONFIG.kingdomPublicApiCertHost.ifEmpty { null }
+            TEST_CONFIG.kingdomPublicApiCertHost.ifEmpty { null },
           )
           .also { channels.add(it) }
           .withDefaultDeadline(RPC_DEADLINE_DURATION)
@@ -94,7 +94,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
       val eventQuery: SyntheticGeneratorEventQuery =
         MetadataSyntheticGeneratorEventQuery(
           SyntheticGenerationSpecs.POPULATION_SPEC,
-          MC_ENCRYPTION_PRIVATE_KEY
+          MC_ENCRYPTION_PRIVATE_KEY,
         )
       return MeasurementConsumerSimulator(
         measurementConsumerData,
@@ -107,7 +107,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
         RESULT_POLLING_DELAY,
         MEASUREMENT_CONSUMER_SIGNING_CERTS.trustedCertificates,
         eventQuery,
-        ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+        ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
       )
     }
 

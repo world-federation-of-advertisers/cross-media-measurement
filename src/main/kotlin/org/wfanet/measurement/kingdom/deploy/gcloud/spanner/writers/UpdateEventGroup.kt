@@ -47,7 +47,7 @@ class UpdateEventGroup(private val eventGroup: EventGroup) :
       throw EventGroupStateIllegalException(
         externalEventGroupId,
         externalEventGroupId,
-        internalEventGroupResult.eventGroup.state
+        internalEventGroupResult.eventGroup.state,
       )
     }
     if (
@@ -56,7 +56,7 @@ class UpdateEventGroup(private val eventGroup: EventGroup) :
     ) {
       throw EventGroupInvalidArgsException(
         ExternalId(internalEventGroupResult.eventGroup.externalMeasurementConsumerId),
-        ExternalId(eventGroup.externalMeasurementConsumerId)
+        ExternalId(eventGroup.externalMeasurementConsumerId),
       )
     }
     val providedEventGroupId =

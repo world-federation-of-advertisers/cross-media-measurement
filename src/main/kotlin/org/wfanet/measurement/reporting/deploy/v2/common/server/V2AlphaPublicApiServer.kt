@@ -18,11 +18,19 @@ package org.wfanet.measurement.reporting.deploy.v2.common.server
 
 import com.google.protobuf.ByteString
 import io.grpc.Channel
+import io.grpc.Server
 import io.grpc.ServerServiceDefinition
 import io.grpc.Status
 import io.grpc.StatusException
+import io.grpc.inprocess.InProcessChannelBuilder
+import io.grpc.inprocess.InProcessServerBuilder
 import java.io.File
 import java.security.SecureRandom
+import java.time.Duration
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as KingdomCertificatesCoroutineStub
@@ -39,6 +47,7 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
@@ -73,6 +82,7 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingPrincipal
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
+import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub
 import picocli.CommandLine
 
@@ -82,7 +92,7 @@ private const val SERVER_NAME = "V2AlphaPublicApiServer"
   name = SERVER_NAME,
   description = ["Server daemon for Reporting v2alpha public API services."],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 private fun run(
   @CommandLine.Mixin reportingApiServerFlags: ReportingApiServerFlags,
@@ -96,13 +106,13 @@ private fun run(
     SigningCerts.fromPemFiles(
       certificateFile = commonServerFlags.tlsFlags.certFile,
       privateKeyFile = commonServerFlags.tlsFlags.privateKeyFile,
-      trustedCertCollectionFile = commonServerFlags.tlsFlags.certCollectionFile
+      trustedCertCollectionFile = commonServerFlags.tlsFlags.certCollectionFile,
     )
   val channel: Channel =
     buildMutualTlsChannel(
         reportingApiServerFlags.internalApiFlags.target,
         clientCerts,
-        reportingApiServerFlags.internalApiFlags.certHost
+        reportingApiServerFlags.internalApiFlags.certHost,
       )
       .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
 
@@ -110,21 +120,21 @@ private fun run(
     buildMutualTlsChannel(
         target = kingdomApiFlags.target,
         clientCerts = clientCerts,
-        hostName = kingdomApiFlags.certHost
+        hostName = kingdomApiFlags.certHost,
       )
       .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
 
   val principalLookup: PrincipalLookup<ReportingPrincipal, ByteString> =
     AkidPrincipalLookup(
         v2AlphaPublicServerFlags.authorityKeyIdentifierToPrincipalMapFile,
-        v2AlphaFlags.measurementConsumerConfigFile
+        v2AlphaFlags.measurementConsumerConfigFile,
       )
       .memoizing()
 
   val measurementConsumerConfigs =
     parseTextProto(
       v2AlphaFlags.measurementConsumerConfigFile,
-      MeasurementConsumerConfigs.getDefaultInstance()
+      MeasurementConsumerConfigs.getDefaultInstance(),
     )
 
   val internalMeasurementConsumersCoroutineStub = InternalMeasurementConsumersCoroutineStub(channel)
@@ -156,6 +166,7 @@ private fun run(
     CelEnvCacheProvider(
       KingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomChannel)
         .withAuthenticationKey(apiKey),
+      EventGroup.getDescriptor(),
       reportingApiServerFlags.eventGroupMetadataDescriptorCacheDuration,
       Dispatchers.Default,
     )
@@ -175,14 +186,31 @@ private fun run(
       SecureRandom(),
       v2AlphaFlags.signingPrivateKeyStoreDir,
       commonServerFlags.tlsFlags.signingCerts.trustedCertificates,
-      Dispatchers.IO
+      Dispatchers.IO,
     )
 
-  val inProcessChannel =
-    startInProcessServerWithService(
-      commonServerFlags,
-      metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs)
+  val inProcessExecutorService: ExecutorService =
+    ThreadPoolExecutor(
+      1,
+      commonServerFlags.threadPoolSize,
+      60L,
+      TimeUnit.SECONDS,
+      LinkedBlockingQueue(),
     )
+
+  val inProcessServerName = InProcessServerBuilder.generateName()
+  val inProcessServer: Server =
+    startInProcessServerWithService(
+      inProcessServerName,
+      commonServerFlags,
+      metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs),
+      inProcessExecutorService,
+    )
+  val inProcessChannel =
+    InProcessChannelBuilder.forName(inProcessServerName)
+      .directExecutor()
+      .build()
+      .withShutdownTimeout(Duration.ofSeconds(30))
 
   val services: List<ServerServiceDefinition> =
     listOf(
@@ -205,14 +233,14 @@ private fun run(
           InternalReportsCoroutineStub(channel),
           InternalMetricCalculationSpecsCoroutineStub(channel),
           MetricsCoroutineStub(inProcessChannel),
-          metricSpecConfig
+          metricSpecConfig,
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ReportSchedulesService(
           InternalReportSchedulesCoroutineStub(channel),
           InternalReportingSetsCoroutineStub(channel),
           KingdomDataProvidersCoroutineStub(kingdomChannel),
-          KingdomEventGroupsCoroutineStub(kingdomChannel)
+          KingdomEventGroupsCoroutineStub(kingdomChannel),
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ReportScheduleIterationsService(InternalReportScheduleIterationsCoroutineStub(channel))
@@ -224,6 +252,11 @@ private fun run(
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
     )
   CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
+  inProcessChannel.shutdown()
+  inProcessServer.shutdown()
+  inProcessExecutorService.shutdown()
+  inProcessServer.awaitTermination()
+  inProcessExecutorService.awaitTermination(30, TimeUnit.SECONDS)
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)

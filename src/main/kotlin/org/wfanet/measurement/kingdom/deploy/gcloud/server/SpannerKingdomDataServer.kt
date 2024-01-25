@@ -29,7 +29,7 @@ import picocli.CommandLine
   name = "SpannerKingdomDataServer",
   description = ["Start the internal Kingdom data-layer services in a single blocking server."],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 class SpannerKingdomDataServer : KingdomDataServer() {
   @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags

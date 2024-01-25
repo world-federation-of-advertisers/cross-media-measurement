@@ -65,6 +65,7 @@ import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
 import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
+import org.wfanet.measurement.reporting.v1alpha.EventGroup
 import org.wfanet.measurement.reporting.v1alpha.EventGroupKt.metadata
 import org.wfanet.measurement.reporting.v1alpha.eventGroup
 import org.wfanet.measurement.reporting.v1alpha.listEventGroupsRequest
@@ -106,7 +107,7 @@ private val CMMS_EVENT_GROUP = cmmsEventGroup {
         eventGroupMetadataDescriptor = METADATA_NAME
         metadata = TEST_MESSAGE.pack()
       },
-      ENCRYPTION_PUBLIC_KEY
+      ENCRYPTION_PUBLIC_KEY,
     )
 }
 private val TEST_MESSAGE_2 = testMetadataMessage { publisherId = 5 }
@@ -121,7 +122,7 @@ private val CMMS_EVENT_GROUP_2 =
           eventGroupMetadataDescriptor = METADATA_NAME
           metadata = TEST_MESSAGE_2.pack()
         },
-        ENCRYPTION_PUBLIC_KEY
+        ENCRYPTION_PUBLIC_KEY,
       )
   }
 private val EVENT_GROUP = eventGroup {
@@ -129,7 +130,7 @@ private val EVENT_GROUP = eventGroup {
     EventGroupKey(
         MEASUREMENT_CONSUMER_REFERENCE_ID,
         DATA_PROVIDER_REFERENCE_ID,
-        CMMS_EVENT_GROUP_ID
+        CMMS_EVENT_GROUP_ID,
       )
       .toName()
   dataProvider = DATA_PROVIDER_NAME
@@ -187,6 +188,7 @@ class EventGroupsServiceTest {
     val celEnvCacheProvider =
       CelEnvCacheProvider(
         EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
+        EventGroup.getDescriptor(),
         Duration.ofSeconds(5),
         Dispatchers.Default,
       )
@@ -209,7 +211,7 @@ class EventGroupsServiceTest {
               listOf(
                 CMMS_EVENT_GROUP,
                 // When there's no filter applied to metadata, it doesn't need to be set on all EGs.
-                CMMS_EVENT_GROUP_2.copy { clearEncryptedMetadata() }
+                CMMS_EVENT_GROUP_2.copy { clearEncryptedMetadata() },
               )
             nextPageToken = NEXT_PAGE_TOKEN
           }
@@ -241,12 +243,12 @@ class EventGroupsServiceTest {
                       MeasurementConsumerKey.fromName(CMMS_EVENT_GROUP_2.measurementConsumer)!!
                         .measurementConsumerId,
                       DATA_PROVIDER_REFERENCE_ID,
-                      CMMS_EVENT_GROUP_ID_2
+                      CMMS_EVENT_GROUP_ID_2,
                     )
                     .toName()
                 dataProvider = DATA_PROVIDER_NAME
                 eventGroupReferenceId = "id2"
-              }
+              },
             )
           nextPageToken = NEXT_PAGE_TOKEN
         }
@@ -368,7 +370,7 @@ class EventGroupsServiceTest {
             eventGroupMetadataDescriptor = METADATA_NAME
             metadata = testParentMetadataMessage { name = "name" }.pack()
           },
-          ENCRYPTION_PUBLIC_KEY
+          ENCRYPTION_PUBLIC_KEY,
         )
     }
     cmmsEventGroupsServiceMock.stub {
@@ -411,7 +413,7 @@ class EventGroupsServiceTest {
             eventGroupMetadataDescriptor = METADATA_NAME
             metadata = testParentMetadataMessage { name = "name" }.pack()
           },
-          ENCRYPTION_PUBLIC_KEY
+          ENCRYPTION_PUBLIC_KEY,
         )
     }
     cmmsEventGroupsServiceMock.stub {

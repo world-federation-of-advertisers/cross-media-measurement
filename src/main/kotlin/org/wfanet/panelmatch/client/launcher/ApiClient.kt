@@ -22,7 +22,7 @@ import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 interface ApiClient {
   data class ClaimedExchangeStep(
     val exchangeStep: ExchangeStep,
-    val exchangeStepAttempt: CanonicalExchangeStepAttemptKey
+    val exchangeStepAttempt: CanonicalExchangeStepAttemptKey,
   )
 
   /**
@@ -39,6 +39,6 @@ interface ApiClient {
   suspend fun finishExchangeStepAttempt(
     key: CanonicalExchangeStepAttemptKey,
     finalState: ExchangeStepAttempt.State,
-    logEntryMessages: Iterable<String> = emptyList()
+    logEntryMessages: Iterable<String> = emptyList(),
   )
 }

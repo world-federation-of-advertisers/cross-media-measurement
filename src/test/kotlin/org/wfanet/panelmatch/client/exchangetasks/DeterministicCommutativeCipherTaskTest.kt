@@ -82,7 +82,7 @@ class DeterministicCommutativeCipherTaskTest {
     val result =
       decrypt(
         "encryption-key" to KEY1,
-        "encrypted-data" to SINGLE_ENCRYPTED_CIPHERTEXT_COLLECTION.toByteString()
+        "encrypted-data" to SINGLE_ENCRYPTED_CIPHERTEXT_COLLECTION.toByteString(),
       )
     val collection = JoinKeyAndIdCollection.parseFrom(result.getValue("decrypted-data"))
     assertThat(collection).ignoringRepeatedFieldOrder().isEqualTo(PLAINTEXT_COLLECTION)
@@ -93,7 +93,7 @@ class DeterministicCommutativeCipherTaskTest {
     val result =
       decrypt(
         "encryption-key" to KEY2,
-        "encrypted-data" to DOUBLE_ENCRYPTED_CIPHERTEXT_COLLECTION.toByteString()
+        "encrypted-data" to DOUBLE_ENCRYPTED_CIPHERTEXT_COLLECTION.toByteString(),
       )
     val collection = JoinKeyAndIdCollection.parseFrom(result.getValue("decrypted-data"))
     assertThat(collection)
@@ -107,7 +107,7 @@ class DeterministicCommutativeCipherTaskTest {
       assertFailsWith<IllegalArgumentException> {
         decrypt(
           "encryption-key" to FakeDeterministicCommutativeCipher.INVALID_KEY,
-          "encrypted-data" to SINGLE_ENCRYPTED_CIPHERTEXT_COLLECTION.toByteString()
+          "encrypted-data" to SINGLE_ENCRYPTED_CIPHERTEXT_COLLECTION.toByteString(),
         )
       }
     assertThat(exception.message).contains("Invalid Key")
@@ -119,7 +119,7 @@ class DeterministicCommutativeCipherTaskTest {
       assertFailsWith<IllegalArgumentException> {
         decrypt(
           "encryption-key" to KEY2,
-          "encrypted-data" to SINGLE_ENCRYPTED_CIPHERTEXT_COLLECTION.toByteString()
+          "encrypted-data" to SINGLE_ENCRYPTED_CIPHERTEXT_COLLECTION.toByteString(),
         )
       }
     assertThat(exception.message).contains("invalid ciphertext")
@@ -149,7 +149,7 @@ class DeterministicCommutativeCipherTaskTest {
       assertFailsWith<IllegalArgumentException> {
         encrypt(
           "encryption-key" to FakeDeterministicCommutativeCipher.INVALID_KEY,
-          "unencrypted-data" to PLAINTEXT_COLLECTION.toByteString()
+          "unencrypted-data" to PLAINTEXT_COLLECTION.toByteString(),
         )
       }
     assertThat(exception.message).contains("Invalid Key")
@@ -168,7 +168,7 @@ class DeterministicCommutativeCipherTaskTest {
     val result =
       reEncrypt(
         "encryption-key" to KEY2,
-        "encrypted-data" to SINGLE_ENCRYPTED_CIPHERTEXT_COLLECTION.toByteString()
+        "encrypted-data" to SINGLE_ENCRYPTED_CIPHERTEXT_COLLECTION.toByteString(),
       )
     val collection = JoinKeyAndIdCollection.parseFrom(result.getValue("reencrypted-data"))
     assertThat(collection)
@@ -182,7 +182,7 @@ class DeterministicCommutativeCipherTaskTest {
       assertFailsWith<IllegalArgumentException> {
         reEncrypt(
           "encryption-key" to FakeDeterministicCommutativeCipher.INVALID_KEY,
-          "encrypted-data" to SINGLE_ENCRYPTED_CIPHERTEXT_COLLECTION.toByteString()
+          "encrypted-data" to SINGLE_ENCRYPTED_CIPHERTEXT_COLLECTION.toByteString(),
         )
       }
     assertThat(exception.message).contains("Invalid Key")

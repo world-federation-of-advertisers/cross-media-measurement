@@ -49,7 +49,7 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
 
   protected data class Services<T>(
     val metricCalculationSpecsService: T,
-    val measurementConsumersService: MeasurementConsumersCoroutineImplBase
+    val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
   )
 
   /** Instance of the service under test. */
@@ -464,6 +464,7 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
             }
             groupings += MetricCalculationSpecKt.grouping { predicates += "age > 10" }
             cumulative = false
+            tags["year"] = "2024"
           }
       }
     }

@@ -29,7 +29,7 @@ class ComputationTypesTest {
         assertEquals(
           stage,
           ComputationTypes.longToProtocolEnum(ComputationTypes.protocolEnumToLong(stage)),
-          "protocolEnumToLong and longToProtocolEnum were not inverses for $stage"
+          "protocolEnumToLong and longToProtocolEnum were not inverses for $stage",
         )
       }
     }

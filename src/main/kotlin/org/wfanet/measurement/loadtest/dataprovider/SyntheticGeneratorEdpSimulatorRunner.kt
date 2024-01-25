@@ -30,7 +30,7 @@ import picocli.CommandLine
   name = "SyntheticGeneratorEdpSimulatorRunner",
   description = ["EdpSimulator Daemon"],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 /** Implementation of [EdpSimulatorRunner] using [SyntheticGeneratorEventQuery]. */
 class SyntheticGeneratorEdpSimulatorRunner : EdpSimulatorRunner() {
@@ -55,26 +55,34 @@ class SyntheticGeneratorEdpSimulatorRunner : EdpSimulatorRunner() {
 
   @CommandLine.Option(
     names = ["--event-group-spec"],
-    description = ["Path to SyntheticEventGroupSpec message in text format."],
+    description =
+      [
+        "Key-value pair of EventGroup reference ID suffix and file path of " +
+          "SyntheticEventGroupSpec message in text format. This can be specified multiple times."
+      ],
     required = true,
   )
-  private lateinit var eventGroupSpecFile: File
+  private lateinit var eventGroupSpecFileByReferenceIdSuffix: Map<String, File>
 
   override fun run() {
     val populationSpec =
       parseTextProto(populationSpecFile, SyntheticPopulationSpec.getDefaultInstance())
-    val eventGroupSpec =
-      parseTextProto(eventGroupSpecFile, SyntheticEventGroupSpec.getDefaultInstance())
+    val eventGroupSpecByReferenceIdSuffix =
+      eventGroupSpecFileByReferenceIdSuffix.mapValues {
+        parseTextProto(it.value, SyntheticEventGroupSpec.getDefaultInstance())
+      }
     val eventMessageRegistry: TypeRegistry = buildEventMessageRegistry()
 
     val eventQuery =
       object : SyntheticGeneratorEventQuery(populationSpec, eventMessageRegistry) {
         override fun getSyntheticDataSpec(eventGroup: EventGroup): SyntheticEventGroupSpec {
-          return eventGroupSpec
+          val suffix =
+            EdpSimulator.getEventGroupReferenceIdSuffix(eventGroup, flags.dataProviderDisplayName)
+          return eventGroupSpecByReferenceIdSuffix.getValue(suffix)
         }
       }
 
-    run(eventQuery, eventGroupSpec)
+    run(eventQuery, eventGroupSpecByReferenceIdSuffix)
   }
 
   private fun buildEventMessageRegistry(): TypeRegistry {

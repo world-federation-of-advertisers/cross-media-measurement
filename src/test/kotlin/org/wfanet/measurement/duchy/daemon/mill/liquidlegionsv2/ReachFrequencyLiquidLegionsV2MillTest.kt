@@ -465,7 +465,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       ComputationDataClients.forTesting(
         ComputationsCoroutineStub(channel),
         computationStore,
-        requisitionStore
+        requisitionStore,
       )
     addService(mockLiquidLegionsComputationControl)
     addService(mockSystemComputations)
@@ -479,7 +479,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
         computationStore,
         requisitionStore,
         DUCHY_THREE_NAME,
-        Clock.systemUTC()
+        Clock.systemUTC(),
       )
     )
   }
@@ -518,7 +518,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
   private fun buildAdvanceComputationRequests(
     globalComputationId: String,
     description: LiquidLegionsV2.Description,
-    vararg chunkContents: String
+    vararg chunkContents: String,
   ): List<AdvanceComputationRequest> {
     val header =
       AdvanceComputationRequest.newBuilder()
@@ -545,13 +545,13 @@ class ReachFrequencyLiquidLegionsV2MillTest {
     val csSigningKey =
       SigningKeyHandle(
         csX509Certificate,
-        readPrivateKey(CONSENT_SIGNALING_PRIVATE_KEY_DER, csX509Certificate.publicKey.algorithm)
+        readPrivateKey(CONSENT_SIGNALING_PRIVATE_KEY_DER, csX509Certificate.publicKey.algorithm),
       )
     val csCertificate = Certificate(CONSENT_SIGNALING_CERT_NAME, csX509Certificate)
     val trustedCertificates =
       DuchyInfo.entries.values.associateBy(
         { it.rootCertificateSkid },
-        { CONSENT_SIGNALING_ROOT_CERT }
+        { CONSENT_SIGNALING_ROOT_CERT },
       )
 
     aggregatorMill =
@@ -572,7 +572,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
         openTelemetry = GlobalOpenTelemetry.get(),
         requestChunkSizeBytes = 20,
         maximumAttempts = 2,
-        parallelism = PARALLELISM
+        parallelism = PARALLELISM,
       )
     nonAggregatorMill =
       ReachFrequencyLiquidLegionsV2Mill(
@@ -592,7 +592,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
         openTelemetry = GlobalOpenTelemetry.get(),
         requestChunkSizeBytes = 20,
         maximumAttempts = 2,
-        parallelism = PARALLELISM
+        parallelism = PARALLELISM,
       )
   }
 
@@ -602,7 +602,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = INITIALIZATION_PHASE.toProtocolStage()
+          stage = INITIALIZATION_PHASE.toProtocolStage(),
         )
         .build()
 
@@ -622,7 +622,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       partialToken.localComputationId,
       partialToken.computationStage,
       computationDetails = initialComputationDetails,
-      requisitions = REQUISITIONS
+      requisitions = REQUISITIONS,
     )
 
     whenever(mockCryptoWorker.completeInitializationPhase(any())).thenAnswer {
@@ -741,7 +741,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = INITIALIZATION_PHASE.toProtocolStage()
+          stage = INITIALIZATION_PHASE.toProtocolStage(),
         )
         .build()
 
@@ -761,7 +761,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       partialToken.localComputationId,
       partialToken.computationStage,
       computationDetails = initialComputationDetails,
-      requisitions = REQUISITIONS
+      requisitions = REQUISITIONS,
     )
 
     var cryptoRequest = CompleteInitializationPhaseRequest.getDefaultInstance()
@@ -813,7 +813,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
 
     verifyProtoArgument(
         mockComputationParticipants,
-        SystemComputationParticipantsCoroutineImplBase::setParticipantRequisitionParams
+        SystemComputationParticipantsCoroutineImplBase::setParticipantRequisitionParams,
       )
       .comparingExpectedFieldsOnly()
       .isEqualTo(
@@ -851,7 +851,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       globalId = GLOBAL_ID,
       stage = CONFIRMATION_PHASE.toProtocolStage(),
       computationDetails = computationDetailsWithoutPublicKey,
-      requisitions = listOf(requisition1, requisition2)
+      requisitions = listOf(requisition1, requisition2),
     )
 
     whenever(mockComputationLogEntries.createComputationLogEntry(any()))
@@ -882,7 +882,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
 
     verifyProtoArgument(
         mockComputationParticipants,
-        SystemComputationParticipantsCoroutineImplBase::failComputationParticipant
+        SystemComputationParticipantsCoroutineImplBase::failComputationParticipant,
       )
       .comparingExpectedFieldsOnly()
       .isEqualTo(
@@ -920,7 +920,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       globalId = GLOBAL_ID,
       stage = CONFIRMATION_PHASE.toProtocolStage(),
       computationDetails = computationDetailsWithoutPublicKey,
-      requisitions = REQUISITIONS
+      requisitions = REQUISITIONS,
     )
 
     whenever(mockComputationLogEntries.createComputationLogEntry(any()))
@@ -955,7 +955,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
 
     verifyProtoArgument(
         mockComputationParticipants,
-        SystemComputationParticipantsCoroutineImplBase::confirmComputationParticipant
+        SystemComputationParticipantsCoroutineImplBase::confirmComputationParticipant,
       )
       .isEqualTo(
         ConfirmComputationParticipantRequest.newBuilder()
@@ -975,7 +975,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       globalId = GLOBAL_ID,
       stage = CONFIRMATION_PHASE.toProtocolStage(),
       computationDetails = computationDetailsWithoutPublicKey,
-      requisitions = REQUISITIONS
+      requisitions = REQUISITIONS,
     )
 
     whenever(mockComputationLogEntries.createComputationLogEntry(any()))
@@ -1017,7 +1017,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
 
     verifyProtoArgument(
         mockComputationParticipants,
-        SystemComputationParticipantsCoroutineImplBase::confirmComputationParticipant
+        SystemComputationParticipantsCoroutineImplBase::confirmComputationParticipant,
       )
       .isEqualTo(
         ConfirmComputationParticipantRequest.newBuilder()
@@ -1044,7 +1044,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       globalId = GLOBAL_ID,
       stage = CONFIRMATION_PHASE.toProtocolStage(),
       computationDetails = computationDetailsWithoutInvalidDuchySignature,
-      requisitions = listOf(requisitionWithInvalidNonce)
+      requisitions = listOf(requisitionWithInvalidNonce),
     )
 
     whenever(mockComputationLogEntries.createComputationLogEntry(any()))
@@ -1075,7 +1075,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
 
     verifyProtoArgument(
         mockComputationParticipants,
-        SystemComputationParticipantsCoroutineImplBase::failComputationParticipant
+        SystemComputationParticipantsCoroutineImplBase::failComputationParticipant,
       )
       .comparingExpectedFieldsOnly()
       .isEqualTo(
@@ -1108,7 +1108,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = SETUP_PHASE.toProtocolStage()
+          stage = SETUP_PHASE.toProtocolStage(),
         )
         .build()
     val requisitionBlobContext =
@@ -1120,7 +1120,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       partialToken.computationStage,
       computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
       requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3),
-      blobs = listOf(newEmptyOutputBlobMetadata(calculatedBlobContext.blobId))
+      blobs = listOf(newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)),
     )
 
     var cryptoRequest = CompleteSetupPhaseRequest.getDefaultInstance()
@@ -1176,7 +1176,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
           SETUP_PHASE_INPUT,
           "local_requisition-co",
           "mpleteSetupPhase-don",
-          "e"
+          "e",
         )
       )
       .inOrder()
@@ -1209,7 +1209,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = SETUP_PHASE.toProtocolStage()
+          stage = SETUP_PHASE.toProtocolStage(),
         )
         .build()
     val requisitionBlobContext =
@@ -1227,9 +1227,9 @@ class ReachFrequencyLiquidLegionsV2MillTest {
         listOf(
           newInputBlobMetadata(0L, inputBlob0Context.blobKey),
           newInputBlobMetadata(1L, inputBlob1Context.blobKey),
-          newEmptyOutputBlobMetadata(3L)
+          newEmptyOutputBlobMetadata(3L),
         ),
-      requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3)
+      requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3),
     )
 
     var cryptoRequest = CompleteSetupPhaseRequest.getDefaultInstance()
@@ -1286,7 +1286,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
           "local_requisition_du",
           "chy_two_sketch_duchy",
           "_three_sketch_-compl",
-          "eteSetupPhase-done"
+          "eteSetupPhase-done",
         )
       )
       .inOrder()
@@ -1327,7 +1327,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = SETUP_PHASE.toProtocolStage()
+          stage = SETUP_PHASE.toProtocolStage(),
         )
         .build()
     val requisitionBlobContext =
@@ -1341,7 +1341,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       computationDetails = computationDetails,
       blobs =
         listOf(newInputBlobMetadata(0L, inputBlob0Context.blobKey), newEmptyOutputBlobMetadata(3L)),
-      requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3)
+      requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3),
     )
 
     var cryptoRequest = CompleteSetupPhaseRequest.getDefaultInstance()
@@ -1430,7 +1430,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = EXECUTION_PHASE_ONE.toProtocolStage()
+          stage = EXECUTION_PHASE_ONE.toProtocolStage(),
         )
         .build()
     val inputBlobContext =
@@ -1446,9 +1446,9 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       blobs =
         listOf(
           inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
-          cachedBlobContext.toMetadata(ComputationBlobDependency.OUTPUT)
+          cachedBlobContext.toMetadata(ComputationBlobDependency.OUTPUT),
         ),
-      requisitions = REQUISITIONS
+      requisitions = REQUISITIONS,
     )
 
     // Stage 1. Process the above computation
@@ -1490,7 +1490,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = EXECUTION_PHASE_ONE.toProtocolStage()
+          stage = EXECUTION_PHASE_ONE.toProtocolStage(),
         )
         .build()
     val inputBlobContext =
@@ -1505,9 +1505,9 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       blobs =
         listOf(
           inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
-          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)
+          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId),
         ),
-      requisitions = REQUISITIONS
+      requisitions = REQUISITIONS,
     )
 
     var cryptoRequest = CompleteExecutionPhaseOneRequest.getDefaultInstance()
@@ -1556,7 +1556,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
           GLOBAL_ID,
           EXECUTION_PHASE_ONE_INPUT,
           "data-completeExecuti", // Chunk 1, size 20
-          "onPhaseOne-done" // Chunk 2, the rest
+          "onPhaseOne-done", // Chunk 2, the rest
         )
       )
       .inOrder()
@@ -1579,7 +1579,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = EXECUTION_PHASE_ONE.toProtocolStage()
+          stage = EXECUTION_PHASE_ONE.toProtocolStage(),
         )
         .build()
     val inputBlobContext =
@@ -1594,9 +1594,9 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       blobs =
         listOf(
           inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
-          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)
+          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId),
         ),
-      requisitions = REQUISITIONS
+      requisitions = REQUISITIONS,
     )
 
     var cryptoRequest = CompleteExecutionPhaseOneAtAggregatorRequest.getDefaultInstance()
@@ -1646,7 +1646,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
           EXECUTION_PHASE_TWO_INPUT,
           "data-completeExecuti", // Chunk 1, size 20
           "onPhaseOneAtAggregat", // Chunk 2, size 20
-          "or-done" // Chunk 3, the rest
+          "or-done", // Chunk 3, the rest
         )
       )
       .inOrder()
@@ -1675,7 +1675,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = EXECUTION_PHASE_ONE.toProtocolStage()
+          stage = EXECUTION_PHASE_ONE.toProtocolStage(),
         )
         .build()
     val inputBlobContext =
@@ -1690,9 +1690,9 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       blobs =
         listOf(
           inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
-          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)
+          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId),
         ),
-      requisitions = REQUISITIONS
+      requisitions = REQUISITIONS,
     )
 
     var cryptoRequest = CompleteExecutionPhaseOneAtAggregatorRequest.getDefaultInstance()
@@ -1728,7 +1728,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = EXECUTION_PHASE_ONE.toProtocolStage()
+          stage = EXECUTION_PHASE_ONE.toProtocolStage(),
         )
         .build()
     val inputBlobContext =
@@ -1743,9 +1743,9 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       blobs =
         listOf(
           inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
-          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)
+          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId),
         ),
-      requisitions = REQUISITIONS
+      requisitions = REQUISITIONS,
     )
 
     var cryptoRequest = CompleteExecutionPhaseOneAtAggregatorRequest.getDefaultInstance()
@@ -1781,7 +1781,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = EXECUTION_PHASE_TWO.toProtocolStage()
+          stage = EXECUTION_PHASE_TWO.toProtocolStage(),
         )
         .build()
     val inputBlobContext =
@@ -1796,9 +1796,9 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       blobs =
         listOf(
           inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
-          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)
+          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId),
         ),
-      requisitions = REQUISITIONS
+      requisitions = REQUISITIONS,
     )
 
     var cryptoRequest = CompleteExecutionPhaseTwoRequest.getDefaultInstance()
@@ -1847,7 +1847,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
           GLOBAL_ID,
           EXECUTION_PHASE_TWO_INPUT,
           "data-completeExecuti", // Chunk 1, size 20
-          "onPhaseTwo-done" // Chunk 2, the rest
+          "onPhaseTwo-done", // Chunk 2, the rest
         )
       )
       .inOrder()
@@ -1876,7 +1876,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = EXECUTION_PHASE_TWO.toProtocolStage()
+          stage = EXECUTION_PHASE_TWO.toProtocolStage(),
         )
         .build()
     val inputBlobContext =
@@ -1891,9 +1891,9 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       blobs =
         listOf(
           inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
-          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)
+          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId),
         ),
-      requisitions = REQUISITIONS
+      requisitions = REQUISITIONS,
     )
 
     var cryptoRequest = CompleteExecutionPhaseTwoRequest.getDefaultInstance()
@@ -1928,7 +1928,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = EXECUTION_PHASE_TWO.toProtocolStage()
+          stage = EXECUTION_PHASE_TWO.toProtocolStage(),
         )
         .build()
     val inputBlobContext =
@@ -1943,9 +1943,9 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       blobs =
         listOf(
           inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
-          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)
+          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId),
         ),
-      requisitions = REQUISITIONS
+      requisitions = REQUISITIONS,
     )
 
     var cryptoRequest = CompleteExecutionPhaseTwoRequest.getDefaultInstance()
@@ -1979,7 +1979,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = EXECUTION_PHASE_TWO.toProtocolStage()
+          stage = EXECUTION_PHASE_TWO.toProtocolStage(),
         )
         .build()
     val inputBlobContext =
@@ -2001,9 +2001,9 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       blobs =
         listOf(
           inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
-          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)
+          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId),
         ),
-      requisitions = REQUISITIONS
+      requisitions = REQUISITIONS,
     )
 
     val testReach = 123L
@@ -2061,7 +2061,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
           EXECUTION_PHASE_THREE_INPUT,
           "data-completeExecuti", // Chunk 1, size 20
           "onPhaseTwoAtAggregat", // Chunk 2, size 20
-          "or-done" // Chunk 3, the rest
+          "or-done", // Chunk 3, the rest
         )
       )
       .inOrder()
@@ -2100,7 +2100,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = EXECUTION_PHASE_TWO.toProtocolStage()
+          stage = EXECUTION_PHASE_TWO.toProtocolStage(),
         )
         .build()
     val inputBlobContext =
@@ -2110,7 +2110,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_TWO.toProtocolStage(), 1L)
     computationStore.writeString(
       cachedBlobContext,
-      "data-completeExecutionPhaseTwoAtAggregator-first-run-done"
+      "data-completeExecutionPhaseTwoAtAggregator-first-run-done",
     )
     val computationDetailsWithVidSamplingWidth =
       AGGREGATOR_COMPUTATION_DETAILS.copy {
@@ -2126,9 +2126,9 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       blobs =
         listOf(
           inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
-          cachedBlobContext.toMetadata(ComputationBlobDependency.OUTPUT)
+          cachedBlobContext.toMetadata(ComputationBlobDependency.OUTPUT),
         ),
-      requisitions = REQUISITIONS
+      requisitions = REQUISITIONS,
     )
 
     val testReach = 123L
@@ -2185,7 +2185,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
           EXECUTION_PHASE_THREE_INPUT,
           "data-completeExecuti", // Chunk 1, size 20
           "onPhaseTwoAtAggregat", // Chunk 2, size 20
-          "or-first-run-done" // Chunk 3, the rest
+          "or-first-run-done", // Chunk 3, the rest
         )
       )
       .inOrder()
@@ -2224,7 +2224,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = EXECUTION_PHASE_TWO.toProtocolStage()
+          stage = EXECUTION_PHASE_TWO.toProtocolStage(),
         )
         .build()
     val computationDetailsWithReach =
@@ -2252,9 +2252,9 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       blobs =
         listOf(
           inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
-          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)
+          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId),
         ),
-      requisitions = REQUISITIONS
+      requisitions = REQUISITIONS,
     )
 
     val testReach = 123L
@@ -2335,7 +2335,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = EXECUTION_PHASE_TWO.toProtocolStage()
+          stage = EXECUTION_PHASE_TWO.toProtocolStage(),
         )
         .build()
     val computationDetailsWithReach =
@@ -2362,9 +2362,9 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       blobs =
         listOf(
           inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
-          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)
+          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId),
         ),
-      requisitions = REQUISITIONS
+      requisitions = REQUISITIONS,
     )
 
     val testReach = 123L
@@ -2454,7 +2454,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = EXECUTION_PHASE_THREE.toProtocolStage()
+          stage = EXECUTION_PHASE_THREE.toProtocolStage(),
         )
         .build()
     val inputBlobContext =
@@ -2469,9 +2469,9 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       blobs =
         listOf(
           inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
-          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)
+          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId),
         ),
-      requisitions = REQUISITIONS
+      requisitions = REQUISITIONS,
     )
 
     var cryptoRequest = CompleteExecutionPhaseThreeRequest.getDefaultInstance()
@@ -2514,7 +2514,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
           GLOBAL_ID,
           EXECUTION_PHASE_THREE_INPUT,
           "data-completeExecuti", // Chunk 1, size 20
-          "onPhaseThree-done" // Chunk 2, the rest
+          "onPhaseThree-done", // Chunk 2, the rest
         )
       )
       .inOrder()
@@ -2536,7 +2536,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
-          stage = EXECUTION_PHASE_THREE.toProtocolStage()
+          stage = EXECUTION_PHASE_THREE.toProtocolStage(),
         )
         .build()
     val computationDetailsWithReach =
@@ -2555,9 +2555,9 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       blobs =
         listOf(
           inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
-          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)
+          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId),
         ),
-      requisitions = REQUISITIONS
+      requisitions = REQUISITIONS,
     )
 
     var cryptoRequest = CompleteExecutionPhaseThreeAtAggregatorRequest.getDefaultInstance()
@@ -2641,10 +2641,10 @@ private suspend fun Blob.readToString(): String = read().flatten().toStringUtf8(
 
 private suspend fun ComputationStore.writeString(
   context: ComputationBlobContext,
-  content: String
+  content: String,
 ): Blob = write(context, ByteString.copyFromUtf8(content))
 
 private suspend fun RequisitionStore.writeString(
   context: RequisitionBlobContext,
-  content: String
+  content: String,
 ): Blob = write(context, ByteString.copyFromUtf8(content))
