@@ -114,7 +114,6 @@ deployments: {
 						"--polling-interval=1m",
 						"--preprocessing-max-byte-size=1000000",
 						"--preprocessing-file-count=1000",
-						"--max-parallel-claimed-exchange-steps=1",
 						"--x509-common-name=" + _defaultAwsConfig.commonName,
 						"--x509-organization=" + _defaultAwsConfig.orgName,
 						"--x509-dns-name=" + _defaultAwsConfig.dns,

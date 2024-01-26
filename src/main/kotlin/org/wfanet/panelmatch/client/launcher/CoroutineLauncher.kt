@@ -29,7 +29,6 @@ class CoroutineLauncher(
   private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default),
   private val stepExecutor: ExchangeStepExecutor
 ) : JobLauncher {
-
   override suspend fun execute(step: ValidatedExchangeStep, attemptKey: ExchangeStepAttemptKey) {
     (scope + SupervisorJob()).launch(CoroutineName(attemptKey.toName())) {
       stepExecutor.execute(step, attemptKey)
