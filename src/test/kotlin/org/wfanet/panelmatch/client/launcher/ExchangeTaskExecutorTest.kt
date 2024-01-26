@@ -18,19 +18,12 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import java.time.LocalDate
-import kotlin.test.assertFailsWith
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.cancelChildren
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.job
 import kotlinx.coroutines.joinAll
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.newSingleThreadContext
+import kotlinx.coroutines.withContext
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -40,15 +33,16 @@ import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
-import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepKey
+import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt.State
-import org.wfanet.measurement.api.v2alpha.ExchangeStepKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.commutativeDeterministicEncryptStep
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
 import org.wfanet.measurement.api.v2alpha.exchangeStep
 import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
 import org.wfanet.measurement.common.asBufferedFlow
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
@@ -67,7 +61,8 @@ import org.wfanet.panelmatch.common.testing.runBlockingTest
 private const val RECURRING_EXCHANGE_ID = "some-recurring-exchange-id"
 private const val EXCHANGE_ID = "some-exchange-id"
 private const val EXCHANGE_STEP_ID = "some-step-id"
-private val ATTEMPT_KEY = CanonicalExchangeStepAttemptKey(RECURRING_EXCHANGE_ID, EXCHANGE_ID, EXCHANGE_STEP_ID, "z")
+private val ATTEMPT_KEY =
+  CanonicalExchangeStepAttemptKey(RECURRING_EXCHANGE_ID, EXCHANGE_ID, EXCHANGE_STEP_ID, "z")
 
 private val DATE = LocalDate.of(2021, 11, 3)
 
@@ -81,17 +76,17 @@ private val WORKFLOW = exchangeWorkflow {
 }
 
 private val EXCHANGE_STEP_KEY =
-  ExchangeStepKey(
+  CanonicalExchangeStepKey(
     recurringExchangeId = RECURRING_EXCHANGE_ID,
     exchangeId = EXCHANGE_ID,
-    exchangeStepId = EXCHANGE_STEP_ID
+    exchangeStepId = EXCHANGE_STEP_ID,
   )
 
 private val EXCHANGE_STEP: ExchangeStep = exchangeStep {
   name = EXCHANGE_STEP_KEY.toName()
   state = ExchangeStep.State.READY_FOR_RETRY
   stepIndex = 0
-  serializedExchangeWorkflow = WORKFLOW.toByteString()
+  exchangeWorkflow = WORKFLOW.pack()
   exchangeDate = DATE.toProtoDate()
 }
 
@@ -122,29 +117,7 @@ class ExchangeTaskExecutorTest {
     prepareBlob("some-blob")
     whenever(validator.validate(any())).thenReturn(VALIDATED_EXCHANGE_STEP)
 
-    supervisorScope {
-      val taskJob = exchangeTaskExecutor.executeWithScope(
-        EXCHANGE_STEP,
-        ATTEMPT_KEY,
-        this@supervisorScope
-      )
-      taskJob.join()
-    }
-
-    assertThat(testPrivateStorageSelector.storageClient.getBlob("c")?.toStringUtf8())
-      .isEqualTo("Out:commutative-deterministic-encrypt-some-blob")
-  }
-
-  @Test
-  fun `naive executor reads inputs and writes outputs`() = runBlockingTest {
-    prepareBlob("some-blob")
-    whenever(validator.validate(any())).thenReturn(VALIDATED_EXCHANGE_STEP)
-
-    exchangeTaskExecutor.execute(
-      EXCHANGE_STEP,
-      ATTEMPT_KEY
-    )
-
+    exchangeTaskExecutor.execute(EXCHANGE_STEP, ATTEMPT_KEY)
     this.coroutineContext.job.children.toList().joinAll()
 
     assertThat(testPrivateStorageSelector.storageClient.getBlob("c")?.toStringUtf8())
@@ -156,14 +129,8 @@ class ExchangeTaskExecutorTest {
     timeout.expired = true
     whenever(validator.validate(any())).thenReturn(VALIDATED_EXCHANGE_STEP)
 
-    supervisorScope {
-      val taskJob = exchangeTaskExecutor.executeWithScope(
-        EXCHANGE_STEP,
-        ATTEMPT_KEY,
-        this@supervisorScope
-      )
-      taskJob.join()
-    }
+    exchangeTaskExecutor.execute(EXCHANGE_STEP, ATTEMPT_KEY)
+    this.coroutineContext.job.children.toList().joinAll()
 
     assertThat(testPrivateStorageSelector.storageClient.getBlob("c")).isNull()
   }
@@ -175,14 +142,9 @@ class ExchangeTaskExecutorTest {
 
     val exchangeTaskExecutor =
       createExchangeTaskExecutor(FakeExchangeTaskMapper(::TransientThrowingExchangeTask))
-    supervisorScope {
-      val taskJob = exchangeTaskExecutor.executeWithScope(
-        EXCHANGE_STEP,
-        ATTEMPT_KEY,
-        this@supervisorScope
-      )
-      taskJob.join()
-    }
+
+    exchangeTaskExecutor.execute(EXCHANGE_STEP, ATTEMPT_KEY)
+    this.coroutineContext.job.children.toList().joinAll()
 
     verify(apiClient).finishExchangeStepAttempt(eq(ATTEMPT_KEY), eq(State.FAILED), any())
   }
@@ -195,14 +157,8 @@ class ExchangeTaskExecutorTest {
     val exchangeTaskExecutor =
       createExchangeTaskExecutor(FakeExchangeTaskMapper(::PermanentThrowingExchangeTask))
 
-    supervisorScope {
-      val taskJob = exchangeTaskExecutor.executeWithScope(
-        EXCHANGE_STEP,
-        ATTEMPT_KEY,
-        this@supervisorScope
-      )
-      taskJob.join()
-    }
+    exchangeTaskExecutor.execute(EXCHANGE_STEP, ATTEMPT_KEY)
+    this.coroutineContext.job.children.toList().joinAll()
 
     verify(apiClient).finishExchangeStepAttempt(eq(ATTEMPT_KEY), eq(State.FAILED_STEP), any())
   }
@@ -237,4 +193,17 @@ private class PermanentThrowingExchangeTask(taskName: String) : ExchangeTask {
     input: Map<String, StorageClient.Blob>
   ): Map<String, Flow<ByteString>> =
     throw ExchangeTaskFailedException.ofPermanent(IllegalStateException())
+}
+
+private class CoroutineScopeThrowingExchangeTask(taskName: String) : ExchangeTask {
+  @kotlinx.coroutines.ExperimentalCoroutinesApi
+  private val newContext = newSingleThreadContext("ThreadForCrashes")
+  override suspend fun execute(
+    input: Map<String, StorageClient.Blob>
+  ): Map<String, Flow<ByteString>> {
+    withContext(newContext) {
+      launch { throw IllegalArgumentException("Error") }.join()
+    }
+    return emptyMap()
+  }
 }

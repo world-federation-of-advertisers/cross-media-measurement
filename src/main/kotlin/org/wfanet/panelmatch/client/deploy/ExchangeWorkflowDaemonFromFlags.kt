@@ -48,13 +48,11 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
   override val clock: Clock = Clock.systemUTC()
 
   /**
-   * Limits the maximum number of workflow tasks (across all recurring
-   * exchanges) that the daemon will be allowed to run concurrently.
-   * If not set, there is no limit.
+   * Limits the maximum number of workflow tasks (across all recurring exchanges) that the daemon
+   * will be allowed to run concurrently. If not set, there is no limit. If set, must be >= 1.
    */
-  override val maxConcurrentTasks: Int? by lazy {
-    flags.maxConcurrentTasks
-  }
+  override val maxParallelClaimedExchangeSteps: Int?
+    get() = flags.maxParallelClaimedExchangeSteps
 
   /**
    * Maps Exchange paths (i.e. recurring_exchanges/{recurring_exchange_id}/exchanges/{date}) to
@@ -130,6 +128,7 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
       exchangeStepsClient,
       exchangeStepAttemptsClient,
       Clock.systemUTC(),
+      maxParallelClaimedExchangeSteps,
     )
   }
 

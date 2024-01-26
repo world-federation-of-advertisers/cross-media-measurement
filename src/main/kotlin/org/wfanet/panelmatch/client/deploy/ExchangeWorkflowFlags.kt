@@ -19,9 +19,15 @@ import kotlin.properties.Delegates
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party
 import org.wfanet.measurement.common.grpc.TlsFlags
 import picocli.CommandLine
+import picocli.CommandLine.Model.CommandSpec
 import picocli.CommandLine.Option
+import picocli.CommandLine.ParameterException
+import picocli.CommandLine.Spec
 
 class ExchangeWorkflowFlags {
+
+  @Spec lateinit var spec: CommandSpec
+
   @Option(names = ["--id"], description = ["Id of the provider"], required = true)
   lateinit var id: String
     private set
@@ -116,13 +122,21 @@ class ExchangeWorkflowFlags {
   var preProcessingFileCount by Delegates.notNull<Int>()
     private set
 
+  var maxParallelClaimedExchangeSteps: Int? = null
+
   @Option(
     names = ["--max-concurrent-tasks"],
     description = ["Maximum number of concurrent tasks to allow the daemon to run."],
     required = false,
   )
-  var maxConcurrentTasks: Int? = null
-    private set
+  private fun maxClaimedStepsIsPositive(value: Int?) {
+    if ( (value ?: 1) < 1) {
+      throw ParameterException(
+        spec.commandLine(),
+        "Max-parallel-claimed-tasks must be greater than 0 if set. Currently it is $value")
+    }
+    maxParallelClaimedExchangeSteps = value
+  }
 
   @Option(
     names = ["--fallback-private-key-blob-key"],

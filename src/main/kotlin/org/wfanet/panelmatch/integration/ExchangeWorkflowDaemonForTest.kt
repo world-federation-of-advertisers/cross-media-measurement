@@ -94,7 +94,7 @@ class ExchangeWorkflowDaemonForTest(
 
   override val identity: Identity = Identity.fromResourceKey(provider)
 
-  override val maxConcurrentTasks = null
+  override val maxParallelClaimedExchangeSteps = null
 
   override val apiClient: ApiClient by lazy {
     val providerName = provider.toName()
@@ -103,7 +103,7 @@ class ExchangeWorkflowDaemonForTest(
     val exchangeStepAttemptsClient =
       ExchangeStepAttemptsCoroutineStub(v2alphaChannel).withPrincipalName(providerName)
 
-    GrpcApiClient(identity, exchangeStepsClient, exchangeStepAttemptsClient, clock, -1)
+    GrpcApiClient(identity, exchangeStepsClient, exchangeStepAttemptsClient, clock)
   }
 
   override val throttler: Throttler = MinimumIntervalThrottler(clock, pollingInterval)

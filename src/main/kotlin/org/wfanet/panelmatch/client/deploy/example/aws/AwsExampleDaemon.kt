@@ -35,7 +35,6 @@ import org.wfanet.panelmatch.common.certificates.aws.CertificateAuthority
 import org.wfanet.panelmatch.common.certificates.aws.PrivateCaClient
 import org.wfanet.panelmatch.common.secrets.MutableSecretMap
 import org.wfanet.panelmatch.common.secrets.SecretMap
-import picocli.CommandLine
 import picocli.CommandLine.Command
 import picocli.CommandLine.Mixin
 import picocli.CommandLine.Option
@@ -61,17 +60,14 @@ private class AwsExampleDaemon : ExampleDaemon() {
   lateinit var certificateAuthorityArn: String
     private set
 
-  @CommandLine.Option(
+  @Option(
     names = ["--s3-storage-bucket"],
     description = ["The name of the s3 bucket used for default private storage."],
   )
   lateinit var s3Bucket: String
     private set
 
-  @CommandLine.Option(
-    names = ["--s3-region"],
-    description = ["The region the s3 bucket is located in."],
-  )
+  @Option(names = ["--s3-region"], description = ["The region the s3 bucket is located in."])
   lateinit var s3Region: String
     private set
 
@@ -150,7 +146,7 @@ private class AwsExampleDaemon : ExampleDaemon() {
       timeout = taskTimeout,
       privateStorageSelector = privateStorageSelector,
       exchangeTaskMapper = exchangeTaskMapper,
-      validator = ExchangeStepValidatorImpl(identity.party, validExchangeWorkflows, clock)
+      validator = ExchangeStepValidatorImpl(identity.party, validExchangeWorkflows, clock),
     )
   }
 }

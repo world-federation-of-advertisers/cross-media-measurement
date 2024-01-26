@@ -15,35 +15,24 @@
 package org.wfanet.panelmatch.client.launcher
 
 import java.util.logging.Level
-import kotlinx.coroutines.sync.Semaphore
 import org.wfanet.panelmatch.common.loggerFor
 
 /** Finds an [ExchangeStep], validates it, and starts executing the work. */
 class ExchangeStepLauncher(
   private val apiClient: ApiClient,
   private val taskLauncher: ExchangeStepExecutor,
-  maxTaskCoroutines: Int? = null,
 ) {
-  private val semaphore = if (maxTaskCoroutines !== null) Semaphore(maxTaskCoroutines) else null
-
   /**
    * Finds a single ready Exchange Step and starts executing. If an Exchange Step is found, this
    * passes it to the executor for validation and execution. If not found simply returns.
-   *
-   * If [maxTaskCoroutines] is set, this will try to acquire a permit before claiming a task. If it
-   * is unable to, it will return before even trying to claim an exchange step.
    */
   suspend fun findAndRunExchangeStep() {
-    if(semaphore == null || semaphore.tryAcquire()) {
-      val numPermits = semaphore?.availablePermits ?: "unlimited"
-      logger.log(
-        Level.INFO,
-        "Claiming an Exchange Step, $numPermits task permits remain.")
-      val (exchangeStep, attemptKey) = apiClient.claimExchangeStep() ?: return
-      taskLauncher.execute(exchangeStep, attemptKey)
-      semaphore?.release()
-    } else {
-      logger.log(Level.INFO, "No available permits to claim and run a task.")
+    try {
+      apiClient.claimExchangeStep()?.let {
+        taskLauncher.execute(it.exchangeStep, it.exchangeStepAttempt)
+      }
+    } catch (e: Exception) {
+      logger.log(Level.SEVERE, "Exchange Launcher Error:", e)
     }
   }
 
