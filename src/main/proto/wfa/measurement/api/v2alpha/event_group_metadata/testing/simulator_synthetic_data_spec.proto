@@ -148,5 +148,6 @@ message SyntheticEventGroupSpec {
   }
 
   // Random Number Generator type for this `SyntheticEventGroupSpec`.
+  // Required if any VidRangeSpec specifies a sample_size.
   RngType rng_type = 4;
 }

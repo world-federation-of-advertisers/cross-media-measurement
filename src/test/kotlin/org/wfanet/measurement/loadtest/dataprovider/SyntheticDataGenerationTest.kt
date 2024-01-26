@@ -87,7 +87,6 @@ class SyntheticDataGenerationTest {
     }
     val eventGroupSpec = syntheticEventGroupSpec {
       description = "event group 1"
-      rngType = SyntheticEventGroupSpec.RngType.KOTLIN_RANDOM
 
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {
@@ -390,7 +389,7 @@ class SyntheticDataGenerationTest {
   }
 
   @Test
-  fun `generateEvents throws IllegalStateException when RNG is not specified`() {
+  fun `generateEvents throws IllegalStateException for RNG not specified when sampling enabled`() {
 
     val sampleSizeForFreqOne = 2
     val firstsampleSizeForFreqTwo = 5
@@ -567,7 +566,6 @@ class SyntheticDataGenerationTest {
     }
     val eventGroupSpec = syntheticEventGroupSpec {
       description = "event group 1"
-      rngType = SyntheticEventGroupSpec.RngType.KOTLIN_RANDOM
 
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {
@@ -648,7 +646,6 @@ class SyntheticDataGenerationTest {
     }
     val videoLength = Duration.ofMinutes(5).toProtoDuration()
     val eventGroupSpec = syntheticEventGroupSpec {
-      rngType = SyntheticEventGroupSpec.RngType.KOTLIN_RANDOM
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {
           dateRange =
@@ -723,7 +720,6 @@ class SyntheticDataGenerationTest {
     }
     val eventGroupSpec = syntheticEventGroupSpec {
       description = "event group"
-      rngType = SyntheticEventGroupSpec.RngType.KOTLIN_RANDOM
 
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {
@@ -792,7 +788,6 @@ class SyntheticDataGenerationTest {
     }
     val eventGroupSpec = syntheticEventGroupSpec {
       description = "event group"
-      rngType = SyntheticEventGroupSpec.RngType.KOTLIN_RANDOM
 
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {
@@ -863,7 +858,6 @@ class SyntheticDataGenerationTest {
     }
     val eventGroupSpec = syntheticEventGroupSpec {
       description = "event group"
-      rngType = SyntheticEventGroupSpec.RngType.KOTLIN_RANDOM
 
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {
@@ -934,7 +928,6 @@ class SyntheticDataGenerationTest {
     }
     val eventGroupSpec = syntheticEventGroupSpec {
       description = "event group"
-      rngType = SyntheticEventGroupSpec.RngType.KOTLIN_RANDOM
 
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {

@@ -51,9 +51,18 @@ object SyntheticDataGeneration {
     syntheticEventGroupSpec: SyntheticEventGroupSpec,
   ): Sequence<LabeledEvent<T>> {
 
-    check(syntheticEventGroupSpec.rngType == SyntheticEventGroupSpec.RngType.KOTLIN_RANDOM) {
-      "Expecting KOTLIN_RANDOM rng type, got ${syntheticEventGroupSpec.rngType}"
+    val samplingRequired =
+      syntheticEventGroupSpec.dateSpecsList
+        .flatMap { it.frequencySpecsList }
+        .flatMap { it.vidRangeSpecsList }
+        .any { it.sampleSize != 0 }
+
+    if (samplingRequired) {
+      check(syntheticEventGroupSpec.rngType == SyntheticEventGroupSpec.RngType.KOTLIN_RANDOM) {
+        "Expecting KOTLIN_RANDOM rng type, got ${syntheticEventGroupSpec.rngType}"
+      }
     }
+
     val subPopulations = populationSpec.subPopulationsList
 
     return sequence {
