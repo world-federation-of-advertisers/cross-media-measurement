@@ -4,9 +4,6 @@ on:
   push:
 
 jobs:
-  push-images:
-    uses: ./.github/workflows/push-images.yml
-
   terraform:
     uses: ./.github/workflows/terraform-cmms.yml
     secrets: inherit
@@ -18,6 +15,6 @@ jobs:
     uses: ./.github/workflows/configure-reporting-v2.yml
     needs: [ terraform ]
     with:
-      image-tag: c556971a519b8830abe141ae38a8962bec99a943
+      image-tag: abc58e468afecbc730a91a69f563b262ceb3599e
       environment: dev
       apply: true
