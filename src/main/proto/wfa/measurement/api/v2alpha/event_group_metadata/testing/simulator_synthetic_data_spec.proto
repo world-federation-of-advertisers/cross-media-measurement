@@ -114,6 +114,9 @@ message SyntheticEventGroupSpec {
       // Number of vids sampled uniformly without replacement from vid_range.
       // If this is 0, no sampling is done and all the vids in range are taken.
       int32 sample_size = 3;
+
+      // Random seed to be fed into the random number generator to sample vids.
+      int64 random_seed = 4;
     }
     // The VID ranges should be non-overlapping sub-ranges of SubPopulations.
     repeated VidRangeSpec vid_range_specs = 2;
@@ -134,10 +137,6 @@ message SyntheticEventGroupSpec {
   }
   // `DateSpec`s should describe non-overlapping date ranges.
   repeated DateSpec date_specs = 2;
-
-  // Random seed to be fed into the random number generator to sample vids.
-  // Required if any VidRangeSpec specifies a sample_size.
-  int64 random_seed = 3;
 
   // Type of random number generator to sample vids.
   enum RngType {

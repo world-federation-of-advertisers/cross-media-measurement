@@ -54,7 +54,6 @@ object SyntheticDataGeneration {
     check(syntheticEventGroupSpec.rngType == SyntheticEventGroupSpec.RngType.KOTLIN_RANDOM) {
       "Expecting KOTLIN_RANDOM rng type, got ${syntheticEventGroupSpec.rngType}"
     }
-    val random = Random(syntheticEventGroupSpec.randomSeed)
     val subPopulations = populationSpec.subPopulationsList
 
     return sequence {
@@ -65,6 +64,7 @@ object SyntheticDataGeneration {
           check(!frequencySpec.hasOverlaps()) { "The VID ranges should be non-overlapping." }
 
           for (vidRangeSpec: VidRangeSpec in frequencySpec.vidRangeSpecsList) {
+            val random = Random(vidRangeSpec.randomSeed)
             val subPopulation: SubPopulation =
               vidRangeSpec.vidRange.findSubPopulation(subPopulations)
                 ?: throw IllegalArgumentException()
