@@ -47,6 +47,7 @@ jobs:
       GCLOUD_MODULE_PATH: src/main/terraform/gcloud/cmms
       GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
       GCLOUD_ZONE: ${{ vars.GCLOUD_ZONE }}
+      AWS_MODULE_PATH: src/main/terraform/aws/cmms
 
     steps:
     - uses: actions/checkout@v3
@@ -94,4 +95,39 @@ jobs:
     - name: terraform apply - gcloud
       if: ${{ inputs.apply }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
+      run: terraform apply -input=false tfplan
+
+    # Authenticate to AWS Cloud. This will export some environment
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-region: ${{ vars.AWS_REGION }}
+        role-to-assume: ${{ vars.AWS_GHA_ROLE }}
+        role-session-name: GitHubAction
+
+    - name: terraform init - aws
+      env:
+        TF_STORAGE_BUCKET: ${{ vars.AWS_TF_STORAGE_BUCKET }}
+      working-directory: ${{ env.AWS_MODULE_PATH }}
+      run: >
+        terraform init
+        -input=false
+        -lockfile=readonly
+        -backend-config="bucket=$TF_STORAGE_BUCKET"
+        -backend-config="region=$AWS_REGION"
+
+    - name: terraform plan - aws
+      env:
+        POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
+      working-directory: ${{ env.AWS_MODULE_PATH }}
+      run: >
+        terraform plan
+        -input=false
+        -var="aws_region=$AWS_REGION"
+        -var="postgres_instance_name=$POSTGRES_INSTANCE"
+        -out=tfplan
+
+    - name: terraform apply - aws
+      if: ${{ inputs.apply }}
+      working-directory: ${{ env.AWS_MODULE_PATH }}
       run: terraform apply -input=false tfplan
