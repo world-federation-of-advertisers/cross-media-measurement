@@ -1003,6 +1003,12 @@ private fun generateTimeIntervals(
   }
 }
 
+
+/**
+ * Generate a list of time intervals using [Temporal]s representing the start and end of the time
+ * range to create time intervals for, the [MetricCalculationSpec.MetricFrequencySpec], and the
+ * [MetricCalculationSpec.TrailingWindow].
+ */
 private fun generateTimeIntervals(
   reportStartTemporal: Temporal,
   reportEndTemporal: Temporal,

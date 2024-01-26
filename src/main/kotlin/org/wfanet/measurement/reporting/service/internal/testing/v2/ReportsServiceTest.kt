@@ -154,7 +154,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         }
       )
 
-    assertThat(baseReport)
+    assertThat(report)
       .ignoringFields(
         Report.EXTERNAL_REPORT_ID_FIELD_NUMBER,
         Report.CREATE_TIME_FIELD_NUMBER,
