@@ -61,14 +61,14 @@ private class AwsExampleDaemon : ExampleDaemon() {
   lateinit var certificateAuthorityArn: String
     private set
 
-  @CommandLine.Option(
+  @Option(
     names = ["--s3-storage-bucket"],
     description = ["The name of the s3 bucket used for default private storage."],
   )
   lateinit var s3Bucket: String
     private set
 
-  @CommandLine.Option(
+  @Option(
     names = ["--s3-region"],
     description = ["The region the s3 bucket is located in."],
   )

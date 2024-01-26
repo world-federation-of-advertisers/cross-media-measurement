@@ -77,7 +77,7 @@ class ExchangeWorkflowFlags {
   @Option(
     names = ["--exchange-api-target"],
     description =
-      ["Address and port for servers hosting /ExchangeSteps and /ExchangeStepAttempts services"],
+    ["Address and port for servers hosting /ExchangeSteps and /ExchangeStepAttempts services"],
     required = true,
   )
   lateinit var exchangeApiTarget: String
@@ -117,10 +117,11 @@ class ExchangeWorkflowFlags {
     private set
 
   @Option(
-    names = ["--max-concurrent-tasks"],
-    description = ["Maximum number of concurrent tasks to allow the daemon to run."],
+    names = ["--max-parallel-claimed-exchange-steps"],
+    description = [
+      "Maximum number of exchange tasks the daemon is allowed to claim simultaneously. Default is unlimited."],
     required = false,
   )
-  var maxConcurrentTasks: Int? = null
+  var maxParallelClaimedExchangeSteps: Int? = null
     private set
 }

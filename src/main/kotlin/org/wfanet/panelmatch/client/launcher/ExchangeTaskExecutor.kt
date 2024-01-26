@@ -23,15 +23,12 @@ import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.supervisorScope
-import org.wfanet.measurement.api.v2alpha.ExchangeStep
-import kotlinx.coroutines.withContext
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
+import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step
 import org.wfanet.measurement.storage.StorageClient
@@ -64,7 +61,7 @@ class ExchangeTaskExecutor(
 ) : ExchangeStepExecutor {
 
   private fun taskExceptionHandler(
-    attemptKey: CanonicalExchangeStepAttemptKey
+    attemptKey: CanonicalExchangeStepAttemptKey,
   ): CoroutineExceptionHandler {
     return CoroutineExceptionHandler { _, e ->
       logger.severe("Uncaught Exception in child coroutine:")
@@ -86,18 +83,23 @@ class ExchangeTaskExecutor(
   suspend fun executeWithScope(
     exchangeStep: ExchangeStep,
     attemptKey: CanonicalExchangeStepAttemptKey,
-    scope: CoroutineScope
-  ) : Job {
+    scope: CoroutineScope,
+  ): Job {
     return scope.launch(
-        dispatcher
+      dispatcher
         + CoroutineName(attemptKey.toName())
         + TaskLog(attemptKey.toName())
-        + taskExceptionHandler(attemptKey)) {
-      println("I'm working in thread ${Thread.currentThread().name}")
+        + taskExceptionHandler(attemptKey)
+    ) {
       try {
         val validatedStep = validator.validate(exchangeStep)
         val context =
-          ExchangeContext(attemptKey, validatedStep.date, validatedStep.workflow, validatedStep.step)
+          ExchangeContext(
+            attemptKey,
+            validatedStep.date,
+            validatedStep.workflow,
+            validatedStep.step
+          )
         context.tryExecute()
       } catch (e: Exception) {
         logger.addToTaskLog("Caught Exception in task execution:", Level.SEVERE)
@@ -167,12 +169,9 @@ class ExchangeTaskExecutor(
   private suspend fun ExchangeContext.runStep(privateStorage: StorageClient) {
     timeout.runWithTimeout {
       val exchangeTask: ExchangeTask = exchangeTaskMapper.getExchangeTaskForStep(this@runStep)
-      logger.addToTaskLog("Reading Inputs", Level.DEBUG)
       val taskInput: Map<String, Blob> =
         if (exchangeTask.skipReadInput()) emptyMap() else readInputs(step, privateStorage)
-      logger.addToTaskLog("Executing", Level.DEBUG)
       val taskOutput: Map<String, Flow<ByteString>> = exchangeTask.execute(taskInput)
-      logger.addToTaskLog("Writing Outputs", Level.DEBUG)
       writeOutputs(step, taskOutput, privateStorage)
     }
   }

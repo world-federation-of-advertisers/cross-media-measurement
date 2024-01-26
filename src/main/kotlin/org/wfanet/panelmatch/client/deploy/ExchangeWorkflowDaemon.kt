@@ -80,8 +80,8 @@ abstract class ExchangeWorkflowDaemon : Runnable {
   /** [CertificateManager] for [sharedStorageSelector]. */
   protected abstract val certificateManager: CertificateManager
 
-  /** Maximum allowable concurrent tasks to run */
-  protected abstract val maxConcurrentTasks: Int?
+  /** Maximum allowable number of tasks claimed concurrently. */
+  protected abstract val maxParallelClaimedExchangeSteps: Int?
 
   /** [PrivateStorageSelector] for writing to local (non-shared) storage. */
   protected val privateStorageSelector: PrivateStorageSelector by lazy {
@@ -105,12 +105,10 @@ abstract class ExchangeWorkflowDaemon : Runnable {
   override fun run() = runBlocking { runSuspending() }
 
   suspend fun runSuspending() {
-
     val exchangeStepLauncher =
       ExchangeStepLauncher(
         apiClient = apiClient,
         taskLauncher = stepExecutor,
-        maxTaskCoroutines = maxConcurrentTasks,
       )
     runDaemon(exchangeStepLauncher)
   }

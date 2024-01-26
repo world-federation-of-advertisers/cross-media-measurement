@@ -39,17 +39,17 @@ class GrpcApiClient(
   private val exchangeStepsClient: ExchangeStepsCoroutineStub,
   private val exchangeStepAttemptsClient: ExchangeStepAttemptsCoroutineStub,
   private val clock: Clock = Clock.systemUTC(),
-  val maxClaimedExchangeSteps: Int,
+  maxClaimedExchangeSteps: Int? = null,
 ) : ApiClient {
-  private val semaphore =
-    if (maxClaimedExchangeSteps != -1) Semaphore(maxClaimedExchangeSteps) else null
+  private val semaphore = maxClaimedExchangeSteps?.let { maxSteps -> Semaphore(maxSteps) }
 
   private val recurringExchangeParentKey: RecurringExchangeParentKey =
     when (identity.party) {
       Party.DATA_PROVIDER -> DataProviderKey(identity.id)
       Party.MODEL_PROVIDER -> ModelProviderKey(identity.id)
       Party.PARTY_UNSPECIFIED,
-      Party.UNRECOGNIZED -> throw IllegalArgumentException("Unsupported party ${identity.party}")
+      Party.UNRECOGNIZED,
+      -> throw IllegalArgumentException("Unsupported party ${identity.party}")
     }
 
   override suspend fun claimExchangeStep(): ClaimedExchangeStep? {
@@ -97,7 +97,7 @@ class GrpcApiClient(
   suspend fun finishExchangeStepAttempt(
     keyName: String,
     finalState: ExchangeStepAttempt.State,
-    logEntryMessages: Iterable<String>
+    logEntryMessages: Iterable<String>,
   ) {
     val request = finishExchangeStepAttemptRequest {
       name = keyName
@@ -107,7 +107,7 @@ class GrpcApiClient(
       }
     }
     exchangeStepAttemptsClient.finishExchangeStepAttempt(request)
-    if (semaphore !== null) semaphore.release()
+    semaphore?.release()
   }
 
   private fun makeLogEntry(message: String): ExchangeStepAttempt.DebugLogEntry {
