@@ -116,6 +116,7 @@ message SyntheticEventGroupSpec {
       int32 sample_size = 3;
 
       // Random seed to be fed into the random number generator to sample vids.
+      // Required if this VidRangeSpec specifies a sample_size.
       int64 random_seed = 4;
     }
     // The VID ranges should be non-overlapping sub-ranges of SubPopulations.
