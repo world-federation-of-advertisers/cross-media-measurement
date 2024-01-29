@@ -129,7 +129,7 @@ class ExchangeWorkflowFlags {
     names = ["--private-key-path"],
     defaultValue = "",
     description = ["Fixed path for a kms-encrypted private singing key used in all exchanges"],
-    required = true
+    required = true,
   )
   lateinit var privateKeyPath: String
     private set
