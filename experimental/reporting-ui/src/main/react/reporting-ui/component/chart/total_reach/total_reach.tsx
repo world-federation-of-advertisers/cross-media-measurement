@@ -18,19 +18,18 @@ import { ChartGroup } from '../../../model/chart_group';
 
 type TotalReachProps = {
     id: string,
-    title?: string,
     reach: ChartGroup[],
     pubColors: { [Name: string]: string},
 }
 
-export function TotalReach({id, title='Total reach', reach, pubColors}: TotalReachProps) {
+export function TotalReach({id, reach, pubColors}: TotalReachProps) {
     const config = {
         pubColors,
     }
     return (
         <Chart
             cardId={id}
-            title={title}
+            title='Total reach'
             data={reach}
             config={config}
             type={ChartType.multiLine}

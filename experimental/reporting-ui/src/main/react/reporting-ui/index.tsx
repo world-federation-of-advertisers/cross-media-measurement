@@ -25,7 +25,7 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 const configProps = {
   reportingClient: new ReportingClientImpl(
     {
-      endpoint: new URL('http://34.41.59.152:8080'),
+      endpoint: new URL('http://localhost:8080'),
       measurementConsumer: 'VCTqwV_vFXw',
     }),
 };
