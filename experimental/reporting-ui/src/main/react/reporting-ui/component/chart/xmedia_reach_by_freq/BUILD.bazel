@@ -13,6 +13,7 @@ js_library(
     ],
     deps = [
         "//experimental/reporting-ui/src/main/react/reporting-ui/component/chart",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/model:chart_group",
         "//experimental/reporting-ui/src/main/react/reporting-ui/model/reporting",
     ],
 )

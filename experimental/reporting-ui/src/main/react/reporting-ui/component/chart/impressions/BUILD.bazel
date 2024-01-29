@@ -7,9 +7,9 @@ package(
 )
 
 js_library(
-    name = "unique_reach_by_plat",
+    name = "impressions",
     srcs = [
-        "unique_reach_by_plat.tsx",
+        "impressions.tsx",
     ],
     deps = [
         "//experimental/reporting-ui/src/main/react/reporting-ui/component/chart",

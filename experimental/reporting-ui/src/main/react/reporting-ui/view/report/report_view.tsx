@@ -41,18 +41,17 @@ export const ReportView = () => {
     return <div>Couldn't load Report</div>
   }
 
-  if (TERMINAL_STATES.includes(report.status)) {
+  if (TERMINAL_STATES.includes(report.state)) {
     return <TerminalReport
               name={report.name}
               overview={report.overview}
               summaries={report.summary}
-              targetReach={report.targetReach}
+              impressions={report.impressions}
+              cumulativeImpressions={report.cumulativeImpressions}
+              uniqueReach={report.uniqueReach}
               totalReach={report.totalReach}
-              xmediaReach={report.xmediaReach}
-              onTargetReach={report.onTargetReach}
-              onTargetUniqueReach={report.onTargetUniqueReach}
-              uniqueReachByPlat={report.uniqueReachByPlat}
-              demo={report.demo}
+              totalCumulativeReach={report.totalCumulativeReach}
+              frequencies={report.averageFrequency}
             />
   }
 
