@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: "Configure Reporting"
+name: "Configure Reporting V2"
 
 on:
   workflow_call:
@@ -48,10 +48,10 @@ permissions:
   id-token: write
 
 env:
-  KUSTOMIZATION_PATH: "k8s/reporting"
+  KUSTOMIZATION_PATH: "k8s/reporting_v2"
 
 jobs:
-  update-reporting:
+  update-reporting-v2:
     runs-on: ubuntu-20.04
     environment: ${{ inputs.environment }}
     steps:
@@ -71,7 +71,7 @@ jobs:
     - name: Get GKE cluster credentials
       uses: google-github-actions/get-gke-credentials@v1
       with:
-        cluster_name: reporting
+        cluster_name: reporting-v2
         location: ${{ vars.GCLOUD_ZONE }}
 
     - name: Configure metrics
@@ -86,7 +86,7 @@ jobs:
         KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
       run: >
         bazelisk build 
-        //src/main/k8s/dev:reporting.tar
+        //src/main/k8s/dev:reporting_v2.tar
         //src/main/k8s/testing/secretfiles:archive
         --config ghcr
         --define "image_tag=$IMAGE_TAG"
@@ -100,13 +100,13 @@ jobs:
 
     - name: Extract Kustomization archive
       run: >
-        tar -xf "$BAZEL_BIN/src/main/k8s/dev/reporting.tar"
+        tar -xf "$BAZEL_BIN/src/main/k8s/dev/reporting_v2.tar"
         -C "$KUSTOMIZATION_PATH"
 
     - name: Extract secret files archive
       run: >
         tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/archive.tar"
-        -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_secrets"
+        -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_v2_secrets"
 
     # Write files from configuration variables. Since it appears that GitHub
     # configuration variables use DOS (CRLF) line endings, we convert these to
@@ -117,34 +117,34 @@ jobs:
         AKID_TO_PRINCIPAL_MAP: ${{ vars.AKID_TO_PRINCIPAL_MAP }}
       run: >
         echo "$AKID_TO_PRINCIPAL_MAP" | sed $'s/\r$//'  >
-        "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_config_files/authority_key_identifier_to_principal_map.textproto"
+        "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_v2_config_files/authority_key_identifier_to_principal_map.textproto"
 
     - name: Write encryption key-pair config
       env:
         ENCRYPTION_KEY_PAIR_CONFIG: ${{ vars.ENCRYPTION_KEY_PAIR_CONFIG }}
       run: >
         echo "$ENCRYPTION_KEY_PAIR_CONFIG" | sed $'s/\r$//'  >
-        "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_config_files/encryption_key_pair_config.textproto"
+        "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_v2_config_files/encryption_key_pair_config.textproto"
 
-    - name: Copy measurement spec config
+    - name: Copy metric spec config
       run: >
-        cp src/main/k8s/testing/secretfiles/measurement_spec_config.textproto
-        "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_config_files/"
+        cp src/main/k8s/testing/secretfiles/metric_spec_config.textproto
+        "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_v2_config_files/"
 
     - name: Write measurement consumer config
       env:
         MEASUREMENT_CONSUMER_CONFIG: ${{ vars.MEASUREMENT_CONSUMER_CONFIG }}
       run: >
         echo "$MEASUREMENT_CONSUMER_CONFIG" | sed $'s/\r$//'  >
-        "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_secrets/measurement_consumer_config.textproto"
+        "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_v2_secrets/measurement_consumer_config.textproto"
 
     - name: Copy secret generator
       run: >
         cp src/main/k8s/testing/secretfiles/reporting_secrets_kustomization.yaml
-        "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_secrets/kustomization.yaml"
+        "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_v2_secrets/kustomization.yaml"
 
     - name: Export KUSTOMIZE_PATH
-      run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting" >> $GITHUB_ENV
+      run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_v2" >> $GITHUB_ENV
 
     # Run kubectl diff, treating the command as succeeded even if the exit
     # code is 1 as kubectl uses this code to indicate there's a diff.
