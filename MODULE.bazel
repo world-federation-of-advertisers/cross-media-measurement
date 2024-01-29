@@ -1,0 +1,294 @@
+module(
+    name = "cross-media-measurement-system",
+    repo_name = "wfa_measurement_system",
+)
+
+OPENTELEMETRY_JAVA_VERSION = "1.32.0"
+
+PROJECTNESSIE_CEL_VERSION = "0.3.11"
+
+BORINGSSL_VERSION = "0.0.0-20230215-5c22014"
+
+# Version of Apache Beam.
+#
+# Version compatibility info:
+# * https://cloud.google.com/dataflow/docs/guides/installing-beam-sdk
+# * https://cloud.google.com/dataflow/docs/support/sdk-version-support-status#apache-beam-2.x-sdks
+# * https://beam.apache.org/documentation/runners/flink/#flink-version-compatibility
+# * https://docs.aws.amazon.com/kinesisanalytics/latest/java/earlier.html
+APACHE_BEAM_VERSION = "2.40.0"
+
+K8S_CLIENT_VERSION = "16.0.0"
+
+# Bazel Central Registry modules.
+bazel_dep(
+    name = "platforms",
+    version = "0.0.8",
+)
+bazel_dep(
+    name = "bazel_skylib",
+    version = "1.5.0",
+)
+bazel_dep(
+    name = "rules_proto",
+    version = "6.0.0-rc1",
+)
+bazel_dep(
+    name = "rules_cc",
+    version = "0.0.9",
+)
+bazel_dep(
+    name = "rules_pkg",
+    version = "0.9.1",
+)
+bazel_dep(
+    name = "rules_go",
+    version = "0.43.0",
+    repo_name = "io_bazel_rules_go",
+)
+bazel_dep(
+    name = "gazelle",
+    version = "0.34.0",
+    repo_name = "bazel_gazelle",
+)
+bazel_dep(
+    name = "rules_java",
+    version = "7.3.2",
+)
+bazel_dep(
+    name = "rules_jvm_external",
+    version = "6.0",
+)
+bazel_dep(
+    name = "protobuf",
+    version = "23.1",
+    repo_name = "com_google_protobuf",
+)
+bazel_dep(
+    name = "aspect_rules_ts",
+    version = "1.4.0",
+)
+bazel_dep(
+    name = "aspect_rules_js",
+    version = "1.35.0",
+)
+bazel_dep(
+    name = "aspect_rules_webpack",
+    version = "0.13.0",
+)
+bazel_dep(
+    name = "aspect_rules_jest",
+    version = "0.19.6",
+)
+bazel_dep(
+    name = "abseil-cpp",
+    version = "20230802.1",
+    repo_name = "com_google_absl",
+)
+bazel_dep(
+    name = "googletest",
+    version = "1.14.0.bcr.1",
+    repo_name = "com_google_googletest",
+)
+bazel_dep(
+    name = "glog",  # For shell-encryption.
+    version = "0.6.0",
+    repo_name = "com_github_google_glog",
+)
+bazel_dep(
+    name = "boringssl",  # For shell-encryption.
+    version = BORINGSSL_VERSION,
+)
+
+# WFA registry modules.
+bazel_dep(
+    name = "rules_kotlin_jvm",
+    version = "0.2.0",
+    repo_name = "wfa_rules_kotlin_jvm",
+)
+bazel_dep(
+    name = "rules_swig",
+    version = "0.1.0",
+    repo_name = "wfa_rules_swig",
+)
+bazel_dep(
+    name = "rules_cue",
+    version = "0.4.0",
+    repo_name = "wfa_rules_cue",
+)
+bazel_dep(
+    name = "common-jvm",
+    version = "0.74.0",
+    repo_name = "wfa_common_jvm",
+)
+bazel_dep(
+    name = "common-cpp",
+    version = "0.12.0",
+    repo_name = "wfa_common_cpp",
+)
+bazel_dep(
+    name = "cross-media-measurement-api",
+    version = "0.57.0",
+    repo_name = "wfa_measurement_proto",
+)
+bazel_dep(
+    name = "consent-signaling-client",
+    repo_name = "wfa_consent_signaling_client",
+)
+bazel_dep(
+    name = "any-sketch",
+    version = "0.6.0",
+    repo_name = "any_sketch",
+)
+bazel_dep(
+    name = "any-sketch-java",
+    version = "0.5.0",
+    repo_name = "any_sketch_java",
+)
+bazel_dep(
+    name = "googleapis",
+    version = "0.0.0-bzlmod.1",
+    repo_name = "com_google_googleapis",
+)
+bazel_dep(
+    name = "private-join-and-compute",
+    version = "0.0.0-20230417-e028e59",
+    repo_name = "com_google_private_join_and_compute",
+)
+bazel_dep(
+    name = "virtual-people-common",
+    version = "0.4.0",
+    repo_name = "wfa_virtual_people_common",
+)
+bazel_dep(
+    name = "grpc-gateway",
+    version = "2.18.1",
+    repo_name = "grpc_ecosystem_grpc_gateway",
+)
+bazel_dep(
+    name = "cloud-spanner-emulator-bin",
+    version = "1.5.13",
+    repo_name = "cloud_spanner_emulator",
+)
+bazel_dep(
+    name = "riegeli",
+    version = "0.0.0-20240122-ac83dce",
+    repo_name = "com_google_riegeli",
+)
+
+maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
+maven.artifact(
+    artifact = "beam-runners-google-cloud-dataflow-java",
+    exclusions = ["org.apache.beam:beam-sdks-java-io-kafka"],
+    group = "org.apache.beam",
+    version = APACHE_BEAM_VERSION,
+)
+maven.install(
+    artifacts = [
+        "com.google.cloud:google-cloud-security-private-ca:2.3.1",
+        "com.google.crypto.tink:tink-awskms:1.9.1",
+        "com.google.crypto.tink:tink-gcpkms:1.9.0",
+        "com.squareup.okhttp3:okhttp:4.12.0",
+        "io.opentelemetry.semconv:opentelemetry-semconv:1.22.0-alpha",
+        "io.opentelemetry:opentelemetry-sdk:" + OPENTELEMETRY_JAVA_VERSION,
+        "io.opentelemetry:opentelemetry-sdk-common:" + OPENTELEMETRY_JAVA_VERSION,
+        "io.opentelemetry:opentelemetry-sdk-metrics:" + OPENTELEMETRY_JAVA_VERSION,
+        "io.opentelemetry:opentelemetry-exporter-otlp:" + OPENTELEMETRY_JAVA_VERSION,
+        "io.kubernetes:client-java:" + K8S_CLIENT_VERSION,
+        "io.kubernetes:client-java-extended:" + K8S_CLIENT_VERSION,
+        "joda-time:joda-time:2.10.10",
+        "org.apache.beam:beam-runners-direct-java:" + APACHE_BEAM_VERSION,
+        "org.apache.beam:beam-sdks-java-core:" + APACHE_BEAM_VERSION,
+        "org.apache.beam:beam-sdks-java-io-google-cloud-platform:" + APACHE_BEAM_VERSION,
+        "org.projectnessie.cel:cel-core:" + PROJECTNESSIE_CEL_VERSION,
+        "org.projectnessie.cel:cel-generated-pb:" + PROJECTNESSIE_CEL_VERSION,
+        "org.slf4j:slf4j-simple:1.7.32",
+        "software.amazon.awssdk:acmpca:2.17.258",
+    ],
+    fetch_sources = True,  # For IDE integration.
+    strict_visibility = True,
+)
+use_repo(maven, "maven")
+
+npm = use_extension("@aspect_rules_js//npm:extensions.bzl", "npm")
+npm.npm_translate_lock(
+    name = "npm",
+    npmrc = "//:.npmrc",
+    pnpm_lock = "//:pnpm-lock.yaml",
+    verify_node_modules_ignored = "//:.bazelignore",
+)
+use_repo(npm, "npm")
+
+go_deps = use_extension("@bazel_gazelle//:extensions.bzl", "go_deps")
+go_deps.module(
+    path = "github.com/golang/glog",
+    sum = "h1:DVjP2PbBOzHyzA+dn3WhHIq4NdVu3Q+pvivFICf/7fo=",
+    version = "v1.1.2",
+)
+go_deps.module(
+    path = "google.golang.org/genproto",
+    sum = "h1:I6WNifs6pF9tNdSob2W24JtyxIYjzFB9qDlpUC76q+U=",
+    version = "v0.0.0-20231030173426-d783a09b4405",
+)
+go_deps.module(
+    path = "google.golang.org/genproto/googleapis/api",
+    sum = "h1:JpwMPBpFN3uKhdaekDpiNlImDdkUAyiJ6ez/uxGaUSo=",
+    version = "v0.0.0-20231106174013-bbf56f31fb17",
+)
+go_deps.module(
+    path = "google.golang.org/genproto/googleapis/rpc",
+    sum = "h1:AB/lmRny7e2pLhFEYIbl5qkDAUt2h0ZRO4wGPhZf+ik=",
+    version = "v0.0.0-20231030173426-d783a09b4405",
+)
+go_deps.module(
+    path = "google.golang.org/grpc",
+    sum = "h1:Z5Iec2pjwb+LEOqzpB2MR12/eKFhDPhuqW91O+4bwUk=",
+    version = "v1.59.0",
+)
+use_repo(
+    go_deps,
+    "com_github_golang_glog",
+    "org_golang_google_genproto",
+    "org_golang_google_genproto_googleapis_api",
+    "org_golang_google_genproto_googleapis_rpc",
+    "org_golang_google_grpc",
+)
+
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+http_archive(
+    name = "private_membership",
+    sha256 = "b1e0e7f74f4da09a6011c6fa91d7b968cdff6bb571712490dae427704b2af14c",
+    strip_prefix = "private-membership-84e45669f7357bffcdafbc1b0cc26e72512808ce",
+    url = "https://github.com/google/private-membership/archive/84e45669f7357bffcdafbc1b0cc26e72512808ce.zip",
+)
+
+http_archive(
+    name = "com_github_google_shell",
+    sha256 = "807d42caed3056cea63b9048a2fd69122c071740d43c9de546cc0fabded87a5c",
+    strip_prefix = "shell-encryption-507781e129a03f8178c9716d79163fae23d34b6a",
+    url = "https://github.com/google/shell-encryption/archive/507781e129a03f8178c9716d79163fae23d34b6a.tar.gz",
+)
+
+http_archive(
+    name = "tink_cc",
+    sha256 = "c2c252b09969576965fd4610d933682a71890d90f01a96c418fcbcf808edf513",
+    strip_prefix = "tink-1.7.0/cc",
+    url = "https://github.com/google/tink/archive/refs/tags/v1.7.0.tar.gz",
+)
+
+# Force use of newer version of boringssl.
+single_version_override(
+    module_name = "boringssl",
+    version = BORINGSSL_VERSION,
+)
+
+# TODO(world-federation-of-advertisers/consent-signaling-client#48): Use version.
+archive_override(
+    module_name = "consent-signaling-client",
+    integrity = "sha256-Wxu8p1MJwxC/dNsy+ZxnJHwquusZrgZkAafPBuEXRZ0=",
+    strip_prefix = "consent-signaling-client-ecc2d62fd196d84a9a5c3c9b1aca018babc3980c",
+    urls = [
+        "https://github.com/world-federation-of-advertisers/consent-signaling-client/archive/ecc2d62fd196d84a9a5c3c9b1aca018babc3980c.tar.gz",
+    ],
+)

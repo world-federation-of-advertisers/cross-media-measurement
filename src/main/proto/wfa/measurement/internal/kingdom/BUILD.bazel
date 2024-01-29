@@ -1,12 +1,14 @@
-load("@rules_java//java:defs.bzl", "java_proto_library")
 load("@rules_proto//proto:defs.bzl", "proto_library")
-load("@wfa_common_jvm//build:macros.bzl", "kt_jvm_grpc_proto_library")
-load("@wfa_common_jvm//build/kt_jvm_proto:defs.bzl", "kt_jvm_proto_library")
-load("//src/main/proto/wfa/measurement/internal/common:macros.bzl", "IMPORT_PREFIX", "proto_and_java_proto_library")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_grpc_proto_library")
+load(
+    "//src/main/proto/wfa/measurement/internal/common:macros.bzl",
+    "IMPORT_PREFIX",
+    "proto_and_kt_jvm_proto_library",
+)
 
 package(default_visibility = ["//:__subpackages__"])
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "account",
 )
 
@@ -21,10 +23,10 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "accounts_service_kt_jvm_grpc_proto",
-    srcs = [":accounts_service_proto"],
+    deps = [":accounts_service_proto"],
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "api_key",
 )
 
@@ -40,10 +42,10 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "api_keys_service_kt_jvm_grpc_proto",
-    srcs = [":api_keys_service_proto"],
+    deps = [":api_keys_service_proto"],
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "computation_participant",
     deps = [
         ":certificate_proto",
@@ -52,7 +54,7 @@ proto_and_java_proto_library(
     ],
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "data_provider",
     deps = [
         ":certificate_proto",
@@ -60,7 +62,7 @@ proto_and_java_proto_library(
     ],
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "model_provider",
     deps = [":certificate_proto"],
 )
@@ -78,7 +80,7 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "computation_participants_service_kt_jvm_grpc_proto",
-    srcs = [":computation_participants_service_proto"],
+    deps = [":computation_participants_service_proto"],
 )
 
 proto_library(
@@ -93,7 +95,7 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "data_providers_service_kt_jvm_grpc_proto",
-    srcs = [":data_providers_service_proto"],
+    deps = [":data_providers_service_proto"],
 )
 
 proto_library(
@@ -107,10 +109,10 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "model_providers_service_kt_jvm_grpc_proto",
-    srcs = [":model_providers_service_proto"],
+    deps = [":model_providers_service_proto"],
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "certificate",
     deps = [
         "@com_google_protobuf//:timestamp_proto",
@@ -129,71 +131,47 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "certificates_service_kt_jvm_grpc_proto",
-    srcs = [":certificates_service_proto"],
+    deps = [":certificates_service_proto"],
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "crypto",
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "differential_privacy",
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "duchy_protocol_config",
     deps = [
         ":differential_privacy_proto",
     ],
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "protocol_config",
     deps = [
         ":differential_privacy_proto",
     ],
 )
 
-proto_library(
-    name = "duchy_id_config_proto",
-    srcs = ["duchy_id_config.proto"],
+proto_and_kt_jvm_proto_library(
+    name = "duchy_id_config",
     deps = [
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
 
-java_proto_library(
-    name = "duchy_id_config_java_proto",
-    deps = [":duchy_id_config_proto"],
-)
-
-kt_jvm_proto_library(
-    name = "duchy_id_config_kt_jvm_proto",
-    srcs = [":duchy_id_config_proto"],
-    deps = [":duchy_id_config_java_proto"],
-)
-
-proto_library(
-    name = "protocol_config_config_proto",
-    srcs = ["protocol_config_config.proto"],
+proto_and_kt_jvm_proto_library(
+    name = "protocol_config_config",
     deps = [
         ":duchy_protocol_config_proto",
         ":protocol_config_proto",
     ],
 )
 
-java_proto_library(
-    name = "protocol_config_config_java_proto",
-    deps = [":protocol_config_config_proto"],
-)
-
-kt_jvm_proto_library(
-    name = "protocol_config_config_kt_jvm_proto",
-    srcs = [":protocol_config_config_proto"],
-    deps = [":protocol_config_config_java_proto"],
-)
-
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "event_group",
     deps = [
         ":event_template_proto",
@@ -214,10 +192,10 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "event_groups_service_kt_jvm_grpc_proto",
-    srcs = [":event_groups_service_proto"],
+    deps = [":event_groups_service_proto"],
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "event_group_metadata_descriptor",
     deps = ["@com_google_protobuf//:descriptor_proto"],
 )
@@ -233,10 +211,10 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "event_group_metadata_descriptors_service_kt_jvm_grpc_proto",
-    srcs = [":event_group_metadata_descriptors_service_proto"],
+    deps = [":event_group_metadata_descriptors_service_proto"],
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "exchange",
     deps = [
         ":exchange_details_proto",
@@ -244,7 +222,7 @@ proto_and_java_proto_library(
     ],
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "exchange_details",
 )
 
@@ -261,10 +239,10 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "exchanges_service_kt_jvm_grpc_proto",
-    srcs = [":exchanges_service_proto"],
+    deps = [":exchanges_service_proto"],
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "exchange_step",
     deps = [
         "@com_google_googleapis//google/type:date_proto",
@@ -284,10 +262,10 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "exchange_steps_service_kt_jvm_grpc_proto",
-    srcs = [":exchange_steps_service_proto"],
+    deps = [":exchange_steps_service_proto"],
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "exchange_step_attempt",
     deps = [
         ":exchange_step_attempt_details_proto",
@@ -295,7 +273,7 @@ proto_and_java_proto_library(
     ],
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "exchange_step_attempt_details",
     deps = [
         "@com_google_protobuf//:timestamp_proto",
@@ -315,10 +293,10 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "exchange_step_attempts_service_kt_jvm_grpc_proto",
-    srcs = [":exchange_step_attempts_service_proto"],
+    deps = [":exchange_step_attempts_service_proto"],
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "measurement",
     deps = [
         ":certificate_proto",
@@ -342,10 +320,10 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "measurements_service_kt_jvm_grpc_proto",
-    srcs = [":measurements_service_proto"],
+    deps = [":measurements_service_proto"],
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "measurement_consumer",
     deps = [":certificate_proto"],
 )
@@ -361,17 +339,17 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "measurement_consumers_service_kt_jvm_grpc_proto",
-    srcs = [":measurement_consumers_service_proto"],
+    deps = [":measurement_consumers_service_proto"],
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "measurement_log_entry",
     deps = [
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "duchy_measurement_log_entry",
     deps = [
         ":measurement_log_entry_proto",
@@ -379,7 +357,7 @@ proto_and_java_proto_library(
     ],
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "state_transition_measurement_log_entry",
     deps = [
         ":measurement_log_entry_proto",
@@ -401,7 +379,7 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "measurement_log_entries_service_kt_jvm_grpc_proto",
-    srcs = [":measurement_log_entries_service_proto"],
+    deps = [":measurement_log_entries_service_proto"],
 )
 
 proto_library(
@@ -412,10 +390,10 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "public_keys_service_kt_jvm_grpc_proto",
-    srcs = [":public_keys_service_proto"],
+    deps = [":public_keys_service_proto"],
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "recurring_exchange",
     deps = [
         ":recurring_exchange_details_proto",
@@ -423,7 +401,7 @@ proto_and_java_proto_library(
     ],
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "recurring_exchange_details",
     deps = [
         ":exchange_workflow_proto",
@@ -439,7 +417,7 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "recurring_exchanges_service_kt_jvm_grpc_proto",
-    srcs = [":recurring_exchanges_service_proto"],
+    deps = [":recurring_exchanges_service_proto"],
 )
 
 proto_library(
@@ -454,28 +432,18 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "requisitions_service_kt_jvm_grpc_proto",
-    srcs = [":requisitions_service_proto"],
+    deps = [":requisitions_service_proto"],
 )
 
-proto_and_java_proto_library(name = "exchange_workflow")
-
-proto_library(
-    name = "error_code_proto",
-    srcs = ["error_code.proto"],
+proto_and_kt_jvm_proto_library(
+    name = "exchange_workflow",
 )
 
-java_proto_library(
-    name = "error_code_java_proto",
-    deps = [":error_code_proto"],
+proto_and_kt_jvm_proto_library(
+    name = "error_code",
 )
 
-kt_jvm_proto_library(
-    name = "error_code_kt_jvm_proto",
-    srcs = [":error_code_proto"],
-    deps = [":error_code_java_proto"],
-)
-
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "model_suite",
     deps = [
         "@com_google_protobuf//:timestamp_proto",
@@ -494,10 +462,10 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "model_suites_service_kt_jvm_grpc_proto",
-    srcs = [":model_suites_service_proto"],
+    deps = [":model_suites_service_proto"],
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "model_line",
     deps = [
         "@com_google_protobuf//:timestamp_proto",
@@ -516,10 +484,10 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "model_lines_service_kt_jvm_grpc_proto",
-    srcs = [":model_lines_service_proto"],
+    deps = [":model_lines_service_proto"],
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "model_release",
     deps = [
         "@com_google_protobuf//:timestamp_proto",
@@ -538,10 +506,10 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "model_releases_service_kt_jvm_grpc_proto",
-    srcs = [":model_releases_service_proto"],
+    deps = [":model_releases_service_proto"],
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "model_outage",
     deps = [
         "@com_google_protobuf//:timestamp_proto",
@@ -560,10 +528,10 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "model_outages_service_kt_jvm_grpc_proto",
-    srcs = [":model_outages_service_proto"],
+    deps = [":model_outages_service_proto"],
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "model_shard",
     deps = ["@com_google_protobuf//:timestamp_proto"],
 )
@@ -580,10 +548,10 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "model_shards_service_kt_jvm_grpc_proto",
-    srcs = [":model_shards_service_proto"],
+    deps = [":model_shards_service_proto"],
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "model_rollout",
     deps = ["@com_google_protobuf//:timestamp_proto"],
 )
@@ -600,14 +568,14 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "model_rollouts_service_kt_jvm_grpc_proto",
-    srcs = [":model_rollouts_service_proto"],
+    deps = [":model_rollouts_service_proto"],
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "event_template",
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "population",
     deps = [
         ":event_template_proto",
@@ -627,5 +595,5 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "populations_service_kt_jvm_grpc_proto",
-    srcs = [":populations_service_proto"],
+    deps = [":populations_service_proto"],
 )

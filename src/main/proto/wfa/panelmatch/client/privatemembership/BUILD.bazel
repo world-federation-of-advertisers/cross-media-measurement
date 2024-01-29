@@ -1,7 +1,6 @@
-load("@rules_proto//proto:defs.bzl", "proto_library")
-load("@rules_java//java:defs.bzl", "java_proto_library")
-load("@wfa_common_jvm//build/kt_jvm_proto:defs.bzl", "kt_jvm_proto_library")
 load("@rules_cc//cc:defs.bzl", "cc_proto_library")
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library")
 
 package(default_visibility = ["//src:__subpackages__"])
 
@@ -17,15 +16,9 @@ cc_proto_library(
     deps = [":database_proto"],
 )
 
-java_proto_library(
-    name = "database_java_proto",
-    deps = [":database_proto"],
-)
-
 kt_jvm_proto_library(
     name = "database_kt_jvm_proto",
-    srcs = [":database_proto"],
-    deps = [":database_java_proto"],
+    deps = [":database_proto"],
 )
 
 proto_library(
@@ -42,15 +35,9 @@ cc_proto_library(
     deps = [":query_proto"],
 )
 
-java_proto_library(
-    name = "query_java_proto",
-    deps = [":query_proto"],
-)
-
 kt_jvm_proto_library(
     name = "query_kt_jvm_proto",
-    srcs = [":query_proto"],
-    deps = [":query_java_proto"],
+    deps = [":query_proto"],
 )
 
 proto_library(
@@ -60,15 +47,9 @@ proto_library(
     deps = [":query_proto"],
 )
 
-java_proto_library(
-    name = "private_membership_java_proto",
-    deps = [":private_membership_proto"],
-)
-
 kt_jvm_proto_library(
     name = "private_membership_kt_jvm_proto",
-    srcs = [":private_membership_proto"],
-    deps = [":private_membership_java_proto"],
+    deps = [":private_membership_proto"],
 )
 
 proto_library(
@@ -85,15 +66,9 @@ cc_proto_library(
     deps = [":query_evaluator_proto"],
 )
 
-java_proto_library(
-    name = "query_evaluator_java_proto",
-    deps = [":query_evaluator_proto"],
-)
-
 kt_jvm_proto_library(
     name = "query_evaluator_kt_jvm_proto",
-    srcs = [":query_evaluator_proto"],
-    deps = [":query_evaluator_java_proto"],
+    deps = [":query_evaluator_proto"],
 )
 
 proto_library(
@@ -110,15 +85,9 @@ cc_proto_library(
     deps = [":prepare_query_proto"],
 )
 
-java_proto_library(
-    name = "prepare_query_java_proto",
-    deps = [":prepare_query_proto"],
-)
-
 kt_jvm_proto_library(
     name = "prepare_query_kt_jvm_proto",
-    srcs = [":prepare_query_proto"],
-    deps = [":prepare_query_java_proto"],
+    deps = [":prepare_query_proto"],
 )
 
 proto_library(
@@ -137,13 +106,7 @@ cc_proto_library(
     deps = [":decrypt_event_data_proto"],
 )
 
-java_proto_library(
-    name = "decrypt_event_data_java_proto",
-    deps = [":decrypt_event_data_proto"],
-)
-
 kt_jvm_proto_library(
     name = "decrypt_event_data_kt_jvm_proto",
-    srcs = [":decrypt_event_data_proto"],
-    deps = [":decrypt_event_data_java_proto"],
+    deps = [":decrypt_event_data_proto"],
 )
