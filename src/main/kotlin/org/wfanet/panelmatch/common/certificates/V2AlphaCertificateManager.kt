@@ -30,6 +30,7 @@ import org.wfanet.measurement.common.crypto.jceProvider
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.certificates.CertificateManager.KeyPair
+import org.wfanet.panelmatch.common.loggerFor
 import org.wfanet.panelmatch.common.secrets.MutableSecretMap
 import org.wfanet.panelmatch.common.secrets.SecretMap
 
@@ -47,6 +48,7 @@ class V2AlphaCertificateManager(
   private val algorithm: String,
   private val certificateAuthority: CertificateAuthority,
   private val localName: String,
+  private val privateKeyPath: String? = null,
 ) : CertificateManager {
 
   private val x509CertCache = ConcurrentHashMap<String, X509Certificate>()
@@ -76,7 +78,9 @@ class V2AlphaCertificateManager(
   }
 
   override suspend fun getExchangeKeyPair(exchange: ExchangeDateKey): KeyPair {
-    val signingKeys = requireNotNull(getSigningKeys(exchange.path)) { "Missing keys for $exchange" }
+    val keyPath =
+      if (privateKeyPath !== null && privateKeyPath.isNotEmpty()) privateKeyPath else exchange.path
+    val signingKeys = requireNotNull(getSigningKeys(keyPath)) { "Missing keys for $keyPath" }
     val x509Certificate = getCertificate(exchange, localName, signingKeys.certResourceName)
     val privateKey = parsePrivateKey(signingKeys.privateKey)
     return KeyPair(x509Certificate, privateKey, signingKeys.certResourceName)
@@ -106,9 +110,12 @@ class V2AlphaCertificateManager(
       this.privateKey = privateKey.encoded.toByteString()
     }
 
+    logger.fine("Writing private key to SecretMap")
     privateKeys.put(exchange.path, signingKeys.toByteString())
+    logger.fine("Finish writing private key to SecretMap")
     x509CertCache[certResourceName] = x509
     signingKeysCache[exchange.path] = Optional.of(signingKeys)
+    logger.fine("Returning certResourceName: $certResourceName")
 
     return certResourceName
   }
@@ -145,5 +152,9 @@ class V2AlphaCertificateManager(
         requireNotNull(rootCerts.get(ownerName)) { "Missing root certificate for $ownerName" }
       readCertificate(certBytes)
     }
+  }
+
+  companion object {
+    private val logger by loggerFor()
   }
 }

@@ -124,4 +124,13 @@ class ExchangeWorkflowFlags {
   )
   var maxParallelClaimedExchangeSteps by Delegates.notNull<Int>()
     private set
+
+  @Option(
+    names = ["--private-key-path"],
+    defaultValue = "",
+    description = ["Fixed path for a kms-encrypted private singing key used in all exchanges"],
+    required = true
+  )
+  lateinit var privateKeyPath: String
+    private set
 }
