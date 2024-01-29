@@ -126,11 +126,11 @@ class ExchangeWorkflowFlags {
     private set
 
   @Option(
-    names = ["--private-key-path"],
+    names = ["--private-key-blob-key"],
     defaultValue = "",
-    description = ["Fixed path for a kms-encrypted private singing key used in all exchanges"],
+    description = ["Blob key for a kms-encrypted private singing key used in all exchanges"],
     required = true,
   )
-  lateinit var privateKeyPath: String
+  lateinit var privateKeyBlobKey: String
     private set
 }
