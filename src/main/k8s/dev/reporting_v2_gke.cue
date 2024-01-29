@@ -56,7 +56,7 @@ reporting: #Reporting & {
 	_internalApiTarget: certificateHost: "localhost"
 
 	_postgresConfig: {
-		iamUserLocal: "reporting-internal"
+		iamUserLocal: "reporting-v2-internal"
 		database:     "reporting-v2"
 	}
 
@@ -64,7 +64,7 @@ reporting: #Reporting & {
 
 	serviceAccounts: {
 		"\(#InternalServerServiceAccount)": #WorkloadIdentityServiceAccount & {
-			_iamServiceAccountName: "reporting-internal"
+			_iamServiceAccountName: "reporting-v2-internal"
 		}
 	}
 

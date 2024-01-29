@@ -19,10 +19,11 @@ terraform {
 }
 
 locals {
-  kingdom_cluster_name    = "kingdom"
-  duchy_names             = toset(["aggregator", "worker1", "worker2"])
-  reporting_cluster_name  = "reporting"
-  simulators_cluster_name = "simulators"
+  kingdom_cluster_name       = "kingdom"
+  duchy_names                = toset(["aggregator", "worker1", "worker2"])
+  reporting_cluster_name     = "reporting"
+  reporting_v2_cluster_name  = "reporting-v2"
+  simulators_cluster_name    = "simulators"
 
   cluster_location        = var.cluster_location == null ? data.google_client_config.default.zone : var.cluster_location
   key_ring_location       = var.key_ring_location == null ? data.google_client_config.default.region : var.key_ring_location
