@@ -30,11 +30,11 @@ function regenerateTimeData() {
       const temp = {
         group: pub.toString(),
         value,
-        date,
+        variable: date,
       };
       chartData.push(temp);
     }
-    chartData.push({group: '0', value: rolling, date});
+    chartData.push({group: '0', value: rolling, variable: date});
   }
 
   return chartData;

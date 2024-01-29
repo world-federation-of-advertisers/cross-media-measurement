@@ -13,7 +13,7 @@
 // limitations under the License.
 
 export type ChartGroup = {
-  date: Date | string;
+  variable: Date | string;
   value: number;
   group: string;
   filters?: string[];

@@ -57,7 +57,7 @@ const setReach = (source: Metric, time: Date, demoCategory: string, reachArr: Ch
     group: source.sourceName,
     filters: demoCategory.split('|'),
     value: fixNumber(source.reach),
-    date: new Date(time),
+    variable: new Date(time),
   };
   reachArr.push(reach);
 }
@@ -67,7 +67,7 @@ const setUniqueReach = (source: Metric, time: Date, demoCategory: string, reachA
     group: source.sourceName,
     filters: demoCategory.split('|'),
     value: fixNumber(source.uniqueReach),
-    date: new Date(time),
+    variable: new Date(time),
   });
 }
 
@@ -103,7 +103,7 @@ const setImpressions = (source: Metric, time: Date, demoCategory: string, impArr
     group: source.sourceName,
     filters: demoCategory.split('|'),
     value: fixNumber(source.impressionCount.count),
-    date: new Date(time),
+    variable: new Date(time),
   };
   impArr.push(imp);
 }
@@ -116,7 +116,7 @@ const setFrequencies = (source: Metric, demoCategory: string, freqArr: ChartGrou
         group: source.sourceName,
         filters: demoCategory.split('|'),
         value,
-        date: `${key}+`
+        variable: `${key}+`
       };
       freqArr.push(frequency)
     });
@@ -238,14 +238,14 @@ const filter = (data: ChartGroup[], filters: 'all'|string[] = 'all'): ChartGroup
   const dates = new Set<string>();
   filteredData.forEach(x => {
     pubs.add(x.group);
-    dates.add(x.date.toString());
+    dates.add(x.variable.toString());
   });
 
   // Consolidate the filtered data into one value by publisher/date
   const filteredResults: ChartGroup[] = [];
   for (let pub of pubs) {
     for (let date of dates) {
-      const filteredPubByDate = filteredData.filter(x => x.group.startsWith(pub) && x.date.toString() === date);
+      const filteredPubByDate = filteredData.filter(x => x.group.startsWith(pub) && x.variable.toString() === date);
       const consilidatedData = filteredPubByDate.reduce((a, b) => {
         return {
           ...b,
