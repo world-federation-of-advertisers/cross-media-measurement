@@ -128,7 +128,7 @@ class ExchangeWorkflowFlags {
   @Option(
     names = ["--private-key-blob-key"],
     defaultValue = "",
-    description = ["Blob key for a kms-encrypted private singing key used in all exchanges"],
+    description = ["Blob key for a kms-encrypted private signing key used in all exchanges"],
     required = true,
   )
   lateinit var privateKeyBlobKey: String
