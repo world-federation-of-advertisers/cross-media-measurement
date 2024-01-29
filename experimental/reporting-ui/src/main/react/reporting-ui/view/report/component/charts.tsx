@@ -54,7 +54,7 @@ export function Charts({
             <TotalReach id={'total-reach'} reach={totalReach} pubColors={pubColors} />
           </Col>
           <Col className="report-chart mb-3" sm={smSize}>
-            <TotalReach id={'total-reach-cumulative'} title={'Total Cumulative Reach'} reach={totalCumulativeReach} pubColors={pubColors} />
+            <TotalReach id={'total-reach-cumulative'} reach={totalCumulativeReach} pubColors={pubColors} />
           </Col>
           <Col className="report-chart mb-3" sm={12}>
             <UniqueReqchByPlat
