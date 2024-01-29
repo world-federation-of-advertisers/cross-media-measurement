@@ -16,11 +16,11 @@ import '@testing-library/jest-dom';
 import '@testing-library/jest-dom/extend-expect';	
 import { ReportListRepository } from './report_list_repository';
 import appConfig from '../../client/initialize';
-import { ReportState, UniqueReach } from '../../model/reporting';
 import { ReportingClient } from '../../client/reporting/client';
+import { ChartGroup } from '../chart_group';
 
 function regenerateTimeData() {
-  const chartData: UniqueReach[] = [];
+  const chartData: ChartGroup[] = [];
   for (let i = 0; i < 7; i++) {
     const date = new Date(Date.UTC(2020, 0, i + 1));
     let rolling = 0;
@@ -28,13 +28,13 @@ function regenerateTimeData() {
       const value = Math.floor(Math.random() * i + 3);
       rolling += value;
       const temp = {
-        pub,
+        group: pub.toString(),
         value,
         date,
       };
       chartData.push(temp);
     }
-    chartData.push({pub: 0, value: rolling, date});
+    chartData.push({group: '0', value: rolling, date});
   }
 
   return chartData;
@@ -284,7 +284,7 @@ const reports = [
       },
     ],
     uniqueReachByPlatform: regenerateTimeData(),
-    status: ReportState.SUCCEEDED,
+    status: 'SUCCEEDED',
   },
 ];
 

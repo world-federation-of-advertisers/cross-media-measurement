@@ -12,11 +12,4 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export enum ReportState {
-  STATE_UNSPECIFIED,
-  RUNNING,
-  SUCCEEDED,
-  FAILED,
-};
-
-export const TERMINAL_STATES = Object.freeze([ReportState.SUCCEEDED, ReportState.FAILED]);
+export const TERMINAL_STATES = Object.freeze(['SUCCEEDED', 'FAILED']);
