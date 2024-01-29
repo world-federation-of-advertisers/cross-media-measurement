@@ -64,9 +64,7 @@ class ExchangeTaskExecutor(
     attemptKey: CanonicalExchangeStepAttemptKey,
   ): CoroutineExceptionHandler {
     return CoroutineExceptionHandler { _, e ->
-      logger.severe("Uncaught Exception in child coroutine:")
-      logger.severe(e.message)
-      logger.severe(e.stackTraceToString())
+      logger.log(Level.SEVERE, e) { "Uncaught Exception in child coroutine:" }
 
       val attemptState =
         when (e) {
@@ -80,46 +78,38 @@ class ExchangeTaskExecutor(
     }
   }
 
-  suspend fun executeWithScope(
-    exchangeStep: ExchangeStep,
-    attemptKey: CanonicalExchangeStepAttemptKey,
-    scope: CoroutineScope,
-  ): Job {
-    return scope.launch(
-      dispatcher
-        + CoroutineName(attemptKey.toName())
-        + TaskLog(attemptKey.toName())
-        + taskExceptionHandler(attemptKey)
-    ) {
-      try {
-        val validatedStep = validator.validate(exchangeStep)
-        val context =
-          ExchangeContext(
-            attemptKey,
-            validatedStep.date,
-            validatedStep.workflow,
-            validatedStep.step
-          )
-        context.tryExecute()
-      } catch (e: Exception) {
-        logger.addToTaskLog("Caught Exception in task execution:", Level.SEVERE)
-        logger.addToTaskLog(e, Level.SEVERE)
-        val attemptState =
-          when (e) {
-            is ExchangeTaskFailedException -> e.attemptState
-            else -> ExchangeStepAttempt.State.FAILED
-          }
-        markAsFinished(attemptKey, attemptState)
-      }
-    }
-  }
-
   override suspend fun execute(
     exchangeStep: ExchangeStep,
     attemptKey: CanonicalExchangeStepAttemptKey,
   ) {
     supervisorScope {
-      executeWithScope(exchangeStep, attemptKey, this)
+      launch(
+        dispatcher
+          + CoroutineName(attemptKey.toName())
+          + TaskLog(attemptKey.toName())
+          + taskExceptionHandler(attemptKey)
+      ) {
+        try {
+          val validatedStep = validator.validate(exchangeStep)
+          val context =
+            ExchangeContext(
+              attemptKey,
+              validatedStep.date,
+              validatedStep.workflow,
+              validatedStep.step
+            )
+          context.tryExecute()
+        } catch (e: Exception) {
+          logger.addToTaskLog("Caught Exception in task execution:", Level.SEVERE)
+          logger.addToTaskLog(e, Level.SEVERE)
+          val attemptState =
+            when (e) {
+              is ExchangeTaskFailedException -> e.attemptState
+              else -> ExchangeStepAttempt.State.FAILED
+            }
+          markAsFinished(attemptKey, attemptState)
+        }
+      }
     }
   }
 
