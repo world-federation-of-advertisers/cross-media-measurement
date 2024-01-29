@@ -49,7 +49,7 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
 
   /**
    * Limits the maximum number of workflow tasks (across all recurring exchanges) that the daemon
-   * will be allowed to run concurrently. If not set, there is no limit. If set, must be  >= 1.
+   * will be allowed to run concurrently. If not set, there is no limit. If set, must be >= 1.
    */
   override val maxParallelClaimedExchangeSteps: Int? by lazy {
     if ((flags.maxParallelClaimedExchangeSteps ?: 1) < 1) {

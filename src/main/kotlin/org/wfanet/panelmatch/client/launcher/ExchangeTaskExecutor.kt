@@ -20,9 +20,7 @@ import java.util.logging.Logger
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -61,7 +59,7 @@ class ExchangeTaskExecutor(
 ) : ExchangeStepExecutor {
 
   private fun taskExceptionHandler(
-    attemptKey: CanonicalExchangeStepAttemptKey,
+    attemptKey: CanonicalExchangeStepAttemptKey
   ): CoroutineExceptionHandler {
     return CoroutineExceptionHandler { _, e ->
       logger.log(Level.SEVERE, e) { "Uncaught Exception in child coroutine:" }
@@ -72,9 +70,7 @@ class ExchangeTaskExecutor(
           else -> ExchangeStepAttempt.State.FAILED
         }
 
-      runBlocking {
-        apiClient.finishExchangeStepAttempt(attemptKey, attemptState)
-      }
+      runBlocking { apiClient.finishExchangeStepAttempt(attemptKey, attemptState) }
     }
   }
 
@@ -84,10 +80,10 @@ class ExchangeTaskExecutor(
   ) {
     supervisorScope {
       launch(
-        dispatcher
-          + CoroutineName(attemptKey.toName())
-          + TaskLog(attemptKey.toName())
-          + taskExceptionHandler(attemptKey)
+        dispatcher +
+          CoroutineName(attemptKey.toName()) +
+          TaskLog(attemptKey.toName()) +
+          taskExceptionHandler(attemptKey)
       ) {
         try {
           val validatedStep = validator.validate(exchangeStep)
@@ -96,7 +92,7 @@ class ExchangeTaskExecutor(
               attemptKey,
               validatedStep.date,
               validatedStep.workflow,
-              validatedStep.step
+              validatedStep.step,
             )
           context.tryExecute()
         } catch (e: Exception) {

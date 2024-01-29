@@ -145,9 +145,9 @@ class GrpcApiClientTest {
     assertThat(attemptKey).isEqualTo(EXCHANGE_STEP_ATTEMPT_KEY)
 
     verifyProtoArgument(
-      exchangeStepsServiceMock,
-      ExchangeStepsCoroutineImplBase::claimReadyExchangeStep,
-    )
+        exchangeStepsServiceMock,
+        ExchangeStepsCoroutineImplBase::claimReadyExchangeStep,
+      )
       .isEqualTo(
         claimReadyExchangeStepRequest { parent = DataProviderKey(DATA_PROVIDER_ID).toName() }
       )
@@ -183,9 +183,9 @@ class GrpcApiClientTest {
     assertThat(attemptKey).isEqualTo(EXCHANGE_STEP_ATTEMPT_KEY)
 
     verifyProtoArgument(
-      exchangeStepsServiceMock,
-      ExchangeStepsCoroutineImplBase::claimReadyExchangeStep,
-    )
+        exchangeStepsServiceMock,
+        ExchangeStepsCoroutineImplBase::claimReadyExchangeStep,
+      )
       .isEqualTo(
         claimReadyExchangeStepRequest { parent = ModelProviderKey(MODEL_PROVIDER_ID).toName() }
       )
@@ -202,9 +202,9 @@ class GrpcApiClientTest {
     }
 
     verifyProtoArgument(
-      exchangeStepsAttemptsServiceMock,
-      ExchangeStepAttemptsCoroutineImplBase::appendExchangeStepAttemptLogEntry,
-    )
+        exchangeStepsAttemptsServiceMock,
+        ExchangeStepAttemptsCoroutineImplBase::appendExchangeStepAttemptLogEntry,
+      )
       .isEqualTo(
         appendExchangeStepAttemptLogEntryRequest {
           name = EXCHANGE_STEP_ATTEMPT_KEY.toName()

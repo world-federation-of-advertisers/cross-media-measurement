@@ -21,8 +21,6 @@ import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.job
 import kotlinx.coroutines.joinAll
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.supervisorScope
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -32,9 +30,9 @@ import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
-import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepKey
+import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt.State
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.commutativeDeterministicEncryptStep
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
@@ -78,7 +76,7 @@ private val EXCHANGE_STEP_KEY =
   CanonicalExchangeStepKey(
     recurringExchangeId = RECURRING_EXCHANGE_ID,
     exchangeId = EXCHANGE_ID,
-    exchangeStepId = EXCHANGE_STEP_ID
+    exchangeStepId = EXCHANGE_STEP_ID,
   )
 
 private val EXCHANGE_STEP: ExchangeStep = exchangeStep {
@@ -116,11 +114,7 @@ class ExchangeTaskExecutorTest {
     prepareBlob("some-blob")
     whenever(validator.validate(any())).thenReturn(VALIDATED_EXCHANGE_STEP)
 
-    exchangeTaskExecutor.execute(
-      EXCHANGE_STEP,
-      ATTEMPT_KEY
-    )
-
+    exchangeTaskExecutor.execute(EXCHANGE_STEP, ATTEMPT_KEY)
     this.coroutineContext.job.children.toList().joinAll()
 
     assertThat(testPrivateStorageSelector.storageClient.getBlob("c")?.toStringUtf8())
@@ -132,11 +126,7 @@ class ExchangeTaskExecutorTest {
     timeout.expired = true
     whenever(validator.validate(any())).thenReturn(VALIDATED_EXCHANGE_STEP)
 
-    exchangeTaskExecutor.execute(
-      EXCHANGE_STEP,
-      ATTEMPT_KEY
-    )
-
+    exchangeTaskExecutor.execute(EXCHANGE_STEP, ATTEMPT_KEY)
     this.coroutineContext.job.children.toList().joinAll()
 
     assertThat(testPrivateStorageSelector.storageClient.getBlob("c")).isNull()
@@ -150,11 +140,7 @@ class ExchangeTaskExecutorTest {
     val exchangeTaskExecutor =
       createExchangeTaskExecutor(FakeExchangeTaskMapper(::TransientThrowingExchangeTask))
 
-    exchangeTaskExecutor.execute(
-      EXCHANGE_STEP,
-      ATTEMPT_KEY
-    )
-
+    exchangeTaskExecutor.execute(EXCHANGE_STEP, ATTEMPT_KEY)
     this.coroutineContext.job.children.toList().joinAll()
 
     verify(apiClient).finishExchangeStepAttempt(eq(ATTEMPT_KEY), eq(State.FAILED), any())
@@ -168,11 +154,7 @@ class ExchangeTaskExecutorTest {
     val exchangeTaskExecutor =
       createExchangeTaskExecutor(FakeExchangeTaskMapper(::PermanentThrowingExchangeTask))
 
-    exchangeTaskExecutor.execute(
-      EXCHANGE_STEP,
-      ATTEMPT_KEY
-    )
-
+    exchangeTaskExecutor.execute(EXCHANGE_STEP, ATTEMPT_KEY)
     this.coroutineContext.job.children.toList().joinAll()
 
     verify(apiClient).finishExchangeStepAttempt(eq(ATTEMPT_KEY), eq(State.FAILED_STEP), any())
@@ -184,7 +166,7 @@ class ExchangeTaskExecutorTest {
   }
 
   private fun createExchangeTaskExecutor(
-    exchangeTaskMapper: ExchangeTaskMapper,
+    exchangeTaskMapper: ExchangeTaskMapper
   ): ExchangeTaskExecutor {
     return ExchangeTaskExecutor(
       apiClient,
@@ -198,14 +180,14 @@ class ExchangeTaskExecutorTest {
 
 private class TransientThrowingExchangeTask(taskName: String) : ExchangeTask {
   override suspend fun execute(
-    input: Map<String, StorageClient.Blob>,
+    input: Map<String, StorageClient.Blob>
   ): Map<String, Flow<ByteString>> =
     throw ExchangeTaskFailedException.ofTransient(IllegalStateException())
 }
 
 private class PermanentThrowingExchangeTask(taskName: String) : ExchangeTask {
   override suspend fun execute(
-    input: Map<String, StorageClient.Blob>,
+    input: Map<String, StorageClient.Blob>
   ): Map<String, Flow<ByteString>> =
     throw ExchangeTaskFailedException.ofPermanent(IllegalStateException())
 }

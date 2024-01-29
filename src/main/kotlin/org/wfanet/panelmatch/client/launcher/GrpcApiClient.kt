@@ -48,8 +48,7 @@ class GrpcApiClient(
       Party.DATA_PROVIDER -> DataProviderKey(identity.id)
       Party.MODEL_PROVIDER -> ModelProviderKey(identity.id)
       Party.PARTY_UNSPECIFIED,
-      Party.UNRECOGNIZED,
-      -> throw IllegalArgumentException("Unsupported party ${identity.party}")
+      Party.UNRECOGNIZED -> throw IllegalArgumentException("Unsupported party ${identity.party}")
     }
 
   override suspend fun claimExchangeStep(): ClaimedExchangeStep? {
@@ -87,11 +86,7 @@ class GrpcApiClient(
     finalState: ExchangeStepAttempt.State,
     logEntryMessages: Iterable<String>,
   ) {
-    finishExchangeStepAttempt(
-      key.toName(),
-      finalState,
-      logEntryMessages
-    )
+    finishExchangeStepAttempt(key.toName(), finalState, logEntryMessages)
   }
 
   suspend fun finishExchangeStepAttempt(

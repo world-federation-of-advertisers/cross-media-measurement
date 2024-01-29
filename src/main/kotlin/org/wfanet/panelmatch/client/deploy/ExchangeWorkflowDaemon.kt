@@ -98,7 +98,7 @@ abstract class ExchangeWorkflowDaemon : Runnable {
       timeout = taskTimeout,
       privateStorageSelector = privateStorageSelector,
       exchangeTaskMapper = exchangeTaskMapper,
-      validator = ExchangeStepValidatorImpl(identity.party, validExchangeWorkflows, clock)
+      validator = ExchangeStepValidatorImpl(identity.party, validExchangeWorkflows, clock),
     )
   }
 
@@ -106,10 +106,7 @@ abstract class ExchangeWorkflowDaemon : Runnable {
 
   suspend fun runSuspending() {
     val exchangeStepLauncher =
-      ExchangeStepLauncher(
-        apiClient = apiClient,
-        taskLauncher = stepExecutor,
-      )
+      ExchangeStepLauncher(apiClient = apiClient, taskLauncher = stepExecutor)
     runDaemon(exchangeStepLauncher)
   }
 
