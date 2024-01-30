@@ -14,25 +14,48 @@
 
 package org.wfanet.panelmatch.client.launcher
 
+import java.util.logging.Level
+import java.util.logging.Logger
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
+import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
+import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidatedExchangeStep
 
 /** Executes an [ExchangeStep] in a new coroutine in [scope]. */
 class CoroutineLauncher(
   private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default),
-  private val stepExecutor: ExchangeStepExecutor
+  private val stepExecutor: ExchangeStepExecutor,
+  private val apiClient: ApiClient? = null,
 ) : JobLauncher {
 
+  private fun taskExceptionHandler(
+    attemptKey: ExchangeStepAttemptKey
+  ): CoroutineExceptionHandler {
+    return CoroutineExceptionHandler { _, e ->
+      logger.log(Level.SEVERE, e) { "Uncaught Exception in child coroutine:" }
+
+      val attemptState = ExchangeStepAttempt.State.FAILED
+
+      if (apiClient !== null) {
+        runBlocking { apiClient!!.finishExchangeStepAttempt(attemptKey, attemptState) }
+      }
+    }
+  }
   override suspend fun execute(step: ValidatedExchangeStep, attemptKey: ExchangeStepAttemptKey) {
     (scope + SupervisorJob()).launch(CoroutineName(attemptKey.toName())) {
       stepExecutor.execute(step, attemptKey)
     }
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
