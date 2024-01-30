@@ -265,3 +265,104 @@ Reporting \
     dataProviders/FeQ5FqAQ5_0/eventGroupMetadataDescriptors/clBPpgytI38 \
     dataProviders/FeQ5FqAQ5_0/eventGroupMetadataDescriptors/AnBj8RB1XFc
 ```
+
+### report-schedules
+
+#### create
+
+```shell
+Reporting \
+  --tls-cert-file=secretfiles/mc_tls.pem \
+  --tls-key-file=secretfiles/mc_tls.key \
+  --cert-collection-file=secretfiles/reporting_root.pem \
+  --reporting-server-api-target=v2alpha.reporting.dev.halo-cmm.org:8443 \
+  report-schedules create \
+  --parent=measurementConsumers/VCTqwV_vFXw \
+  --id=abcd \
+  --request-id=abcd \
+  --display-name=display \
+  --description=description \
+  --event-start-time=2024-01-17T01:00:00 \
+  --event-start-time-zone=America/Los_Angeles \
+  --event-end=2025-01-17 \
+  --daily-frequency=true \
+  --daily-window-count=10 \
+  --reporting-metric-entry='
+      key: "measurementConsumers/VCTqwV_vFXw/reportingSets/abc"
+      value {
+        metric_calculation_specs: "measurementConsumers/Dipo47pr5to/metricCalculationSpecs/abc"
+      }
+  '
+```
+
+User specifies the time offset for --event-start-time by using either
+`--event-start-utc-offset` or `--event-start-time-zone`.
+
+User specifies the frequency by using either `--daily-frequency`, 
+`--day-of-the-week`, or `--day-of-the-month`.
+
+User specifies the window by using either `--daily-window-count`, 
+`--weekly-window-count`, `--monthly-window-count`, or `--fixed-window`.
+
+The `--reporting-metric-entry` option expects a
+[`ReportingMetricEntry`](../../../../../../../../../proto/wfa/measurement/reporting/v2alpha/report.proto)
+protobuf message in text format. You can use shell quoting for a multiline string, or
+use command substitution to read the message from a file e.g. `--reporting-metric-entry=$(cat
+reporting_metric_entry.textproto)`.
+
+#### get
+```shell
+Reporting \
+  --tls-cert-file=secretfiles/mc_tls.pem \
+  --tls-key-file=secretfiles/mc_tls.key \
+  --cert-collection-file=secretfiles/reporting_root.pem \
+  --reporting-server-api-target=v2alpha.reporting.dev.halo-cmm.org:8443 \
+  report-schedules get \
+    measurementConsumers/VCTqwV_vFXw/reportSchedules/abcd
+```
+
+#### list
+```shell
+Reporting \
+  --tls-cert-file=secretfiles/mc_tls.pem \
+  --tls-key-file=secretfiles/mc_tls.key \
+  --cert-collection-file=secretfiles/reporting_root.pem \
+  --reporting-server-api-target=v2alpha.reporting.dev.halo-cmm.org:8443 \
+  report-schedules list \
+  --parent=measurementConsumers/VCTqwV_vFXw
+```
+
+#### stop
+```shell
+Reporting \
+  --tls-cert-file=secretfiles/mc_tls.pem \
+  --tls-key-file=secretfiles/mc_tls.key \
+  --cert-collection-file=secretfiles/reporting_root.pem \
+  --reporting-server-api-target=v2alpha.reporting.dev.halo-cmm.org:8443 \
+  report-schedules stop \
+    measurementConsumers/VCTqwV_vFXw/reportSchedules/abcd
+```
+
+### report-schedule-iterations
+
+#### get
+```shell
+Reporting \
+  --tls-cert-file=secretfiles/mc_tls.pem \
+  --tls-key-file=secretfiles/mc_tls.key \
+  --cert-collection-file=secretfiles/reporting_root.pem \
+  --reporting-server-api-target=v2alpha.reporting.dev.halo-cmm.org:8443 \
+  report-schedule-iterations get \
+    measurementConsumers/VCTqwV_vFXw/reportSchedules/abcd/iterations/abcd
+```
+
+#### list
+```shell
+Reporting \
+  --tls-cert-file=secretfiles/mc_tls.pem \
+  --tls-key-file=secretfiles/mc_tls.key \
+  --cert-collection-file=secretfiles/reporting_root.pem \
+  --reporting-server-api-target=v2alpha.reporting.dev.halo-cmm.org:8443 \
+  report-schedule-iterations list \
+  --parent=measurementConsumers/VCTqwV_vFXw/reportSchedules/abcd
+```

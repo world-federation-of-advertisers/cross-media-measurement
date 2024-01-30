@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha.tools
 
+import com.google.protobuf.duration
 import com.google.type.DayOfWeek
 import com.google.type.date
 import com.google.type.dateTime
@@ -48,6 +49,12 @@ import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.Report
+import org.wfanet.measurement.reporting.v2alpha.ReportSchedule
+import org.wfanet.measurement.reporting.v2alpha.ReportScheduleIterationsGrpcKt.ReportScheduleIterationsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.ReportScheduleKt
+import org.wfanet.measurement.reporting.v2alpha.ReportScheduleKt.frequency
+import org.wfanet.measurement.reporting.v2alpha.ReportScheduleKt.reportWindow
+import org.wfanet.measurement.reporting.v2alpha.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportKt.reportingInterval
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
@@ -55,16 +62,23 @@ import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.createMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
+import org.wfanet.measurement.reporting.v2alpha.createReportScheduleRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.getMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
+import org.wfanet.measurement.reporting.v2alpha.getReportScheduleIterationRequest
+import org.wfanet.measurement.reporting.v2alpha.getReportScheduleRequest
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.listMetricCalculationSpecsRequest
+import org.wfanet.measurement.reporting.v2alpha.listReportScheduleIterationsRequest
+import org.wfanet.measurement.reporting.v2alpha.listReportSchedulesRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportingSetsRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
 import org.wfanet.measurement.reporting.v2alpha.metricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.report
+import org.wfanet.measurement.reporting.v2alpha.reportSchedule
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
+import org.wfanet.measurement.reporting.v2alpha.stopReportScheduleRequest
 import org.wfanet.measurement.reporting.v2alpha.timeIntervals
 import picocli.CommandLine
 
@@ -808,6 +822,21 @@ class GetDataProvider : Runnable {
   }
 }
 
+@CommandLine.Command(
+  name = "data-providers",
+  sortOptions = false,
+  subcommands = [CommandLine.HelpCommand::class, GetDataProvider::class],
+)
+class DataProvidersCommand : Runnable {
+  @CommandLine.ParentCommand lateinit var parent: Reporting
+
+  val dataProviderStub: DataProvidersCoroutineStub by lazy {
+    DataProvidersCoroutineStub(parent.channel)
+  }
+
+  override fun run() {}
+}
+
 @CommandLine.Command(name = "get", description = ["Get event group metadata descriptor"])
 class GetEventGroupMetadataDescriptor : Runnable {
   @CommandLine.ParentCommand private lateinit var parent: EventGroupMetadataDescriptorsCommand
@@ -856,21 +885,6 @@ class BatchGetEventGroupMetadataDescriptors : Runnable {
 }
 
 @CommandLine.Command(
-  name = "data-providers",
-  sortOptions = false,
-  subcommands = [CommandLine.HelpCommand::class, GetDataProvider::class],
-)
-class DataProvidersCommand : Runnable {
-  @CommandLine.ParentCommand lateinit var parent: Reporting
-
-  val dataProviderStub: DataProvidersCoroutineStub by lazy {
-    DataProvidersCoroutineStub(parent.channel)
-  }
-
-  override fun run() {}
-}
-
-@CommandLine.Command(
   name = "event-group-metadata-descriptors",
   sortOptions = false,
   subcommands =
@@ -890,6 +904,438 @@ class EventGroupMetadataDescriptorsCommand : Runnable {
   override fun run() {}
 }
 
+@CommandLine.Command(name = "create", description = ["Create a report schedule"])
+class CreateReportScheduleCommand : Runnable {
+  @CommandLine.ParentCommand private lateinit var parent: ReportSchedulesCommand
+
+  @CommandLine.Option(
+    names = ["--parent"],
+    description = ["API resource name of the Measurement Consumer"],
+    required = true,
+  )
+  private lateinit var measurementConsumerName: String
+
+  @CommandLine.Option(
+    names = ["--display-name"],
+    description = ["display name"],
+    required = false,
+    defaultValue = "",
+  )
+  private lateinit var displayName: String
+
+  @CommandLine.Option(
+    names = ["--description"],
+    description = ["description"],
+    required = false,
+    defaultValue = "",
+  )
+  private lateinit var description: String
+
+  class EventStartInput {
+    @CommandLine.Option(
+      names = ["--event-start-time"],
+      description = ["Start of the report schedule in yyyy-MM-ddTHH:mm:ss"],
+      required = true,
+    )
+    lateinit var eventStartTime: LocalDateTime
+      private set
+
+    class TimeOffset {
+      @CommandLine.Option(
+        names = ["--event-start-utc-offset"],
+        description = ["UTC offset represented by number of hours."],
+        required = false,
+      )
+      var utcOffset: Int? = null
+        private set
+
+      @CommandLine.Option(
+        names = ["--event-start-time-zone"],
+        description = ["IANA Time zone"],
+        required = false,
+      )
+      var timeZone: String? = null
+        private set
+    }
+
+    @CommandLine.ArgGroup(
+      exclusive = true,
+      multiplicity = "1",
+      heading = "UTC offset or time zone\n",
+    )
+    lateinit var eventStartTimeOffset: TimeOffset
+  }
+
+  @CommandLine.ArgGroup(
+    exclusive = false,
+    multiplicity = "1",
+    heading = "Event start specification\n",
+  )
+  private lateinit var eventStart: EventStartInput
+
+  @CommandLine.Option(
+    names = ["--event-end"],
+    description = ["End of the report schedule in yyyy-mm-dd"],
+    required = false,
+  )
+  private var eventEnd: LocalDate? = null
+
+  @CommandLine.Option(
+    names = ["--reporting-metric-entry"],
+    description = ["ReportingMetricEntry protobuf messages in text format"],
+    required = true,
+  )
+  private lateinit var textFormatReportingMetricEntries: List<String>
+
+  class FrequencyInput {
+    @CommandLine.Option(
+      names = ["--daily-frequency"],
+      description = ["Whether to use daily frequency"],
+    )
+    var daily: Boolean = false
+      private set
+
+    @CommandLine.Option(
+      names = ["--day-of-the-week"],
+      description =
+        [
+          """
+      Day of the week for weekly frequency. Represented by a number between 1 and 7, inclusive,
+      where Monday is 1 and Sunday is 7.
+      """
+        ],
+    )
+    var dayOfTheWeek: Int = 0
+      private set
+
+    @CommandLine.Option(
+      names = ["--day-of-the-month"],
+      description =
+        [
+          """
+      Day of the month for monthly frequency. Represented by a number between 1 and 31, inclusive.
+      """
+        ],
+    )
+    var dayOfTheMonth: Int = 0
+      private set
+  }
+
+  @CommandLine.ArgGroup(exclusive = true, multiplicity = "1", heading = "Frequency specification\n")
+  private lateinit var frequencyInput: FrequencyInput
+
+  class ReportWindowInput {
+    @CommandLine.Option(names = ["--daily-window-count"], description = ["Size of daily window"])
+    var dailyCount: Int = 0
+      private set
+
+    @CommandLine.Option(
+      names = ["--weekly-window-count"],
+      description = ["Size of weekly window"],
+      required = false,
+    )
+    var weeklyCount: Int = 0
+      private set
+
+    @CommandLine.Option(
+      names = ["--monthly-window-count"],
+      description = ["Size of monthly window"],
+      required = false,
+    )
+    var monthlyCount: Int = 0
+      private set
+
+    @CommandLine.Option(
+      names = ["--fixed-window"],
+      description = ["Start of the window in yyyy-mm-dd"],
+    )
+    var fixedWindow: LocalDate? = null
+      private set
+  }
+
+  @CommandLine.ArgGroup(
+    exclusive = true,
+    multiplicity = "1",
+    heading = "Report window specification\n",
+  )
+  private lateinit var reportWindowInput: ReportWindowInput
+
+  @CommandLine.Option(
+    names = ["--id"],
+    description = ["Resource ID of the Report Schedule"],
+    required = true,
+    defaultValue = "",
+  )
+  private lateinit var reportScheduleId: String
+
+  @CommandLine.Option(
+    names = ["--request-id"],
+    description = ["Request ID for creation of Report Schedule"],
+    required = false,
+    defaultValue = "",
+  )
+  private lateinit var requestId: String
+
+  override fun run() {
+    val request = createReportScheduleRequest {
+      parent = measurementConsumerName
+      reportSchedule = reportSchedule {
+        displayName = this@CreateReportScheduleCommand.displayName
+        description = this@CreateReportScheduleCommand.description
+        eventStart = dateTime {
+          year = this@CreateReportScheduleCommand.eventStart.eventStartTime.year
+          month = this@CreateReportScheduleCommand.eventStart.eventStartTime.monthValue
+          day = this@CreateReportScheduleCommand.eventStart.eventStartTime.dayOfMonth
+          hours = this@CreateReportScheduleCommand.eventStart.eventStartTime.hour
+          minutes = this@CreateReportScheduleCommand.eventStart.eventStartTime.minute
+          seconds = this@CreateReportScheduleCommand.eventStart.eventStartTime.second
+
+          if (this@CreateReportScheduleCommand.eventStart.eventStartTimeOffset.utcOffset != null) {
+            val utcOffset =
+              checkNotNull(
+                  this@CreateReportScheduleCommand.eventStart.eventStartTimeOffset.utcOffset
+                )
+                .toLong()
+            this.utcOffset = duration { seconds = utcOffset * 60 * 60 }
+          } else {
+            val timeZone =
+              checkNotNull(
+                this@CreateReportScheduleCommand.eventStart.eventStartTimeOffset.timeZone
+              )
+            this.timeZone = timeZone { id = timeZone }
+          }
+        }
+
+        if (this@CreateReportScheduleCommand.eventEnd != null) {
+          val eventEnd = checkNotNull(this@CreateReportScheduleCommand.eventEnd)
+          this.eventEnd = date {
+            year = eventEnd.year
+            month = eventEnd.monthValue
+            day = eventEnd.dayOfMonth
+          }
+        }
+
+        frequency = frequency {
+          if (this@CreateReportScheduleCommand.frequencyInput.daily) {
+            daily = ReportSchedule.Frequency.Daily.getDefaultInstance()
+          } else if (this@CreateReportScheduleCommand.frequencyInput.dayOfTheWeek > 0) {
+            weekly =
+              ReportScheduleKt.FrequencyKt.weekly {
+                dayOfWeek =
+                  DayOfWeek.forNumber(this@CreateReportScheduleCommand.frequencyInput.dayOfTheWeek)
+              }
+          } else if (this@CreateReportScheduleCommand.frequencyInput.dayOfTheMonth > 0) {
+            monthly =
+              ReportScheduleKt.FrequencyKt.monthly {
+                dayOfMonth = this@CreateReportScheduleCommand.frequencyInput.dayOfTheMonth
+              }
+          }
+        }
+
+        reportWindow = reportWindow {
+          if (this@CreateReportScheduleCommand.reportWindowInput.dailyCount > 0) {
+            trailingWindow =
+              ReportScheduleKt.ReportWindowKt.trailingWindow {
+                count = this@CreateReportScheduleCommand.reportWindowInput.dailyCount
+                increment = ReportSchedule.ReportWindow.TrailingWindow.Increment.DAY
+              }
+          } else if (this@CreateReportScheduleCommand.reportWindowInput.weeklyCount > 0) {
+            trailingWindow =
+              ReportScheduleKt.ReportWindowKt.trailingWindow {
+                count = this@CreateReportScheduleCommand.reportWindowInput.weeklyCount
+                increment = ReportSchedule.ReportWindow.TrailingWindow.Increment.WEEK
+              }
+          } else if (this@CreateReportScheduleCommand.reportWindowInput.monthlyCount > 0) {
+            trailingWindow =
+              ReportScheduleKt.ReportWindowKt.trailingWindow {
+                count = this@CreateReportScheduleCommand.reportWindowInput.monthlyCount
+                increment = ReportSchedule.ReportWindow.TrailingWindow.Increment.MONTH
+              }
+          } else if (this@CreateReportScheduleCommand.reportWindowInput.fixedWindow != null) {
+            val fixedWindow =
+              checkNotNull(this@CreateReportScheduleCommand.reportWindowInput.fixedWindow)
+            this.fixedWindow = date {
+              year = fixedWindow.year
+              month = fixedWindow.monthValue
+              day = fixedWindow.dayOfMonth
+            }
+          }
+        }
+
+        reportTemplate = report {
+          for (textFormatReportingMetricEntry in textFormatReportingMetricEntries) {
+            reportingMetricEntries +=
+              parseTextProto(
+                textFormatReportingMetricEntry.reader(),
+                Report.ReportingMetricEntry.getDefaultInstance(),
+              )
+          }
+        }
+      }
+      reportScheduleId = this@CreateReportScheduleCommand.reportScheduleId
+      requestId = this@CreateReportScheduleCommand.requestId
+    }
+    val reportSchedule =
+      runBlocking(Dispatchers.IO) { parent.reportSchedulesStub.createReportSchedule(request) }
+
+    println(reportSchedule)
+  }
+}
+
+@CommandLine.Command(name = "list", description = ["List report schedules"])
+class ListReportSchedulesCommand : Runnable {
+  @CommandLine.ParentCommand private lateinit var parent: ReportSchedulesCommand
+
+  @CommandLine.Option(
+    names = ["--parent"],
+    description = ["API resource name of the Measurement Consumer"],
+    required = true,
+  )
+  private lateinit var measurementConsumerName: String
+
+  @CommandLine.Mixin private lateinit var pageParams: PageParams
+
+  override fun run() {
+    val request = listReportSchedulesRequest {
+      parent = measurementConsumerName
+      pageSize = pageParams.pageSize
+      pageToken = pageParams.pageToken
+    }
+
+    val response =
+      runBlocking(Dispatchers.IO) { parent.reportSchedulesStub.listReportSchedules(request) }
+
+    response.reportSchedulesList.forEach { println(it.name + " " + it.state.toString()) }
+    if (response.nextPageToken.isNotEmpty()) {
+      println("nextPageToken: ${response.nextPageToken}")
+    }
+  }
+}
+
+@CommandLine.Command(name = "get", description = ["Get a report schedule"])
+class GetReportScheduleCommand : Runnable {
+  @CommandLine.ParentCommand private lateinit var parent: ReportSchedulesCommand
+
+  @CommandLine.Parameters(description = ["API resource name of the Report Schedule"])
+  private lateinit var reportScheduleName: String
+
+  override fun run() {
+    val request = getReportScheduleRequest { name = reportScheduleName }
+
+    val reportSchedule =
+      runBlocking(Dispatchers.IO) { parent.reportSchedulesStub.getReportSchedule(request) }
+    println(reportSchedule)
+  }
+}
+
+@CommandLine.Command(name = "stop", description = ["Stop a report schedule"])
+class StopReportScheduleCommand : Runnable {
+  @CommandLine.ParentCommand private lateinit var parent: ReportSchedulesCommand
+
+  @CommandLine.Parameters(description = ["API resource name of the Report Schedule"])
+  private lateinit var reportScheduleName: String
+
+  override fun run() {
+    val request = stopReportScheduleRequest { name = reportScheduleName }
+
+    val reportSchedule =
+      runBlocking(Dispatchers.IO) { parent.reportSchedulesStub.stopReportSchedule(request) }
+    println(reportSchedule)
+  }
+}
+
+@CommandLine.Command(
+  name = "report-schedules",
+  sortOptions = false,
+  subcommands =
+    [
+      CommandLine.HelpCommand::class,
+      CreateReportScheduleCommand::class,
+      ListReportSchedulesCommand::class,
+      GetReportScheduleCommand::class,
+      StopReportScheduleCommand::class,
+    ],
+)
+class ReportSchedulesCommand : Runnable {
+  @CommandLine.ParentCommand lateinit var parent: Reporting
+
+  val reportSchedulesStub: ReportSchedulesCoroutineStub by lazy {
+    ReportSchedulesCoroutineStub(parent.channel)
+  }
+
+  override fun run() {}
+}
+
+@CommandLine.Command(name = "list", description = ["List report schedule iterations"])
+class ListReportScheduleIterationsCommand : Runnable {
+  @CommandLine.ParentCommand private lateinit var parent: ReportScheduleIterationsCommand
+
+  @CommandLine.Option(
+    names = ["--parent"],
+    description = ["API resource name of the Report Schedule"],
+    required = true,
+  )
+  private lateinit var reportScheduleName: String
+
+  @CommandLine.Mixin private lateinit var pageParams: PageParams
+
+  override fun run() {
+    val request = listReportScheduleIterationsRequest {
+      parent = reportScheduleName
+      pageSize = pageParams.pageSize
+      pageToken = pageParams.pageToken
+    }
+
+    val response =
+      runBlocking(Dispatchers.IO) {
+        parent.reportScheduleIterationsStub.listReportScheduleIterations(request)
+      }
+
+    response.reportScheduleIterationsList.forEach { println(it.name + " " + it.state.toString()) }
+    if (response.nextPageToken.isNotEmpty()) {
+      println("nextPageToken: ${response.nextPageToken}")
+    }
+  }
+}
+
+@CommandLine.Command(name = "get", description = ["Get a report schedule iteration"])
+class GetReportScheduleIterationCommand : Runnable {
+  @CommandLine.ParentCommand private lateinit var parent: ReportScheduleIterationsCommand
+
+  @CommandLine.Parameters(description = ["API resource name of the Report Schedule Iteration"])
+  private lateinit var reportScheduleIterationName: String
+
+  override fun run() {
+    val request = getReportScheduleIterationRequest { name = reportScheduleIterationName }
+
+    val reportScheduleIteration =
+      runBlocking(Dispatchers.IO) {
+        parent.reportScheduleIterationsStub.getReportScheduleIteration(request)
+      }
+    println(reportScheduleIteration)
+  }
+}
+
+@CommandLine.Command(
+  name = "report-schedule-iterations",
+  sortOptions = false,
+  subcommands =
+    [
+      CommandLine.HelpCommand::class,
+      ListReportScheduleIterationsCommand::class,
+      GetReportScheduleIterationCommand::class,
+    ],
+)
+class ReportScheduleIterationsCommand : Runnable {
+  @CommandLine.ParentCommand lateinit var parent: Reporting
+
+  val reportScheduleIterationsStub: ReportScheduleIterationsCoroutineStub by lazy {
+    ReportScheduleIterationsCoroutineStub(parent.channel)
+  }
+
+  override fun run() {}
+}
+
 @CommandLine.Command(
   name = "reporting",
   description = ["Reporting CLI tool"],
@@ -903,6 +1349,8 @@ class EventGroupMetadataDescriptorsCommand : Runnable {
       EventGroupsCommand::class,
       DataProvidersCommand::class,
       EventGroupMetadataDescriptorsCommand::class,
+      ReportSchedulesCommand::class,
+      ReportScheduleIterationsCommand::class,
     ],
 )
 class Reporting : Runnable {
@@ -929,8 +1377,8 @@ class Reporting : Runnable {
 }
 
 /**
- * Reporting Set, Report, Metric Calculation Spec, Event Group, Event Group Metadata Descriptor, and
- * Data Provider methods.
+ * Reporting Set, Report, Metric Calculation Spec, Event Group, Event Group Metadata Descriptor,
+ * Data Provider, Report Schedule, and Report Schedule Iteration methods.
  *
  * Use the `help` command to see usage details.
  */
