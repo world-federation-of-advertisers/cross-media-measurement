@@ -15,15 +15,8 @@
 name: Release test
 
 on:
-  push:
-    branches:
-    - main
-    - 'releases/**'
-  pull_request:
-    branches:
-    - main
-    - 'releases/**'
-    types: [opened, synchronize, edited]
+  release:
+    types: [published]
   workflow_dispatch:
 
 jobs:
