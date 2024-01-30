@@ -16,11 +16,15 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha.tools
 
+import com.google.type.date
+import com.google.type.dateTime
 import com.google.type.interval
+import com.google.type.timeZone
 import io.grpc.ManagedChannel
 import java.time.Duration
 import java.time.Instant
-import kotlin.properties.Delegates
+import java.time.LocalDate
+import java.time.LocalDateTime
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
@@ -42,6 +46,7 @@ import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.Report
+import org.wfanet.measurement.reporting.v2alpha.ReportKt.reportingInterval
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
@@ -56,7 +61,6 @@ import org.wfanet.measurement.reporting.v2alpha.listMetricCalculationSpecsReques
 import org.wfanet.measurement.reporting.v2alpha.listReportingSetsRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
 import org.wfanet.measurement.reporting.v2alpha.metricCalculationSpec
-import org.wfanet.measurement.reporting.v2alpha.periodicTimeInterval
 import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
 import org.wfanet.measurement.reporting.v2alpha.timeIntervals
@@ -268,29 +272,46 @@ class CreateReportCommand : Runnable {
         private set
     }
 
-    class PeriodicTimeIntervalInput {
+    class ReportingIntervalInput {
       @CommandLine.Option(
-        names = ["--periodic-interval-start-time"],
-        description = ["Start of the first time interval in ISO 8601 format of UTC"],
+        names = ["--reporting-interval-report-start-time"],
+        description = ["Start of the report in yyyy-MM-ddTHH:mm:ss"],
         required = true,
       )
-      lateinit var periodicIntervalStartTime: Instant
+      lateinit var reportingIntervalReportStartTime: LocalDateTime
         private set
 
-      @CommandLine.Option(
-        names = ["--periodic-interval-increment"],
-        description = ["Increment for each time interval in ISO-8601 format of PnDTnHnMn"],
-        required = true,
-      )
-      lateinit var periodicIntervalIncrement: Duration
-        private set
+      class TimeOffset {
+        @CommandLine.Option(
+          names = ["--reporting-interval-report-start-utc-offset"],
+          description = ["UTC offset in ISO-8601 format of PnDTnHnMn"],
+          required = false,
+        )
+        var utcOffset: Duration? = null
+          private set
 
-      @set:CommandLine.Option(
-        names = ["--periodic-interval-count"],
-        description = ["Number of periodic intervals"],
+        @CommandLine.Option(
+          names = ["--reporting-interval-report-start-time-zone"],
+          description = ["IANA Time zone"],
+          required = false,
+        )
+        var timeZone: String? = null
+          private set
+      }
+
+      @CommandLine.ArgGroup(
+        exclusive = true,
+        multiplicity = "1",
+        heading = "UTC offset or time zone\n",
+      )
+      lateinit var reportingIntervalReportStartTimeOffset: TimeOffset
+
+      @CommandLine.Option(
+        names = ["--reporting-interval-report-end"],
+        description = ["End of the report in yyyy-mm-dd"],
         required = true,
       )
-      var periodicIntervalCount by Delegates.notNull<Int>()
+      lateinit var reportingIntervalReportEnd: LocalDate
         private set
     }
 
@@ -301,16 +322,16 @@ class CreateReportCommand : Runnable {
     @CommandLine.ArgGroup(
       exclusive = false,
       multiplicity = "1",
-      heading = "Periodic time interval specification\n",
+      heading = "Reporting interval specification\n",
     )
-    var periodicTimeIntervalInput: PeriodicTimeIntervalInput? = null
+    var reportingIntervalInput: ReportingIntervalInput? = null
       private set
   }
 
   @CommandLine.ArgGroup(
     exclusive = true,
     multiplicity = "1",
-    heading = "Time interval or periodic time interval\n",
+    heading = "Time interval or reporting interval\n",
   )
   private lateinit var timeInput: TimeInput
 
@@ -354,11 +375,32 @@ class CreateReportCommand : Runnable {
             }
           }
         } else {
-          val periodicIntervals = checkNotNull(timeInput.periodicTimeIntervalInput)
-          periodicTimeInterval = periodicTimeInterval {
-            startTime = periodicIntervals.periodicIntervalStartTime.toProtoTime()
-            increment = periodicIntervals.periodicIntervalIncrement.toProtoDuration()
-            intervalCount = periodicIntervals.periodicIntervalCount
+          val reportingInterval = checkNotNull(timeInput.reportingIntervalInput)
+          this.reportingInterval = reportingInterval {
+            reportStart = dateTime {
+              year = reportingInterval.reportingIntervalReportStartTime.year
+              month = reportingInterval.reportingIntervalReportStartTime.monthValue
+              day = reportingInterval.reportingIntervalReportStartTime.dayOfMonth
+              hours = reportingInterval.reportingIntervalReportStartTime.hour
+              minutes = reportingInterval.reportingIntervalReportStartTime.minute
+              seconds = reportingInterval.reportingIntervalReportStartTime.second
+
+              if (reportingInterval.reportingIntervalReportStartTimeOffset.utcOffset != null) {
+                val utcOffset =
+                  checkNotNull(reportingInterval.reportingIntervalReportStartTimeOffset.utcOffset)
+                this.utcOffset = utcOffset.toProtoDuration()
+              } else {
+                val timeZone =
+                  checkNotNull(reportingInterval.reportingIntervalReportStartTimeOffset.timeZone)
+                this.timeZone = timeZone { id = timeZone }
+              }
+            }
+
+            reportEnd = date {
+              year = reportingInterval.reportingIntervalReportEnd.year
+              month = reportingInterval.reportingIntervalReportEnd.monthValue
+              day = reportingInterval.reportingIntervalReportEnd.dayOfMonth
+            }
           }
         }
       }
