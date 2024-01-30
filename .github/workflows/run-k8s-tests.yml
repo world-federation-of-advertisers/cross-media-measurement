@@ -65,18 +65,6 @@ jobs:
         build --test_env=GOOGLE_APPLICATION_CREDENTIALS
         EOF
 
-    - name: Get Bazel cache params
-      id: get-cache-params
-      uses: world-federation-of-advertisers/actions/bazel-get-cache-params@v2
-
-    - name: Restore Bazel cache
-      uses: actions/cache/restore@v4
-      with:
-        path: ${{ steps.get-cache-params.outputs.cache-path }}
-        key: ${{ steps.get-cache-params.outputs.cache-key }}
-        restore-keys: |-
-          ${{ steps.get-cache-params.outputs.restore-key }}
-
     - name: Run tests
       id: run-tests
       run: >

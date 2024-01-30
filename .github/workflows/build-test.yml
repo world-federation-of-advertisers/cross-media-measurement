@@ -47,6 +47,8 @@ jobs:
     name: Build and test
     runs-on: ubuntu-20.04
     needs: wait-for-base
+    permissions:
+      id-token: write
     env:
       CLUSTER_LOGS_PATH: cluster-logs
     steps:
@@ -55,10 +57,19 @@ jobs:
 
       - uses: ./.github/actions/free-disk-space
 
+      # Authenticate to Google Cloud for access to build cache.
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          workload_identity_provider: ${{ vars.BAZEL_BUILD_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.BAZEL_BUILD_SERVICE_ACCOUNT }}
+
       - name: Write ~/.bazelrc
         run: |
           cat << EOF > ~/.bazelrc
           common --config=ci
+          common --config=remote-cache
+          build --remote_upload_local_results
           build --define container_registry=localhost:5001
           build --define image_repo_prefix=halo
           build --define image_tag=latest
@@ -98,14 +109,6 @@ jobs:
           sudo mkdir -p /mnt/bazel-cache
           sudo chown 'runner:runner' /mnt/bazel-cache
           sudo mount --bind /mnt/bazel-cache "$BAZEL_CACHE_PATH"
-
-      - name: Restore Bazel cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ steps.get-cache-params.outputs.cache-path }}
-          key: ${{ steps.get-cache-params.outputs.cache-key }}
-          restore-keys: |-
-            ${{ steps.get-cache-params.outputs.restore-key }}
 
       - name: Build
         run: >
@@ -160,24 +163,6 @@ jobs:
         with:
           name: cluster-logs
           path: ${{ env.CLUSTER_LOGS_PATH }}
-
-      # Delete large files that are relatively cheap to re-create.
-      - name: Trim Bazel cache
-        if: github.event_name == 'push'
-        run: |
-          bazel_out="$(bazelisk info output_path)"
-          find "${bazel_out}" -type f \( -iname '*.tar' -o -iname '*.tar.gz' \) -delete
-          find "${bazel_out}" -type d -name sha256 -exec chmod -R +w "{}" \;
-          find "${bazel_out}" -type f -path '*/sha256/*' -delete
-          
-
-      - name: Save Bazel cache
-        if: github.event_name == 'push'
-        uses: actions/cache/save@v4
-        continue-on-error: true
-        with:
-          path: ${{ steps.get-cache-params.outputs.cache-path }}
-          key: ${{ steps.get-cache-params.outputs.cache-key }}
 
       - name: Upload Bazel testlogs
         continue-on-error: true
