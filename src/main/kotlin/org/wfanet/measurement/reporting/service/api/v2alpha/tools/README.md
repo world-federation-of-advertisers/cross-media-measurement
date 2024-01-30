@@ -117,9 +117,10 @@ Reporting \
 ```
 
 User specifies the type of time args by using either repeated interval params(
-`--interval-start-time`, `--interval-end-time`) or periodic time args(
-`--periodic-interval-start-time`, `--periodic-interval-increment` and
-`--periodic-interval-count`)
+`--interval-start-time`, `--interval-end-time`) or reporting interval args(
+`--reporting-interval-report-start-time`, 
+`-reporting-interval-report-start-utc-offset`/`--reporting-interval-report-start-time-zone`, 
+and `--reporting-interval-report-end`)
 
 The `--reporting-metric-entry` option expects a
 [`ReportingMetricEntry`](../../../../../../../../../proto/wfa/measurement/reporting/v2alpha/report.proto)

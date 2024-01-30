@@ -17,13 +17,16 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha.tools
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.duration
+import com.google.type.date
+import com.google.type.dateTime
 import com.google.type.interval
+import com.google.type.timeZone
 import io.grpc.Server
 import io.grpc.ServerServiceDefinition
 import io.grpc.netty.NettyServerBuilder
 import java.nio.file.Path
 import java.nio.file.Paths
-import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.TimeUnit.SECONDS
 import org.junit.After
@@ -52,12 +55,12 @@ import org.wfanet.measurement.common.testing.CommandLineTesting
 import org.wfanet.measurement.common.testing.CommandLineTesting.assertThat
 import org.wfanet.measurement.common.testing.ExitInterceptingSecurityManager
 import org.wfanet.measurement.common.testing.verifyProtoArgument
-import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsResponse
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsResponse
 import org.wfanet.measurement.reporting.v2alpha.Report
+import org.wfanet.measurement.reporting.v2alpha.ReportKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
@@ -72,7 +75,6 @@ import org.wfanet.measurement.reporting.v2alpha.listReportingSetsRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportingSetsResponse
 import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportsResponse
-import org.wfanet.measurement.reporting.v2alpha.periodicTimeInterval
 import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
 import org.wfanet.measurement.reporting.v2alpha.timeIntervals
@@ -393,11 +395,12 @@ class ReportingTest {
   }
 
   @Test
-  fun `create report with periodicTimeIntervalInput calls api with valid request`() {
+  fun `create report with reportingIntervalInput and utc offset calls api with valid request`() {
     val textFormatReportingMetricEntryFile =
       TEXTPROTO_DIR.resolve("reporting_metric_entry.textproto").toFile()
-    val startTime = "2017-01-15T01:30:15.01Z"
-    val increment = "P1DT3H5M12.99S"
+    val startTime = "2017-01-15T01:30:15"
+    val utcOffset = "P0DT8H"
+    val endDate = "2017-02-15"
 
     val args =
       arrayOf(
@@ -408,9 +411,9 @@ class ReportingTest {
         "reports",
         "create",
         "--parent=$MEASUREMENT_CONSUMER_NAME",
-        "--periodic-interval-start-time=$startTime",
-        "--periodic-interval-increment=$increment",
-        "--periodic-interval-count=3",
+        "--reporting-interval-report-start-time=$startTime",
+        "--reporting-interval-report-start-utc-offset=$utcOffset",
+        "--reporting-interval-report-end=$endDate",
         "--id=$REPORT_ID",
         "--request-id=$REPORT_REQUEST_ID",
         "--reporting-metric-entry=${textFormatReportingMetricEntryFile.readText()}",
@@ -430,11 +433,23 @@ class ReportingTest {
                 textFormatReportingMetricEntryFile,
                 Report.ReportingMetricEntry.getDefaultInstance(),
               )
-            periodicTimeInterval = periodicTimeInterval {
-              this.startTime = Instant.parse(startTime).toProtoTime()
-              this.increment = Duration.parse(increment).toProtoDuration()
-              intervalCount = 3
-            }
+            reportingInterval =
+              ReportKt.reportingInterval {
+                reportStart = dateTime {
+                  year = 2017
+                  month = 1
+                  day = 15
+                  hours = 1
+                  minutes = 30
+                  seconds = 15
+                  this.utcOffset = duration { seconds = 8 * 60 * 60 }
+                }
+                reportEnd = date {
+                  year = 2017
+                  month = 2
+                  day = 15
+                }
+              }
           }
         }
       )
@@ -444,10 +459,76 @@ class ReportingTest {
   }
 
   @Test
-  fun `create report with both periodicTimeIntervalInput and timeIntervalInput fails`() {
+  fun `create report with reportingIntervalInput and time zone calls api with valid request`() {
     val textFormatReportingMetricEntryFile =
       TEXTPROTO_DIR.resolve("reporting_metric_entry.textproto").toFile()
-    val increment = "P1DT3H5M12.99S"
+    val startTime = "2017-01-15T01:30:15"
+    val timeZone = "America/Los_Angeles"
+    val endDate = "2017-02-15"
+
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "reports",
+        "create",
+        "--parent=$MEASUREMENT_CONSUMER_NAME",
+        "--reporting-interval-report-start-time=$startTime",
+        "--reporting-interval-report-start-time-zone=$timeZone",
+        "--reporting-interval-report-end=$endDate",
+        "--id=$REPORT_ID",
+        "--request-id=$REPORT_REQUEST_ID",
+        "--reporting-metric-entry=${textFormatReportingMetricEntryFile.readText()}",
+      )
+
+    val output = callCli(args)
+
+    verifyProtoArgument(reportsServiceMock, ReportsCoroutineImplBase::createReport)
+      .isEqualTo(
+        createReportRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          reportId = REPORT_ID
+          requestId = REPORT_REQUEST_ID
+          report = report {
+            reportingMetricEntries +=
+              parseTextProto(
+                textFormatReportingMetricEntryFile,
+                Report.ReportingMetricEntry.getDefaultInstance(),
+              )
+            reportingInterval =
+              ReportKt.reportingInterval {
+                reportStart = dateTime {
+                  year = 2017
+                  month = 1
+                  day = 15
+                  hours = 1
+                  minutes = 30
+                  seconds = 15
+                  this.timeZone = timeZone { id = "America/Los_Angeles" }
+                }
+                reportEnd = date {
+                  year = 2017
+                  month = 2
+                  day = 15
+                }
+              }
+          }
+        }
+      )
+
+    assertThat(output).status().isEqualTo(0)
+    assertThat(parseTextProto(output.out.reader(), Report.getDefaultInstance())).isEqualTo(REPORT)
+  }
+
+  @Test
+  fun `create report with both reportingIntervalInput and timeIntervalInput fails`() {
+    val textFormatReportingMetricEntryFile =
+      TEXTPROTO_DIR.resolve("reporting_metric_entry.textproto").toFile()
+    val reportStartTime = "2017-01-15T01:30:15"
+    val timeZone = "America/Los_Angeles"
+    val reportEndDate = "2017-02-15"
     val startTime = "2017-01-15T01:30:15.01Z"
     val endTime = "2018-01-15T01:30:15.01Z"
     val startTime2 = "2019-01-15T01:30:15.01Z"
@@ -462,9 +543,9 @@ class ReportingTest {
         "reports",
         "create",
         "--parent=$MEASUREMENT_CONSUMER_NAME",
-        "--periodic-interval-start-time=$startTime",
-        "--periodic-interval-increment=$increment",
-        "--periodic-interval-count=3",
+        "--reporting-interval-report-start-time=$reportStartTime",
+        "--reporting-interval-report-start-time-zone=$timeZone",
+        "--reporting-interval-report-end=$reportEndDate",
         "--interval-start-time=$startTime",
         "--interval-end-time=$endTime",
         "--interval-start-time=$startTime2",
