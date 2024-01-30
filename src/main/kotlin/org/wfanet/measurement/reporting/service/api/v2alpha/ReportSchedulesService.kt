@@ -70,8 +70,6 @@ import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.internal.reporting.v2.reportSchedule as internalReportSchedule
 import org.wfanet.measurement.internal.reporting.v2.stopReportScheduleRequest
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
-import org.wfanet.measurement.reporting.service.api.v2alpha.ReportSchedulesService.Companion.toOffsetDateTime
-import org.wfanet.measurement.reporting.service.api.v2alpha.ReportSchedulesService.Companion.toZonedDateTime
 import org.wfanet.measurement.reporting.v2alpha.CreateReportScheduleRequest
 import org.wfanet.measurement.reporting.v2alpha.GetReportScheduleRequest
 import org.wfanet.measurement.reporting.v2alpha.ListReportSchedulesPageToken
@@ -359,7 +357,7 @@ class ReportSchedulesService(
             source.eventStart.toOffsetDateTime()
           } catch (e: DateTimeException) {
             throw Status.INVALID_ARGUMENT.withDescription(
-                "event_start date portion is invalid or event_start.utc_offset is not in valid range."
+                "event_start.utc_offset is not in valid range."
               )
               .asRuntimeException()
           }
@@ -370,9 +368,6 @@ class ReportSchedulesService(
             source.eventStart.toZonedDateTime()
           } catch (e: ZoneRulesException) {
             throw Status.INVALID_ARGUMENT.withDescription("event_start.time_zone.id is invalid")
-              .asRuntimeException()
-          } catch (e: DateTimeException) {
-            throw Status.INVALID_ARGUMENT.withDescription("event_start date portion is invalid.")
               .asRuntimeException()
           }
         getNextReportCreationTime(zonedDateTime, source.frequency)
@@ -707,49 +702,6 @@ class ReportSchedulesService(
       }
 
       return reportingSets
-    }
-
-    /**
-     * Converts a proto [DateTime] to an [OffsetDateTime].
-     *
-     * @throws
-     * * [DateTimeException] when values in DateTime are invalid.
-     */
-    private fun DateTime.toOffsetDateTime(): OffsetDateTime {
-      val source = this
-      val offset = ZoneOffset.ofTotalSeconds(source.utcOffset.seconds.toInt())
-      return OffsetDateTime.of(
-        source.year,
-        source.month,
-        source.day,
-        source.hours,
-        source.minutes,
-        source.seconds,
-        source.nanos,
-        offset,
-      )
-    }
-
-    /**
-     * Converts a proto [DateTime] to a [ZonedDateTime].
-     *
-     * @throws
-     * * [DateTimeException] when values in DateTime are invalid.
-     * * [ZoneRulesException] when time zone id is invalid.
-     */
-    private fun DateTime.toZonedDateTime(): ZonedDateTime {
-      val source = this
-      val id = ZoneId.of(source.timeZone.id)
-      return ZonedDateTime.of(
-        source.year,
-        source.month,
-        source.day,
-        source.hours,
-        source.minutes,
-        source.seconds,
-        source.nanos,
-        id,
-      )
     }
 
     private fun getNextReportCreationTime(

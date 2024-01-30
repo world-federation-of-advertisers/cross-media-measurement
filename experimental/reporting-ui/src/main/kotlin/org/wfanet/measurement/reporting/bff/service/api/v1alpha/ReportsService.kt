@@ -275,7 +275,6 @@ class ReportsService(
                 demoCategoryName = resultAttributesByGroup.key
 
                 val metrics = sourceMetrics {
-                  cumulative = metricCalculationResult.cumulative
                   // Each result attribute will have one metric spec
                   // The metric spec could be of different types, so we'll go through each one
                   // and add it to the appropriate field.

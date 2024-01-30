@@ -78,6 +78,9 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
     }
     val createdMetricCalculationSpec = service.createMetricCalculationSpec(request)
 
+    assertThat(metricCalculationSpec)
+      .ignoringFields(MetricCalculationSpec.EXTERNAL_METRIC_CALCULATION_SPEC_ID_FIELD_NUMBER)
+      .isEqualTo(createdMetricCalculationSpec)
     assertThat(createdMetricCalculationSpec.externalMetricCalculationSpecId)
       .isEqualTo(request.externalMetricCalculationSpecId)
   }
@@ -251,11 +254,12 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
         .listMetricCalculationSpecs(
           listMetricCalculationSpecsRequest {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            limit = 50
           }
         )
         .metricCalculationSpecsList
 
-    assertThat(retrievedMetricCalculationSpecs).hasSize(1)
+    assertThat(retrievedMetricCalculationSpecs).hasSize(2)
     assertThat(retrievedMetricCalculationSpecs[0].externalMetricCalculationSpecId)
       .isEqualTo(createdMetricCalculationSpec.externalMetricCalculationSpecId)
     assertThat(retrievedMetricCalculationSpecs[0].externalMetricCalculationSpecId)
@@ -313,6 +317,7 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             externalMetricCalculationSpecIdAfter =
               createdMetricCalculationSpec.externalMetricCalculationSpecId
+            limit = 50
           }
         )
         .metricCalculationSpecsList
@@ -361,7 +366,7 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
   }
 
   @Test
-  fun `batchGetMetricCalculationSpecs lists 3 specs in request order`() = runBlocking {
+  fun `batchGetMetricCalculationSpecs lists 3 specs when 3 requested`(): Unit = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val metricCalculationSpec = createMetricCalculationSpecForRequest()
 
@@ -374,6 +379,10 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
       service.createMetricCalculationSpec(
         request.copy { externalMetricCalculationSpecId = "external-metric-calculation-spec-id-2" }
       )
+    val createdMetricCalculationSpec3 =
+      service.createMetricCalculationSpec(
+        request.copy { externalMetricCalculationSpecId = "external-metric-calculation-spec-id-3" }
+      )
 
     val retrievedMetricCalculationSpecs =
       service
@@ -385,18 +394,18 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
             externalMetricCalculationSpecIds +=
               createdMetricCalculationSpec2.externalMetricCalculationSpecId
             externalMetricCalculationSpecIds +=
-              createdMetricCalculationSpec.externalMetricCalculationSpecId
+              createdMetricCalculationSpec3.externalMetricCalculationSpecId
           }
         )
         .metricCalculationSpecsList
 
     assertThat(retrievedMetricCalculationSpecs).hasSize(3)
-    assertThat(retrievedMetricCalculationSpecs[0].externalMetricCalculationSpecId)
-      .isEqualTo(createdMetricCalculationSpec.externalMetricCalculationSpecId)
-    assertThat(retrievedMetricCalculationSpecs[1].externalMetricCalculationSpecId)
-      .isEqualTo(createdMetricCalculationSpec2.externalMetricCalculationSpecId)
-    assertThat(retrievedMetricCalculationSpecs[2].externalMetricCalculationSpecId)
-      .isEqualTo(createdMetricCalculationSpec.externalMetricCalculationSpecId)
+    assertThat(retrievedMetricCalculationSpecs)
+      .containsExactly(
+        createdMetricCalculationSpec,
+        createdMetricCalculationSpec2,
+        createdMetricCalculationSpec3,
+      )
   }
 
   @Test
@@ -463,7 +472,15 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
                 }
             }
             groupings += MetricCalculationSpecKt.grouping { predicates += "age > 10" }
-            cumulative = false
+            metricFrequencySpec =
+              MetricCalculationSpecKt.metricFrequencySpec {
+                daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
+              }
+            trailingWindow =
+              MetricCalculationSpecKt.trailingWindow {
+                count = 2
+                increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
+              }
             tags["year"] = "2024"
           }
       }

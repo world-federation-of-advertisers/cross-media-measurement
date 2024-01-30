@@ -19,6 +19,7 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.util.Durations
+import com.google.type.DayOfWeek
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
@@ -139,7 +140,6 @@ class MetricCalculationSpecsServiceTest {
             predicates += listOf("age == 18_34", "age == 55_PLUS")
           },
         )
-      cumulative = false
       tags["year"] = "2024"
     }
 
@@ -190,7 +190,6 @@ class MetricCalculationSpecsServiceTest {
                   metricCalculationSpec.groupingsList.map {
                     InternalMetricCalculationSpecKt.grouping { predicates += it.predicatesList }
                   }
-                cumulative = metricCalculationSpec.cumulative
                 tags.putAll(metricCalculationSpec.tagsMap)
               }
           }
@@ -198,6 +197,248 @@ class MetricCalculationSpecsServiceTest {
         }
       )
   }
+
+  @Test
+  fun `createMetricCalculationSpec returns metric calculation spec when both no freq and window`() =
+    runBlocking {
+      val internalMetricCalculationSpec =
+        INTERNAL_METRIC_CALCULATION_SPEC.copy {
+          details =
+            details.copy {
+              clearMetricFrequencySpec()
+              clearTrailingWindow()
+            }
+        }
+
+      whenever(internalMetricCalculationSpecsMock.createMetricCalculationSpec(any()))
+        .thenReturn(internalMetricCalculationSpec)
+
+      val metricCalculationSpec =
+        METRIC_CALCULATION_SPEC.copy {
+          clearMetricFrequencySpec()
+          clearTrailingWindow()
+        }
+      val request = createMetricCalculationSpecRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        this.metricCalculationSpec = metricCalculationSpec
+        metricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
+      }
+
+      val createdMetricCalculationSpec =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking { service.createMetricCalculationSpec(request) }
+        }
+
+      assertThat(createdMetricCalculationSpec).isEqualTo(metricCalculationSpec)
+
+      verifyProtoArgument(
+          internalMetricCalculationSpecsMock,
+          MetricCalculationSpecsCoroutineImplBase::createMetricCalculationSpec,
+        )
+        .isEqualTo(
+          internalCreateMetricCalculationSpecRequest {
+            this.metricCalculationSpec =
+              internalMetricCalculationSpec.copy { clearExternalMetricCalculationSpecId() }
+            externalMetricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
+          }
+        )
+    }
+
+  @Test
+  fun `createMetricCalculationSpec returns metric calculation spec when frequency weekly`() =
+    runBlocking {
+      val monday = DayOfWeek.MONDAY
+      val internalMetricCalculationSpec =
+        INTERNAL_METRIC_CALCULATION_SPEC.copy {
+          details =
+            details.copy {
+              metricFrequencySpec =
+                InternalMetricCalculationSpecKt.metricFrequencySpec {
+                  weekly =
+                    InternalMetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                      dayOfWeek = monday
+                    }
+                }
+            }
+        }
+
+      whenever(internalMetricCalculationSpecsMock.createMetricCalculationSpec(any()))
+        .thenReturn(internalMetricCalculationSpec)
+
+      val metricCalculationSpec =
+        METRIC_CALCULATION_SPEC.copy {
+          metricFrequencySpec =
+            MetricCalculationSpecKt.metricFrequencySpec {
+              weekly = MetricCalculationSpecKt.MetricFrequencySpecKt.weekly { dayOfWeek = monday }
+            }
+        }
+      val request = createMetricCalculationSpecRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        this.metricCalculationSpec = metricCalculationSpec
+        metricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
+      }
+
+      val createdMetricCalculationSpec =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking { service.createMetricCalculationSpec(request) }
+        }
+
+      assertThat(createdMetricCalculationSpec).isEqualTo(metricCalculationSpec)
+
+      verifyProtoArgument(
+          internalMetricCalculationSpecsMock,
+          MetricCalculationSpecsCoroutineImplBase::createMetricCalculationSpec,
+        )
+        .isEqualTo(
+          internalCreateMetricCalculationSpecRequest {
+            this.metricCalculationSpec =
+              internalMetricCalculationSpec.copy { clearExternalMetricCalculationSpecId() }
+            externalMetricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
+          }
+        )
+    }
+
+  @Test
+  fun `createMetricCalculationSpec returns metric calculation spec when frequency monthly`() =
+    runBlocking {
+      val first = 1
+      val internalMetricCalculationSpec =
+        INTERNAL_METRIC_CALCULATION_SPEC.copy {
+          details =
+            details.copy {
+              metricFrequencySpec =
+                InternalMetricCalculationSpecKt.metricFrequencySpec {
+                  monthly =
+                    InternalMetricCalculationSpecKt.MetricFrequencySpecKt.monthly {
+                      dayOfMonth = first
+                    }
+                }
+            }
+        }
+
+      whenever(internalMetricCalculationSpecsMock.createMetricCalculationSpec(any()))
+        .thenReturn(internalMetricCalculationSpec)
+
+      val metricCalculationSpec =
+        METRIC_CALCULATION_SPEC.copy {
+          metricFrequencySpec =
+            MetricCalculationSpecKt.metricFrequencySpec {
+              monthly = MetricCalculationSpecKt.MetricFrequencySpecKt.monthly { dayOfMonth = first }
+            }
+        }
+      val request = createMetricCalculationSpecRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        this.metricCalculationSpec = metricCalculationSpec
+        metricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
+      }
+
+      val createdMetricCalculationSpec =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking { service.createMetricCalculationSpec(request) }
+        }
+
+      assertThat(createdMetricCalculationSpec).isEqualTo(metricCalculationSpec)
+
+      verifyProtoArgument(
+          internalMetricCalculationSpecsMock,
+          MetricCalculationSpecsCoroutineImplBase::createMetricCalculationSpec,
+        )
+        .isEqualTo(
+          internalCreateMetricCalculationSpecRequest {
+            this.metricCalculationSpec =
+              internalMetricCalculationSpec.copy { clearExternalMetricCalculationSpecId() }
+            externalMetricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
+          }
+        )
+    }
+
+  @Test
+  fun `createMetricCalculationSpec returns metric calculation spec when window trailing`() =
+    runBlocking {
+      val internalMetricCalculationSpec =
+        INTERNAL_METRIC_CALCULATION_SPEC.copy {
+          details =
+            details.copy {
+              trailingWindow =
+                InternalMetricCalculationSpecKt.trailingWindow {
+                  count = 2
+                  increment = InternalMetricCalculationSpec.TrailingWindow.Increment.DAY
+                }
+            }
+        }
+
+      whenever(internalMetricCalculationSpecsMock.createMetricCalculationSpec(any()))
+        .thenReturn(internalMetricCalculationSpec)
+
+      val metricCalculationSpec =
+        METRIC_CALCULATION_SPEC.copy {
+          trailingWindow =
+            MetricCalculationSpecKt.trailingWindow {
+              count = 2
+              increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
+            }
+        }
+      val request = createMetricCalculationSpecRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        this.metricCalculationSpec = metricCalculationSpec
+        metricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
+      }
+
+      val createdMetricCalculationSpec =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking { service.createMetricCalculationSpec(request) }
+        }
+
+      assertThat(createdMetricCalculationSpec).isEqualTo(metricCalculationSpec)
+
+      verifyProtoArgument(
+          internalMetricCalculationSpecsMock,
+          MetricCalculationSpecsCoroutineImplBase::createMetricCalculationSpec,
+        )
+        .isEqualTo(
+          internalCreateMetricCalculationSpecRequest {
+            this.metricCalculationSpec =
+              internalMetricCalculationSpec.copy { clearExternalMetricCalculationSpecId() }
+            externalMetricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
+          }
+        )
+    }
+
+  @Test
+  fun `createMetricCalculationSpec returns metric calculation spec when window report start`() =
+    runBlocking {
+      val internalMetricCalculationSpec =
+        INTERNAL_METRIC_CALCULATION_SPEC.copy { details = details.copy { clearTrailingWindow() } }
+
+      whenever(internalMetricCalculationSpecsMock.createMetricCalculationSpec(any()))
+        .thenReturn(internalMetricCalculationSpec)
+
+      val metricCalculationSpec = METRIC_CALCULATION_SPEC.copy { clearTrailingWindow() }
+      val request = createMetricCalculationSpecRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        this.metricCalculationSpec = metricCalculationSpec
+        metricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
+      }
+
+      val createdMetricCalculationSpec =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking { service.createMetricCalculationSpec(request) }
+        }
+
+      assertThat(createdMetricCalculationSpec).isEqualTo(metricCalculationSpec)
+
+      verifyProtoArgument(
+          internalMetricCalculationSpecsMock,
+          MetricCalculationSpecsCoroutineImplBase::createMetricCalculationSpec,
+        )
+        .isEqualTo(
+          internalCreateMetricCalculationSpecRequest {
+            this.metricCalculationSpec =
+              internalMetricCalculationSpec.copy { clearExternalMetricCalculationSpecId() }
+            externalMetricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
+          }
+        )
+    }
 
   @Test
   fun `createMetricCalculationSpec throws INVALID_ARGUMENT when parent name is invalid`() {
@@ -384,6 +625,159 @@ class MetricCalculationSpecsServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.message).contains("metric_spec")
   }
+
+  @Test
+  fun `createMetricCalculationSpec throws INVALID_ARGUMENT when no frequency but window set`() =
+    runBlocking {
+      val metricCalculationSpec = METRIC_CALCULATION_SPEC.copy { clearMetricFrequencySpec() }
+      val request = createMetricCalculationSpecRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        this.metricCalculationSpec = metricCalculationSpec
+        metricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+            runBlocking { service.createMetricCalculationSpec(request) }
+          }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `createMetricCalculationSpec throws INVALID_ARGUMENT when weekly frequency missing day`() =
+    runBlocking {
+      val metricCalculationSpec =
+        METRIC_CALCULATION_SPEC.copy {
+          metricFrequencySpec =
+            MetricCalculationSpecKt.metricFrequencySpec {
+              weekly = MetricCalculationSpec.MetricFrequencySpec.Weekly.getDefaultInstance()
+            }
+        }
+      val request = createMetricCalculationSpecRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        this.metricCalculationSpec = metricCalculationSpec
+        metricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+            runBlocking { service.createMetricCalculationSpec(request) }
+          }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.message).contains("day_of_week")
+    }
+
+  @Test
+  fun `createMetricCalculationSpec throws INVALID_ARGUMENT when monthly frequency missing day`() =
+    runBlocking {
+      val metricCalculationSpec =
+        METRIC_CALCULATION_SPEC.copy {
+          metricFrequencySpec =
+            MetricCalculationSpecKt.metricFrequencySpec {
+              monthly = MetricCalculationSpec.MetricFrequencySpec.Monthly.getDefaultInstance()
+            }
+        }
+      val request = createMetricCalculationSpecRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        this.metricCalculationSpec = metricCalculationSpec
+        metricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+            runBlocking { service.createMetricCalculationSpec(request) }
+          }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.message).contains("day_of_month")
+    }
+
+  @Test
+  fun `createMetricCalculationSpec throws INVALID_ARGUMENT when monthly frequency day 0`() =
+    runBlocking {
+      val metricCalculationSpec =
+        METRIC_CALCULATION_SPEC.copy {
+          metricFrequencySpec =
+            MetricCalculationSpecKt.metricFrequencySpec {
+              monthly = MetricCalculationSpecKt.MetricFrequencySpecKt.monthly { dayOfMonth = 0 }
+            }
+        }
+      val request = createMetricCalculationSpecRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        this.metricCalculationSpec = metricCalculationSpec
+        metricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+            runBlocking { service.createMetricCalculationSpec(request) }
+          }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.message).contains("day_of_month")
+    }
+
+  @Test
+  fun `createMetricCalculationSpec throws INVALID_ARGUMENT when trailing window count 0`() =
+    runBlocking {
+      val metricCalculationSpec =
+        METRIC_CALCULATION_SPEC.copy {
+          trailingWindow =
+            MetricCalculationSpecKt.trailingWindow {
+              count = 0
+              increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
+            }
+        }
+      val request = createMetricCalculationSpecRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        this.metricCalculationSpec = metricCalculationSpec
+        metricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+            runBlocking { service.createMetricCalculationSpec(request) }
+          }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.message).contains("count")
+    }
+
+  @Test
+  fun `createMetricCalculationSpec throws INVALID_ARGUMENT when no trailing window increment`() =
+    runBlocking {
+      val metricCalculationSpec =
+        METRIC_CALCULATION_SPEC.copy {
+          trailingWindow = MetricCalculationSpecKt.trailingWindow { count = 1 }
+        }
+      val request = createMetricCalculationSpecRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        this.metricCalculationSpec = metricCalculationSpec
+        metricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+            runBlocking { service.createMetricCalculationSpec(request) }
+          }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.message).contains("increment")
+    }
 
   @Test
   fun `getMetricCalculationSpec returns metric calculation spec`() = runBlocking {
@@ -1006,7 +1400,15 @@ class MetricCalculationSpecsServiceTest {
             predicates += listOf("age == 18_34", "age == 55_PLUS")
           },
         )
-      cumulative = false
+      metricFrequencySpec =
+        MetricCalculationSpecKt.metricFrequencySpec {
+          daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
+        }
+      trailingWindow =
+        MetricCalculationSpecKt.trailingWindow {
+          count = 5
+          increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
+        }
       tags["year"] = "2024"
     }
 
@@ -1041,7 +1443,15 @@ class MetricCalculationSpecsServiceTest {
               METRIC_CALCULATION_SPEC.groupingsList.map {
                 InternalMetricCalculationSpecKt.grouping { predicates += it.predicatesList }
               }
-            cumulative = METRIC_CALCULATION_SPEC.cumulative
+            metricFrequencySpec =
+              InternalMetricCalculationSpecKt.metricFrequencySpec {
+                daily = InternalMetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
+              }
+            trailingWindow =
+              InternalMetricCalculationSpecKt.trailingWindow {
+                count = 5
+                increment = InternalMetricCalculationSpec.TrailingWindow.Increment.DAY
+              }
             tags.putAll(METRIC_CALCULATION_SPEC.tagsMap)
           }
       }

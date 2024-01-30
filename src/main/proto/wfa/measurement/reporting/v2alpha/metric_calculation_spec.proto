@@ -18,6 +18,7 @@ package wfa.measurement.reporting.v2alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
+import "google/type/dayofweek.proto";
 import "wfa/measurement/reporting/v2alpha/metric.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
@@ -32,6 +33,8 @@ message MetricCalculationSpec {
     type: "reporting.halo-cmm.org/MetricCalculationSpec"
     pattern: "measurementConsumers/{measurement_consumer}/metricCalculationSpecs/{metric_calculation_spec}"
   };
+
+  reserved 6;
 
   // Resource name.
   string name = 1;
@@ -72,10 +75,84 @@ message MetricCalculationSpec {
   // time interval. Predicates must be unique.
   repeated Grouping groupings = 5 [(google.api.field_behavior) = IMMUTABLE];
 
-  // Whether the results for a given time interval (time intervals are from
-  // `time` in `Report`) is cumulative with those of previous time intervals.
-  // Only supported when using `PeriodicTimeInterval` in a `Report`.
-  bool cumulative = 6 [(google.api.field_behavior) = IMMUTABLE];
+  // Describes the frequencies at which metrics are generated.
+  message MetricFrequencySpec {
+    // Specification for a daily frequency.
+    message Daily {}
+
+    // Specification for a weekly frequency.
+    message Weekly {
+      google.type.DayOfWeek day_of_week = 1
+          [(google.api.field_behavior) = REQUIRED];
+    }
+
+    // Specification for a monthly frequency.
+    message Monthly {
+      // Cannot be less than 1.
+      int32 day_of_month = 1 [(google.api.field_behavior) = REQUIRED];
+    }
+
+    // The frequency at which time intervals are created. Anchored by the
+    // time in `reporting_interval.report_start` in a `Report`. Required.
+    oneof frequency {
+      // A time interval is created for each day.
+      Daily daily = 1;
+      // A time interval is created for each week, starting on the first
+      // occurrence of the `day_of_week`. If `report_start` date is Monday and
+      // `day_of_week` is Tuesday, the first time interval will be created for
+      // the following day.
+      Weekly weekly = 2;
+      // A time interval is created for each month, starting on the first
+      // occurrence of the `day_of_month`. If `report_start` date is the 1st of
+      // the month and `day_of_month` is 14, the first time interval will be
+      // created starting with the 14th of that month. If 'day_of_month` is
+      // larger than the amount of days the month has, a time interval will be
+      // created for the end of the month.
+      Monthly monthly = 3;
+    }
+  }
+
+  // The `MetricFrequencySpec` for this `MetricCalculationSpec`. Used by a
+  // `Report` to determine what the time intervals are when using this
+  // `MetricCalculationSpec`.
+  //
+  // If set, the combination of this and `trailing_window` will be used to
+  // determine the time intervals for a `Report` using this
+  // `MetricCalculationSpec`.
+  // If not set, the time intervals in a `Report` will be completely up to the
+  // `Report.
+  MetricFrequencySpec metric_frequency_spec = 8
+      [(google.api.field_behavior) = IMMUTABLE];
+
+  // How far back the `Metric`s at each period (as defined by
+  // `metric_frequency_spec`) cover.
+  message TrailingWindow {
+    // Represents how much of the `increment` to go back.
+    int32 count = 1 [(google.api.field_behavior) = REQUIRED];
+
+    enum Increment {
+      // Default value if the increment is omitted. Must not be used.
+      INCREMENT_UNSPECIFIED = 0;
+      DAY = 1;
+      WEEK = 2;
+      MONTH = 3;
+    }
+    Increment increment = 2 [(google.api.field_behavior) = REQUIRED];
+  }
+
+  // The `TrailingWindow` for this `MetricCalculationSpec`. The beginning of the
+  // time covered is bounded by `ReportingInterval.report_start`.
+  //
+  // If set, but `metric_frequency_spec` is not, an error will be thrown.
+  // If set and `metric_frequency_spec` is also set, the combination of this
+  // and `metric_frequency_spec` will be used to determine the time intervals
+  // for a `Report` using this `MetricCalculationSpec`.
+  // If not set and `metric_frequency_spec` is set, the time intervals for a
+  // `Report` using this `MetricCalculationSpec` will all start from
+  // `ReportingInterval.report_start`.
+  // If not set and `metric_frequency_spec` is also not set, then this is not
+  // used for determining the time intervals for a `Report`.
+  TrailingWindow trailing_window = 9 [(google.api.field_behavior) = IMMUTABLE];
 
   // A map of arbitrary key-value pairs to support tagging of
   // `MetricCalculationSpec`s for upstream use by UIs and other rich clients.

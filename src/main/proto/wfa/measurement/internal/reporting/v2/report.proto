@@ -17,6 +17,8 @@ syntax = "proto3";
 package wfa.measurement.internal.reporting.v2;
 
 import "google/protobuf/timestamp.proto";
+import "google/type/date.proto";
+import "google/type/datetime.proto";
 import "google/type/interval.proto";
 import "wfa/measurement/internal/reporting/v2/metric.proto";
 import "wfa/measurement/internal/reporting/v2/time_interval.proto";
@@ -73,11 +75,6 @@ message Report {
   // Map of `external_reporting_set_id` to `ReportingMetricCalculationSpec`.
   map<string, ReportingMetricCalculationSpec> reporting_metric_entries = 4;
 
-  oneof time {
-    TimeIntervals time_intervals = 5;
-    PeriodicTimeInterval periodic_time_interval = 6;
-  }
-
   // Only set if `Report` is associated with a `ReportSchedule`.
   string external_report_schedule_id = 7;
 
@@ -85,6 +82,16 @@ message Report {
     // A map of arbitrary key-value pairs to support tagging of Reports
     // for upstream use by UIs and other rich clients.
     map<string, string> tags = 1;
+
+    message ReportingInterval {
+      google.type.DateTime report_start = 1;
+      google.type.Date report_end = 2;
+    }
+
+    oneof time {
+      TimeIntervals time_intervals = 2;
+      ReportingInterval reporting_interval = 3;
+    }
   }
   Details details = 8;
 }

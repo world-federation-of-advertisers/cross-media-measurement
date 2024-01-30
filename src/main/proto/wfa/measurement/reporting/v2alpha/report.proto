@@ -19,6 +19,8 @@ package wfa.measurement.reporting.v2alpha;
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
+import "google/type/date.proto";
+import "google/type/datetime.proto";
 import "google/type/interval.proto";
 import "wfa/measurement/reporting/v2alpha/metric.proto";
 import "wfa/measurement/reporting/v2alpha/time_interval.proto";
@@ -39,6 +41,8 @@ message Report {
     type: "reporting.halo-cmm.org/Report"
     pattern: "measurementConsumers/{measurement_consumer}/reports/{report}"
   };
+
+  reserved 4;
 
   // Resource name.
   string name = 1;
@@ -79,13 +83,44 @@ message Report {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
+  // The interval over which Metrics are generated. This interval is
+  // closed on the left hand side and open on the right hand side.
+  message ReportingInterval {
+    // The date and time of the start of the report. The year,
+    // month, day, and time_offset are all required.
+    // If `utc_offset` is set, daylight savings is ignored and days will
+    // be 24 hours based on the time of day specified here. If `time_zone` is
+    // set, days will be based on the calendar and daylight savings will be
+    // considered; if 5 AM is chosen, the day will start with 5 AM year-round.
+    // This side of the interval is closed.
+    google.type.DateTime report_start = 1 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.field_behavior) = IMMUTABLE
+    ];
+
+    // The end date of the report. The time is considered to be the same as
+    // that specified in the report start. This side of the interval is open.
+    google.type.Date report_end = 2 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.field_behavior) = IMMUTABLE
+    ];
+  }
+
   // Types of time intervals for metric aggregation.
   // Required if not used for `report_template` in `ReportSchedule`.
   oneof time {
-    // A list of time intervals with different start times and end times.
+    // A list of time intervals with different start times and end times. If
+    // this field is set and any `MetricCalculationSpec` specifies
+    // `metric_frequency_spec` an error will be reported.
     TimeIntervals time_intervals = 3;
-    // A series of time intervals with the same length.
-    PeriodicTimeInterval periodic_time_interval = 4;
+
+    // A single time interval specifying the start and end time of the `Report`.
+    // If this is specified, then for each `MetricCalculationSpec`,
+    // `metric_frequency_spec` and `trailing_window` will be used to divide the
+    // interval. Any interval created will have a lower bound of report_start.
+    // If no `metric_frequency_spec` is specified then the entire interval is
+    // reported on.
+    ReportingInterval reporting_interval = 10;
   }
 
   // Possible states of a `Report`.
@@ -107,6 +142,8 @@ message Report {
   // level of granularity of single time interval and single group of the
   // Cartesian product of groupings.
   message MetricCalculationResult {
+    reserved 3;
+
     // The resource name of the `MetricCalculationSpec` associated with this
     // `MetricCalculationResult`.
     string metric_calculation_spec = 6 [(google.api.resource_reference) = {
@@ -120,11 +157,6 @@ message Report {
     string reporting_set = 2 [(google.api.resource_reference) = {
       type: "reporting.halo-cmm.org/ReportingSet"
     }];
-
-    // Whether the results for a given time interval is cumulative with those of
-    // previous time intervals.
-    // Only supported when using `PeriodicTimeInterval`.
-    bool cumulative = 3;
 
     // Contains the attributes of the result, including the group of predicates,
     // time interval, and metric result.

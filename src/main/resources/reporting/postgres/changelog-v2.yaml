@@ -34,3 +34,9 @@ databaseChangeLog:
 - include:
     file: add-details-column-to-reporting-sets.sql
     relativeToChangeLogFile: true
+- include:
+    file: drop-periodic-column-from-reports.sql
+    relativeToChangeLogFile: true
+- include:
+    file: drop-report-time-intervals-table.sql
+    relativeToChangeLogFile: true

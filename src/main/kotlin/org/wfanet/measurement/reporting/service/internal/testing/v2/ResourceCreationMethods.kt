@@ -104,7 +104,15 @@ suspend fun createMetricCalculationSpec(
         }
         groupings += MetricCalculationSpecKt.grouping { predicates += "age > 10" }
         filter = "filter"
-        cumulative = false
+        metricFrequencySpec =
+          MetricCalculationSpecKt.metricFrequencySpec {
+            daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
+          }
+        trailingWindow =
+          MetricCalculationSpecKt.trailingWindow {
+            count = 2
+            increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
+          }
       }
   }
   return metricCalculationSpecsService.createMetricCalculationSpec(
