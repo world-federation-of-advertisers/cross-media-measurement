@@ -21,6 +21,9 @@ import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.job
 import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.newSingleThreadContext
+import kotlinx.coroutines.withContext
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -190,4 +193,17 @@ private class PermanentThrowingExchangeTask(taskName: String) : ExchangeTask {
     input: Map<String, StorageClient.Blob>
   ): Map<String, Flow<ByteString>> =
     throw ExchangeTaskFailedException.ofPermanent(IllegalStateException())
+}
+
+private class CoroutineScopeThrowingExchangeTask(taskName: String) : ExchangeTask {
+  @kotlinx.coroutines.ExperimentalCoroutinesApi
+  private val newContext = newSingleThreadContext("ThreadForCrashes")
+  override suspend fun execute(
+    input: Map<String, StorageClient.Blob>
+  ): Map<String, Flow<ByteString>> {
+    withContext(newContext) {
+      launch { throw IllegalArgumentException("Error") }.join()
+    }
+    return emptyMap()
+  }
 }

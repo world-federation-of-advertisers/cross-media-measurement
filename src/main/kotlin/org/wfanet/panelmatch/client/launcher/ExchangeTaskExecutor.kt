@@ -62,15 +62,11 @@ class ExchangeTaskExecutor(
     attemptKey: CanonicalExchangeStepAttemptKey
   ): CoroutineExceptionHandler {
     return CoroutineExceptionHandler { _, e ->
-      logger.log(Level.SEVERE, e) { "Uncaught Exception in child coroutine:" }
+      logger.log(Level.SEVERE, "Uncaught Exception in child coroutine:", e)
 
-      val attemptState =
-        when (e) {
-          is ExchangeTaskFailedException -> e.attemptState
-          else -> ExchangeStepAttempt.State.FAILED
-        }
-
-      runBlocking { apiClient.finishExchangeStepAttempt(attemptKey, attemptState) }
+      runBlocking {
+        apiClient.finishExchangeStepAttempt(attemptKey, ExchangeStepAttempt.State.FAILED_STEP)
+      }
     }
   }
 

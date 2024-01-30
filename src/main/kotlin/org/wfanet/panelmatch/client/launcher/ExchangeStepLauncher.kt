@@ -32,7 +32,7 @@ class ExchangeStepLauncher(
         taskLauncher.execute(it.exchangeStep, it.exchangeStepAttempt)
       }
     } catch (e: Exception) {
-      logger.log(Level.SEVERE, e) { "Exchange Launcher Error." }
+      logger.log(Level.SEVERE, "Exchange Launcher Error:", e)
     }
   }
 
