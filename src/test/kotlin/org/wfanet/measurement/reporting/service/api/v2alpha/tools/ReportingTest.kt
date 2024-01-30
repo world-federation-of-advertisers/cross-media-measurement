@@ -733,9 +733,9 @@ class ReportingTest {
     val output = callCli(args)
 
     verifyProtoArgument(
-      metricCalculationSpecsServiceMock,
-      MetricCalculationSpecsCoroutineImplBase::createMetricCalculationSpec,
-    )
+        metricCalculationSpecsServiceMock,
+        MetricCalculationSpecsCoroutineImplBase::createMetricCalculationSpec,
+      )
       .isEqualTo(
         createMetricCalculationSpecRequest {
           parent = MEASUREMENT_CONSUMER_NAME
@@ -746,15 +746,18 @@ class ReportingTest {
             this.filter = filter
             groupings += MetricCalculationSpecKt.grouping { predicates += grouping1.split(',') }
             groupings += MetricCalculationSpecKt.grouping { predicates += grouping2.split(',') }
-            metricFrequencySpec = MetricCalculationSpecKt.metricFrequencySpec {
-              weekly = MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
-                dayOfWeek = DayOfWeek.TUESDAY
+            metricFrequencySpec =
+              MetricCalculationSpecKt.metricFrequencySpec {
+                weekly =
+                  MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                    dayOfWeek = DayOfWeek.TUESDAY
+                  }
               }
-            }
-            trailingWindow = MetricCalculationSpecKt.trailingWindow {
-              count = dayWindowCount
-              increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
-            }
+            trailingWindow =
+              MetricCalculationSpecKt.trailingWindow {
+                count = dayWindowCount
+                increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
+              }
           }
         }
       )

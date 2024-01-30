@@ -530,12 +530,12 @@ class CreateMetricCalculationSpecCommand : Runnable {
     @CommandLine.Option(
       names = ["--day-of-the-week"],
       description =
-      [
-        """
+        [
+          """
       Day of the week for weekly frequency. Represented by a number between 1 and 7, inclusive,
       where Monday is 1 and Sunday is 7.
       """
-      ],
+        ],
     )
     var dayOfTheWeek: Int = 0
       private set
@@ -543,17 +543,21 @@ class CreateMetricCalculationSpecCommand : Runnable {
     @CommandLine.Option(
       names = ["--day-of-the-month"],
       description =
-      [
-        """
+        [
+          """
       Day of the month for monthly frequency. Represented by a number between 1 and 31, inclusive.
       """
-      ],
+        ],
     )
     var dayOfTheMonth: Int = 0
       private set
   }
 
-  @CommandLine.ArgGroup(exclusive = true, multiplicity = "0..1", heading = "Metric frequency specification\n")
+  @CommandLine.ArgGroup(
+    exclusive = true,
+    multiplicity = "0..1",
+    heading = "Metric frequency specification\n",
+  )
   private lateinit var metricFrequencySpecInput: MetricFrequencySpecInput
 
   class TrailingWindowInput {
@@ -610,38 +614,51 @@ class CreateMetricCalculationSpecCommand : Runnable {
         }
 
         if (this@CreateMetricCalculationSpecCommand::metricFrequencySpecInput.isInitialized) {
-          metricFrequencySpec = MetricCalculationSpecKt.metricFrequencySpec {
-            if (this@CreateMetricCalculationSpecCommand.metricFrequencySpecInput.daily) {
-              daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
-            } else if (this@CreateMetricCalculationSpecCommand.metricFrequencySpecInput.dayOfTheWeek > 0) {
-              weekly =
-                MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
-                  dayOfWeek =
-                    DayOfWeek.forNumber(this@CreateMetricCalculationSpecCommand.metricFrequencySpecInput.dayOfTheWeek)
-                }
-            } else if (this@CreateMetricCalculationSpecCommand.metricFrequencySpecInput.dayOfTheMonth > 0) {
-              monthly =
-                MetricCalculationSpecKt.MetricFrequencySpecKt.monthly {
-                  dayOfMonth =
-                    this@CreateMetricCalculationSpecCommand.metricFrequencySpecInput.dayOfTheMonth
-                }
+          metricFrequencySpec =
+            MetricCalculationSpecKt.metricFrequencySpec {
+              if (this@CreateMetricCalculationSpecCommand.metricFrequencySpecInput.daily) {
+                daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
+              } else if (
+                this@CreateMetricCalculationSpecCommand.metricFrequencySpecInput.dayOfTheWeek > 0
+              ) {
+                weekly =
+                  MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                    dayOfWeek =
+                      DayOfWeek.forNumber(
+                        this@CreateMetricCalculationSpecCommand.metricFrequencySpecInput
+                          .dayOfTheWeek
+                      )
+                  }
+              } else if (
+                this@CreateMetricCalculationSpecCommand.metricFrequencySpecInput.dayOfTheMonth > 0
+              ) {
+                monthly =
+                  MetricCalculationSpecKt.MetricFrequencySpecKt.monthly {
+                    dayOfMonth =
+                      this@CreateMetricCalculationSpecCommand.metricFrequencySpecInput.dayOfTheMonth
+                  }
+              }
             }
-          }
         }
 
         if (this@CreateMetricCalculationSpecCommand::trailingWindowInput.isInitialized) {
-          trailingWindow = MetricCalculationSpecKt.trailingWindow {
-            if (this@CreateMetricCalculationSpecCommand.trailingWindowInput.dayCount > 0) {
-              count = this@CreateMetricCalculationSpecCommand.trailingWindowInput.dayCount
-              increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
-            } else if (this@CreateMetricCalculationSpecCommand.trailingWindowInput.weekCount > 0) {
-              count = this@CreateMetricCalculationSpecCommand.trailingWindowInput.weekCount
-              increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
-            } else if (this@CreateMetricCalculationSpecCommand.trailingWindowInput.monthCount > 0) {
-              count = this@CreateMetricCalculationSpecCommand.trailingWindowInput.monthCount
-              increment = MetricCalculationSpec.TrailingWindow.Increment.MONTH
+          trailingWindow =
+            MetricCalculationSpecKt.trailingWindow {
+              if (this@CreateMetricCalculationSpecCommand.trailingWindowInput.dayCount > 0) {
+                count = this@CreateMetricCalculationSpecCommand.trailingWindowInput.dayCount
+                increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
+              } else if (
+                this@CreateMetricCalculationSpecCommand.trailingWindowInput.weekCount > 0
+              ) {
+                count = this@CreateMetricCalculationSpecCommand.trailingWindowInput.weekCount
+                increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+              } else if (
+                this@CreateMetricCalculationSpecCommand.trailingWindowInput.monthCount > 0
+              ) {
+                count = this@CreateMetricCalculationSpecCommand.trailingWindowInput.monthCount
+                increment = MetricCalculationSpec.TrailingWindow.Increment.MONTH
+              }
             }
-          }
         }
       }
 
