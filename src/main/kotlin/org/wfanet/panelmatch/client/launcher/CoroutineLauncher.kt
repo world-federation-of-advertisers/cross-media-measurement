@@ -36,9 +36,7 @@ class CoroutineLauncher(
   private val apiClient: ApiClient? = null,
 ) : JobLauncher {
 
-  private fun taskExceptionHandler(
-    attemptKey: ExchangeStepAttemptKey
-  ): CoroutineExceptionHandler {
+  private fun taskExceptionHandler(attemptKey: ExchangeStepAttemptKey): CoroutineExceptionHandler {
     return CoroutineExceptionHandler { _, e ->
       logger.log(Level.SEVERE, e) { "Uncaught Exception in child coroutine:" }
 
@@ -50,7 +48,9 @@ class CoroutineLauncher(
     }
   }
   override suspend fun execute(step: ValidatedExchangeStep, attemptKey: ExchangeStepAttemptKey) {
-    (scope + SupervisorJob()).launch(CoroutineName(attemptKey.toName())) {
+    (scope + SupervisorJob()).launch(
+      CoroutineName(attemptKey.toName()) + taskExceptionHandler(attemptKey)
+    ) {
       stepExecutor.execute(step, attemptKey)
     }
   }
