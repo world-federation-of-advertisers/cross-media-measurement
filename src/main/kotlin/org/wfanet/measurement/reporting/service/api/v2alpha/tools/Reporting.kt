@@ -49,13 +49,13 @@ import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.Report
+import org.wfanet.measurement.reporting.v2alpha.ReportKt.reportingInterval
 import org.wfanet.measurement.reporting.v2alpha.ReportSchedule
 import org.wfanet.measurement.reporting.v2alpha.ReportScheduleIterationsGrpcKt.ReportScheduleIterationsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportScheduleKt
 import org.wfanet.measurement.reporting.v2alpha.ReportScheduleKt.frequency
 import org.wfanet.measurement.reporting.v2alpha.ReportScheduleKt.reportWindow
 import org.wfanet.measurement.reporting.v2alpha.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub
-import org.wfanet.measurement.reporting.v2alpha.ReportKt.reportingInterval
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
