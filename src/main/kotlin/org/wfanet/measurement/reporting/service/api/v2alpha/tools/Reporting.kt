@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha.tools
 
+import com.google.type.DayOfWeek
 import com.google.type.date
 import com.google.type.dateTime
 import com.google.type.interval
@@ -42,6 +43,7 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
@@ -517,12 +519,71 @@ class CreateMetricCalculationSpecCommand : Runnable {
   )
   private lateinit var filter: String
 
-  @CommandLine.Option(
-    names = ["--cumulative"],
-    description = ["Only supported when used in a Report that uses PeriodicTimeInterval"],
-    required = false,
+  class MetricFrequencySpecInput {
+    @CommandLine.Option(
+      names = ["--daily-frequency"],
+      description = ["Whether to use daily frequency"],
+    )
+    var daily: Boolean = false
+      private set
+
+    @CommandLine.Option(
+      names = ["--day-of-the-week"],
+      description =
+      [
+        """
+      Day of the week for weekly frequency. Represented by a number between 1 and 7, inclusive,
+      where Monday is 1 and Sunday is 7.
+      """
+      ],
+    )
+    var dayOfTheWeek: Int = 0
+      private set
+
+    @CommandLine.Option(
+      names = ["--day-of-the-month"],
+      description =
+      [
+        """
+      Day of the month for monthly frequency. Represented by a number between 1 and 31, inclusive.
+      """
+      ],
+    )
+    var dayOfTheMonth: Int = 0
+      private set
+  }
+
+  @CommandLine.ArgGroup(exclusive = true, multiplicity = "0..1", heading = "Metric frequency specification\n")
+  private lateinit var metricFrequencySpecInput: MetricFrequencySpecInput
+
+  class TrailingWindowInput {
+    @CommandLine.Option(names = ["--day-window-count"], description = ["Size of day window"])
+    var dayCount: Int = 0
+      private set
+
+    @CommandLine.Option(
+      names = ["--week-window-count"],
+      description = ["Size of week window"],
+      required = false,
+    )
+    var weekCount: Int = 0
+      private set
+
+    @CommandLine.Option(
+      names = ["--month-window-count"],
+      description = ["Size of month window"],
+      required = false,
+    )
+    var monthCount: Int = 0
+      private set
+  }
+
+  @CommandLine.ArgGroup(
+    exclusive = true,
+    multiplicity = "0..1",
+    heading = "Trailing window specification\n",
   )
-  private var cumulative: Boolean = false
+  private lateinit var trailingWindowInput: TrailingWindowInput
 
   @CommandLine.Option(
     names = ["--id"],
@@ -548,7 +609,40 @@ class CreateMetricCalculationSpecCommand : Runnable {
           groupings += MetricCalculationSpecKt.grouping { predicates += grouping.trim().split(',') }
         }
 
-        cumulative = this@CreateMetricCalculationSpecCommand.cumulative
+        if (this@CreateMetricCalculationSpecCommand::metricFrequencySpecInput.isInitialized) {
+          metricFrequencySpec = MetricCalculationSpecKt.metricFrequencySpec {
+            if (this@CreateMetricCalculationSpecCommand.metricFrequencySpecInput.daily) {
+              daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
+            } else if (this@CreateMetricCalculationSpecCommand.metricFrequencySpecInput.dayOfTheWeek > 0) {
+              weekly =
+                MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                  dayOfWeek =
+                    DayOfWeek.forNumber(this@CreateMetricCalculationSpecCommand.metricFrequencySpecInput.dayOfTheWeek)
+                }
+            } else if (this@CreateMetricCalculationSpecCommand.metricFrequencySpecInput.dayOfTheMonth > 0) {
+              monthly =
+                MetricCalculationSpecKt.MetricFrequencySpecKt.monthly {
+                  dayOfMonth =
+                    this@CreateMetricCalculationSpecCommand.metricFrequencySpecInput.dayOfTheMonth
+                }
+            }
+          }
+        }
+
+        if (this@CreateMetricCalculationSpecCommand::trailingWindowInput.isInitialized) {
+          trailingWindow = MetricCalculationSpecKt.trailingWindow {
+            if (this@CreateMetricCalculationSpecCommand.trailingWindowInput.dayCount > 0) {
+              count = this@CreateMetricCalculationSpecCommand.trailingWindowInput.dayCount
+              increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
+            } else if (this@CreateMetricCalculationSpecCommand.trailingWindowInput.weekCount > 0) {
+              count = this@CreateMetricCalculationSpecCommand.trailingWindowInput.weekCount
+              increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+            } else if (this@CreateMetricCalculationSpecCommand.trailingWindowInput.monthCount > 0) {
+              count = this@CreateMetricCalculationSpecCommand.trailingWindowInput.monthCount
+              increment = MetricCalculationSpec.TrailingWindow.Increment.MONTH
+            }
+          }
+        }
       }
 
       metricCalculationSpecId = this@CreateMetricCalculationSpecCommand.metricCalculationSpecId

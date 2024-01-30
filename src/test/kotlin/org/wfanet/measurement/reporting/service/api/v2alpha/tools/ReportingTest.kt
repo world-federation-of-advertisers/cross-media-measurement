@@ -18,6 +18,7 @@ package org.wfanet.measurement.reporting.service.api.v2alpha.tools
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.duration
+import com.google.type.DayOfWeek
 import com.google.type.date
 import com.google.type.dateTime
 import com.google.type.interval
@@ -649,14 +650,13 @@ class ReportingTest {
   }
 
   @Test
-  fun `create metric calculation spec calls api with valid request`() {
+  fun `create metric calculation spec without frequency and window calls api with valid request`() {
     val textFormatMetricSpecFile = TEXTPROTO_DIR.resolve("metric_spec.textproto").toFile()
 
     val displayName = "display"
     val filter = "person.gender == 1"
     val grouping1 = "person.gender == 1,person.gender == 2"
     val grouping2 = "person.age_group == 1,person.age_group == 2"
-    val cumulative = true
 
     val args =
       arrayOf(
@@ -673,7 +673,6 @@ class ReportingTest {
         "--filter=$filter",
         "--grouping=$grouping1",
         "--grouping=$grouping2",
-        "--cumulative=$cumulative",
       )
 
     val output = callCli(args)
@@ -692,7 +691,70 @@ class ReportingTest {
             this.filter = filter
             groupings += MetricCalculationSpecKt.grouping { predicates += grouping1.split(',') }
             groupings += MetricCalculationSpecKt.grouping { predicates += grouping2.split(',') }
-            this.cumulative = cumulative
+          }
+        }
+      )
+
+    assertThat(output).status().isEqualTo(0)
+    assertThat(parseTextProto(output.out.reader(), MetricCalculationSpec.getDefaultInstance()))
+      .isEqualTo(METRIC_CALCULATION_SPEC)
+  }
+
+  @Test
+  fun `create metric calculation spec with frequency and window calls api with valid request`() {
+    val textFormatMetricSpecFile = TEXTPROTO_DIR.resolve("metric_spec.textproto").toFile()
+
+    val displayName = "display"
+    val filter = "person.gender == 1"
+    val grouping1 = "person.gender == 1,person.gender == 2"
+    val grouping2 = "person.age_group == 1,person.age_group == 2"
+    val dayOfTheWeek = 2
+    val dayWindowCount = 5
+
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "metric-calculation-specs",
+        "create",
+        "--parent=$MEASUREMENT_CONSUMER_NAME",
+        "--id=$METRIC_CALCULATION_SPEC_ID",
+        "--display-name=$displayName",
+        "--metric-spec=${textFormatMetricSpecFile.readText()}",
+        "--filter=$filter",
+        "--grouping=$grouping1",
+        "--grouping=$grouping2",
+        "--day-of-the-week=$dayOfTheWeek",
+        "--day-window-count=$dayWindowCount",
+      )
+
+    val output = callCli(args)
+
+    verifyProtoArgument(
+      metricCalculationSpecsServiceMock,
+      MetricCalculationSpecsCoroutineImplBase::createMetricCalculationSpec,
+    )
+      .isEqualTo(
+        createMetricCalculationSpecRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          metricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
+          metricCalculationSpec = metricCalculationSpec {
+            this.displayName = displayName
+            metricSpecs += parseTextProto(textFormatMetricSpecFile, MetricSpec.getDefaultInstance())
+            this.filter = filter
+            groupings += MetricCalculationSpecKt.grouping { predicates += grouping1.split(',') }
+            groupings += MetricCalculationSpecKt.grouping { predicates += grouping2.split(',') }
+            metricFrequencySpec = MetricCalculationSpecKt.metricFrequencySpec {
+              weekly = MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                dayOfWeek = DayOfWeek.TUESDAY
+              }
+            }
+            trailingWindow = MetricCalculationSpecKt.trailingWindow {
+              count = dayWindowCount
+              increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
+            }
           }
         }
       )
@@ -961,7 +1023,6 @@ class ReportingTest {
       name = METRIC_CALCULATION_SPEC_NAME
       displayName = "displayName"
       metricSpecs += MetricSpec.getDefaultInstance()
-      cumulative = true
     }
 
     private const val EVENT_GROUP_NAME = "$MEASUREMENT_CONSUMER_NAME/eventGroups/1"

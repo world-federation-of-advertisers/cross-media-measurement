@@ -176,7 +176,8 @@ Reporting \
   --filter='person.gender == 1' \
   --grouping='person.gender == 1,person.gender == 2' \
   --grouping='person.age_group == 1,person.age_group == 2' \
-  --cumulative=true
+  --day-of-the-week=2 \
+  --day-window-count=5
 ```
 
 The `--metric-spec` option expects a
@@ -184,6 +185,13 @@ The `--metric-spec` option expects a
 protobuf message in text format. You can use shell quoting for a multiline string, or
 use command substitution to read the message from a file e.g. `--metric-spec=$(cat
 metric_spec.textproto)`.
+
+MetricFrequencySpec expects `--daily`, `--day-of-the-week`, or
+`--day-of-the-month`. `--daily` is a boolean and `--day-of-the-week` is 
+represented by 1-7, with 1 being Monday.
+
+TrailingWindow expects `--day-window-count`, `--week-window-count`, or 
+`--month-window-count`.
 
 #### list
 
