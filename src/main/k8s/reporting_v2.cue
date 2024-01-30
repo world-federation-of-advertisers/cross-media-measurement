@@ -18,7 +18,7 @@ package k8s
 	_verboseGrpcServerLogging: bool | *false
 	_verboseGrpcClientLogging: bool | *false
 
-	_reportSchedulingCronSchedule: *"30 6 * * *" // Daily at 6:30 AM
+	_reportSchedulingCronSchedule: string | *"30 6 * * *" // Daily at 6:30 AM
 
 	_postgresConfig: #PostgresConfig
 
