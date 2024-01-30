@@ -95,6 +95,7 @@ import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.cancelReportRequest
 import org.wfanet.measurement.reporting.v2alpha.createMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.createMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
@@ -1027,6 +1028,80 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   }
 
   @Test
+  fun `report that is cancelled returns cancelled report`() = runBlocking {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val eventGroups = listEventGroups()
+    val eventGroup = eventGroups[0]
+
+    val primitiveReportingSet = reportingSet {
+      displayName = "primitive"
+      filter = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
+      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
+    }
+
+    val createdPrimitiveReportingSet =
+      publicReportingSetsClient
+        .withPrincipalName(measurementConsumerData.name)
+        .createReportingSet(
+          createReportingSetRequest {
+            parent = measurementConsumerData.name
+            reportingSet = primitiveReportingSet
+            reportingSetId = "abc"
+          }
+        )
+
+    val createdMetricCalculationSpec =
+      publicMetricCalculationSpecsClient
+        .withPrincipalName(measurementConsumerData.name)
+        .createMetricCalculationSpec(
+          createMetricCalculationSpecRequest {
+            parent = measurementConsumerData.name
+            metricCalculationSpec = metricCalculationSpec {
+              displayName = "unique reach"
+              metricSpecs +=
+                metricSpec {
+                    reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                    vidSamplingInterval = VID_SAMPLING_INTERVAL
+                  }
+                  .withDefaults(reportingServer.metricSpecConfig)
+            }
+            metricCalculationSpecId = "fed"
+          }
+        )
+
+    val report = report {
+      reportingMetricEntries +=
+        ReportKt.reportingMetricEntry {
+          key = createdPrimitiveReportingSet.name
+          value =
+            ReportKt.reportingMetricCalculationSpec {
+              metricCalculationSpecs += createdMetricCalculationSpec.name
+            }
+        }
+      timeIntervals = timeIntervals { timeIntervals += EVENT_RANGE.toInterval() }
+    }
+
+    inProcessCmmsComponents.stopEdpSimulators()
+
+    val createdReport =
+      publicReportsClient
+        .withPrincipalName(measurementConsumerData.name)
+        .createReport(
+          createReportRequest {
+            parent = measurementConsumerData.name
+            this.report = report
+            reportId = "report"
+          }
+        )
+
+    val cancelledReport =
+      publicReportsClient
+        .withPrincipalName(measurementConsumerData.name)
+        .cancelReport(cancelReportRequest { name = createdReport.name })
+    assertThat(cancelledReport.state).isEqualTo(Report.State.CANCELLED)
+  }
+
+  @Test
   fun `reach metric result has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
@@ -1514,7 +1589,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (retrievedReport.state) {
         Report.State.SUCCEEDED,
-        Report.State.FAILED -> return retrievedReport
+        Report.State.FAILED,
+        Report.State.CANCELLED -> return retrievedReport
         Report.State.RUNNING,
         Report.State.UNRECOGNIZED,
         Report.State.STATE_UNSPECIFIED -> delay(5000)
@@ -1535,7 +1611,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (retrievedMetric.state) {
         Metric.State.SUCCEEDED,
-        Metric.State.FAILED -> return retrievedMetric
+        Metric.State.FAILED,
+        Metric.State.CANCELLED -> return retrievedMetric
         Metric.State.RUNNING,
         Metric.State.UNRECOGNIZED,
         Metric.State.STATE_UNSPECIFIED -> delay(5000)

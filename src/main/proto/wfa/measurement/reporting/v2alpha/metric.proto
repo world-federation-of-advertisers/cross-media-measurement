@@ -299,6 +299,8 @@ message Metric {
     SUCCEEDED = 2;
     // Completed with failure. Terminal state.
     FAILED = 3;
+    // Cancelled by `MeasurementConsumer`. Terminal state.
+    CANCELLED = 4;
   }
 
   // Metric state.

@@ -63,8 +63,10 @@ import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withPrincipalName
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.reportScheduleInfoFromCurrentContext
+import org.wfanet.measurement.reporting.v2alpha.BatchCancelMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsResponse
+import org.wfanet.measurement.reporting.v2alpha.CancelReportRequest
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.CreateReportRequest
 import org.wfanet.measurement.reporting.v2alpha.GetReportRequest
@@ -77,6 +79,7 @@ import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineSt
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportKt
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineImplBase
+import org.wfanet.measurement.reporting.v2alpha.batchCancelMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.batchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.batchGetMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.copy
@@ -90,6 +93,7 @@ private const val MAX_PAGE_SIZE = 1000
 
 private const val BATCH_CREATE_METRICS_LIMIT = 1000
 private const val BATCH_GET_METRICS_LIMIT = 100
+private const val BATCH_CANCEL_METRICS_LIMIT = 1000
 
 private typealias InternalReportingMetricEntries =
   Map<String, InternalReport.ReportingMetricCalculationSpec>
@@ -410,6 +414,86 @@ class ReportsService(
     return convertInternalReportToPublic(updatedInternalReport, externalIdToMetricMap)
   }
 
+  override suspend fun cancelReport(request: CancelReportRequest): Report {
+    val reportKey =
+      grpcRequireNotNull(ReportKey.fromName(request.name)) {
+        "Report name is either unspecified or invalid"
+      }
+
+    val principal: ReportingPrincipal = principalFromCurrentContext
+    when (principal) {
+      is MeasurementConsumerPrincipal -> {
+        if (reportKey.parentKey != principal.resourceKey) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot cancel Report belonging to other MeasurementConsumers."
+          }
+        }
+      }
+    }
+
+    val internalReport =
+      try {
+        internalReportsStub.getReport(
+          internalGetReportRequest {
+            cmmsMeasurementConsumerId = reportKey.cmmsMeasurementConsumerId
+            externalReportId = reportKey.reportId
+          }
+        )
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            Status.Code.CANCELLED -> Status.CANCELLED
+            Status.Code.NOT_FOUND -> Status.NOT_FOUND
+            else -> Status.UNKNOWN
+          }
+          .withCause(e)
+          .withDescription("Unable to cancel Report.")
+          .asRuntimeException()
+      }
+
+    // Cancel metrics.
+    val metricNames: Flow<String> = internalReport.metricNames.distinct().asFlow()
+
+    val callRpc: suspend (List<String>) -> BatchCancelMetricsResponse = { items ->
+      batchCancelMetrics(principal.resourceKey.toName(), items)
+    }
+    val externalIdToMetricMap: Map<String, Metric> =
+      submitBatchRequests(metricNames, BATCH_CANCEL_METRICS_LIMIT, callRpc) { response ->
+          response.metricsList
+        }
+        .toList()
+        .associateBy { checkNotNull(MetricKey.fromName(it.name)).metricId }
+
+    // Convert the internal report to public and return.
+    return convertInternalReportToPublic(internalReport, externalIdToMetricMap)
+  }
+
+  private suspend fun batchCancelMetrics(
+    parent: String,
+    metricNames: List<String>,
+  ): BatchCancelMetricsResponse {
+    return try {
+      metricsStub
+        .withPrincipalName(parent)
+        .batchCancelMetrics(
+          batchCancelMetricsRequest {
+            this.parent = parent
+            names += metricNames
+          }
+        )
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+          Status.Code.INVALID_ARGUMENT ->
+            Status.INVALID_ARGUMENT.withDescription("Unable to cancel Metrics.\n${e.message}")
+          Status.Code.PERMISSION_DENIED ->
+            Status.PERMISSION_DENIED.withDescription("Unable to cancel Metrics.\n${e.message}")
+          else -> Status.UNKNOWN.withDescription("Unable to cancel Metrics.\n${e.message}")
+        }
+        .withCause(e)
+        .asRuntimeException()
+    }
+  }
+
   /** Returns a map of external IDs to [InternalMetricCalculationSpec]. */
   private suspend fun createExternalIdToMetricCalculationSpecMap(
     cmmsMeasurementConsumerId: String,
@@ -475,7 +559,11 @@ class ReportsService(
       state = inferReportState(metrics)
       createTime = internalReport.createTime
 
-      if (state == Report.State.SUCCEEDED || state == Report.State.FAILED) {
+      if (
+        state == Report.State.SUCCEEDED ||
+          state == Report.State.FAILED ||
+          state == Report.State.CANCELLED
+      ) {
         val externalMetricCalculationSpecIds =
           internalReport.reportingMetricEntriesMap.flatMap { reportingMetricCalculationSpec ->
             reportingMetricCalculationSpec.value.metricCalculationSpecReportingMetricsList.map {
@@ -820,6 +908,8 @@ private fun inferReportState(metrics: Collection<Metric>): Report.State {
     Report.State.SUCCEEDED
   } else if (metricStates.any { it == Metric.State.FAILED }) {
     Report.State.FAILED
+  } else if (metricStates.any { it == Metric.State.CANCELLED }) {
+    Report.State.CANCELLED
   } else {
     Report.State.RUNNING
   }

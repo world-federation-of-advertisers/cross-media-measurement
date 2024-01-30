@@ -48,6 +48,7 @@ import org.wfanet.measurement.internal.reporting.v2.NoiseMechanism
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt
+import org.wfanet.measurement.internal.reporting.v2.batchCancelMeasurementsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresRequest
@@ -403,7 +404,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
     }
 
   @Test
-  fun `batchSetCmmsMeasurementIds throws INVALID_ARGUMENT when too many to get`(): Unit =
+  fun `batchSetCmmsMeasurementIds throws INVALID_ARGUMENT when too many to update`(): Unit =
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
@@ -920,7 +921,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
     }
 
   @Test
-  fun `batchSetMeasurementResults throws INVALID_ARGUMENT when too many to get`(): Unit =
+  fun `batchSetMeasurementResults throws INVALID_ARGUMENT when too many to update`(): Unit =
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
@@ -1320,7 +1321,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
     }
 
   @Test
-  fun `batchSetMeasurementFailures throws INVALID_ARGUMENT when too many to get`(): Unit =
+  fun `batchSetMeasurementFailures throws INVALID_ARGUMENT when too many to update`(): Unit =
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
@@ -1332,6 +1333,342 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
                     cmmsMeasurementId = "1234"
                     failure = Measurement.Failure.getDefaultInstance()
                   }
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.message).contains("Too many")
+    }
+
+  @Test
+  fun `batchCancelMeasurements succeeds when updating one measurement`(): Unit = runBlocking {
+    val metric =
+      createReachMetric(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        metricsService,
+        reportingSetsService,
+        measurementConsumersService,
+        1
+      )
+    service.batchSetCmmsMeasurementIds(
+      batchSetCmmsMeasurementIdsRequest {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        measurementIds +=
+          BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+            cmmsCreateMeasurementRequestId =
+              metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
+            cmmsMeasurementId = "1234"
+          }
+      }
+    )
+
+    service.batchCancelMeasurements(
+      batchCancelMeasurementsRequest {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        cmmsMeasurementIds += "1234"
+      }
+    )
+
+    val readMetrics =
+      metricsService.batchGetMetrics(
+        batchGetMetricsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalMetricIds += metric.externalMetricId
+        }
+      )
+
+    assertThat(readMetrics.metricsList[0].weightedMeasurementsList[0])
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        metric.weightedMeasurementsList[0].copy {
+          measurement =
+            measurement.copy {
+              cmmsMeasurementId = "1234"
+              state = Measurement.State.CANCELLED
+            }
+        }
+      )
+  }
+
+  @Test
+  fun `batchCancelMeasurements succeeds when updating two measurements`(): Unit = runBlocking {
+    val metric =
+      createReachMetric(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        metricsService,
+        reportingSetsService,
+        measurementConsumersService,
+        2
+      )
+    service.batchSetCmmsMeasurementIds(
+      batchSetCmmsMeasurementIdsRequest {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        measurementIds +=
+          BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+            cmmsCreateMeasurementRequestId =
+              metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
+            cmmsMeasurementId = "1234"
+          }
+        measurementIds +=
+          BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+            cmmsCreateMeasurementRequestId =
+              metric.weightedMeasurementsList[1].measurement.cmmsCreateMeasurementRequestId
+            cmmsMeasurementId = "1235"
+          }
+      }
+    )
+
+    service.batchCancelMeasurements(
+      batchCancelMeasurementsRequest {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        cmmsMeasurementIds += "1234"
+        cmmsMeasurementIds += "1235"
+      }
+    )
+
+    val readMetrics =
+      metricsService.batchGetMetrics(
+        batchGetMetricsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalMetricIds += metric.externalMetricId
+        }
+      )
+
+    assertThat(readMetrics.metricsList[0].weightedMeasurementsList)
+      .ignoringRepeatedFieldOrder()
+      .containsExactly(
+        metric.weightedMeasurementsList[0].copy {
+          measurement =
+            measurement.copy {
+              cmmsMeasurementId = "1234"
+              state = Measurement.State.CANCELLED
+            }
+        },
+        metric.weightedMeasurementsList[1].copy {
+          measurement =
+            measurement.copy {
+              cmmsMeasurementId = "1235"
+              state = Measurement.State.CANCELLED
+            }
+        }
+      )
+  }
+
+  @Test
+  fun `batchCancelMeasurements succeeds when no filters in bases in measurements`(): Unit =
+    runBlocking {
+      val metric =
+        createReachMetric(
+          CMMS_MEASUREMENT_CONSUMER_ID,
+          metricsService,
+          reportingSetsService,
+          measurementConsumersService,
+          2,
+          noFiltersInMeasurementBases = true
+        )
+      service.batchSetCmmsMeasurementIds(
+        batchSetCmmsMeasurementIdsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          measurementIds +=
+            BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+              cmmsCreateMeasurementRequestId =
+                metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
+              cmmsMeasurementId = "1234"
+            }
+          measurementIds +=
+            BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+              cmmsCreateMeasurementRequestId =
+                metric.weightedMeasurementsList[1].measurement.cmmsCreateMeasurementRequestId
+              cmmsMeasurementId = "1235"
+            }
+        }
+      )
+
+      service.batchCancelMeasurements(
+        batchCancelMeasurementsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          cmmsMeasurementIds += "1234"
+          cmmsMeasurementIds += "1235"
+        }
+      )
+
+      val readMetrics =
+        metricsService.batchGetMetrics(
+          batchGetMetricsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalMetricIds += metric.externalMetricId
+          }
+        )
+
+      assertThat(readMetrics.metricsList[0].weightedMeasurementsList)
+        .ignoringRepeatedFieldOrder()
+        .containsExactly(
+          metric.weightedMeasurementsList[0].copy {
+            measurement =
+              measurement.copy {
+                cmmsMeasurementId = "1234"
+                state = Measurement.State.CANCELLED
+              }
+          },
+          metric.weightedMeasurementsList[1].copy {
+            measurement =
+              measurement.copy {
+                cmmsMeasurementId = "1235"
+                state = Measurement.State.CANCELLED
+              }
+          }
+        )
+    }
+
+  @Test
+  fun `batchCancelMeasurements succeeds when updating same measurement twice`(): Unit =
+    runBlocking {
+      val metric =
+        createReachMetric(
+          CMMS_MEASUREMENT_CONSUMER_ID,
+          metricsService,
+          reportingSetsService,
+          measurementConsumersService,
+          1
+        )
+      service.batchSetCmmsMeasurementIds(
+        batchSetCmmsMeasurementIdsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          measurementIds +=
+            BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+              cmmsCreateMeasurementRequestId =
+                metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
+              cmmsMeasurementId = "1234"
+            }
+        }
+      )
+
+      val request = batchCancelMeasurementsRequest {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        cmmsMeasurementIds += "1234"
+      }
+
+      service.batchCancelMeasurements(request)
+      service.batchCancelMeasurements(request)
+
+      val readMetrics =
+        metricsService.batchGetMetrics(
+          batchGetMetricsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalMetricIds += metric.externalMetricId
+          }
+        )
+
+      assertThat(readMetrics.metricsList[0].weightedMeasurementsList[0])
+        .ignoringRepeatedFieldOrder()
+        .isEqualTo(
+          metric.weightedMeasurementsList[0].copy {
+            measurement =
+              measurement.copy {
+                cmmsMeasurementId = "1234"
+                state = Measurement.State.CANCELLED
+              }
+          }
+        )
+    }
+
+  @Test
+  fun `batchCancelMeasurements throws NOT_FOUND when not all measurements found`(): Unit =
+    runBlocking {
+      val metric =
+        createReachMetric(
+          CMMS_MEASUREMENT_CONSUMER_ID,
+          metricsService,
+          reportingSetsService,
+          measurementConsumersService,
+          1
+        )
+      service.batchSetCmmsMeasurementIds(
+        batchSetCmmsMeasurementIdsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          measurementIds +=
+            BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+              cmmsCreateMeasurementRequestId =
+                metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
+              cmmsMeasurementId = "1234"
+            }
+        }
+      )
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCancelMeasurements(
+            batchCancelMeasurementsRequest {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              cmmsMeasurementIds += "1234"
+              cmmsMeasurementIds += "1235"
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+      assertThat(exception.message).contains("not found")
+    }
+
+  @Test
+  fun `batchCancelMeasurements throws NOT_FOUND when no measurements found`(): Unit = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.batchCancelMeasurements(
+          batchCancelMeasurementsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            cmmsMeasurementIds += "1234"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.message).contains("Measurement not")
+  }
+
+  @Test
+  fun `batchCancelMeasurements throws NOT_FOUND when measurement consumer not found`(): Unit =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCancelMeasurements(
+            batchCancelMeasurementsRequest {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              cmmsMeasurementIds += "1234"
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+      assertThat(exception.message).contains("MeasurementConsumer")
+    }
+
+  @Test
+  fun `batchCancelMeasurements throws INVALID_ARGUMENT when missing mc id`(): Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.batchCancelMeasurements(
+          batchCancelMeasurementsRequest { cmmsMeasurementIds += "1234" }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("CmmsMeasurementConsumerId")
+  }
+
+  @Test
+  fun `batchCancelMeasurements throws INVALID_ARGUMENT when too many to update`(): Unit =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCancelMeasurements(
+            batchCancelMeasurementsRequest {
+              for (i in 1L..(MAX_BATCH_SIZE + 1)) {
+                cmmsMeasurementIds += "1234"
               }
             }
           )
