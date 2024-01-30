@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: Pre-release test
+name: Release test
 
 on:
   push:
@@ -101,7 +101,10 @@ jobs:
 
     - name: Run tests
       id: run-tests
-      run: bazelisk test //src/test/kotlin/org/wfanet/measurement/integration/deploy/gcloud:GCloudSpannerInProcessReachMeasurementAccuracyTest
+      run: >
+        bazelisk test 
+        //src/test/kotlin/org/wfanet/measurement/integration/deploy/gcloud:GCloudSpannerInProcessReachMeasurementAccuracyTest
+        --test_output=streamed
 
     - name: Upload Bazel testlogs
       continue-on-error: true
