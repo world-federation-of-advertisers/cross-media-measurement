@@ -1350,7 +1350,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
         metricsService,
         reportingSetsService,
         measurementConsumersService,
-        1
+        1,
       )
     service.batchSetCmmsMeasurementIds(
       batchSetCmmsMeasurementIdsRequest {
@@ -1400,7 +1400,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
         metricsService,
         reportingSetsService,
         measurementConsumersService,
-        2
+        2,
       )
     service.batchSetCmmsMeasurementIds(
       batchSetCmmsMeasurementIdsRequest {
@@ -1452,7 +1452,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
               cmmsMeasurementId = "1235"
               state = Measurement.State.CANCELLED
             }
-        }
+        },
       )
   }
 
@@ -1466,7 +1466,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
           reportingSetsService,
           measurementConsumersService,
           2,
-          noFiltersInMeasurementBases = true
+          noFiltersInMeasurementBases = true,
         )
       service.batchSetCmmsMeasurementIds(
         batchSetCmmsMeasurementIdsRequest {
@@ -1518,7 +1518,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
                 cmmsMeasurementId = "1235"
                 state = Measurement.State.CANCELLED
               }
-          }
+          },
         )
     }
 
@@ -1531,7 +1531,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
           metricsService,
           reportingSetsService,
           measurementConsumersService,
-          1
+          1,
         )
       service.batchSetCmmsMeasurementIds(
         batchSetCmmsMeasurementIdsRequest {
@@ -1583,7 +1583,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
           metricsService,
           reportingSetsService,
           measurementConsumersService,
-          1
+          1,
         )
       service.batchSetCmmsMeasurementIds(
         batchSetCmmsMeasurementIdsRequest {

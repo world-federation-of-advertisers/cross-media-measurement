@@ -7795,7 +7795,7 @@ class MetricsServiceTest {
             PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name to
               PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
                 state = Measurement.State.CANCELLED
-              }
+              },
           )
 
         measurementsMap.getValue(cancelMeasurementRequest.name)
@@ -7815,7 +7815,7 @@ class MetricsServiceTest {
       // Verify proto argument of internal MeasurementsCoroutineImplBase::batchCancelMeasurements
       verifyProtoArgument(
           internalMeasurementsMock,
-          InternalMeasurementsCoroutineImplBase::batchCancelMeasurements
+          InternalMeasurementsCoroutineImplBase::batchCancelMeasurements,
         )
         .isEqualTo(
           batchCancelMeasurementsRequest {

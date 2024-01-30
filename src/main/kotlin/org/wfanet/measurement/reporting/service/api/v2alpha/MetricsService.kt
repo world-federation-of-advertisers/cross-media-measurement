@@ -813,7 +813,7 @@ class MetricsService(
             submitBatchRequests(
                 measurementsList.asFlow(),
                 BATCH_SET_MEASUREMENT_FAILURES_LIMIT,
-                callBatchSetInternalMeasurementFailuresRpc
+                callBatchSetInternalMeasurementFailuresRpc,
               ) { response: BatchSetMeasurementFailuresResponse ->
                 response.measurementsList
               }
@@ -865,7 +865,7 @@ class MetricsService(
             submitBatchRequests(
                 measurementsList.asFlow(),
                 BATCH_SET_MEASUREMENT_RESULTS_LIMIT,
-                callBatchSetInternalMeasurementResultsRpc
+                callBatchSetInternalMeasurementResultsRpc,
               ) { response: BatchSetMeasurementResultsResponse ->
                 response.measurementsList
               }
@@ -885,7 +885,7 @@ class MetricsService(
             submitBatchRequests(
                 cancelledMeasurements.asFlow(),
                 BATCH_CANCEL_MEASUREMENTS_LIMIT,
-                callBatchCancelMeasurementsRpc
+                callBatchCancelMeasurementsRpc,
               ) { response: BatchCancelMeasurementsResponse ->
                 response.measurementsList
               }
@@ -900,13 +900,13 @@ class MetricsService(
               { items ->
                 batchSetInternalMeasurementFailures(
                   items,
-                  principal.resourceKey.measurementConsumerId
+                  principal.resourceKey.measurementConsumerId,
                 )
               }
             submitBatchRequests(
                 measurementsList.asFlow(),
                 BATCH_SET_MEASUREMENT_FAILURES_LIMIT,
-                callBatchSetInternalMeasurementFailuresRpc
+                callBatchSetInternalMeasurementFailuresRpc,
               ) { response: BatchSetMeasurementFailuresResponse ->
                 response.measurementsList
               }
