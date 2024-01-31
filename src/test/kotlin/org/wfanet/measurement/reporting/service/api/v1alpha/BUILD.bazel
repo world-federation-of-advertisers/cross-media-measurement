@@ -1,4 +1,4 @@
-load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 kt_jvm_test(
     name = "ReportingSetsServiceTest",
@@ -56,7 +56,8 @@ kt_jvm_test(
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_metadata_descriptors_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:test_metadata_messages_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:test_metadata_message_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:test_parent_metadata_message_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v1alpha:event_groups_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",

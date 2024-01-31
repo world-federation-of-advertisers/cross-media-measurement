@@ -1,6 +1,6 @@
 load("@rules_java//java:defs.bzl", "java_test")
-load("@wfa_common_jvm//build/rules_kotlin:defs.bzl", "kt_jvm_library")
 load("@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl", "spanner_emulator_test")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(default_testonly = True)
 
