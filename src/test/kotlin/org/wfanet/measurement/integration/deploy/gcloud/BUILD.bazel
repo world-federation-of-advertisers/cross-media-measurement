@@ -1,6 +1,6 @@
 load("@rules_java//java:defs.bzl", "java_test")
-load("@wfa_common_jvm//build/rules_kotlin:defs.bzl", "kt_jvm_library")
 load("@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl", "spanner_emulator_test")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(default_testonly = True)
 
@@ -53,6 +53,8 @@ kt_jvm_library(
 java_test(
     name = "GCloudPostgresInProcessLifeOfAMeasurementIntegrationTest",
     size = "large",
+    # TODO(world-federation-of-advertisers/cross-media-measurement#827): Remove when flakiness is resolved.
+    flaky = True,
     tags = ["cpu:2"],
     test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudPostgresInProcessLifeOfAMeasurementIntegrationTest",
     runtime_deps = [":gcloud_postgres_in_process_life_of_a_measurement_integration_test"],
@@ -82,6 +84,8 @@ kt_jvm_library(
 java_test(
     name = "GCloudInProcessLifeOfAReportV2IntegrationTest",
     size = "large",
+    # TODO(world-federation-of-advertisers/cross-media-measurement#827): Remove when flakiness is resolved.
+    flaky = True,
     tags = ["cpu:2"],
     test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudInProcessLifeOfAReportV2IntegrationTest",
     runtime_deps = [":gcloud_in_process_life_of_a_report_v2_integration_test"],
