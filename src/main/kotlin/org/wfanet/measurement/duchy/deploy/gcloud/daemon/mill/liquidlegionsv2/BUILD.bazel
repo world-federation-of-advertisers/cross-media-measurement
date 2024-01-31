@@ -1,8 +1,8 @@
-load("@wfa_common_jvm//build:defs.bzl", "test_target")
-load("@wfa_common_jvm//build/rules_kotlin:defs.bzl", "kt_jvm_library")
 load("@rules_java//java:defs.bzl", "java_binary")
-load("//src/main/docker:macros.bzl", "java_image")
+load("@wfa_common_jvm//build:defs.bzl", "test_target")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 load("//build/platforms:constraints.bzl", "DISTROLESS_JAVA")
+load("//src/main/docker:macros.bzl", "java_image")
 
 package(
     default_testonly = True,  #TODO: delete when InMemoryKeyStore and FakeHybridCipher are not used.
