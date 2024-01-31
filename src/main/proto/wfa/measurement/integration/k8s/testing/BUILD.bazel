@@ -1,6 +1,5 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
-load("@rules_java//java:defs.bzl", "java_proto_library")
-load("@wfa_common_jvm//build/kt_jvm_proto:defs.bzl", "kt_jvm_proto_library")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library")
 
 package(
     default_testonly = True,
@@ -18,15 +17,9 @@ proto_library(
     ],
 )
 
-java_proto_library(
-    name = "correctness_test_config_java_proto",
-    deps = [":correctness_test_config_proto"],
-)
-
 kt_jvm_proto_library(
     name = "correctness_test_config_kt_jvm_proto",
-    srcs = [":correctness_test_config_proto"],
-    deps = [":correctness_test_config_java_proto"],
+    deps = [":correctness_test_config_proto"],
 )
 
 proto_library(
@@ -35,13 +28,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
 )
 
-java_proto_library(
-    name = "bigquery_config_java_proto",
-    deps = [":bigquery_config_proto"],
-)
-
 kt_jvm_proto_library(
     name = "bigquery_config_kt_jvm_proto",
-    srcs = [":bigquery_config_proto"],
-    deps = [":bigquery_config_java_proto"],
+    deps = [":bigquery_config_proto"],
 )

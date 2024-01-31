@@ -1,6 +1,5 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
-load("@rules_java//java:defs.bzl", "java_proto_library")
-load("@wfa_common_jvm//build/kt_jvm_proto:defs.bzl", "kt_jvm_proto_library")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -12,13 +11,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
 )
 
-java_proto_library(
-    name = "protocols_setup_config_java_proto",
-    deps = [":protocols_setup_config_proto"],
-)
-
 kt_jvm_proto_library(
     name = "protocols_setup_config_kt_jvm_proto",
-    srcs = [":protocols_setup_config_proto"],
-    deps = [":protocols_setup_config_java_proto"],
+    deps = [":protocols_setup_config_proto"],
 )

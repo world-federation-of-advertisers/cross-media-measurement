@@ -1,6 +1,5 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
-load("@rules_java//java:defs.bzl", "java_proto_library")
-load("@wfa_common_jvm//build/kt_jvm_proto:defs.bzl", "kt_jvm_proto_library")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library")
 
 package(default_visibility = ["//src:__subpackages__"])
 
@@ -14,13 +13,7 @@ proto_library(
     ],
 )
 
-java_proto_library(
-    name = "data_provider_event_set_java_proto",
-    deps = [":data_provider_event_set_proto"],
-)
-
 kt_jvm_proto_library(
     name = "data_provider_event_set_kt_jvm_proto",
-    srcs = [":data_provider_event_set_proto"],
-    deps = [":data_provider_event_set_java_proto"],
+    deps = [":data_provider_event_set_proto"],
 )
