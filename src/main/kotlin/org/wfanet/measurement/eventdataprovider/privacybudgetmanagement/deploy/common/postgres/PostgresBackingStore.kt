@@ -72,7 +72,7 @@ class PostgresBackingStoreTransactionContext(private val connection: Connection)
   val isClosed: Boolean
     get() = transactionHasEnded
 
-  private fun throwIfTransactionHasEnded(privacyBucketGroups: List<PrivacyBucketGroup>) {
+  private fun throwIfTransactionHasEnded() {
     if (transactionHasEnded) {
       throw PrivacyBudgetManagerException(PrivacyBudgetManagerExceptionType.UPDATE_AFTER_COMMIT)
     }
@@ -116,7 +116,7 @@ class PostgresBackingStoreTransactionContext(private val connection: Connection)
   override suspend fun findAcdpBalanceEntry(
     privacyBucketGroup: PrivacyBucketGroup
   ): PrivacyBudgetAcdpBalanceEntry {
-    throwIfTransactionHasEnded(listOf(privacyBucketGroup))
+    throwIfTransactionHasEnded()
     assert(privacyBucketGroup.startingDate == privacyBucketGroup.endingDate)
 
     val selectBucketSql =
@@ -187,7 +187,7 @@ class PostgresBackingStoreTransactionContext(private val connection: Connection)
     acdpCharges: Set<AcdpCharge>,
     reference: Reference,
   ) {
-    throwIfTransactionHasEnded(privacyBucketGroups.toList())
+    throwIfTransactionHasEnded()
 
     val insertEntrySql =
       """
