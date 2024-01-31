@@ -58,8 +58,7 @@ jobs:
       - name: Write ~/.bazelrc
         run: |
           cat << EOF > ~/.bazelrc
-          build -c opt 
-          build --host_platform //build/platforms:ubuntu_20_04
+          common --config=ci
           build --define container_registry=localhost:5001
           build --define image_repo_prefix=halo
           build --define image_tag=latest
@@ -86,8 +85,6 @@ jobs:
       - name: Get Bazel cache params
         id: get-cache-params
         uses: world-federation-of-advertisers/actions/bazel-get-cache-params@v2
-        with:
-          cache-version: 1
 
       # This is a hack to utilize the undocumented relatively large empty
       # scratch disk mounted at /mnt. It's currently needed to work around
@@ -103,7 +100,7 @@ jobs:
           sudo mount --bind /mnt/bazel-cache "$BAZEL_CACHE_PATH"
 
       - name: Restore Bazel cache
-        uses: actions/cache/restore@v3
+        uses: actions/cache/restore@v4
         with:
           path: ${{ steps.get-cache-params.outputs.cache-path }}
           key: ${{ steps.get-cache-params.outputs.cache-key }}
@@ -170,13 +167,13 @@ jobs:
         run: |
           bazel_out="$(bazelisk info output_path)"
           find "${bazel_out}" -type f \( -iname '*.tar' -o -iname '*.tar.gz' \) -delete
-          find "${bazel_out}" -type d -name blobs -exec chmod -R +w "{}" \;
-          find "${bazel_out}" -type f -path '*/blobs/*' -delete
+          find "${bazel_out}" -type d -name sha256 -exec chmod -R +w "{}" \;
+          find "${bazel_out}" -type f -path '*/sha256/*' -delete
           
 
       - name: Save Bazel cache
         if: github.event_name == 'push'
-        uses: actions/cache/save@v3
+        uses: actions/cache/save@v4
         continue-on-error: true
         with:
           path: ${{ steps.get-cache-params.outputs.cache-path }}

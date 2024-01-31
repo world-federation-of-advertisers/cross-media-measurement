@@ -1,6 +1,5 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
-load("@rules_java//java:defs.bzl", "java_proto_library")
-load("@wfa_common_jvm//build/kt_jvm_proto:defs.bzl", "kt_jvm_proto_library")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library")
 
 package(
     default_testonly = True,
@@ -44,15 +43,9 @@ proto_library(
     ],
 )
 
-java_proto_library(
-    name = "test_event_java_proto",
-    deps = [":test_event_proto"],
-)
-
 kt_jvm_proto_library(
     name = "test_event_kt_jvm_proto",
-    srcs = [":test_event_proto"],
-    deps = [":test_event_java_proto"],
+    deps = [":test_event_proto"],
 )
 
 proto_library(
@@ -61,13 +54,7 @@ proto_library(
     deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_proto"],
 )
 
-java_proto_library(
-    name = "bad_templates_java_proto",
-    deps = [":bad_templates_proto"],
-)
-
 kt_jvm_proto_library(
     name = "bad_templates_kt_jvm_proto",
-    srcs = [":bad_templates_proto"],
-    deps = [":bad_templates_java_proto"],
+    deps = [":bad_templates_proto"],
 )

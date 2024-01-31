@@ -1,4 +1,4 @@
-load("@wfa_common_jvm//build/rules_kotlin:defs.bzl", "kt_jvm_library")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/panelmatch:__subpackages__",
@@ -10,7 +10,6 @@ kt_jvm_library(
     srcs = glob(["*.kt"]),
     deps = [
         "//imports/java/software/amazon/awssdk/acmpca",
-        "//imports/java/software/amazon/awssdk/awscore",
         "//src/main/kotlin/org/wfanet/panelmatch/common",
         "//src/main/kotlin/org/wfanet/panelmatch/common/certificates",
         "//src/main/kotlin/org/wfanet/panelmatch/common/secrets",

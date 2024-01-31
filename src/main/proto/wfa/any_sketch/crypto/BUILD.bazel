@@ -1,15 +1,13 @@
-load("@wfa_common_jvm//build/kt_jvm_proto:defs.bzl", "kt_jvm_proto_library")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library")
 
 package(default_visibility = ["//visibility:public"])
 
 kt_jvm_proto_library(
     name = "el_gamal_key_kt_jvm_proto",
-    srcs = ["@any_sketch//src/main/proto/wfa/any_sketch/crypto:el_gamal_key_proto"],
-    deps = ["@any_sketch_java//src/main/proto/wfa/any_sketch/crypto:el_gamal_key_java_proto"],
+    deps = ["@any_sketch//src/main/proto/wfa/any_sketch/crypto:el_gamal_key_proto"],
 )
 
 kt_jvm_proto_library(
     name = "sketch_encryption_methods_kt_jvm_proto",
-    srcs = ["@any_sketch//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_proto"],
-    deps = ["@any_sketch_java//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_java_proto"],
+    deps = ["@any_sketch//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_proto"],
 )

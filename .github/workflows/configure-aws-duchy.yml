@@ -77,6 +77,37 @@ jobs:
         role-to-assume: ${{ vars.AWS_GHA_ROLE }}
         role-session-name: GitHubAction
 
+    - name: Export DUCHY_CERT_ID
+      env:
+        AGGREGATOR_DUCHY_CERT_ID: ${{ vars.AGGREGATOR_DUCHY_CERT_ID }}
+        WORKER1_DUCHY_CERT_ID: ${{ vars.WORKER1_DUCHY_CERT_ID }}
+        WORKER2_DUCHY_CERT_ID: ${{ vars.WORKER2_DUCHY_CERT_ID }}
+      run: ./.github/workflows/export-duchy-cert-id.sh
+
+    - name: Write ~/.bazelrc
+      env:
+        IMAGE_TAG: ${{ inputs.image-tag }}
+        POSTGRES_HOST: ${{ vars.AWS_POSTGRES_HOST }}
+        POSTGRES_CRED_SECRET_NAME: ${{ vars.AWS_POSTGRES_CRED_SECRET_NAME }}
+        KINGDOM_SYSTEM_API_TARGET: ${{ vars.KINGDOM_SYSTEM_API_TARGET }}
+        COMPUTATION_CONTROL_SERVER_EIPS: ${{ vars.AWS_COMPUTATION_CONTROL_SERVER_EIPS }}
+        S3_BUCKET: ${{ vars.AWS_S3_BUCKET }}
+      run: |
+        cat << EOF > ~/.bazelrc
+        common --config=ci
+        common --config=ghcr
+        build --define image_tag=$IMAGE_TAG
+        build --define kingdom_system_api_target=$KINGDOM_SYSTEM_API_TARGET
+        build --define s3_bucket=$S3_BUCKET
+        build --define s3_region=$AWS_REGION
+        build --define duchy_cert_id=$DUCHY_CERT_ID
+        build --define postgres_host=$POSTGRES_HOST
+        build --define postgres_port=5432
+        build --define postgres_region=$AWS_REGION
+        build --define postgres_credential_secret_name=$POSTGRES_CRED_SECRET_NAME
+        build --define computation_control_server_eips=$COMPUTATION_CONTROL_SERVER_EIPS
+        EOF
+
     - name: Get EKS cluster credentials
       run: aws eks update-kubeconfig --region $AWS_REGION --name ${DUCHY_NAME}-duchy
 
@@ -90,36 +121,11 @@ jobs:
         amp-ingest-endpoint: ${{ vars.AMP_INGEST_ENDPOINT }}
         amp-region: ${{ vars.AWS_REGION }}
 
-    - name: Export DUCHY_CERT_ID
-      env:
-        AGGREGATOR_DUCHY_CERT_ID: ${{ vars.AGGREGATOR_DUCHY_CERT_ID }}
-        WORKER1_DUCHY_CERT_ID: ${{ vars.WORKER1_DUCHY_CERT_ID }}
-        WORKER2_DUCHY_CERT_ID: ${{ vars.WORKER2_DUCHY_CERT_ID }}
-      run: ./.github/workflows/export-duchy-cert-id.sh
-
     - name: Generate archives
-      env:
-        IMAGE_TAG: ${{ inputs.image-tag }}
-        POSTGRES_HOST: ${{ vars.AWS_POSTGRES_HOST }}
-        POSTGRES_CRED_SECRET_NAME: ${{ vars.AWS_POSTGRES_CRED_SECRET_NAME }}
-        KINGDOM_SYSTEM_API_TARGET: ${{ vars.KINGDOM_SYSTEM_API_TARGET }}
-        COMPUTATION_CONTROL_SERVER_EIPS: ${{ vars.AWS_COMPUTATION_CONTROL_SERVER_EIPS }}
-        S3_BUCKET: ${{ vars.AWS_S3_BUCKET }}
       run: >
         bazelisk build
         "//src/main/k8s/dev:${DUCHY_NAME}_duchy_aws.tar"
         //src/main/k8s/testing/secretfiles:archive
-        --config ghcr
-        --define "image_tag=$IMAGE_TAG"
-        --define "kingdom_system_api_target=$KINGDOM_SYSTEM_API_TARGET"
-        --define "s3_bucket=$S3_BUCKET"
-        --define "s3_region=$AWS_REGION"
-        --define "duchy_cert_id=$DUCHY_CERT_ID"
-        --define "postgres_host=$POSTGRES_HOST"
-        --define "postgres_port=5432"
-        --define "postgres_region=$AWS_REGION"
-        --define "postgres_credential_secret_name=$POSTGRES_CRED_SECRET_NAME"
-        --define "computation_control_server_eips=$COMPUTATION_CONTROL_SERVER_EIPS"
 
     - name: Make Kustomization dir
       run: mkdir -p "$KUSTOMIZATION_PATH"

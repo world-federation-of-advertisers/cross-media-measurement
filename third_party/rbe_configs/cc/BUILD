@@ -22,6 +22,24 @@ package(default_visibility = ["//visibility:public"])
 
 licenses(["notice"])  # Apache 2.0
 
+cc_library(name = "empty_lib")
+
+# Label flag for extra libraries to be linked into every binary.
+# TODO(bazel-team): Support passing flag multiple times to build a list.
+label_flag(
+    name = "link_extra_libs",
+    build_setting_default = ":empty_lib",
+)
+
+# The final extra library to be linked into every binary target. This collects
+# the above flag, but may also include more libraries depending on config.
+cc_library(
+    name = "link_extra_lib",
+    deps = [
+        ":link_extra_libs",
+    ],
+)
+
 cc_library(
     name = "malloc",
 )
@@ -87,10 +105,12 @@ cc_toolchain_config(
     "/usr/lib/llvm-10/lib/clang/10.0.0/share",
     "/usr/include/c++/9",
     "/usr/include/x86_64-linux-gnu/c++/9",
-    "/usr/include/c++/9/backward"],
+    "/usr/include/c++/9/backward",
+    "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"],
     tool_paths = {"ar": "/usr/bin/ar",
         "ld": "/usr/bin/ld",
         "llvm-cov": "None",
+        "llvm-profdata": "None",
         "cpp": "/usr/bin/cpp",
         "gcc": "/usr/lib/llvm-10/bin/clang",
         "dwp": "/usr/bin/dwp",
@@ -99,8 +119,7 @@ cc_toolchain_config(
         "objcopy": "/usr/bin/objcopy",
         "objdump": "/usr/bin/objdump",
         "strip": "/usr/bin/strip"},
-    compile_flags = ["-U_FORTIFY_SOURCE",
-    "-fstack-protector",
+    compile_flags = ["-fstack-protector",
     "-Wall",
     "-Wthread-safety",
     "-Wself-assign",
@@ -113,13 +132,18 @@ cc_toolchain_config(
     "-ffunction-sections",
     "-fdata-sections"],
     dbg_compile_flags = ["-g"],
-    cxx_flags = ["-std=c++0x"],
+    conly_flags = [],
+    cxx_flags = ["-std=c++14"],
     link_flags = ["-fuse-ld=/usr/bin/ld.gold",
+    "-B/usr/lib/llvm-10/bin",
     "-Wl,-no-as-needed",
-    "-Wl,-z,relro,-z,now",
-    "-B/usr/lib/llvm-10/bin"],
-    link_libs = ["-lstdc++",
-    "-lm"],
+    "-Wl,-z,relro,-z,now"],
+    link_libs = ["-Wl,--push-state,-as-needed",
+    "-lstdc++",
+    "-Wl,--pop-state",
+    "-Wl,--push-state,-as-needed",
+    "-lm",
+    "-Wl,--pop-state"],
     opt_link_flags = ["-Wl,--gc-sections"],
     unfiltered_compile_flags = ["-no-canonical-prefixes",
     "-Wno-builtin-macro-redefined",

@@ -55,8 +55,7 @@ jobs:
         BIGQUERY_TABLE: ${{ vars.BIGQUERY_TABLE }}
       run: |
         cat << EOF > ~/.bazelrc
-        build -c opt 
-        build --host_platform //build/platforms:ubuntu_20_04
+        common --config=ci
         build --define kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET
         build --define mc_name=$MC_NAME
         build --define mc_api_key=$MC_API_KEY
@@ -69,11 +68,9 @@ jobs:
     - name: Get Bazel cache params
       id: get-cache-params
       uses: world-federation-of-advertisers/actions/bazel-get-cache-params@v2
-      with:
-        cache-version: 1
 
     - name: Restore Bazel cache
-      uses: actions/cache/restore@v3
+      uses: actions/cache/restore@v4
       with:
         path: ${{ steps.get-cache-params.outputs.cache-path }}
         key: ${{ steps.get-cache-params.outputs.cache-key }}

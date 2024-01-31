@@ -1,7 +1,9 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
-load("@rules_java//java:defs.bzl", "java_proto_library")
-load("@wfa_common_jvm//build/kt_jvm_proto:defs.bzl", "kt_jvm_proto_library")
-load("@wfa_common_jvm//build:macros.bzl", "kt_jvm_grpc_proto_library")
+load(
+    "@wfa_rules_kotlin_jvm//kotlin:defs.bzl",
+    "kt_jvm_grpc_proto_library",
+    "kt_jvm_proto_library",
+)
 
 IMPORT_PREFIX = "/src/main/proto"
 
@@ -20,17 +22,10 @@ proto_library(
     ],
 )
 
-java_proto_library(
-    name = "computation_java_proto",
-    visibility = ["//visibility:public"],
-    deps = [":computation_proto"],
-)
-
 kt_jvm_proto_library(
     name = "computation_kt_jvm_proto",
-    srcs = [":computation_proto"],
     visibility = ["//visibility:public"],
-    deps = [":computation_java_proto"],
+    deps = [":computation_proto"],
 )
 
 proto_library(
@@ -43,17 +38,10 @@ proto_library(
     ],
 )
 
-java_proto_library(
-    name = "stage_attempt_java_proto",
-    visibility = ["//visibility:public"],
-    deps = [":stage_attempt_proto"],
-)
-
 kt_jvm_proto_library(
     name = "stage_attempt_kt_jvm_proto",
-    srcs = [":stage_attempt_proto"],
     visibility = ["//visibility:public"],
-    deps = [":stage_attempt_java_proto"],
+    deps = [":stage_attempt_proto"],
 )
 
 proto_library(
@@ -68,17 +56,10 @@ proto_library(
     ],
 )
 
-java_proto_library(
-    name = "computation_participant_java_proto",
-    visibility = ["//visibility:public"],
-    deps = [":computation_participant_proto"],
-)
-
 kt_jvm_proto_library(
     name = "computation_participant_kt_jvm_proto",
-    srcs = [":computation_participant_proto"],
     visibility = ["//visibility:public"],
-    deps = [":computation_participant_java_proto"],
+    deps = [":computation_participant_proto"],
 )
 
 proto_library(
@@ -87,17 +68,10 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
 )
 
-java_proto_library(
-    name = "differential_privacy_java_proto",
-    visibility = ["//visibility:public"],
-    deps = [":differential_privacy_proto"],
-)
-
 kt_jvm_proto_library(
     name = "differential_privacy_kt_jvm_proto",
-    srcs = [":differential_privacy_proto"],
     visibility = ["//visibility:public"],
-    deps = [":differential_privacy_java_proto"],
+    deps = [":differential_privacy_proto"],
 )
 
 proto_library(
@@ -112,17 +86,10 @@ proto_library(
     ],
 )
 
-java_proto_library(
-    name = "computation_log_entry_java_proto",
-    visibility = ["//visibility:public"],
-    deps = [":computation_log_entry_proto"],
-)
-
 kt_jvm_proto_library(
     name = "computation_log_entry_kt_jvm_proto",
-    srcs = [":computation_log_entry_proto"],
     visibility = ["//visibility:public"],
-    deps = [":computation_log_entry_java_proto"],
+    deps = [":computation_log_entry_proto"],
 )
 
 proto_library(
@@ -135,17 +102,10 @@ proto_library(
     ],
 )
 
-java_proto_library(
-    name = "requisition_java_proto",
-    visibility = ["//visibility:public"],
-    deps = [":requisition_proto"],
-)
-
 kt_jvm_proto_library(
     name = "requisition_kt_jvm_proto",
-    srcs = [":requisition_proto"],
     visibility = ["//visibility:public"],
-    deps = [":requisition_java_proto"],
+    deps = [":requisition_proto"],
 )
 
 # Services.
@@ -165,8 +125,8 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "computations_service_kt_jvm_grpc_proto",
-    srcs = [":computations_service_proto"],
     visibility = ["//visibility:public"],
+    deps = [":computations_service_proto"],
 )
 
 proto_library(
@@ -182,8 +142,8 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "requisitions_service_kt_jvm_grpc_proto",
-    srcs = [":requisitions_service_proto"],
     visibility = ["//visibility:public"],
+    deps = [":requisitions_service_proto"],
 )
 
 proto_library(
@@ -199,8 +159,8 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "computation_participants_service_kt_jvm_grpc_proto",
-    srcs = [":computation_participants_service_proto"],
     visibility = ["//visibility:public"],
+    deps = [":computation_participants_service_proto"],
 )
 
 proto_library(
@@ -217,8 +177,8 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "computation_log_entries_service_kt_jvm_grpc_proto",
-    srcs = [":computation_log_entries_service_proto"],
     visibility = ["//visibility:public"],
+    deps = [":computation_log_entries_service_proto"],
 )
 
 proto_library(
@@ -233,6 +193,6 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "computation_control_service_kt_jvm_grpc_proto",
-    srcs = [":computation_control_service_proto"],
     visibility = ["//visibility:public"],
+    deps = [":computation_control_service_proto"],
 )

@@ -65,6 +65,19 @@ jobs:
           workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
 
+      - name: Write ~/.bazelrc
+        env:
+          IMAGE_TAG: ${{ inputs.image-tag }}
+          SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
+        run: |
+          cat << EOF > ~/.bazelrc
+          common --config=ci
+          common --config=ghcr
+          build --define "image_tag=$IMAGE_TAG"
+          build --define "google_cloud_project=$GCLOUD_PROJECT"
+          build --define "spanner_instance=$SPANNER_INSTANCE"
+          EOF
+
       - name: Export BAZEL_BIN
         run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
 
@@ -79,17 +92,10 @@ jobs:
         if: ${{ inputs.apply }}
 
       - name: Generate archives
-        env:
-          IMAGE_TAG: ${{ inputs.image-tag }}
-          SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
         run: >
           bazelisk build 
           //src/main/k8s/dev:kingdom.tar
           //src/main/k8s/testing/secretfiles:archive
-          --config ghcr
-          --define "image_tag=$IMAGE_TAG"
-          --define "google_cloud_project=$GCLOUD_PROJECT"
-          --define "spanner_instance=$SPANNER_INSTANCE"
 
       - name: Make Kustomization dir
         run: mkdir -p "$KUSTOMIZATION_PATH"

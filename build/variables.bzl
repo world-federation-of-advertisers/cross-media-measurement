@@ -16,6 +16,8 @@
 Make variable strings used by build targets in project.
 """
 
+MEASUREMENT_SYSTEM_REPO = "https://github.com/world-federation-of-advertisers/cross-media-measurement"
+
 # Settings for the repositories where container images are stored.
 IMAGE_REPOSITORY_SETTINGS = struct(
     # The container registry for targets which push or pull container images.

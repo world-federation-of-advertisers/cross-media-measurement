@@ -24,7 +24,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verifyBlocking
-import org.mockito.kotlin.verifyZeroInteractions
+import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepKey
@@ -96,7 +96,7 @@ class ExchangeStepLauncherTest {
     launcher.findAndRunExchangeStep()
 
     verifyBlocking(apiClient) { claimExchangeStep() }
-    verifyZeroInteractions(jobLauncher, validator)
+    verifyNoInteractions(jobLauncher, validator)
   }
 
   @Test
@@ -150,7 +150,7 @@ class ExchangeStepLauncherTest {
       assertThat(messagesCaptor.firstValue).containsExactly(message)
     }
 
-    verifyZeroInteractions(jobLauncher)
+    verifyNoInteractions(jobLauncher)
   }
 
   @Test
@@ -178,7 +178,7 @@ class ExchangeStepLauncherTest {
       assertThat(messagesCaptor.firstValue).containsExactly(message)
     }
 
-    verifyZeroInteractions(jobLauncher)
+    verifyNoInteractions(jobLauncher)
   }
 
   @Test

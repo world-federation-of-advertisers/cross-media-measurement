@@ -18,7 +18,7 @@ load(
     "@wfa_common_jvm//build/rules_oci:defs.bzl",
     _java_image = "java_image",
 )
-load("//build:repositories.bzl", "MEASUREMENT_SYSTEM_REPO")
+load("//build:variables.bzl", "MEASUREMENT_SYSTEM_REPO")
 
 def java_image(
         name,

@@ -20,9 +20,9 @@ def go_grpc_gateway_proto_library(name, visibility = None, **kwargs):
     go_proto_library(
         name = name,
         compilers = [
-            "//build/grpc_gateway:go_apiv2",
-            "//build/grpc_gateway:go_grpc",
-            "//build/grpc_gateway:go_grpc_gateway",
+            "@grpc_ecosystem_grpc_gateway//:go_apiv2",
+            "@grpc_ecosystem_grpc_gateway//:go_grpc",
+            "@grpc_ecosystem_grpc_gateway//protoc-gen-grpc-gateway:go_gen_grpc_gateway",
         ],
         visibility = visibility,
         **kwargs

@@ -1,6 +1,5 @@
-load("@wfa_common_jvm//build/rules_kotlin:defs.bzl", "kt_jvm_library")
 load("@rules_jvm_external//:defs.bzl", "java_export")
-load("//build:panel_exchange_client_maven_deps.bzl", "panel_exchange_client_maven_deploy_env", "panel_exchange_client_maven_runtime_deps")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement/loadtest/panelmatch:__subpackages__",
@@ -44,9 +43,8 @@ kt_jvm_library(
 
 java_export(
     name = "maven",
-    deploy_env = panel_exchange_client_maven_deploy_env(),
     maven_coordinates = "org.wfanet:panel-exchange-client-core:$${TAG_NAME}",
     pom_template = "//deploy:pom_template.xml",
     tags = ["no-javadocs"],
-    runtime_deps = [":deploy"] + panel_exchange_client_maven_runtime_deps(),
+    runtime_deps = [":deploy"],
 )

@@ -1,17 +1,15 @@
 # TODO(@SanjayVas): Move this file to common-jvm.
 
-load("@wfa_common_jvm//build/kt_jvm_proto:defs.bzl", "kt_jvm_proto_library")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library")
 
 package(default_visibility = ["//visibility:public"])
 
 kt_jvm_proto_library(
     name = "error_details_kt_jvm_proto",
-    srcs = ["@com_google_googleapis//google/rpc:error_details_proto"],
-    deps = ["@com_google_googleapis//google/rpc:rpc_java_proto"],
+    deps = ["@com_google_googleapis//google/rpc:error_details_proto"],
 )
 
 kt_jvm_proto_library(
     name = "status_kt_jvm_proto",
-    srcs = ["@com_google_googleapis//google/rpc:status_proto"],
-    deps = ["@com_google_googleapis//google/rpc:rpc_java_proto"],
+    deps = ["@com_google_googleapis//google/rpc:status_proto"],
 )

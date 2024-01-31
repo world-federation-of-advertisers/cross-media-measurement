@@ -1,7 +1,9 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
-load("@rules_java//java:defs.bzl", "java_proto_library")
-load("@wfa_common_jvm//build/kt_jvm_proto:defs.bzl", "kt_jvm_proto_library")
-load("@wfa_common_jvm//build:macros.bzl", "kt_jvm_grpc_proto_library")
+load(
+    "@wfa_rules_kotlin_jvm//kotlin:defs.bzl",
+    "kt_jvm_grpc_proto_library",
+    "kt_jvm_proto_library",
+)
 
 package(default_visibility = ["//visibility:public"])
 
@@ -20,15 +22,9 @@ proto_library(
     ],
 )
 
-java_proto_library(
-    name = "event_group_java_proto",
-    deps = [":event_group_proto"],
-)
-
 kt_jvm_proto_library(
     name = "event_group_kt_jvm_proto",
-    srcs = [":event_group_proto"],
-    deps = [":event_group_java_proto"],
+    deps = [":event_group_proto"],
 )
 
 proto_library(
@@ -44,15 +40,9 @@ proto_library(
     ],
 )
 
-java_proto_library(
-    name = "metric_java_proto",
-    deps = [":metric_proto"],
-)
-
 kt_jvm_proto_library(
     name = "metric_kt_jvm_proto",
-    srcs = [":metric_proto"],
-    deps = [":metric_java_proto"],
+    deps = [":metric_proto"],
 )
 
 proto_library(
@@ -67,15 +57,9 @@ proto_library(
     ],
 )
 
-java_proto_library(
-    name = "metric_calculation_spec_java_proto",
-    deps = [":metric_calculation_spec_proto"],
-)
-
 kt_jvm_proto_library(
     name = "metric_calculation_spec_kt_jvm_proto",
-    srcs = [":metric_calculation_spec_proto"],
-    deps = [":metric_calculation_spec_java_proto"],
+    deps = [":metric_calculation_spec_proto"],
 )
 
 proto_library(
@@ -94,15 +78,9 @@ proto_library(
     ],
 )
 
-java_proto_library(
-    name = "report_java_proto",
-    deps = [":report_proto"],
-)
-
 kt_jvm_proto_library(
     name = "report_kt_jvm_proto",
-    srcs = [":report_proto"],
-    deps = [":report_java_proto"],
+    deps = [":report_proto"],
 )
 
 proto_library(
@@ -120,15 +98,9 @@ proto_library(
     ],
 )
 
-java_proto_library(
-    name = "report_schedule_java_proto",
-    deps = [":report_schedule_proto"],
-)
-
 kt_jvm_proto_library(
     name = "report_schedule_kt_jvm_proto",
-    srcs = [":report_schedule_proto"],
-    deps = [":report_schedule_java_proto"],
+    deps = [":report_schedule_proto"],
 )
 
 proto_library(
@@ -142,15 +114,9 @@ proto_library(
     ],
 )
 
-java_proto_library(
-    name = "report_schedule_iteration_java_proto",
-    deps = [":report_schedule_iteration_proto"],
-)
-
 kt_jvm_proto_library(
     name = "report_schedule_iteration_kt_jvm_proto",
-    srcs = [":report_schedule_iteration_proto"],
-    deps = [":report_schedule_iteration_java_proto"],
+    deps = [":report_schedule_iteration_proto"],
 )
 
 proto_library(
@@ -163,15 +129,9 @@ proto_library(
     ],
 )
 
-java_proto_library(
-    name = "reporting_set_java_proto",
-    deps = [":reporting_set_proto"],
-)
-
 kt_jvm_proto_library(
     name = "reporting_set_kt_jvm_proto",
-    srcs = [":reporting_set_proto"],
-    deps = [":reporting_set_java_proto"],
+    deps = [":reporting_set_proto"],
 )
 
 proto_library(
@@ -192,19 +152,9 @@ proto_library(
     ],
 )
 
-java_proto_library(
-    name = "page_token_java_proto",
-    deps = [
-        ":page_token_proto",
-    ],
-)
-
 kt_jvm_proto_library(
     name = "page_token_kt_jvm_proto",
-    srcs = [
-        ":page_token_proto",
-    ],
-    deps = [":page_token_java_proto"],
+    deps = [":page_token_proto"],
 )
 
 # Services.
@@ -224,7 +174,7 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "event_groups_service_kt_jvm_grpc_proto",
-    srcs = [":event_groups_service_proto"],
+    deps = [":event_groups_service_proto"],
 )
 
 proto_library(
@@ -242,7 +192,7 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "metrics_service_kt_jvm_grpc_proto",
-    srcs = [":metrics_service_proto"],
+    deps = [":metrics_service_proto"],
 )
 
 proto_library(
@@ -260,7 +210,7 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "metric_calculation_specs_service_kt_jvm_grpc_proto",
-    srcs = [":metric_calculation_specs_service_proto"],
+    deps = [":metric_calculation_specs_service_proto"],
 )
 
 proto_library(
@@ -278,7 +228,7 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "reports_service_kt_jvm_grpc_proto",
-    srcs = [":reports_service_proto"],
+    deps = [":reports_service_proto"],
 )
 
 proto_library(
@@ -296,7 +246,7 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "report_schedules_service_kt_jvm_grpc_proto",
-    srcs = [":report_schedules_service_proto"],
+    deps = [":report_schedules_service_proto"],
 )
 
 proto_library(
@@ -314,7 +264,7 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "report_schedule_iterations_service_kt_jvm_grpc_proto",
-    srcs = [":report_schedule_iterations_service_proto"],
+    deps = [":report_schedule_iterations_service_proto"],
 )
 
 proto_library(
@@ -332,5 +282,5 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "reporting_sets_service_kt_jvm_grpc_proto",
-    srcs = [":reporting_sets_service_proto"],
+    deps = [":reporting_sets_service_proto"],
 )

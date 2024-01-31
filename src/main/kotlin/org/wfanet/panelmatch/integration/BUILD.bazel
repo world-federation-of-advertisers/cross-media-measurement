@@ -1,4 +1,4 @@
-load("@wfa_common_jvm//build/rules_kotlin:defs.bzl", "kt_jvm_library")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(
     default_testonly = True,
@@ -25,25 +25,24 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/panelmatch/common/secrets/testing",
         "//src/main/kotlin/org/wfanet/panelmatch/common/storage/testing",
         "//src/main/kotlin/org/wfanet/panelmatch/common/testing",
-        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_java_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempt_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_workflow_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchanges_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchanges_service_kt_jvm_proto",
-        "//src/main/proto/wfa/panelmatch/client/storage:storage_details_java_proto",
         "//src/main/proto/wfa/panelmatch/client/storage:storage_details_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
+        "@wfa_common_jvm//imports/kotlin/com/google/type:date_kt_jvm_proto",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
-        "@wfa_common_jvm//src/main/proto/google/type:date_kt_jvm_proto",
         "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/common/api:resource_key",
         "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/common/identity:principal_identity",
         "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:in_process_kingdom",

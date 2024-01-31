@@ -65,6 +65,23 @@ jobs:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
 
+    - name: Write ~/.bazelrc
+      env:
+        IMAGE_TAG: ${{ inputs.image-tag }}
+        POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
+        GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
+        KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
+      run: |
+        cat << EOF > ~/.bazelrc
+        common --config=ci
+        common --config=ghcr
+        build --define "image_tag=$IMAGE_TAG"
+        build --define "google_cloud_project=$GCLOUD_PROJECT"
+        build --define "postgres_instance=$POSTGRES_INSTANCE"
+        build --define "postgres_region=$GCLOUD_REGION"
+        build --define "kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
+        EOF
+
     - name: Export BAZEL_BIN
       run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
 
@@ -79,21 +96,10 @@ jobs:
       if: ${{ inputs.apply }}
 
     - name: Generate archives
-      env:
-        IMAGE_TAG: ${{ inputs.image-tag }}
-        POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
-        GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
-        KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
       run: >
         bazelisk build 
         //src/main/k8s/dev:reporting_v2.tar
         //src/main/k8s/testing/secretfiles:archive
-        --config ghcr
-        --define "image_tag=$IMAGE_TAG"
-        --define "google_cloud_project=$GCLOUD_PROJECT"
-        --define "postgres_instance=$POSTGRES_INSTANCE"
-        --define "postgres_region=$GCLOUD_REGION"
-        --define "kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
 
     - name: Make Kustomization dir
       run: mkdir -p "$KUSTOMIZATION_PATH"
