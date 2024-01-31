@@ -87,18 +87,24 @@ java_test(
     runtime_deps = [":gcloud_in_process_life_of_a_report_v2_integration_test"],
 )
 
-spanner_emulator_test(
-    name = "GCloudSpannerInProcessReachMeasurementAccuracyTest",
-    size = "enormous",
+kt_jvm_library(
+    name = "gcloud_spanner_in_process_reach_measurement_accuracy_test",
     srcs = ["GCloudSpannerInProcessReachMeasurementAccuracyTest.kt"],
-    tags = [
-        "cpu:2",
-        "manual",
-    ],
-    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudSpannerInProcessReachMeasurementAccuracyTest",
+    data = ["@cloud_spanner_emulator//:emulator"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_reach_measurement_accuracy_test",
         "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
     ],
+)
+
+java_test(
+    name = "GCloudSpannerInProcessReachMeasurementAccuracyTest",
+    size = "enormous",
+    tags = [
+        "cpu:2",
+        "manual",
+    ],
+    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudSpannerInProcessReachMeasurementAccuracyTest",
+    runtime_deps = [":gcloud_spanner_in_process_reach_measurement_accuracy_test"],
 )
