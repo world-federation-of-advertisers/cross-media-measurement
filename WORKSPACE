@@ -1,5 +1,18 @@
 workspace(name = "wfa_measurement_system")
 
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+SHA = "0a8003b044294d7840ac7d9d73eef05d6ceb682d7516781a4ec62eeb34702578"
+
+VERSION = "0.24.0"
+
+http_archive(
+    name = "rules_python",
+    sha256 = SHA,
+    strip_prefix = "rules_python-{}".format(VERSION),
+    url = "https://github.com/bazelbuild/rules_python/releases/download/{}/rules_python-{}.tar.gz".format(VERSION, VERSION),
+)
+
 load(
     "//build:versions.bzl",
     "APACHE_BEAM_VERSION",
@@ -183,3 +196,39 @@ go_repository(
 load("@wfa_common_jvm//build:common_jvm_extra_deps.bzl", "common_jvm_extra_deps")
 
 common_jvm_extra_deps()
+
+# Python
+# Required
+load("@rules_python//python:repositories.bzl", "py_repositories")
+
+py_repositories()
+
+# Register Python toolchain
+load("@rules_python//python:repositories.bzl", "python_register_toolchains")
+
+PYTHON_VERSION = "3.10.11"
+
+PYTHON_TOOLCHAIN_NAME = "python_3_10_11"
+
+python_register_toolchains(
+    name = PYTHON_TOOLCHAIN_NAME,
+    python_version = PYTHON_VERSION,
+)
+
+load("@python_3_10_11//:defs.bzl", "interpreter")
+load("@rules_python//python:pip.bzl", "pip_parse")
+
+# Create a central repo that knows about the dependencies needed from
+# requirements_lock.txt.
+pip_parse(
+    name = "pypi_deps",
+    python_interpreter_target = interpreter,
+    requirements_lock = "//src/main/python:requirements_lock.txt",
+)
+
+# Those dependencies become available in a generated requirements.bzl file.
+# Load the starlark macro, which will define your dependencies.
+load("@pypi_deps//:requirements.bzl", "install_deps")
+
+# Call it to define repos for your requirements.
+install_deps()
