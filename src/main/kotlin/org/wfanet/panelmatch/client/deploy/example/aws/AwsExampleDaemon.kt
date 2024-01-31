@@ -17,6 +17,7 @@ package org.wfanet.panelmatch.client.deploy.example.aws
 import com.google.crypto.tink.integration.awskms.AwsKmsClient
 import java.util.Optional
 import kotlin.properties.Delegates
+import org.apache.beam.runners.dataflow.options.DataflowWorkerLoggingOptions
 import org.apache.beam.runners.direct.DirectRunner
 import org.apache.beam.sdk.options.PipelineOptions
 import org.apache.beam.sdk.options.PipelineOptionsFactory
@@ -86,7 +87,8 @@ private class AwsExampleDaemon : ExampleDaemon() {
     val baseOptions =
       PipelineOptionsFactory.`as`(BeamOptions::class.java).apply {
         runner = DirectRunner::class.java
-        defaultSdkHarnessLogLevel = SdkHarnessOptions.LogLevel.INFO
+        defaultSdkHarnessLogLevel = SdkHarnessOptions.LogLevel.TRACE
+        defaultWorkerLogLevel = DataflowWorkerLoggingOptions.Level.TRACE
       }
     return if (!s3FromBeam) {
       baseOptions

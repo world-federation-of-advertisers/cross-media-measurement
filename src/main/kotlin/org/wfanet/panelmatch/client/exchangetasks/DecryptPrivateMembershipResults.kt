@@ -50,13 +50,17 @@ suspend fun ApacheBeamContext.decryptPrivateMembershipResults(
       emptyList()
     }
   val plaintextJoinKeyAndIds: PCollection<JoinKeyAndId> =
-    readBlobAsPCollection("plaintext-join-keys-to-id-map").flatMap {
+    readBlobAsPCollection("plaintext-join-keys-to-id-map").flatMap(
+      "Read Plaintext join keys to id map"
+    ) {
       JoinKeyAndIdCollection.parseFrom(it)
         .joinKeyAndIdsList
         .removeDiscardedJoinKeys(discardedJoinKeys)
     }
   val decryptedJoinKeyAndIds: PCollection<JoinKeyAndId> =
-    readBlobAsPCollection("decrypted-join-keys-to-id-map").flatMap {
+    readBlobAsPCollection("decrypted-join-keys-to-id-map").flatMap(
+      "Read decrypted join keys to id map"
+    ) {
       JoinKeyAndIdCollection.parseFrom(it)
         .joinKeyAndIdsList
         .removeDiscardedJoinKeys(discardedJoinKeys)
@@ -65,7 +69,7 @@ suspend fun ApacheBeamContext.decryptPrivateMembershipResults(
   val compressionParameters =
     readBlobAsPCollection("compression-parameters")
       .map("Parse as CompressionParameters") { CompressionParameters.parseFrom(it) }
-      .toSingletonView()
+      .toSingletonView("Compression Parameters Singleton")
 
   val hkdfPepper = readBlob("pepper")
   val publicKeyView = readBlobAsView("serialized-rlwe-public-key")
@@ -75,7 +79,7 @@ suspend fun ApacheBeamContext.decryptPrivateMembershipResults(
       .mapWithSideInput(publicKeyView, "Make Private Membership Keys") { privateKey, publicKey ->
         AsymmetricKeyPair(serializedPublicKey = publicKey, serializedPrivateKey = privateKey)
       }
-      .toSingletonView()
+      .toSingletonView("Private RLWE Keys Singleton")
 
   val keyedDecryptedEventDataSet: PCollection<KeyedDecryptedEventDataSet> =
     decryptQueryResults(
