@@ -1,0 +1,20 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "SimulatorSyntheticDataSpecValidatorTest",
+    srcs = ["SimulatorSyntheticDataSpecValidatorTest.kt"],
+    associates = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/validation:simulator_synthetic_data_spec_validator",
+    ],
+    test_class = "org.wfanet.measurement.loadtest.validation.SimulatorSyntheticDataSpecValidatorTest",
+    deps = [
+        "//imports/java/com/google:cel-generated-pb",
+        "//imports/java/org/projectnessie/cel",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:edp_simulator",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
