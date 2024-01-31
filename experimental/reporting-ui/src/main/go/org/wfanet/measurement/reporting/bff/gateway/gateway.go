@@ -16,7 +16,6 @@ package gateway
 
 import (
 	"context"
-	"fmt"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"net/http"
@@ -44,12 +43,10 @@ func newGateway(ctx context.Context, conn *grpc.ClientConn, opts []gwruntime.Ser
 
 // dialTCP creates a client connection via TCP.
 // "addr" must be a valid TCP address with a port number.
-func dial(ctx context.Context, addr string, certPath string) (*grpc.ClientConn, error) {
-	fmt.Println(certPath)
+func dial(ctx context.Context, addr string, certPath string, certHost string) (*grpc.ClientConn, error) {
 	if certPath != "" {
-		creds, err := credentials.NewClientTLSFromFile(certPath, "")
+		creds, err := credentials.NewClientTLSFromFile(certPath, certHost)
 		if err == nil {
-			fmt.Println("Connection Good")
 			return grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(creds))
 		}
 	}

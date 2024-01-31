@@ -31,6 +31,7 @@ var (
 	tlsKeyPath  = flag.String("tls_key", "", "file location of the gRPC service key")
 	port        = flag.String("port", "8080", "port number for the gateway service")
 	endpoint    = flag.String("endpoint", "localhost:8443", "endpoint of the gRPC service")
+	certHost    = flag.String("cert_host", "localhost", "cert host for the BFF Reporting server")
 )
 
 func main() {
@@ -45,6 +46,7 @@ func main() {
 		},
 		TlsCertPath: *tlsCertPath,
 		TlsKeyPath:  *tlsKeyPath,
+		CertHost:    *certHost,
 	}
 	if err := gateway.Run(ctx, opts); err != nil {
 		glog.Fatal(err)
