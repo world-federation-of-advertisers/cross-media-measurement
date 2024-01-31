@@ -15,6 +15,7 @@
 package org.wfanet.panelmatch.client.launcher
 
 import java.time.Clock
+import java.util.logging.Level
 import kotlinx.coroutines.sync.Semaphore
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
@@ -31,6 +32,7 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.panelmatch.client.common.Identity
 import org.wfanet.panelmatch.client.launcher.ApiClient.ClaimedExchangeStep
+import org.wfanet.panelmatch.common.loggerFor
 
 class GrpcApiClient(
   private val identity: Identity,
@@ -53,7 +55,12 @@ class GrpcApiClient(
   override suspend fun claimExchangeStep(): ClaimedExchangeStep? {
     if (semaphore !== null) {
       val semaphoreAcquired = semaphore.tryAcquire()
-      if (!semaphoreAcquired) return null
+      if (!semaphoreAcquired) {
+        logger.log(Level.INFO, "Can't claim task, no permits remaining.")
+        return null
+      } else {
+        logger.log(Level.INFO, "Claiming task, ${semaphore.availablePermits} permits remaining.")
+      }
     }
     val response = exchangeStepsClient.claimReadyExchangeStep(claimReadyExchangeStepRequest)
     if (response.hasExchangeStep()) {
@@ -87,7 +94,10 @@ class GrpcApiClient(
       }
     }
     exchangeStepAttemptsClient.finishExchangeStepAttempt(request)
-    if (semaphore !== null) semaphore.release()
+    if (semaphore !== null) {
+      semaphore.release()
+      logger.log(Level.INFO, "Released permit, ${semaphore.availablePermits} permits remaining.")
+    }
   }
 
   private fun makeLogEntry(message: String): ExchangeStepAttempt.DebugLogEntry {
@@ -95,5 +105,9 @@ class GrpcApiClient(
       entryTime = clock.instant().toProtoTime()
       this.message = message
     }
+  }
+
+  companion object {
+    private val logger by loggerFor()
   }
 }

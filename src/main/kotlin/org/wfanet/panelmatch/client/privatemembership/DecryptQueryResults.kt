@@ -17,6 +17,7 @@ package org.wfanet.panelmatch.client.privatemembership
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import java.io.Serializable
+import java.util.concurrent.atomic.AtomicBoolean
 import org.apache.beam.sdk.coders.KvCoder
 import org.apache.beam.sdk.coders.ListCoder
 import org.apache.beam.sdk.extensions.protobuf.ProtoCoder
@@ -218,9 +219,11 @@ private class BuildDecryptQueryResultsParametersFn(
     KV<JoinKeyAndId?, Iterable<@JvmWildcard EncryptedQueryResult>?>,
     KV<JoinKeyIdentifier, DecryptQueryResultsParameters>
   >() {
-  private val metricsNamespace = "DecryptQueryResults"
-  private val noResults = Metrics.counter(metricsNamespace, "no-results")
-  private val paddingQueries = Metrics.counter(metricsNamespace, "padding-queries")
+  private val noResults = Metrics.counter(
+    BuildDecryptQueryResultsParametersFn::class.java, "no-results")
+  private val paddingQueries = Metrics.counter(
+    BuildDecryptQueryResultsParametersFn::class.java, "padding-queries")
+
 
   @ProcessElement
   fun processElement(context: ProcessContext) {
@@ -265,9 +268,10 @@ private class DecryptResultsFn(private val queryResultsDecryptor: QueryResultsDe
     KV<JoinKeyIdentifier, DecryptQueryResultsParameters>,
     KV<JoinKeyIdentifier, List<@JvmWildcard Plaintext>>
   >() {
-  private val metricsNamespace = "DecryptQueryResults"
-  private val decryptionTimes = Metrics.distribution(metricsNamespace, "decryption-times")
-  private val outputCounts = Metrics.distribution(metricsNamespace, "output-counts")
+  private val decryptionTimes =
+    Metrics.distribution(DecryptResultsFn::class.java, "decryption-times")
+  private val outputCounts =
+    Metrics.distribution(DecryptResultsFn::class.java, "output-counts")
 
   @ProcessElement
   fun processElement(context: ProcessContext) {

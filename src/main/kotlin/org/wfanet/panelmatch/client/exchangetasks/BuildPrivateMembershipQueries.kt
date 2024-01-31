@@ -31,7 +31,7 @@ fun ApacheBeamContext.buildPrivateMembershipQueries(
   privateMembershipCryptor: PrivateMembershipCryptor,
 ) {
   val lookupKeyAndIds: PCollection<LookupKeyAndId> =
-    readBlobAsPCollection("lookup-keys").flatMap {
+    readBlobAsPCollection("lookup-keys").flatMap("flat-map-lookup-keys-and-ids") {
       LookupKeyAndIdCollection.parseFrom(it).lookupKeyAndIdsList
     }
 
@@ -42,7 +42,7 @@ fun ApacheBeamContext.buildPrivateMembershipQueries(
       .mapWithSideInput(publicKeyView, "Make Private Membership Keys") { privateKey, publicKey ->
         AsymmetricKeyPair(serializedPublicKey = publicKey, serializedPrivateKey = privateKey)
       }
-      .toSingletonView()
+      .toSingletonView("make-private-membership-keys-view")
 
   val outputs =
     createQueries(lookupKeyAndIds, privateKeysView, parameters, privateMembershipCryptor)

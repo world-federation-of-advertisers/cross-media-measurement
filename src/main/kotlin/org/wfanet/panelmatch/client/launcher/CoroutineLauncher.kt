@@ -21,6 +21,8 @@ import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
 import kotlinx.coroutines.runBlocking
@@ -51,8 +53,14 @@ class CoroutineLauncher(
     (scope + SupervisorJob()).launch(
       CoroutineName(attemptKey.toName()) + taskExceptionHandler(attemptKey)
     ) {
+      logger.log(Level.FINE, "Launching task in ${currentCoroutineContext()[CoroutineName]}")
       stepExecutor.execute(step, attemptKey)
     }
+    var activeCoroutines = 0
+    for (childRoutine in scope.coroutineContext.job.children) {
+      if (childRoutine.isActive) activeCoroutines++
+    }
+    logger.log(Level.FINE, "$activeCoroutines active task coroutines.")
   }
 
   companion object {
