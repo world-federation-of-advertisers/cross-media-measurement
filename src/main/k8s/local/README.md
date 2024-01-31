@@ -12,9 +12,9 @@ Therefore, this configuration does not set any.
 
 You will need:
 
-*   A container registry that you can push images to.
-*   A running Kubernetes 1.24+ cluster.
-    *   Your container registry must be accessible from this cluster.
+* A container registry that you can push images to.
+* A running Kubernetes 1.24+ cluster.
+    * Your container registry must be accessible from this cluster.
 
 See [Local Cluster Creation](#local-cluster-creation) in the Appendix for how to
 create a local cluster with access to a local private registry.
@@ -28,7 +28,7 @@ simulators -- have additional requirements regarding the version of glibc in the
 build environment. See [Building](../../../../docs/building.md).
 
 The example commands below assume that your container registry is hosted at
-`registry.dev.svc.cluster.local:5000`.
+`registry.dev.svc.cluster.local:5001`.
 
 Tip: Add the `--define` options in your `.bazelrc` under the `halo-local` build
 configuration so that you can just pass `--config=halo-local`.
@@ -41,7 +41,7 @@ Bazel test target and skip the rest of this document.
 
 ```shell
 bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:EmptyClusterCorrectnessTest \
-  --define container_registry=registry.dev.svc.cluster.local:5000 \
+  --define container_registry=registry.dev.svc.cluster.local:5001 \
   --define image_repo_prefix=halo --define image_tag=latest
 ```
 
@@ -55,8 +55,8 @@ kubectl delete all --namespace=default --all
 ## Building and Pushing Container Images
 
 ```shell
-bazel run //src/main/docker:push_all_local_images \
-  --define container_registry=registry.dev.svc.cluster.local:5000 \
+tools/bazel-container-run //src/main/docker:push_all_local_images \
+  --define container_registry=registry.dev.svc.cluster.local:5001 \
   --define image_repo_prefix=halo --define image_tag=latest
 ```
 
@@ -73,20 +73,25 @@ Build a tar archive containing the Kustomization directory for Kingdom setup:
 
 ```shell
 bazel build //src/main/k8s/local:kingdom_setup.tar \
-  --define container_registry=registry.dev.svc.cluster.local:5000 \
+  --define container_registry=registry.dev.svc.cluster.local:5001 \
   --define image_repo_prefix=halo --define image_tag=latest
 ```
 
-Extract this archive to some directory (e.g. `/tmp/cmms`). You can then apply it
-using `kubectl` from this directory:
+Extract this archive to some directory (e.g. `/tmp/cmms`). For example:
 
 ```shell
-kubectl apply -k src/main/k8s/local/kingdom_setup/
+tar -xf bazel-bin/src/main/k8s/local/kingdom_setup.tar -C /tmp/cmms
+```
+
+You can then apply it using `kubectl` from this directory:
+
+```shell
+kubectl apply -k /tmp/cmms/src/main/k8s/local/kingdom_setup/
 ```
 
 This will create the emulators and the Kingdom with an empty configuration.
 
-#### Run ResourceSetup
+### Run ResourceSetup
 
 The `ResourceSetup` tool will create API resources for testing. First, build the
 tool:
@@ -119,9 +124,10 @@ src/main/k8s/testing/resource_setup.sh \
 Note: You can stop the port forwarding at this point. Future steps involve
 restarting some Deployments, rendering the forwarding invalid.
 
-Tip: The job will output a `resource-setup.bazelrc` file with `--define` options
-that you can include in your `.bazelrc` file. You can then specify
-`--config=halo-local` to Bazel commands instead of those individual options.
+Tip: The job will output a `resource-setup.bazelrc` file that contains
+`--define` options that you can include in your `.bazelrc` file in
+`/tmp/resource-setup`. You can then specify `--config=halo-local` to Bazel
+commands instead of those individual options.
 
 ### Deploy the CMMS
 
@@ -131,7 +137,7 @@ Note: If you plan on deploying the Reporting system as well, you can skip this
 step and follow the one in the Reporting section instead.
 
 Build a tar archive containing the Kustomization directory for the CMMS,
-substituting the values from the `ResourceSetup` tool:
+substituting the values from the output of the `ResourceSetup` tool:
 
 ```shell
 bazel build //src/main/k8s/local:cmms.tar \
@@ -159,6 +165,10 @@ bazel build //src/main/k8s/local:cmms.tar \
 
 Extract this archive to some directory (e.g. `/tmp/cmms`).
 
+```shell
+tar -xf bazel-bin/src/main/k8s/local/cmms.tar -C /tmp/cmms
+```
+
 Copy the `authority_key_identifier_to_principal_map.textproto` output from the
 `ResourceSetup` tool to the `src/main/k8s/local/config_files` path within this
 directory. This uses the AKIDs from the test certificates in
@@ -174,6 +184,12 @@ kubectl apply -k src/main/k8s/local/cmms/
 
 This will restart the Kingdom with the updated configuration. It will also
 create the Duchies and EDP simulators.
+
+To use the Kingdom CLI tool, you need to forward the port again:
+
+```shell
+kubectl port-forward --address=localhost services/v2alpha-public-api-server 8443:8443
+```
 
 ### Deploy the CMMS and Reporting System
 
@@ -197,6 +213,12 @@ kubectl apply -k src/main/k8s/local/cmms_with_reporting/
 
 To deploy Reporting V2, swap out `cmms_with_reporting` with
 `cmms_with_reporting_v2`.
+
+To use the Reporting CLI tool, you need to forward the port again. For example:
+
+```shell
+kubectl port-forward --address=localhost services/reporting-v2alpha-public-api-server 9000:8443
+```
 
 ## Enabling Metrics Collection
 
@@ -276,7 +298,7 @@ Once you have a running CMMS with EDP simulators, you can run the correctness
 test against it.
 
 You'll need access to the public API server. You can do this via port
-forwarding:
+forwarding as mentioned before:
 
 ```shell
 kubectl port-forward --address=localhost services/v2alpha-public-api-server 8443:8443
