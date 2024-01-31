@@ -15,6 +15,15 @@
 name: Release test
 
 on:
+  push:
+    branches:
+    - main
+    - 'releases/**'
+  pull_request:
+    branches:
+    - main
+    - 'releases/**'
+    types: [ opened, synchronize, edited ]
   release:
     types: [published]
   workflow_dispatch:
@@ -65,19 +74,6 @@ jobs:
       with:
         cache-version: 1
 
-    # This is a hack to utilize the undocumented relatively large empty
-    # scratch disk mounted at /mnt. It's currently needed to work around
-    # bazel-contrib/rules_oci#439 as that's what is pushing our usage over the
-    # limit. The alternative is to use a runner with more disk space.
-    - name: Mount scratch disk
-      env:
-        BAZEL_CACHE_PATH: ${{ steps.get-cache-params.outputs.cache-path }}
-      run: |
-        mkdir -p "$BAZEL_CACHE_PATH"
-        sudo mkdir -p /mnt/bazel-cache
-        sudo chown 'runner:runner' /mnt/bazel-cache
-        sudo mount --bind /mnt/bazel-cache "$BAZEL_CACHE_PATH"
-
     - name: Restore Bazel cache
       uses: actions/cache/restore@v3
       with:
@@ -89,8 +85,7 @@ jobs:
     - name: Build
       run: >
         bazelisk build --worker_quit_after_build
-        //...
-        //src/main/k8s/dev:synthetic_generator_edp_simulators
+        //src/test/kotlin/org/wfanet/measurement/integration/deploy/gcloud:GCloudSpannerInProcessReachMeasurementAccuracyTest
 
     - name: Run tests
       id: run-tests
