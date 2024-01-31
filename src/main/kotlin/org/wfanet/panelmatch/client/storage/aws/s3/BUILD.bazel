@@ -1,4 +1,4 @@
-load("@wfa_common_jvm//build/rules_kotlin:defs.bzl", "kt_jvm_library")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -8,9 +8,9 @@ kt_jvm_library(
     deps = [
         "//imports/java/software/amazon/awssdk/auth",
         "//imports/java/software/amazon/awssdk/sts",
-        "//imports/java/software/amazon/awssdk/utils",
         "//src/main/kotlin/org/wfanet/panelmatch/client/common",
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
         "//src/main/proto/wfa/panelmatch/client/exchangetasks:exchangesteps_kt_jvm_proto",
         "//src/main/proto/wfa/panelmatch/client/storage:storage_details_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",

@@ -1,5 +1,5 @@
-load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 load("@rules_java//java:defs.bzl", "java_test")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(default_testonly = True)
 
@@ -27,7 +27,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/panelmatch/common/certificates/testing",
         "//src/main/kotlin/org/wfanet/panelmatch/common/storage/testing",
         "//src/main/proto/private_membership/batch:shared_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_java_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempt_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_workflow_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchanges_service_kt_jvm_grpc",
@@ -37,13 +37,13 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
+        "@wfa_common_jvm//imports/kotlin/com/google/type:date_kt_jvm_proto",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:security_provider",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/forwarded",
-        "@wfa_common_jvm//src/main/proto/google/type:date_kt_jvm_proto",
     ],
 )
 
@@ -53,12 +53,10 @@ kt_jvm_library(
     deps = [
         ":abstract_panel_match_correctness_test",
         "//src/main/proto/wfa/panelmatch/client/loadtest:forwarded_storage_config_kt_jvm_proto",
-        "//src/main/proto/wfa/panelmatch/client/storage:storage_details_java_proto",
         "//src/main/proto/wfa/panelmatch/client/storage:storage_details_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/org/jetbrains/annotations",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:jdk8",
     ],
 )
 

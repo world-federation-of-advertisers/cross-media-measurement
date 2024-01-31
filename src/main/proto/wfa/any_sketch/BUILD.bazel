@@ -1,9 +1,8 @@
-load("@wfa_common_jvm//build/kt_jvm_proto:defs.bzl", "kt_jvm_proto_library")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library")
 
 package(default_visibility = ["//visibility:public"])
 
 kt_jvm_proto_library(
     name = "sketch_kt_jvm_proto",
-    srcs = ["@any_sketch//src/main/proto/wfa/any_sketch:sketch_proto"],
-    deps = ["@any_sketch_java//src/main/proto/wfa/any_sketch:sketch_java_proto"],
+    deps = ["@any_sketch//src/main/proto/wfa/any_sketch:sketch_proto"],
 )
