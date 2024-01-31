@@ -389,6 +389,102 @@ class SyntheticDataGenerationTest {
   }
 
   @Test
+  fun `generateEvents throws IllegalStateException for sample size larger than vidRange`() {
+
+    val population = syntheticPopulationSpec {
+      vidRange = vidRange {
+        start = 0L
+        endExclusive = 100L
+      }
+
+      populationFields += "person.gender"
+      populationFields += "person.age_group"
+
+      nonPopulationFields += "banner_ad.viewable"
+      nonPopulationFields += "video_ad.viewed_fraction"
+
+      subPopulations +=
+        SyntheticPopulationSpecKt.subPopulation {
+          vidSubRange = vidRange {
+            start = 0L
+            endExclusive = 50L
+          }
+
+          populationFieldsValues["person.gender"] = fieldValue {
+            enumValue = Person.Gender.MALE_VALUE
+          }
+          populationFieldsValues["person.age_group"] = fieldValue {
+            enumValue = Person.AgeGroup.YEARS_18_TO_34_VALUE
+          }
+        }
+      subPopulations +=
+        SyntheticPopulationSpecKt.subPopulation {
+          vidSubRange = vidRange {
+            start = 50L
+            endExclusive = 100L
+          }
+
+          populationFieldsValues["person.gender"] = fieldValue {
+            enumValue = Person.Gender.FEMALE_VALUE
+          }
+          populationFieldsValues["person.age_group"] = fieldValue {
+            enumValue = Person.AgeGroup.YEARS_18_TO_34_VALUE
+          }
+        }
+    }
+    val eventGroupSpec = syntheticEventGroupSpec {
+      description = "event group 1"
+      rngType = SyntheticEventGroupSpec.RngType.KOTLIN_RANDOM
+
+      dateSpecs +=
+        SyntheticEventGroupSpecKt.dateSpec {
+          dateRange =
+            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+              start = date {
+                year = 2023
+                month = 6
+                day = 27
+              }
+              endExclusive = date {
+                year = 2023
+                month = 6
+                day = 28
+              }
+            }
+
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 2
+
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  randomSeed = 42L
+                  vidRange = vidRange {
+                    start = 0L
+                    endExclusive = 25L
+                  }
+
+                  sampleSize = 50
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.5
+                  }
+                }
+            }
+        }
+    }
+
+    assertFailsWith<IllegalStateException> {
+      SyntheticDataGeneration.generateEvents(
+        TestEvent.getDefaultInstance(),
+        population,
+        eventGroupSpec,
+      )
+    }
+  }
+
+  @Test
   fun `generateEvents throws IllegalStateException for RNG not specified when sampling enabled`() {
 
     val sampleSizeForFreqOne = 2

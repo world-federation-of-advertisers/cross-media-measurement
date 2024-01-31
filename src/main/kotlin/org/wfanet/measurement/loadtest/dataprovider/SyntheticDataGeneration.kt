@@ -50,12 +50,21 @@ object SyntheticDataGeneration {
     populationSpec: SyntheticPopulationSpec,
     syntheticEventGroupSpec: SyntheticEventGroupSpec,
   ): Sequence<LabeledEvent<T>> {
-
-    val samplingRequired =
+    var samplingRequired = false
+    val vidRangeSpecs =
       syntheticEventGroupSpec.dateSpecsList
         .flatMap { it.frequencySpecsList }
         .flatMap { it.vidRangeSpecsList }
-        .any { it.sampleSize != 0 }
+
+    for (vidRangeSpec in vidRangeSpecs) {
+      val vidRangeWidth = vidRangeSpec.vidRange.endExclusive - vidRangeSpec.vidRange.start
+      check(vidRangeWidth >= vidRangeSpec.sampleSize) {
+        "all vidRange widths should be larger than sampleSizes"
+      }
+      if (vidRangeSpec.sampleSize > 0) {
+        samplingRequired = true
+      }
+    }
 
     if (samplingRequired) {
       check(syntheticEventGroupSpec.rngType == SyntheticEventGroupSpec.RngType.KOTLIN_RANDOM) {
