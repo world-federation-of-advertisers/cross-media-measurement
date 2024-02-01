@@ -321,7 +321,7 @@ private constructor(
     token: ComputationEditToken<ComputationType, ComputationStage>,
     externalRequisitionKey: ExternalRequisitionKey,
     pathToBlob: String,
-    seed: ByteString?
+    seed: ByteString?,
   ) {
     @Suppress("CANDIDATE_CHOSEN_USING_OVERLOAD_RESOLUTION_BY_LAMBDA_ANNOTATION")
     updateToken(token) {

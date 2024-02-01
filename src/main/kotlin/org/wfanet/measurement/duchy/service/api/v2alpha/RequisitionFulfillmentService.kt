@@ -191,7 +191,7 @@ class RequisitionFulfillmentService(
     token: ComputationToken,
     key: ExternalRequisitionKey,
     blobPath: String,
-    seed: ByteString?
+    seed: ByteString?,
   ) {
     computationsClient.recordRequisition(
       recordRequisitionRequest {

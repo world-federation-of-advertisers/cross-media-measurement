@@ -341,7 +341,7 @@ class ComputationsService(
       request.token.toDatabaseEditToken(),
       request.key,
       request.blobPath,
-      if (request.seed.isEmpty) null else request.seed
+      if (request.seed.isEmpty) null else request.seed,
     )
     return checkNotNull(computationsDatabase.readComputationToken(request.key))
       .toRecordRequisitionBlobPathResponse()

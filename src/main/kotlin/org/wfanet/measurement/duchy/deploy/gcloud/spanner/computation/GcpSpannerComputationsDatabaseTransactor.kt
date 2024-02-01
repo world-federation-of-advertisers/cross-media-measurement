@@ -132,8 +132,7 @@ class GcpSpannerComputationsDatabaseTransactor<
           // TODO(@renjiezh): Check to make sure the lock isn't actively held by someone other than
           // the caller.
           lockOwner = WRITE_NULL_STRING,
-          lockExpirationTime =
-            clock.instant().plusSeconds(delaySecond.toLong()).toGcloudTimestamp(),
+          lockExpirationTime = clock.instant().plusSeconds(delaySecond.toLong()).toGcloudTimestamp(),
         )
       )
     }
@@ -238,9 +237,7 @@ class GcpSpannerComputationsDatabaseTransactor<
           attempt = currentAttempt,
           endTime = writeTimestamp,
           details =
-            details.copy {
-              reasonEnded = ComputationStageAttemptDetails.EndReason.LOCK_OVERWRITTEN
-            },
+            details.copy { reasonEnded = ComputationStageAttemptDetails.EndReason.LOCK_OVERWRITTEN },
         )
       )
     }

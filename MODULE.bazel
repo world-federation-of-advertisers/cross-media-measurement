@@ -135,6 +135,7 @@ bazel_dep(
     version = "0.57.0",
     repo_name = "wfa_measurement_proto",
 )
+
 # DO_NOT_SUBMIT: Use release version.
 archive_override(
     module_name = "cross-media-measurement-api",

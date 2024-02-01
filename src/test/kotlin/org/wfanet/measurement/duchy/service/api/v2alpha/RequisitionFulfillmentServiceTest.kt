@@ -154,10 +154,7 @@ class RequisitionFulfillmentServiceTest {
     assertThat(response).isEqualTo(FULFILLED_RESPONSE)
     val blob = assertNotNull(requisitionStore.get(REQUISITION_BLOB_CONTEXT))
     assertThat(blob).contentEqualTo(TEST_REQUISITION_DATA)
-    verifyProtoArgument(
-        computationsServiceMock,
-        ComputationsCoroutineImplBase::recordRequisition,
-      )
+    verifyProtoArgument(computationsServiceMock, ComputationsCoroutineImplBase::recordRequisition)
       .isEqualTo(
         recordRequisitionRequest {
           token = fakeToken
