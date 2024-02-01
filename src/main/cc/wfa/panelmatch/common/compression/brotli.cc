@@ -22,6 +22,7 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/brotli/brotli_reader.h"
 #include "riegeli/brotli/brotli_writer.h"
+#include "riegeli/bytes/read_all.h"
 #include "riegeli/bytes/string_reader.h"
 #include "riegeli/bytes/string_writer.h"
 #include "wfa/panelmatch/common/compression/compressor.h"
@@ -67,12 +68,15 @@ class Brotli : public Compressor {
   absl::StatusOr<std::string> Decompress(
       absl::string_view compressed_data) const override {
     std::string result;
-    BrotliReader brotli_reader(
-        StringReader<absl::string_view *>(&compressed_data), reader_options_);
-    if (!brotli_reader.ReadAll(result) || !brotli_reader.Close()) {
-      return brotli_reader.status();
+    absl::Status status = riegeli::ReadAll(
+        BrotliReader(StringReader<absl::string_view *>(&compressed_data),
+                     reader_options_),
+        result);
+    if (status.ok()) {
+      return result;
+    } else {
+      return status;
     }
-    return result;
   }
 
  private:
