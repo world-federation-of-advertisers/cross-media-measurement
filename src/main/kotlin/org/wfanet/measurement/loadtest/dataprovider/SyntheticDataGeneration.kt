@@ -19,9 +19,10 @@ package org.wfanet.measurement.loadtest.dataprovider
 import com.google.protobuf.Descriptors.FieldDescriptor
 import com.google.protobuf.Message
 import java.time.ZoneOffset
+import java.util.Collections
+import java.util.Random
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.random.Random
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SimulatorSyntheticDataSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
@@ -67,8 +68,8 @@ object SyntheticDataGeneration {
     }
 
     if (samplingRequired) {
-      check(syntheticEventGroupSpec.rngType == SyntheticEventGroupSpec.RngType.KOTLIN_RANDOM) {
-        "Expecting KOTLIN_RANDOM rng type, got ${syntheticEventGroupSpec.rngType}"
+      check(syntheticEventGroupSpec.rngType == SyntheticEventGroupSpec.RngType.JAVA_UTIL_RANDOM) {
+        "Expecting JAVA_UTIL_RANDOM rng type, got ${syntheticEventGroupSpec.rngType}"
       }
     }
 
@@ -124,14 +125,15 @@ object SyntheticDataGeneration {
    * Returns the sampled Vids from [vidRangeSpec]. Given the same [vidRangeSpec] and [randomSeed],
    * returns the same vids. Returns all of the vids if sample size is 0.
    */
-  private fun sampleVids(vidRangeSpec: VidRangeSpec, random: Random): Sequence<Long> {
+  private fun sampleVids(vidRangeSpec: VidRangeSpec, random: Random): List<Long> {
     val vidRangeSequence =
-      (vidRangeSpec.vidRange.start until vidRangeSpec.vidRange.endExclusive).asSequence()
+      (vidRangeSpec.vidRange.start until vidRangeSpec.vidRange.endExclusive).toMutableList()
     if (vidRangeSpec.sampleSize == 0) {
       return vidRangeSequence
     }
+    Collections.shuffle(vidRangeSequence, random)
 
-    return vidRangeSequence.shuffled(random).take(vidRangeSpec.sampleSize)
+    return vidRangeSequence.take(vidRangeSpec.sampleSize)
   }
 
   /**

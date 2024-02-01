@@ -143,8 +143,8 @@ message SyntheticEventGroupSpec {
   enum RngType {
     // Default value used if the rng type is omitted.
     RNG_TYPE_UNSPECIFIED = 0;
-    // Signals kotlin.random.Random should be used for sampling.
-    KOTLIN_RANDOM = 1;
+    // Signals java.util.Random should be used for sampling.
+    JAVA_UTIL_RANDOM = 1;
   }
 
   // Random Number Generator type for this `SyntheticEventGroupSpec`.

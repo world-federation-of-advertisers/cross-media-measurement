@@ -300,7 +300,7 @@ class SyntheticDataGenerationTest {
     }
     val eventGroupSpec = syntheticEventGroupSpec {
       description = "event group 1"
-      rngType = SyntheticEventGroupSpec.RngType.KOTLIN_RANDOM
+      rngType = SyntheticEventGroupSpec.RngType.JAVA_UTIL_RANDOM
 
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {
@@ -434,7 +434,7 @@ class SyntheticDataGenerationTest {
     }
     val eventGroupSpec = syntheticEventGroupSpec {
       description = "event group 1"
-      rngType = SyntheticEventGroupSpec.RngType.KOTLIN_RANDOM
+      rngType = SyntheticEventGroupSpec.RngType.JAVA_UTIL_RANDOM
 
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {
