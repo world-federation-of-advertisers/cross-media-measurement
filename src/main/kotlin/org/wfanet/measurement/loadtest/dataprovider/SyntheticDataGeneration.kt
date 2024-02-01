@@ -19,10 +19,11 @@ package org.wfanet.measurement.loadtest.dataprovider
 import com.google.protobuf.Descriptors.FieldDescriptor
 import com.google.protobuf.Message
 import java.time.ZoneOffset
-import java.util.Collections
 import java.util.Random
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.random.Random as KotlinRandom
+import kotlin.random.asKotlinRandom
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SimulatorSyntheticDataSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
@@ -83,7 +84,7 @@ object SyntheticDataGeneration {
           check(!frequencySpec.hasOverlaps()) { "The VID ranges should be non-overlapping." }
 
           for (vidRangeSpec: VidRangeSpec in frequencySpec.vidRangeSpecsList) {
-            val random = Random(vidRangeSpec.randomSeed)
+            val random = Random(vidRangeSpec.randomSeed).asKotlinRandom()
             val subPopulation: SubPopulation =
               vidRangeSpec.vidRange.findSubPopulation(subPopulations)
                 ?: throw IllegalArgumentException()
@@ -125,15 +126,13 @@ object SyntheticDataGeneration {
    * Returns the sampled Vids from [vidRangeSpec]. Given the same [vidRangeSpec] and [randomSeed],
    * returns the same vids. Returns all of the vids if sample size is 0.
    */
-  private fun sampleVids(vidRangeSpec: VidRangeSpec, random: Random): List<Long> {
-    val vidRangeList =
-      (vidRangeSpec.vidRange.start until vidRangeSpec.vidRange.endExclusive).toMutableList()
+  private fun sampleVids(vidRangeSpec: VidRangeSpec, random: KotlinRandom): Sequence<Long> {
+    val vidRangeSequence =
+      (vidRangeSpec.vidRange.start until vidRangeSpec.vidRange.endExclusive).asSequence()
     if (vidRangeSpec.sampleSize == 0) {
       return vidRangeSequence
     }
-    Collections.shuffle(vidRangeList, random)
-
-    return vidRangeList.take(vidRangeSpec.sampleSize)
+    return vidRangeSequence.shuffled(random).take(vidRangeSpec.sampleSize)
   }
 
   /**
