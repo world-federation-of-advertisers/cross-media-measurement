@@ -102,7 +102,7 @@ abstract class ExchangeWorkflowDaemon : Runnable {
         exchangeTaskMapper = exchangeTaskMapper
       )
 
-    val launcher = CoroutineLauncher(stepExecutor = stepExecutor)
+    val launcher = CoroutineLauncher(stepExecutor = stepExecutor, apiClient = apiClient)
 
     val exchangeStepLauncher =
       ExchangeStepLauncher(
