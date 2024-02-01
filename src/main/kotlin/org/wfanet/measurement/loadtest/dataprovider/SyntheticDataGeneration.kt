@@ -126,14 +126,14 @@ object SyntheticDataGeneration {
    * returns the same vids. Returns all of the vids if sample size is 0.
    */
   private fun sampleVids(vidRangeSpec: VidRangeSpec, random: Random): List<Long> {
-    val vidRangeSequence =
+    val vidRangeList =
       (vidRangeSpec.vidRange.start until vidRangeSpec.vidRange.endExclusive).toMutableList()
     if (vidRangeSpec.sampleSize == 0) {
       return vidRangeSequence
     }
-    Collections.shuffle(vidRangeSequence, random)
+    Collections.shuffle(vidRangeList, random)
 
-    return vidRangeSequence.take(vidRangeSpec.sampleSize)
+    return vidRangeList.take(vidRangeSpec.sampleSize)
   }
 
   /**
