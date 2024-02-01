@@ -138,7 +138,7 @@ absl::StatusOr<std::vector<uint32_t>> GetShareVectorFromSketchShare(
 
 absl::StatusOr<std::vector<uint32_t>> VectorSubMod(
     const std::vector<uint32_t>& X, const std::vector<uint32_t>& Y,
-    uint32_t modulus) {
+    const uint32_t modulus) {
   if (X.size() != Y.size()) {
     return absl::InvalidArgumentError(
         "Input vectors must have the same length.");
