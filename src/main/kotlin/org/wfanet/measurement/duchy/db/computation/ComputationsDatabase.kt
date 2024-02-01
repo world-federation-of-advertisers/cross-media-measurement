@@ -196,18 +196,12 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
     blobRef: BlobRef,
   )
 
-  /** Writes the path to a blob needed for an output blob from a stage. */
-  suspend fun writeRequisitionBlobPath(
+  /** Writes the requisition from a fulfillment. */
+  suspend fun writeRequisition(
     token: ComputationEditToken<ProtocolT, StageT>,
     externalRequisitionKey: ExternalRequisitionKey,
     pathToBlob: String,
-  )
-
-  /** Writes the seed of a requisition fulfillment. */
-  suspend fun writeRequisitionSeed(
-    token: ComputationEditToken<ProtocolT, StageT>,
-    externalRequisitionKey: ExternalRequisitionKey,
-    seed: ByteString,
+    seed: ByteString? = null,
   )
 
   /** Inserts the specified [ComputationStatMetric] into the database. */

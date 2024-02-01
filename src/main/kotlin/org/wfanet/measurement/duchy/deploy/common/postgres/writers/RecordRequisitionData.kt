@@ -37,21 +37,17 @@ import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
 class RecordRequisitionData(
   private val localId: Long,
   private val externalRequisitionKey: ExternalRequisitionKey,
-  private val pathToBlob: String? = null,
-  private val seed: ByteString? = null,
+  private val pathToBlob: String,
+  private val seed: ByteString?,
   private val clock: Clock,
   private val computationReader: ComputationReader,
 ) : PostgresWriter<ComputationToken>() {
   override suspend fun TransactionScope.runTransaction(): ComputationToken {
-    require((pathToBlob != null && seed == null) || (pathToBlob == null && seed != null)) {
-      "There must be only one of seed or pathToBlob non-null."
-    }
-    if (pathToBlob != null) {
+    require(pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $externalRequisitionKey" }
+    if (seed != null) {
       require(pathToBlob.isNotBlank()) {
         "Cannot insert blank path to blob. $externalRequisitionKey"
       }
-    } else if (seed != null) {
-      require(!seed.isEmpty) { "Cannot insert empty seed. $externalRequisitionKey" }
     }
 
     val requisition: RequisitionReader.RequisitionResult =

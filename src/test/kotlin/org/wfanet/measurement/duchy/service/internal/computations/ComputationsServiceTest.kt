@@ -44,7 +44,6 @@ import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.GetComputationIdsRequest
 import org.wfanet.measurement.internal.duchy.GetComputationIdsResponse
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
-import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathRequest
 import org.wfanet.measurement.internal.duchy.RequisitionDetails
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.computationStage
@@ -55,7 +54,7 @@ import org.wfanet.measurement.internal.duchy.deleteComputationRequest
 import org.wfanet.measurement.internal.duchy.externalRequisitionKey
 import org.wfanet.measurement.internal.duchy.getComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
-import org.wfanet.measurement.internal.duchy.recordRequisitionSeedRequest
+import org.wfanet.measurement.internal.duchy.recordRequisitionRequest
 import org.wfanet.measurement.internal.duchy.requisitionEntry
 import org.wfanet.measurement.internal.duchy.requisitionMetadata
 import org.wfanet.measurement.internal.duchy.updateComputationDetailsRequest
@@ -489,16 +488,13 @@ class ComputationsServiceTest {
 
     val tokenAtStart = service.getComputationToken(id.toGetTokenRequest()).token
 
-    val request =
-      RecordRequisitionBlobPathRequest.newBuilder()
-        .apply {
-          token = tokenAtStart
-          key = requisitionKey
-          blobPath = "this is a new path"
-        }
-        .build()
+    val request = recordRequisitionRequest {
+      token = tokenAtStart
+      key = requisitionKey
+      blobPath = "this is a new path"
+    }
 
-    assertThat(service.recordRequisitionBlobPath(request))
+    assertThat(service.recordRequisition(request))
       .isEqualTo(
         tokenAtStart
           .toBuilder()
@@ -516,7 +512,7 @@ class ComputationsServiceTest {
   }
 
   @Test
-  fun `recordRequisitionSeed records seed`() = runBlocking {
+  fun `recordRequisition records blob path and seed`() = runBlocking {
     val id = "1234"
     val requisitionKey = externalRequisitionKey {
       externalRequisitionId = "1234"
@@ -532,19 +528,21 @@ class ComputationsServiceTest {
     val tokenAtStart = service.getComputationToken(id.toGetTokenRequest()).token
 
     val seed = "a seed in bytes.".toByteStringUtf8()
-    val request = recordRequisitionSeedRequest {
+    val request = recordRequisitionRequest {
       token = tokenAtStart
       key = requisitionKey
+      blobPath = "this is a new path"
       this.seed = seed
     }
 
-    assertThat(service.recordRequisitionSeed(request).token)
+    assertThat(service.recordRequisition(request).token)
       .isEqualTo(
         tokenAtStart.copy {
           version = 1
           requisitions.clear()
           requisitions += requisitionMetadata {
             externalKey = requisitionKey
+            path = "this is a new path"
             this.seed = seed
           }
         }

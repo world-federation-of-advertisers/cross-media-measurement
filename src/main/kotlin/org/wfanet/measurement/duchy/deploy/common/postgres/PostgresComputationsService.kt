@@ -90,15 +90,12 @@ import org.wfanet.measurement.internal.duchy.PurgeComputationsRequest
 import org.wfanet.measurement.internal.duchy.PurgeComputationsResponse
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathResponse
-import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathRequest
-import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathResponse
-import org.wfanet.measurement.internal.duchy.RecordRequisitionSeedRequest
-import org.wfanet.measurement.internal.duchy.RecordRequisitionSeedResponse
+import org.wfanet.measurement.internal.duchy.RecordRequisitionRequest
+import org.wfanet.measurement.internal.duchy.RecordRequisitionResponse
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsResponse
 import org.wfanet.measurement.internal.duchy.getComputationIdsResponse
 import org.wfanet.measurement.internal.duchy.purgeComputationsResponse
-import org.wfanet.measurement.internal.duchy.recordRequisitionSeedResponse
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
@@ -437,36 +434,21 @@ class PostgresComputationsService(
     return EnqueueComputationResponse.getDefaultInstance()
   }
 
-  override suspend fun recordRequisitionBlobPath(
-    request: RecordRequisitionBlobPathRequest
-  ): RecordRequisitionBlobPathResponse {
+  override suspend fun recordRequisition(
+    request: RecordRequisitionRequest
+  ): RecordRequisitionResponse {
     val token =
       RecordRequisitionData(
           clock = clock,
           localId = request.token.localComputationId,
           externalRequisitionKey = request.key,
           pathToBlob = request.blobPath,
+          seed = if (request.seed.isEmpty) null else request.seed,
           computationReader = computationReader,
         )
         .execute(client, idGenerator)
 
     return token.toRecordRequisitionBlobPathResponse()
-  }
-
-  override suspend fun recordRequisitionSeed(
-    request: RecordRequisitionSeedRequest
-  ): RecordRequisitionSeedResponse {
-    val token =
-      RecordRequisitionData(
-          clock = clock,
-          localId = request.token.localComputationId,
-          externalRequisitionKey = request.key,
-          seed = request.seed,
-          computationReader = computationReader,
-        )
-        .execute(client, idGenerator)
-
-    return recordRequisitionSeedResponse { this.token = token }
   }
 
   private fun newCreateComputationLogEntryRequest(

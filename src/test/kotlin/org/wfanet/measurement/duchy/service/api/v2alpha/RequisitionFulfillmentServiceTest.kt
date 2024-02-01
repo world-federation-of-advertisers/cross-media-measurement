@@ -24,7 +24,6 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -33,9 +32,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
-import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
-import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -66,8 +63,7 @@ import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.copy
 import org.wfanet.measurement.internal.duchy.externalRequisitionKey
 import org.wfanet.measurement.internal.duchy.getComputationTokenResponse
-import org.wfanet.measurement.internal.duchy.recordRequisitionBlobPathRequest
-import org.wfanet.measurement.internal.duchy.recordRequisitionSeedRequest
+import org.wfanet.measurement.internal.duchy.recordRequisitionRequest
 import org.wfanet.measurement.internal.duchy.requisitionDetails
 import org.wfanet.measurement.internal.duchy.requisitionMetadata
 import org.wfanet.measurement.storage.testing.BlobSubject.Companion.assertThat
@@ -160,10 +156,10 @@ class RequisitionFulfillmentServiceTest {
     assertThat(blob).contentEqualTo(TEST_REQUISITION_DATA)
     verifyProtoArgument(
         computationsServiceMock,
-        ComputationsCoroutineImplBase::recordRequisitionBlobPath,
+        ComputationsCoroutineImplBase::recordRequisition,
       )
       .isEqualTo(
-        recordRequisitionBlobPathRequest {
+        recordRequisitionRequest {
           token = fakeToken
           key = REQUISITION_KEY
           blobPath = blob.blobKey
@@ -210,7 +206,7 @@ class RequisitionFulfillmentServiceTest {
   }
 
   @Test
-  fun `fulfill requisition writes the seed`() = runBlocking {
+  fun `fulfill requisition writes the data and seed for HMSS protocol`() = runBlocking {
     val fakeToken = computationToken {
       globalComputationId = COMPUTATION_ID
       computationDetails = COMPUTATION_DETAILS
@@ -224,18 +220,20 @@ class RequisitionFulfillmentServiceTest {
 
     val response =
       withPrincipal(DATA_PROVIDER_PRINCIPAL) {
-        service.fulfillRequisition(HEADER.withSeed(TEST_REQUISITION_SEED))
+        service.fulfillRequisition(
+          HEADER.withSeedAndData(TEST_REQUISITION_SEED, TEST_REQUISITION_DATA)
+        )
       }
 
     assertThat(response).isEqualTo(FULFILLED_RESPONSE)
-    verifyProtoArgument(
-        computationsServiceMock,
-        ComputationsCoroutineImplBase::recordRequisitionSeed,
-      )
+    val blob = assertNotNull(requisitionStore.get(REQUISITION_BLOB_CONTEXT))
+    assertThat(blob).contentEqualTo(TEST_REQUISITION_DATA)
+    verifyProtoArgument(computationsServiceMock, ComputationsCoroutineImplBase::recordRequisition)
       .isEqualTo(
-        recordRequisitionSeedRequest {
+        recordRequisitionRequest {
           token = fakeToken
           key = REQUISITION_KEY
+          blobPath = blob.blobKey
           seed = TEST_REQUISITION_SEED
         }
       )
@@ -246,34 +244,6 @@ class RequisitionFulfillmentServiceTest {
           nonce = NONCE
         }
       )
-  }
-
-  @Test
-  fun `fulfill requisition with both data and seed raises error`() = runBlocking {
-    val fakeToken = computationToken {
-      globalComputationId = COMPUTATION_ID
-      computationDetails = COMPUTATION_DETAILS
-      requisitions += REQUISITION_METADATA
-    }
-    computationsServiceMock.stub {
-      onBlocking { getComputationToken(any()) }
-        .thenReturn(getComputationTokenResponse { token = fakeToken })
-    }
-    RequisitionBlobContext(COMPUTATION_ID, HEADER.name)
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withPrincipal(DATA_PROVIDER_PRINCIPAL) {
-          service.fulfillRequisition(
-            HEADER.withSeedAndData(TEST_REQUISITION_SEED, TEST_REQUISITION_DATA)
-          )
-        }
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(requisitionStore.get(REQUISITION_BLOB_CONTEXT)).isNull()
-    verifyBlocking(computationsServiceMock, never()) { recordRequisitionSeed(any()) }
-    verifyBlocking(requisitionsServiceMock, never()) { fulfillRequisition(any()) }
   }
 
   @Test
@@ -360,19 +330,6 @@ class RequisitionFulfillmentServiceTest {
       .onStart { emit(fulfillRequisitionRequest { header = this@withContent }) }
   }
 
-  private fun FulfillRequisitionRequest.Header.withSeed(
-    randomSeed: ByteString
-  ): Flow<FulfillRequisitionRequest> {
-    return flowOf(
-      fulfillRequisitionRequest {
-        header =
-          this@withSeed.copy {
-            honestMajorityShareShuffle = honestMajorityShareShuffle { seed = randomSeed }
-          }
-      }
-    )
-  }
-
   private fun FulfillRequisitionRequest.Header.withSeedAndData(
     randomSeed: ByteString,
     vararg bodyContent: ByteString,
@@ -386,7 +343,7 @@ class RequisitionFulfillmentServiceTest {
           fulfillRequisitionRequest {
             header =
               this@withSeedAndData.copy {
-                honestMajorityShareShuffle = honestMajorityShareShuffle { seed = randomSeed }
+                honestMajorityShareShuffle = honestMajorityShareShuffle { secretSeed = randomSeed }
               }
           }
         )

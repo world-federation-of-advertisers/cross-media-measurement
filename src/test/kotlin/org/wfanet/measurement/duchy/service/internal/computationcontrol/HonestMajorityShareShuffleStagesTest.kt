@@ -73,15 +73,27 @@ private val UPDATED_WAIT_ON_SHUFFLE_INPUT_TOKEN =
 private val FULFILLED_WAIT_ON_SHUFFLE_INPUT_TOKEN =
   WAIT_ON_SHUFFLE_INPUT_TOKEN.copy {
     requisitions.clear()
-    requisitions += requisitionMetadata { path = "path_1" }
-    requisitions += requisitionMetadata { seed = "seed_2".toByteStringUtf8() }
+    requisitions += requisitionMetadata {
+      seed = "seed_1".toByteStringUtf8()
+      path = "path_1"
+    }
+    requisitions += requisitionMetadata {
+      seed = "seed_2".toByteStringUtf8()
+      path = "path_2"
+    }
   }
 
 private val READY_WAIT_ON_SHUFFLE_INPUT_TOKEN =
   UPDATED_WAIT_ON_SHUFFLE_INPUT_TOKEN.copy {
     requisitions.clear()
-    requisitions += requisitionMetadata { path = "path_1" }
-    requisitions += requisitionMetadata { seed = "seed_2".toByteStringUtf8() }
+    requisitions += requisitionMetadata {
+      seed = "seed_1".toByteStringUtf8()
+      path = "path_1"
+    }
+    requisitions += requisitionMetadata {
+      seed = "seed_2".toByteStringUtf8()
+      path = "path_2"
+    }
   }
 
 private val WAIT_ON_AGGREGATION_INPUT_TOKEN = computationToken {
