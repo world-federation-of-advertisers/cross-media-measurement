@@ -21,10 +21,10 @@ cc_library(
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
         ":multithreading_helper",
-        ":noise_parameters_computation",
         "//src/main/cc/wfa/measurement/common/crypto:constants",
         "//src/main/cc/wfa/measurement/common/crypto:encryption_utility_helper",
         "//src/main/cc/wfa/measurement/common/crypto:protocol_cryptor",
+        "//src/main/cc/wfa/measurement/internal/duchy/protocol/common:noise_parameters_computation",
         "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_cc_proto",
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_encryption_methods_cc_proto",
         "@any_sketch//src/main/cc/estimation:estimators",
@@ -49,42 +49,16 @@ cc_library(
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
         ":multithreading_helper",
-        ":noise_parameters_computation",
         "//src/main/cc/wfa/measurement/common/crypto:constants",
         "//src/main/cc/wfa/measurement/common/crypto:encryption_utility_helper",
         "//src/main/cc/wfa/measurement/common/crypto:protocol_cryptor",
+        "//src/main/cc/wfa/measurement/internal/duchy/protocol/common:noise_parameters_computation",
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:reach_only_liquid_legions_v2_encryption_methods_cc_proto",
         "@any_sketch//src/main/cc/estimation:estimators",
         "@any_sketch//src/main/cc/math:distributed_discrete_gaussian_noiser",
         "@any_sketch//src/main/cc/math:distributed_geometric_noiser",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_private_join_and_compute//private_join_and_compute/crypto:commutative_elgamal",
-        "@wfa_common_cpp//src/main/cc/common_cpp/jni:jni_wrap",
-        "@wfa_common_cpp//src/main/cc/common_cpp/macros",
-        "@wfa_common_cpp//src/main/cc/common_cpp/time:started_thread_cpu_timer",
-    ],
-)
-
-cc_library(
-    name = "honest_majority_share_shuffle_utility",
-    srcs = [
-        "honest_majority_share_shuffle_utility.cc",
-    ],
-    hdrs = [
-        "honest_majority_share_shuffle_utility.h",
-    ],
-    strip_include_prefix = _INCLUDE_PREFIX,
-    deps = [
-        ":noise_parameters_computation",
-        "//src/main/proto/wfa/measurement/internal/duchy/protocol:honest_majority_share_shuffle_methods_cc_proto",
-        "@any_sketch//src/main/cc/any_sketch/crypto:shuffle",
-        "@any_sketch//src/main/cc/math:distributed_discrete_gaussian_noiser",
-        "@any_sketch//src/main/cc/math:distributed_geometric_noiser",
-        "@any_sketch//src/main/cc/math:open_ssl_uniform_random_generator",
-        "@any_sketch//src/main/cc/math:uniform_pseudorandom_generator",
-        "@any_sketch//src/main/proto/wfa/any_sketch:secret_share_cc_proto",
-        "@com_google_absl//absl/algorithm:container",
-        "@com_google_absl//absl/status",
         "@wfa_common_cpp//src/main/cc/common_cpp/jni:jni_wrap",
         "@wfa_common_cpp//src/main/cc/common_cpp/macros",
         "@wfa_common_cpp//src/main/cc/common_cpp/time:started_thread_cpu_timer",
@@ -122,25 +96,6 @@ cc_library(
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:reach_only_liquid_legions_v2_encryption_methods_cc_proto",
         "@wfa_common_cpp//src/main/cc/common_cpp/jni:jni_wrap",
         "@wfa_common_cpp//src/main/cc/common_cpp/macros",
-    ],
-)
-
-cc_library(
-    name = "noise_parameters_computation",
-    srcs = [
-        "noise_parameters_computation.cc",
-    ],
-    hdrs = [
-        "noise_parameters_computation.h",
-    ],
-    strip_include_prefix = _INCLUDE_PREFIX,
-    deps = [
-        "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_cc_proto",
-        "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_cc_proto",
-        "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_noise_config_cc_proto",
-        "@any_sketch//src/main/cc/math:distributed_discrete_gaussian_noiser",
-        "@any_sketch//src/main/cc/math:distributed_geometric_noiser",
-        "@any_sketch//src/main/cc/math:noise_parameters_computation",
     ],
 )
 

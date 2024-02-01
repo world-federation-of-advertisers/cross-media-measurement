@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/honest_majority_share_shuffle_utility.h"
+#include "wfa/measurement/internal/duchy/protocol/share_shuffle/honest_majority_share_shuffle_utility.h"
 
 #include <google/protobuf/util/time_util.h>
 
@@ -34,10 +34,11 @@
 #include "math/distributed_noiser.h"
 #include "math/open_ssl_uniform_random_generator.h"
 #include "wfa/any_sketch/secret_share.pb.h"
+#include "wfa/measurement/internal/duchy/protocol/common/noise_parameters_computation.h"
 #include "wfa/measurement/internal/duchy/protocol/honest_majority_share_shuffle_methods.pb.h"
-#include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/noise_parameters_computation.h"
+#include "wfa/measurement/internal/duchy/protocol/share_shuffle/honest_majority_share_shuffle_utility_helper.h"
 
-namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
+namespace wfa::measurement::internal::duchy::protocol::share_shuffle {
 
 namespace {
 
@@ -47,73 +48,8 @@ using ::wfa::math::kBytesPerAes256Iv;
 using ::wfa::math::kBytesPerAes256Key;
 using ::wfa::math::UniformPseudorandomGenerator;
 using ::wfa::measurement::common::crypto::SecureShuffleWithSeed;
-
-absl::StatusOr<std::vector<uint32_t>> GenerateNoiseRegisters(
-    const ShareShuffleSketchParams& sketch_param,
-    const math::DistributedNoiser& distributed_noiser) {
-  if (sketch_param.ring_modulus() <=
-      sketch_param.maximum_combined_frequency() + 1) {
-    return absl::InvalidArgumentError(
-        "Ring modulus must be greater than maximum combined frequency plus 1.");
-  }
-
-  int64_t total_noise_registers_count =
-      distributed_noiser.options().shift_offset * 2 *
-      (1 + sketch_param.maximum_combined_frequency());
-  // Sets all noise registers to the sentinel value (q-1).
-  std::vector<uint32_t> noise_registers(total_noise_registers_count,
-                                        sketch_param.ring_modulus() - 1);
-
-  int current_index = 0;
-  for (int k = 0; k <= sketch_param.maximum_combined_frequency(); k++) {
-    ASSIGN_OR_RETURN(int64_t noise_register_count_for_bucket_k,
-                     distributed_noiser.GenerateNoiseComponent());
-    for (int i = 0; i < noise_register_count_for_bucket_k; i++) {
-      noise_registers[current_index] = k;
-      current_index++;
-    }
-  }
-
-  return noise_registers;
-}
-
-absl::StatusOr<PrngSeed> GetPrngSeedFromString(const std::string& seed_str) {
-  if (seed_str.length() != (kBytesPerAes256Key + kBytesPerAes256Iv)) {
-    return absl::InvalidArgumentError(absl::Substitute(
-        "The seed string has length $0 bytes, however, $1 bytes are required.",
-        seed_str.size(), (kBytesPerAes256Key + kBytesPerAes256Iv)));
-  }
-  PrngSeed seed;
-  *seed.mutable_key() = seed_str.substr(0, kBytesPerAes256Key);
-  *seed.mutable_iv() = seed_str.substr(kBytesPerAes256Key, kBytesPerAes256Iv);
-  return seed;
-}
-
-absl::StatusOr<PrngSeed> GetPrngSeedFromCharVector(
-    const std::vector<unsigned char>& seed_vec) {
-  if (seed_vec.size() != (kBytesPerAes256Key + kBytesPerAes256Iv)) {
-    return absl::InvalidArgumentError(absl::Substitute(
-        "The seed vector has length $0 bytes, however, $1 bytes are required.",
-        seed_vec.size(), (kBytesPerAes256Key + kBytesPerAes256Iv)));
-  }
-  PrngSeed seed;
-  *seed.mutable_key() =
-      std::string(seed_vec.begin(), seed_vec.begin() + kBytesPerAes256Key);
-  *seed.mutable_iv() =
-      std::string(seed_vec.begin() + kBytesPerAes256Key,
-                  seed_vec.begin() + kBytesPerAes256Key + kBytesPerAes256Iv);
-  return seed;
-}
-
-absl::StatusOr<std::vector<uint32_t>> GenerateShareFromSeed(
-    const ShareShuffleSketchParams& param, const PrngSeed& seed) {
-  ASSIGN_OR_RETURN(std::unique_ptr<math::UniformPseudorandomGenerator> prng,
-                   CreatePrngFromSeed(seed));
-  ASSIGN_OR_RETURN(std::vector<uint32_t> share_from_seed,
-                   prng->GenerateUniformRandomRange(param.register_count(),
-                                                    param.ring_modulus()));
-  return share_from_seed;
-}
+using ::wfa::measurement::internal::duchy::protocol::common::
+    GetBlindHistogramNoiser;
 
 absl::Status VerifySketchParameters(const ShareShuffleSketchParams& params) {
   if (params.register_count() < 1) {
@@ -152,25 +88,10 @@ absl::StatusOr<CompleteShufflePhaseResponse> CompleteShufflePhase(
   // Combines the input shares.
   std::vector<uint32_t> combined_sketch(sketch_size, 0);
   for (int i = 0; i < request.sketch_shares().size(); i++) {
-    std::vector<uint32_t> share_vector;
-    switch (request.sketch_shares().Get(i).share_type_case()) {
-      case CompleteShufflePhaseRequest::SketchShare::kData:
-        share_vector =
-            std::vector(request.sketch_shares().Get(i).data().values().begin(),
-                        request.sketch_shares().Get(i).data().values().end());
-        break;
-      case CompleteShufflePhaseRequest::SketchShare::kSeed: {
-        ASSIGN_OR_RETURN(
-            PrngSeed seed,
-            GetPrngSeedFromString(request.sketch_shares().Get(i).seed()));
-        ASSIGN_OR_RETURN(share_vector,
-                         GenerateShareFromSeed(request.sketch_params(), seed));
-        break;
-      }
-      case CompleteShufflePhaseRequest::SketchShare::SHARE_TYPE_NOT_SET:
-        return absl::InvalidArgumentError("Share type is not defined.");
-        break;
-    }
+    ASSIGN_OR_RETURN(
+        std::vector<uint32_t> share_vector,
+        GetShareVectorFromSketchShare(request.sketch_params(),
+                                      request.sketch_shares().Get(i)));
     if (share_vector.size() != sketch_size) {
       return absl::InvalidArgumentError(absl::Substitute(
           "The $0-th sketch share has invalid size. Expect $1 but the "
@@ -283,4 +204,4 @@ absl::StatusOr<CompleteShufflePhaseResponse> CompleteShufflePhase(
   return response;
 }
 
-}  // namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2
+}  // namespace wfa::measurement::internal::duchy::protocol::share_shuffle

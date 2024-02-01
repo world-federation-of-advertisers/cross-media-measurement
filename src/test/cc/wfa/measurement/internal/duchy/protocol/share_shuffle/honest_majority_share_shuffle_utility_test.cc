@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/honest_majority_share_shuffle_utility.h"
+#include "wfa/measurement/internal/duchy/protocol/share_shuffle/honest_majority_share_shuffle_utility.h"
 
 #include <algorithm>
 #include <memory>
@@ -38,10 +38,10 @@
 #include "openssl/obj_mac.h"
 #include "wfa/any_sketch/secret_share.pb.h"
 #include "wfa/measurement/internal/duchy/noise_mechanism.pb.h"
+#include "wfa/measurement/internal/duchy/protocol/common/noise_parameters_computation.h"
 #include "wfa/measurement/internal/duchy/protocol/honest_majority_share_shuffle_methods.pb.h"
-#include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/noise_parameters_computation.h"
 
-namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
+namespace wfa::measurement::internal::duchy::protocol::share_shuffle {
 namespace {
 
 using ::testing::IsSupersetOf;
@@ -63,6 +63,8 @@ using ::wfa::measurement::internal::duchy::protocol::
     CompleteShufflePhaseRequest;
 using ::wfa::measurement::internal::duchy::protocol::
     CompleteShufflePhaseResponse;
+using ::wfa::measurement::internal::duchy::protocol::common::
+    GetBlindHistogramNoiser;
 
 constexpr int kEdpCount = 5;
 constexpr int kRegisterCount = 10;
@@ -555,4 +557,4 @@ TEST(ShufflePhaseAtNonAggregator,
 }
 
 }  // namespace
-}  // namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2
+}  // namespace wfa::measurement::internal::duchy::protocol::share_shuffle

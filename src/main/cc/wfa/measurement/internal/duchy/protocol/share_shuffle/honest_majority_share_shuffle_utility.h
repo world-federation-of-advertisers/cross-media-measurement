@@ -12,14 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_LIQUID_LEGIONS_V2_HONEST_MAJORITY_SHARE_SHUFFLE_UTILITY_H_
-#define SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_LIQUID_LEGIONS_V2_HONEST_MAJORITY_SHARE_SHUFFLE_UTILITY_H_
+#ifndef SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_SHARE_SHUFFLE_HONEST_MAJORITY_SHARE_SHUFFLE_UTILITY_H_
+#define SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_SHARE_SHUFFLE_HONEST_MAJORITY_SHARE_SHUFFLE_UTILITY_H_
 
 #include "absl/status/statusor.h"
 #include "wfa/measurement/internal/duchy/protocol/honest_majority_share_shuffle_methods.pb.h"
 
-// TODO(@ple13): Move the HMSS protocol to a sibling folder of LLv2.
-namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
+namespace wfa::measurement::internal::duchy::protocol::share_shuffle {
 
 using ::wfa::measurement::internal::duchy::protocol::
     CompleteShufflePhaseRequest;
@@ -29,6 +28,6 @@ using ::wfa::measurement::internal::duchy::protocol::
 absl::StatusOr<CompleteShufflePhaseResponse> CompleteShufflePhase(
     const CompleteShufflePhaseRequest& request);
 
-}  // namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2
+}  // namespace wfa::measurement::internal::duchy::protocol::share_shuffle
 
-#endif  // SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_LIQUID_LEGIONS_V2_HONEST_MAJORITY_SHARE_SHUFFLE_UTILITY_H_
+#endif  // SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_SHARE_SHUFFLE_HONEST_MAJORITY_SHARE_SHUFFLE_UTILITY_H_
