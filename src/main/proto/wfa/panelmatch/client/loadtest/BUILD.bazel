@@ -1,6 +1,5 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
-load("@rules_java//java:defs.bzl", "java_proto_library")
-load("@wfa_common_jvm//build/kt_jvm_proto:defs.bzl", "kt_jvm_proto_library")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library")
 
 package(
     default_testonly = True,
@@ -13,13 +12,7 @@ proto_library(
     strip_import_prefix = "/src/main/proto",
 )
 
-java_proto_library(
-    name = "forwarded_storage_config_java_proto",
-    deps = [":forwarded_storage_config_proto"],
-)
-
 kt_jvm_proto_library(
     name = "forwarded_storage_config_kt_jvm_proto",
-    srcs = [":forwarded_storage_config_proto"],
-    deps = [":forwarded_storage_config_java_proto"],
+    deps = [":forwarded_storage_config_proto"],
 )

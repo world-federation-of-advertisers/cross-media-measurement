@@ -1,7 +1,6 @@
 load("@rules_cc//cc:defs.bzl", "cc_proto_library")
-load("@rules_java//java:defs.bzl", "java_proto_library")
-load("@wfa_common_jvm//build/kt_jvm_proto:defs.bzl", "kt_jvm_proto_library")
 load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library")
 
 package(default_visibility = ["//:__subpackages__"])
 
@@ -22,15 +21,9 @@ cc_proto_library(
     deps = [":liquid_legions_v2_noise_config_proto"],
 )
 
-java_proto_library(
-    name = "liquid_legions_v2_noise_config_java_proto",
-    deps = [":liquid_legions_v2_noise_config_proto"],
-)
-
 kt_jvm_proto_library(
     name = "liquid_legions_v2_noise_config_kt_jvm_proto",
-    srcs = [":liquid_legions_v2_noise_config_proto"],
-    deps = [":liquid_legions_v2_noise_config_java_proto"],
+    deps = [":liquid_legions_v2_noise_config_proto"],
 )
 
 proto_library(
@@ -51,15 +44,9 @@ cc_proto_library(
     deps = [":liquid_legions_v2_encryption_methods_proto"],
 )
 
-java_proto_library(
-    name = "liquid_legions_v2_encryption_methods_java_proto",
-    deps = [":liquid_legions_v2_encryption_methods_proto"],
-)
-
 kt_jvm_proto_library(
     name = "liquid_legions_v2_encryption_methods_kt_jvm_proto",
-    srcs = [":liquid_legions_v2_encryption_methods_proto"],
-    deps = [":liquid_legions_v2_encryption_methods_java_proto"],
+    deps = [":liquid_legions_v2_encryption_methods_proto"],
 )
 
 proto_library(
@@ -68,15 +55,9 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
 )
 
-java_proto_library(
-    name = "liquid_legions_sketch_parameter_java_proto",
-    deps = [":liquid_legions_sketch_parameter_proto"],
-)
-
 kt_jvm_proto_library(
     name = "liquid_legions_sketch_parameter_kt_jvm_proto",
-    srcs = [":liquid_legions_sketch_parameter_proto"],
-    deps = [":liquid_legions_sketch_parameter_java_proto"],
+    deps = [":liquid_legions_sketch_parameter_proto"],
 )
 
 proto_library(
@@ -93,15 +74,9 @@ proto_library(
     ],
 )
 
-java_proto_library(
-    name = "liquid_legions_v2_java_proto",
-    deps = [":liquid_legions_v2_proto"],
-)
-
 kt_jvm_proto_library(
     name = "liquid_legions_v2_kt_jvm_proto",
-    srcs = [":liquid_legions_v2_proto"],
-    deps = [":liquid_legions_v2_java_proto"],
+    deps = [":liquid_legions_v2_proto"],
 )
 
 proto_library(
@@ -123,15 +98,9 @@ cc_proto_library(
     deps = [":reach_only_liquid_legions_v2_encryption_methods_proto"],
 )
 
-java_proto_library(
-    name = "reach_only_liquid_legions_v2_encryption_methods_java_proto",
-    deps = [":reach_only_liquid_legions_v2_encryption_methods_proto"],
-)
-
 kt_jvm_proto_library(
     name = "reach_only_liquid_legions_v2_encryption_methods_kt_jvm_proto",
-    srcs = [":reach_only_liquid_legions_v2_encryption_methods_proto"],
-    deps = [":reach_only_liquid_legions_v2_encryption_methods_java_proto"],
+    deps = [":reach_only_liquid_legions_v2_encryption_methods_proto"],
 )
 
 proto_library(
@@ -148,15 +117,9 @@ proto_library(
     ],
 )
 
-java_proto_library(
-    name = "reach_only_liquid_legions_v2_java_proto",
-    deps = [":reach_only_liquid_legions_v2_proto"],
-)
-
 kt_jvm_proto_library(
     name = "reach_only_liquid_legions_v2_kt_jvm_proto",
-    srcs = [":reach_only_liquid_legions_v2_proto"],
-    deps = [":reach_only_liquid_legions_v2_java_proto"],
+    deps = [":reach_only_liquid_legions_v2_proto"],
 )
 
 proto_library(
@@ -165,15 +128,9 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
 )
 
-java_proto_library(
-    name = "share_shuffle_sketch_params_java_proto",
-    deps = [":share_shuffle_sketch_params_proto"],
-)
-
 kt_jvm_proto_library(
     name = "share_shuffle_sketch_params_kt_jvm_proto",
-    srcs = [":share_shuffle_sketch_params_proto"],
-    deps = [":share_shuffle_sketch_params_java_proto"],
+    deps = [":share_shuffle_sketch_params_proto"],
 )
 
 proto_library(
@@ -187,15 +144,9 @@ proto_library(
     ],
 )
 
-java_proto_library(
-    name = "honest_majority_share_shuffle_java_proto",
-    deps = [":honest_majority_share_shuffle_proto"],
-)
-
 kt_jvm_proto_library(
     name = "honest_majority_share_shuffle_kt_jvm_proto",
-    srcs = [":honest_majority_share_shuffle_proto"],
-    deps = [":honest_majority_share_shuffle_java_proto"],
+    deps = [":honest_majority_share_shuffle_proto"],
 )
 
 proto_library(
@@ -214,13 +165,7 @@ cc_proto_library(
     deps = [":honest_majority_share_shuffle_methods_proto"],
 )
 
-java_proto_library(
-    name = "honest_majority_share_shuffle_methods_java_proto",
-    deps = [":honest_majority_share_shuffle_methods_proto"],
-)
-
 kt_jvm_proto_library(
     name = "honest_majority_share_shuffle_methods_kt_jvm_proto",
-    srcs = [":honest_majority_share_shuffle_methods_proto"],
-    deps = [":honest_majority_share_shuffle_methods_java_proto"],
+    deps = [":honest_majority_share_shuffle_methods_proto"],
 )

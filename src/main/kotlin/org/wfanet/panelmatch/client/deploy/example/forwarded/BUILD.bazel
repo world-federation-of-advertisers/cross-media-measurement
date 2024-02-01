@@ -1,7 +1,7 @@
-load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
-load("//src/main/docker:macros.bzl", "java_image")
 load("@rules_java//java:defs.bzl", "java_binary")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 load("//build/platforms:constraints.bzl", "DISTROLESS_JAVA")
+load("//src/main/docker:macros.bzl", "java_image")
 
 package(
     default_testonly = True,
