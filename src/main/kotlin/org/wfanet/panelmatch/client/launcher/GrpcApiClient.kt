@@ -61,6 +61,7 @@ class GrpcApiClient(
         grpcRequireNotNull(ExchangeStepAttemptKey.fromName(response.exchangeStepAttempt))
       return ClaimedExchangeStep(response.exchangeStep, exchangeStepAttemptKey)
     }
+    if (semaphore !== null) semaphore.release()
     return null
   }
 
