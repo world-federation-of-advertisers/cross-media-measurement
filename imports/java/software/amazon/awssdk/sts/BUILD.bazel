@@ -2,5 +2,5 @@ package(default_visibility = ["//visibility:public"])
 
 alias(
     name = "sts",
-    actual = "@maven//:software_amazon_awssdk_sts",
+    actual = "@wfa_common_jvm//imports/java/software/amazon/awssdk/services/sts:sts",
 )

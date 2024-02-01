@@ -34,15 +34,12 @@ jobs:
     - name: Write ~/.bazelrc
       run: |
         cat << EOF > ~/.bazelrc
-        build -c opt 
-        build --host_platform //build/platforms:ubuntu_20_04
+        common --config=ci
         EOF
 
     - name: Get Bazel cache params
       id: get-cache-params
       uses: world-federation-of-advertisers/actions/bazel-get-cache-params@v2
-      with:
-        cache-version: 1
 
     - name: Restore Bazel cache
       uses: actions/cache/restore@v3
