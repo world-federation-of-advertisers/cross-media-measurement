@@ -16,6 +16,10 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import com.google.common.cache.CacheBuilder
+import com.google.common.cache.CacheLoader
+import com.google.common.cache.LoadingCache
+import com.google.common.util.concurrent.UncheckedExecutionException
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
 import com.google.protobuf.Duration
@@ -24,6 +28,7 @@ import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.util.Durations
 import io.grpc.Status
 import io.grpc.StatusException
+import io.grpc.StatusRuntimeException
 import java.io.File
 import java.lang.IllegalStateException
 import java.security.PrivateKey
@@ -45,6 +50,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.jetbrains.annotations.BlockingExecutor
 import org.wfanet.measurement.api.v2alpha.BatchCreateMeasurementsResponse
@@ -147,13 +153,6 @@ import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchMetho
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
-import com.google.common.cache.CacheBuilder
-import com.google.common.cache.CacheLoader
-import com.google.common.cache.LoadingCache
-import com.google.common.util.concurrent.UncheckedExecutionException
-import com.google.protobuf.api
-import io.grpc.StatusRuntimeException
-import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
@@ -264,18 +263,21 @@ class MetricsService(
       val apiAuthenticationKey: String,
     )
 
-    private val certificateCache: LoadingCache<ResourceNameApiAuthenticationKey, Deferred<Certificate>> =
+    private val certificateCache:
+      LoadingCache<ResourceNameApiAuthenticationKey, Deferred<Certificate>> =
       CacheBuilder.newBuilder()
         .refreshAfterWrite(30L, TimeUnit.MINUTES)
-        .build(object: CacheLoader<ResourceNameApiAuthenticationKey, Deferred<Certificate>>() {
-          override fun load(key: ResourceNameApiAuthenticationKey): Deferred<Certificate> {
-            return runBlocking {
-              async {
-                getCertificate(name = key.name, apiAuthenticationKey = key.apiAuthenticationKey)
+        .build(
+          object : CacheLoader<ResourceNameApiAuthenticationKey, Deferred<Certificate>>() {
+            override fun load(key: ResourceNameApiAuthenticationKey): Deferred<Certificate> {
+              return runBlocking {
+                async {
+                  getCertificate(name = key.name, apiAuthenticationKey = key.apiAuthenticationKey)
+                }
               }
             }
           }
-        })
+        )
 
     /**
      * Creates CMM public [Measurement]s and [InternalMeasurement]s from a list of [InternalMetric].
@@ -562,14 +564,22 @@ class MetricsService(
 
               val certificate =
                 try {
-                  certificateCache.get(ResourceNameApiAuthenticationKey(name = dataProvider.certificate, apiAuthenticationKey = apiAuthenticationKey)).await()
+                  certificateCache
+                    .get(
+                      ResourceNameApiAuthenticationKey(
+                        name = dataProvider.certificate,
+                        apiAuthenticationKey = apiAuthenticationKey,
+                      )
+                    )
+                    .await()
                 } catch (e: UncheckedExecutionException) {
                   if (e.cause != null) {
                     throw e.cause!!
                   } else {
                     throw Status.UNKNOWN.withDescription(
-                      "Unable to retrieve Certificate ${dataProvider.certificate}."
-                    ).asRuntimeException()
+                        "Unable to retrieve Certificate ${dataProvider.certificate}."
+                      )
+                      .asRuntimeException()
                   }
                 }
 
@@ -756,14 +766,22 @@ class MetricsService(
     ): ByteString {
       val certificate =
         try {
-          certificateCache.get(ResourceNameApiAuthenticationKey(name = principal.config.signingCertificateName, apiAuthenticationKey = principal.config.apiKey)).await()
+          certificateCache
+            .get(
+              ResourceNameApiAuthenticationKey(
+                name = principal.config.signingCertificateName,
+                apiAuthenticationKey = principal.config.apiKey,
+              )
+            )
+            .await()
         } catch (e: UncheckedExecutionException) {
           if (e.cause != null) {
             throw e.cause!!
           } else {
             throw Status.UNKNOWN.withDescription(
-              "Unable to retrieve Certificate ${principal.config.signingCertificateName}."
-            ).asRuntimeException()
+                "Unable to retrieve Certificate ${principal.config.signingCertificateName}."
+              )
+              .asRuntimeException()
           }
         }
       return certificate.x509Der
@@ -1006,27 +1024,33 @@ class MetricsService(
       encryptionPrivateKeyHandle: PrivateKeyHandle,
       apiAuthenticationKey: String,
     ): Measurement.Result {
-      val certificate = try {
-        certificateCache.get(ResourceNameApiAuthenticationKey(name = measurementResultOutput.certificate, apiAuthenticationKey = apiAuthenticationKey)).await()
-      } catch (e: UncheckedExecutionException) {
-        if (e.cause != null) {
-          throw e.cause!!
-        } else {
-          throw Status.UNKNOWN.withDescription(
-            "Unable to retrieve Certificate ${measurementResultOutput.certificate}."
-          ).asRuntimeException()
+      val certificate =
+        try {
+          certificateCache
+            .get(
+              ResourceNameApiAuthenticationKey(
+                name = measurementResultOutput.certificate,
+                apiAuthenticationKey = apiAuthenticationKey,
+              )
+            )
+            .await()
+        } catch (e: UncheckedExecutionException) {
+          if (e.cause != null) {
+            throw e.cause!!
+          } else {
+            throw Status.UNKNOWN.withDescription(
+                "Unable to retrieve Certificate ${measurementResultOutput.certificate}."
+              )
+              .asRuntimeException()
+          }
         }
-      }
       val signedResult =
         decryptResult(measurementResultOutput.encryptedResult, encryptionPrivateKeyHandle)
 
-      if (
-        certificate.revocationState !=
-        Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED
-      ) {
+      if (certificate.revocationState != Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED) {
         throw Status.FAILED_PRECONDITION.withDescription(
-          "${certificate.name} revocation state is ${certificate.revocationState}"
-        )
+            "${certificate.name} revocation state is ${certificate.revocationState}"
+          )
           .asRuntimeException()
       }
 
@@ -1052,7 +1076,6 @@ class MetricsService(
      *
      * @param[name] resource name of the [Certificate]
      * @param[apiAuthenticationKey] API key to act as the [MeasurementConsumer] client
-     *
      * @throws [StatusRuntimeException] with [Status.FAILED_PRECONDITION] when retrieving the
      *   [Certificate] fails.
      */
@@ -1063,13 +1086,9 @@ class MetricsService(
           .getCertificate(getCertificateRequest { this.name = name })
       } catch (e: StatusException) {
         throw when (e.status.code) {
-          Status.Code.NOT_FOUND ->
-            Status.NOT_FOUND.withDescription("$name not found.")
-          else ->
-            Status.UNKNOWN.withDescription(
-              "Unable to retrieve Certificate $name."
-            )
-        }
+            Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription("$name not found.")
+            else -> Status.UNKNOWN.withDescription("Unable to retrieve Certificate $name.")
+          }
           .withCause(e)
           .asRuntimeException()
       }
