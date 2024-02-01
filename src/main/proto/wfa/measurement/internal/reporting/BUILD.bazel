@@ -1,14 +1,14 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
-load("@wfa_common_jvm//build:macros.bzl", "kt_jvm_grpc_proto_library")
-load("//src/main/proto/wfa/measurement/internal/common:macros.bzl", "IMPORT_PREFIX", "proto_and_java_proto_library")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_grpc_proto_library")
+load("//src/main/proto/wfa/measurement/internal/common:macros.bzl", "IMPORT_PREFIX", "proto_and_kt_jvm_proto_library")
 
 package(default_visibility = ["//:__subpackages__"])
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "error_code",
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "measurement",
     deps = [
         "@com_google_protobuf//:duration_proto",
@@ -26,10 +26,10 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "measurements_service_kt_jvm_grpc_proto",
-    srcs = [":measurements_service_proto"],
+    deps = [":measurements_service_proto"],
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "reporting_set",
 )
 
@@ -44,10 +44,10 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "reporting_sets_service_kt_jvm_grpc_proto",
-    srcs = [":reporting_sets_service_proto"],
+    deps = [":reporting_sets_service_proto"],
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "time_interval",
     deps = [
         "@com_google_protobuf//:duration_proto",
@@ -55,14 +55,14 @@ proto_and_java_proto_library(
     ],
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "metric",
     deps = [
         ":time_interval_proto",
     ],
 )
 
-proto_and_java_proto_library(
+proto_and_kt_jvm_proto_library(
     name = "report",
     deps = [
         ":measurement_proto",
@@ -83,5 +83,5 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "reports_service_kt_jvm_grpc_proto",
-    srcs = [":reports_service_proto"],
+    deps = [":reports_service_proto"],
 )
