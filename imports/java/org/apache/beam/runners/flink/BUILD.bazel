@@ -1,0 +1,6 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "flink",
+    actual = "@maven//:org_apache_beam_beam_runners_flink_2_11",
+)

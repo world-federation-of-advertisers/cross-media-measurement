@@ -13,8 +13,14 @@ kt_jvm_library(
     srcs = glob(["*.kt"]),
     runtime_deps = [
         "//imports/java/org/apache/beam/runners/direct",
+        "//imports/java/org/apache/beam/runners/flink",
+        "//imports/java/org/apache/beam/runners/spark",
+        "//imports/java/org/apache/spark/spark-core",
     ],
     deps = [
+        "//imports/java/org/apache/beam/runners/flink",
+        "//imports/java/org/apache/beam/runners/spark",
+        "//imports/java/org/apache/spark/spark-core",
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy",
         "//src/main/kotlin/org/wfanet/panelmatch/client/launcher",
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage/testing",

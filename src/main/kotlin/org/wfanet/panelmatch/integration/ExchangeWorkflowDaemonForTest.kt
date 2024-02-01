@@ -20,7 +20,13 @@ import java.nio.file.Path
 import java.time.Clock
 import java.time.Duration
 import kotlinx.coroutines.runBlocking
+import org.apache.beam.runners.dataflow.options.DataflowWorkerLoggingOptions
+import org.apache.beam.runners.spark.SparkRunner
+import org.apache.beam.sdk.PipelineRunner
+import org.apache.beam.sdk.options.PipelineOptions
+import org.apache.beam.sdk.options.PipelineOptions.DirectRunner
 import org.apache.beam.sdk.options.PipelineOptionsFactory
+import org.apache.beam.sdk.options.SdkHarnessOptions
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub
 import org.wfanet.measurement.common.api.ResourceKey
@@ -45,6 +51,7 @@ import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.Timeout
 import org.wfanet.panelmatch.common.asTimeout
+import org.wfanet.panelmatch.common.beam.BeamOptions
 import org.wfanet.panelmatch.common.certificates.CertificateManager
 import org.wfanet.panelmatch.common.certificates.testing.TestCertificateManager
 import org.wfanet.panelmatch.common.secrets.SecretMap
@@ -60,7 +67,8 @@ class ExchangeWorkflowDaemonForTest(
   privateDirectory: Path,
   override val clock: Clock = Clock.systemUTC(),
   pollingInterval: Duration = Duration.ofMillis(100),
-  taskTimeoutDuration: Duration = Duration.ofMinutes(2)
+  taskTimeoutDuration: Duration = Duration.ofMinutes(2),
+  //private val makePipelineOptions: () -> PipelineOptions,
 ) : ExchangeWorkflowDaemon() {
 
   private val rootStorageClient: StorageClient by lazy {
@@ -114,13 +122,21 @@ class ExchangeWorkflowDaemonForTest(
 
   private val taskContext: TaskParameters = TaskParameters(setOf(preprocessingParameters))
 
+  private fun makePipelineOptions(): PipelineOptions {
+    return PipelineOptionsFactory.`as`(BeamOptions::class.java).apply {
+      runner = SparkRunner::class.java
+      defaultSdkHarnessLogLevel = SdkHarnessOptions.LogLevel.TRACE
+      defaultWorkerLogLevel = DataflowWorkerLoggingOptions.Level.TRACE
+    }
+  }
+
   override val exchangeTaskMapper: ExchangeTaskMapper by lazy {
     ProductionExchangeTaskMapper(
       privateStorageSelector = privateStorageSelector,
       sharedStorageSelector = sharedStorageSelector,
       certificateManager = certificateManager,
       inputTaskThrottler = MinimumIntervalThrottler(clock, Duration.ofMillis(250)),
-      makePipelineOptions = PipelineOptionsFactory::create,
+      makePipelineOptions = ::makePipelineOptions,
       taskContext = taskContext,
     )
   }

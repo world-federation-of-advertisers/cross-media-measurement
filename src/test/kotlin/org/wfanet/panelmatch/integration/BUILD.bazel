@@ -76,6 +76,11 @@ spanner_emulator_test(
     resources = ["//src/test/kotlin/org/wfanet/panelmatch/integration/config"],
     test_class = "org.wfanet.panelmatch.integration.FullWithPreprocessingTest",
     deps = [
+        "//imports/java/org/apache/beam:core",
+        "//imports/java/org/apache/beam/runners/direct",
+        "//imports/java/org/apache/beam/runners/flink",
+        "//imports/java/org/apache/beam/runners/spark",
+        "//imports/java/org/apache/spark/spark-core",
         "//src/main/kotlin/org/wfanet/panelmatch/client/common",
         "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
         "//src/main/kotlin/org/wfanet/panelmatch/integration",
