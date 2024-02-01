@@ -136,4 +136,24 @@ absl::StatusOr<std::vector<uint32_t>> GetShareVectorFromSketchShare(
   return share_vector;
 }
 
+absl::StatusOr<std::vector<uint32_t>> VectorSubMod(
+    const std::vector<uint32_t>& X, const std::vector<uint32_t>& Y,
+    uint32_t modulus) {
+  if (X.size() != Y.size()) {
+    return absl::InvalidArgumentError(
+        "Input vectors must have the same length.");
+  }
+  for (int i = 0; i < X.size(); i++) {
+    if (X[i] >= modulus || Y[i] >= modulus) {
+      return absl::InvalidArgumentError(
+          "Input vectors' elements must be less than modulus.");
+    }
+  }
+  std::vector<uint32_t> result(X.size());
+  for (int i = 0; i < X.size(); i++) {
+    result[i] = X[i] - Y[i] + (X[i] < Y[i]) * modulus;
+  }
+  return result;
+}
+
 }  // namespace wfa::measurement::internal::duchy::protocol::share_shuffle

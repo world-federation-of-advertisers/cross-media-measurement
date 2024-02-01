@@ -126,52 +126,36 @@ absl::StatusOr<CompleteShufflePhaseResponse> CompleteShufflePhase(
     ASSIGN_OR_RETURN(std::vector<uint32_t> noise_registers,
                      GenerateNoiseRegisters(request.sketch_params(), *noiser));
 
-    std::vector<uint32_t> first_local_noise_share;
-    std::vector<uint32_t> second_local_noise_share;
+    // Both workers generate common random vectors from the common random seed.
+    // rand_vec_1 || rand_vec_2 <-- PRNG(seed).
+    ASSIGN_OR_RETURN(
+        std::vector<uint32_t> rand_vec_1,
+        prng->GenerateUniformRandomRange(
+            noise_registers.size(), request.sketch_params().ring_modulus()));
+    ASSIGN_OR_RETURN(
+        std::vector<uint32_t> rand_vec_2,
+        prng->GenerateUniformRandomRange(
+            noise_registers.size(), request.sketch_params().ring_modulus()));
 
-    // Generates local noise register shares using the common random seed.
-    // Two workers generates shares of noise as below:
-    // Worker 1: rand_vec_1 || rand_vec_2 <-- PRNG(seed).
-    // Worker 2: rand_vec_2 || rand_vec_2 <-- PRNG(seed).
+    // Generates local noise register shares using the common random vectors.
     // Worker 1 obtains shares:
     // {first_local_noise_share || second_local_noise_share}
     // = {(noise_registers_1 - rand_vec_1) || rand_vec_2}.
     // Worker 2 obtains shares:
     // {first_local_noise_share ||second_local_noise_share}
     // = {rand_vec_1 || (noise_registers_2 - rand_vec_2)}.
+    std::vector<uint32_t> first_local_noise_share;
+    std::vector<uint32_t> second_local_noise_share;
     if (request.order() == CompleteShufflePhaseRequest::FIRST) {
-      ASSIGN_OR_RETURN(
-          std::vector<uint32_t> first_peer_noise_share,
-          prng->GenerateUniformRandomRange(
-              noise_registers.size(), request.sketch_params().ring_modulus()));
-      first_local_noise_share.resize(noise_registers.size());
-      for (int i = 0; i < noise_registers.size(); i++) {
-        first_local_noise_share[i] =
-            noise_registers[i] - first_peer_noise_share[i] +
-            (noise_registers[i] < first_peer_noise_share[i]) *
-                request.sketch_params().ring_modulus();
-      }
-      ASSIGN_OR_RETURN(
-          second_local_noise_share,
-          prng->GenerateUniformRandomRange(
-              noise_registers.size(), request.sketch_params().ring_modulus()));
-
+      ASSIGN_OR_RETURN(first_local_noise_share,
+                       VectorSubMod(noise_registers, rand_vec_1,
+                                    request.sketch_params().ring_modulus()));
+      second_local_noise_share = std::move(rand_vec_2);
     } else if (request.order() == CompleteShufflePhaseRequest::SECOND) {
-      ASSIGN_OR_RETURN(
-          first_local_noise_share,
-          prng->GenerateUniformRandomRange(
-              noise_registers.size(), request.sketch_params().ring_modulus()));
-      ASSIGN_OR_RETURN(
-          std::vector<uint32_t> second_peer_noise_share,
-          prng->GenerateUniformRandomRange(
-              noise_registers.size(), request.sketch_params().ring_modulus()));
-      second_local_noise_share.resize(noise_registers.size());
-      for (int i = 0; i < noise_registers.size(); i++) {
-        second_local_noise_share[i] =
-            noise_registers[i] - second_peer_noise_share[i] +
-            (noise_registers[i] < second_peer_noise_share[i]) *
-                request.sketch_params().ring_modulus();
-      }
+      first_local_noise_share = std::move(rand_vec_1);
+      ASSIGN_OR_RETURN(second_local_noise_share,
+                       VectorSubMod(noise_registers, rand_vec_2,
+                                    request.sketch_params().ring_modulus()));
     } else {
       return absl::InvalidArgumentError(
           "Non aggregator order must be specified.");

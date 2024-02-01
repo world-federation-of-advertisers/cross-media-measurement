@@ -39,6 +39,11 @@ absl::StatusOr<std::vector<uint32_t>> GetShareVectorFromSketchShare(
     const ShareShuffleSketchParams& sketch_params,
     const CompleteShufflePhaseRequest::SketchShare& sketch_share);
 
+// Returns a vector result where result[i] = X[i] - Y[i] mod modulus.
+absl::StatusOr<std::vector<uint32_t>> VectorSubMod(
+    const std::vector<uint32_t>& X, const std::vector<uint32_t>& Y,
+    uint32_t modulus);
+
 }  // namespace wfa::measurement::internal::duchy::protocol::share_shuffle
 
 #endif  // SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_SHARE_SHUFFLE_HONEST_MAJORITY_SHARE_SHUFFLE_UTILITY_HELPER_H_

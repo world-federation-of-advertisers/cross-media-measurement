@@ -207,5 +207,29 @@ TEST(GenerateShareFromSeed, ValidSeedSucceeds) {
   }
 }
 
+TEST(VectorSubMod, InputVectorsHaveDifferentSizeFails) {
+  std::vector<uint32_t> X(5, 1);
+  std::vector<uint32_t> Y(6, 0);
+  EXPECT_THAT(VectorSubMod(X, Y, kRingModulus).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "same length"));
+}
+
+TEST(VectorSubMode, InputVectorHasElementGreaterThanOrEqualToModulusFails) {
+  std::vector<uint32_t> X = {1, 2, 3, 4, 5, 6, 7, kRingModulus};
+  std::vector<uint32_t> Y = {7, 6, 5, 4, 3, 2, 1, 0};
+  EXPECT_THAT(VectorSubMod(X, Y, kRingModulus).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "modulus"));
+}
+
+TEST(VectorSubMod, InputVectorsHaveSameSizeSucceeds) {
+  std::vector<uint32_t> X = {1, 2, 3, 4, 5, 6, 7};
+  std::vector<uint32_t> Y = {7, 6, 5, 4, 3, 2, 1};
+  int kModulus = 8;
+  std::vector<uint32_t> expected_result = {2, 4, 6, 0, 2, 4, 6};
+  ASSERT_OK_AND_ASSIGN(std::vector<uint32_t> result,
+                       VectorSubMod(X, Y, kModulus));
+  EXPECT_EQ(result, expected_result);
+}
+
 }  // namespace
 }  // namespace wfa::measurement::internal::duchy::protocol::share_shuffle
