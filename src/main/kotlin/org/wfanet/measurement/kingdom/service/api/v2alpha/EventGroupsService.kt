@@ -266,7 +266,7 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
         grpcRequire(
           Timestamps.compare(
             requestEventGroup.dataAvailabilityInterval.startTime,
-            requestEventGroup.dataAvailabilityInterval.endTime
+            requestEventGroup.dataAvailabilityInterval.endTime,
           ) < 0
         ) {
           "data_availability_interval start_time must be before end_time"
@@ -337,7 +337,7 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
         request.showDeleted,
         parentKey,
         pageSize,
-        pageToken
+        pageToken,
       )
     val internalEventGroups: List<InternalEventGroup> =
       try {
@@ -466,7 +466,7 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
     name =
       EventGroupKey(
           externalIdToApiId(externalDataProviderId),
-          externalIdToApiId(externalEventGroupId)
+          externalIdToApiId(externalEventGroupId),
         )
         .toName()
     measurementConsumer =
@@ -519,7 +519,7 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
 /** Converts a public [EventGroup] to an internal [InternalEventGroup]. */
 private fun EventGroup.toInternal(
   dataProviderId: String,
-  eventGroupId: String = ""
+  eventGroupId: String = "",
 ): InternalEventGroup {
   val measurementConsumerKey =
     grpcRequireNotNull(MeasurementConsumerKey.fromName(measurementConsumer)) {

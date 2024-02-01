@@ -28,7 +28,7 @@ data class MetricCalculationSpecKey(
 ) : ChildResourceKey {
   constructor(
     cmmsMeasurementConsumerId: String,
-    metricCalculationSpecId: String
+    metricCalculationSpecId: String,
   ) : this(MeasurementConsumerKey(cmmsMeasurementConsumerId), metricCalculationSpecId)
 
   val cmmsMeasurementConsumerId: String
@@ -52,7 +52,7 @@ data class MetricCalculationSpecKey(
       val idVars: Map<IdVariable, String> = parser.parseIdVars(resourceName) ?: return null
       return MetricCalculationSpecKey(
         idVars.getValue(IdVariable.MEASUREMENT_CONSUMER),
-        idVars.getValue(IdVariable.METRIC_CALCULATION_SPEC)
+        idVars.getValue(IdVariable.METRIC_CALCULATION_SPEC),
       )
     }
   }

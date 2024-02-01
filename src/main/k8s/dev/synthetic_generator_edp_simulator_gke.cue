@@ -40,7 +40,7 @@ edp_simulators: {
 			_imageConfig: repoSuffix: "simulator/synthetic-generator-edp"
 			_additional_args: [
 				"--population-spec=\(_populationSpec)",
-				"--event-group-spec=\(EventGroupSpec)",
+				"--event-group-spec==\(EventGroupSpec)",
 			]
 			deployment: {
 				_container: {

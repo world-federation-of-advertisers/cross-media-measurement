@@ -17,7 +17,6 @@
 package org.wfanet.measurement.reporting.deploy.v2.postgres
 
 import org.junit.ClassRule
-import org.junit.Ignore
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
@@ -26,22 +25,16 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata
 import org.wfanet.measurement.reporting.service.internal.testing.v2.MetricCalculationSpecsServiceTest
 
-/**
- * TODO(@tristanvuong2021): Unit tests will only be turned for the final PR for making
- *   MetricCalculationSpec its own resource to make it possible to break up the change into several
- *   PRs.
- */
-@Ignore
 @RunWith(JUnit4::class)
 class PostgresMetricCalculationSpecsServiceTest :
   MetricCalculationSpecsServiceTest<PostgresMetricCalculationSpecsService>() {
   override fun newServices(
-    idGenerator: IdGenerator,
+    idGenerator: IdGenerator
   ): Services<PostgresMetricCalculationSpecsService> {
     val client: PostgresDatabaseClient = databaseProvider.createDatabase()
     return Services(
       PostgresMetricCalculationSpecsService(idGenerator, client),
-      PostgresMeasurementConsumersService(idGenerator, client)
+      PostgresMeasurementConsumersService(idGenerator, client),
     )
   }
 

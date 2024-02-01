@@ -51,7 +51,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
 
   protected data class Services<T>(
     val reportingSetsService: T,
-    val measurementConsumersService: MeasurementConsumersCoroutineImplBase
+    val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
   )
 
   /** Instance of the service under test. */
@@ -1337,7 +1337,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
                     filters += primitiveReportingSet.filter
                   }
               }
-          }
+          },
         )
         .inOrder()
     }

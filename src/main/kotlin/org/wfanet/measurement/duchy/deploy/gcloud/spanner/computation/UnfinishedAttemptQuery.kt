@@ -24,7 +24,7 @@ import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 /** Queries for the attempts of stages for a computation that do not have an end time. */
 class UnfinishedAttemptQuery<StageT>(
   val parseStageEnum: (ComputationStageLongValues) -> StageT,
-  val localId: Long
+  val localId: Long,
 ) : SqlBasedQuery<UnfinishedAttemptQueryResult<StageT>> {
   companion object {
     private const val parameterizedQueryString =
@@ -48,7 +48,7 @@ class UnfinishedAttemptQuery<StageT>(
           ComputationStageLongValues(struct.getLong("Protocol"), struct.getLong("ComputationStage"))
         ),
       attempt = struct.getLong("Attempt"),
-      details = struct.getProtoMessage("Details", ComputationStageAttemptDetails.parser())
+      details = struct.getProtoMessage("Details", ComputationStageAttemptDetails.parser()),
     )
 }
 
@@ -57,5 +57,5 @@ data class UnfinishedAttemptQueryResult<StageT>(
   val computationId: Long,
   val stage: StageT,
   val attempt: Long,
-  val details: ComputationStageAttemptDetails
+  val details: ComputationStageAttemptDetails,
 )

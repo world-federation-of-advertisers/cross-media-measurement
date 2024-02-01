@@ -36,7 +36,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ReplaceDataP
 // TODO(@marcopremier): Add method to update data provider required duchies list.
 class SpannerDataProvidersService(
   private val idGenerator: IdGenerator,
-  private val client: AsyncDatabaseClient
+  private val client: AsyncDatabaseClient,
 ) : DataProvidersCoroutineImplBase() {
   override suspend fun createDataProvider(request: DataProvider): DataProvider {
     grpcRequireNotNull(Version.fromStringOrNull(request.details.apiVersion)) {

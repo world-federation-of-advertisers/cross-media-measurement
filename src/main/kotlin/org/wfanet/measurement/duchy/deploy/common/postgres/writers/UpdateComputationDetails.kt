@@ -56,7 +56,7 @@ class UpdateComputationDetails<ProtocolT, StageT, ComputationDT : Message>(
         externalRequisitionId = it.key.externalRequisitionId,
         requisitionFingerprint = it.key.requisitionFingerprint,
         requisitionDetails = it.value,
-        updateTime = writeTime
+        updateTime = writeTime,
       )
     }
     updateComputation(localId = token.localId, updateTime = writeTime, details = computationDetails)

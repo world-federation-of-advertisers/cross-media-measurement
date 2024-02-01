@@ -74,7 +74,7 @@ internal suspend fun ExchangesCoroutineImplBase.assertTestExchangeHasState(
 
 internal suspend fun ExchangeStepsCoroutineImplBase.assertTestExchangeStepHasState(
   exchangeStepState: ExchangeStep.State,
-  exchangeStepIndex: Int = STEP_INDEX
+  exchangeStepIndex: Int = STEP_INDEX,
 ) {
   assertThat(
       getExchangeStep(

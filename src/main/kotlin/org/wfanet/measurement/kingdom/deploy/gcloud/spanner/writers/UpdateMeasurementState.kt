@@ -29,7 +29,7 @@ internal fun SpannerWriter.TransactionScope.updateMeasurementState(
   nextState: Measurement.State,
   previousState: Measurement.State,
   measurementLogEntryDetails: MeasurementLogEntry.Details,
-  details: Measurement.Details? = null
+  details: Measurement.Details? = null,
 ) {
 
   updateMutation("Measurements") {
@@ -56,6 +56,6 @@ internal fun SpannerWriter.TransactionScope.updateMeasurementState(
     measurementId = measurementId,
     measurementConsumerId = measurementConsumerId,
     currentMeasurementState = nextState,
-    previousMeasurementState = previousState
+    previousMeasurementState = previousState,
   )
 }

@@ -37,7 +37,7 @@ import picocli.CommandLine
  */
 @CommandLine.Command(
   description = ["Utility for EncryptionPublicKey messages."],
-  subcommands = [CommandLine.HelpCommand::class, Serialize::class, Deserialize::class, Sign::class]
+  subcommands = [CommandLine.HelpCommand::class, Serialize::class, Deserialize::class, Sign::class],
 )
 class EncryptionPublicKeys private constructor() : Runnable {
   override fun run() {
@@ -54,14 +54,14 @@ private class Serialize : Runnable {
   @CommandLine.Option(
     names = ["--format"],
     description = ["EncryptionPublicKey format"],
-    defaultValue = "TINK_KEYSET"
+    defaultValue = "TINK_KEYSET",
   )
   private lateinit var format: EncryptionPublicKey.Format
 
   @CommandLine.Option(
     names = ["--data"],
     description = ["File containing format-specific key data"],
-    required = true
+    required = true,
   )
   private lateinit var data: File
 
@@ -83,7 +83,7 @@ private class Deserialize : Runnable {
   @CommandLine.Option(
     names = ["--in", "-i"],
     description = ["Input File containing EncryptionPublicKey message"],
-    required = true
+    required = true,
   )
   private lateinit var input: File
 
@@ -99,34 +99,34 @@ private class Deserialize : Runnable {
 
 @CommandLine.Command(
   name = "sign",
-  description = ["Signs the input message, outputting a digital signature"]
+  description = ["Signs the input message, outputting a digital signature"],
 )
 private class Sign : Runnable {
   @CommandLine.Option(
     names = ["--certificate"],
     description = ["X.509 certificate in DER or PEM format"],
-    required = true
+    required = true,
   )
   private lateinit var certificateFile: File
 
   @CommandLine.Option(
     names = ["--signing-key"],
     description = ["Signing key in DER format"],
-    required = true
+    required = true,
   )
   private lateinit var signingKeyFile: File
 
   @CommandLine.Option(
     names = ["--signature-algorithm"],
     description = ["Signature algorithm. One will be chosen if not specified."],
-    required = false
+    required = false,
   )
   private var algorithm: SignatureAlgorithm? = null
 
   @CommandLine.Option(
     names = ["--in", "-i"],
     description = ["Input serialized EncryptionPublicKey message"],
-    required = true
+    required = true,
   )
   private lateinit var inFile: File
 

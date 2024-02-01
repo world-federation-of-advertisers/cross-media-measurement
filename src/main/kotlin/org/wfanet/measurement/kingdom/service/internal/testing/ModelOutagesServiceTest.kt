@@ -94,7 +94,7 @@ abstract class ModelOutagesServiceTest<T : ModelOutagesGrpcKt.ModelOutagesCorout
         modelSuitesService,
         modelLinesService,
         ModelLine.Type.PROD,
-        true
+        true,
       )
 
     val modelOutage = modelOutage {
@@ -110,7 +110,7 @@ abstract class ModelOutagesServiceTest<T : ModelOutagesGrpcKt.ModelOutagesCorout
       .ignoringFields(
         ModelOutage.CREATE_TIME_FIELD_NUMBER,
         ModelOutage.DELETE_TIME_FIELD_NUMBER,
-        ModelOutage.EXTERNAL_MODEL_OUTAGE_ID_FIELD_NUMBER
+        ModelOutage.EXTERNAL_MODEL_OUTAGE_ID_FIELD_NUMBER,
       )
       .isEqualTo(modelOutage.copy { state = ModelOutage.State.ACTIVE })
   }
@@ -122,7 +122,7 @@ abstract class ModelOutagesServiceTest<T : ModelOutagesGrpcKt.ModelOutagesCorout
         modelProvidersService,
         modelSuitesService,
         modelLinesService,
-        ModelLine.Type.DEV
+        ModelLine.Type.DEV,
       )
 
     val modelOutage = modelOutage {
@@ -146,11 +146,7 @@ abstract class ModelOutagesServiceTest<T : ModelOutagesGrpcKt.ModelOutagesCorout
   fun `createModelOutage fails when Model Line doesn't have a HoldbackModelLine set`() =
     runBlocking {
       val devModelLine =
-        population.createModelLine(
-          modelProvidersService,
-          modelSuitesService,
-          modelLinesService,
-        )
+        population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
 
       val modelOutage = modelOutage {
         externalModelProviderId = devModelLine.externalModelProviderId
@@ -233,7 +229,7 @@ abstract class ModelOutagesServiceTest<T : ModelOutagesGrpcKt.ModelOutagesCorout
         modelSuitesService,
         modelLinesService,
         ModelLine.Type.PROD,
-        true
+        true,
       )
 
     val modelOutage = modelOutage {
@@ -358,7 +354,7 @@ abstract class ModelOutagesServiceTest<T : ModelOutagesGrpcKt.ModelOutagesCorout
         modelSuitesService,
         modelLinesService,
         ModelLine.Type.PROD,
-        true
+        true,
       )
 
     val modelOutage = modelOutage {
@@ -396,7 +392,7 @@ abstract class ModelOutagesServiceTest<T : ModelOutagesGrpcKt.ModelOutagesCorout
         modelSuitesService,
         modelLinesService,
         ModelLine.Type.PROD,
-        true
+        true,
       )
 
     val modelOutage = modelOutage {
@@ -449,7 +445,7 @@ abstract class ModelOutagesServiceTest<T : ModelOutagesGrpcKt.ModelOutagesCorout
         modelSuitesService,
         modelLinesService,
         ModelLine.Type.PROD,
-        true
+        true,
       )
 
     val modelOutage = modelOutage {
@@ -504,7 +500,7 @@ abstract class ModelOutagesServiceTest<T : ModelOutagesGrpcKt.ModelOutagesCorout
         modelSuitesService,
         modelLinesService,
         ModelLine.Type.PROD,
-        true
+        true,
       )
 
     val modelOutage = modelOutage {
@@ -568,7 +564,7 @@ abstract class ModelOutagesServiceTest<T : ModelOutagesGrpcKt.ModelOutagesCorout
         modelSuitesService,
         modelLinesService,
         ModelLine.Type.PROD,
-        true
+        true,
       )
 
     val modelOutage = modelOutage {
@@ -649,7 +645,7 @@ abstract class ModelOutagesServiceTest<T : ModelOutagesGrpcKt.ModelOutagesCorout
         modelSuitesService,
         modelLinesService,
         ModelLine.Type.PROD,
-        true
+        true,
       )
 
     val START_OUTAGE_LIMIT_1 = Instant.now().minusSeconds(2000L).toProtoTime()

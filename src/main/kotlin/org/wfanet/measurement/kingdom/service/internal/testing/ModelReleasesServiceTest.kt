@@ -106,7 +106,7 @@ abstract class ModelReleasesServiceTest<T : ModelReleasesCoroutineImplBase> {
     assertThat(createdModelRelease)
       .ignoringFields(
         ModelRelease.CREATE_TIME_FIELD_NUMBER,
-        ModelRelease.EXTERNAL_MODEL_RELEASE_ID_FIELD_NUMBER
+        ModelRelease.EXTERNAL_MODEL_RELEASE_ID_FIELD_NUMBER,
       )
       .isEqualTo(modelRelease)
   }

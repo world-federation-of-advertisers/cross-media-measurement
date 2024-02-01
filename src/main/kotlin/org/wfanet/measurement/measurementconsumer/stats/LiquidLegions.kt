@@ -88,7 +88,7 @@ object LiquidLegions {
   private fun sumOfRegisterProbabilityPowers(
     k: Double,
     y: Double,
-    liquidLegionsSketchParams: LiquidLegionsSketchParams
+    liquidLegionsSketchParams: LiquidLegionsSketchParams,
   ): Double {
     if (k < 0.0) {
       throw IllegalArgumentException("Invalid inputs: k=$k < 0.")
@@ -126,7 +126,7 @@ object LiquidLegions {
     samplingWidth: Double,
     otherSamplingWidth: Double,
     overlapSamplingWidth: Double,
-    inflation: Double = 0.0
+    inflation: Double = 0.0,
   ): Double {
     val y1 = max(1.0, reach * samplingWidth)
     val y2 = max(1.0, otherReach * otherSamplingWidth)
@@ -263,7 +263,7 @@ object LiquidLegions {
         sketchParams,
         collisionResolution,
         totalReach,
-        frequencyMeasurementParams.vidSamplingInterval.width
+        frequencyMeasurementParams.vidSamplingInterval.width,
       )
     if (expectedRegisterNum < 1.0) {
       return 0.0
@@ -274,7 +274,7 @@ object LiquidLegions {
         sketchParams,
         collisionResolution,
         totalReach,
-        frequencyMeasurementParams.vidSamplingInterval.width
+        frequencyMeasurementParams.vidSamplingInterval.width,
       )
     val registerNumVariancePerFrequency =
       varianceOfNumberOfNonDestroyedRegistersPerFrequency(
@@ -282,7 +282,7 @@ object LiquidLegions {
         collisionResolution,
         totalReach,
         reachRatio,
-        frequencyMeasurementParams.vidSamplingInterval.width
+        frequencyMeasurementParams.vidSamplingInterval.width,
       )
 
     val covariance = (reachRatio * registerNumVariance + multiplier * frequencyNoiseVariance)

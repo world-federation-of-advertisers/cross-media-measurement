@@ -30,8 +30,8 @@ class CreateDefaultCompressionParameters :
       "Create",
       Create.ofProvider(
         DefaultCompressionProvider(),
-        ProtoCoder.of(CompressionParameters::class.java)
-      )
+        ProtoCoder.of(CompressionParameters::class.java),
+      ),
     )
   }
 }

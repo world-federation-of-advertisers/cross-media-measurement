@@ -44,12 +44,12 @@ class CreateModelOutage(private val modelOutage: ModelOutage) :
       readModelLineData(
         ExternalId(modelOutage.externalModelProviderId),
         ExternalId(modelOutage.externalModelSuiteId),
-        ExternalId(modelOutage.externalModelLineId)
+        ExternalId(modelOutage.externalModelLineId),
       )
         ?: throw ModelLineNotFoundException(
           ExternalId(modelOutage.externalModelProviderId),
           ExternalId(modelOutage.externalModelSuiteId),
-          ExternalId(modelOutage.externalModelLineId)
+          ExternalId(modelOutage.externalModelLineId),
         )
 
     if (Timestamps.compare(modelOutage.modelOutageStartTime, modelOutage.modelOutageEndTime) >= 0) {
@@ -107,7 +107,7 @@ class CreateModelOutage(private val modelOutage: ModelOutage) :
   private suspend fun TransactionScope.readModelLineData(
     externalModelProviderId: ExternalId,
     externalModelSuiteId: ExternalId,
-    externalModelLineId: ExternalId
+    externalModelLineId: ExternalId,
   ): Struct? {
     val sql =
       """

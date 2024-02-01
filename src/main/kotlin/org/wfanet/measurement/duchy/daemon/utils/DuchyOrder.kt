@@ -29,7 +29,7 @@ data class Duchy(val name: String, val publicKey: String)
  */
 fun getDuchyOrderByPublicKeysAndComputationId(
   nodes: Set<Duchy>,
-  globalComputationId: String
+  globalComputationId: String,
 ): List<String> {
   return nodes.sortedBy { sha1Hash(it.publicKey + globalComputationId) }.map { it.name }
 }

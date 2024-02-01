@@ -36,7 +36,7 @@ class KingdomApiServerFlags {
   @set:CommandLine.Option(
     names = ["--debug-verbose-grpc-client-logging"],
     description = ["Enables full gRPC request and response logging for outgoing gRPCs"],
-    defaultValue = "false"
+    defaultValue = "false",
   )
   var debugVerboseGrpcClientLogging by Delegates.notNull<Boolean>()
     private set
@@ -47,7 +47,7 @@ fun runKingdomApiServer(
   serverName: String,
   duchyInfoFlags: DuchyInfoFlags,
   commonServerFlags: CommonServer.Flags,
-  serviceFactory: (Channel) -> Iterable<BindableService>
+  serviceFactory: (Channel) -> Iterable<BindableService>,
 ) {
   DuchyInfo.initializeFromFlags(duchyInfoFlags)
 
@@ -55,13 +55,13 @@ fun runKingdomApiServer(
     SigningCerts.fromPemFiles(
       certificateFile = commonServerFlags.tlsFlags.certFile,
       privateKeyFile = commonServerFlags.tlsFlags.privateKeyFile,
-      trustedCertCollectionFile = commonServerFlags.tlsFlags.certCollectionFile
+      trustedCertCollectionFile = commonServerFlags.tlsFlags.certCollectionFile,
     )
   val channel: Channel =
     buildMutualTlsChannel(
         kingdomApiServerFlags.internalApiFlags.target,
         clientCerts,
-        kingdomApiServerFlags.internalApiFlags.certHost
+        kingdomApiServerFlags.internalApiFlags.certHost,
       )
       .withVerboseLogging(kingdomApiServerFlags.debugVerboseGrpcClientLogging)
       .withDefaultDeadline(kingdomApiServerFlags.internalApiFlags.defaultDeadlineDuration)

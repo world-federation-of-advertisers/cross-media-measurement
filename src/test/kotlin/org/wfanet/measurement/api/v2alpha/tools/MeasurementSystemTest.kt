@@ -203,14 +203,7 @@ import org.wfanet.measurement.consent.client.duchy.signResult
 
 private val SECRETS_DIR: File =
   getRuntimePath(
-      Paths.get(
-        "wfa_measurement_system",
-        "src",
-        "main",
-        "k8s",
-        "testing",
-        "secretfiles",
-      )
+      Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
     )!!
     .toFile()
 
@@ -369,7 +362,7 @@ private val AGGREGATOR_SIGNING_KEY: SigningKeyHandle by lazy {
   val consentSignal509Cert = readCertificate(AGGREGATOR_CERTIFICATE_DER)
   SigningKeyHandle(
     consentSignal509Cert,
-    readPrivateKey(AGGREGATOR_PRIVATE_KEY_DER, consentSignal509Cert.publicKey.algorithm)
+    readPrivateKey(AGGREGATOR_PRIVATE_KEY_DER, consentSignal509Cert.publicKey.algorithm),
   )
 }
 private val AGGREGATOR_CERTIFICATE = certificate { x509Der = AGGREGATOR_CERTIFICATE_DER }
@@ -508,7 +501,7 @@ class MeasurementSystemTest {
         "--tls-cert-file=$CLIENT_TLS_CERT",
         "--tls-key-file=$CLIENT_TLS_KEY",
         "--cert-collection-file=$CLIENT_TRUSTED_CERTS",
-        "--kingdom-public-api-target=localhost:${publicApiServer.port}"
+        "--kingdom-public-api-target=localhost:${publicApiServer.port}",
       )
 
   private fun callCli(args: Array<String>): String {
@@ -550,7 +543,7 @@ class MeasurementSystemTest {
           "activate",
           accountName,
           "--id-token=$idToken",
-          "--activation-token=$activationToken"
+          "--activation-token=$activationToken",
         )
     val account = account {
       name = accountName
@@ -613,7 +606,7 @@ class MeasurementSystemTest {
       .isEqualTo(idToken)
     verifyProtoArgument(
         measurementConsumersServiceMock,
-        MeasurementConsumersCoroutineImplBase::createMeasurementConsumer
+        MeasurementConsumersCoroutineImplBase::createMeasurementConsumer,
       )
       .isEqualTo(
         createMeasurementConsumerRequest {
@@ -694,7 +687,7 @@ class MeasurementSystemTest {
       .isEqualTo(AUTHENTICATION_KEY)
     verifyProtoArgument(
         certificatesServiceMock,
-        CertificatesGrpcKt.CertificatesCoroutineImplBase::createCertificate
+        CertificatesGrpcKt.CertificatesCoroutineImplBase::createCertificate,
       )
       .isEqualTo(
         createCertificateRequest {
@@ -720,7 +713,7 @@ class MeasurementSystemTest {
           "--api-key=$AUTHENTICATION_KEY",
           "revoke",
           "--revocation-state=REVOKED",
-          certificate.name
+          certificate.name,
         )
 
     val output: String = callCli(args)
@@ -734,7 +727,7 @@ class MeasurementSystemTest {
       .isEqualTo(AUTHENTICATION_KEY)
     verifyProtoArgument(
         certificatesServiceMock,
-        CertificatesGrpcKt.CertificatesCoroutineImplBase::revokeCertificate
+        CertificatesGrpcKt.CertificatesCoroutineImplBase::revokeCertificate,
       )
       .isEqualTo(
         revokeCertificateRequest {
@@ -777,7 +770,7 @@ class MeasurementSystemTest {
       .isEqualTo(AUTHENTICATION_KEY)
     verifyProtoArgument(
         publicKeysServiceMock,
-        PublicKeysGrpcKt.PublicKeysCoroutineImplBase::updatePublicKey
+        PublicKeysGrpcKt.PublicKeysCoroutineImplBase::updatePublicKey,
       )
       .isEqualTo(updatePublicKeyRequest { this.publicKey = publicKey })
     assertThat(parseTextProto(output.reader(), PublicKey.getDefaultInstance())).isEqualTo(publicKey)
@@ -842,7 +835,7 @@ class MeasurementSystemTest {
       .ignoringFieldDescriptors(
         MEASUREMENT_SPEC_FIELD,
         ENCRYPTED_REQUISITION_SPEC_FIELD,
-        NONCE_HASH_FIELD
+        NONCE_HASH_FIELD,
       )
       .isEqualTo(
         createMeasurementRequest {
@@ -875,7 +868,7 @@ class MeasurementSystemTest {
     verifyMeasurementSpec(
       request.measurement.measurementSpec,
       MEASUREMENT_CONSUMER_CERTIFICATE,
-      TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+      TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
     )
     val measurementSpec: MeasurementSpec = request.measurement.measurementSpec.unpack()
     assertThat(measurementSpec)
@@ -907,7 +900,7 @@ class MeasurementSystemTest {
     val signedRequisitionSpec1 =
       decryptRequisitionSpec(
         request.measurement.dataProvidersList[0].value.encryptedRequisitionSpec,
-        DATA_PROVIDER_PRIVATE_KEY_HANDLE
+        DATA_PROVIDER_PRIVATE_KEY_HANDLE,
       )
     val requisitionSpec1: RequisitionSpec = signedRequisitionSpec1.unpack()
     verifyRequisitionSpec(
@@ -915,7 +908,7 @@ class MeasurementSystemTest {
       requisitionSpec1,
       measurementSpec,
       MEASUREMENT_CONSUMER_CERTIFICATE,
-      TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+      TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
     )
     assertThat(requisitionSpec1)
       .ignoringFields(RequisitionSpec.NONCE_FIELD_NUMBER)
@@ -957,7 +950,7 @@ class MeasurementSystemTest {
     val signedRequisitionSpec2 =
       decryptRequisitionSpec(
         dataProviderEntry2.value.encryptedRequisitionSpec,
-        DATA_PROVIDER_PRIVATE_KEY_HANDLE
+        DATA_PROVIDER_PRIVATE_KEY_HANDLE,
       )
     val requisitionSpec2: RequisitionSpec = signedRequisitionSpec2.unpack()
     verifyRequisitionSpec(
@@ -965,7 +958,7 @@ class MeasurementSystemTest {
       requisitionSpec2,
       measurementSpec,
       MEASUREMENT_CONSUMER_CERTIFICATE,
-      TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+      TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
     )
     assertThat(requisitionSpec2)
       .ignoringFields(RequisitionSpec.NONCE_FIELD_NUMBER)
@@ -1047,7 +1040,7 @@ class MeasurementSystemTest {
       .ignoringFieldDescriptors(
         MEASUREMENT_SPEC_FIELD,
         ENCRYPTED_REQUISITION_SPEC_FIELD,
-        NONCE_HASH_FIELD
+        NONCE_HASH_FIELD,
       )
       .isEqualTo(
         createMeasurementRequest {
@@ -1080,7 +1073,7 @@ class MeasurementSystemTest {
     verifyMeasurementSpec(
       request.measurement.measurementSpec,
       MEASUREMENT_CONSUMER_CERTIFICATE,
-      TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+      TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
     )
     val measurementSpec: MeasurementSpec = request.measurement.measurementSpec.unpack()
     assertThat(measurementSpec)
@@ -1107,7 +1100,7 @@ class MeasurementSystemTest {
     val signedRequisitionSpec1 =
       decryptRequisitionSpec(
         request.measurement.dataProvidersList[0].value.encryptedRequisitionSpec,
-        DATA_PROVIDER_PRIVATE_KEY_HANDLE
+        DATA_PROVIDER_PRIVATE_KEY_HANDLE,
       )
     val requisitionSpec1: RequisitionSpec = signedRequisitionSpec1.unpack()
     verifyRequisitionSpec(
@@ -1115,7 +1108,7 @@ class MeasurementSystemTest {
       requisitionSpec1,
       measurementSpec,
       MEASUREMENT_CONSUMER_CERTIFICATE,
-      TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+      TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
     )
     assertThat(requisitionSpec1)
       .ignoringFields(RequisitionSpec.NONCE_FIELD_NUMBER)
@@ -1157,7 +1150,7 @@ class MeasurementSystemTest {
     val signedRequisitionSpec2 =
       decryptRequisitionSpec(
         dataProviderEntry2.value.encryptedRequisitionSpec,
-        DATA_PROVIDER_PRIVATE_KEY_HANDLE
+        DATA_PROVIDER_PRIVATE_KEY_HANDLE,
       )
     val requisitionSpec2: RequisitionSpec = signedRequisitionSpec2.unpack()
     verifyRequisitionSpec(
@@ -1165,7 +1158,7 @@ class MeasurementSystemTest {
       requisitionSpec2,
       measurementSpec,
       MEASUREMENT_CONSUMER_CERTIFICATE,
-      TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+      TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
     )
     assertThat(requisitionSpec2)
       .ignoringFields(RequisitionSpec.NONCE_FIELD_NUMBER)
@@ -1211,7 +1204,7 @@ class MeasurementSystemTest {
           "--event-group=dataProviders/1/eventGroups/1",
           "--event-filter=abcd",
           "--event-start-time=$TIME_STRING_1",
-          "--event-end-time=$TIME_STRING_2"
+          "--event-end-time=$TIME_STRING_2",
         )
     callCli(args)
 
@@ -1332,7 +1325,7 @@ class MeasurementSystemTest {
     val signedRequisitionSpec =
       decryptRequisitionSpec(
         request.measurement.dataProvidersList.single().value.encryptedRequisitionSpec,
-        DATA_PROVIDER_PRIVATE_KEY_HANDLE
+        DATA_PROVIDER_PRIVATE_KEY_HANDLE,
       )
     val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
     verifyRequisitionSpec(
@@ -1340,7 +1333,7 @@ class MeasurementSystemTest {
       requisitionSpec,
       measurementSpec,
       MEASUREMENT_CONSUMER_CERTIFICATE,
-      TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+      TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
     )
     assertThat(requisitionSpec)
       .ignoringFields(RequisitionSpec.NONCE_FIELD_NUMBER)
@@ -1367,7 +1360,7 @@ class MeasurementSystemTest {
           "measurements",
           "--api-key=$AUTHENTICATION_KEY",
           "list",
-          "--measurement-consumer=$MEASUREMENT_CONSUMER_NAME"
+          "--measurement-consumer=$MEASUREMENT_CONSUMER_NAME",
         )
     callCli(args)
 
@@ -1470,7 +1463,7 @@ class MeasurementSystemTest {
       .ignoringFields(
         ModelLine.CREATE_TIME_FIELD_NUMBER,
         ModelLine.UPDATE_TIME_FIELD_NUMBER,
-        ModelLine.NAME_FIELD_NUMBER
+        ModelLine.NAME_FIELD_NUMBER,
       )
       .isEqualTo(MODEL_LINE)
   }
@@ -1496,7 +1489,7 @@ class MeasurementSystemTest {
       .ignoringFields(
         ModelLine.CREATE_TIME_FIELD_NUMBER,
         ModelLine.UPDATE_TIME_FIELD_NUMBER,
-        ModelLine.NAME_FIELD_NUMBER
+        ModelLine.NAME_FIELD_NUMBER,
       )
       .isEqualTo(
         MODEL_LINE.copy {
@@ -1516,7 +1509,7 @@ class MeasurementSystemTest {
           "model-lines",
           "setHoldbackModelLine",
           "--name=$MODEL_LINE_NAME",
-          "--holdback-model-line=$HOLDBACK_MODEL_LINE_NAME"
+          "--holdback-model-line=$HOLDBACK_MODEL_LINE_NAME",
         )
     callCli(args)
 
@@ -1541,7 +1534,7 @@ class MeasurementSystemTest {
           "model-lines",
           "setActiveEndTime",
           "--name=$MODEL_LINE_NAME",
-          "--active-end-time=$MODEL_LINE_ACTIVE_END_TIME"
+          "--active-end-time=$MODEL_LINE_ACTIVE_END_TIME",
         )
     callCli(args)
 
@@ -1568,7 +1561,7 @@ class MeasurementSystemTest {
           "--parent=$MODEL_SUITE_NAME",
           "--page-size=$LIST_PAGE_SIZE",
           "--page-token=$LIST_PAGE_TOKEN",
-          "--types=PROD"
+          "--types=PROD",
         )
     callCli(args)
 
@@ -1589,13 +1582,7 @@ class MeasurementSystemTest {
 
   @Test
   fun `list model lines succeeds omitting optional params`() {
-    val args =
-      commonArgs +
-        arrayOf(
-          "model-lines",
-          "list",
-          "--parent=$MODEL_SUITE_NAME",
-        )
+    val args = commonArgs + arrayOf("model-lines", "list", "--parent=$MODEL_SUITE_NAME")
     callCli(args)
 
     val request: ListModelLinesRequest = captureFirst {
@@ -1607,13 +1594,7 @@ class MeasurementSystemTest {
 
   @Test
   fun `create model release succeeds`() {
-    val args =
-      commonArgs +
-        arrayOf(
-          "model-releases",
-          "create",
-          "--parent=$MODEL_SUITE_NAME",
-        )
+    val args = commonArgs + arrayOf("model-releases", "create", "--parent=$MODEL_SUITE_NAME")
     callCli(args)
 
     val request: CreateModelReleaseRequest = captureFirst {
@@ -1627,13 +1608,7 @@ class MeasurementSystemTest {
 
   @Test
   fun `get model release succeeds`() {
-    val args =
-      commonArgs +
-        arrayOf(
-          "model-releases",
-          "get",
-          "--name=$MODEL_RELEASE_NAME",
-        )
+    val args = commonArgs + arrayOf("model-releases", "get", "--name=$MODEL_RELEASE_NAME")
     callCli(args)
 
     val request: GetModelReleaseRequest = captureFirst {
@@ -1672,13 +1647,7 @@ class MeasurementSystemTest {
 
   @Test
   fun `list model releases succeeds omitting optional params`() {
-    val args =
-      commonArgs +
-        arrayOf(
-          "model-releases",
-          "list",
-          "--parent=$MODEL_SUITE_NAME",
-        )
+    val args = commonArgs + arrayOf("model-releases", "list", "--parent=$MODEL_SUITE_NAME")
     callCli(args)
 
     val request: ListModelReleasesRequest = captureFirst {
@@ -1697,7 +1666,7 @@ class MeasurementSystemTest {
           "create",
           "--parent=$MODEL_LINE_NAME",
           "--outage-start-time=$MODEL_OUTAGE_ACTIVE_START_TIME",
-          "--outage-end-time=$MODEL_OUTAGE_ACTIVE_END_TIME"
+          "--outage-end-time=$MODEL_OUTAGE_ACTIVE_END_TIME",
         )
     callCli(args)
 
@@ -1731,7 +1700,7 @@ class MeasurementSystemTest {
           "--page-token=$LIST_PAGE_TOKEN",
           "--show-deleted=true",
           "--interval-start-time=$MODEL_OUTAGE_ACTIVE_START_TIME",
-          "--interval-end-time=$MODEL_OUTAGE_ACTIVE_END_TIME"
+          "--interval-end-time=$MODEL_OUTAGE_ACTIVE_END_TIME",
         )
     callCli(args)
 
@@ -1759,13 +1728,7 @@ class MeasurementSystemTest {
 
   @Test
   fun `list model outages succeeds omitting optional params`() {
-    val args =
-      commonArgs +
-        arrayOf(
-          "model-outages",
-          "list",
-          "--parent=$MODEL_LINE_NAME",
-        )
+    val args = commonArgs + arrayOf("model-outages", "list", "--parent=$MODEL_LINE_NAME")
     callCli(args)
 
     val request: ListModelOutagesRequest = captureFirst {
@@ -1777,13 +1740,7 @@ class MeasurementSystemTest {
 
   @Test
   fun `delete model outage succeeds`() {
-    val args =
-      commonArgs +
-        arrayOf(
-          "model-outages",
-          "delete",
-          "--name=$MODEL_OUTAGE_NAME",
-        )
+    val args = commonArgs + arrayOf("model-outages", "delete", "--name=$MODEL_OUTAGE_NAME")
     callCli(args)
 
     val request: DeleteModelOutageRequest = captureFirst {
@@ -1851,13 +1808,7 @@ class MeasurementSystemTest {
 
   @Test
   fun `list model shards succeeds omitting optional params`() {
-    val args =
-      commonArgs +
-        arrayOf(
-          "model-shards",
-          "list",
-          "--parent=$DATA_PROVIDER_NAME",
-        )
+    val args = commonArgs + arrayOf("model-shards", "list", "--parent=$DATA_PROVIDER_NAME")
     callCli(args)
 
     val request: ListModelShardsRequest = captureFirst {
@@ -1869,13 +1820,7 @@ class MeasurementSystemTest {
 
   @Test
   fun `delete model shard succeeds`() {
-    val args =
-      commonArgs +
-        arrayOf(
-          "model-shards",
-          "delete",
-          "--name=$MODEL_SHARD_NAME",
-        )
+    val args = commonArgs + arrayOf("model-shards", "delete", "--name=$MODEL_SHARD_NAME")
     callCli(args)
 
     val request: DeleteModelShardRequest = captureFirst {
@@ -1929,7 +1874,7 @@ class MeasurementSystemTest {
           "--page-size=10",
           "--page-token=token",
           "--rollout-period-overlapping-start-date=2026-05-24",
-          "--rollout-period-overlapping-end-date=2026-09-24"
+          "--rollout-period-overlapping-end-date=2026-09-24",
         )
     callCli(args)
 
@@ -1981,13 +1926,7 @@ class MeasurementSystemTest {
 
   @Test
   fun `delete model rollouts succeeds`() {
-    val args =
-      commonArgs +
-        arrayOf(
-          "model-rollouts",
-          "delete",
-          "--name=$MODEL_ROLLOUT_NAME",
-        )
+    val args = commonArgs + arrayOf("model-rollouts", "delete", "--name=$MODEL_ROLLOUT_NAME")
     callCli(args)
 
     val request: DeleteModelRolloutRequest = captureFirst {
@@ -2066,7 +2005,7 @@ class MeasurementSystemTest {
           "--page-size",
           "10",
           "--page-token",
-          "token"
+          "token",
         )
     callCli(args)
 
@@ -2086,13 +2025,7 @@ class MeasurementSystemTest {
 
   @Test
   fun `list model suites succeeds omitting optional params`() {
-    val args =
-      commonArgs +
-        arrayOf(
-          "model-suites",
-          "list",
-          "--parent=$MODEL_PROVIDER_NAME",
-        )
+    val args = commonArgs + arrayOf("model-suites", "list", "--parent=$MODEL_PROVIDER_NAME")
     callCli(args)
 
     val request: ListModelSuitesRequest = captureFirst {
@@ -2111,13 +2044,7 @@ class MeasurementSystemTest {
 
   @Test
   fun `dataProviders get calls GetDataProvider with correct params`() {
-    val args =
-      commonArgs +
-        arrayOf(
-          "data-providers",
-          "--name=dataProviders/777",
-          "get",
-        )
+    val args = commonArgs + arrayOf("data-providers", "--name=dataProviders/777", "get")
     callCli(args)
     dataProvidersServiceMock.stub {
       onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDER)
@@ -2229,7 +2156,7 @@ class MeasurementSystemTest {
 
 private fun getEncryptedResult(
   result: Measurement.Result,
-  publicKey: EncryptionPublicKey
+  publicKey: EncryptionPublicKey,
 ): EncryptedMessage {
   val signedResult = signResult(result, AGGREGATOR_SIGNING_KEY)
   return encryptResult(signedResult, publicKey)

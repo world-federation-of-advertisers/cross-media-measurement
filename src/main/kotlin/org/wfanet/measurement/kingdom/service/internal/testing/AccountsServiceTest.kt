@@ -54,7 +54,7 @@ private const val FIXED_GENERATED_EXTERNAL_ID_B = 8765L
 @RunWith(JUnit4::class)
 abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   data class TestDataServices(
-    val measurementConsumersService: MeasurementConsumersCoroutineService,
+    val measurementConsumersService: MeasurementConsumersCoroutineService
   )
 
   private val clock: Clock = Clock.systemUTC()
@@ -62,7 +62,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   private val idGenerator =
     FixedIdGenerator(
       InternalId(FIXED_GENERATED_INTERNAL_ID_A),
-      ExternalId(FIXED_GENERATED_EXTERNAL_ID_A)
+      ExternalId(FIXED_GENERATED_EXTERNAL_ID_A),
     )
 
   private val population = Population(clock, idGenerator)
@@ -540,9 +540,9 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
         state = params.state,
         nonce = params.nonce,
         redirectUri = "",
-        isSelfIssued = true
+        isSelfIssued = true,
       ),
-      clock
+      clock,
     )
   }
 }

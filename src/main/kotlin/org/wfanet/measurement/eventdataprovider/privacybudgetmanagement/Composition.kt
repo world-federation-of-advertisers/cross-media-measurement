@@ -28,7 +28,7 @@ import org.apache.commons.math3.optim.univariate.UnivariateObjectiveFunction
 data class AdvancedCompositionKey(
   val dpCharge: DpCharge,
   val repetitionCount: Int,
-  val totalDelta: Float
+  val totalDelta: Float,
 )
 
 object Composition {
@@ -69,7 +69,7 @@ object Composition {
   private fun calculateAdvancedComposition(
     dpCharge: DpCharge,
     repetitionCount: Int,
-    totalDelta: Float
+    totalDelta: Float,
   ): Float {
     val epsilon = dpCharge.epsilon.toDouble()
     val delta = dpCharge.delta.toDouble()
@@ -115,7 +115,7 @@ object Composition {
   fun totalPrivacyBudgetUsageUnderAdvancedComposition(
     dpCharge: DpCharge,
     repetitionCount: Int,
-    totalDelta: Float
+    totalDelta: Float,
   ): Float =
     advancedCompositionResults.getOrPut(
       AdvancedCompositionKey(dpCharge, repetitionCount, totalDelta)
@@ -127,13 +127,14 @@ object Composition {
    * Computes total DP delta parameter after applying ACDP composition with given target Epsilon
    *
    * @param acdpCharges The privacy ACDP charge(rho, theta) of queries.
-   * @param targetEpsilon The maximum total Epsilon.
+   * @param targetEpsilon The maximum total Epsilon specified from Privacy Budget Manager.
+   *   Recommended value is below 10.
    * @return totalDelta such that, under ACDP composition, the result is still (totalEpsilon,
    *   totalDelta)-DP.
    */
   fun totalPrivacyBudgetUsageUnderAcdpComposition(
     acdpCharges: List<AcdpCharge>,
-    targetEpsilon: Double
+    targetEpsilon: Double,
   ): Double {
     val totalRho: Double = acdpCharges.sumOf { it.rho }
     val totalTheta: Double = acdpCharges.sumOf { it.theta }
@@ -153,7 +154,7 @@ object Composition {
         MaxEval(MAX_ITER_EVAL),
         SearchInterval(minAlpha, maxAlpha),
         UnivariateObjectiveFunction { alpha: Double -> computeDeltaGivenAlpha(alpha) },
-        GoalType.MINIMIZE
+        GoalType.MINIMIZE,
       )
 
     return res.value

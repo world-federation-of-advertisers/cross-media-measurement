@@ -46,15 +46,12 @@ import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
  * to set this is to use [withReportScheduleInfo] on a stub.
  */
 class ReportScheduleInfoServerInterceptor : ServerInterceptor {
-  data class ReportScheduleInfo(
-    val name: String,
-    val nextReportCreationTime: Timestamp,
-  )
+  data class ReportScheduleInfo(val name: String, val nextReportCreationTime: Timestamp)
 
   override fun <ReqT, RespT> interceptCall(
     call: ServerCall<ReqT, RespT>,
     headers: Metadata,
-    next: ServerCallHandler<ReqT, RespT>
+    next: ServerCallHandler<ReqT, RespT>,
   ): ServerCall.Listener<ReqT> {
     val gsonBuilder = GsonBuilder()
     val gson = gsonBuilder.create()
@@ -64,7 +61,7 @@ class ReportScheduleInfoServerInterceptor : ServerInterceptor {
         (headers[REPORT_SCHEDULE_INFO_METADATA_KEY]
             ?: return Contexts.interceptCall(Context.current(), call, headers, next))
           .decodeToString(),
-        ReportScheduleInfo::class.java
+        ReportScheduleInfo::class.java,
       )
 
     val context = Context.current().withReportScheduleInfo(reportScheduleInfo)
@@ -114,12 +111,12 @@ class ReportScheduleInfoServerInterceptor : ServerInterceptor {
       info: ReportScheduleInfo,
       measurementConsumerName: String,
       config: MeasurementConsumerConfig,
-      block: () -> T
+      block: () -> T,
     ): T {
       val measurementConsumerPrincipal =
         MeasurementConsumerPrincipal(
           MeasurementConsumerKey.fromName(measurementConsumerName)!!,
-          config
+          config,
         )
 
       return Context.current()

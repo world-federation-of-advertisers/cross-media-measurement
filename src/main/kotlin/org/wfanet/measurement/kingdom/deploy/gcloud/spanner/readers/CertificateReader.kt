@@ -95,7 +95,7 @@ class CertificateReader(private val parentType: ParentType) :
 
   fun bindWhereClause(
     externalParentId: ExternalId,
-    externalCertificateId: ExternalId
+    externalCertificateId: ExternalId,
   ): CertificateReader {
     return fillStatementBuilder {
       appendClause(
@@ -123,7 +123,7 @@ class CertificateReader(private val parentType: ParentType) :
           certificateId,
           isNotYetActive,
           isExpired,
-          isValid
+          isValid,
         )
       ParentType.MEASUREMENT_CONSUMER ->
         Result(
@@ -131,7 +131,7 @@ class CertificateReader(private val parentType: ParentType) :
           certificateId,
           isNotYetActive,
           isExpired,
-          isValid
+          isValid,
         )
       ParentType.DUCHY -> {
         val duchyId = struct.getLong("DuchyId")
@@ -144,7 +144,7 @@ class CertificateReader(private val parentType: ParentType) :
           certificateId,
           isNotYetActive,
           isExpired,
-          isValid
+          isValid,
         )
       }
       ParentType.MODEL_PROVIDER ->
@@ -153,7 +153,7 @@ class CertificateReader(private val parentType: ParentType) :
           certificateId,
           isNotYetActive,
           isExpired,
-          isValid
+          isValid,
         )
     }
   }
@@ -161,7 +161,7 @@ class CertificateReader(private val parentType: ParentType) :
   suspend fun readDataProviderCertificateIdByExternalId(
     readContext: AsyncDatabaseClient.ReadContext,
     dataProviderId: InternalId,
-    externalCertificateId: ExternalId
+    externalCertificateId: ExternalId,
   ): InternalId? {
     val idColumn = "CertificateId"
     return readContext
@@ -169,7 +169,7 @@ class CertificateReader(private val parentType: ParentType) :
         "DataProviderCertificates",
         "DataProviderCertificatesByExternalId",
         Key.of(dataProviderId.value, externalCertificateId.value),
-        idColumn
+        idColumn,
       )
       ?.let { struct -> InternalId(struct.getLong(idColumn)) }
   }
@@ -177,7 +177,7 @@ class CertificateReader(private val parentType: ParentType) :
   suspend fun readMeasurementConsumerCertificateIdByExternalId(
     readContext: AsyncDatabaseClient.ReadContext,
     measurementConsumerId: InternalId,
-    externalCertificateId: ExternalId
+    externalCertificateId: ExternalId,
   ): InternalId? {
     val idColumn = "CertificateId"
     return readContext
@@ -185,7 +185,7 @@ class CertificateReader(private val parentType: ParentType) :
         "MeasurementConsumerCertificates",
         "MeasurementConsumerCertificatesByExternalId",
         Key.of(measurementConsumerId.value, externalCertificateId.value),
-        idColumn
+        idColumn,
       )
       ?.let { struct -> InternalId(struct.getLong(idColumn)) }
   }
@@ -286,14 +286,14 @@ class CertificateReader(private val parentType: ParentType) :
     suspend fun getDuchyCertificateId(
       txn: AsyncDatabaseClient.TransactionContext,
       duchyId: InternalId,
-      externalDuchyCertificateId: ExternalId
+      externalDuchyCertificateId: ExternalId,
     ): InternalId? {
       val struct =
         txn.readRowUsingIndex(
           "DuchyCertificates",
           "DuchyCertificatesByExternalId",
           Key.of(duchyId.value, externalDuchyCertificateId.value),
-          "CertificateId"
+          "CertificateId",
         ) ?: return null
       return InternalId(struct.getLong("CertificateId"))
     }

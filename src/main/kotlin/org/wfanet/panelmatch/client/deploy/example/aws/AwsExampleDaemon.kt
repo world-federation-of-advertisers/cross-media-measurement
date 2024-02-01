@@ -46,7 +46,7 @@ import software.amazon.awssdk.services.s3.S3AsyncClient
   name = "AwsExampleDaemon",
   description = ["Example daemon to execute ExchangeWorkflows on AWS"],
   mixinStandardHelpOptions = true,
-  showDefaultValues = true
+  showDefaultValues = true,
 )
 private class AwsExampleDaemon : ExampleDaemon() {
   @Mixin private lateinit var caFlags: CertificateAuthorityFlags
@@ -54,7 +54,7 @@ private class AwsExampleDaemon : ExampleDaemon() {
   @Option(
     names = ["--certificate-authority-arn"],
     description = ["AWS Certificate Authority ARN"],
-    required = true
+    required = true,
   )
   lateinit var certificateAuthorityArn: String
     private set
@@ -76,7 +76,7 @@ private class AwsExampleDaemon : ExampleDaemon() {
   @set:Option(
     names = ["--s3-from-beam"],
     description = ["Whether to configure s3 access from Apache Beam."],
-    defaultValue = "false"
+    defaultValue = "false",
   )
   private var s3FromBeam by Delegates.notNull<Boolean>()
 
@@ -114,7 +114,7 @@ private class AwsExampleDaemon : ExampleDaemon() {
     DaemonStorageClientDefaults(
       rootStorageClient,
       tinkKeyUri,
-      TinkKeyStorageProvider(AwsKmsClient())
+      TinkKeyStorageProvider(AwsKmsClient()),
     )
   }
 
@@ -139,11 +139,7 @@ private class AwsExampleDaemon : ExampleDaemon() {
     get() = defaults.sharedStorageInfo
 
   override val certificateAuthority by lazy {
-    CertificateAuthority(
-      caFlags.context,
-      certificateAuthorityArn,
-      PrivateCaClient(),
-    )
+    CertificateAuthority(caFlags.context, certificateAuthorityArn, PrivateCaClient())
   }
 }
 

@@ -45,7 +45,7 @@ class MetadataDuchyIdInterceptor : ServerInterceptor {
   override fun <ReqT, RespT> interceptCall(
     call: ServerCall<ReqT, RespT>,
     headers: Metadata,
-    next: ServerCallHandler<ReqT, RespT>
+    next: ServerCallHandler<ReqT, RespT>,
   ): ServerCall.Listener<ReqT> {
     val duchyId = headers[DUCHY_ID_METADATA_KEY]
     return if (duchyId == null) {

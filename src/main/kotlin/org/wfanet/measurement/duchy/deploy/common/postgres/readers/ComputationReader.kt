@@ -61,7 +61,7 @@ class ComputationReader(
     val version: Long,
     val stageSpecificDetails: ComputationStageDetails?,
     val lockOwner: String?,
-    val lockExpirationTime: Timestamp?
+    val lockExpirationTime: Timestamp?,
   ) {
     constructor(
       row: ResultRow
@@ -75,7 +75,7 @@ class ComputationReader(
       version = row.get<Instant>("UpdateTime").toEpochMilli(),
       stageSpecificDetails = row.getProtoMessage("StageDetails", ComputationStageDetails.parser()),
       lockOwner = row["LockOwner"],
-      lockExpirationTime = row.get<Instant?>("LockExpirationTime")?.toProtoTime()
+      lockExpirationTime = row.get<Instant?>("LockExpirationTime")?.toProtoTime(),
     )
   }
 
@@ -85,7 +85,7 @@ class ComputationReader(
     val computationStage: Long,
     val creationTime: Instant,
     val updateTime: Instant,
-    val nextAttempt: Long
+    val nextAttempt: Long,
   )
 
   private fun buildUnclaimedTaskQueryResult(row: ResultRow): UnclaimedTaskQueryResult =
@@ -95,7 +95,7 @@ class ComputationReader(
       row["ComputationStage"],
       row["CreationTime"],
       row["UpdateTime"],
-      row["NextAttempt"]
+      row["NextAttempt"],
     )
 
   data class LockOwnerQueryResult(val lockOwner: String?, val updateTime: Instant) {
@@ -105,7 +105,7 @@ class ComputationReader(
   private fun buildComputationToken(
     computation: Computation,
     blobs: List<ComputationStageBlobMetadata>,
-    requisitions: List<RequisitionMetadata>
+    requisitions: List<RequisitionMetadata>,
   ): ComputationToken {
     return computationToken {
       globalComputationId = computation.globalComputationId
@@ -133,7 +133,7 @@ class ComputationReader(
 
   private suspend fun readComputation(
     readContext: ReadContext,
-    globalComputationId: String
+    globalComputationId: String,
   ): Computation? {
     val statement =
       boundStatement(
@@ -162,7 +162,7 @@ class ComputationReader(
 
   private suspend fun readComputation(
     readContext: ReadContext,
-    externalRequisitionKey: ExternalRequisitionKey
+    externalRequisitionKey: ExternalRequisitionKey,
   ): Computation? {
     val statement =
       boundStatement(
@@ -202,7 +202,7 @@ class ComputationReader(
    */
   suspend fun readComputationToken(
     readContext: ReadContext,
-    globalComputationId: String
+    globalComputationId: String,
   ): ComputationToken? {
     val computation: Computation = readComputation(readContext, globalComputationId) ?: return null
 
@@ -210,7 +210,7 @@ class ComputationReader(
       blobReferenceReader.readBlobMetadata(
         readContext,
         computation.localComputationId,
-        computation.computationStage
+        computation.computationStage,
       )
     val requisitions =
       requisitionReader.readRequisitionMetadata(readContext, computation.localComputationId)
@@ -227,7 +227,7 @@ class ComputationReader(
    */
   suspend fun readComputationToken(
     client: DatabaseClient,
-    globalComputationId: String
+    globalComputationId: String,
   ): ComputationToken? {
     val readContext = client.readTransaction()
     try {
@@ -246,7 +246,7 @@ class ComputationReader(
    */
   suspend fun readComputationToken(
     readContext: ReadContext,
-    externalRequisitionKey: ExternalRequisitionKey
+    externalRequisitionKey: ExternalRequisitionKey,
   ): ComputationToken? {
     val computation = readComputation(readContext, externalRequisitionKey) ?: return null
 
@@ -254,7 +254,7 @@ class ComputationReader(
       blobReferenceReader.readBlobMetadata(
         readContext,
         computation.localComputationId,
-        computation.computationStage
+        computation.computationStage,
       )
     val requisitions =
       requisitionReader.readRequisitionMetadata(readContext, computation.localComputationId)
@@ -271,7 +271,7 @@ class ComputationReader(
    */
   suspend fun readComputationToken(
     client: DatabaseClient,
-    externalRequisitionKey: ExternalRequisitionKey
+    externalRequisitionKey: ExternalRequisitionKey,
   ): ComputationToken? {
     val readContext = client.readTransaction()
     try {
@@ -293,7 +293,7 @@ class ComputationReader(
   suspend fun readGlobalComputationIds(
     readContext: ReadContext,
     stages: List<ComputationStage>,
-    updatedBefore: Instant? = null
+    updatedBefore: Instant? = null,
   ): Set<String> {
     val computationTypes =
       stages.map { computationProtocolStagesEnumHelper.stageToProtocol(it) }.distinct()

@@ -45,7 +45,7 @@ class AuthorityKeyServerInterceptor : ServerInterceptor {
   override fun <ReqT, RespT> interceptCall(
     call: ServerCall<ReqT, RespT>,
     headers: Metadata,
-    next: ServerCallHandler<ReqT, RespT>
+    next: ServerCallHandler<ReqT, RespT>,
   ): ServerCall.Listener<ReqT> {
     if (ContextKeys.PRINCIPAL_CONTEXT_KEY.get() != null) {
       return Contexts.interceptCall(Context.current(), call, headers, next)
@@ -66,7 +66,7 @@ class AuthorityKeyServerInterceptor : ServerInterceptor {
         Status.UNAUTHENTICATED.withDescription(
           "X509 certificate is missing an authority key identifier"
         ),
-        Metadata()
+        Metadata(),
       )
       return object : ServerCall.Listener<ReqT>() {}
     }

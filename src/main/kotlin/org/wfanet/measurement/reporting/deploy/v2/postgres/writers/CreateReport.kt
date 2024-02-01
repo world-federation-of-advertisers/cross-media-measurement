@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.postgres.writers
 
-import com.google.protobuf.util.Timestamps
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
@@ -121,7 +120,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
       MetricCalculationSpecReader(transactionContext)
         .batchReadByExternalIds(
           request.report.cmmsMeasurementConsumerId,
-          externalMetricCalculationSpecIds
+          externalMetricCalculationSpecIds,
         )
         .associateBy { it.metricCalculationSpec.externalMetricCalculationSpecId }
 
@@ -130,7 +129,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
         if (!metricCalculationSpecsByExternalId.containsKey(it)) {
           throw MetricCalculationSpecNotFoundException(
             cmmsMeasurementConsumerId = report.cmmsMeasurementConsumerId,
-            externalMetricCalculationSpecId = it
+            externalMetricCalculationSpecId = it,
           )
         }
       }
@@ -155,7 +154,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
               MetricReader.ReportingMetricKey(
                 reportingSetId,
                 metricCalculationSpecId,
-                reportingMetric.details.timeInterval
+                reportingMetric.details.timeInterval,
               )
             }
           }
@@ -171,7 +170,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
         .groupBy {
           MetricCalculationSpecReportingMetricKey(
             it.reportingMetricKey.reportingSetId,
-            it.reportingMetricKey.metricCalculationSpecId
+            it.reportingMetricKey.metricCalculationSpecId,
           )
         }
 
@@ -189,11 +188,10 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
           ExternalReportId,
           CreateReportRequestId,
           CreateTime,
-          Periodic,
           ReportDetails,
           ReportDetailsJson
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
       """
       ) {
         bind("$1", measurementConsumerId)
@@ -205,27 +203,8 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
           bind<String?>("$4", null)
         }
         bind("$5", createTime)
-        bind("$6", report.timeCase == Report.TimeCase.PERIODIC_TIME_INTERVAL)
-        bind("$7", report.details)
-        bind("$8", report.details.toJson())
-      }
-
-    val reportTimeIntervalsStatement =
-      boundStatement(
-        """
-      INSERT INTO ReportTimeIntervals
-        (
-          MeasurementConsumerId,
-          ReportId,
-          TimeIntervalStart,
-          TimeIntervalEndExclusive
-        )
-        VALUES ($1, $2, $3, $4)
-      """
-      ) {
-        createReportTimeIntervalsBindings(measurementConsumerId, reportId, report).forEach {
-          addBinding(it)
-        }
+        bind("$6", report.details)
+        bind("$7", report.details.toJson())
       }
 
     val reportingMetricEntriesAndBinders =
@@ -235,7 +214,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
         report,
         reportingSetIdsByExternalId,
         metricCalculationSpecsByExternalId,
-        reportingMetricMap
+        reportingMetricMap,
       )
 
     val metricCalculationSpecReportingMetricsStatement =
@@ -262,7 +241,6 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
 
     transactionContext.run {
       executeStatement(statement)
-      executeStatement(reportTimeIntervalsStatement)
       executeStatement(metricCalculationSpecReportingMetricsStatement)
 
       if (request.hasReportScheduleInfo()) {
@@ -270,11 +248,11 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
           (ReportScheduleReader(transactionContext)
               .readReportScheduleByExternalId(
                 request.report.cmmsMeasurementConsumerId,
-                request.reportScheduleInfo.externalReportScheduleId
+                request.reportScheduleInfo.externalReportScheduleId,
               )
               ?: throw ReportScheduleNotFoundException(
                 cmmsMeasurementConsumerId = request.report.cmmsMeasurementConsumerId,
-                externalReportScheduleId = request.reportScheduleInfo.externalReportScheduleId
+                externalReportScheduleId = request.reportScheduleInfo.externalReportScheduleId,
               ))
             .reportScheduleId
 
@@ -307,7 +285,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
           ) {
             bind(
               "$1",
-              request.reportScheduleInfo.nextReportCreationTime.toInstant().atOffset(ZoneOffset.UTC)
+              request.reportScheduleInfo.nextReportCreationTime.toInstant().atOffset(ZoneOffset.UTC),
             )
             bind("$2", updateTime)
             bind("$3", measurementConsumerId)
@@ -326,43 +304,6 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
     }
   }
 
-  private fun createReportTimeIntervalsBindings(
-    measurementConsumerId: InternalId,
-    reportId: InternalId,
-    report: Report,
-  ): List<BoundStatement.Binder.() -> Unit> {
-    val reportTimeIntervalsBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
-
-    if (report.hasTimeIntervals()) {
-      report.timeIntervals.timeIntervalsList.forEach {
-        reportTimeIntervalsBinders.add {
-          bind("$1", measurementConsumerId)
-          bind("$2", reportId)
-          bind("$3", it.startTime.toInstant().atOffset(ZoneOffset.UTC))
-          bind("$4", it.endTime.toInstant().atOffset(ZoneOffset.UTC))
-        }
-      }
-    } else if (report.hasPeriodicTimeInterval()) {
-      val periodicTimeInterval = report.periodicTimeInterval
-      var startTime = periodicTimeInterval.startTime
-      var endTime = Timestamps.add(startTime, periodicTimeInterval.increment)
-      for (i in 1..periodicTimeInterval.intervalCount) {
-        val intervalStartTime = startTime.toInstant().atOffset(ZoneOffset.UTC)
-        val intervalEndTime = endTime.toInstant().atOffset(ZoneOffset.UTC)
-        reportTimeIntervalsBinders.add {
-          bind("$1", measurementConsumerId)
-          bind("$2", reportId)
-          bind("$3", intervalStartTime)
-          bind("$4", intervalEndTime)
-        }
-        startTime = endTime
-        endTime = Timestamps.add(startTime, periodicTimeInterval.increment)
-      }
-    }
-
-    return reportTimeIntervalsBinders
-  }
-
   private fun TransactionScope.createMetricCalculationSpecBindings(
     measurementConsumerId: InternalId,
     reportId: InternalId,
@@ -370,7 +311,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
     reportingSetIdsByExternalId: Map<String, InternalId>,
     metricCalculationSpecsByExternalId: Map<String, MetricCalculationSpecReader.Result>,
     reportingMetricMap:
-      Map<MetricCalculationSpecReportingMetricKey, List<MetricReader.ReportingMetric>>
+      Map<MetricCalculationSpecReportingMetricKey, List<MetricReader.ReportingMetric>>,
   ): ReportingMetricEntriesAndBinders {
     val metricCalculationSpecReportingMetricsBinders =
       mutableListOf<BoundStatement.Binder.() -> Unit>()
@@ -390,7 +331,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
         val metricCalculationSpecReportingMetricKey =
           MetricCalculationSpecReportingMetricKey(
             reportingSetId,
-            metricCalculationSpecResult.metricCalculationSpecId
+            metricCalculationSpecResult.metricCalculationSpecId,
           )
         val updatedReportingMetricsList = mutableListOf<Report.ReportingMetric>()
 

@@ -62,7 +62,7 @@ private constructor(failureMetadata: FailureMetadata, subject: RelativeFrequency
   companion object {
     fun frequencyDistributions():
       (
-        failureMetadata: FailureMetadata, subject: RelativeFrequencyDistribution
+        failureMetadata: FailureMetadata, subject: RelativeFrequencyDistribution,
       ) -> FrequencyDistributionSubject = ::FrequencyDistributionSubject
 
     fun assertThat(subject: RelativeFrequencyDistribution): FrequencyDistributionSubject =

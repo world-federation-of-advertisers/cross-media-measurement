@@ -27,7 +27,7 @@ data class ModelProviderExchangeKey(
   constructor(
     modelProviderId: String,
     recurringExchangeId: String,
-    exchangeId: String
+    exchangeId: String,
   ) : this(ModelProviderRecurringExchangeKey(modelProviderId, recurringExchangeId), exchangeId)
 
   val modelProviderId: String
@@ -52,7 +52,7 @@ data class ModelProviderExchangeKey(
       return ModelProviderExchangeKey(
         idVars.getValue(IdVariable.MODEL_PROVIDER),
         idVars.getValue(IdVariable.RECURRING_EXCHANGE),
-        idVars.getValue(IdVariable.EXCHANGE)
+        idVars.getValue(IdVariable.EXCHANGE),
       )
     }
   }

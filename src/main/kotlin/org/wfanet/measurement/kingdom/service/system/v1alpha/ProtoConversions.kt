@@ -53,7 +53,7 @@ fun InternalRequisition.toSystemRequisition(): Requisition {
       it.name =
         RequisitionKey(
             externalIdToApiId(externalComputationId),
-            externalIdToApiId(externalRequisitionId)
+            externalIdToApiId(externalRequisitionId),
           )
           .toName()
       it.requisitionSpecHash = Hashing.hashSha256(details.encryptedRequisitionSpec)
@@ -64,7 +64,7 @@ fun InternalRequisition.toSystemRequisition(): Requisition {
         it.fulfillingComputationParticipant =
           ComputationParticipantKey(
               externalIdToApiId(externalComputationId),
-              externalFulfillingDuchyId
+              externalFulfillingDuchyId,
             )
             .toName()
       }
@@ -102,7 +102,7 @@ fun InternalComputationParticipant.toSystemComputationParticipant(): Computation
               Version.V2_ALPHA ->
                 DuchyCertificateKey(
                     externalDuchyId,
-                    externalIdToApiId(duchyCertificate.externalCertificateId)
+                    externalIdToApiId(duchyCertificate.externalCertificateId),
                   )
                   .toName()
             }
@@ -191,7 +191,7 @@ fun InternalMeasurement.toSystemComputation(): Computation {
           Version.V2_ALPHA ->
             DuchyCertificateKey(
                 resultsList[0].externalAggregatorDuchyId,
-                externalIdToApiId(resultsList[0].externalCertificateId)
+                externalIdToApiId(resultsList[0].externalCertificateId),
               )
               .toName()
         }
@@ -212,7 +212,7 @@ fun InternalMeasurement.toSystemComputation(): Computation {
  */
 fun buildMpcProtocolConfig(
   duchyProtocolConfig: InternalDuchyProtocolConfig,
-  protocolConfig: InternalProtocolConfig
+  protocolConfig: InternalProtocolConfig,
 ): Computation.MpcProtocolConfig {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
   return when (duchyProtocolConfig.protocolCase) {
@@ -369,7 +369,7 @@ fun DuchyMeasurementLogEntry.toSystemComputationLogEntry(
         ComputationLogEntryKey(
             apiComputationId,
             externalDuchyId,
-            externalIdToApiId(externalComputationLogEntryId)
+            externalIdToApiId(externalComputationLogEntryId),
           )
           .toName()
       participantChildReferenceId = details.duchyChildReferenceId

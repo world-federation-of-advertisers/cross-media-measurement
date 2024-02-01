@@ -73,7 +73,7 @@ private fun makeDatabaseEntry(index: Int): DatabaseEntry {
   val processedEvent = response.processedEventsList.single()
   return databaseEntryOf(
     lookupKeyOf(processedEvent.encryptedId),
-    encryptedEntryOf(processedEvent.encryptedData)
+    encryptedEntryOf(processedEvent.encryptedData),
   )
 }
 
@@ -102,13 +102,11 @@ class FullWorkflowTest : AbstractInProcessPanelMatchIntegrationTest() {
     )
 
   override val initialModelProviderInputs: Map<String, ByteString> =
-    mapOf(
-      "mp-plaintext-join-keys" to PLAINTEXT_JOIN_KEYS.toByteString(),
-    )
+    mapOf("mp-plaintext-join-keys" to PLAINTEXT_JOIN_KEYS.toByteString())
 
   override fun validateFinalState(
     dataProviderDaemon: ExchangeWorkflowDaemonForTest,
-    modelProviderDaemon: ExchangeWorkflowDaemonForTest
+    modelProviderDaemon: ExchangeWorkflowDaemonForTest,
   ) {
     val blob = modelProviderDaemon.readPrivateBlob("decrypted-event-data-0-of-1")
     assertNotNull(blob)
@@ -120,12 +118,12 @@ class FullWorkflowTest : AbstractInProcessPanelMatchIntegrationTest() {
         ParsedPlaintextResults(
           joinKey = "join-key-1",
           isPaddingQuery = false,
-          plaintexts = listOf("payload-for-join-key-1")
+          plaintexts = listOf("payload-for-join-key-1"),
         ),
         ParsedPlaintextResults(
           joinKey = "join-key-2",
           isPaddingQuery = false,
-          plaintexts = listOf("payload-for-join-key-2")
+          plaintexts = listOf("payload-for-join-key-2"),
         ),
       )
 

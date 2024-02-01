@@ -36,7 +36,7 @@ class ComputationStore(storageClient: StorageClient) :
 data class ComputationBlobContext(
   val externalComputationId: String,
   val computationStage: ComputationStage,
-  val blobId: Long
+  val blobId: Long,
 ) {
   val blobKey: String
     get() = "$externalComputationId/${computationStage.name}/$blobId"
@@ -44,12 +44,12 @@ data class ComputationBlobContext(
   companion object {
     fun fromToken(
       computationToken: ComputationToken,
-      blobMetadata: ComputationStageBlobMetadata
+      blobMetadata: ComputationStageBlobMetadata,
     ): ComputationBlobContext {
       return ComputationBlobContext(
         computationToken.globalComputationId,
         computationToken.computationStage,
-        blobMetadata.blobId
+        blobMetadata.blobId,
       )
     }
   }

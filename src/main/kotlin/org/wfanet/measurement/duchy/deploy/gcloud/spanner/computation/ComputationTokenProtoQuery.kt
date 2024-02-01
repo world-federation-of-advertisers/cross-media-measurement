@@ -39,7 +39,7 @@ import org.wfanet.measurement.internal.duchy.requisitionMetadata
 class ComputationTokenProtoQuery(
   val parseStageEnum: (ComputationStageLongValues) -> ComputationStage,
   globalId: String? = null,
-  externalRequisitionKey: ExternalRequisitionKey? = null
+  externalRequisitionKey: ExternalRequisitionKey? = null,
 ) : SqlBasedQuery<ComputationToken> {
   companion object {
     private val parameterizedQueryUsingGlobalComputationIdString =

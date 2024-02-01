@@ -50,7 +50,7 @@ class PanelMatchResourceSetupFlags {
   @CommandLine.Option(
     names = ["--edp-display-name"],
     description = ["Event Data Provider (EDP) display name."],
-    required = true
+    required = true,
   )
   lateinit var edpDisplayName: String
     private set
@@ -58,7 +58,7 @@ class PanelMatchResourceSetupFlags {
   @CommandLine.Option(
     names = ["--edp-cert-der-file"],
     description = ["EDP cert (DER format) file."],
-    required = true
+    required = true,
   )
   lateinit var edpCertDerFile: File
     private set
@@ -66,7 +66,7 @@ class PanelMatchResourceSetupFlags {
   @CommandLine.Option(
     names = ["--edp-key-der-file"],
     description = ["EDP private key (DER format) file."],
-    required = true
+    required = true,
   )
   lateinit var edpKeyDerFile: File
     private set
@@ -74,7 +74,7 @@ class PanelMatchResourceSetupFlags {
   @CommandLine.Option(
     names = ["--edp-encryption-public-keyset"],
     description = ["EDP encryption public key Tink Keyset file."],
-    required = true
+    required = true,
   )
   lateinit var edpEncryptionPublicKeyset: File
     private set
@@ -82,7 +82,7 @@ class PanelMatchResourceSetupFlags {
   @CommandLine.Option(
     names = ["--exchange-workflow"],
     description = ["Exchange Workflow textproto file."],
-    required = true
+    required = true,
   )
   lateinit var exchangeWorkflow: File
     private set
@@ -90,7 +90,7 @@ class PanelMatchResourceSetupFlags {
   @CommandLine.Option(
     names = ["--run-id"],
     description = ["Unique identifier of the run, if not set, timestamp will be used."],
-    required = false
+    required = false,
   )
   var runId: String =
     DateTimeFormatter.ofPattern("yyyy-MM-ddHH-mm-ss-SSS")

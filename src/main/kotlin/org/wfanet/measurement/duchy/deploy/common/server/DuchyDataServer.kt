@@ -47,7 +47,7 @@ abstract class DuchyDataServer : Runnable {
     names = ["--channel-shutdown-timeout"],
     defaultValue = "3s",
     description = ["How long to allow for the gRPC channel to shutdown."],
-    required = true
+    required = true,
   )
   lateinit var channelShutdownTimeout: Duration
     private set
@@ -61,7 +61,7 @@ abstract class DuchyDataServer : Runnable {
       SigningCerts.fromPemFiles(
         certificateFile = serverFlags.tlsFlags.certFile,
         privateKeyFile = serverFlags.tlsFlags.privateKeyFile,
-        trustedCertCollectionFile = serverFlags.tlsFlags.certCollectionFile
+        trustedCertCollectionFile = serverFlags.tlsFlags.certCollectionFile,
       )
     val channel: ManagedChannel =
       buildMutualTlsChannel(systemApiFlags.target, clientCerts, systemApiFlags.certHost)

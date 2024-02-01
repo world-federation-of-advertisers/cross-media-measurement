@@ -33,6 +33,7 @@ import kotlinx.coroutines.launch
 import org.jetbrains.annotations.Blocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
@@ -82,6 +83,8 @@ class InProcessEdpSimulator(
         MeasurementConsumersCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
       certificatesStub =
         CertificatesCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
+      dataProvidersStub =
+        DataProvidersCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
       eventGroupsStub =
         EventGroupsCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
       eventGroupMetadataDescriptorsStub =
@@ -95,7 +98,7 @@ class InProcessEdpSimulator(
         object :
           SyntheticGeneratorEventQuery(
             SyntheticGenerationSpecs.POPULATION_SPEC,
-            TestEvent.getDescriptor()
+            TestEvent.getDescriptor(),
           ) {
           override fun getSyntheticDataSpec(eventGroup: EventGroup) = syntheticDataSpec
         },
@@ -104,8 +107,8 @@ class InProcessEdpSimulator(
         PrivacyBudgetManager(
           PrivacyBucketFilter(TestPrivacyBucketMapper()),
           InMemoryBackingStore(),
+          10.0f,
           100.0f,
-          100.0f
         ),
       trustedCertificates = trustedCertificates,
       random = random,
@@ -133,7 +136,7 @@ class InProcessEdpSimulator(
       certificateKey = certificateKey,
       privateEncryptionKey = loadEncryptionPrivateKey("${displayName}_enc_private.tink"),
       signingKeyHandle =
-        loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der")
+        loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der"),
     )
 
   companion object {
