@@ -28,7 +28,6 @@ import com.google.protobuf.util.Durations
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
-import java.time.Duration as JavaDuration
 import java.io.File
 import java.lang.IllegalStateException
 import java.security.PrivateKey
@@ -36,6 +35,7 @@ import java.security.SecureRandom
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
+import java.time.Duration as JavaDuration
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.max
