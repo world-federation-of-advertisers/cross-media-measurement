@@ -16,10 +16,14 @@ import * as d3 from 'd3';
 import { formatNumberWithMagnitude } from '../../util/formatting';
 import './d3_wrapper.css';
 
+export const removeGraph = (cardId) => {
+    d3.select(`#${cardId}-line`).selectAll("*").remove();
+}
+
 const initializeGraph = (cardId, dimensions) => {
     // Specify the chart’s dimensions.
     const width = dimensions.width;
-    const height = dimensions.width * 0.6; // TODO: check with UX on how we want to make this reactive
+    const height = dimensions.height;
 
     // Create the SVG container.
     const svg = d3.select(`#${cardId}-line`).append('svg')
@@ -38,11 +42,13 @@ const setUpUtcScale = (svg, data, dimensions, margins) => {
         .range([margins.left, dimensions.width - margins.right]);
 
     // Add the horizontal axis.
+    const arr = new Set(data.map(item => item.date.toString())).size
+    const ticks = Math.min(arr - 1, dimensions.width / 80)
     svg.append("g")
         .attr("transform", `translate(0,${dimensions.height - margins.bottom})`)
         .call(
         d3.axisBottom(x)
-            .ticks(dimensions.width / 80)
+            .ticks(ticks)
             .tickSizeOuter(0)
             .tickFormat(d3.timeFormat('%m/%d/%y'))
         );
@@ -70,7 +76,7 @@ const setUpLinearXScale = (svg, data, dimensions, margins) => {
 const setUpScaleBandXScale = (svg, data, dimensions, margins) => {
     // Create the positional scales.
     const x = d3.scaleBand()
-        .domain(data.map(x => x.cat))
+        .domain(new Set(data.map(d => d.date)))
         .range([margins.left, dimensions.width - margins.right])
         .padding(0.5);
 
@@ -137,16 +143,25 @@ const drawMultiLines = (svg, groups, groupColors) => {
         .attr("d", line);
 }
 
-const drawBar = (svg, data, x, y) => {
+const drawBar = (svg, data, x, y, groupColors) => {
+    const subX = d3.scaleBand()
+        .domain(new Set(data.map(d => d.group)))
+        .rangeRound([0, x.bandwidth()])
+        .padding(0.05);
+
     svg.append("g")
-        .attr("fill", "steelblue")
-    .selectAll()
-    .data(data)
-    .join("rect")
-        .attr("x", (d) => x(d.group))
-        .attr("y", (d) => y(d.val))
-        .attr("height", (d) => y(0) - y(d.val))
-        .attr("width", x.bandwidth());
+        .selectAll()
+        .data(d3.group(data, d => d.variable))
+        .join("g")
+            .attr("transform", ([variable]) => `translate(${x(variable)},0)`)
+        .selectAll()
+        .data(([, d]) => d)
+        .join("rect")
+            .attr("x", d => subX(d.group))
+            .attr("y", d => y(d.value))
+            .attr("width", subX.bandwidth())
+            .attr("height", d => y(0) - y(d.value))
+            .attr("fill", d => groupColors[d.group]);
 }
 
 export const createMultiLineChart = (cardId, data, dimensions, margins, colorMap) => { 
@@ -161,6 +176,14 @@ export const createMultiLineChart = (cardId, data, dimensions, margins, colorMap
     const groups = d3.rollup(points, v => Object.assign(v, {z: v[0][2]}), d => d[2]);
 
     drawMultiLines(svg, groups, colorMap);
+
+    const legendDimensions = {
+        width: 100,
+        height: 100,
+    }
+    const svgLegend = initializeGraph(cardId, legendDimensions);
+    const keys = new Set(data.map(x => x.group));
+    addLegend(svgLegend, keys, colorMap)
 }
 
 export const createPercentMultiLineChart = (cardId, data, dimensions, margins, colorMap) => { 
@@ -183,4 +206,48 @@ export const createPercentBarChart = (cardId, data, dimensions, margins) => {
     const y = setUpLinearYScale(svg, data, dimensions, margins, true)
 
     drawBar(svg, data, x, y);
+}
+
+export const createBarChart = (cardId, data, dimensions, margins, colorMap) => {
+    const svg = initializeGraph(cardId, dimensions);
+    const x = setUpScaleBandXScale(svg, data, dimensions, margins);
+    const y = setUpLinearYScale(svg, data, dimensions, margins, false)
+
+    drawBar(svg, data, x, y, colorMap);
+
+    // TODO (@bdomen-ggl):
+    //   Can calculate width based on longest length of string plus icon plus padding.
+    //   Can calculate height based on number of strings plus icon plus padding
+    //   Can display legend horizontally based on dimensions
+    const legendDimensions = {
+        width: 100,
+        height: 100,
+    }
+    const svgLegend = initializeGraph(cardId, legendDimensions);
+    const keys = new Set(data.map(x => x.group));
+    addLegend(svgLegend, keys, colorMap)
+}
+
+const addLegend = (svg, keys, colorMap) => {
+    var size = 20
+    svg.selectAll("legendDots")
+        .data(keys)
+        .enter()
+        .append("rect")
+            .attr("x", 0)
+            .attr("y", function(d,i){ return  i*(size+5)}) // 100 is where the first dot appears. 25 is the distance between dots
+            .attr("width", size)
+            .attr("height", size)
+            .style("fill", function(d){ return colorMap[d]})
+        
+    svg.selectAll("legendLabels")
+        .data(keys)
+        .enter()
+        .append("text")
+        .attr("x", size*1.2)
+        .attr("y", function(d,i){ return i*(size+5) + (size/2)}) // 100 is where the first dot appears. 25 is the distance between dots
+        .style("fill", function(d){ return colorMap[d]})
+        .text(function(d){ return d})
+        .attr("text-anchor", "left")
+        .style("alignment-baseline", "middle")
 }
