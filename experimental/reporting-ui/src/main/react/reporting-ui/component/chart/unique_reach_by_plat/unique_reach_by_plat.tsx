@@ -13,12 +13,12 @@
 // limitations under the License.
 
 import React from 'react';
-import { UniqueReach } from '../../../model/reporting';
 import { Chart, ChartType } from '../chart';
+import { ChartGroup } from '../../../model/chart_group';
 
 type UniqueReqchByPlatProps = {
     id: string,
-    reach: UniqueReach[],
+    reach: ChartGroup[],
     pubColors: { [Name: string]: string}
 }
 

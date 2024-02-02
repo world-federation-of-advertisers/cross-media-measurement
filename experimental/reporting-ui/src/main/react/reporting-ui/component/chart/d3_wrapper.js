@@ -34,7 +34,7 @@ const initializeGraph = (cardId, dimensions) => {
 const setUpUtcScale = (svg, data, dimensions, margins) => {
     // Create the positional scale.
     const x = d3.scaleUtc()
-        .domain(d3.extent(data, d => d.date))
+        .domain(d3.extent(data, d => d.variable))
         .range([margins.left, dimensions.width - margins.right]);
 
     // Add the horizontal axis.
@@ -53,7 +53,7 @@ const setUpUtcScale = (svg, data, dimensions, margins) => {
 const setUpLinearXScale = (svg, data, dimensions, margins) => {
     // Create the positional scales.
     const x = d3.scaleLinear()
-        .domain([d3.min(data, d => d.x), d3.max(data, d => d.x)])
+        .domain([d3.min(data, d => d.group), d3.max(data, d => d.group)])
         .range([margins.left, dimensions.width - margins.right]);
 
     // Add the horizontal axis.
@@ -132,7 +132,7 @@ const drawMultiLines = (svg, groups, groupColors) => {
       .selectAll("path")
       .data(groups.values())
       .join("path")
-        .attr("stroke", function(d){ return groupColors[d.z] })
+        .attr("stroke", function(d){ return groupColors[d.group] })
         .style("mix-blend-mode", "multiply")
         .attr("d", line);
 }
@@ -143,7 +143,7 @@ const drawBar = (svg, data, x, y) => {
     .selectAll()
     .data(data)
     .join("rect")
-        .attr("x", (d) => x(d.cat))
+        .attr("x", (d) => x(d.group))
         .attr("y", (d) => y(d.val))
         .attr("height", (d) => y(0) - y(d.val))
         .attr("width", x.bandwidth());
@@ -155,7 +155,7 @@ export const createMultiLineChart = (cardId, data, dimensions, margins, colorMap
     const y = setUpLinearYScale(svg, data, dimensions, margins);
 
     // Compute the points in pixel space as [x, y, z], where z is the name of the series.
-    const points = data.map((d) => [x(d.date), y(d.value), d.pub]);
+    const points = data.map((d) => [x(d.variable), y(d.value), d.group]);
 
     // Group the points by series.
     const groups = d3.rollup(points, v => Object.assign(v, {z: v[0][2]}), d => d[2]);
@@ -169,7 +169,7 @@ export const createPercentMultiLineChart = (cardId, data, dimensions, margins, c
     const y = setUpLinearYScale(svg, data, dimensions, margins, true);
 
     // Compute the points in pixel space as [x, y, z], where z is the name of the series.
-    const points = data.map((d) => [x(d.x), y(d.value), d.cat]);
+    const points = data.map((d) => [x(d.variable), y(d.value), d.group]);
 
     // Group the points by series.
     const groups = d3.rollup(points, v => Object.assign(v, {z: v[0][2]}), d => d[2]);

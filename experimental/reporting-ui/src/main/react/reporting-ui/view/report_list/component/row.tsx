@@ -19,7 +19,7 @@ export function ReportListRow ({report, baseLink}) {
   return(
     <tr key={report.id}>
       <td><Link to={baseLink + report.id}>{report.name}</Link></td>
-      <td>{report.status}</td>
+      <td>{report.state}</td>
     </tr>
   );
 }

@@ -9,17 +9,16 @@ package(
 js_library(
     name = "reporting",
     srcs = [
-        "demographic.ts",
         "get_report_request.ts",
         "get_report_response.ts",
         "index.ts",
         "init_api_props.ts",
         "list_reports_response.ts",
+        "metric.ts",
         "overview.ts",
-        "reach.ts",
         "report.ts",
         "report_state.ts",
         "summary_publisher_data.ts",
-        "unique_reach.ts",
+        "time_interval.ts",
     ],
 )
