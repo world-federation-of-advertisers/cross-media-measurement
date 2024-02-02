@@ -16,13 +16,16 @@ import React from 'react';
 import { routes } from './route';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import FeedbackButton from './component/feedback_button/feedback_button';
+import './app.css';
 
 const router = createBrowserRouter(routes);
 
 const App = () => {
     return (
         <React.Fragment>
-            <RouterProvider router={router} />
+            <div className="content">
+                <RouterProvider router={router} />
+            </div>
             <FeedbackButton />
         </React.Fragment >
     );
