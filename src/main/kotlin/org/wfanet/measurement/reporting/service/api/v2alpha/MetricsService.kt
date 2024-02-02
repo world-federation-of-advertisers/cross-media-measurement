@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import com.github.benmanes.caffeine.cache.AsyncLoadingCache
+import com.github.benmanes.caffeine.cache.Caffeine
 import com.google.common.util.concurrent.UncheckedExecutionException
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
@@ -38,6 +40,7 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -47,8 +50,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.future.await
 import kotlinx.coroutines.future.future
+import kotlinx.coroutines.withContext
 import org.jetbrains.annotations.BlockingExecutor
 import org.wfanet.measurement.api.v2alpha.BatchCreateMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.BatchGetMeasurementsResponse
@@ -150,10 +154,6 @@ import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchMetho
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
-import com.github.benmanes.caffeine.cache.AsyncLoadingCache
-import com.github.benmanes.caffeine.cache.Caffeine
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.future.await
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
@@ -270,15 +270,16 @@ class MetricsService(
       val apiAuthenticationKey: String,
     )
 
-    private val certificateCache:
-      AsyncLoadingCache<ResourceNameApiAuthenticationKey, Certificate> =
+    private val certificateCache: AsyncLoadingCache<ResourceNameApiAuthenticationKey, Certificate> =
       Caffeine.newBuilder()
         .refreshAfterWrite(certificateCacheRefreshMinutes, TimeUnit.MINUTES)
         .expireAfterWrite(certificateCacheExpirationMinutes, TimeUnit.MINUTES)
         .buildAsync { key ->
-          CoroutineScope(Dispatchers.IO).future {
-            getCertificate(name = key.name, apiAuthenticationKey = key.apiAuthenticationKey)
-          }.join()
+          CoroutineScope(Dispatchers.IO)
+            .future {
+              getCertificate(name = key.name, apiAuthenticationKey = key.apiAuthenticationKey)
+            }
+            .join()
         }
 
     /**

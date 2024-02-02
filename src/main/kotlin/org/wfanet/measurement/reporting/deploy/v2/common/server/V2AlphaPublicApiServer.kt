@@ -187,7 +187,8 @@ private fun run(
       v2AlphaFlags.signingPrivateKeyStoreDir,
       commonServerFlags.tlsFlags.signingCerts.trustedCertificates,
       certificateCacheRefreshMinutes = v2AlphaPublicServerFlags.certificateCacheRefreshMinutes,
-      certificateCacheExpirationMinutes = v2AlphaPublicServerFlags.certificateCacheExpirationMinutes,
+      certificateCacheExpirationMinutes =
+        v2AlphaPublicServerFlags.certificateCacheExpirationMinutes,
       Dispatchers.IO,
     )
 
