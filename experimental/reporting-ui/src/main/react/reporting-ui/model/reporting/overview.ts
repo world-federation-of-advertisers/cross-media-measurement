@@ -18,4 +18,6 @@ export type Overview = {
   totalOnTargetReach: number;
   totalUniqueReach: number;
   totalAverageFrequency: number;
+  startDate: string,
+  endDate: string,
 };

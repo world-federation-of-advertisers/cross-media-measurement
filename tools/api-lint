@@ -24,9 +24,8 @@ set -eu -o pipefail
 readonly BAZEL="${BAZEL:-bazel}"
 readonly PROTO_PATH='src/main/proto'
 
-build() {
-  "$BAZEL" query "kind('^proto_library rule', @com_github_protocolbuffers_protobuf//:all + @com_google_googleapis//google/type:all + @com_google_googleapis//google/api:all)" --output=label |
-    xargs "$BAZEL" build
+get_descriptor_sets() {
+  "$BAZEL" cquery "kind('^proto_library rule', deps(${target}))" --output=files
 }
 
 get_proto_files() {
@@ -37,29 +36,25 @@ get_proto_files() {
 }
 
 lint() {
-  get_proto_files |
-    xargs -0 api-linter \
-    --set-exit-status \
-    --proto-path "$PROTO_PATH" \
-    --config "$PROTO_PATH/api-linter.yaml" \
-    --descriptor-set-in "${bazel_bin}/external/com_github_protocolbuffers_protobuf/descriptor_proto-descriptor-set.proto.bin" \
-    --descriptor-set-in "${bazel_bin}/external/com_google_googleapis/google/type/date_proto-descriptor-set.proto.bin" \
-    --descriptor-set-in "${bazel_bin}/external/com_google_googleapis/google/api/resource_proto-descriptor-set.proto.bin" \
-    --descriptor-set-in "${bazel_bin}/external/com_google_googleapis/google/api/field_behavior_proto-descriptor-set.proto.bin" \
-    --descriptor-set-in "${bazel_bin}/external/com_google_googleapis/google/api/client_proto-descriptor-set.proto.bin" \
-    --descriptor-set-in "${bazel_bin}/external/com_google_googleapis/google/api/http_proto-descriptor-set.proto.bin" \
-    --descriptor-set-in "${bazel_bin}/external/com_google_googleapis/google/api/annotations_proto-descriptor-set.proto.bin" \
-    "$@"
+  declare -a api_linter_args=(
+    '--set-exit-status'
+    "--proto-path=$PROTO_PATH"
+    "--config=$PROTO_PATH/api-linter.yaml"
+  )
+  for descriptor_set in $(get_descriptor_sets); do
+    api_linter_args+=( "--descriptor-set-in=${descriptor_set}" )
+  done
+
+  get_proto_files | xargs -0 api-linter "${api_linter_args[@]}" "$@"
 }
 
 main() {
   readonly path="$1"
   shift 1
+  
+  readonly target="//$PROTO_PATH/${path}/..."
+  "$BAZEL" build "${target}"
 
-  declare bazel_bin
-  bazel_bin="$("$BAZEL" info bazel-bin)"
-
-  build
   lint "$@"
 }
 

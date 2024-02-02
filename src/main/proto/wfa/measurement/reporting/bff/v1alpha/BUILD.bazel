@@ -1,5 +1,5 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
-load("@wfa_common_jvm//build:macros.bzl", "kt_jvm_grpc_proto_library")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_grpc_proto_library")
 load("//build/grpc_gateway:defs.bzl", "go_grpc_gateway_proto_library")
 
 package(default_visibility = ["//visibility:public"])
@@ -22,6 +22,16 @@ proto_library(
     ],
 )
 
+go_grpc_gateway_proto_library(
+    name = "report_go_proto",
+    importpath = GO_IMPORT_PATH,
+    protos = [":report_proto"],
+    deps = [
+        "@org_golang_google_genproto//googleapis/type/interval",
+        "@org_golang_google_genproto_googleapis_api//annotations",
+    ],
+)
+
 proto_library(
     name = "reports_service_proto",
     srcs = ["reports_service.proto"],
@@ -36,23 +46,18 @@ proto_library(
 )
 
 go_grpc_gateway_proto_library(
-    name = "report_go_proto",
-    importpath = GO_IMPORT_PATH,
-    protos = [":report_proto"],
-    deps = ["@org_golang_google_genproto//googleapis/type/interval"],
-)
-
-go_grpc_gateway_proto_library(
     name = "reports_service_go_proto",
     embed = [
         ":report_go_proto",
     ],
     importpath = GO_IMPORT_PATH,
     protos = [":reports_service_proto"],
-    deps = ["@org_golang_google_genproto//googleapis/type/interval"],
+    deps = [
+        "@org_golang_google_genproto_googleapis_api//annotations",
+    ],
 )
 
 kt_jvm_grpc_proto_library(
     name = "reports_service_kt_jvm_grpc_proto",
-    srcs = [":reports_service_proto"],
+    deps = [":reports_service_proto"],
 )
