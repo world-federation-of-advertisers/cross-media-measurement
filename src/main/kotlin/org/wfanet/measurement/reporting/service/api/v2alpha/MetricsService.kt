@@ -271,12 +271,14 @@ class MetricsService(
       val apiAuthenticationKey: String,
     )
 
+    private val scope = CoroutineScope(Dispatchers.IO)
+
     private val certificateCache: AsyncLoadingCache<ResourceNameApiAuthenticationKey, Certificate> =
       Caffeine.newBuilder()
         .refreshAfterWrite(certificateCacheRefreshDuration)
         .expireAfterWrite(certificateCacheExpirationDuration)
         .buildAsync { key: ResourceNameApiAuthenticationKey, _ ->
-          CoroutineScope(coroutineContext).future {
+          scope.future {
             getCertificate(name = key.name, apiAuthenticationKey = key.apiAuthenticationKey)
           }
         }
