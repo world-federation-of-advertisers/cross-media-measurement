@@ -13,12 +13,12 @@
 // limitations under the License.
 
 import React from 'react';
-import { Demographic } from '../../../model/reporting';
 import { Chart, ChartType } from '../chart';
+import { ChartGroup } from '../../../model/chart_group';
 
 type DedupedReachByDemoProps = {
     id: string,
-    demo: Demographic[],
+    demo: ChartGroup[],
     pubColors: { [Name: string]: string}
 }
 

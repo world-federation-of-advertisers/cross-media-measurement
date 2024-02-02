@@ -52,7 +52,7 @@ export class ReportingClientImpl {
       report,
     });
 
-    if (TERMINAL_STATES.includes(report.status)) {
+    if (TERMINAL_STATES.includes(report.state)) {
       this.cache.set(key, response);
     }
 
