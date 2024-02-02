@@ -179,7 +179,7 @@ kt_jvm_library(
     srcs = ["MetricsService.kt"],
     deps = [
         ":reporting_exceptions",
-        "//imports/java/com/github/ben-manes/caffeine",
+        "//imports/java/com/github/benmanes/caffeine",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",

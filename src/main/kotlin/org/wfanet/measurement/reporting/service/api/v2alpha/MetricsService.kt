@@ -28,6 +28,7 @@ import com.google.protobuf.util.Durations
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
+import java.time.Duration as JavaDuration
 import java.io.File
 import java.lang.IllegalStateException
 import java.security.PrivateKey
@@ -222,8 +223,8 @@ class MetricsService(
   secureRandom: SecureRandom,
   signingPrivateKeyDir: File,
   trustedCertificates: Map<ByteString, X509Certificate>,
-  certificateCacheRefreshMinutes: Long = 5,
-  certificateCacheExpirationMinutes: Long = 60,
+  certificateCacheRefreshDuration: JavaDuration = JavaDuration.ofMinutes(5),
+  certificateCacheExpirationDuration: JavaDuration = JavaDuration.ofMinutes(60),
   coroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
 ) : MetricsCoroutineImplBase() {
 
@@ -245,8 +246,8 @@ class MetricsService(
       secureRandom,
       signingPrivateKeyDir,
       trustedCertificates,
-      certificateCacheRefreshMinutes,
-      certificateCacheExpirationMinutes,
+      certificateCacheRefreshDuration,
+      certificateCacheExpirationDuration,
       coroutineContext,
     )
 
@@ -261,8 +262,8 @@ class MetricsService(
     private val secureRandom: SecureRandom,
     private val signingPrivateKeyDir: File,
     private val trustedCertificates: Map<ByteString, X509Certificate>,
-    certificateCacheRefreshMinutes: Long,
-    certificateCacheExpirationMinutes: Long,
+    certificateCacheRefreshDuration: JavaDuration,
+    certificateCacheExpirationDuration: JavaDuration,
     private val coroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
   ) {
     private data class ResourceNameApiAuthenticationKey(
@@ -272,10 +273,10 @@ class MetricsService(
 
     private val certificateCache: AsyncLoadingCache<ResourceNameApiAuthenticationKey, Certificate> =
       Caffeine.newBuilder()
-        .refreshAfterWrite(certificateCacheRefreshMinutes, TimeUnit.MINUTES)
-        .expireAfterWrite(certificateCacheExpirationMinutes, TimeUnit.MINUTES)
+        .refreshAfterWrite(certificateCacheRefreshDuration)
+        .expireAfterWrite(certificateCacheExpirationDuration)
         .buildAsync { key ->
-          CoroutineScope(Dispatchers.IO)
+          CoroutineScope(this.coroutineContext)
             .future {
               getCertificate(name = key.name, apiAuthenticationKey = key.apiAuthenticationKey)
             }

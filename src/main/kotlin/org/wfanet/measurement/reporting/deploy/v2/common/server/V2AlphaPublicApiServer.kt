@@ -186,9 +186,9 @@ private fun run(
       SecureRandom(),
       v2AlphaFlags.signingPrivateKeyStoreDir,
       commonServerFlags.tlsFlags.signingCerts.trustedCertificates,
-      certificateCacheRefreshMinutes = v2AlphaPublicServerFlags.certificateCacheRefreshMinutes,
-      certificateCacheExpirationMinutes =
-        v2AlphaPublicServerFlags.certificateCacheExpirationMinutes,
+      certificateCacheRefreshDuration = v2AlphaPublicServerFlags.certificateCacheRefreshDuration,
+      certificateCacheExpirationDuration =
+        v2AlphaPublicServerFlags.certificateCacheExpirationDuration,
       Dispatchers.IO,
     )
 
@@ -274,18 +274,18 @@ private class V2AlphaPublicServerFlags {
     private set
 
   @CommandLine.Option(
-    names = ["--certificate-cache-refresh-minutes"],
-    description = ["Duration in minutes to mark cache entries for refresh"],
+    names = ["--certificate-cache-refresh-duration"],
+    description = ["Duration to mark cache entries for refresh in format 1d1h1m1s1ms1ns"],
     required = true,
   )
-  var certificateCacheRefreshMinutes: Long = 0
+  lateinit var certificateCacheRefreshDuration: Duration
     private set
 
   @CommandLine.Option(
-    names = ["--certificate-cache-expiration-minutes"],
-    description = ["Duration in minutes to mark cache entries as expired"],
+    names = ["--certificate-cache-expiration-duration"],
+    description = ["Duration to mark cache entries as expired in format 1d1h1m1s1ms1ns"],
     required = true,
   )
-  var certificateCacheExpirationMinutes: Long = 0
+  lateinit var certificateCacheExpirationDuration: Duration
     private set
 }
