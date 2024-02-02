@@ -1,4 +1,4 @@
-// Copyright 2023 The Cross-Media Measurement Authors
+// Copyright 2024 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,32 +16,25 @@ import React from 'react';
 import { Chart, ChartType } from '../chart';
 import { ChartGroup } from '../../../model/chart_group';
 
-const neutralColors = [
-    "#CACACA",
-    "#959595",
-    "#5E5E5E",
-]
-
-type XmediaReachByFreqProps = {
+type OnTargetReachProps = {
     id: string,
-    reach: ChartGroup[],
+    title?: string,
+    impressions: ChartGroup[],
+    pubColors: { [Name: string]: string}
 }
 
-export function XmediaReachByFreq({id, reach}: XmediaReachByFreqProps) {
+export function Impressions({id, title='Impressions', impressions, pubColors}: OnTargetReachProps) {
     const config = {
-        catColors: {}
+        pubColors,
     }
-    const colors = {}
-    const unique = [...new Set(reach?.map(item => item.group))];
-    unique.forEach((x: any, i) => colors[x] = neutralColors[i])
-    config.catColors = colors;
+
     return (
         <Chart
             cardId={id}
-            title='Cross-media reach by frequency'
-            data={reach}
+            title={title}
+            data={impressions}
             config={config}
-            type={ChartType.percentMultiLine}
+            type={ChartType.multiLine}
         />
     )
 }

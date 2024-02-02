@@ -12,8 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export type UniqueReach = {
-  pub: number;
-  value: number;
-  date: Date;
+import { Metric } from "./metric";
+
+type Bucket = {
+  demoCategoryName: string,
+  perPublisherSource: Metric[],
+  unionSource: Metric[],
+};
+
+type Interval = {
+  startTime: Date,
+  endTime: Date,
+};
+
+export type TimeInterval = {
+  timeInterval: Interval;
+  demoBucket: Bucket[];
 };
