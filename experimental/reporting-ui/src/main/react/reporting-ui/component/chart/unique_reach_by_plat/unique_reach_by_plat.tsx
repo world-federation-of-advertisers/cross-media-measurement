@@ -29,7 +29,7 @@ export function UniqueReqchByPlat({id, reach, pubColors}: UniqueReqchByPlatProps
     return (
         <Chart
             cardId={id}
-            title='Unique reach by platform'
+            title='Unique reach'
             data={reach}
             config={config}
             type={ChartType.multiLine}
