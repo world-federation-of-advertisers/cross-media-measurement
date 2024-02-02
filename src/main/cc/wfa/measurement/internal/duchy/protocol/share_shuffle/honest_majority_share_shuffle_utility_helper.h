@@ -15,6 +15,9 @@
 #ifndef SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_SHARE_SHUFFLE_HONEST_MAJORITY_SHARE_SHUFFLE_UTILITY_HELPER_H_
 #define SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_SHARE_SHUFFLE_HONEST_MAJORITY_SHARE_SHUFFLE_UTILITY_HELPER_H_
 
+#include <string>
+#include <vector>
+
 #include "absl/status/statusor.h"
 #include "math/distributed_noiser.h"
 #include "wfa/any_sketch/secret_share.pb.h"
