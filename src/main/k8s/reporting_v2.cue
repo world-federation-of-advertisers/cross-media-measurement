@@ -20,6 +20,9 @@ package k8s
 
 	_reportSchedulingCronSchedule: string | *"30 6 * * *" // Daily at 6:30 AM
 
+	_certificateCacheRefreshMinutes:    int | *30
+	_certificateCacheExpirationMinutes: int | *60
+
 	_postgresConfig: #PostgresConfig
 
 	_internalApiTarget: #GrpcTarget & {
@@ -122,6 +125,8 @@ package k8s
 						"--port=8443",
 						"--health-port=8080",
 						"--event-group-metadata-descriptor-cache-duration=1h",
+						"--certificate-cache-refresh-minutes=\(_certificateCacheRefreshMinutes)",
+					  "--certificate-cache-expiration-minutes=\(_certificateCacheExpirationMinutes)",
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args
 
 			spec: template: spec: {

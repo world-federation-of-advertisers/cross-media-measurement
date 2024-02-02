@@ -1,0 +1,6 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "caffeine",
+    actual = "@maven//:com_github_ben_manes_caffeine_caffeine",
+)

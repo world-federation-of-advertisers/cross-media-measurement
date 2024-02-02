@@ -16,9 +16,6 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
-import com.google.common.cache.CacheBuilder
-import com.google.common.cache.CacheLoader
-import com.google.common.cache.LoadingCache
 import com.google.common.util.concurrent.UncheckedExecutionException
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
@@ -50,8 +47,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.future.future
 import org.jetbrains.annotations.BlockingExecutor
 import org.wfanet.measurement.api.v2alpha.BatchCreateMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.BatchGetMeasurementsResponse
@@ -153,6 +150,10 @@ import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchMetho
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
+import com.github.benmanes.caffeine.cache.AsyncLoadingCache
+import com.github.benmanes.caffeine.cache.Caffeine
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.future.await
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
@@ -221,6 +222,8 @@ class MetricsService(
   secureRandom: SecureRandom,
   signingPrivateKeyDir: File,
   trustedCertificates: Map<ByteString, X509Certificate>,
+  certificateCacheRefreshMinutes: Long = 5,
+  certificateCacheExpirationMinutes: Long = 60,
   coroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
 ) : MetricsCoroutineImplBase() {
 
@@ -242,6 +245,8 @@ class MetricsService(
       secureRandom,
       signingPrivateKeyDir,
       trustedCertificates,
+      certificateCacheRefreshMinutes,
+      certificateCacheExpirationMinutes,
       coroutineContext,
     )
 
@@ -256,6 +261,8 @@ class MetricsService(
     private val secureRandom: SecureRandom,
     private val signingPrivateKeyDir: File,
     private val trustedCertificates: Map<ByteString, X509Certificate>,
+    certificateCacheRefreshMinutes: Long,
+    certificateCacheExpirationMinutes: Long,
     private val coroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
   ) {
     private data class ResourceNameApiAuthenticationKey(
@@ -264,20 +271,15 @@ class MetricsService(
     )
 
     private val certificateCache:
-      LoadingCache<ResourceNameApiAuthenticationKey, Deferred<Certificate>> =
-      CacheBuilder.newBuilder()
-        .refreshAfterWrite(30L, TimeUnit.MINUTES)
-        .build(
-          object : CacheLoader<ResourceNameApiAuthenticationKey, Deferred<Certificate>>() {
-            override fun load(key: ResourceNameApiAuthenticationKey): Deferred<Certificate> {
-              return runBlocking {
-                async {
-                  getCertificate(name = key.name, apiAuthenticationKey = key.apiAuthenticationKey)
-                }
-              }
-            }
-          }
-        )
+      AsyncLoadingCache<ResourceNameApiAuthenticationKey, Certificate> =
+      Caffeine.newBuilder()
+        .refreshAfterWrite(certificateCacheRefreshMinutes, TimeUnit.MINUTES)
+        .expireAfterWrite(certificateCacheExpirationMinutes, TimeUnit.MINUTES)
+        .buildAsync { key ->
+          CoroutineScope(Dispatchers.IO).future {
+            getCertificate(name = key.name, apiAuthenticationKey = key.apiAuthenticationKey)
+          }.join()
+        }
 
     /**
      * Creates CMM public [Measurement]s and [InternalMeasurement]s from a list of [InternalMetric].

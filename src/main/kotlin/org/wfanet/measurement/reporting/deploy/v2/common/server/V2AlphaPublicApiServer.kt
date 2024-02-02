@@ -186,6 +186,8 @@ private fun run(
       SecureRandom(),
       v2AlphaFlags.signingPrivateKeyStoreDir,
       commonServerFlags.tlsFlags.signingCerts.trustedCertificates,
+      certificateCacheRefreshMinutes = v2AlphaPublicServerFlags.certificateCacheRefreshMinutes,
+      certificateCacheExpirationMinutes = v2AlphaPublicServerFlags.certificateCacheExpirationMinutes,
       Dispatchers.IO,
     )
 
@@ -268,5 +270,21 @@ private class V2AlphaPublicServerFlags {
     required = true,
   )
   lateinit var authorityKeyIdentifierToPrincipalMapFile: File
+    private set
+
+  @CommandLine.Option(
+    names = ["--certificate-cache-refresh-minutes"],
+    description = ["Duration in minutes to mark cache entries for refresh"],
+    required = true,
+  )
+  var certificateCacheRefreshMinutes: Long = 0
+    private set
+
+  @CommandLine.Option(
+    names = ["--certificate-cache-expiration-minutes"],
+    description = ["Duration in minutes to mark cache entries as expired"],
+    required = true,
+  )
+  var certificateCacheExpirationMinutes: Long = 0
     private set
 }

@@ -219,6 +219,8 @@ class InProcessReportingServer(
                 SecureRandom(),
                 signingPrivateKeyDir,
                 trustedCertificates,
+                5,
+                60,
                 Dispatchers.IO,
               )
               .withMetadataPrincipalIdentities(measurementConsumerConfigs),

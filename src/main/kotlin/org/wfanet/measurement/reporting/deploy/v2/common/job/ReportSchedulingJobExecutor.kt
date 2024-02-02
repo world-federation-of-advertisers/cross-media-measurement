@@ -122,6 +122,8 @@ private fun run(
       SecureRandom(),
       v2AlphaFlags.signingPrivateKeyStoreDir,
       commonServerFlags.tlsFlags.signingCerts.trustedCertificates,
+      60,
+      60,
       Dispatchers.IO,
     )
 
