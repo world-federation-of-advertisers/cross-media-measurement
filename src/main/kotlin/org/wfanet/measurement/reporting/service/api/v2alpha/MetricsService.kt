@@ -155,7 +155,6 @@ import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchMetho
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
-import java.util.concurrent.Executor
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
@@ -277,10 +276,9 @@ class MetricsService(
         .refreshAfterWrite(certificateCacheRefreshDuration)
         .expireAfterWrite(certificateCacheExpirationDuration)
         .buildAsync { key: ResourceNameApiAuthenticationKey, _ ->
-          CoroutineScope(this.coroutineContext)
-            .future {
-              getCertificate(name = key.name, apiAuthenticationKey = key.apiAuthenticationKey)
-            }
+          CoroutineScope(coroutineContext).future {
+            getCertificate(name = key.name, apiAuthenticationKey = key.apiAuthenticationKey)
+          }
         }
 
     /**
