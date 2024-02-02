@@ -14,8 +14,6 @@
 
 #include "wfa/measurement/internal/duchy/protocol/share_shuffle/honest_majority_share_shuffle_utility.h"
 
-#include <google/protobuf/util/time_util.h>
-
 #include <algorithm>
 #include <memory>
 #include <string>
@@ -182,9 +180,11 @@ absl::StatusOr<CompleteShufflePhaseResponse> CompleteShufflePhase(
 
   response.mutable_combined_sketch()->Add(combined_sketch.begin(),
                                           combined_sketch.end());
-  *response.mutable_elapsed_cpu_time() =
-      google::protobuf::util::TimeUtil::MillisecondsToDuration(
-          timer.ElapsedMillis());
+  int64_t elapsed_cpu_time_millis = timer.ElapsedMillis();
+  response.mutable_elapsed_cpu_time()->set_seconds(elapsed_cpu_time_millis /
+                                                   1000);
+  response.mutable_elapsed_cpu_time()->set_nanos(
+      (elapsed_cpu_time_millis % 1000) * 1000000);
   return response;
 }
 

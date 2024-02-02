@@ -14,8 +14,6 @@
 
 #include "wfa/measurement/internal/duchy/protocol/share_shuffle/honest_majority_share_shuffle_utility_helper.h"
 
-#include <google/protobuf/util/time_util.h>
-
 #include <algorithm>
 #include <memory>
 #include <string>

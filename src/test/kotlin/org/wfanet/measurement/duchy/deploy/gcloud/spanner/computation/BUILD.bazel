@@ -1,23 +1,15 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
-load("@rules_java//java:defs.bzl", "java_proto_library")
-load("@wfa_common_jvm//build/kt_jvm_proto:defs.bzl", "kt_jvm_proto_library")
-load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 load("@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl", "spanner_emulator_test")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library", "kt_jvm_test")
 
 proto_library(
     name = "fake_protocol_stage_details_proto",
     srcs = ["fake_protocol_stage_details.proto"],
 )
 
-java_proto_library(
-    name = "fake_protocol_stage_details_java_proto",
-    deps = [":fake_protocol_stage_details_proto"],
-)
-
 kt_jvm_proto_library(
     name = "fake_protocol_stage_details_kt_jvm_proto",
-    srcs = [":fake_protocol_stage_details_proto"],
-    deps = [":fake_protocol_stage_details_java_proto"],
+    deps = [":fake_protocol_stage_details_proto"],
 )
 
 kt_jvm_test(

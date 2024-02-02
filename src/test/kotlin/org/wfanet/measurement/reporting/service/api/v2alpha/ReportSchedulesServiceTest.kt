@@ -57,6 +57,7 @@ import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.internal.reporting.v2.BatchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.ListReportSchedulesRequestKt as InternalListReportSchedulesRequestKt
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec as InternalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt as InternalMetricSpecKt
@@ -2742,7 +2743,15 @@ class ReportSchedulesServiceTest {
         MetricCalculationSpecKt.details {
           displayName = "display"
           metricSpecs += INTERNAL_METRIC_SPEC
-          cumulative = false
+          metricFrequencySpec =
+            MetricCalculationSpecKt.metricFrequencySpec {
+              daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
+            }
+          trailingWindow =
+            MetricCalculationSpecKt.trailingWindow {
+              count = 5
+              increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
+            }
         }
     }
 

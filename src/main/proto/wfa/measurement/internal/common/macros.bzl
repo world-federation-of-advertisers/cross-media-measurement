@@ -15,12 +15,11 @@
 """Proto library macros."""
 
 load("@rules_proto//proto:defs.bzl", "proto_library")
-load("@rules_java//java:defs.bzl", "java_proto_library")
-load("@wfa_common_jvm//build/kt_jvm_proto:defs.bzl", "kt_jvm_proto_library")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library")
 
 IMPORT_PREFIX = "/src/main/proto"
 
-def proto_and_java_proto_library(name, deps = []):
+def proto_and_kt_jvm_proto_library(name, deps = []):
     proto_library(
         name = "%s_proto" % name,
         srcs = ["%s.proto" % name],
@@ -28,13 +27,7 @@ def proto_and_java_proto_library(name, deps = []):
         deps = deps,
         visibility = ["//visibility:private"],
     )
-    java_proto_library(
-        name = "%s_java_proto" % name,
-        deps = [":%s_proto" % name],
-        visibility = ["//visibility:private"],
-    )
     kt_jvm_proto_library(
         name = "%s_kt_jvm_proto" % name,
-        srcs = [":%s_proto" % name],
-        deps = [":%s_java_proto" % name],
+        deps = [":%s_proto" % name],
     )
