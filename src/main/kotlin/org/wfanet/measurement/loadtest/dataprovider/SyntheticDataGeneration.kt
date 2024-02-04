@@ -82,6 +82,8 @@ object SyntheticDataGeneration {
             @Suppress("UNCHECKED_CAST") // Safe per protobuf API.
             val message = builder.build() as T
 
+            val vids = sampleVids(vidRangeSpec)
+
             for (vid in vidRangeSpec.vidRange.start until vidRangeSpec.vidRange.endExclusive) {
               for (date in dateProgression) {
                 for (i in 0 until frequencySpec.frequency) {
@@ -93,6 +95,30 @@ object SyntheticDataGeneration {
         }
       }
     }
+  }
+
+  /**
+   * Returns the [SubPopulation] from a list of [SubPopulation] that contains the [VidRange] in its
+   * range.
+   *
+   * Returns all of the vids if sample size is 0
+   */
+  private fun sampleVids(
+    vidRangeSpec: SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec
+  ): Sequence<Long> {
+    if (vidRangeSpec.sampleSize == 0L) {
+      return vidRangeSpec.vidRange.start until vidRangeSpec.vidRange.endExclusive
+    }
+    
+//     val myList = listOf("Apple", "Banana", "Orange", "Grape")
+// val myRandom = Random() // Create your own Random instance
+// val shuffledList = myList.shuffled(myRandom) 
+    
+    return generateSequence { Random.nextInt(1..69) }
+        .distinct()
+        .take(limit)
+        .sorted()
+        .toSet()
   }
 
   /**
