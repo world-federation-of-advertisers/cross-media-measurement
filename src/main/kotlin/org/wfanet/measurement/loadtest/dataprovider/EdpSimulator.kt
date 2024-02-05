@@ -137,13 +137,11 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 import org.wfanet.measurement.eventdataprovider.noiser.GaussianNoiser
 import org.wfanet.measurement.eventdataprovider.noiser.LaplaceNoiser
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.CompositionMechanism
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getDirectAcdpQuery
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getDpQuery
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getLiquidLegionsV2AcdpQuery
 import org.wfanet.measurement.loadtest.common.sampleVids
 import org.wfanet.measurement.loadtest.config.TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
@@ -179,7 +177,6 @@ class EdpSimulator(
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   private val sketchEncrypter: SketchEncrypter = SketchEncrypter.Default,
   private val random: Random = Random,
-  private val compositionMechanism: CompositionMechanism,
 ) {
   val eventGroupReferenceIdPrefix = getEventGroupReferenceIdPrefix(edpData.displayName)
 
@@ -823,36 +820,24 @@ class EdpSimulator(
     contributorCount: Int,
   ) {
     logger.info(
-      "chargeLiquidLegionsV2PrivacyBudget with $compositionMechanism composition mechanism for requisition with $noiseMechanism noise mechanism..."
+      "chargeLiquidLegionsV2PrivacyBudget for requisition with $noiseMechanism noise mechanism..."
     )
 
     try {
-      when (compositionMechanism) {
-        CompositionMechanism.DP_ADVANCED ->
-          privacyBudgetManager.chargePrivacyBudget(
-            getDpQuery(
-              Reference(measurementConsumerName, requisitionName, false),
-              measurementSpec,
-              eventSpecs,
-            )
-          )
-        CompositionMechanism.ACDP -> {
-          if (noiseMechanism != NoiseMechanism.DISCRETE_GAUSSIAN) {
-            throw PrivacyBudgetManagerException(
-              PrivacyBudgetManagerExceptionType.INCORRECT_NOISE_MECHANISM
-            )
-          }
-
-          privacyBudgetManager.chargePrivacyBudgetInAcdp(
-            getLiquidLegionsV2AcdpQuery(
-              Reference(measurementConsumerName, requisitionName, false),
-              measurementSpec,
-              eventSpecs,
-              contributorCount,
-            )
-          )
-        }
+      if (noiseMechanism != NoiseMechanism.DISCRETE_GAUSSIAN) {
+        throw PrivacyBudgetManagerException(
+          PrivacyBudgetManagerExceptionType.INCORRECT_NOISE_MECHANISM
+        )
       }
+
+      privacyBudgetManager.chargePrivacyBudgetInAcdp(
+        getLiquidLegionsV2AcdpQuery(
+          Reference(measurementConsumerName, requisitionName, false),
+          measurementSpec,
+          eventSpecs,
+          contributorCount,
+        )
+      )
     } catch (e: PrivacyBudgetManagerException) {
       logger.log(
         Level.WARNING,
@@ -894,34 +879,22 @@ class EdpSimulator(
     eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>,
     directNoiseMechanism: DirectNoiseMechanism,
   ) {
-    logger.info("chargeDirectPrivacyBudget with $compositionMechanism composition mechanism...")
+    logger.info("chargeDirectPrivacyBudget for requisition $requisitionName...")
 
     try {
-      when (compositionMechanism) {
-        CompositionMechanism.DP_ADVANCED ->
-          privacyBudgetManager.chargePrivacyBudget(
-            getDpQuery(
-              Reference(measurementConsumerName, requisitionName, false),
-              measurementSpec,
-              eventSpecs,
-            )
-          )
-        CompositionMechanism.ACDP -> {
-          if (directNoiseMechanism != DirectNoiseMechanism.CONTINUOUS_GAUSSIAN) {
-            throw PrivacyBudgetManagerException(
-              PrivacyBudgetManagerExceptionType.INCORRECT_NOISE_MECHANISM
-            )
-          }
-
-          privacyBudgetManager.chargePrivacyBudgetInAcdp(
-            getDirectAcdpQuery(
-              Reference(measurementConsumerName, requisitionName, false),
-              measurementSpec,
-              eventSpecs,
-            )
-          )
-        }
+      if (directNoiseMechanism != DirectNoiseMechanism.CONTINUOUS_GAUSSIAN) {
+        throw PrivacyBudgetManagerException(
+          PrivacyBudgetManagerExceptionType.INCORRECT_NOISE_MECHANISM
+        )
       }
+
+      privacyBudgetManager.chargePrivacyBudgetInAcdp(
+        getDirectAcdpQuery(
+          Reference(measurementConsumerName, requisitionName, false),
+          measurementSpec,
+          eventSpecs,
+        )
+      )
     } catch (e: PrivacyBudgetManagerException) {
       logger.log(Level.WARNING, "chargeDirectPrivacyBudget failed due to ${e.errorType}", e)
       when (e.errorType) {
@@ -1469,15 +1442,7 @@ class EdpSimulator(
   private fun selectReachAndFrequencyNoiseMechanism(
     options: Set<DirectNoiseMechanism>
   ): DirectNoiseMechanism {
-    val preferences =
-      when (compositionMechanism) {
-        CompositionMechanism.DP_ADVANCED -> {
-          DIRECT_MEASUREMENT_DP_NOISE_MECHANISM_PREFERENCES
-        }
-        CompositionMechanism.ACDP -> {
-          DIRECT_MEASUREMENT_ACDP_NOISE_MECHANISM_PREFERENCES
-        }
-      }
+    val preferences = DIRECT_MEASUREMENT_ACDP_NOISE_MECHANISM_PREFERENCES
 
     return preferences.firstOrNull { preference -> options.contains(preference) }
       ?: throw RequisitionRefusalException(
@@ -1493,15 +1458,7 @@ class EdpSimulator(
   private fun selectImpressionNoiseMechanism(
     options: Set<DirectNoiseMechanism>
   ): DirectNoiseMechanism {
-    val preferences =
-      when (compositionMechanism) {
-        CompositionMechanism.DP_ADVANCED -> {
-          DIRECT_MEASUREMENT_DP_NOISE_MECHANISM_PREFERENCES
-        }
-        CompositionMechanism.ACDP -> {
-          DIRECT_MEASUREMENT_ACDP_NOISE_MECHANISM_PREFERENCES
-        }
-      }
+    val preferences = DIRECT_MEASUREMENT_ACDP_NOISE_MECHANISM_PREFERENCES
 
     return preferences.firstOrNull { preference -> options.contains(preference) }
       ?: throw RequisitionRefusalException(
@@ -1518,15 +1475,7 @@ class EdpSimulator(
   private fun selectWatchDurationNoiseMechanism(
     options: Set<DirectNoiseMechanism>
   ): DirectNoiseMechanism {
-    val preferences =
-      when (compositionMechanism) {
-        CompositionMechanism.DP_ADVANCED -> {
-          DIRECT_MEASUREMENT_DP_NOISE_MECHANISM_PREFERENCES
-        }
-        CompositionMechanism.ACDP -> {
-          DIRECT_MEASUREMENT_ACDP_NOISE_MECHANISM_PREFERENCES
-        }
-      }
+    val preferences = DIRECT_MEASUREMENT_ACDP_NOISE_MECHANISM_PREFERENCES
 
     return preferences.firstOrNull { preference -> options.contains(preference) }
       ?: throw RequisitionRefusalException(
@@ -1630,10 +1579,6 @@ class EdpSimulator(
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
-    // The direct noise mechanisms for DP_ADVANCED composition in PBM for direct measurements in
-    // order of preference.
-    private val DIRECT_MEASUREMENT_DP_NOISE_MECHANISM_PREFERENCES =
-      listOf(DirectNoiseMechanism.CONTINUOUS_LAPLACE, DirectNoiseMechanism.CONTINUOUS_GAUSSIAN)
     // The direct noise mechanisms for ACDP composition in PBM for direct measurements in order
     // of preference. Currently, ACDP composition only supports CONTINUOUS_GAUSSIAN noise for direct
     // measurements.
