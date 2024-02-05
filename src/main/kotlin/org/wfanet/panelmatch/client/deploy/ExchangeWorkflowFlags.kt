@@ -124,4 +124,16 @@ class ExchangeWorkflowFlags {
   )
   var maxParallelClaimedExchangeSteps by Delegates.notNull<Int>()
     private set
+
+  @Option(
+    names = ["--fallback-private-key-blob-key"],
+    defaultValue = "",
+    description =
+      [
+        "Fallback blob key for a kms-encrypted private signing key when a workflow does not generate one."
+      ],
+    required = true,
+  )
+  lateinit var fallbackPrivateKeyBlobKey: String
+    private set
 }
