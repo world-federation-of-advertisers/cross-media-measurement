@@ -31,34 +31,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  wait-for-base:
-    name: Wait for base branch build
-    runs-on: ubuntu-latest
-    steps:
-      # This is run in a separate job to avoid invalidating the build cache.
-      - uses: lewagon/wait-on-check-action@v1.3.1
-        if: github.event_name == 'pull_request'
-        with:
-          ref: ${{ github.base_ref }}
-          check-name: Build and test
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          wait-interval: 90
   build-test:
     name: Build and test
     runs-on: ubuntu-20.04
-    needs: wait-for-base
+    permissions:
+      id-token: write
     env:
       CLUSTER_LOGS_PATH: cluster-logs
     steps:
       - name: Check out revision
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - uses: ./.github/actions/free-disk-space
+
+      # Authenticate to Google Cloud for access to remote cache.
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.BAZEL_BUILD_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.BAZEL_BUILD_SERVICE_ACCOUNT }}
 
       - name: Write ~/.bazelrc
         run: |
           cat << EOF > ~/.bazelrc
           common --config=ci
+          common --config=remote-cache
+          build --remote_upload_local_results
           build --define container_registry=localhost:5001
           build --define image_repo_prefix=halo
           build --define image_tag=latest
@@ -84,7 +82,12 @@ jobs:
 
       - name: Get Bazel cache params
         id: get-cache-params
-        uses: world-federation-of-advertisers/actions/bazel-get-cache-params@v2
+        run: |
+          cache_path="$(bazelisk info output_base)"
+          echo "cache-path=${cache_path}" >> $GITHUB_OUTPUT
+
+          repo_cache_path="$(bazelisk info repository_cache)"
+          echo "repo-cache-path=${repo_cache_path}" >> $GITHUB_OUTPUT
 
       # This is a hack to utilize the undocumented relatively large empty
       # scratch disk mounted at /mnt. It's currently needed to work around
@@ -99,19 +102,24 @@ jobs:
           sudo chown 'runner:runner' /mnt/bazel-cache
           sudo mount --bind /mnt/bazel-cache "$BAZEL_CACHE_PATH"
 
-      - name: Restore Bazel cache
+      - name: Restore repository cache
         uses: actions/cache/restore@v4
         with:
-          path: ${{ steps.get-cache-params.outputs.cache-path }}
-          key: ${{ steps.get-cache-params.outputs.cache-key }}
-          restore-keys: |-
-            ${{ steps.get-cache-params.outputs.restore-key }}
+          path: ${{ steps.get-cache-params.outputs.repo-cache-path }}
+          key: ${{ vars.BAZEL_REPO_CACHE_KEY }}
 
       - name: Build
         run: >
           bazelisk build --worker_quit_after_build
           //...
           //src/main/k8s/dev:synthetic_generator_edp_simulators
+
+      - name: Save repository cache
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: ${{ steps.get-cache-params.outputs.repo-cache-path }}
+          key: ${{ vars.BAZEL_REPO_CACHE_KEY }}
 
       - name: Run tests
         id: run-tests
@@ -155,29 +163,11 @@ jobs:
 
       - name: Upload cluster logs artifact
         if: failure() && steps.export-cluster-logs.outcome == 'success'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         continue-on-error: true
         with:
           name: cluster-logs
           path: ${{ env.CLUSTER_LOGS_PATH }}
-
-      # Delete large files that are relatively cheap to re-create.
-      - name: Trim Bazel cache
-        if: github.event_name == 'push'
-        run: |
-          bazel_out="$(bazelisk info output_path)"
-          find "${bazel_out}" -type f \( -iname '*.tar' -o -iname '*.tar.gz' \) -delete
-          find "${bazel_out}" -type d -name sha256 -exec chmod -R +w "{}" \;
-          find "${bazel_out}" -type f -path '*/sha256/*' -delete
-          
-
-      - name: Save Bazel cache
-        if: github.event_name == 'push'
-        uses: actions/cache/save@v4
-        continue-on-error: true
-        with:
-          path: ${{ steps.get-cache-params.outputs.cache-path }}
-          key: ${{ steps.get-cache-params.outputs.cache-key }}
 
       - name: Upload Bazel testlogs
         continue-on-error: true
