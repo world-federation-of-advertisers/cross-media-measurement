@@ -45,9 +45,7 @@ class RecordRequisitionData(
   override suspend fun TransactionScope.runTransaction(): ComputationToken {
     require(pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $externalRequisitionKey" }
     if (seed != null) {
-      require(pathToBlob.isNotBlank()) {
-        "Cannot insert blank path to blob. $externalRequisitionKey"
-      }
+      require(!seed.isEmpty) { "Cannot insert empty seed. $externalRequisitionKey" }
     }
 
     val requisition: RequisitionReader.RequisitionResult =

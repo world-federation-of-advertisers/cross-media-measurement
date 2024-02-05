@@ -90,8 +90,8 @@ import org.wfanet.measurement.internal.duchy.PurgeComputationsRequest
 import org.wfanet.measurement.internal.duchy.PurgeComputationsResponse
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathResponse
-import org.wfanet.measurement.internal.duchy.RecordRequisitionRequest
-import org.wfanet.measurement.internal.duchy.RecordRequisitionResponse
+import org.wfanet.measurement.internal.duchy.RecordRequisitionFulfillmentRequest
+import org.wfanet.measurement.internal.duchy.RecordRequisitionFulfillmentResponse
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsResponse
 import org.wfanet.measurement.internal.duchy.getComputationIdsResponse
@@ -434,9 +434,9 @@ class PostgresComputationsService(
     return EnqueueComputationResponse.getDefaultInstance()
   }
 
-  override suspend fun recordRequisition(
-    request: RecordRequisitionRequest
-  ): RecordRequisitionResponse {
+  override suspend fun recordRequisitionFulfillment(
+    request: RecordRequisitionFulfillmentRequest
+  ): RecordRequisitionFulfillmentResponse {
     val token =
       RecordRequisitionData(
           clock = clock,

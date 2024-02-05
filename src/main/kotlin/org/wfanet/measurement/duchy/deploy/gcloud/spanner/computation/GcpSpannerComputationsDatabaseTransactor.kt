@@ -659,6 +659,10 @@ class GcpSpannerComputationsDatabaseTransactor<
     pathToBlob: String,
     seed: ByteString? = null,
   ) {
+    require(pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $externalRequisitionKey" }
+    if (seed != null) {
+      require(!seed.isEmpty) { "Cannot insert empty seed. $externalRequisitionKey" }
+    }
     databaseClient.readWriteTransaction().execute { txn ->
       val row =
         txn.readRowUsingIndex(
@@ -695,7 +699,7 @@ class GcpSpannerComputationsDatabaseTransactor<
     }
   }
 
-  override suspend fun writeRequisition(
+  override suspend fun writeRequisitionBlobPath(
     token: ComputationEditToken<ProtocolT, StageT>,
     externalRequisitionKey: ExternalRequisitionKey,
     pathToBlob: String,

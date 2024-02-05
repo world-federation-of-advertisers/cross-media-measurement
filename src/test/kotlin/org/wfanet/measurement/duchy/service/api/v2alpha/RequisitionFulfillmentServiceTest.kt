@@ -55,17 +55,11 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.duchy.storage.RequisitionBlobContext
 import org.wfanet.measurement.duchy.storage.RequisitionStore
+import org.wfanet.measurement.internal.duchy.*
 import org.wfanet.measurement.internal.duchy.ComputationDetailsKt.kingdomComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
-import org.wfanet.measurement.internal.duchy.computationDetails
-import org.wfanet.measurement.internal.duchy.computationToken
-import org.wfanet.measurement.internal.duchy.copy
-import org.wfanet.measurement.internal.duchy.externalRequisitionKey
-import org.wfanet.measurement.internal.duchy.getComputationTokenResponse
-import org.wfanet.measurement.internal.duchy.recordRequisitionRequest
-import org.wfanet.measurement.internal.duchy.requisitionDetails
-import org.wfanet.measurement.internal.duchy.requisitionMetadata
+import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage
 import org.wfanet.measurement.storage.testing.BlobSubject.Companion.assertThat
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.measurement.system.v1alpha.RequisitionKey as SystemRequisitionKey
@@ -82,11 +76,17 @@ private val NONCE_HASH =
   HexString("45FEAA185D434E0EB4747F547F0918AA5B8403DBBD7F90D6F0D8C536E2D620D7")
 private val REQUISITION_FINGERPRINT = "A fingerprint".toByteStringUtf8()
 private val TEST_REQUISITION_DATA = "some data".toByteStringUtf8()
-private val TEST_REQUISITION_SEED = "a seed".toByteStringUtf8()
+private val TEST_REQUISITION_SEED = "secret seed".toByteStringUtf8()
 private val HEADER = header {
   name = CanonicalRequisitionKey(DATA_PROVIDER_API_ID, REQUISITION_API_ID).toName()
   requisitionFingerprint = REQUISITION_FINGERPRINT
   nonce = NONCE
+}
+private val HMSS_HEADER = header {
+  name = CanonicalRequisitionKey(DATA_PROVIDER_API_ID, REQUISITION_API_ID).toName()
+  requisitionFingerprint = REQUISITION_FINGERPRINT
+  nonce = NONCE
+  honestMajorityShareShuffle = honestMajorityShareShuffle { secretSeed = TEST_REQUISITION_SEED }
 }
 private val FULFILLED_RESPONSE = fulfillRequisitionResponse { state = Requisition.State.FULFILLED }
 private val SYSTEM_REQUISITION_KEY = SystemRequisitionKey(COMPUTATION_ID, REQUISITION_API_ID)
@@ -134,7 +134,7 @@ class RequisitionFulfillmentServiceTest {
   }
 
   @Test
-  fun `fulfill requisition writes new data to blob`() = runBlocking {
+  fun `fulfillRequisition writes new data to blob`() = runBlocking {
     val fakeToken = computationToken {
       globalComputationId = COMPUTATION_ID
       computationDetails = COMPUTATION_DETAILS
@@ -154,9 +154,12 @@ class RequisitionFulfillmentServiceTest {
     assertThat(response).isEqualTo(FULFILLED_RESPONSE)
     val blob = assertNotNull(requisitionStore.get(REQUISITION_BLOB_CONTEXT))
     assertThat(blob).contentEqualTo(TEST_REQUISITION_DATA)
-    verifyProtoArgument(computationsServiceMock, ComputationsCoroutineImplBase::recordRequisition)
+    verifyProtoArgument(
+        computationsServiceMock,
+        ComputationsCoroutineImplBase::recordRequisitionFulfillment,
+      )
       .isEqualTo(
-        recordRequisitionRequest {
+        recordRequisitionFulfillmentRequest {
           token = fakeToken
           key = REQUISITION_KEY
           blobPath = blob.blobKey
@@ -172,7 +175,7 @@ class RequisitionFulfillmentServiceTest {
   }
 
   @Test
-  fun `fulfill requisition, already fulfilled locally should skip writing`() {
+  fun `fulfillRequisition skips writing when requisition already fulfilled locally`() {
     val blobKey = REQUISITION_BLOB_CONTEXT.blobKey
     val fakeToken = computationToken {
       globalComputationId = COMPUTATION_ID
@@ -203,9 +206,10 @@ class RequisitionFulfillmentServiceTest {
   }
 
   @Test
-  fun `fulfill requisition writes the data and seed for HMSS protocol`() = runBlocking {
+  fun `fulfillRequisition writes the data and seed for HMSS protocol`() = runBlocking {
     val fakeToken = computationToken {
       globalComputationId = COMPUTATION_ID
+      computationStage = computationStage { honestMajorityShareShuffle = Stage.INITIALIZED }
       computationDetails = COMPUTATION_DETAILS
       requisitions += REQUISITION_METADATA
     }
@@ -217,17 +221,18 @@ class RequisitionFulfillmentServiceTest {
 
     val response =
       withPrincipal(DATA_PROVIDER_PRINCIPAL) {
-        service.fulfillRequisition(
-          HEADER.withSeedAndData(TEST_REQUISITION_SEED, TEST_REQUISITION_DATA)
-        )
+        service.fulfillRequisition(HMSS_HEADER.withContent(TEST_REQUISITION_DATA))
       }
 
     assertThat(response).isEqualTo(FULFILLED_RESPONSE)
     val blob = assertNotNull(requisitionStore.get(REQUISITION_BLOB_CONTEXT))
     assertThat(blob).contentEqualTo(TEST_REQUISITION_DATA)
-    verifyProtoArgument(computationsServiceMock, ComputationsCoroutineImplBase::recordRequisition)
+    verifyProtoArgument(
+        computationsServiceMock,
+        ComputationsCoroutineImplBase::recordRequisitionFulfillment,
+      )
       .isEqualTo(
-        recordRequisitionRequest {
+        recordRequisitionFulfillmentRequest {
           token = fakeToken
           key = REQUISITION_KEY
           blobPath = blob.blobKey
@@ -241,6 +246,61 @@ class RequisitionFulfillmentServiceTest {
           nonce = NONCE
         }
       )
+  }
+
+  @Test
+  fun `fulfillRequisiiton fails when seed is not specified for HMSS protocol`() = runBlocking {
+    val fakeToken = computationToken {
+      globalComputationId = COMPUTATION_ID
+      computationStage = computationStage { honestMajorityShareShuffle = Stage.INITIALIZED }
+      computationDetails = COMPUTATION_DETAILS
+      requisitions += REQUISITION_METADATA
+    }
+    computationsServiceMock.stub {
+      onBlocking { getComputationToken(any()) }
+        .thenReturn(getComputationTokenResponse { token = fakeToken })
+    }
+    RequisitionBlobContext(COMPUTATION_ID, HEADER.name)
+
+    val request = HEADER.withContent(TEST_REQUISITION_DATA)
+    val e =
+      assertFailsWith(StatusRuntimeException::class) {
+        withPrincipal(DATA_PROVIDER_PRINCIPAL) { service.fulfillRequisition(request) }
+      }
+
+    assertThat(e.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(e.message).contains("seed")
+  }
+
+  @Test
+  fun `fulfillRequisiiton fails when seed is empty for HMSS protocol`() = runBlocking {
+    val fakeToken = computationToken {
+      globalComputationId = COMPUTATION_ID
+      computationStage = computationStage { honestMajorityShareShuffle = Stage.INITIALIZED }
+      computationDetails = COMPUTATION_DETAILS
+      requisitions += REQUISITION_METADATA
+    }
+    computationsServiceMock.stub {
+      onBlocking { getComputationToken(any()) }
+        .thenReturn(getComputationTokenResponse { token = fakeToken })
+    }
+    RequisitionBlobContext(COMPUTATION_ID, HEADER.name)
+
+    val header =
+      HMSS_HEADER.copy {
+        honestMajorityShareShuffle = honestMajorityShareShuffle {
+          secretSeed = "".toByteStringUtf8()
+        }
+      }
+    val e =
+      assertFailsWith(StatusRuntimeException::class) {
+        withPrincipal(DATA_PROVIDER_PRINCIPAL) {
+          service.fulfillRequisition(header.withContent(TEST_REQUISITION_DATA))
+        }
+      }
+
+    assertThat(e.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(e.message).contains("seed")
   }
 
   @Test
@@ -325,26 +385,6 @@ class RequisitionFulfillmentServiceTest {
       .map { fulfillRequisitionRequest { bodyChunk = bodyChunk { data = it } } }
       .asFlow()
       .onStart { emit(fulfillRequisitionRequest { header = this@withContent }) }
-  }
-
-  private fun FulfillRequisitionRequest.Header.withSeedAndData(
-    randomSeed: ByteString,
-    vararg bodyContent: ByteString,
-  ): Flow<FulfillRequisitionRequest> {
-    return bodyContent
-      .asSequence()
-      .map { fulfillRequisitionRequest { bodyChunk = bodyChunk { data = it } } }
-      .asFlow()
-      .onStart {
-        emit(
-          fulfillRequisitionRequest {
-            header =
-              this@withSeedAndData.copy {
-                honestMajorityShareShuffle = honestMajorityShareShuffle { secretSeed = randomSeed }
-              }
-          }
-        )
-      }
   }
 
   companion object {

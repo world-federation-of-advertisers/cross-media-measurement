@@ -317,7 +317,7 @@ private constructor(
     }
   }
 
-  override suspend fun writeRequisition(
+  override suspend fun writeRequisitionBlobPath(
     token: ComputationEditToken<ComputationType, ComputationStage>,
     externalRequisitionKey: ExternalRequisitionKey,
     pathToBlob: String,

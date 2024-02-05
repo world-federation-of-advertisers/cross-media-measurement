@@ -65,7 +65,7 @@ import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggrega
 import org.wfanet.measurement.internal.duchy.protocol.copy
 import org.wfanet.measurement.internal.duchy.purgeComputationsRequest
 import org.wfanet.measurement.internal.duchy.recordOutputBlobPathRequest
-import org.wfanet.measurement.internal.duchy.recordRequisitionRequest
+import org.wfanet.measurement.internal.duchy.recordRequisitionFulfillmentRequest
 import org.wfanet.measurement.internal.duchy.requisitionDetails
 import org.wfanet.measurement.internal.duchy.requisitionEntry
 import org.wfanet.measurement.internal.duchy.requisitionMetadata
@@ -990,17 +990,18 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
     }
 
   @Test
-  fun `recordRequisition with blobPath returns updated token`() = runBlocking {
+  fun `recordRequisitionFulfillment with blobPath returns updated token`() = runBlocking {
     val createComputationResponse =
       service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST.copy {})
 
     val blobPath = "/path/to/requisition/blob"
-    val recordRequisitionRequest = recordRequisitionRequest {
+    val recordRequisitionFulfillmentRequest = recordRequisitionFulfillmentRequest {
       token = createComputationResponse.token
       key = DEFAULT_REQUISITION_ENTRY.key
       this.blobPath = blobPath
     }
-    val recordRequisitionBlobResponse = service.recordRequisition(recordRequisitionRequest)
+    val recordRequisitionBlobResponse =
+      service.recordRequisitionFulfillment(recordRequisitionFulfillmentRequest)
 
     val expectedToken =
       createComputationResponse.token.copy {
@@ -1012,19 +1013,20 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   }
 
   @Test
-  fun `recordRequisition with blobPath and seed returns updated token`() = runBlocking {
+  fun `recordRequisitionFulfillment with blobPath and seed returns updated token`() = runBlocking {
     val createComputationResponse =
       service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST.copy {})
 
     val blobPath = "/path/to/requisition/blob"
     val seed = "this is a seed".toByteStringUtf8()
-    val recordRequisitionRequest = recordRequisitionRequest {
+    val recordRequisitionFulfillmentRequest = recordRequisitionFulfillmentRequest {
       token = createComputationResponse.token
       key = DEFAULT_REQUISITION_ENTRY.key
       this.blobPath = blobPath
       this.seed = seed
     }
-    val recordRequisitionBlobResponse = service.recordRequisition(recordRequisitionRequest)
+    val recordRequisitionBlobResponse =
+      service.recordRequisitionFulfillment(recordRequisitionFulfillmentRequest)
 
     val expectedToken =
       createComputationResponse.token.copy {
@@ -1040,42 +1042,43 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   }
 
   @Test
-  fun `recordRequisition throws IllegalArgumentException when path is blank`(): Unit = runBlocking {
-    val createComputationResponse = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
-
-    val blankBlobPath = ""
-    val recordRequisitionRequest = recordRequisitionRequest {
-      token = createComputationResponse.token
-      key = DEFAULT_REQUISITION_ENTRY.key
-      this.blobPath = blankBlobPath
-    }
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        service.recordRequisition(recordRequisitionRequest)
-      }
-
-    assertThat(exception.message).contains("Cannot insert blank path to blob")
-  }
-
-  @Test
-  fun `recordRequisition throws IllegalStateException when requisition does not exist`(): Unit =
+  fun `recordRequisitionFulfillment throws IllegalArgumentException when path is blank`(): Unit =
     runBlocking {
       val createComputationResponse = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
 
-      val blobPath = "/path/to/requisition/blob"
-      val recordRequisitionRequest = recordRequisitionRequest {
+      val blankBlobPath = ""
+      val recordRequisitionFulfillmentRequest = recordRequisitionFulfillmentRequest {
         token = createComputationResponse.token
-        key = externalRequisitionKey {
-          externalRequisitionId = "dne_external_requsition_id"
-          requisitionFingerprint = "dne_finger_print".toByteStringUtf8()
-        }
-        this.blobPath = blobPath
+        key = DEFAULT_REQUISITION_ENTRY.key
+        this.blobPath = blankBlobPath
       }
       val exception =
-        assertFailsWith<IllegalStateException> {
-          service.recordRequisition(recordRequisitionRequest)
+        assertFailsWith<IllegalArgumentException> {
+          service.recordRequisitionFulfillment(recordRequisitionFulfillmentRequest)
         }
 
-      assertThat(exception.message).contains("found")
+      assertThat(exception.message).contains("Cannot insert blank path to blob")
     }
+
+  @Test
+  fun `recordRequisitionFulfillment throws IllegalStateException when requisition does not exist`():
+    Unit = runBlocking {
+    val createComputationResponse = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+
+    val blobPath = "/path/to/requisition/blob"
+    val recordRequisitionFulfillmentRequest = recordRequisitionFulfillmentRequest {
+      token = createComputationResponse.token
+      key = externalRequisitionKey {
+        externalRequisitionId = "dne_external_requsition_id"
+        requisitionFingerprint = "dne_finger_print".toByteStringUtf8()
+      }
+      this.blobPath = blobPath
+    }
+    val exception =
+      assertFailsWith<IllegalStateException> {
+        service.recordRequisitionFulfillment(recordRequisitionFulfillmentRequest)
+      }
+
+    assertThat(exception.message).contains("found")
+  }
 }

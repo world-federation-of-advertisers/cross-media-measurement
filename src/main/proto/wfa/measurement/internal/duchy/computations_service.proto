@@ -83,9 +83,9 @@ service Computations {
   rpc EnqueueComputation(EnqueueComputationRequest)
       returns (EnqueueComputationResponse);
 
-  // Records the requisition containing a blob path and a seed if applicable.
-  rpc RecordRequisition(RecordRequisitionRequest)
-      returns (RecordRequisitionResponse);
+  // Records the requisition containing a blob path and an optional seed.
+  rpc RecordRequisitionFulfillment(RecordRequisitionFulfillmentRequest)
+      returns (RecordRequisitionFulfillmentResponse);
 }
 
 // Request to create a new computation.
@@ -295,7 +295,7 @@ message EnqueueComputationResponse {
 
 // Request to record the blob path where the data of a requisition is stored and
 // the seed if applicable.
-message RecordRequisitionRequest {
+message RecordRequisitionFulfillmentRequest {
   // Token for the computation to update. Required.
   ComputationToken token = 1;
   // The public API resource key of the requisition to update. Required.
@@ -304,10 +304,12 @@ message RecordRequisitionRequest {
   // Required. Must be non-empty.
   string blob_path = 3;
   // The encrypted and signed random seed.
+  //
+  // It is a serialized EncryptedMessage as an encrypted SignedMessage.
   bytes seed = 4;
 }
 // Response to record Requisition.
-message RecordRequisitionResponse {
+message RecordRequisitionFulfillmentResponse {
   // The computationToken of the parent computation after updating.
   ComputationToken token = 1;
 }

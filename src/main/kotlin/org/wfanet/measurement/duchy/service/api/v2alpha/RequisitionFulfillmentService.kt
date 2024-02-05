@@ -42,7 +42,7 @@ import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.externalRequisitionKey
 import org.wfanet.measurement.internal.duchy.getComputationTokenRequest
-import org.wfanet.measurement.internal.duchy.recordRequisitionRequest
+import org.wfanet.measurement.internal.duchy.recordRequisitionFulfillmentRequest
 import org.wfanet.measurement.system.v1alpha.RequisitionKey as SystemRequisitionKey
 import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.fulfillRequisitionRequest as systemFulfillRequisitionRequest
@@ -97,7 +97,7 @@ class RequisitionFulfillmentService(
         //  is already marked fulfilled locally.
         if (requisitionMetadata.path.isBlank()) {
           val seed =
-            if (header.hasHonestMajorityShareShuffle()) {
+            if (computationToken.computationStage.hasHonestMajorityShareShuffle()) {
               grpcRequire(!header.honestMajorityShareShuffle.secretSeed.isEmpty) {
                 "Secret seed cannot be empty for HMSS protocol."
               }
@@ -193,8 +193,8 @@ class RequisitionFulfillmentService(
     blobPath: String,
     seed: ByteString?,
   ) {
-    computationsClient.recordRequisition(
-      recordRequisitionRequest {
+    computationsClient.recordRequisitionFulfillment(
+      recordRequisitionFulfillmentRequest {
         this.token = token
         this.key = key
         this.blobPath = blobPath
