@@ -53,7 +53,7 @@ class GrpcApiClient(
     }
 
   override suspend fun claimExchangeStep(): ClaimedExchangeStep? {
-    if (semaphore !== null) {
+    if (semaphore != null) {
       val semaphoreAcquired = semaphore.tryAcquire()
       if (!semaphoreAcquired) return null
     }
@@ -66,7 +66,7 @@ class GrpcApiClient(
         grpcRequireNotNull(CanonicalExchangeStepAttemptKey.fromName(response.exchangeStepAttempt))
       return ClaimedExchangeStep(response.exchangeStep, exchangeStepAttemptKey)
     }
-    if (semaphore !== null) semaphore.release()
+    semaphore?.release()
     return null
   }
 
