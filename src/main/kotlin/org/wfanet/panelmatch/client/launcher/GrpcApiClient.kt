@@ -88,7 +88,7 @@ class GrpcApiClient(
     finalState: ExchangeStepAttempt.State,
     logEntryMessages: Iterable<String>,
   ) {
-    if (semaphore !== null) semaphore.release()
+    semaphore?.release()
     val request = finishExchangeStepAttemptRequest {
       name = key.toName()
       this.finalState = finalState
