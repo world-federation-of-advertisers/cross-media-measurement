@@ -97,6 +97,7 @@ message RequisitionMetadata {
   // fulfilled when it is specified.
   string path = 2;
 
-  // The requisition data in format of a secret seed in bytes.
+  // The requisition data in format of an encrypted serialized SignedMessage as
+  // the seed.
   bytes seed = 4;
 }

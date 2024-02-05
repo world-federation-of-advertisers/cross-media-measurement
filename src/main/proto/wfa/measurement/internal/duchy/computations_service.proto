@@ -305,7 +305,7 @@ message RecordRequisitionFulfillmentRequest {
   string blob_path = 3;
   // The encrypted and signed random seed.
   //
-  // It is a serialized EncryptedMessage as an encrypted SignedMessage.
+  // In format of encrypted serialized SignedMessage.
   bytes seed = 4;
 }
 // Response to record Requisition.
