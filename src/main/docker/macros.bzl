@@ -27,18 +27,23 @@ def java_image(
         main_class = None,
         args = None,
         base = None,
+        tags = None,
         visibility = None,
         **kwargs):
     """Java container image.
 
     This is a replacement for the java_image rule which sets common attrs.
     """
+    tags = tags or []
+    tags.append("no-remote-cache")
+
     _java_image(
         name = name,
         binary = binary,
         base = base,
         labels = {"org.opencontainers.image.source": MEASUREMENT_SYSTEM_REPO},
         cmd_args = args,
+        tags = tags,
         visibility = visibility,
         **kwargs
     )
