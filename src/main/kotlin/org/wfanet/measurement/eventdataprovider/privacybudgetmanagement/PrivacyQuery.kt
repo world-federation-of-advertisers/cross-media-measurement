@@ -16,12 +16,6 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 import org.wfanet.measurement.common.OpenEndTimeRange
 
 /**
- * Represents a Differential Privacy(DP) charge in epsilon and delta that will be made to a privacy
- * budget.
- */
-data class DpCharge(val epsilon: Float, val delta: Float)
-
-/**
  * Represents an Almost Concentrated Differential Privacy(ACDP) charge in rho and theta that will be
  * made to a privacy budget.
  */
@@ -49,16 +43,6 @@ data class LandscapeMask(
 )
 
 /**
- * Represents multiple Differential Privacy(DP) charges to the multiple buckets in the
- * PrivacyLandscape.
- */
-data class DpQuery(
-  val reference: Reference,
-  val landscapeMask: LandscapeMask,
-  val dpCharge: DpCharge,
-)
-
-/**
  * Represents multiple Almost Concentrated Differential Privacy(ACDP) charges to the multiple
  * buckets in the PrivacyLandscape.
  */
@@ -67,14 +51,3 @@ data class AcdpQuery(
   val landscapeMask: LandscapeMask,
   val acdpCharge: AcdpCharge,
 )
-
-/** Supported Composition mechanisms in Privacy Budget Manager. */
-enum class CompositionMechanism {
-  /** Advanced Composition under Differential Privacy which should be used with Laplace noise. */
-  DP_ADVANCED,
-
-  /**
-   * Almost Concentrated Differential Privacy Composition which should be used with Gaussian noise.
-   */
-  ACDP,
-}

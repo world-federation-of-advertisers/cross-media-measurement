@@ -45,20 +45,19 @@ class PrivacyBudgetPostgresSchemaTest {
   }
 
   @Test
-  fun `privacy budget balance can be written and read`() {
+  fun `privacy budget acdp balance can be written and read`() {
     createConnection().use { connection ->
       val statement = connection.createStatement()
       val insertSql =
         """
-      INSERT INTO PrivacyBucketCharges (
+      INSERT INTO PrivacyBucketAcdpCharges (
         MeasurementConsumerId,
         Date,
         AgeGroup,
         Gender,
         VidStart,
-        Delta,
-        Epsilon,
-        RepetitionCount
+        Rho,
+        Theta
       ) VALUES (
         'MC1',
         '2022-01-01',
@@ -66,19 +65,18 @@ class PrivacyBudgetPostgresSchemaTest {
         'F',
         100,
         0.1,
-        0.01,
-        10
+        0.01
       );
       """
       val selectSql = """
-      SELECT Gender, Delta from PrivacyBucketCharges
+      SELECT Gender, Rho from PrivacyBucketAcdpCharges
       """
       statement.execute(SCHEMA)
       statement.execute(insertSql)
       val result: ResultSet = statement.executeQuery(selectSql)
       result.next()
       assertEquals("F", result.getString("gender"))
-      assertEquals(0.1f, result.getFloat("delta"))
+      assertEquals(0.1f, result.getFloat("rho"))
     }
   }
 
