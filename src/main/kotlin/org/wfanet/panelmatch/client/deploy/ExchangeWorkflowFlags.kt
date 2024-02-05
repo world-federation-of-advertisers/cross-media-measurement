@@ -126,11 +126,14 @@ class ExchangeWorkflowFlags {
     private set
 
   @Option(
-    names = ["--private-key-blob-key"],
+    names = ["--fallback-private-key-blob-key"],
     defaultValue = "",
-    description = ["Blob key for a kms-encrypted private signing key used in all exchanges"],
+    description =
+      [
+        "Fallback blob key for a kms-encrypted private signing key when a workflow does not generate one."
+      ],
     required = true,
   )
-  lateinit var privateKeyBlobKey: String
+  lateinit var fallbackPrivateKeyBlobKey: String
     private set
 }

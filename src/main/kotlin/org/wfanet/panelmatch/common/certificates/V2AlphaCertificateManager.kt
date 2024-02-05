@@ -48,7 +48,7 @@ class V2AlphaCertificateManager(
   private val algorithm: String,
   private val certificateAuthority: CertificateAuthority,
   private val localName: String,
-  private val privateKeyBlobKey: String? = null,
+  private val fallbackPrivateKeyBlobKey: String? = null,
 ) : CertificateManager {
 
   private val x509CertCache = ConcurrentHashMap<String, X509Certificate>()
@@ -78,10 +78,12 @@ class V2AlphaCertificateManager(
   }
 
   override suspend fun getExchangeKeyPair(exchange: ExchangeDateKey): KeyPair {
-    val keyPath =
-      if (privateKeyBlobKey !== null && privateKeyBlobKey.isNotEmpty()) privateKeyBlobKey
-      else exchange.path
-    val signingKeys = requireNotNull(getSigningKeys(keyPath)) { "Missing keys for $keyPath" }
+    val keyFromPrimaryPath = getSigningKeys(exchange.path)
+    val signingKeys = if (keyFromPrimaryPath == null) {
+      requireNotNull(getSigningKeys(fallbackPrivateKeyBlobKey!!))
+    } else {
+      keyFromPrimaryPath
+    }
     val x509Certificate = getCertificate(exchange, localName, signingKeys.certResourceName)
     val privateKey = parsePrivateKey(signingKeys.privateKey)
     return KeyPair(x509Certificate, privateKey, signingKeys.certResourceName)
@@ -111,12 +113,12 @@ class V2AlphaCertificateManager(
       this.privateKey = privateKey.encoded.toByteString()
     }
 
-    logger.fine("Writing private key to SecretMap")
+    logger.fine { "Writing private key to SecretMap" }
     privateKeys.put(exchange.path, signingKeys.toByteString())
-    logger.fine("Finish writing private key to SecretMap")
+    logger.fine { "Finish writing private key to SecretMap" }
     x509CertCache[certResourceName] = x509
     signingKeysCache[exchange.path] = Optional.of(signingKeys)
-    logger.fine("Returning certResourceName: $certResourceName")
+    logger.fine { "Returning certResourceName: $certResourceName" }
 
     return certResourceName
   }
