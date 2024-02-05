@@ -79,11 +79,12 @@ class V2AlphaCertificateManager(
 
   override suspend fun getExchangeKeyPair(exchange: ExchangeDateKey): KeyPair {
     val keyFromPrimaryPath = getSigningKeys(exchange.path)
-    val signingKeys = if (keyFromPrimaryPath == null) {
-      requireNotNull(getSigningKeys(fallbackPrivateKeyBlobKey!!))
-    } else {
-      keyFromPrimaryPath
-    }
+    val signingKeys =
+      if (keyFromPrimaryPath == null) {
+        checkNotNull(getSigningKeys(fallbackPrivateKeyBlobKey!!))
+      } else {
+        keyFromPrimaryPath
+      }
     val x509Certificate = getCertificate(exchange, localName, signingKeys.certResourceName)
     val privateKey = parsePrivateKey(signingKeys.privateKey)
     return KeyPair(x509Certificate, privateKey, signingKeys.certResourceName)
