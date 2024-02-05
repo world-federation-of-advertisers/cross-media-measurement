@@ -18,10 +18,15 @@ build --java_language_version=9
 # Pass environment variables.
 test --test_env TESTCONTAINERS_RYUK_DISABLED=true
 
+# Disable remote cache upload by default.
+build --noremote_upload_local_results
+
 # Configuration for continuous integration (CI).
 common:ci --lockfile_mode=error
 build:ci --compilation_mode=opt
 build:ci --host_platform //build/platforms:ubuntu_20_04
+build:remote-cache --remote_cache=https://storage.googleapis.com/halo-cmm-build-cache/cross-media-measurement
+build:remote-cache --google_default_credentials
 
 # Configuration for GitHub Container Registry
 build:ghcr --define container_registry=ghcr.io

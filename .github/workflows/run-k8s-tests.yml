@@ -41,7 +41,7 @@ jobs:
     # Authenticate to Google Cloud. This will export some environment
     # variables, including GCLOUD_PROJECT.
     - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v1
+      uses: google-github-actions/auth@v2
       with:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ vars.SIMULATOR_SERVICE_ACCOUNT }}
@@ -67,15 +67,15 @@ jobs:
 
     - name: Get Bazel cache params
       id: get-cache-params
-      uses: world-federation-of-advertisers/actions/bazel-get-cache-params@v2
+      run: |
+        repo_cache_path="$(bazelisk info repository_cache)"
+        echo "repo-cache-path=${repo_cache_path}" >> $GITHUB_OUTPUT
 
-    - name: Restore Bazel cache
+    - name: Restore repository cache
       uses: actions/cache/restore@v4
       with:
-        path: ${{ steps.get-cache-params.outputs.cache-path }}
-        key: ${{ steps.get-cache-params.outputs.cache-key }}
-        restore-keys: |-
-          ${{ steps.get-cache-params.outputs.restore-key }}
+        path: ${{ steps.get-cache-params.outputs.repo-cache-path }}
+        key: ${{ vars.BAZEL_REPO_CACHE_KEY }}
 
     - name: Run tests
       id: run-tests
