@@ -36,10 +36,12 @@ import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.time.Duration as JavaDuration
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.ContinuationInterceptor
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asExecutor
@@ -52,6 +54,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
 import org.jetbrains.annotations.BlockingExecutor
+import org.jetbrains.annotations.NonBlockingExecutor
 import org.wfanet.measurement.api.v2alpha.BatchCreateMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.BatchGetMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.Certificate
@@ -153,10 +156,6 @@ import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchMetho
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
-import kotlin.coroutines.ContinuationInterceptor
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.job
-import org.jetbrains.annotations.NonBlockingExecutor
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
@@ -267,7 +266,7 @@ class MetricsService(
     certificateCacheExpirationDuration: JavaDuration,
     private val keyReaderContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
     cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
-    ) {
+  ) {
     private data class ResourceNameApiAuthenticationKey(
       val name: String,
       val apiAuthenticationKey: String,
@@ -277,9 +276,13 @@ class MetricsService(
       LoadingCache(
         Caffeine.newBuilder()
           .expireAfterWrite(certificateCacheExpirationDuration)
-          .executor((cacheLoaderContext[ContinuationInterceptor] as CoroutineDispatcher).asExecutor())
+          .executor(
+            (cacheLoaderContext[ContinuationInterceptor] as CoroutineDispatcher).asExecutor()
+          )
           .buildAsync()
-      ) { key -> getCertificate(name = key.name, apiAuthenticationKey = key.apiAuthenticationKey) }
+      ) { key ->
+        getCertificate(name = key.name, apiAuthenticationKey = key.apiAuthenticationKey)
+      }
 
     /**
      * Creates CMM public [Measurement]s and [InternalMeasurement]s from a list of [InternalMetric].
@@ -566,13 +569,12 @@ class MetricsService(
 
               val certificate =
                 try {
-                  certificateCache
-                    .getValue(
-                      ResourceNameApiAuthenticationKey(
-                        name = dataProvider.certificate,
-                        apiAuthenticationKey = apiAuthenticationKey,
-                      )
+                  certificateCache.getValue(
+                    ResourceNameApiAuthenticationKey(
+                      name = dataProvider.certificate,
+                      apiAuthenticationKey = apiAuthenticationKey,
                     )
+                  )
                 } catch (e: UncheckedExecutionException) {
                   if (e.cause != null) {
                     throw e.cause!!
@@ -767,13 +769,12 @@ class MetricsService(
     ): ByteString {
       val certificate =
         try {
-          certificateCache
-            .getValue(
-              ResourceNameApiAuthenticationKey(
-                name = principal.config.signingCertificateName,
-                apiAuthenticationKey = principal.config.apiKey,
-              )
+          certificateCache.getValue(
+            ResourceNameApiAuthenticationKey(
+              name = principal.config.signingCertificateName,
+              apiAuthenticationKey = principal.config.apiKey,
             )
+          )
         } catch (e: UncheckedExecutionException) {
           if (e.cause != null) {
             throw e.cause!!
@@ -1026,13 +1027,12 @@ class MetricsService(
     ): Measurement.Result {
       val certificate =
         try {
-          certificateCache
-            .getValue(
-              ResourceNameApiAuthenticationKey(
-                name = measurementResultOutput.certificate,
-                apiAuthenticationKey = apiAuthenticationKey,
-              )
+          certificateCache.getValue(
+            ResourceNameApiAuthenticationKey(
+              name = measurementResultOutput.certificate,
+              apiAuthenticationKey = apiAuthenticationKey,
             )
+          )
         } catch (e: UncheckedExecutionException) {
           if (e.cause != null) {
             throw e.cause!!
