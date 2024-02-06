@@ -16,14 +16,15 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import com.google.common.hash.HashCode
+import com.google.common.hash.Hashing
 import com.google.protobuf.Descriptors.FieldDescriptor
 import com.google.protobuf.Message
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.time.ZoneOffset
-import java.util.Random
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.random.Random as KotlinRandom
-import kotlin.random.asKotlinRandom
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SimulatorSyntheticDataSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
@@ -36,11 +37,12 @@ import org.wfanet.measurement.common.rangeTo
 import org.wfanet.measurement.common.toLocalDate
 
 object SyntheticDataGeneration {
+  private val VID_SAMPLING_HASH_FUNCTION = Hashing.farmHashFingerprint64()
   /**
-   * Generates a sequence of [EventQuery.LabeledEvent].
+   * Generates a sequence of [LabeledEvent].
    *
    * Consumption of [Sequence] throws
-   * * [IllegalArgumentException] when [SimulatorSyntheticDataSpec] is invalid, or incompatible
+   * * [IllegalStateException] when [SimulatorSyntheticDataSpec] is invalid, or incompatible
    * * with [T].
    *
    * @param messageInstance an instance of the event message type [T]
@@ -52,28 +54,6 @@ object SyntheticDataGeneration {
     populationSpec: SyntheticPopulationSpec,
     syntheticEventGroupSpec: SyntheticEventGroupSpec,
   ): Sequence<LabeledEvent<T>> {
-    var samplingRequired = false
-    val vidRangeSpecs =
-      syntheticEventGroupSpec.dateSpecsList
-        .flatMap { it.frequencySpecsList }
-        .flatMap { it.vidRangeSpecsList }
-
-    for (vidRangeSpec in vidRangeSpecs) {
-      val vidRangeWidth = vidRangeSpec.vidRange.endExclusive - vidRangeSpec.vidRange.start
-      check(vidRangeWidth >= vidRangeSpec.sampleSize) {
-        "all vidRange widths should be larger than sampleSizes"
-      }
-      if (vidRangeSpec.sampleSize > 0) {
-        samplingRequired = true
-      }
-    }
-
-    if (samplingRequired) {
-      check(syntheticEventGroupSpec.rngType == SyntheticEventGroupSpec.RngType.JAVA_UTIL_RANDOM) {
-        "Expecting JAVA_UTIL_RANDOM rng type, got ${syntheticEventGroupSpec.rngType}"
-      }
-    }
-
     val subPopulations = populationSpec.subPopulationsList
 
     return sequence {
@@ -84,10 +64,15 @@ object SyntheticDataGeneration {
           check(!frequencySpec.hasOverlaps()) { "The VID ranges should be non-overlapping." }
 
           for (vidRangeSpec: VidRangeSpec in frequencySpec.vidRangeSpecsList) {
-            val random = Random(vidRangeSpec.randomSeed).asKotlinRandom()
             val subPopulation: SubPopulation =
               vidRangeSpec.vidRange.findSubPopulation(subPopulations)
-                ?: throw IllegalArgumentException()
+                ?: error("Sub-population not found")
+            check(vidRangeSpec.samplingRate in 0.0..1.0) { "Invalid sampling_rate" }
+            if (vidRangeSpec.sampled) {
+              check(vidRangeSpec.samplingHashSalt != 0L) {
+                "sampling_hash_salt is required for VID sampling"
+              }
+            }
 
             val builder: Message.Builder = messageInstance.newBuilderForType()
 
@@ -95,23 +80,30 @@ object SyntheticDataGeneration {
               val subPopulationFieldValue: FieldValue =
                 subPopulation.populationFieldsValuesMap.getValue(it)
               val fieldPath = it.split('.')
-              builder.setField(fieldPath, subPopulationFieldValue)
+              try {
+                builder.setField(fieldPath, subPopulationFieldValue)
+              } catch (e: IllegalArgumentException) {
+                throw IllegalStateException(e)
+              }
             }
 
             populationSpec.nonPopulationFieldsList.forEach {
               val nonPopulationFieldValue: FieldValue =
                 vidRangeSpec.nonPopulationFieldValuesMap.getValue(it)
               val fieldPath = it.split('.')
-              builder.setField(fieldPath, nonPopulationFieldValue)
+              try {
+                builder.setField(fieldPath, nonPopulationFieldValue)
+              } catch (e: IllegalArgumentException) {
+                throw IllegalStateException(e)
+              }
             }
 
             @Suppress("UNCHECKED_CAST") // Safe per protobuf API.
             val message = builder.build() as T
 
             for (date in dateProgression) {
-              for (i in 0 until frequencySpec.frequency) {
-                val sampledVids = sampleVids(vidRangeSpec, random)
-                for (vid in sampledVids) {
+              for (i in 1..frequencySpec.frequency) {
+                for (vid in vidRangeSpec.sampledVids()) {
                   yield(LabeledEvent(date.atStartOfDay().toInstant(ZoneOffset.UTC), vid, message))
                 }
               }
@@ -122,18 +114,33 @@ object SyntheticDataGeneration {
     }
   }
 
-  /**
-   * Returns the sampled Vids from [vidRangeSpec]. Given the same [vidRangeSpec] and [randomSeed],
-   * returns the same vids. Returns all of the vids if sample size is 0.
-   */
-  private fun sampleVids(vidRangeSpec: VidRangeSpec, random: KotlinRandom): Sequence<Long> {
-    val vidRangeSequence =
-      (vidRangeSpec.vidRange.start until vidRangeSpec.vidRange.endExclusive).asSequence()
-    if (vidRangeSpec.sampleSize == 0) {
-      return vidRangeSequence
-    }
-    return vidRangeSequence.shuffled(random).take(vidRangeSpec.sampleSize)
+  /** Returns the VIDs which are in the sample for this [VidRangeSpec]. */
+  private fun VidRangeSpec.sampledVids(): Sequence<Long> {
+    return LongProgression.fromClosedRange(vidRange.start, vidRange.endExclusive - 1, 1)
+      .asSequence()
+      .filter { inSample(it) }
   }
+
+  /** Returns whether [vid] is in the sample specified by this [VidRangeSpec]. */
+  private fun VidRangeSpec.inSample(vid: Long): Boolean {
+    if (!sampled) {
+      return true
+    }
+
+    val buffer =
+      ByteBuffer.allocate(Long.SIZE_BYTES * 2)
+        .order(ByteOrder.LITTLE_ENDIAN)
+        .putLong(vid)
+        .putLong(samplingHashSalt)
+        .flip()
+    val hashCode: HashCode = VID_SAMPLING_HASH_FUNCTION.hashBytes(buffer)
+    val rangeValue: Double = hashCode.asLong().toDouble() / Long.MAX_VALUE
+    return rangeValue in -samplingRate..samplingRate
+  }
+
+  /** Whether the [VidRange] in this [VidRangeSpec] should be sampled. */
+  private val VidRangeSpec.sampled: Boolean
+    get() = samplingRate > 0.0 && samplingRate < 1.0
 
   /**
    * Returns the [SubPopulation] from a list of [SubPopulation] that contains the [VidRange] in its

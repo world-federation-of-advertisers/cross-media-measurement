@@ -111,13 +111,22 @@ message SyntheticEventGroupSpec {
       // their values.
       map<string, FieldValue> non_population_field_values = 2;
 
-      // Number of vids sampled uniformly without replacement from vid_range.
-      // If this is 0, no sampling is done and all the vids in range are taken.
-      int32 sample_size = 3;
+      // Rate at which VIDs sampled uniformly without replacement from
+      // `vid_range` in the range (0, 1].
+      //
+      // Each VID is converted to a value in the range [-1, 1] by taking the
+      // 64-bit signed integer value of the FarmHash Fingerprint64 hash in
+      // little endian divided by 2^63 - 1. If this value is in the range
+      // [-`sampling_rate`, `sampling_rate`], then the VID is included in the
+      // sample.
+      //
+      // If not specified or if the rate is 1, no sampling is done and all VIDs
+      // in range are taken.
+      double sampling_rate = 3;
 
-      // Random seed to be fed into the random number generator to sample vids.
-      // Required if this VidRangeSpec specifies a sample_size.
-      int64 random_seed = 4;
+      // Salt appended to VID before hashing in little endian byte order.
+      // Required if `sampling_rate` is specified.
+      int64 sampling_hash_salt = 4;
     }
     // The VID ranges should be non-overlapping sub-ranges of SubPopulations.
     repeated VidRangeSpec vid_range_specs = 2;

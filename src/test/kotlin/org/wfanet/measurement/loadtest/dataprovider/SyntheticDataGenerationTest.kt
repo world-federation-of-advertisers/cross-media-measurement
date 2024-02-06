@@ -324,13 +324,12 @@ class SyntheticDataGenerationTest {
 
               vidRangeSpecs +=
                 SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
-                  randomSeed = 42L
                   vidRange = vidRange {
                     start = 0L
                     endExclusive = 25L
                   }
-
-                  sampleSize = firstsampleSizeForFreqTwo
+                  samplingRate = 0.2
+                  samplingHashSalt = 42L
 
                   nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
                   nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
@@ -339,13 +338,12 @@ class SyntheticDataGenerationTest {
                 }
               vidRangeSpecs +=
                 SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
-                  randomSeed = 42L
                   vidRange = vidRange {
                     start = 25L
                     endExclusive = 50L
                   }
-
-                  sampleSize = secondSampleSizeForFreqTwo
+                  samplingRate = 0.4
+                  samplingHashSalt = 42L
 
                   nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = false }
                   nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
@@ -359,13 +357,12 @@ class SyntheticDataGenerationTest {
 
               vidRangeSpecs +=
                 SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
-                  randomSeed = 42L
                   vidRange = vidRange {
                     start = 50L
                     endExclusive = 75L
                   }
-
-                  sampleSize = sampleSizeForFreqOne
+                  samplingRate = 0.08
+                  samplingHashSalt = 42L
 
                   nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
                   nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
@@ -389,8 +386,7 @@ class SyntheticDataGenerationTest {
   }
 
   @Test
-  fun `generateEvents throws IllegalStateException for sample size larger than vidRange`() {
-
+  fun `sequence from generateEvents throws IllegalStateException when sampling rate is invalid`() {
     val population = syntheticPopulationSpec {
       vidRange = vidRange {
         start = 0L
@@ -458,13 +454,12 @@ class SyntheticDataGenerationTest {
 
               vidRangeSpecs +=
                 SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
-                  randomSeed = 42L
                   vidRange = vidRange {
                     start = 0L
                     endExclusive = 25L
                   }
-
-                  sampleSize = 50
+                  samplingRate = 2.0
+                  samplingHashSalt = 42L
 
                   nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
                   nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
@@ -477,20 +472,16 @@ class SyntheticDataGenerationTest {
 
     assertFailsWith<IllegalStateException> {
       SyntheticDataGeneration.generateEvents(
-        TestEvent.getDefaultInstance(),
-        population,
-        eventGroupSpec,
-      )
+          TestEvent.getDefaultInstance(),
+          population,
+          eventGroupSpec,
+        )
+        .toList()
     }
   }
 
   @Test
-  fun `generateEvents throws IllegalStateException for RNG not specified when sampling enabled`() {
-
-    val sampleSizeForFreqOne = 2
-    val firstsampleSizeForFreqTwo = 5
-    val secondSampleSizeForFreqTwo = 10
-
+  fun `sequence from generateEvents throws IllegalStateException when sampling salt required but missing`() {
     val population = syntheticPopulationSpec {
       vidRange = vidRange {
         start = 0L
@@ -557,13 +548,10 @@ class SyntheticDataGenerationTest {
 
               vidRangeSpecs +=
                 SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
-                  randomSeed = 42L
                   vidRange = vidRange {
                     start = 0L
                     endExclusive = 25L
                   }
-
-                  sampleSize = firstsampleSizeForFreqTwo
 
                   nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
                   nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
@@ -572,13 +560,11 @@ class SyntheticDataGenerationTest {
                 }
               vidRangeSpecs +=
                 SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
-                  randomSeed = 42L
                   vidRange = vidRange {
                     start = 25L
                     endExclusive = 50L
                   }
-
-                  sampleSize = secondSampleSizeForFreqTwo
+                  samplingRate = 0.4
 
                   nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = false }
                   nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
@@ -592,13 +578,12 @@ class SyntheticDataGenerationTest {
 
               vidRangeSpecs +=
                 SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
-                  randomSeed = 42L
                   vidRange = vidRange {
                     start = 50L
                     endExclusive = 75L
                   }
-
-                  sampleSize = sampleSizeForFreqOne
+                  samplingRate = 0.08
+                  samplingHashSalt = 42L
 
                   nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
                   nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
@@ -611,14 +596,16 @@ class SyntheticDataGenerationTest {
 
     assertFailsWith<IllegalStateException> {
       SyntheticDataGeneration.generateEvents(
-        TestEvent.getDefaultInstance(),
-        population,
-        eventGroupSpec,
-      )
+          TestEvent.getDefaultInstance(),
+          population,
+          eventGroupSpec,
+        )
+        .toList()
     }
   }
 
-  fun `generateEvents throws IllegalArgumentException when vid ranges overlap`() {
+  @Test
+  fun `sequence from generateEvents throws IllegalStateException when vid ranges overlap`() {
     val population = syntheticPopulationSpec {
       vidRange = vidRange {
         start = 0L
@@ -712,7 +699,7 @@ class SyntheticDataGenerationTest {
         }
     }
 
-    assertFailsWith<IllegalArgumentException> {
+    assertFailsWith<IllegalStateException> {
       SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           population,
@@ -723,7 +710,7 @@ class SyntheticDataGenerationTest {
   }
 
   @Test
-  fun `generateEvents returns messages with a Duration field`() {
+  fun `generateEvents returns a sequence of messages with a Duration field`() {
     val populationSpec = syntheticPopulationSpec {
       vidRange = vidRange {
         start = 1L
@@ -792,7 +779,7 @@ class SyntheticDataGenerationTest {
   }
 
   @Test
-  fun `sequence from generateEvents throws IllegalArgumentException when vidrange not in subpop`() {
+  fun `sequence from generateEvents throws IllegalStateException when vidrange not in subpop`() {
     val population = syntheticPopulationSpec {
       vidRange = vidRange {
         start = 0L
@@ -847,7 +834,7 @@ class SyntheticDataGenerationTest {
         }
     }
 
-    assertFailsWith<IllegalArgumentException> {
+    assertFailsWith<IllegalStateException> {
       SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           population,
@@ -858,7 +845,7 @@ class SyntheticDataGenerationTest {
   }
 
   @Test
-  fun `sequence from generateEvents throws IllegalArgumentException when field is message`() {
+  fun `sequence from generateEvents throws IllegalStateException when field is message`() {
     val population = syntheticPopulationSpec {
       vidRange = vidRange {
         start = 0L
@@ -917,7 +904,7 @@ class SyntheticDataGenerationTest {
         }
     }
 
-    assertFailsWith<IllegalArgumentException> {
+    assertFailsWith<IllegalStateException> {
       SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           population,
@@ -928,7 +915,7 @@ class SyntheticDataGenerationTest {
   }
 
   @Test
-  fun `sequence from generateEvents throws IllegalArgumentException when field type wrong`() {
+  fun `sequence from generateEvents throws IllegalStateException when field type wrong`() {
     val population = syntheticPopulationSpec {
       vidRange = vidRange {
         start = 0L
@@ -987,7 +974,7 @@ class SyntheticDataGenerationTest {
         }
     }
 
-    assertFailsWith<IllegalArgumentException> {
+    assertFailsWith<IllegalStateException> {
       SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           population,
@@ -998,7 +985,7 @@ class SyntheticDataGenerationTest {
   }
 
   @Test
-  fun `sequence from generateEvents throws IllegalArgumentException when field doesn't exist`() {
+  fun `sequence from generateEvents throws IllegalStateException when field doesn't exist`() {
     val population = syntheticPopulationSpec {
       vidRange = vidRange {
         start = 0L
@@ -1057,7 +1044,7 @@ class SyntheticDataGenerationTest {
         }
     }
 
-    assertFailsWith<IllegalArgumentException> {
+    assertFailsWith<IllegalStateException> {
       SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           population,
