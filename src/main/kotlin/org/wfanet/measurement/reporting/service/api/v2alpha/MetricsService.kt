@@ -1523,7 +1523,6 @@ class MetricsService(
             }
           )
           .metricsList
-          .filter { internalMetric -> internalMetric.state == Metric.State.RUNNING }
       } catch (e: StatusException) {
         throw when (e.status.code) {
             Status.Code.NOT_FOUND ->
@@ -1538,7 +1537,11 @@ class MetricsService(
           .asRuntimeException()
       }
 
-    measurementSupplier.createCmmsMeasurements(internalMetrics, principal)
+    val internalRunningMetrics =
+      internalMetrics.filter { internalMetric -> internalMetric.state == Metric.State.RUNNING }
+    if (internalRunningMetrics.isNotEmpty()) {
+      measurementSupplier.createCmmsMeasurements(internalRunningMetrics, principal)
+    }
 
     // Convert the internal metric to public and return it.
     return batchCreateMetricsResponse { metrics += internalMetrics.map { it.toMetric(variances) } }

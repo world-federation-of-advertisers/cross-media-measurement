@@ -110,6 +110,14 @@ message SyntheticEventGroupSpec {
       // A map of `non_population_fields` from `SyntheticPopulationSpec` to
       // their values.
       map<string, FieldValue> non_population_field_values = 2;
+
+      // Number of vids sampled uniformly without replacement from vid_range.
+      // If this is 0, no sampling is done and all the vids in range are taken.
+      int32 sample_size = 3;
+
+      // Random seed to be fed into the random number generator to sample vids.
+      // Required if this VidRangeSpec specifies a sample_size.
+      int64 random_seed = 4;
     }
     // The VID ranges should be non-overlapping sub-ranges of SubPopulations.
     repeated VidRangeSpec vid_range_specs = 2;
@@ -130,4 +138,16 @@ message SyntheticEventGroupSpec {
   }
   // `DateSpec`s should describe non-overlapping date ranges.
   repeated DateSpec date_specs = 2;
+
+  // Type of random number generator to sample vids.
+  enum RngType {
+    // Default value used if the rng type is omitted.
+    RNG_TYPE_UNSPECIFIED = 0;
+    // Signals java.util.Random should be used for sampling.
+    JAVA_UTIL_RANDOM = 1;
+  }
+
+  // Random Number Generator type for this `SyntheticEventGroupSpec`.
+  // Required if any VidRangeSpec specifies a sample_size.
+  RngType rng_type = 4;
 }
