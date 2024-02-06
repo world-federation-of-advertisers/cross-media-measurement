@@ -76,8 +76,9 @@ message CompleteShufflePhaseRequest {
 message CompleteShufflePhaseResponse {
   // Combination of sketches. It is combined, noisy, and shuffled.
   repeated uint32 combined_sketch = 1;
+  // TODO(@ple13): Use google.protobuf.Duration instead of int64.
   // The CPU time of processing the request.
-  google.protobuf.Duration elapsed_cpu_time = 2;
+  int64 elapsed_cpu_time_millis = 2;
 }
 
 // For aggregators.

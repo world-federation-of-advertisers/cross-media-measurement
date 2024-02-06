@@ -180,11 +180,7 @@ absl::StatusOr<CompleteShufflePhaseResponse> CompleteShufflePhase(
 
   response.mutable_combined_sketch()->Add(combined_sketch.begin(),
                                           combined_sketch.end());
-  int64_t elapsed_cpu_time_millis = timer.ElapsedMillis();
-  response.mutable_elapsed_cpu_time()->set_seconds(elapsed_cpu_time_millis /
-                                                   1000);
-  response.mutable_elapsed_cpu_time()->set_nanos(
-      (elapsed_cpu_time_millis % 1000) * 1000000);
+  response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());
   return response;
 }
 
