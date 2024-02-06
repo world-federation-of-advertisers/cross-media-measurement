@@ -16,7 +16,7 @@ package org.wfanet.panelmatch.client.launcher
 
 import java.time.Clock
 import kotlinx.coroutines.sync.Semaphore
-import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
+import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepResponse
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
@@ -63,7 +63,7 @@ class GrpcApiClient(
       )
     if (response.hasExchangeStep()) {
       val exchangeStepAttemptKey =
-        grpcRequireNotNull(CanonicalExchangeStepAttemptKey.fromName(response.exchangeStepAttempt))
+        grpcRequireNotNull(ExchangeStepAttemptKey.fromName(response.exchangeStepAttempt))
       return ClaimedExchangeStep(response.exchangeStep, exchangeStepAttemptKey)
     }
     semaphore?.release()
@@ -71,7 +71,7 @@ class GrpcApiClient(
   }
 
   override suspend fun appendLogEntry(
-    key: CanonicalExchangeStepAttemptKey,
+    key: ExchangeStepAttemptKey,
     messages: Iterable<String>,
   ) {
     val request = appendExchangeStepAttemptLogEntryRequest {
@@ -84,7 +84,7 @@ class GrpcApiClient(
   }
 
   override suspend fun finishExchangeStepAttempt(
-    key: CanonicalExchangeStepAttemptKey,
+    key: ExchangeStepAttemptKey,
     finalState: ExchangeStepAttempt.State,
     logEntryMessages: Iterable<String>,
   ) {
