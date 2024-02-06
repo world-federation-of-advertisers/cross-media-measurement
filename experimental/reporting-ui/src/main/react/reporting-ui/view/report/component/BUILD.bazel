@@ -24,6 +24,8 @@ js_library(
     deps = [
         "//experimental/reporting-ui/src/main/react/reporting-ui/component/card_wrapper",
         "//experimental/reporting-ui/src/main/react/reporting-ui/component/chart/deduped_reach_by_demo",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/component/chart/frequencies",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/component/chart/impressions",
         "//experimental/reporting-ui/src/main/react/reporting-ui/component/chart/on_target_reach",
         "//experimental/reporting-ui/src/main/react/reporting-ui/component/chart/on_target_unique_reach_by_plat",
         "//experimental/reporting-ui/src/main/react/reporting-ui/component/chart/on_target_xmedia_reach_by_freq",
