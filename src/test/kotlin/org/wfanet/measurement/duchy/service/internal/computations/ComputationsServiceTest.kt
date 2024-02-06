@@ -28,6 +28,9 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.SignedMessage
+import org.wfanet.measurement.api.v2alpha.encryptedMessage
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.chainRulesSequentially
@@ -528,12 +531,16 @@ class ComputationsServiceTest {
 
     val tokenAtStart = service.getComputationToken(id.toGetTokenRequest()).token
 
-    val seed = "a seed in bytes.".toByteStringUtf8()
+    val secretSeed = encryptedMessage {
+      ciphertext = "signed seed 1".toByteStringUtf8()
+      typeUrl = ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
+    }
     val request = recordRequisitionFulfillmentRequest {
       token = tokenAtStart
       key = requisitionKey
       blobPath = "this is a new path"
-      this.seed = seed
+      this.secretSeed = secretSeed
+      publicApiVersion = "v2alpha"
     }
 
     assertThat(service.recordRequisitionFulfillment(request).token)
@@ -544,7 +551,8 @@ class ComputationsServiceTest {
           requisitions += requisitionMetadata {
             externalKey = requisitionKey
             path = "this is a new path"
-            this.seed = seed
+            this.secretSeed = secretSeed.toByteString()
+            publicApiVersion = "v2alpha"
           }
         }
       )

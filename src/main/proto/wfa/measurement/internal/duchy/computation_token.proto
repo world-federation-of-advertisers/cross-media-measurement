@@ -97,7 +97,10 @@ message RequisitionMetadata {
   // fulfilled when it is specified.
   string path = 2;
 
-  // The requisition data in format of an encrypted serialized SignedMessage as
-  // the seed.
-  bytes seed = 4;
+  // The requisition data in format of a secret seed. It is an serialized
+  // EncryptedMessage with data of SignedMessage.
+  bytes secret_seed = 4;
+
+  // The public api version.
+  string public_api_version = 5;
 }

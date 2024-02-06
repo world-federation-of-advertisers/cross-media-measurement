@@ -653,15 +653,19 @@ class GcpSpannerComputationsDatabaseTransactor<
     }
   }
 
-  private suspend fun writeRequisitionData(
+  private suspend fun writeRequisitionFulfillment(
     token: ComputationEditToken<ProtocolT, StageT>,
     externalRequisitionKey: ExternalRequisitionKey,
     pathToBlob: String,
-    seed: ByteString? = null,
+    secretSeed: ByteString? = null,
+    publicApiVersion: String,
   ) {
     require(pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $externalRequisitionKey" }
-    if (seed != null) {
-      require(!seed.isEmpty) { "Cannot insert empty seed. $externalRequisitionKey" }
+    if (secretSeed != null) {
+      require(!secretSeed.isEmpty) { "Cannot insert empty seed. $externalRequisitionKey" }
+    }
+    require(publicApiVersion.isNotBlank()) {
+      "Cannot insert blank public api version. $externalRequisitionKey"
     }
     databaseClient.readWriteTransaction().execute { txn ->
       val row =
@@ -692,7 +696,8 @@ class GcpSpannerComputationsDatabaseTransactor<
             externalRequisitionId = externalRequisitionKey.externalRequisitionId,
             requisitionFingerprint = externalRequisitionKey.requisitionFingerprint,
             pathToBlob = pathToBlob,
-            randomSeed = seed,
+            randomSeed = secretSeed,
+            publicApiVersion = publicApiVersion,
           ),
         )
       )
@@ -703,10 +708,17 @@ class GcpSpannerComputationsDatabaseTransactor<
     token: ComputationEditToken<ProtocolT, StageT>,
     externalRequisitionKey: ExternalRequisitionKey,
     pathToBlob: String,
-    seed: ByteString?,
+    secretSeed: ByteString?,
+    publicApiVersion: String,
   ) {
     require(pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $externalRequisitionKey" }
-    writeRequisitionData(token, externalRequisitionKey, pathToBlob, seed)
+    writeRequisitionFulfillment(
+      token,
+      externalRequisitionKey,
+      pathToBlob,
+      secretSeed,
+      publicApiVersion,
+    )
   }
 
   override suspend fun insertComputationStat(

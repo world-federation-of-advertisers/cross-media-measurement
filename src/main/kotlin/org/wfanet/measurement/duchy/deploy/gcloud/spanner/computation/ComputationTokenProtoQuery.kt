@@ -66,6 +66,7 @@ class ComputationTokenProtoQuery(
                  r2.RequisitionFingerprint,
                  r2.PathToBlob,
                  r2.RandomSeed,
+                 r2.PublicApiVersion,
                  r2.RequisitionDetails
                FROM Requisitions AS r2
                WHERE c.ComputationId = r2.ComputationId
@@ -99,7 +100,8 @@ class ComputationTokenProtoQuery(
                  r2.ExternalRequisitionId,
                  r2.RequisitionFingerprint,
                  r2.PathToBlob,
-                 r2.RandomSeed AS RandomSeed,
+                 r2.RandomSeed,
+                 r2.PublicApiVersion,
                  r2.RequisitionDetails
                FROM Requisitions AS r2
                WHERE c.ComputationId = r2.ComputationId
@@ -161,7 +163,10 @@ class ComputationTokenProtoQuery(
               path = it.getString("PathToBlob")
             }
             if (!it.isNull("RandomSeed")) {
-              seed = it.getBytesAsByteString("RandomSeed")
+              secretSeed = it.getBytesAsByteString("RandomSeed")
+            }
+            if (!it.isNull("PublicApiVersion")) {
+              publicApiVersion = it.getString("PublicApiVersion")
             }
             details = it.getProtoMessage("RequisitionDetails", RequisitionDetails.parser())
           }

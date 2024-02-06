@@ -341,7 +341,8 @@ class ComputationsService(
       request.token.toDatabaseEditToken(),
       request.key,
       request.blobPath,
-      if (request.seed.isEmpty) null else request.seed,
+      if (request.hasSecretSeed()) request.secretSeed.toByteString() else null,
+      request.publicApiVersion,
     )
     return checkNotNull(computationsDatabase.readComputationToken(request.key))
       .toRecordRequisitionBlobPathResponse()

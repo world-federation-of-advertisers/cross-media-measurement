@@ -205,7 +205,8 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
     token: ComputationEditToken<ProtocolT, StageT>,
     externalRequisitionKey: ExternalRequisitionKey,
     pathToBlob: String,
-    seed: ByteString? = null,
+    secretSeed: ByteString? = null,
+    publicApiVersion: String,
   )
 
   /** Inserts the specified [ComputationStatMetric] into the database. */

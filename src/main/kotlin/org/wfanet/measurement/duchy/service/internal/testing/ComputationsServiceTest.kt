@@ -29,6 +29,10 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.SignedMessage
+import org.wfanet.measurement.api.v2alpha.encryptedMessage
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.common.toProtoDuration
@@ -999,13 +1003,18 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
       token = createComputationResponse.token
       key = DEFAULT_REQUISITION_ENTRY.key
       this.blobPath = blobPath
+      publicApiVersion = Version.V2_ALPHA.string
     }
     val recordRequisitionBlobResponse =
       service.recordRequisitionFulfillment(recordRequisitionFulfillmentRequest)
 
     val expectedToken =
       createComputationResponse.token.copy {
-        requisitions[0] = requisitions[0].copy { path = blobPath }
+        requisitions[0] =
+          requisitions[0].copy {
+            path = blobPath
+            publicApiVersion = Version.V2_ALPHA.string
+          }
       }
     assertThat(recordRequisitionBlobResponse.token)
       .ignoringFields(ComputationToken.VERSION_FIELD_NUMBER)
@@ -1018,12 +1027,16 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
       service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST.copy {})
 
     val blobPath = "/path/to/requisition/blob"
-    val seed = "this is a seed".toByteStringUtf8()
+    val secretSeed = encryptedMessage {
+      ciphertext = "encrypted seed 1".toByteStringUtf8()
+      typeUrl = ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
+    }
     val recordRequisitionFulfillmentRequest = recordRequisitionFulfillmentRequest {
       token = createComputationResponse.token
       key = DEFAULT_REQUISITION_ENTRY.key
       this.blobPath = blobPath
-      this.seed = seed
+      this.secretSeed = secretSeed
+      publicApiVersion = Version.V2_ALPHA.string
     }
     val recordRequisitionBlobResponse =
       service.recordRequisitionFulfillment(recordRequisitionFulfillmentRequest)
@@ -1033,7 +1046,8 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
         requisitions[0] =
           requisitions[0].copy {
             path = blobPath
-            this.seed = seed
+            this.secretSeed = secretSeed.toByteString()
+            publicApiVersion = Version.V2_ALPHA.string
           }
       }
     assertThat(recordRequisitionBlobResponse.token)
@@ -1073,6 +1087,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
         requisitionFingerprint = "dne_finger_print".toByteStringUtf8()
       }
       this.blobPath = blobPath
+      publicApiVersion = Version.V2_ALPHA.string
     }
     val exception =
       assertFailsWith<IllegalStateException> {

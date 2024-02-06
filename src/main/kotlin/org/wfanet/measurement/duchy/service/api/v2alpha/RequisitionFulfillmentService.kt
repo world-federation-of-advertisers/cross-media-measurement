@@ -14,13 +14,13 @@
 
 package org.wfanet.measurement.duchy.service.api.v2alpha
 
-import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
+import org.wfanet.measurement.api.v2alpha.EncryptedMessage
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -98,8 +98,8 @@ class RequisitionFulfillmentService(
         if (requisitionMetadata.path.isBlank()) {
           val seed =
             if (computationToken.computationStage.hasHonestMajorityShareShuffle()) {
-              grpcRequire(!header.honestMajorityShareShuffle.secretSeed.isEmpty) {
-                "Secret seed cannot be empty for HMSS protocol."
+              grpcRequire(header.honestMajorityShareShuffle.hasSecretSeed()) {
+                "Secret seed not be specified for HMSS protocol."
               }
               header.honestMajorityShareShuffle.secretSeed
             } else {
@@ -191,16 +191,17 @@ class RequisitionFulfillmentService(
     token: ComputationToken,
     key: ExternalRequisitionKey,
     blobPath: String,
-    seed: ByteString?,
+    secretSeed: EncryptedMessage?,
   ) {
     computationsClient.recordRequisitionFulfillment(
       recordRequisitionFulfillmentRequest {
         this.token = token
         this.key = key
         this.blobPath = blobPath
-        if (seed != null) {
-          this.seed = seed
+        if (secretSeed != null) {
+          this.secretSeed = secretSeed
         }
+        publicApiVersion = Version.V2_ALPHA.string
       }
     )
   }

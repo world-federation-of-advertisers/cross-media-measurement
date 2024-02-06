@@ -25,3 +25,6 @@ databaseChangeLog:
 - include:
       file: add-requisition-random-seed.sql
       relativeToChangeLogFile: true
+- include:
+      file: add-requisition-public-api-version.sql
+      relativeToChangeLogFile: true

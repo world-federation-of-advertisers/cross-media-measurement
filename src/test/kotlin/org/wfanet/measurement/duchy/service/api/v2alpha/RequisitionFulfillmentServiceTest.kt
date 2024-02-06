@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import io.grpc.Status
@@ -37,18 +38,24 @@ import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
+import org.wfanet.measurement.api.v2alpha.EncryptedMessage
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.honestMajorityShareShuffle
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.encryptedMessage
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.randomSeed
+import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.api.v2alpha.withPrincipal
 import org.wfanet.measurement.common.HexString
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
@@ -67,6 +74,19 @@ import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoro
 import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.fulfillRequisitionRequest as systemFulfillRequisitionRequest
 
+private fun String.toSecretSeed(): EncryptedMessage {
+  val randomSeed = randomSeed { data = this@toSecretSeed.toByteStringUtf8() }
+  val signedMessage = signedMessage {
+    message = Any.pack(randomSeed)
+    signature = "fake signature".toByteStringUtf8()
+    signatureAlgorithmOid = "2.9999"
+  }
+  return encryptedMessage {
+    ciphertext = signedMessage.toByteString()
+    typeUrl = ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
+  }
+}
+
 private const val COMPUTATION_ID = "xyz"
 private const val EXTERNAL_DATA_PROVIDER_ID = 123L
 private val DATA_PROVIDER_API_ID = externalIdToApiId(EXTERNAL_DATA_PROVIDER_ID)
@@ -76,7 +96,7 @@ private val NONCE_HASH =
   HexString("45FEAA185D434E0EB4747F547F0918AA5B8403DBBD7F90D6F0D8C536E2D620D7")
 private val REQUISITION_FINGERPRINT = "A fingerprint".toByteStringUtf8()
 private val TEST_REQUISITION_DATA = "some data".toByteStringUtf8()
-private val TEST_REQUISITION_SEED = "secret seed".toByteStringUtf8()
+private val TEST_REQUISITION_SEED = "secret seed".toSecretSeed()
 private val HEADER = header {
   name = CanonicalRequisitionKey(DATA_PROVIDER_API_ID, REQUISITION_API_ID).toName()
   requisitionFingerprint = REQUISITION_FINGERPRINT
@@ -163,6 +183,7 @@ class RequisitionFulfillmentServiceTest {
           token = fakeToken
           key = REQUISITION_KEY
           blobPath = blob.blobKey
+          publicApiVersion = Version.V2_ALPHA.string
         }
       )
     verifyProtoArgument(requisitionsServiceMock, RequisitionsCoroutineImplBase::fulfillRequisition)
@@ -236,7 +257,8 @@ class RequisitionFulfillmentServiceTest {
           token = fakeToken
           key = REQUISITION_KEY
           blobPath = blob.blobKey
-          seed = TEST_REQUISITION_SEED
+          secretSeed = TEST_REQUISITION_SEED
+          publicApiVersion = Version.V2_ALPHA.string
         }
       )
     verifyProtoArgument(requisitionsServiceMock, RequisitionsCoroutineImplBase::fulfillRequisition)
@@ -266,37 +288,6 @@ class RequisitionFulfillmentServiceTest {
     val e =
       assertFailsWith(StatusRuntimeException::class) {
         withPrincipal(DATA_PROVIDER_PRINCIPAL) { service.fulfillRequisition(request) }
-      }
-
-    assertThat(e.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(e.message).contains("seed")
-  }
-
-  @Test
-  fun `fulfillRequisiiton fails when seed is empty for HMSS protocol`() = runBlocking {
-    val fakeToken = computationToken {
-      globalComputationId = COMPUTATION_ID
-      computationStage = computationStage { honestMajorityShareShuffle = Stage.INITIALIZED }
-      computationDetails = COMPUTATION_DETAILS
-      requisitions += REQUISITION_METADATA
-    }
-    computationsServiceMock.stub {
-      onBlocking { getComputationToken(any()) }
-        .thenReturn(getComputationTokenResponse { token = fakeToken })
-    }
-    RequisitionBlobContext(COMPUTATION_ID, HEADER.name)
-
-    val header =
-      HMSS_HEADER.copy {
-        honestMajorityShareShuffle = honestMajorityShareShuffle {
-          secretSeed = "".toByteStringUtf8()
-        }
-      }
-    val e =
-      assertFailsWith(StatusRuntimeException::class) {
-        withPrincipal(DATA_PROVIDER_PRINCIPAL) {
-          service.fulfillRequisition(header.withContent(TEST_REQUISITION_DATA))
-        }
       }
 
     assertThat(e.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)

@@ -321,7 +321,8 @@ private constructor(
     token: ComputationEditToken<ComputationType, ComputationStage>,
     externalRequisitionKey: ExternalRequisitionKey,
     pathToBlob: String,
-    seed: ByteString?,
+    secretSeed: ByteString?,
+    publicApiVersion: String,
   ) {
     @Suppress("CANDIDATE_CHOSEN_USING_OVERLOAD_RESOLUTION_BY_LAMBDA_ANNOTATION")
     updateToken(token) {
@@ -332,9 +333,10 @@ private constructor(
       requisitions[requisitionIndex] =
         requisitions[requisitionIndex].copy {
           path = pathToBlob
-          if (seed != null) {
-            this.seed = seed
+          if (secretSeed != null) {
+            this.secretSeed = secretSeed
           }
+          this.publicApiVersion = publicApiVersion
         }
     }
   }

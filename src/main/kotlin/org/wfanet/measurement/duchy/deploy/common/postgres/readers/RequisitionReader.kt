@@ -110,7 +110,12 @@ class RequisitionReader {
       boundStatement(
         """
       SELECT
-        ExternalRequisitionId, RequisitionFingerprint, PathToBlob, RandomSeed, RequisitionDetails
+        ExternalRequisitionId,
+        RequisitionFingerprint,
+        PathToBlob,
+        RandomSeed,
+        PublicApiVersion,
+        RequisitionDetails
       FROM Requisitions
         WHERE ComputationId = $1
       """
@@ -129,7 +134,8 @@ class RequisitionReader {
         requisitionFingerprint = row["RequisitionFingerprint"]
       }
       row.get<String?>("PathToBlob")?.let { path = it }
-      row.get<ByteString?>("RandomSeed")?.let { seed = it }
+      row.get<ByteString?>("RandomSeed")?.let { secretSeed = it }
+      row.get<String?>("PublicApiVersion")?.let { publicApiVersion = it }
       details = row.getProtoMessage("RequisitionDetails", RequisitionDetails.parser())
     }
   }

@@ -39,6 +39,7 @@ class RecordRequisitionData(
   private val externalRequisitionKey: ExternalRequisitionKey,
   private val pathToBlob: String,
   private val seed: ByteString?,
+  private val publicApiVersion: String,
   private val clock: Clock,
   private val computationReader: ComputationReader,
 ) : PostgresWriter<ComputationToken>() {
@@ -46,6 +47,9 @@ class RecordRequisitionData(
     require(pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $externalRequisitionKey" }
     if (seed != null) {
       require(!seed.isEmpty) { "Cannot insert empty seed. $externalRequisitionKey" }
+    }
+    require(publicApiVersion.isNotBlank()) {
+      "Cannot insert public api version $externalRequisitionKey"
     }
 
     val requisition: RequisitionReader.RequisitionResult =
@@ -63,6 +67,7 @@ class RecordRequisitionData(
       requisitionFingerprint = externalRequisitionKey.requisitionFingerprint,
       pathToBlob = pathToBlob,
       randomSeed = seed,
+      publicApiVersion = publicApiVersion,
       updateTime = writeTime,
     )
 
