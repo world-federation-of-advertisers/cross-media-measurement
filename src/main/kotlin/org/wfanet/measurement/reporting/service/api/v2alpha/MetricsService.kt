@@ -1085,7 +1085,8 @@ class MetricsService(
           .getCertificate(getCertificateRequest { this.name = name })
       } catch (e: StatusException) {
         throw when (e.status.code) {
-            Status.Code.NOT_FOUND -> Status.FAILED_PRECONDITION.withDescription("Certificate $name not found.")
+            Status.Code.NOT_FOUND ->
+              Status.FAILED_PRECONDITION.withDescription("Certificate $name not found.")
             else -> Status.UNKNOWN.withDescription("Unable to retrieve Certificate $name.")
           }
           .withCause(e)
