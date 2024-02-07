@@ -16,14 +16,16 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import com.github.benmanes.caffeine.cache.Caffeine
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
-import com.google.protobuf.Duration
+import com.google.protobuf.Duration as ProtoDuration
 import com.google.protobuf.duration
 import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.util.Durations
 import io.grpc.Status
 import io.grpc.StatusException
+import io.grpc.StatusRuntimeException
 import java.io.File
 import java.lang.IllegalStateException
 import java.security.PrivateKey
@@ -31,13 +33,17 @@ import java.security.SecureRandom
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
+import java.time.Duration
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.ContinuationInterceptor
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -47,6 +53,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
 import org.jetbrains.annotations.BlockingExecutor
+import org.jetbrains.annotations.NonBlockingExecutor
 import org.wfanet.measurement.api.v2alpha.BatchCreateMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.BatchGetMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.Certificate
@@ -81,6 +88,7 @@ import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.withAuthenticationKey
+import org.wfanet.measurement.common.LoadingCache
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.Hashing
@@ -222,7 +230,9 @@ class MetricsService(
   secureRandom: SecureRandom,
   signingPrivateKeyDir: File,
   trustedCertificates: Map<ByteString, X509Certificate>,
-  coroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
+  certificateCacheExpirationDuration: Duration = Duration.ofMinutes(60),
+  keyReaderContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
+  cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
 ) : MetricsCoroutineImplBase() {
 
   private data class DataProviderInfo(
@@ -243,7 +253,9 @@ class MetricsService(
       secureRandom,
       signingPrivateKeyDir,
       trustedCertificates,
-      coroutineContext,
+      certificateCacheExpirationDuration,
+      keyReaderContext,
+      cacheLoaderContext,
     )
 
   private class MeasurementSupplier(
@@ -257,8 +269,27 @@ class MetricsService(
     private val secureRandom: SecureRandom,
     private val signingPrivateKeyDir: File,
     private val trustedCertificates: Map<ByteString, X509Certificate>,
-    private val coroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
+    certificateCacheExpirationDuration: Duration,
+    private val keyReaderContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
+    cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
   ) {
+    private data class ResourceNameApiAuthenticationKey(
+      val name: String,
+      val apiAuthenticationKey: String,
+    )
+
+    private val certificateCache: LoadingCache<ResourceNameApiAuthenticationKey, Certificate> =
+      LoadingCache(
+        Caffeine.newBuilder()
+          .expireAfterWrite(certificateCacheExpirationDuration)
+          .executor(
+            (cacheLoaderContext[ContinuationInterceptor] as CoroutineDispatcher).asExecutor()
+          )
+          .buildAsync()
+      ) { key ->
+        getCertificate(name = key.name, apiAuthenticationKey = key.apiAuthenticationKey)
+      }
+
     /**
      * Creates CMM public [Measurement]s and [InternalMeasurement]s from a list of [InternalMetric].
      */
@@ -307,6 +338,8 @@ class MetricsService(
       val dataProviderInfoMap: Map<String, DataProviderInfo> =
         buildDataProviderInfoMap(principal.config.apiKey, dataProviderNames)
 
+      val measurementConsumerSigningKey = getMeasurementConsumerSigningKey(principal)
+
       val cmmsCreateMeasurementRequests: List<CreateMeasurementRequest> =
         internalMetricsList.flatMap { internalMetric ->
           internalMetric.weightedMeasurementsList
@@ -319,6 +352,7 @@ class MetricsService(
                 measurementConsumer,
                 principal,
                 dataProviderInfoMap,
+                measurementConsumerSigningKey,
               )
             }
         }
@@ -412,18 +446,17 @@ class MetricsService(
     }
 
     /** Builds a CMMS [CreateMeasurementRequest]. */
-    private suspend fun buildCreateMeasurementRequest(
+    private fun buildCreateMeasurementRequest(
       internalMeasurement: InternalMeasurement,
       metricSpec: InternalMetricSpec,
       internalPrimitiveReportingSetMap: Map<String, InternalReportingSet>,
       measurementConsumer: MeasurementConsumer,
       principal: MeasurementConsumerPrincipal,
       dataProviderInfoMap: Map<String, DataProviderInfo>,
+      measurementConsumerSigningKey: SigningKeyHandle,
     ): CreateMeasurementRequest {
       val eventGroupEntriesByDataProvider =
         groupEventGroupEntriesByDataProvider(internalMeasurement, internalPrimitiveReportingSetMap)
-
-      val measurementConsumerSigningKey = getMeasurementConsumerSigningKey(principal)
       val packedMeasurementEncryptionPublicKey = measurementConsumer.publicKey.message
 
       return createMeasurementRequest {
@@ -461,7 +494,7 @@ class MetricsService(
     ): SigningKeyHandle {
       // TODO: Factor this out to a separate class similar to EncryptionKeyPairStore.
       val signingPrivateKeyDer: ByteString =
-        withContext(coroutineContext) {
+        withContext(keyReaderContext) {
           signingPrivateKeyDir.resolve(principal.config.signingPrivateKeyPath).readByteString()
         }
       val measurementConsumerCertificate: X509Certificate =
@@ -540,23 +573,14 @@ class MetricsService(
                     .asRuntimeException()
                 }
 
-              val certificate: Certificate =
-                try {
-                  certificatesStub
-                    .withAuthenticationKey(apiAuthenticationKey)
-                    .getCertificate(getCertificateRequest { name = dataProvider.certificate })
-                } catch (e: StatusException) {
-                  throw when (e.status.code) {
-                      Status.Code.NOT_FOUND ->
-                        Status.NOT_FOUND.withDescription("${dataProvider.certificate} not found.")
-                      else ->
-                        Status.UNKNOWN.withDescription(
-                          "Unable to retrieve Certificate ${dataProvider.certificate}."
-                        )
-                    }
-                    .withCause(e)
-                    .asRuntimeException()
-                }
+              val certificate =
+                certificateCache.getValue(
+                  ResourceNameApiAuthenticationKey(
+                    name = dataProvider.certificate,
+                    apiAuthenticationKey = apiAuthenticationKey,
+                  )
+                )
+
               if (
                 certificate.revocationState !=
                   Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED
@@ -738,28 +762,15 @@ class MetricsService(
     private suspend fun getSigningCertificateDer(
       principal: MeasurementConsumerPrincipal
     ): ByteString {
-      // TODO: Replace this with caching certificates or having them stored alongside the private
-      // key.
-      return try {
-        certificatesStub
-          .withAuthenticationKey(principal.config.apiKey)
-          .getCertificate(getCertificateRequest { name = principal.config.signingCertificateName })
-          .x509Der
-      } catch (e: StatusException) {
-        throw when (e.status.code) {
-            Status.Code.NOT_FOUND ->
-              Status.NOT_FOUND.withDescription(
-                "${principal.config.signingCertificateName} not found."
-              )
-            else ->
-              Status.UNKNOWN.withDescription(
-                "Unable to retrieve the signing certificate " +
-                  "[${principal.config.signingCertificateName}] for the measurement consumer."
-              )
-          }
-          .withCause(e)
-          .asRuntimeException()
-      }
+      val certificate =
+        certificateCache.getValue(
+          ResourceNameApiAuthenticationKey(
+            name = principal.config.signingCertificateName,
+            apiAuthenticationKey = principal.config.apiKey,
+          )
+        )
+
+      return certificate.x509Der
     }
 
     /**
@@ -1148,30 +1159,23 @@ class MetricsService(
       encryptionPrivateKeyHandle: PrivateKeyHandle,
       apiAuthenticationKey: String,
     ): Measurement.Result {
-      // TODO: Cache the certificate
       val certificate =
-        try {
-          certificatesStub
-            .withAuthenticationKey(apiAuthenticationKey)
-            .getCertificate(getCertificateRequest { name = measurementResultOutput.certificate })
-        } catch (e: StatusException) {
-          throw when (e.status.code) {
-              Status.Code.NOT_FOUND ->
-                Status.NOT_FOUND.withDescription(
-                  "${measurementResultOutput.certificate} not found."
-                )
-              else ->
-                Status.UNKNOWN.withDescription(
-                  "Unable to retrieve the certificate " +
-                    "[${measurementResultOutput.certificate}] for the measurement consumer."
-                )
-            }
-            .withCause(e)
-            .asRuntimeException()
-        }
+        certificateCache.getValue(
+          ResourceNameApiAuthenticationKey(
+            name = measurementResultOutput.certificate,
+            apiAuthenticationKey = apiAuthenticationKey,
+          )
+        )
 
       val signedResult =
         decryptResult(measurementResultOutput.encryptedResult, encryptionPrivateKeyHandle)
+
+      if (certificate.revocationState != Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED) {
+        throw Status.FAILED_PRECONDITION.withDescription(
+            "${certificate.name} revocation state is ${certificate.revocationState}"
+          )
+          .asRuntimeException()
+      }
 
       val x509Certificate: X509Certificate = readCertificate(certificate.x509Der)
       val trustedIssuer: X509Certificate =
@@ -1188,6 +1192,30 @@ class MetricsService(
         throw Exception("Measurement result signature is invalid", e)
       }
       return signedResult.unpack()
+    }
+
+    /**
+     * Returns the [Certificate] from the CMMS system.
+     *
+     * @param[name] resource name of the [Certificate]
+     * @param[apiAuthenticationKey] API key to act as the [MeasurementConsumer] client
+     * @throws [StatusRuntimeException] with [Status.FAILED_PRECONDITION] when retrieving the
+     *   [Certificate] fails.
+     */
+    private suspend fun getCertificate(name: String, apiAuthenticationKey: String): Certificate {
+      return try {
+        certificatesStub
+          .withAuthenticationKey(apiAuthenticationKey)
+          .getCertificate(getCertificateRequest { this.name = name })
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+            Status.Code.NOT_FOUND ->
+              Status.FAILED_PRECONDITION.withDescription("Certificate $name not found.")
+            else -> Status.UNKNOWN.withDescription("Unable to retrieve Certificate $name.")
+          }
+          .withCause(e)
+          .asRuntimeException()
+      }
     }
   }
 
@@ -1957,7 +1985,7 @@ private fun calculateWatchDurationResult(
     }
   }
   return watchDurationResult {
-    val watchDuration: Duration =
+    val watchDuration: ProtoDuration =
       weightedMeasurements
         .map { weightedMeasurement ->
           aggregateResults(weightedMeasurement.measurement.details.resultsList)
@@ -2020,8 +2048,8 @@ private fun calculatePopulationResult(
   return populationCountResult { value = populationResult.population.value }
 }
 
-/** Converts [Duration] format to [Double] second. */
-private fun Duration.toDoubleSecond(): Double {
+/** Converts [ProtoDuration] format to [Double] second. */
+private fun ProtoDuration.toDoubleSecond(): Double {
   val source = this
   return source.seconds + (source.nanos.toDouble() / NANOS_PER_SECOND)
 }
@@ -2699,7 +2727,7 @@ fun buildStatsMethodology(reachResult: InternalMeasurement.Result.Reach): Method
   }
 }
 
-private operator fun Duration.times(weight: Int): Duration {
+private operator fun ProtoDuration.times(weight: Int): ProtoDuration {
   val source = this
   return duration {
     val weightedTotalNanos: Long =
@@ -2709,7 +2737,7 @@ private operator fun Duration.times(weight: Int): Duration {
   }
 }
 
-private operator fun Duration.plus(other: Duration): Duration {
+private operator fun ProtoDuration.plus(other: ProtoDuration): ProtoDuration {
   return Durations.add(this, other)
 }
 
