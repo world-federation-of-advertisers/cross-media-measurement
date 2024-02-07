@@ -88,7 +88,6 @@ private class AwsExampleDaemon : ExampleDaemon() {
       PipelineOptionsFactory.`as`(BeamOptions::class.java).apply {
         runner = DirectRunner::class.java
         defaultSdkHarnessLogLevel = SdkHarnessOptions.LogLevel.TRACE
-        defaultWorkerLogLevel = DataflowWorkerLoggingOptions.Level.TRACE
       }
     return if (!s3FromBeam) {
       baseOptions

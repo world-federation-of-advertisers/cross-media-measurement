@@ -68,7 +68,7 @@ class ExchangeWorkflowFlags {
   @Option(
     names = ["--task-timeout"],
     defaultValue = "24h",
-    description = ["How long to sleep between finding and running an ExchangeStep."],
+    description = ["Maximum amount of time to allow a task to run before cancelling."],
     required = true
   )
   lateinit var taskTimeout: Duration
