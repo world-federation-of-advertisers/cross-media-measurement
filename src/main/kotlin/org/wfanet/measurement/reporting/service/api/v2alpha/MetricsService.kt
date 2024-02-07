@@ -1072,7 +1072,6 @@ class MetricsService(
      *
      * @param[name] resource name of the [DataProvider]
      * @param[apiAuthenticationKey] API key to act as the [MeasurementConsumer] client
-     *
      * @throws [StatusRuntimeException] with [Status.FAILED_PRECONDITION] when retrieving the
      *   [DataProvider] fails.
      */
@@ -1083,11 +1082,9 @@ class MetricsService(
           .getDataProvider(getDataProviderRequest { this.name = name })
       } catch (e: StatusException) {
         throw when (e.status.code) {
-          Status.Code.NOT_FOUND ->
-            Status.FAILED_PRECONDITION.withDescription("$name not found")
-
-          else -> Status.UNKNOWN.withDescription("Unable to retrieve $name")
-        }
+            Status.Code.NOT_FOUND -> Status.FAILED_PRECONDITION.withDescription("$name not found")
+            else -> Status.UNKNOWN.withDescription("Unable to retrieve $name")
+          }
           .withCause(e)
           .asRuntimeException()
       }
