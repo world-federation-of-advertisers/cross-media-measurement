@@ -34,7 +34,7 @@ class RecurringExchangeReader(recurringExchangesIndex: Index = Index.NONE) :
     val recurringExchange: RecurringExchange,
     val recurringExchangeId: Long,
     val modelProviderId: Long,
-    val dataProviderId: Long
+    val dataProviderId: Long,
   )
 
   enum class Index(internal val sql: String) {
@@ -59,7 +59,7 @@ class RecurringExchangeReader(recurringExchangesIndex: Index = Index.NONE) :
       recurringExchange = buildRecurringExchange(struct),
       recurringExchangeId = struct.getLong("RecurringExchangeId"),
       modelProviderId = struct.getLong("ModelProviderId"),
-      dataProviderId = struct.getLong("DataProviderId")
+      dataProviderId = struct.getLong("DataProviderId"),
     )
   }
 
@@ -100,7 +100,7 @@ class RecurringExchangeReader(recurringExchangesIndex: Index = Index.NONE) :
         "RecurringExchanges.RecurringExchangeDetails",
         "RecurringExchanges.RecurringExchangeDetailsJson",
         "DataProviders.ExternalDataProviderId",
-        "ModelProviders.ExternalModelProviderId"
+        "ModelProviders.ExternalModelProviderId",
       )
 
     val SELECT_COLUMNS_SQL = SELECT_COLUMNS.joinToString(", ")

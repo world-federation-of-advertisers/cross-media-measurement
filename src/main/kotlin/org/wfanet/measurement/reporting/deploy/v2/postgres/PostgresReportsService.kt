@@ -44,8 +44,12 @@ class PostgresReportsService(
 ) : ReportsGrpcKt.ReportsCoroutineImplBase() {
   override suspend fun createReport(request: CreateReportRequest): Report {
     grpcRequire(request.externalReportId.isNotEmpty()) { "External report ID is not set." }
-    grpcRequire(request.report.hasTimeIntervals() || request.report.hasPeriodicTimeInterval()) {
-      "Report is missing time."
+    grpcRequire(
+      (request.report.details.hasTimeIntervals() &&
+        request.report.details.timeIntervals.timeIntervalsList.isNotEmpty()) ||
+        request.report.details.hasReportingInterval()
+    ) {
+      "Report is missing time_intervals or reporting_interval."
     }
 
     grpcRequire(request.report.reportingMetricEntriesCount > 0) {
@@ -63,7 +67,7 @@ class PostgresReportsService(
     } catch (e: MeasurementConsumerNotFoundException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Measurement Consumer not found."
+        "Measurement Consumer not found.",
       )
     } catch (e: ReportAlreadyExistsException) {
       throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS, "Report already exists")

@@ -43,7 +43,7 @@ private const val MAX_BATCH_DELETE = 1000
 
 class SpannerExchangesService(
   private val idGenerator: IdGenerator,
-  private val client: AsyncDatabaseClient
+  private val client: AsyncDatabaseClient,
 ) : ExchangesCoroutineImplBase() {
   override suspend fun createExchange(request: CreateExchangeRequest): Exchange {
     return CreateExchange(request.exchange).execute(client, idGenerator)

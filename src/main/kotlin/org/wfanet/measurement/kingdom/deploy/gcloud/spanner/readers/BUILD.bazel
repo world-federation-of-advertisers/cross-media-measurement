@@ -1,4 +1,4 @@
-load("@wfa_common_jvm//build/rules_kotlin:defs.bzl", "kt_jvm_library")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 load("//src/main/proto/wfa/measurement/internal/kingdom:all_protos.bzl", "KINGDOM_INTERNAL_PROTOS")  # buildifier: disable=bzl-visibility
 
 package(default_visibility = [
@@ -10,6 +10,8 @@ kt_jvm_library(
     name = "readers",
     srcs = glob(["*.kt"]),
     deps = KINGDOM_INTERNAL_PROTOS + [
+        "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
+        "//src/main/kotlin/org/wfanet/measurement/common:flows",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:duchy_ids",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/common",
@@ -18,7 +20,5 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
-        "//src/main/kotlin/org/wfanet/measurement/common:flows",
-        "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
     ],
 )

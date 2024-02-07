@@ -50,7 +50,7 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
     val measurementConsumerId: InternalId,
     val externalMeasurementId: ExternalId,
     val externalMeasurementConsumerId: ExternalId,
-    val measurementState: Measurement.State
+    val measurementState: Measurement.State,
   )
 
   override suspend fun TransactionScope.runTransaction(): DuchyMeasurementLogEntry {
@@ -70,7 +70,7 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
         throw MeasurementStateIllegalException(
           measurementInfo.externalMeasurementConsumerId,
           measurementInfo.externalMeasurementId,
-          measurementInfo.measurementState
+          measurementInfo.measurementState,
         ) {
           "Cannot create log entry for Measurement in terminal state."
         }
@@ -89,7 +89,7 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
     insertMeasurementLogEntry(
       measurementInfo.measurementId,
       measurementInfo.measurementConsumerId,
-      request.measurementLogEntryDetails
+      request.measurementLogEntryDetails,
     )
 
     val externalComputationLogEntryId =
@@ -97,7 +97,7 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
         measurementInfo.measurementId,
         measurementInfo.measurementConsumerId,
         InternalId(duchyId),
-        request.details
+        request.details,
       )
 
     return duchyMeasurementLogEntry {
@@ -118,7 +118,7 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
       InternalId(struct.getLong("MeasurementConsumerId")),
       ExternalId(struct.getLong("ExternalMeasurementId")),
       ExternalId(struct.getLong("ExternalMeasurementConsumerId")),
-      struct.getProtoEnum("State", Measurement.State::forNumber)
+      struct.getProtoEnum("State", Measurement.State::forNumber),
     )
 
   private suspend fun TransactionScope.readMeasurementInfo(): MeasurementInfo? {

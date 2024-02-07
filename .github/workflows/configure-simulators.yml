@@ -60,25 +60,12 @@ jobs:
     # Authenticate to Google Cloud. This will export some environment
     # variables, including GCLOUD_PROJECT.
     - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v1
+      uses: google-github-actions/auth@v2
       with:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
 
-    - name: Export BAZEL_BIN
-      run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
-
-    - name: Get GKE cluster credentials
-      uses: google-github-actions/get-gke-credentials@v1
-      with:
-        cluster_name: simulators
-        location: ${{ vars.GCLOUD_ZONE }}
-
-    - name: Configure metrics
-      uses: ./.github/actions/configure-metrics
-      if: ${{ inputs.apply }}
-
-    - name: Generate archives
+    - name: Write ~/.bazelrc
       env:
         IMAGE_TAG: ${{ inputs.image-tag }}
         KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
@@ -96,27 +83,46 @@ jobs:
         EDP5_CERT_NAME: ${{ vars.EDP5_CERT_NAME }}
         EDP6_NAME: ${{ vars.EDP6_NAME }}
         EDP6_CERT_NAME: ${{ vars.EDP6_CERT_NAME }}
+      run: |
+        cat << EOF > ~/.bazelrc
+        common --config=ci
+        common --config=ghcr
+        build --define "image_tag=$IMAGE_TAG"
+        build --define "kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
+        build --define "duchy_public_api_target=$DUCHY_PUBLIC_API_TARGET"
+        build --define "mc_name=$MC_NAME"
+        build --define "edp1_name=$EDP1_NAME"
+        build --define "edp1_cert_name=$EDP1_CERT_NAME"
+        build --define "edp2_name=$EDP2_NAME"
+        build --define "edp2_cert_name=$EDP2_CERT_NAME"
+        build --define "edp3_name=$EDP3_NAME"
+        build --define "edp3_cert_name=$EDP3_CERT_NAME"
+        build --define "edp4_name=$EDP4_NAME"
+        build --define "edp4_cert_name=$EDP4_CERT_NAME"
+        build --define "edp5_name=$EDP5_NAME"
+        build --define "edp5_cert_name=$EDP5_CERT_NAME"
+        build --define "edp6_name=$EDP6_NAME"
+        build --define "edp6_cert_name=$EDP6_CERT_NAME"
+        EOF
+
+    - name: Export BAZEL_BIN
+      run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
+
+    - name: Get GKE cluster credentials
+      uses: google-github-actions/get-gke-credentials@v1
+      with:
+        cluster_name: simulators
+        location: ${{ vars.GCLOUD_ZONE }}
+
+    - name: Configure metrics
+      uses: ./.github/actions/configure-metrics
+      if: ${{ inputs.apply }}
+
+    - name: Generate archives
       run: >
         bazelisk build 
         //src/main/k8s/dev:synthetic_generator_edp_simulators.tar
         //src/main/k8s/testing/secretfiles:kustomization.tar
-        --config ghcr
-        --define "image_tag=$IMAGE_TAG"
-        --define "kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
-        --define "duchy_public_api_target=$DUCHY_PUBLIC_API_TARGET"
-        --define "mc_name=$MC_NAME"
-        --define "edp1_name=$EDP1_NAME"
-        --define "edp1_cert_name=$EDP1_CERT_NAME"
-        --define "edp2_name=$EDP2_NAME"
-        --define "edp2_cert_name=$EDP2_CERT_NAME"
-        --define "edp3_name=$EDP3_NAME"
-        --define "edp3_cert_name=$EDP3_CERT_NAME"
-        --define "edp4_name=$EDP4_NAME"
-        --define "edp4_cert_name=$EDP4_CERT_NAME"
-        --define "edp5_name=$EDP5_NAME"
-        --define "edp5_cert_name=$EDP5_CERT_NAME"
-        --define "edp6_name=$EDP6_NAME"
-        --define "edp6_cert_name=$EDP6_CERT_NAME"
 
     - name: Make Kustomization dir
       run: mkdir -p "$KUSTOMIZATION_PATH"

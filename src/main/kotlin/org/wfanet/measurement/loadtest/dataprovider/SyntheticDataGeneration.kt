@@ -19,9 +19,15 @@ package org.wfanet.measurement.loadtest.dataprovider
 import com.google.protobuf.Descriptors.FieldDescriptor
 import com.google.protobuf.Message
 import java.time.ZoneOffset
+import java.util.Random
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.random.Random as KotlinRandom
+import kotlin.random.asKotlinRandom
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SimulatorSyntheticDataSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec.SubPopulation
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.VidRange
@@ -44,16 +50,41 @@ object SyntheticDataGeneration {
   fun <T : Message> generateEvents(
     messageInstance: T,
     populationSpec: SyntheticPopulationSpec,
-    syntheticEventGroupSpec: SyntheticEventGroupSpec
+    syntheticEventGroupSpec: SyntheticEventGroupSpec,
   ): Sequence<LabeledEvent<T>> {
+    var samplingRequired = false
+    val vidRangeSpecs =
+      syntheticEventGroupSpec.dateSpecsList
+        .flatMap { it.frequencySpecsList }
+        .flatMap { it.vidRangeSpecsList }
+
+    for (vidRangeSpec in vidRangeSpecs) {
+      val vidRangeWidth = vidRangeSpec.vidRange.endExclusive - vidRangeSpec.vidRange.start
+      check(vidRangeWidth >= vidRangeSpec.sampleSize) {
+        "all vidRange widths should be larger than sampleSizes"
+      }
+      if (vidRangeSpec.sampleSize > 0) {
+        samplingRequired = true
+      }
+    }
+
+    if (samplingRequired) {
+      check(syntheticEventGroupSpec.rngType == SyntheticEventGroupSpec.RngType.JAVA_UTIL_RANDOM) {
+        "Expecting JAVA_UTIL_RANDOM rng type, got ${syntheticEventGroupSpec.rngType}"
+      }
+    }
+
     val subPopulations = populationSpec.subPopulationsList
 
     return sequence {
       for (dateSpec: SyntheticEventGroupSpec.DateSpec in syntheticEventGroupSpec.dateSpecsList) {
         val dateProgression = dateSpec.dateRange.toProgression()
         for (frequencySpec: SyntheticEventGroupSpec.FrequencySpec in dateSpec.frequencySpecsList) {
-          for (vidRangeSpec: SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec in
-            frequencySpec.vidRangeSpecsList) {
+
+          check(!frequencySpec.hasOverlaps()) { "The VID ranges should be non-overlapping." }
+
+          for (vidRangeSpec: VidRangeSpec in frequencySpec.vidRangeSpecsList) {
+            val random = Random(vidRangeSpec.randomSeed).asKotlinRandom()
             val subPopulation: SubPopulation =
               vidRangeSpec.vidRange.findSubPopulation(subPopulations)
                 ?: throw IllegalArgumentException()
@@ -77,9 +108,10 @@ object SyntheticDataGeneration {
             @Suppress("UNCHECKED_CAST") // Safe per protobuf API.
             val message = builder.build() as T
 
-            for (vid in vidRangeSpec.vidRange.start until vidRangeSpec.vidRange.endExclusive) {
-              for (date in dateProgression) {
-                for (i in 0 until frequencySpec.frequency) {
+            for (date in dateProgression) {
+              for (i in 0 until frequencySpec.frequency) {
+                val sampledVids = sampleVids(vidRangeSpec, random)
+                for (vid in sampledVids) {
                   yield(LabeledEvent(date.atStartOfDay().toInstant(ZoneOffset.UTC), vid, message))
                 }
               }
@@ -88,6 +120,19 @@ object SyntheticDataGeneration {
         }
       }
     }
+  }
+
+  /**
+   * Returns the sampled Vids from [vidRangeSpec]. Given the same [vidRangeSpec] and [randomSeed],
+   * returns the same vids. Returns all of the vids if sample size is 0.
+   */
+  private fun sampleVids(vidRangeSpec: VidRangeSpec, random: KotlinRandom): Sequence<Long> {
+    val vidRangeSequence =
+      (vidRangeSpec.vidRange.start until vidRangeSpec.vidRange.endExclusive).asSequence()
+    if (vidRangeSpec.sampleSize == 0) {
+      return vidRangeSequence
+    }
+    return vidRangeSequence.shuffled(random).take(vidRangeSpec.sampleSize)
   }
 
   /**
@@ -154,3 +199,15 @@ object SyntheticDataGeneration {
 private fun SyntheticEventGroupSpec.DateSpec.DateRange.toProgression(): LocalDateProgression {
   return start.toLocalDate()..endExclusive.toLocalDate().minusDays(1)
 }
+
+// Sort the ranges by their start. If there are any consecutive ranges where
+// the previous has a larger end than the latter's start, then there is an overlap.
+private fun SyntheticEventGroupSpec.FrequencySpec.hasOverlaps() =
+  vidRangeSpecsList
+    .map { it.vidRange }
+    .sortedBy { it.start }
+    .zipWithNext()
+    .any { (first, second) -> first.overlaps(second) }
+
+private fun VidRange.overlaps(other: VidRange) =
+  max(start, other.start) < min(endExclusive, other.endExclusive)

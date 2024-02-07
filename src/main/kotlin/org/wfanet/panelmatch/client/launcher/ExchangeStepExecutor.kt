@@ -23,6 +23,6 @@ interface ExchangeStepExecutor {
   /** Executes [step]. */
   suspend fun execute(
     validatedStep: ValidatedExchangeStep,
-    attemptKey: CanonicalExchangeStepAttemptKey
+    attemptKey: CanonicalExchangeStepAttemptKey,
   )
 }

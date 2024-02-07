@@ -43,7 +43,7 @@ data class CanonicalExchangeKey(
 ) : ExchangeKey {
   constructor(
     recurringExchangeId: String,
-    exchangeId: String
+    exchangeId: String,
   ) : this(CanonicalRecurringExchangeKey(recurringExchangeId), exchangeId)
 
   override fun toName(): String {
@@ -62,7 +62,7 @@ data class CanonicalExchangeKey(
       val idVars = parser.parseIdVars(resourceName) ?: return null
       return CanonicalExchangeKey(
         idVars.getValue(IdVariable.RECURRING_EXCHANGE),
-        idVars.getValue(IdVariable.EXCHANGE)
+        idVars.getValue(IdVariable.EXCHANGE),
       )
     }
   }

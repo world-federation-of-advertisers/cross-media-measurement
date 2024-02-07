@@ -25,7 +25,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.PopulationRe
 
 class StreamPopulations(
   private val requestFilter: StreamPopulationsRequest.Filter,
-  limit: Int = 0
+  limit: Int = 0,
 ) : SimpleSpannerQuery<PopulationReader.Result>() {
   override val reader =
     PopulationReader().fillStatementBuilder {

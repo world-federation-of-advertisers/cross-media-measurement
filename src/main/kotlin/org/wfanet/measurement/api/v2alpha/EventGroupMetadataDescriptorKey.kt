@@ -25,13 +25,13 @@ private val parser =
 /** [ResourceKey] of an EventGroupMetadataDescriptor. */
 data class EventGroupMetadataDescriptorKey(
   val dataProviderId: String,
-  val eventGroupMetadataDescriptorId: String
+  val eventGroupMetadataDescriptorId: String,
 ) : ResourceKey {
   override fun toName(): String {
     return parser.assembleName(
       mapOf(
         IdVariable.DATA_PROVIDER to dataProviderId,
-        IdVariable.EVENT_GROUP_METADATA_DESCRIPTOR to eventGroupMetadataDescriptorId
+        IdVariable.EVENT_GROUP_METADATA_DESCRIPTOR to eventGroupMetadataDescriptorId,
       )
     )
   }
@@ -43,7 +43,7 @@ data class EventGroupMetadataDescriptorKey(
       return parser.parseIdVars(resourceName)?.let {
         EventGroupMetadataDescriptorKey(
           it.getValue(IdVariable.DATA_PROVIDER),
-          it.getValue(IdVariable.EVENT_GROUP_METADATA_DESCRIPTOR)
+          it.getValue(IdVariable.EVENT_GROUP_METADATA_DESCRIPTOR),
         )
       }
     }

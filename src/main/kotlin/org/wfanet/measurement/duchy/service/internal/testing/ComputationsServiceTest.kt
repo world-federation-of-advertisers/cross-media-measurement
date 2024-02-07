@@ -147,7 +147,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
     assertThat(response.token)
       .ignoringFields(
         ComputationToken.LOCAL_COMPUTATION_ID_FIELD_NUMBER,
-        ComputationToken.VERSION_FIELD_NUMBER
+        ComputationToken.VERSION_FIELD_NUMBER,
       )
       .isEqualTo(
         DEFAULT_CREATE_COMPUTATION_RESP_TOKEN.copy { lockExpirationTime = writeTime.toProtoTime() }

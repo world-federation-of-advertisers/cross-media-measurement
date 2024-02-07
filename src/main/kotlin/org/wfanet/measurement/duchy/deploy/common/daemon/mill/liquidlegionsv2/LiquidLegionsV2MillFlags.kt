@@ -40,7 +40,7 @@ class LiquidLegionsV2MillFlags {
   @CommandLine.Option(
     names = ["--duchy-computation-control-target"],
     description = ["Key-value pair of Duchy ID to ComputationControl service target."],
-    required = true
+    required = true,
   )
   lateinit var computationControlServiceTargets: Map<String, String>
     private set
@@ -48,7 +48,7 @@ class LiquidLegionsV2MillFlags {
   @CommandLine.Option(
     names = ["--channel-shutdown-timeout"],
     defaultValue = "3s",
-    description = ["How long to allow for the gRPC channel to shutdown."]
+    description = ["How long to allow for the gRPC channel to shutdown."],
   )
   lateinit var channelShutdownTimeout: Duration
     private set
@@ -56,7 +56,7 @@ class LiquidLegionsV2MillFlags {
   @CommandLine.Option(
     names = ["--polling-interval"],
     defaultValue = "2s",
-    description = ["How long to sleep before polling the computation queue again if it is empty."]
+    description = ["How long to sleep before polling the computation queue again if it is empty."],
   )
   lateinit var pollingInterval: Duration
     private set
@@ -64,7 +64,7 @@ class LiquidLegionsV2MillFlags {
   @CommandLine.Option(
     names = ["--work-lock-duration"],
     defaultValue = "5m",
-    description = ["How long to hold work locks."]
+    description = ["How long to hold work locks."],
   )
   lateinit var workLockDuration: Duration
     private set
@@ -80,7 +80,7 @@ class LiquidLegionsV2MillFlags {
   @set:CommandLine.Option(
     names = ["--bytes-per-chunk"],
     description = ["The number of bytes in a chunk when sending rpc result to other duchy."],
-    defaultValue = "32768" // 32 KiB. See https://github.com/grpc/grpc.github.io/issues/371.
+    defaultValue = "32768", // 32 KiB. See https://github.com/grpc/grpc.github.io/issues/371.
   )
   var requestChunkSizeBytes by Delegates.notNull<Int>()
     private set
@@ -88,7 +88,7 @@ class LiquidLegionsV2MillFlags {
   @CommandLine.Option(
     names = ["--consent-signaling-certificate-resource-name"],
     description = ["The resource name of the duchy's consent signaling certificate."],
-    required = true
+    required = true,
   )
   lateinit var csCertificateName: String
     private set
@@ -96,7 +96,7 @@ class LiquidLegionsV2MillFlags {
   @CommandLine.Option(
     names = ["--consent-signaling-private-key-der-file"],
     description = ["The duchy's consent signaling private key (DER format) file."],
-    required = true
+    required = true,
   )
   lateinit var csPrivateKeyDerFile: File
     private set
@@ -104,7 +104,7 @@ class LiquidLegionsV2MillFlags {
   @CommandLine.Option(
     names = ["--consent-signaling-certificate-der-file"],
     description = ["The duchy's consent signaling certificate (DER format) file."],
-    required = true
+    required = true,
   )
   lateinit var csCertificateDerFile: File
     private set

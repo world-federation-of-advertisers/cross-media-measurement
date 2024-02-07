@@ -173,8 +173,8 @@ class EventGroupsService(
               METADATA_FIELD,
               DynamicMessage.parseFrom(
                 typeRegistry.getDescriptorForTypeUrl(metadata.typeUrl),
-                metadata.value
-              )
+                metadata.value,
+              ),
             )
           }
         }

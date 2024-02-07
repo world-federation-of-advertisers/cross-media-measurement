@@ -17,7 +17,7 @@ package k8s
 _resourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "500m"
-		memory: "288Mi"
+		memory: "768Mi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
@@ -40,11 +40,11 @@ edp_simulators: {
 			_imageConfig: repoSuffix: "simulator/synthetic-generator-edp"
 			_additional_args: [
 				"--population-spec=\(_populationSpec)",
-				"--event-group-spec=\(EventGroupSpec)",
+				"--event-group-spec==\(EventGroupSpec)",
 			]
 			deployment: {
 				_container: {
-					_javaOptions: maxHeapSize: "96M"
+					_javaOptions: maxHeapSize: "512M"
 					resources: _resourceRequirements
 				}
 				spec: template: spec: {

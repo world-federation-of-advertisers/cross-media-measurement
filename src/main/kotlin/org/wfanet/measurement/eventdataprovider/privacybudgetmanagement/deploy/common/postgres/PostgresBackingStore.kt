@@ -18,10 +18,8 @@ import java.sql.PreparedStatement
 import java.sql.ResultSet
 import java.sql.Statement
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AcdpCharge
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.DpCharge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetAcdpBalanceEntry
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetBalanceEntry
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerBackingStore
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerTransactionContext
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
@@ -51,14 +49,10 @@ class PostgresBackingStore(createConnection: () -> Connection) : PrivacyBudgetLe
   override fun startTransaction(): PostgresBackingStoreTransactionContext {
     val previousTransactionIsClosed = previousTransactionContext?.isClosed ?: true
     if (!previousTransactionIsClosed) {
-      throw PrivacyBudgetManagerException(
-        PrivacyBudgetManagerExceptionType.NESTED_TRANSACTION,
-      )
+      throw PrivacyBudgetManagerException(PrivacyBudgetManagerExceptionType.NESTED_TRANSACTION)
     }
     if (connection.isClosed) {
-      throw PrivacyBudgetManagerException(
-        PrivacyBudgetManagerExceptionType.BACKING_STORE_CLOSED,
-      )
+      throw PrivacyBudgetManagerException(PrivacyBudgetManagerExceptionType.BACKING_STORE_CLOSED)
     }
     connection.createStatement().use { statement: Statement ->
       statement.executeUpdate("begin transaction")
@@ -71,25 +65,22 @@ class PostgresBackingStore(createConnection: () -> Connection) : PrivacyBudgetLe
   }
 }
 
-class PostgresBackingStoreTransactionContext(
-  private val connection: Connection,
-) : PrivacyBudgetLedgerTransactionContext {
+class PostgresBackingStoreTransactionContext(private val connection: Connection) :
+  PrivacyBudgetLedgerTransactionContext {
   private var transactionHasEnded = false
 
   val isClosed: Boolean
     get() = transactionHasEnded
 
-  private fun throwIfTransactionHasEnded(privacyBucketGroups: List<PrivacyBucketGroup>) {
+  private fun throwIfTransactionHasEnded() {
     if (transactionHasEnded) {
-      throw PrivacyBudgetManagerException(
-        PrivacyBudgetManagerExceptionType.UPDATE_AFTER_COMMIT,
-      )
+      throw PrivacyBudgetManagerException(PrivacyBudgetManagerExceptionType.UPDATE_AFTER_COMMIT)
     }
   }
 
   private suspend fun getLastReference(
     measurementConsumerId: String,
-    referenceId: String
+    referenceId: String,
   ): Boolean? {
     val selectSql =
       """
@@ -122,53 +113,10 @@ class PostgresBackingStoreTransactionContext(
     return reference.isRefund == lastReference
   }
 
-  override suspend fun findIntersectingBalanceEntries(
-    privacyBucketGroup: PrivacyBucketGroup
-  ): List<PrivacyBudgetBalanceEntry> {
-    throwIfTransactionHasEnded(listOf(privacyBucketGroup))
-    assert(privacyBucketGroup.startingDate == privacyBucketGroup.endingDate)
-    val selectBucketSql =
-      """
-        SELECT
-          Delta,
-          Epsilon,
-          RepetitionCount
-        FROM PrivacyBucketCharges
-        WHERE
-          MeasurementConsumerId = ?
-          AND Date = ?
-          AND AgeGroup = CAST(? AS AgeGroup)
-          AND Gender = CAST(? AS Gender)
-          and VidStart = ?
-      """
-        .trimIndent()
-    connection.prepareStatement(selectBucketSql).use { statement: PreparedStatement ->
-      statement.setString(1, privacyBucketGroup.measurementConsumerId)
-      statement.setObject(2, privacyBucketGroup.startingDate)
-      statement.setString(3, privacyBucketGroup.ageGroup.string)
-      statement.setString(4, privacyBucketGroup.gender.string)
-      statement.setFloat(5, privacyBucketGroup.vidSampleStart)
-      // TODO(@duliomatos) Make the blocking IO run within a dispatcher using coroutines
-      statement.executeQuery().use { rs: ResultSet ->
-        val entries = ArrayList<PrivacyBudgetBalanceEntry>()
-        while (rs.next()) {
-          entries.add(
-            PrivacyBudgetBalanceEntry(
-              privacyBucketGroup,
-              DpCharge(rs.getFloat("Epsilon"), rs.getFloat("Delta")),
-              rs.getInt("RepetitionCount"),
-            )
-          )
-        }
-        return entries
-      }
-    }
-  }
-
   override suspend fun findAcdpBalanceEntry(
-    privacyBucketGroup: PrivacyBucketGroup,
+    privacyBucketGroup: PrivacyBucketGroup
   ): PrivacyBudgetAcdpBalanceEntry {
-    throwIfTransactionHasEnded(listOf(privacyBucketGroup))
+    throwIfTransactionHasEnded()
     assert(privacyBucketGroup.startingDate == privacyBucketGroup.endingDate)
 
     val selectBucketSql =
@@ -195,10 +143,7 @@ class PostgresBackingStoreTransactionContext(
 
       statement.executeQuery().use { rs: ResultSet ->
         var acdpBalanceEntry: PrivacyBudgetAcdpBalanceEntry =
-          PrivacyBudgetAcdpBalanceEntry(
-            privacyBucketGroup,
-            AcdpCharge(0.0, 0.0),
-          )
+          PrivacyBudgetAcdpBalanceEntry(privacyBucketGroup, AcdpCharge(0.0, 0.0))
 
         if (rs.next()) {
           acdpBalanceEntry =
@@ -237,82 +182,12 @@ class PostgresBackingStoreTransactionContext(
     }
   }
 
-  private suspend fun addBalanceEntries(
-    privacyBudgetBalanceEntries: List<PrivacyBudgetBalanceEntry>,
-    refundCharge: Boolean = false
-  ) {
-    throwIfTransactionHasEnded(privacyBudgetBalanceEntries.map { it.privacyBucketGroup })
-    val insertEntrySql =
-      """
-        INSERT into PrivacyBucketCharges (
-          MeasurementConsumerId,
-          Date,
-          AgeGroup,
-          Gender,
-          VidStart,
-          Delta,
-          Epsilon,
-          RepetitionCount
-        ) VALUES (
-          ?,
-          ?,
-          CAST(? AS AgeGroup),
-          CAST(? AS Gender),
-          ?,
-          ?,
-          ?,
-          1)
-      ON CONFLICT (MeasurementConsumerId,
-          Date,
-          AgeGroup,
-          Gender,
-          VidStart,
-          Delta,
-          Epsilon)
-      DO
-         UPDATE SET RepetitionCount = ? + PrivacyBucketCharges.RepetitionCount;
-      """
-        .trimIndent()
-
-    val statement: PreparedStatement = connection.prepareStatement(insertEntrySql)
-
-    privacyBudgetBalanceEntries.forEachIndexed { index, privacyBudgetBalanceEntry ->
-      statement.setString(1, privacyBudgetBalanceEntry.privacyBucketGroup.measurementConsumerId)
-      statement.setObject(2, privacyBudgetBalanceEntry.privacyBucketGroup.startingDate)
-      statement.setString(3, privacyBudgetBalanceEntry.privacyBucketGroup.ageGroup.string)
-      statement.setString(4, privacyBudgetBalanceEntry.privacyBucketGroup.gender.string)
-      statement.setFloat(5, privacyBudgetBalanceEntry.privacyBucketGroup.vidSampleStart)
-      statement.setFloat(6, privacyBudgetBalanceEntry.dpCharge.delta)
-      statement.setFloat(7, privacyBudgetBalanceEntry.dpCharge.epsilon)
-      statement.setInt(8, if (refundCharge) -1 else 1) // update RepetitionCount
-      statement.addBatch()
-      // execute every 1000 rows or fewer
-      if (index % MAX_BATCH_INSERT == 0 || index == privacyBudgetBalanceEntries.size - 1) {
-        statement.executeBatch()
-      }
-    }
-  }
-
-  override suspend fun addLedgerEntries(
-    privacyBucketGroups: Set<PrivacyBucketGroup>,
-    dpCharges: Set<DpCharge>,
-    reference: Reference
-  ) {
-    addBalanceEntries(
-      privacyBucketGroups.flatMap { privacyBucketGroup ->
-        dpCharges.map { dpCharge -> PrivacyBudgetBalanceEntry(privacyBucketGroup, dpCharge, 1) }
-      },
-      reference.isRefund
-    )
-    addLedgerEntry(reference)
-  }
-
   override suspend fun addAcdpLedgerEntries(
     privacyBucketGroups: Set<PrivacyBucketGroup>,
     acdpCharges: Set<AcdpCharge>,
-    reference: Reference
+    reference: Reference,
   ) {
-    throwIfTransactionHasEnded(privacyBucketGroups.toList())
+    throwIfTransactionHasEnded()
 
     val insertEntrySql =
       """

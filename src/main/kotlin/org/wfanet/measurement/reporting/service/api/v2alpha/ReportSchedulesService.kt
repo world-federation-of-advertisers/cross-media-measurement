@@ -70,8 +70,6 @@ import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.internal.reporting.v2.reportSchedule as internalReportSchedule
 import org.wfanet.measurement.internal.reporting.v2.stopReportScheduleRequest
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
-import org.wfanet.measurement.reporting.service.api.v2alpha.ReportSchedulesService.Companion.toOffsetDateTime
-import org.wfanet.measurement.reporting.service.api.v2alpha.ReportSchedulesService.Companion.toZonedDateTime
 import org.wfanet.measurement.reporting.v2alpha.CreateReportScheduleRequest
 import org.wfanet.measurement.reporting.v2alpha.GetReportScheduleRequest
 import org.wfanet.measurement.reporting.v2alpha.ListReportSchedulesPageToken
@@ -90,7 +88,7 @@ class ReportSchedulesService(
   private val internalReportSchedulesStub: ReportSchedulesCoroutineStub,
   private val internalReportingSetsStub: ReportingSetsCoroutineStub,
   private val dataProvidersStub: DataProvidersCoroutineStub,
-  private val eventGroupsStub: EventGroupsCoroutineStub
+  private val eventGroupsStub: EventGroupsCoroutineStub,
 ) : ReportSchedulesCoroutineImplBase() {
   override suspend fun createReportSchedule(request: CreateReportScheduleRequest): ReportSchedule {
     val parentKey: MeasurementConsumerKey =
@@ -123,7 +121,7 @@ class ReportSchedulesService(
       getInternalReportingSets(
         request.reportSchedule.reportTemplate,
         parentKey.measurementConsumerId,
-        internalReportingSetsStub
+        internalReportingSetsStub,
       )
 
     val eventGroupKeys: List<InternalReportingSet.Primitive.EventGroupKey> =
@@ -135,7 +133,7 @@ class ReportSchedulesService(
       eventGroupKeys,
       dataProvidersStub,
       eventGroupsStub,
-      principal.config.apiKey
+      principal.config.apiKey,
     )
 
     val internalReportSchedule =
@@ -307,7 +305,7 @@ class ReportSchedulesService(
       reportSchedules +=
         filterReportSchedules(
           subResults.map { internalReportSchedule -> internalReportSchedule.toPublic() },
-          request.filter
+          request.filter,
         )
 
       if (nextPageToken != null) {
@@ -318,7 +316,7 @@ class ReportSchedulesService(
 
   /** Converts a public [ReportSchedule] to an internal [InternalReportSchedule]. */
   private fun ReportSchedule.toInternal(
-    measurementConsumerKey: MeasurementConsumerKey,
+    measurementConsumerKey: MeasurementConsumerKey
   ): InternalReportSchedule {
     val source = this
 
@@ -359,7 +357,7 @@ class ReportSchedulesService(
             source.eventStart.toOffsetDateTime()
           } catch (e: DateTimeException) {
             throw Status.INVALID_ARGUMENT.withDescription(
-                "event_start date portion is invalid or event_start.utc_offset is not in valid range."
+                "event_start.utc_offset is not in valid range."
               )
               .asRuntimeException()
           }
@@ -370,9 +368,6 @@ class ReportSchedulesService(
             source.eventStart.toZonedDateTime()
           } catch (e: ZoneRulesException) {
             throw Status.INVALID_ARGUMENT.withDescription("event_start.time_zone.id is invalid")
-              .asRuntimeException()
-          } catch (e: DateTimeException) {
-            throw Status.INVALID_ARGUMENT.withDescription("event_start date portion is invalid.")
               .asRuntimeException()
           }
         getNextReportCreationTime(zonedDateTime, source.frequency)
@@ -472,7 +467,7 @@ class ReportSchedulesService(
 
     private fun filterReportSchedules(
       reportSchedules: List<ReportSchedule>,
-      filter: String
+      filter: String,
     ): List<ReportSchedule> {
       return try {
         filterList(ENV, reportSchedules, filter)
@@ -681,7 +676,7 @@ class ReportSchedulesService(
         submitBatchRequests(
             externalReportingSetIdSet.asFlow(),
             BATCH_GET_REPORTING_SETS_LIMIT,
-            callRpc
+            callRpc,
           ) { response ->
             externalReportingSetIdSet.clear()
             response.reportingSetsList
@@ -709,52 +704,9 @@ class ReportSchedulesService(
       return reportingSets
     }
 
-    /**
-     * Converts a proto [DateTime] to an [OffsetDateTime].
-     *
-     * @throws
-     * * [DateTimeException] when values in DateTime are invalid.
-     */
-    private fun DateTime.toOffsetDateTime(): OffsetDateTime {
-      val source = this
-      val offset = ZoneOffset.ofTotalSeconds(source.utcOffset.seconds.toInt())
-      return OffsetDateTime.of(
-        source.year,
-        source.month,
-        source.day,
-        source.hours,
-        source.minutes,
-        source.seconds,
-        source.nanos,
-        offset
-      )
-    }
-
-    /**
-     * Converts a proto [DateTime] to a [ZonedDateTime].
-     *
-     * @throws
-     * * [DateTimeException] when values in DateTime are invalid.
-     * * [ZoneRulesException] when time zone id is invalid.
-     */
-    private fun DateTime.toZonedDateTime(): ZonedDateTime {
-      val source = this
-      val id = ZoneId.of(source.timeZone.id)
-      return ZonedDateTime.of(
-        source.year,
-        source.month,
-        source.day,
-        source.hours,
-        source.minutes,
-        source.seconds,
-        source.nanos,
-        id
-      )
-    }
-
     private fun getNextReportCreationTime(
       offsetDateTime: OffsetDateTime,
-      frequency: ReportSchedule.Frequency
+      frequency: ReportSchedule.Frequency,
     ): Timestamp {
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       return when (frequency.frequencyCase) {
@@ -799,7 +751,7 @@ class ReportSchedulesService(
 
     private fun getNextReportCreationTime(
       zonedDateTime: ZonedDateTime,
-      frequency: ReportSchedule.Frequency
+      frequency: ReportSchedule.Frequency,
     ): Timestamp {
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       return when (frequency.frequencyCase) {
@@ -865,7 +817,7 @@ class ReportSchedulesService(
           val eventGroupName =
             EventGroupKey(
                 dataProviderId = eventGroupKey.cmmsDataProviderId,
-                eventGroupId = eventGroupKey.cmmsEventGroupId
+                eventGroupId = eventGroupKey.cmmsEventGroupId,
               )
               .toName()
           val eventGroup =
@@ -937,7 +889,7 @@ class ReportSchedulesService(
      */
     fun buildReportWindowStartTimestamp(
       reportSchedule: ReportSchedule,
-      timestamp: Timestamp
+      timestamp: Timestamp,
     ): Timestamp {
       val eventStart = reportSchedule.eventStart
 
@@ -954,7 +906,7 @@ class ReportSchedulesService(
               eventStart.minutes,
               eventStart.seconds,
               eventStart.nanos,
-              offset
+              offset,
             )
           offsetDateTime.toInstant().toProtoTime()
         } else {
@@ -986,7 +938,7 @@ class ReportSchedulesService(
               eventStart.minutes,
               eventStart.seconds,
               eventStart.nanos,
-              id
+              id,
             )
           zonedDateTime.toInstant().toProtoTime()
         } else {

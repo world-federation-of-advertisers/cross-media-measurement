@@ -98,11 +98,7 @@ class ProtoConversionsTest {
     assertThat(internalWorkflow)
       .isEqualTo(
         internalWorkflow {
-          steps +=
-            listOf(
-              INTERNAL_EDP_STEP.withStepIndex(0),
-              INTERNAL_MP_STEP.withStepIndex(1),
-            )
+          steps += listOf(INTERNAL_EDP_STEP.withStepIndex(0), INTERNAL_MP_STEP.withStepIndex(1))
         }
       )
   }

@@ -41,7 +41,7 @@ class IntersectValidateTaskTest {
     previousData: List<JoinKeyAndId>? = JOIN_KEYS,
     currentData: List<JoinKeyAndId>? = JOIN_KEYS,
     maxSize: Int = DEFAULT_MAX_SIZE,
-    isFirstExchange: Boolean = false
+    isFirstExchange: Boolean = false,
   ): Map<String, ByteString> {
     val inputs = mutableListOf<Pair<String, ByteString>>()
 
@@ -53,7 +53,7 @@ class IntersectValidateTaskTest {
     return IntersectValidateTask(
         maxSize = maxSize,
         maximumNewItemsAllowed = MAXIMUM_NEW_ITEMS_ALLOWED,
-        isFirstExchange = isFirstExchange
+        isFirstExchange = isFirstExchange,
       )
       .executeToByteStrings(*inputs.toTypedArray())
   }
@@ -62,7 +62,7 @@ class IntersectValidateTaskTest {
     previousData: List<JoinKeyAndId>? = JOIN_KEYS,
     currentData: List<JoinKeyAndId>? = JOIN_KEYS,
     maxSize: Int = DEFAULT_MAX_SIZE,
-    isFirstExchange: Boolean = false
+    isFirstExchange: Boolean = false,
   ) {
     val outputs = runIntersectAndValidate(previousData, currentData, maxSize, isFirstExchange)
     val outputJoinKeys =

@@ -17,9 +17,6 @@
 package org.wfanet.measurement.reporting.deploy.v2.postgres.readers
 
 import com.google.protobuf.Timestamp
-import com.google.protobuf.util.Timestamps
-import com.google.type.Interval
-import com.google.type.interval
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.Optional
@@ -36,16 +33,14 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.reporting.v2.Report
 import org.wfanet.measurement.internal.reporting.v2.ReportKt
 import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequest
-import org.wfanet.measurement.internal.reporting.v2.periodicTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.report
-import org.wfanet.measurement.internal.reporting.v2.timeIntervals
 
 class ReportReader(private val readContext: ReadContext) {
   data class Result(
     val measurementConsumerId: InternalId,
     val reportId: InternalId,
     val createReportRequestId: String,
-    val report: Report
+    val report: Report,
   )
 
   private data class ReportInfo(
@@ -55,23 +50,21 @@ class ReportReader(private val readContext: ReadContext) {
     val reportId: InternalId,
     val externalReportId: String,
     val createTime: Timestamp,
-    val timeIntervals: MutableSet<Interval>,
-    val periodic: Boolean,
     /** Map of external reporting set ID to [ReportingMetricCalculationSpecInfo]. */
     val reportingSetReportingMetricCalculationSpecInfoMap:
       MutableMap<String, ReportingMetricCalculationSpecInfo>,
     val details: Report.Details,
-    val externalReportScheduleId: String?
+    val externalReportScheduleId: String?,
   )
 
   private data class ReportingMetricCalculationSpecInfo(
     /** Map of external metric calculation spec ID to [MetricCalculationSpecInfo]. */
-    val metricCalculationSpecInfoMap: MutableMap<String, MetricCalculationSpecInfo>,
+    val metricCalculationSpecInfoMap: MutableMap<String, MetricCalculationSpecInfo>
   )
 
   private data class MetricCalculationSpecInfo(
     // Key is createMetricRequestId.
-    val reportingMetricMap: MutableMap<String, Report.ReportingMetric>,
+    val reportingMetricMap: MutableMap<String, Report.ReportingMetric>
   )
 
   private val baseSqlSelect: String =
@@ -83,10 +76,7 @@ class ReportReader(private val readContext: ReadContext) {
       Reports.ExternalReportId,
       Reports.CreateReportRequestId,
       Reports.CreateTime,
-      Reports.Periodic,
       Reports.ReportDetails,
-      ReportTimeIntervals.TimeIntervalStart,
-      ReportTimeIntervals.TimeIntervalEndExclusive,
       MetricCalculationSpecs.ExternalMetricCalculationSpecId,
       ReportingSets.ExternalReportingSetId,
       MetricCalculationSpecReportingMetrics.CreateMetricRequestId,
@@ -100,7 +90,6 @@ class ReportReader(private val readContext: ReadContext) {
     """
     LEFT JOIN ReportsReportSchedules USING(MeasurementConsumerId, ReportId)
     LEFT JOIN ReportSchedules USING(MeasurementConsumerId, ReportScheduleId)
-    JOIN ReportTimeIntervals USING(MeasurementConsumerId, ReportId)
     JOIN MetricCalculationSpecReportingMetrics USING(MeasurementConsumerId, ReportId)
     JOIN ReportingSets USING(MeasurementConsumerId, ReportingSetId)
     JOIN MetricCalculationSpecs USING(MeasurementConsumerId, MetricCalculationSpecId)
@@ -156,9 +145,7 @@ class ReportReader(private val readContext: ReadContext) {
     return createResultFlow(statement).firstOrNull()
   }
 
-  fun readReports(
-    request: StreamReportsRequest,
-  ): Flow<Result> {
+  fun readReports(request: StreamReportsRequest): Flow<Result> {
     val fromClause =
       StringBuilder(
           """
@@ -224,7 +211,6 @@ class ReportReader(private val readContext: ReadContext) {
       val reportId: InternalId = row["ReportId"]
       val externalReportId: String = row["ExternalReportId"]
       val createTime: Instant = row["CreateTime"]
-      val periodic: Boolean = row["Periodic"]
       val reportDetails: Report.Details =
         row.getProtoMessage("ReportDetails", Report.Details.parser())
       val externalReportScheduleId: String? = row["ExternalReportScheduleId"]
@@ -239,11 +225,9 @@ class ReportReader(private val readContext: ReadContext) {
             reportId = reportId,
             externalReportId = externalReportId,
             createTime = createTime.toProtoTime(),
-            timeIntervals = mutableSetOf(),
-            periodic = periodic,
             reportingSetReportingMetricCalculationSpecInfoMap = mutableMapOf(),
             details = reportDetails,
-            externalReportScheduleId = externalReportScheduleId
+            externalReportScheduleId = externalReportScheduleId,
           )
       } else if (
         accumulator!!.externalReportId != externalReportId ||
@@ -258,11 +242,9 @@ class ReportReader(private val readContext: ReadContext) {
             reportId = reportId,
             externalReportId = externalReportId,
             createTime = createTime.toProtoTime(),
-            timeIntervals = mutableSetOf(),
-            periodic = periodic,
             reportingSetReportingMetricCalculationSpecInfoMap = mutableMapOf(),
             details = reportDetails,
-            externalReportScheduleId = externalReportScheduleId
+            externalReportScheduleId = externalReportScheduleId,
           )
       }
 
@@ -285,8 +267,6 @@ class ReportReader(private val readContext: ReadContext) {
   }
 
   private fun ReportInfo.update(row: ResultRow) {
-    val timeIntervalStart: Instant = row["TimeIntervalStart"]
-    val timeIntervalEnd: Instant = row["TimeIntervalEndExclusive"]
     val externalReportingSetId: String = row["ExternalReportingSetId"]
     val externalMetricCalculationSpecId: String = row["ExternalMetricCalculationSpecId"]
     val createMetricRequestId: String = row["CreateMetricRequestId"]
@@ -294,27 +274,16 @@ class ReportReader(private val readContext: ReadContext) {
       row.getProtoMessage("ReportingMetricDetails", Report.ReportingMetric.Details.parser())
     val externalMetricId: String? = row["ExternalMetricId"]
 
-    timeIntervals.add(
-      interval {
-        startTime = timeIntervalStart.toProtoTime()
-        endTime = timeIntervalEnd.toProtoTime()
-      }
-    )
-
     val reportingMetricCalculationSpecInfo =
       reportingSetReportingMetricCalculationSpecInfoMap.computeIfAbsent(externalReportingSetId) {
-        ReportingMetricCalculationSpecInfo(
-          metricCalculationSpecInfoMap = mutableMapOf(),
-        )
+        ReportingMetricCalculationSpecInfo(metricCalculationSpecInfoMap = mutableMapOf())
       }
 
     val metricCalculationSpecInfo =
       reportingMetricCalculationSpecInfo.metricCalculationSpecInfoMap.computeIfAbsent(
         externalMetricCalculationSpecId
       ) {
-        MetricCalculationSpecInfo(
-          reportingMetricMap = mutableMapOf(),
-        )
+        MetricCalculationSpecInfo(reportingMetricMap = mutableMapOf())
       }
 
     metricCalculationSpecInfo.reportingMetricMap.computeIfAbsent(createMetricRequestId) {
@@ -353,27 +322,6 @@ class ReportReader(private val readContext: ReadContext) {
           }
 
         reportingMetricEntries.put(reportingMetricEntry.key, reportingMetricCalculationSpec)
-      }
-
-      val sortedTimeIntervals =
-        source.timeIntervals.sortedWith { a, b -> Timestamps.compare(a.startTime, b.startTime) }
-
-      if (source.periodic) {
-        val firstTimeInterval = sortedTimeIntervals[0]
-        periodicTimeInterval = periodicTimeInterval {
-          startTime = firstTimeInterval.startTime
-          increment = Timestamps.between(firstTimeInterval.startTime, firstTimeInterval.endTime)
-          intervalCount = sortedTimeIntervals.size
-        }
-      } else {
-        timeIntervals = timeIntervals {
-          sortedTimeIntervals.forEach {
-            timeIntervals += interval {
-              startTime = it.startTime
-              endTime = it.endTime
-            }
-          }
-        }
       }
 
       if (source.externalReportScheduleId != null) {

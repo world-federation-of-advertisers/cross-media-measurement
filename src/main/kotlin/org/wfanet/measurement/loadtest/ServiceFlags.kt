@@ -86,7 +86,7 @@ class KingdomInternalApiFlags {
   @CommandLine.Option(
     names = ["--kingdom-internal-api-default-deadline"],
     description = ["Default deadline duration for RPCs to Kingdom internal API"],
-    defaultValue = "30s"
+    defaultValue = "30s",
   )
   lateinit var defaultDeadlineDuration: Duration
     private set

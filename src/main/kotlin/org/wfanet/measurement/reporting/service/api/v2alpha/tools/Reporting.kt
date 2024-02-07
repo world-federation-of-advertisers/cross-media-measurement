@@ -16,11 +16,16 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha.tools
 
+import com.google.type.DayOfWeek
+import com.google.type.date
+import com.google.type.dateTime
 import com.google.type.interval
+import com.google.type.timeZone
 import io.grpc.ManagedChannel
 import java.time.Duration
 import java.time.Instant
-import kotlin.properties.Delegates
+import java.time.LocalDate
+import java.time.LocalDateTime
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
@@ -38,18 +43,26 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
+import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
+import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.Report
+import org.wfanet.measurement.reporting.v2alpha.ReportKt.reportingInterval
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.createMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
+import org.wfanet.measurement.reporting.v2alpha.getMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
+import org.wfanet.measurement.reporting.v2alpha.listMetricCalculationSpecsRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportingSetsRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
-import org.wfanet.measurement.reporting.v2alpha.periodicTimeInterval
+import org.wfanet.measurement.reporting.v2alpha.metricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
 import org.wfanet.measurement.reporting.v2alpha.timeIntervals
@@ -130,7 +143,7 @@ class CreateReportingSetCommand : Runnable {
     names = ["--filter"],
     description = ["CEL filter predicate that applies to all `event_groups`"],
     required = false,
-    defaultValue = ""
+    defaultValue = "",
   )
   private lateinit var filterExpression: String
 
@@ -138,7 +151,7 @@ class CreateReportingSetCommand : Runnable {
     names = ["--display-name"],
     description = ["Human-readable name for display purposes"],
     required = false,
-    defaultValue = ""
+    defaultValue = "",
   )
   private lateinit var displayNameInput: String
 
@@ -146,7 +159,7 @@ class CreateReportingSetCommand : Runnable {
     names = ["--id"],
     description = ["Resource ID of the Reporting Set"],
     required = true,
-    defaultValue = ""
+    defaultValue = "",
   )
   private lateinit var reportingSetId: String
 
@@ -163,7 +176,7 @@ class CreateReportingSetCommand : Runnable {
               expression =
                 parseTextProto(
                   type.textFormatSetExpression!!.reader(),
-                  ReportingSet.SetExpression.getDefaultInstance()
+                  ReportingSet.SetExpression.getDefaultInstance(),
                 )
             }
         }
@@ -213,7 +226,7 @@ class ListReportingSetsCommand : Runnable {
       CommandLine.HelpCommand::class,
       CreateReportingSetCommand::class,
       ListReportingSetsCommand::class,
-    ]
+    ],
 )
 class ReportingSetsCommand : Runnable {
   @CommandLine.ParentCommand lateinit var parent: Reporting
@@ -261,29 +274,46 @@ class CreateReportCommand : Runnable {
         private set
     }
 
-    class PeriodicTimeIntervalInput {
+    class ReportingIntervalInput {
       @CommandLine.Option(
-        names = ["--periodic-interval-start-time"],
-        description = ["Start of the first time interval in ISO 8601 format of UTC"],
+        names = ["--reporting-interval-report-start-time"],
+        description = ["Start of the report in yyyy-MM-ddTHH:mm:ss"],
         required = true,
       )
-      lateinit var periodicIntervalStartTime: Instant
+      lateinit var reportingIntervalReportStartTime: LocalDateTime
         private set
+
+      class TimeOffset {
+        @CommandLine.Option(
+          names = ["--reporting-interval-report-start-utc-offset"],
+          description = ["UTC offset in ISO-8601 format of PnDTnHnMn"],
+          required = false,
+        )
+        var utcOffset: Duration? = null
+          private set
+
+        @CommandLine.Option(
+          names = ["--reporting-interval-report-start-time-zone"],
+          description = ["IANA Time zone"],
+          required = false,
+        )
+        var timeZone: String? = null
+          private set
+      }
+
+      @CommandLine.ArgGroup(
+        exclusive = true,
+        multiplicity = "1",
+        heading = "UTC offset or time zone\n",
+      )
+      lateinit var reportingIntervalReportStartTimeOffset: TimeOffset
 
       @CommandLine.Option(
-        names = ["--periodic-interval-increment"],
-        description = ["Increment for each time interval in ISO-8601 format of PnDTnHnMn"],
-        required = true
+        names = ["--reporting-interval-report-end"],
+        description = ["End of the report in yyyy-mm-dd"],
+        required = true,
       )
-      lateinit var periodicIntervalIncrement: Duration
-        private set
-
-      @set:CommandLine.Option(
-        names = ["--periodic-interval-count"],
-        description = ["Number of periodic intervals"],
-        required = true
-      )
-      var periodicIntervalCount by Delegates.notNull<Int>()
+      lateinit var reportingIntervalReportEnd: LocalDate
         private set
     }
 
@@ -294,16 +324,16 @@ class CreateReportCommand : Runnable {
     @CommandLine.ArgGroup(
       exclusive = false,
       multiplicity = "1",
-      heading = "Periodic time interval specification\n"
+      heading = "Reporting interval specification\n",
     )
-    var periodicTimeIntervalInput: PeriodicTimeIntervalInput? = null
+    var reportingIntervalInput: ReportingIntervalInput? = null
       private set
   }
 
   @CommandLine.ArgGroup(
     exclusive = true,
     multiplicity = "1",
-    heading = "Time interval or periodic time interval\n"
+    heading = "Time interval or reporting interval\n",
   )
   private lateinit var timeInput: TimeInput
 
@@ -311,7 +341,7 @@ class CreateReportCommand : Runnable {
     names = ["--id"],
     description = ["Resource ID of the Report"],
     required = true,
-    defaultValue = ""
+    defaultValue = "",
   )
   private lateinit var reportId: String
 
@@ -319,7 +349,7 @@ class CreateReportCommand : Runnable {
     names = ["--request-id"],
     description = ["Request ID for creation of Report"],
     required = false,
-    defaultValue = ""
+    defaultValue = "",
   )
   private lateinit var requestId: String
 
@@ -331,7 +361,7 @@ class CreateReportCommand : Runnable {
           reportingMetricEntries +=
             parseTextProto(
               textFormatReportingMetricEntry.reader(),
-              Report.ReportingMetricEntry.getDefaultInstance()
+              Report.ReportingMetricEntry.getDefaultInstance(),
             )
         }
 
@@ -347,11 +377,32 @@ class CreateReportCommand : Runnable {
             }
           }
         } else {
-          val periodicIntervals = checkNotNull(timeInput.periodicTimeIntervalInput)
-          periodicTimeInterval = periodicTimeInterval {
-            startTime = periodicIntervals.periodicIntervalStartTime.toProtoTime()
-            increment = periodicIntervals.periodicIntervalIncrement.toProtoDuration()
-            intervalCount = periodicIntervals.periodicIntervalCount
+          val reportingInterval = checkNotNull(timeInput.reportingIntervalInput)
+          this.reportingInterval = reportingInterval {
+            reportStart = dateTime {
+              year = reportingInterval.reportingIntervalReportStartTime.year
+              month = reportingInterval.reportingIntervalReportStartTime.monthValue
+              day = reportingInterval.reportingIntervalReportStartTime.dayOfMonth
+              hours = reportingInterval.reportingIntervalReportStartTime.hour
+              minutes = reportingInterval.reportingIntervalReportStartTime.minute
+              seconds = reportingInterval.reportingIntervalReportStartTime.second
+
+              if (reportingInterval.reportingIntervalReportStartTimeOffset.utcOffset != null) {
+                val utcOffset =
+                  checkNotNull(reportingInterval.reportingIntervalReportStartTimeOffset.utcOffset)
+                this.utcOffset = utcOffset.toProtoDuration()
+              } else {
+                val timeZone =
+                  checkNotNull(reportingInterval.reportingIntervalReportStartTimeOffset.timeZone)
+                this.timeZone = timeZone { id = timeZone }
+              }
+            }
+
+            reportEnd = date {
+              year = reportingInterval.reportingIntervalReportEnd.year
+              month = reportingInterval.reportingIntervalReportEnd.monthValue
+              day = reportingInterval.reportingIntervalReportEnd.dayOfMonth
+            }
           }
         }
       }
@@ -397,9 +448,7 @@ class ListReportsCommand : Runnable {
 class GetReportCommand : Runnable {
   @CommandLine.ParentCommand private lateinit var parent: ReportsCommand
 
-  @CommandLine.Parameters(
-    description = ["API resource name of the Report"],
-  )
+  @CommandLine.Parameters(description = ["API resource name of the Report"])
   private lateinit var reportName: String
 
   override fun run() {
@@ -419,12 +468,278 @@ class GetReportCommand : Runnable {
       CreateReportCommand::class,
       ListReportsCommand::class,
       GetReportCommand::class,
-    ]
+    ],
 )
 class ReportsCommand : Runnable {
   @CommandLine.ParentCommand lateinit var parent: Reporting
 
   val reportsStub: ReportsCoroutineStub by lazy { ReportsCoroutineStub(parent.channel) }
+
+  override fun run() {}
+}
+
+@CommandLine.Command(name = "create", description = ["Create a metric calculation spec"])
+class CreateMetricCalculationSpecCommand : Runnable {
+  @CommandLine.ParentCommand private lateinit var parent: MetricCalculationSpecsCommand
+
+  @CommandLine.Option(
+    names = ["--parent"],
+    description = ["API resource name of the Measurement Consumer"],
+    required = true,
+  )
+  private lateinit var measurementConsumerName: String
+
+  @CommandLine.Option(
+    names = ["--display-name"],
+    description = ["Human-readable name for display purposes"],
+    required = false,
+    defaultValue = "",
+  )
+  private lateinit var displayName: String
+
+  @CommandLine.Option(
+    names = ["--metric-spec"],
+    description = ["MetricSpec protobuf messages in text format"],
+    required = true,
+  )
+  lateinit var textFormatMetricSpecs: List<String>
+
+  @CommandLine.Option(
+    names = ["--grouping"],
+    description = ["Each grouping is a list of comma-separated predicates"],
+    required = false,
+  )
+  lateinit var groupings: List<String>
+
+  @CommandLine.Option(
+    names = ["--filter"],
+    description = ["CEL filter predicate that will be conjoined to any Reporting Set filters"],
+    required = false,
+    defaultValue = "",
+  )
+  private lateinit var filter: String
+
+  class MetricFrequencySpecInput {
+    @CommandLine.Option(
+      names = ["--daily-frequency"],
+      description = ["Whether to use daily frequency"],
+    )
+    var daily: Boolean = false
+      private set
+
+    @CommandLine.Option(
+      names = ["--day-of-the-week"],
+      description =
+        [
+          """
+      Day of the week for weekly frequency. Represented by a number between 1 and 7, inclusive,
+      where Monday is 1 and Sunday is 7.
+      """
+        ],
+    )
+    var dayOfTheWeek: Int = 0
+      private set
+
+    @CommandLine.Option(
+      names = ["--day-of-the-month"],
+      description =
+        [
+          """
+      Day of the month for monthly frequency. Represented by a number between 1 and 31, inclusive.
+      """
+        ],
+    )
+    var dayOfTheMonth: Int = 0
+      private set
+  }
+
+  @CommandLine.ArgGroup(
+    exclusive = true,
+    multiplicity = "0..1",
+    heading = "Metric frequency specification\n",
+  )
+  private lateinit var metricFrequencySpecInput: MetricFrequencySpecInput
+
+  class TrailingWindowInput {
+    @CommandLine.Option(names = ["--day-window-count"], description = ["Size of day window"])
+    var dayCount: Int = 0
+      private set
+
+    @CommandLine.Option(
+      names = ["--week-window-count"],
+      description = ["Size of week window"],
+      required = false,
+    )
+    var weekCount: Int = 0
+      private set
+
+    @CommandLine.Option(
+      names = ["--month-window-count"],
+      description = ["Size of month window"],
+      required = false,
+    )
+    var monthCount: Int = 0
+      private set
+  }
+
+  @CommandLine.ArgGroup(
+    exclusive = true,
+    multiplicity = "0..1",
+    heading = "Trailing window specification\n",
+  )
+  private lateinit var trailingWindowInput: TrailingWindowInput
+
+  @CommandLine.Option(
+    names = ["--id"],
+    description = ["Resource ID of the Metric Calculation Spec"],
+    required = true,
+    defaultValue = "",
+  )
+  private lateinit var metricCalculationSpecId: String
+
+  override fun run() {
+    val request = createMetricCalculationSpecRequest {
+      parent = measurementConsumerName
+      metricCalculationSpec = metricCalculationSpec {
+        displayName = this@CreateMetricCalculationSpecCommand.displayName
+        for (textFormatMetricSpec in textFormatMetricSpecs) {
+          metricSpecs +=
+            parseTextProto(textFormatMetricSpec.reader(), MetricSpec.getDefaultInstance())
+        }
+
+        filter = this@CreateMetricCalculationSpecCommand.filter
+
+        for (grouping in this@CreateMetricCalculationSpecCommand.groupings) {
+          groupings += MetricCalculationSpecKt.grouping { predicates += grouping.trim().split(',') }
+        }
+
+        if (this@CreateMetricCalculationSpecCommand::metricFrequencySpecInput.isInitialized) {
+          metricFrequencySpec =
+            MetricCalculationSpecKt.metricFrequencySpec {
+              if (this@CreateMetricCalculationSpecCommand.metricFrequencySpecInput.daily) {
+                daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
+              } else if (
+                this@CreateMetricCalculationSpecCommand.metricFrequencySpecInput.dayOfTheWeek > 0
+              ) {
+                weekly =
+                  MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                    dayOfWeek =
+                      DayOfWeek.forNumber(
+                        this@CreateMetricCalculationSpecCommand.metricFrequencySpecInput
+                          .dayOfTheWeek
+                      )
+                  }
+              } else if (
+                this@CreateMetricCalculationSpecCommand.metricFrequencySpecInput.dayOfTheMonth > 0
+              ) {
+                monthly =
+                  MetricCalculationSpecKt.MetricFrequencySpecKt.monthly {
+                    dayOfMonth =
+                      this@CreateMetricCalculationSpecCommand.metricFrequencySpecInput.dayOfTheMonth
+                  }
+              }
+            }
+        }
+
+        if (this@CreateMetricCalculationSpecCommand::trailingWindowInput.isInitialized) {
+          trailingWindow =
+            MetricCalculationSpecKt.trailingWindow {
+              if (this@CreateMetricCalculationSpecCommand.trailingWindowInput.dayCount > 0) {
+                count = this@CreateMetricCalculationSpecCommand.trailingWindowInput.dayCount
+                increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
+              } else if (
+                this@CreateMetricCalculationSpecCommand.trailingWindowInput.weekCount > 0
+              ) {
+                count = this@CreateMetricCalculationSpecCommand.trailingWindowInput.weekCount
+                increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+              } else if (
+                this@CreateMetricCalculationSpecCommand.trailingWindowInput.monthCount > 0
+              ) {
+                count = this@CreateMetricCalculationSpecCommand.trailingWindowInput.monthCount
+                increment = MetricCalculationSpec.TrailingWindow.Increment.MONTH
+              }
+            }
+        }
+      }
+
+      metricCalculationSpecId = this@CreateMetricCalculationSpecCommand.metricCalculationSpecId
+    }
+    val metricCalculationSpec =
+      runBlocking(Dispatchers.IO) {
+        parent.metricCalculationSpecsStub.createMetricCalculationSpec(request)
+      }
+
+    println(metricCalculationSpec)
+  }
+}
+
+@CommandLine.Command(name = "list", description = ["List metric calculation specs"])
+class ListMetricCalculationSpecsCommand : Runnable {
+  @CommandLine.ParentCommand private lateinit var parent: MetricCalculationSpecsCommand
+
+  @CommandLine.Option(
+    names = ["--parent"],
+    description = ["API resource name of the Measurement Consumer"],
+    required = true,
+  )
+  private lateinit var measurementConsumerName: String
+
+  @CommandLine.Mixin private lateinit var pageParams: PageParams
+
+  override fun run() {
+    val request = listMetricCalculationSpecsRequest {
+      parent = measurementConsumerName
+      pageSize = pageParams.pageSize
+      pageToken = pageParams.pageToken
+    }
+
+    val response =
+      runBlocking(Dispatchers.IO) {
+        parent.metricCalculationSpecsStub.listMetricCalculationSpecs(request)
+      }
+
+    response.metricCalculationSpecsList.forEach { println(it.name) }
+    if (response.nextPageToken.isNotEmpty()) {
+      println("nextPageToken: ${response.nextPageToken}")
+    }
+  }
+}
+
+@CommandLine.Command(name = "get", description = ["Get a metric calculation spec"])
+class GetMetricCalculationSpecCommand : Runnable {
+  @CommandLine.ParentCommand private lateinit var parent: MetricCalculationSpecsCommand
+
+  @CommandLine.Parameters(description = ["API resource name of the Metric Calculation Spec"])
+  private lateinit var metricCalculationSpecName: String
+
+  override fun run() {
+    val request = getMetricCalculationSpecRequest { name = metricCalculationSpecName }
+
+    val metricCalculationSpec =
+      runBlocking(Dispatchers.IO) {
+        parent.metricCalculationSpecsStub.getMetricCalculationSpec(request)
+      }
+    println(metricCalculationSpec)
+  }
+}
+
+@CommandLine.Command(
+  name = "metric-calculation-specs",
+  sortOptions = false,
+  subcommands =
+    [
+      CommandLine.HelpCommand::class,
+      CreateMetricCalculationSpecCommand::class,
+      ListMetricCalculationSpecsCommand::class,
+      GetMetricCalculationSpecCommand::class,
+    ],
+)
+class MetricCalculationSpecsCommand : Runnable {
+  @CommandLine.ParentCommand lateinit var parent: Reporting
+
+  val metricCalculationSpecsStub: MetricCalculationSpecsCoroutineStub by lazy {
+    MetricCalculationSpecsCoroutineStub(parent.channel)
+  }
 
   override fun run() {}
 }
@@ -444,7 +759,7 @@ class ListEventGroups : Runnable {
     names = ["--filter"],
     description = ["Result filter in format of raw CEL expression"],
     required = false,
-    defaultValue = ""
+    defaultValue = "",
   )
   private lateinit var celFilter: String
 
@@ -467,11 +782,7 @@ class ListEventGroups : Runnable {
 @CommandLine.Command(
   name = "event-groups",
   sortOptions = false,
-  subcommands =
-    [
-      CommandLine.HelpCommand::class,
-      ListEventGroups::class,
-    ]
+  subcommands = [CommandLine.HelpCommand::class, ListEventGroups::class],
 )
 class EventGroupsCommand : Runnable {
   @CommandLine.ParentCommand lateinit var parent: Reporting
@@ -485,9 +796,7 @@ class EventGroupsCommand : Runnable {
 class GetDataProvider : Runnable {
   @CommandLine.ParentCommand private lateinit var parent: DataProvidersCommand
 
-  @CommandLine.Parameters(
-    description = ["CMMS DataProvider resource name"],
-  )
+  @CommandLine.Parameters(description = ["CMMS DataProvider resource name"])
   private lateinit var cmmsDataProviderName: String
 
   override fun run() {
@@ -503,9 +812,7 @@ class GetDataProvider : Runnable {
 class GetEventGroupMetadataDescriptor : Runnable {
   @CommandLine.ParentCommand private lateinit var parent: EventGroupMetadataDescriptorsCommand
 
-  @CommandLine.Parameters(
-    description = ["CMMS EventGroupMetadataDescriptor resource name"],
-  )
+  @CommandLine.Parameters(description = ["CMMS EventGroupMetadataDescriptor resource name"])
   private lateinit var cmmsEventGroupMetadataDescriptorName: String
 
   override fun run() {
@@ -524,13 +831,13 @@ class GetEventGroupMetadataDescriptor : Runnable {
 
 @CommandLine.Command(
   name = "batch-get",
-  description = ["Batch Get event group metadata descriptors"]
+  description = ["Batch Get event group metadata descriptors"],
 )
 class BatchGetEventGroupMetadataDescriptors : Runnable {
   @CommandLine.ParentCommand private lateinit var parent: EventGroupMetadataDescriptorsCommand
 
   @CommandLine.Parameters(
-    description = ["List of CMMS EventGroupMetadataDescriptors resource names"],
+    description = ["List of CMMS EventGroupMetadataDescriptors resource names"]
   )
   private var cmmsEventGroupMetadataDescriptorNames: List<String> = mutableListOf()
 
@@ -551,11 +858,7 @@ class BatchGetEventGroupMetadataDescriptors : Runnable {
 @CommandLine.Command(
   name = "data-providers",
   sortOptions = false,
-  subcommands =
-    [
-      CommandLine.HelpCommand::class,
-      GetDataProvider::class,
-    ]
+  subcommands = [CommandLine.HelpCommand::class, GetDataProvider::class],
 )
 class DataProvidersCommand : Runnable {
   @CommandLine.ParentCommand lateinit var parent: Reporting
@@ -575,7 +878,7 @@ class DataProvidersCommand : Runnable {
       CommandLine.HelpCommand::class,
       GetEventGroupMetadataDescriptor::class,
       BatchGetEventGroupMetadataDescriptors::class,
-    ]
+    ],
 )
 class EventGroupMetadataDescriptorsCommand : Runnable {
   @CommandLine.ParentCommand lateinit var parent: Reporting
@@ -596,10 +899,11 @@ class EventGroupMetadataDescriptorsCommand : Runnable {
       CommandLine.HelpCommand::class,
       ReportingSetsCommand::class,
       ReportsCommand::class,
+      MetricCalculationSpecsCommand::class,
       EventGroupsCommand::class,
       DataProvidersCommand::class,
       EventGroupMetadataDescriptorsCommand::class,
-    ]
+    ],
 )
 class Reporting : Runnable {
   @CommandLine.Mixin private lateinit var tlsFlags: TlsFlags
@@ -610,7 +914,7 @@ class Reporting : Runnable {
       SigningCerts.fromPemFiles(
         certificateFile = tlsFlags.certFile,
         privateKeyFile = tlsFlags.privateKeyFile,
-        trustedCertCollectionFile = tlsFlags.certCollectionFile
+        trustedCertCollectionFile = tlsFlags.certCollectionFile,
       )
     buildMutualTlsChannel(apiFlags.apiTarget, clientCerts, apiFlags.apiCertHost)
       .withShutdownTimeout(Duration.ofSeconds(1))
@@ -625,7 +929,8 @@ class Reporting : Runnable {
 }
 
 /**
- * Reporting Set, Report, Event Group, Event Group Metadata Descriptor, and Data Provider methods.
+ * Reporting Set, Report, Metric Calculation Spec, Event Group, Event Group Metadata Descriptor, and
+ * Data Provider methods.
  *
  * Use the `help` command to see usage details.
  */

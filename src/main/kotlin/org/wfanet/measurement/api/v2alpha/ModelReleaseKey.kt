@@ -27,14 +27,14 @@ private val parser =
 data class ModelReleaseKey(
   val modelProviderId: String,
   val modelSuiteId: String,
-  val modelReleaseId: String
+  val modelReleaseId: String,
 ) : ResourceKey {
   override fun toName(): String {
     return parser.assembleName(
       mapOf(
         IdVariable.MODEL_PROVIDER to modelProviderId,
         IdVariable.MODEL_SUITE to modelSuiteId,
-        IdVariable.MODEL_RELEASE to modelReleaseId
+        IdVariable.MODEL_RELEASE to modelReleaseId,
       )
     )
   }
@@ -47,7 +47,7 @@ data class ModelReleaseKey(
         ModelReleaseKey(
           it.getValue(IdVariable.MODEL_PROVIDER),
           it.getValue(IdVariable.MODEL_SUITE),
-          it.getValue(IdVariable.MODEL_RELEASE)
+          it.getValue(IdVariable.MODEL_RELEASE),
         )
       }
     }

@@ -38,7 +38,7 @@ class TestPrivacyBucketMapper : PrivacyBucketMapper {
     } catch (e: EventFilterValidationException) {
       throw PrivacyBudgetManagerException(
         PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER,
-        e
+        e,
       )
     }
   /** To not charge any buckets, [privacyBucketGroup] is ignored and set to be not filterable. */
@@ -53,8 +53,8 @@ object PrivacyBudgets {
     return PrivacyBudgetManager(
       PrivacyBucketFilter(TestPrivacyBucketMapper()),
       InMemoryBackingStore(),
+      10.0f,
       1000.0f,
-      1000.0f
     )
   }
 }

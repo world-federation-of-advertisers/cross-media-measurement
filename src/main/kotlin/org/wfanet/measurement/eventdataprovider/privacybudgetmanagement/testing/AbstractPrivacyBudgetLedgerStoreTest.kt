@@ -20,13 +20,10 @@ import org.junit.Before
 import org.junit.Test
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AcdpCharge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.DpCharge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetAcdpBalanceEntry
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetBalanceEntry
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerBackingStore
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerTransactionContext
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyLandscape
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
 
@@ -39,170 +36,6 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
   fun prepareTest() {
     recreateSchema()
   }
-
-  @Test(timeout = 15000)
-  fun `findIntersectingBalanceEntries finds dp balance entries`() = runBlocking {
-    val bucket1 =
-      PrivacyBucketGroup(
-        MEASUREMENT_CONSUMER_ID,
-        LocalDate.parse("2021-07-01"),
-        LocalDate.parse("2021-07-01"),
-        AgeGroup.RANGE_35_54,
-        Gender.MALE,
-        0.3f,
-        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-      )
-
-    val bucket2 =
-      PrivacyBucketGroup(
-        MEASUREMENT_CONSUMER_ID,
-        LocalDate.parse("2021-07-01"),
-        LocalDate.parse("2021-07-01"),
-        AgeGroup.RANGE_35_54,
-        Gender.MALE,
-        0.5f,
-        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-      )
-
-    val bucket3 =
-      PrivacyBucketGroup(
-        MEASUREMENT_CONSUMER_ID,
-        LocalDate.parse("2021-07-01"),
-        LocalDate.parse("2021-07-01"),
-        AgeGroup.RANGE_35_54,
-        Gender.FEMALE,
-        0.3f,
-        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-      )
-
-    val bucket4 =
-      PrivacyBucketGroup(
-        MEASUREMENT_CONSUMER_ID,
-        LocalDate.parse("2021-07-01"),
-        LocalDate.parse("2021-07-01"),
-        AgeGroup.RANGE_35_54,
-        Gender.FEMALE,
-        0.5f,
-        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-      )
-
-    val dpCharge = DpCharge(0.01f, 0.0001f)
-
-    val backingStore = createBackingStore()
-    val txContext1 = backingStore.startTransaction()
-    txContext1.addLedgerEntries(
-      setOf(bucket1, bucket2, bucket3),
-      setOf(dpCharge),
-      Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false)
-    )
-
-    txContext1.addLedgerEntries(
-      setOf(bucket1),
-      setOf(dpCharge),
-      Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId2", false)
-    )
-    txContext1.commit()
-    val txContext2 = backingStore.startTransaction()
-    val intersectingEntries: List<PrivacyBudgetBalanceEntry> =
-      txContext2.findIntersectingBalanceEntries(bucket1)
-    assertThat(intersectingEntries).hasSize(1)
-    assertThat(intersectingEntries.get(0).repetitionCount).isEqualTo(2)
-    assertThat(txContext2.findIntersectingBalanceEntries(bucket2)).hasSize(1)
-    assertThat(txContext2.findIntersectingBalanceEntries(bucket3)).hasSize(1)
-    assertThat(txContext2.findIntersectingBalanceEntries(bucket4)).hasSize(0)
-    backingStore.close()
-  }
-
-  @Test(timeout = 15000)
-  fun `addLedgerEntries as a refund decreases dp repetitionCount`() = runBlocking {
-    createBackingStore().use { backingStore: PrivacyBudgetLedgerBackingStore ->
-      val bucket1 =
-        PrivacyBucketGroup(
-          MEASUREMENT_CONSUMER_ID,
-          LocalDate.parse("2021-07-01"),
-          LocalDate.parse("2021-07-01"),
-          AgeGroup.RANGE_35_54,
-          Gender.MALE,
-          0.3f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-        )
-      val dpCharge = DpCharge(0.01f, 0.0001f)
-      backingStore.startTransaction().use { txContext: PrivacyBudgetLedgerTransactionContext ->
-        txContext.addLedgerEntries(
-          setOf(bucket1),
-          setOf(dpCharge),
-          Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false)
-        )
-        txContext.commit()
-      }
-
-      backingStore.startTransaction().use { txContext: PrivacyBudgetLedgerTransactionContext ->
-        val matchingBalanceEntries = txContext.findIntersectingBalanceEntries(bucket1)
-        assertThat(matchingBalanceEntries.size).isEqualTo(1)
-
-        assertThat(matchingBalanceEntries[0].repetitionCount).isEqualTo(1)
-        txContext.addLedgerEntries(
-          setOf(bucket1),
-          setOf(dpCharge),
-          Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", true)
-        )
-        txContext.commit()
-      }
-
-      backingStore.startTransaction().use { txContext: PrivacyBudgetLedgerTransactionContext ->
-        val newMatchingBalanceEntries = txContext.findIntersectingBalanceEntries(bucket1)
-        assertThat(newMatchingBalanceEntries.size).isEqualTo(1)
-        assertThat(newMatchingBalanceEntries[0].repetitionCount).isEqualTo(0)
-      }
-    }
-  }
-
-  @Test(timeout = 15000)
-  fun `addLedgerEntries for different MCs and same requisitionId don't point to same dp balances`() =
-    runBlocking {
-      val requisitionId = "RequisitionId1"
-      val otherMeasurementConsumerId = "otherMeasurementConsumerId"
-      val bucket =
-        PrivacyBucketGroup(
-          MEASUREMENT_CONSUMER_ID,
-          LocalDate.parse("2021-07-01"),
-          LocalDate.parse("2021-07-01"),
-          AgeGroup.RANGE_35_54,
-          Gender.MALE,
-          0.3f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-        )
-      val bucketForOtherMC = bucket.copy(measurementConsumerId = otherMeasurementConsumerId)
-      val dpCharge = DpCharge(0.01f, 0.0001f)
-      createBackingStore().use { backingStore: PrivacyBudgetLedgerBackingStore ->
-        backingStore.startTransaction().use { txContext: PrivacyBudgetLedgerTransactionContext ->
-          txContext.addLedgerEntries(
-            setOf(bucket),
-            setOf(dpCharge),
-            Reference(MEASUREMENT_CONSUMER_ID, requisitionId, false)
-          )
-
-          txContext.addLedgerEntries(
-            setOf(bucketForOtherMC),
-            setOf(dpCharge),
-            Reference(otherMeasurementConsumerId, requisitionId, false)
-          )
-          txContext.commit()
-        }
-
-        backingStore.startTransaction().use { txContext: PrivacyBudgetLedgerTransactionContext ->
-          val matchingBalanceEntries = txContext.findIntersectingBalanceEntries(bucket)
-          val otherMcMatchingBalanceEntries =
-            txContext.findIntersectingBalanceEntries(bucketForOtherMC)
-
-          assertThat(matchingBalanceEntries.size).isEqualTo(1)
-          assertThat(matchingBalanceEntries[0].repetitionCount).isEqualTo(1)
-
-          assertThat(otherMcMatchingBalanceEntries.size).isEqualTo(1)
-          assertThat(otherMcMatchingBalanceEntries[0].repetitionCount).isEqualTo(1)
-        }
-      }
-    }
 
   @Test(timeout = 15000)
   fun `hasLedgerEntry returns false when reference ledger is empty`() = runBlocking {
@@ -218,143 +51,6 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
   }
 
   @Test(timeout = 15000)
-  fun `commit() persists a transaction for dp ledger after it closes`() = runBlocking {
-    val backingStore = createBackingStore()
-    val txContext = backingStore.startTransaction()
-
-    val bucket1 =
-      PrivacyBucketGroup(
-        MEASUREMENT_CONSUMER_ID,
-        LocalDate.parse("2021-07-01"),
-        LocalDate.parse("2021-07-01"),
-        AgeGroup.RANGE_35_54,
-        Gender.MALE,
-        0.3f,
-        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-      )
-
-    val dpCharge = DpCharge(0.01f, 0.0001f)
-    txContext.addLedgerEntries(
-      setOf(bucket1),
-      setOf(dpCharge),
-      Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false)
-    )
-
-    val newBackingStore = createBackingStore()
-    newBackingStore.startTransaction().use { newTxContext ->
-      assertThat(newTxContext.findIntersectingBalanceEntries(bucket1).size).isEqualTo(0)
-    }
-
-    txContext.commit()
-    txContext.close()
-    backingStore.close()
-
-    newBackingStore.startTransaction().use { newTxContext ->
-      assertThat(newTxContext.findIntersectingBalanceEntries(bucket1).size).isEqualTo(1)
-    }
-    newBackingStore.close()
-  }
-
-  @Test(timeout = 15000)
-  fun `hasLedgerEntry returns true when dp ledger entry with same isRefund is found`() =
-    runBlocking {
-      val backingStore = createBackingStore()
-      val txContext1 = backingStore.startTransaction()
-      val bucket1 =
-        PrivacyBucketGroup(
-          MEASUREMENT_CONSUMER_ID,
-          LocalDate.parse("2021-07-01"),
-          LocalDate.parse("2021-07-01"),
-          AgeGroup.RANGE_35_54,
-          Gender.MALE,
-          0.3f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-        )
-
-      val dpCharge = DpCharge(0.01f, 0.0001f)
-      // charge works
-      txContext1.addLedgerEntries(
-        setOf(bucket1),
-        setOf(dpCharge),
-        Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false)
-      )
-
-      txContext1.commit()
-      val txContext2 = backingStore.startTransaction()
-
-      // backing store already has the ledger entry
-      assertThat(
-          txContext2.hasLedgerEntry(Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false))
-        )
-        .isTrue()
-
-      // but refund is allowed
-      assertThat(
-          txContext2.hasLedgerEntry(Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", true))
-        )
-        .isFalse()
-
-      // refund works
-      txContext2.addLedgerEntries(
-        setOf(bucket1),
-        setOf(dpCharge),
-        Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", true)
-      )
-      txContext2.commit()
-      val txContext3 = backingStore.startTransaction()
-      // now charge is allowed again
-      assertThat(
-          txContext3.hasLedgerEntry(Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false))
-        )
-        .isFalse()
-      txContext3.commit()
-      backingStore.close()
-    }
-
-  @Test(timeout = 15000)
-  fun `hasLedgerEntry returns true for dp ledger entry with same isRefund for multiple MCs`() =
-    runBlocking {
-      val backingStore = createBackingStore()
-      val txContext1 = backingStore.startTransaction()
-      val requisitionId = "RequisitionId1"
-      val bucket1 =
-        PrivacyBucketGroup(
-          MEASUREMENT_CONSUMER_ID,
-          LocalDate.parse("2021-07-01"),
-          LocalDate.parse("2021-07-01"),
-          AgeGroup.RANGE_35_54,
-          Gender.MALE,
-          0.3f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-        )
-
-      val dpCharge = DpCharge(0.01f, 0.0001f)
-      // charge works
-      txContext1.addLedgerEntries(
-        setOf(bucket1),
-        setOf(dpCharge),
-        Reference(MEASUREMENT_CONSUMER_ID, requisitionId, false)
-      )
-
-      txContext1.commit()
-      val txContext2 = backingStore.startTransaction()
-
-      // backing store already has the ledger entry
-      assertThat(
-          txContext2.hasLedgerEntry(Reference(MEASUREMENT_CONSUMER_ID, requisitionId, false))
-        )
-        .isTrue()
-      // but other measurement consumer can charge with the same RequisitionId is allowed
-      assertThat(
-          txContext2.hasLedgerEntry(Reference("OtherMeasurementConsumer", requisitionId, false))
-        )
-        .isFalse()
-
-      txContext2.commit()
-      backingStore.close()
-    }
-
-  @Test(timeout = 15000)
   fun `findAcdpBalanceEntry returns PrivacyBudgetAcdpBalanceEntry with zero AcdpCharge when acdpBalances table is empty`() =
     runBlocking {
       val bucket =
@@ -365,7 +61,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
           AgeGroup.RANGE_35_54,
           Gender.MALE,
           0.3f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         )
 
       val backingStore = createBackingStore()
@@ -391,7 +87,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
           AgeGroup.RANGE_35_54,
           Gender.MALE,
           0.3f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         )
 
       val bucket2 =
@@ -402,7 +98,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
           AgeGroup.RANGE_35_54,
           Gender.MALE,
           0.5f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         )
 
       val bucket3 =
@@ -413,7 +109,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
           AgeGroup.RANGE_35_54,
           Gender.FEMALE,
           0.3f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         )
 
       val backingStore = createBackingStore()
@@ -423,12 +119,12 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
       txContext1.addAcdpLedgerEntries(
         setOf(bucket1, bucket2, bucket3),
         setOf(acdpCharge),
-        Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false)
+        Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false),
       )
       txContext1.addAcdpLedgerEntries(
         setOf(bucket1),
         setOf(acdpCharge),
-        Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId2", false)
+        Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId2", false),
       )
       txContext1.commit()
 
@@ -463,7 +159,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
           AgeGroup.RANGE_35_54,
           Gender.MALE,
           0.3f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         )
       val bucketForOtherMC = bucket.copy(measurementConsumerId = otherMeasurementConsumerId)
       val acdpCharge = AcdpCharge(0.04, 5.0E-6)
@@ -473,13 +169,13 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
       txContext1.addAcdpLedgerEntries(
         setOf(bucket),
         setOf(acdpCharge),
-        Reference(MEASUREMENT_CONSUMER_ID, requisitionId, false)
+        Reference(MEASUREMENT_CONSUMER_ID, requisitionId, false),
       )
 
       txContext1.addAcdpLedgerEntries(
         setOf(bucketForOtherMC),
         setOf(acdpCharge),
-        Reference(otherMeasurementConsumerId, requisitionId, false)
+        Reference(otherMeasurementConsumerId, requisitionId, false),
       )
 
       txContext1.commit()
@@ -511,7 +207,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
           AgeGroup.RANGE_35_54,
           Gender.MALE,
           0.3f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         )
 
       val acdpCharge = AcdpCharge(0.04, 5.0E-6)
@@ -519,7 +215,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
       txContext1.addAcdpLedgerEntries(
         setOf(bucket1),
         setOf(acdpCharge),
-        Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false)
+        Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false),
       )
 
       txContext1.commit()
@@ -541,7 +237,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
       txContext2.addAcdpLedgerEntries(
         setOf(bucket1),
         setOf(acdpCharge),
-        Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", true)
+        Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", true),
       )
       txContext2.commit()
       val txContext3 = backingStore.startTransaction()
@@ -566,7 +262,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
           AgeGroup.RANGE_35_54,
           Gender.MALE,
           0.3f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         )
       val backingStore = createBackingStore()
 
@@ -576,7 +272,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
       txContext1.addAcdpLedgerEntries(
         setOf(bucket),
         setOf(acdpCharge),
-        Reference(MEASUREMENT_CONSUMER_ID, requisitionId, false)
+        Reference(MEASUREMENT_CONSUMER_ID, requisitionId, false),
       )
       txContext1.commit()
 
@@ -605,7 +301,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
         AgeGroup.RANGE_35_54,
         Gender.MALE,
         0.3f,
-        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
       )
     val acdpCharge = AcdpCharge(0.04, 5E-6)
 
@@ -615,7 +311,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
     txContext1.addAcdpLedgerEntries(
       setOf(bucket),
       setOf(acdpCharge),
-      Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false)
+      Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false),
     )
     txContext1.commit()
 
@@ -625,7 +321,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
     txContext2.addAcdpLedgerEntries(
       setOf(bucket),
       setOf(acdpCharge),
-      Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", true)
+      Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", true),
     )
     txContext2.commit()
 
@@ -654,14 +350,14 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
         AgeGroup.RANGE_35_54,
         Gender.MALE,
         0.3f,
-        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
       )
 
     val acdpCharge = AcdpCharge(0.04, 5E-6)
     txContext.addAcdpLedgerEntries(
       setOf(bucket),
       setOf(acdpCharge),
-      Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false)
+      Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false),
     )
 
     val newBackingStore = createBackingStore()

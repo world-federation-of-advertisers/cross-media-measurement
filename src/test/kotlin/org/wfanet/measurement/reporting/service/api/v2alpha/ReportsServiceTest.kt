@@ -21,8 +21,12 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.duration
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.Durations
+import com.google.type.DayOfWeek
 import com.google.type.Interval
+import com.google.type.date
+import com.google.type.dateTime
 import com.google.type.interval
+import com.google.type.timeZone
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Duration
@@ -56,7 +60,9 @@ import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.metricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.BatchGetMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.CreateReportRequestKt
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt as InternalMetricCalculationSpecKt
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec as InternalMetricSpec
@@ -72,10 +78,9 @@ import org.wfanet.measurement.internal.reporting.v2.createReportRequest as inter
 import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internalGetReportRequest
 import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec as internalMetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetricSpec
-import org.wfanet.measurement.internal.reporting.v2.periodicTimeInterval as internalPeriodicTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
-import org.wfanet.measurement.internal.reporting.v2.timeIntervals as Intervals
+import org.wfanet.measurement.internal.reporting.v2.timeIntervals as internalTimeIntervals
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.withReportScheduleInfoAndMeasurementConsumerPrincipal
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsRequest
@@ -89,6 +94,7 @@ import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.Report
+import org.wfanet.measurement.reporting.v2alpha.Report.ReportingInterval
 import org.wfanet.measurement.reporting.v2alpha.ReportKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
@@ -106,7 +112,6 @@ import org.wfanet.measurement.reporting.v2alpha.listReportsResponse
 import org.wfanet.measurement.reporting.v2alpha.metric
 import org.wfanet.measurement.reporting.v2alpha.metricResult
 import org.wfanet.measurement.reporting.v2alpha.metricSpec
-import org.wfanet.measurement.reporting.v2alpha.periodicTimeInterval
 import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
 import org.wfanet.measurement.reporting.v2alpha.timeIntervals
@@ -181,10 +186,7 @@ class ReportsServiceTest {
       .thenReturn(INTERNAL_REACH_REPORTS.pendingReport)
     onBlocking { streamReports(any()) }
       .thenReturn(
-        flowOf(
-          INTERNAL_REACH_REPORTS.pendingReport,
-          INTERNAL_WATCH_DURATION_REPORTS.pendingReport,
-        )
+        flowOf(INTERNAL_REACH_REPORTS.pendingReport, INTERNAL_WATCH_DURATION_REPORTS.pendingReport)
       )
   }
 
@@ -198,7 +200,7 @@ class ReportsServiceTest {
         val metricsMap =
           mapOf(
             RUNNING_REACH_METRIC.name to RUNNING_REACH_METRIC,
-            RUNNING_WATCH_DURATION_METRIC.name to RUNNING_WATCH_DURATION_METRIC
+            RUNNING_WATCH_DURATION_METRIC.name to RUNNING_WATCH_DURATION_METRIC,
           )
         batchGetMetricsResponse {
           metrics += request.namesList.map { metricName -> metricsMap.getValue(metricName) }
@@ -216,7 +218,7 @@ class ReportsServiceTest {
               INTERNAL_REACH_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId to
                 INTERNAL_REACH_METRIC_CALCULATION_SPEC,
               INTERNAL_WATCH_DURATION_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId to
-                INTERNAL_WATCH_DURATION_METRIC_CALCULATION_SPEC
+                INTERNAL_WATCH_DURATION_METRIC_CALCULATION_SPEC,
             )
           batchGetMetricCalculationSpecsResponse {
             metricCalculationSpecs +=
@@ -243,7 +245,7 @@ class ReportsServiceTest {
         InternalReportsCoroutineStub(grpcTestServerRule.channel),
         InternalMetricCalculationSpecsCoroutineStub(grpcTestServerRule.channel),
         MetricsCoroutineStub(grpcTestServerRule.channel),
-        METRIC_SPEC_CONFIG
+        METRIC_SPEC_CONFIG,
       )
   }
 
@@ -338,7 +340,7 @@ class ReportsServiceTest {
     val reportScheduleName =
       ReportScheduleKey(
           INTERNAL_REACH_REPORTS.initialReport.cmmsMeasurementConsumerId,
-          externalReportScheduleId
+          externalReportScheduleId,
         )
         .toName()
 
@@ -346,10 +348,10 @@ class ReportsServiceTest {
       withReportScheduleInfoAndMeasurementConsumerPrincipal(
         ReportScheduleInfoServerInterceptor.ReportScheduleInfo(
           reportScheduleName,
-          nextReportCreationTime
+          nextReportCreationTime,
         ),
         MEASUREMENT_CONSUMER_KEYS.first().toName(),
-        CONFIG
+        CONFIG,
       ) {
         runBlocking { service.createReport(request) }
       }
@@ -420,7 +422,7 @@ class ReportsServiceTest {
           interval {
             startTime = END_TIME
             endTime = END_INSTANT.plus(Duration.ofDays(1)).toProtoTime()
-          }
+          },
         )
 
       val intervals =
@@ -432,7 +434,7 @@ class ReportsServiceTest {
           interval {
             startTime = END_TIME
             endTime = END_INSTANT.plus(Duration.ofDays(1)).toProtoTime()
-          }
+          },
         )
 
       val initialReportingMetrics: List<InternalReport.ReportingMetric> =
@@ -446,7 +448,7 @@ class ReportsServiceTest {
           timeIntervals = intervals,
           reportingSetId = targetReportingSet.resourceId,
           reportingMetrics = initialReportingMetrics,
-          metricCalculationSpecId = REACH_METRIC_CALCULATION_SPEC_ID
+          metricCalculationSpecId = REACH_METRIC_CALCULATION_SPEC_ID,
         )
 
       whenever(
@@ -491,7 +493,7 @@ class ReportsServiceTest {
                   name =
                     MetricKey(
                         MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                        ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value
+                        ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value,
                       )
                       .toName()
                   state = Metric.State.RUNNING
@@ -551,6 +553,589 @@ class ReportsServiceTest {
     }
 
   @Test
+  fun `createReport returns report when reporting interval but no metric calc spec frequency`() =
+    runBlocking {
+      val reportingInterval =
+        ReportKt.reportingInterval {
+          reportStart = dateTime {
+            year = 2024
+            month = 1
+            day = 1
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          reportEnd = date {
+            year = 2024
+            month = 1
+            day = 3
+          }
+        }
+
+      val timeIntervals: List<Interval> = buildList {
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1704268800 // January 3, 2024 at 12:00 AM, America/Los_Angeles
+            }
+          }
+        )
+      }
+
+      assertReportCreatedWithReportingInterval(reportingInterval, timeIntervals, null, null)
+    }
+
+  @Test
+  fun `createReport returns report when metric calc spec freq daily`() = runBlocking {
+    val reportingInterval =
+      ReportKt.reportingInterval {
+        reportStart = dateTime {
+          year = 2024
+          month = 1
+          day = 1
+          timeZone = timeZone { id = "America/Los_Angeles" }
+        }
+        reportEnd = date {
+          year = 2024
+          month = 1
+          day = 3
+        }
+      }
+
+    val timeIntervals: List<Interval> = buildList {
+      add(
+        interval {
+          startTime = timestamp {
+            seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+          }
+          endTime = timestamp {
+            seconds = 1704182400 // January 2, 2024 at 12:00 AM, America/Los_Angeles
+          }
+        }
+      )
+      add(
+        interval {
+          startTime = timestamp {
+            seconds = 1704182400 // January 2, 2024 at 12:00 AM, America/Los_Angeles
+          }
+          endTime = timestamp {
+            seconds = 1704268800 // January 3, 2024 at 12:00 AM, America/Los_Angeles
+          }
+        }
+      )
+    }
+
+    val frequencySpec =
+      MetricCalculationSpecKt.metricFrequencySpec {
+        daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
+      }
+
+    val trailingWindow =
+      MetricCalculationSpecKt.trailingWindow {
+        count = 1
+        increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
+      }
+
+    assertReportCreatedWithReportingInterval(
+      reportingInterval,
+      timeIntervals,
+      frequencySpec,
+      trailingWindow,
+    )
+  }
+
+  @Test
+  fun `createReport returns report when metric calc spec freq weekly and day is start`() =
+    runBlocking {
+      val reportingInterval =
+        ReportKt.reportingInterval {
+          reportStart = dateTime {
+            year = 2024
+            month = 1
+            day = 1
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          reportEnd = date {
+            year = 2024
+            month = 1
+            day = 15
+          }
+        }
+
+      val timeIntervals: List<Interval> = buildList {
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1704700800 // January 8, 2024 at 12:00 AM, America/Los_Angeles
+            }
+          }
+        )
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1704700800 // January 8, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1705305600 // January 15, 2024 at 12:00 AM, America/Los_Angeles
+            }
+          }
+        )
+      }
+
+      val frequencySpec =
+        MetricCalculationSpecKt.metricFrequencySpec {
+          weekly =
+            MetricCalculationSpecKt.MetricFrequencySpecKt.weekly { dayOfWeek = DayOfWeek.MONDAY }
+        }
+
+      val trailingWindow =
+        MetricCalculationSpecKt.trailingWindow {
+          count = 1
+          increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+        }
+
+      assertReportCreatedWithReportingInterval(
+        reportingInterval,
+        timeIntervals,
+        frequencySpec,
+        trailingWindow,
+      )
+    }
+
+  @Test
+  fun `createReport returns report when metric calc spec freq weekly and day after start`() =
+    runBlocking {
+      val reportingInterval =
+        ReportKt.reportingInterval {
+          reportStart = dateTime {
+            year = 2024
+            month = 1
+            day = 1
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          reportEnd = date {
+            year = 2024
+            month = 1
+            day = 18
+          }
+        }
+
+      val timeIntervals: List<Interval> = buildList {
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1704182400 // January 2, 2024 at 12:00 AM, America/Los_Angeles
+            }
+          }
+        )
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1704182400 // January 2, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1704787200 // January 9, 2024 at 12:00 AM, America/Los_Angeles
+            }
+          }
+        )
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1704787200 // January 9, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1705392000 // January 16, 2024 at 12:00 AM, America/Los_Angeles
+            }
+          }
+        )
+      }
+
+      val frequencySpec =
+        MetricCalculationSpecKt.metricFrequencySpec {
+          weekly =
+            MetricCalculationSpecKt.MetricFrequencySpecKt.weekly { dayOfWeek = DayOfWeek.TUESDAY }
+        }
+
+      val trailingWindow =
+        MetricCalculationSpecKt.trailingWindow {
+          count = 1
+          increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+        }
+
+      assertReportCreatedWithReportingInterval(
+        reportingInterval,
+        timeIntervals,
+        frequencySpec,
+        trailingWindow,
+      )
+    }
+
+  @Test
+  fun `createReport returns report when metric calc spec freq monthly and day is start`() =
+    runBlocking {
+      val reportingInterval =
+        ReportKt.reportingInterval {
+          reportStart = dateTime {
+            year = 2024
+            month = 1
+            day = 1
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          reportEnd = date {
+            year = 2024
+            month = 3
+            day = 1
+          }
+        }
+
+      val timeIntervals: List<Interval> = buildList {
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1706774400 // February 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
+          }
+        )
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1706774400 // February 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1709280000 // March 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
+          }
+        )
+      }
+
+      val frequencySpec =
+        MetricCalculationSpecKt.metricFrequencySpec {
+          monthly = MetricCalculationSpecKt.MetricFrequencySpecKt.monthly { dayOfMonth = 1 }
+        }
+
+      val trailingWindow =
+        MetricCalculationSpecKt.trailingWindow {
+          count = 1
+          increment = MetricCalculationSpec.TrailingWindow.Increment.MONTH
+        }
+
+      assertReportCreatedWithReportingInterval(
+        reportingInterval,
+        timeIntervals,
+        frequencySpec,
+        trailingWindow,
+      )
+    }
+
+  @Test
+  fun `createReport returns report when metric calc spec freq monthly and day after start`() =
+    runBlocking {
+      val reportingInterval =
+        ReportKt.reportingInterval {
+          reportStart = dateTime {
+            year = 2024
+            month = 1
+            day = 5
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          reportEnd = date {
+            year = 2024
+            month = 3
+            day = 5
+          }
+        }
+
+      val timeIntervals: List<Interval> = buildList {
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1704441600 // January 5, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1706774400 // February 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
+          }
+        )
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1706774400 // February 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1709280000 // March 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
+          }
+        )
+      }
+
+      val frequencySpec =
+        MetricCalculationSpecKt.metricFrequencySpec {
+          monthly = MetricCalculationSpecKt.MetricFrequencySpecKt.monthly { dayOfMonth = 1 }
+        }
+
+      val trailingWindow =
+        MetricCalculationSpecKt.trailingWindow {
+          count = 1
+          increment = MetricCalculationSpec.TrailingWindow.Increment.MONTH
+        }
+
+      assertReportCreatedWithReportingInterval(
+        reportingInterval,
+        timeIntervals,
+        frequencySpec,
+        trailingWindow,
+      )
+    }
+
+  @Test
+  fun `createReport returns report when metric calc spec freq monthly and day in same month`() =
+    runBlocking {
+      val reportingInterval =
+        ReportKt.reportingInterval {
+          reportStart = dateTime {
+            year = 2024
+            month = 1
+            day = 1
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          reportEnd = date {
+            year = 2024
+            month = 3
+            day = 5
+          }
+        }
+
+      val timeIntervals: List<Interval> = buildList {
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1704441600 // January 5, 2024 at 12:00 AM, America/Los_Angeles
+            }
+          }
+        )
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1704441600 // January 5, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1707120000 // February 5, 2024 at 12:00 AM, America/Los_Angeles
+            }
+          }
+        )
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1707120000 // February 5, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1709625600 // March 5, 2024 at 12:00 AM, America/Los_Angeles
+            }
+          }
+        )
+      }
+
+      val frequencySpec =
+        MetricCalculationSpecKt.metricFrequencySpec {
+          monthly = MetricCalculationSpecKt.MetricFrequencySpecKt.monthly { dayOfMonth = 5 }
+        }
+
+      val trailingWindow =
+        MetricCalculationSpecKt.trailingWindow {
+          count = 1
+          increment = MetricCalculationSpec.TrailingWindow.Increment.MONTH
+        }
+
+      assertReportCreatedWithReportingInterval(
+        reportingInterval,
+        timeIntervals,
+        frequencySpec,
+        trailingWindow,
+      )
+    }
+
+  @Test
+  fun `createReport returns report when metric calc spec window 2 weeks`() = runBlocking {
+    val reportingInterval =
+      ReportKt.reportingInterval {
+        reportStart = dateTime {
+          year = 2024
+          month = 1
+          day = 1
+          timeZone = timeZone { id = "America/Los_Angeles" }
+        }
+        reportEnd = date {
+          year = 2024
+          month = 3
+          day = 5
+        }
+      }
+
+    val timeIntervals: List<Interval> = buildList {
+      add(
+        interval {
+          startTime = timestamp {
+            seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+          }
+          endTime = timestamp {
+            seconds = 1705305600 // January 15, 2024 at 12:00 AM, America/Los_Angeles
+          }
+        }
+      )
+      add(
+        interval {
+          startTime = timestamp {
+            seconds = 1706774400 // February 1, 2024 at 12:00 AM, America/Los_Angeles
+          }
+          endTime = timestamp {
+            seconds = 1707984000 // February 15, 2024 at 12:00 AM, America/Los_Angeles
+          }
+        }
+      )
+    }
+
+    val frequencySpec =
+      MetricCalculationSpecKt.metricFrequencySpec {
+        monthly = MetricCalculationSpecKt.MetricFrequencySpecKt.monthly { dayOfMonth = 15 }
+      }
+
+    val trailingWindow =
+      MetricCalculationSpecKt.trailingWindow {
+        count = 2
+        increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+      }
+
+    assertReportCreatedWithReportingInterval(
+      reportingInterval,
+      timeIntervals,
+      frequencySpec,
+      trailingWindow,
+    )
+  }
+
+  @Test
+  fun `createReport returns report when metric calc spec window creates interval before start`() =
+    runBlocking {
+      val reportingInterval =
+        ReportKt.reportingInterval {
+          reportStart = dateTime {
+            year = 2024
+            month = 1
+            day = 1
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          reportEnd = date {
+            year = 2024
+            month = 1
+            day = 3
+          }
+        }
+
+      val timeIntervals: List<Interval> = buildList {
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1704182400 // January 2, 2024 at 12:00 AM, America/Los_Angeles
+            }
+          }
+        )
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1704268800 // January 3, 2024 at 12:00 AM, America/Los_Angeles
+            }
+          }
+        )
+      }
+
+      val frequencySpec =
+        MetricCalculationSpecKt.metricFrequencySpec {
+          daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
+        }
+
+      val trailingWindow =
+        MetricCalculationSpecKt.trailingWindow {
+          count = 1
+          increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+        }
+
+      assertReportCreatedWithReportingInterval(
+        reportingInterval,
+        timeIntervals,
+        frequencySpec,
+        trailingWindow,
+      )
+    }
+
+  @Test
+  fun `createReport returns report when metric calculation spec window report_start`() =
+    runBlocking {
+      val reportingInterval =
+        ReportKt.reportingInterval {
+          reportStart = dateTime {
+            year = 2024
+            month = 1
+            day = 1
+            utcOffset = duration { seconds = 60 * 60 * -8 }
+          }
+          reportEnd = date {
+            year = 2024
+            month = 3
+            day = 5
+          }
+        }
+
+      val timeIntervals: List<Interval> = buildList {
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1705305600 // January 15, 2024 at 12:00 AM, America/Los_Angeles
+            }
+          }
+        )
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1707984000 // February 15, 2024 at 12:00 AM, America/Los_Angeles
+            }
+          }
+        )
+      }
+
+      val frequencySpec =
+        MetricCalculationSpecKt.metricFrequencySpec {
+          monthly = MetricCalculationSpecKt.MetricFrequencySpecKt.monthly { dayOfMonth = 15 }
+        }
+
+      assertReportCreatedWithReportingInterval(reportingInterval, timeIntervals, frequencySpec)
+    }
+
+  @Test
   fun `createReport returns report with two metrics when multiple filters`() = runBlocking {
     val targetReportingSet = PRIMITIVE_REPORTING_SETS.first()
 
@@ -570,7 +1155,6 @@ class ReportsServiceTest {
           groupings += InternalMetricCalculationSpecKt.grouping { predicates += predicates1 }
           groupings += InternalMetricCalculationSpecKt.grouping { predicates += predicates2 }
           this.filter = filter
-          cumulative = false
         }
     }
     whenever(internalMetricCalculationSpecsMock.batchGetMetricCalculationSpecs(any()))
@@ -601,7 +1185,7 @@ class ReportsServiceTest {
         timeIntervals = listOf(interval),
         reportingSetId = targetReportingSet.resourceId,
         reportingMetrics = initialReportingMetrics,
-        metricCalculationSpecId = internalMetricCalculationSpec.externalMetricCalculationSpecId
+        metricCalculationSpecId = internalMetricCalculationSpec.externalMetricCalculationSpecId,
       )
 
     whenever(
@@ -648,7 +1232,7 @@ class ReportsServiceTest {
                 name =
                   MetricKey(
                       MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                      ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value
+                      ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value,
                     )
                     .toName()
                 state = Metric.State.RUNNING
@@ -668,7 +1252,7 @@ class ReportsServiceTest {
               metricCalculationSpecs +=
                 MetricCalculationSpecKey(
                     MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                    internalMetricCalculationSpec.externalMetricCalculationSpecId
+                    internalMetricCalculationSpec.externalMetricCalculationSpecId,
                   )
                   .toName()
             }
@@ -735,7 +1319,6 @@ class ReportsServiceTest {
             displayName = DISPLAY_NAME
             this.metricSpecs += INTERNAL_REACH_METRIC_SPEC
             this.metricSpecs += INTERNAL_REACH_AND_FREQUENCY_METRIC_SPEC
-            cumulative = false
           }
       }
       whenever(internalMetricCalculationSpecsMock.batchGetMetricCalculationSpecs(any()))
@@ -756,7 +1339,7 @@ class ReportsServiceTest {
           timeIntervals = listOf(interval),
           reportingSetId = targetReportingSet.resourceId,
           reportingMetrics = initialReportingMetrics,
-          metricCalculationSpecId = internalMetricCalculationSpec.externalMetricCalculationSpecId
+          metricCalculationSpecId = internalMetricCalculationSpec.externalMetricCalculationSpecId,
         )
 
       whenever(
@@ -801,7 +1384,7 @@ class ReportsServiceTest {
                   name =
                     MetricKey(
                         MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                        ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value
+                        ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value,
                       )
                       .toName()
                   state = Metric.State.RUNNING
@@ -821,7 +1404,7 @@ class ReportsServiceTest {
                 metricCalculationSpecs +=
                   MetricCalculationSpecKey(
                       MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                      internalMetricCalculationSpec.externalMetricCalculationSpecId
+                      internalMetricCalculationSpec.externalMetricCalculationSpecId,
                     )
                     .toName()
               }
@@ -886,7 +1469,7 @@ class ReportsServiceTest {
           interval {
             startTime = END_TIME
             endTime = END_INSTANT.plus(Duration.ofDays(1)).toProtoTime()
-          }
+          },
         )
       val intervals =
         listOf(
@@ -897,7 +1480,7 @@ class ReportsServiceTest {
           interval {
             startTime = END_TIME
             endTime = END_INSTANT.plus(Duration.ofDays(1)).toProtoTime()
-          }
+          },
         )
 
       // Groupings
@@ -914,7 +1497,6 @@ class ReportsServiceTest {
             groupings += InternalMetricCalculationSpecKt.grouping { predicates += predicates1 }
             groupings += InternalMetricCalculationSpecKt.grouping { predicates += predicates2 }
             this.filter = filter
-            cumulative = false
           }
       }
       whenever(internalMetricCalculationSpecsMock.batchGetMetricCalculationSpecs(any()))
@@ -932,7 +1514,7 @@ class ReportsServiceTest {
         val reportingSet: String,
         val metricSpec: MetricSpec,
         val timeInterval: Interval,
-        val filters: List<String>
+        val filters: List<String>,
       )
       val metricConfigs =
         timeIntervalsList.flatMap { timeInterval ->
@@ -947,7 +1529,7 @@ class ReportsServiceTest {
         val reportingSetId: String,
         val metricSpec: InternalMetricSpec,
         val timeInterval: Interval,
-        val filters: List<String>
+        val filters: List<String>,
       )
       val reportingMetricConfigs =
         intervals.flatMap { timeInterval ->
@@ -957,7 +1539,7 @@ class ReportsServiceTest {
                 targetReportingSet.resourceId,
                 metricSpec,
                 timeInterval,
-                predicateGroup
+                predicateGroup,
               )
             }
           }
@@ -968,7 +1550,7 @@ class ReportsServiceTest {
           buildInitialReportingMetric(
             reportingMetricConfig.timeInterval,
             reportingMetricConfig.metricSpec,
-            reportingMetricConfig.filters
+            reportingMetricConfig.filters,
           )
         }
 
@@ -978,7 +1560,7 @@ class ReportsServiceTest {
           timeIntervals = intervals,
           reportingSetId = targetReportingSet.resourceId,
           reportingMetrics = initialReportingMetrics,
-          metricCalculationSpecId = internalMetricCalculationSpec.externalMetricCalculationSpecId
+          metricCalculationSpecId = internalMetricCalculationSpec.externalMetricCalculationSpecId,
         )
 
       whenever(
@@ -1025,7 +1607,7 @@ class ReportsServiceTest {
                   name =
                     MetricKey(
                         MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                        ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value
+                        ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value,
                       )
                       .toName()
                   state = Metric.State.RUNNING
@@ -1045,7 +1627,7 @@ class ReportsServiceTest {
                 metricCalculationSpecs +=
                   MetricCalculationSpecKey(
                       MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                      internalMetricCalculationSpec.externalMetricCalculationSpecId
+                      internalMetricCalculationSpec.externalMetricCalculationSpecId,
                     )
                     .toName()
               }
@@ -1108,7 +1690,6 @@ class ReportsServiceTest {
           InternalMetricCalculationSpecKt.details {
             displayName = DISPLAY_NAME
             metricSpecs += INTERNAL_REACH_METRIC_SPEC
-            cumulative = false
           }
       }
       whenever(internalMetricCalculationSpecsMock.batchGetMetricCalculationSpecs(any()))
@@ -1125,8 +1706,11 @@ class ReportsServiceTest {
 
       val internalRequestingReport = internalReport {
         cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
-        timeIntervals = Intervals { timeIntervals += interval }
-        details = InternalReportKt.details { tags.putAll(REPORT_TAGS) }
+        details =
+          InternalReportKt.details {
+            tags.putAll(REPORT_TAGS)
+            timeIntervals = internalTimeIntervals { timeIntervals += interval }
+          }
         reportingSetToCreateMetricRequestMap.forEach { (reportingSet, reportingMetric) ->
           val initialReportingMetrics = listOf(reportingMetric)
           reportingMetricEntries.putAll(
@@ -1134,7 +1718,7 @@ class ReportsServiceTest {
               reportingSetId = reportingSet.resourceId,
               reportingMetrics = initialReportingMetrics,
               metricCalculationSpecId =
-                internalMetricCalculationSpec.externalMetricCalculationSpecId
+                internalMetricCalculationSpec.externalMetricCalculationSpecId,
             )
           )
         }
@@ -1156,7 +1740,7 @@ class ReportsServiceTest {
                 reportingSetId = reportingSet.resourceId,
                 reportingMetrics = updatedReportingMetrics,
                 metricCalculationSpecId =
-                  internalMetricCalculationSpec.externalMetricCalculationSpecId
+                  internalMetricCalculationSpec.externalMetricCalculationSpecId,
               )
             )
           }
@@ -1181,7 +1765,7 @@ class ReportsServiceTest {
                 reportingSetId = reportingSet.resourceId,
                 reportingMetrics = updatedReportingMetrics,
                 metricCalculationSpecId =
-                  internalMetricCalculationSpec.externalMetricCalculationSpecId
+                  internalMetricCalculationSpec.externalMetricCalculationSpecId,
               )
             )
           }
@@ -1229,7 +1813,7 @@ class ReportsServiceTest {
                   name =
                     MetricKey(
                         MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                        ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value
+                        ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value,
                       )
                       .toName()
                   state = Metric.State.RUNNING
@@ -1250,7 +1834,7 @@ class ReportsServiceTest {
                   metricCalculationSpecs +=
                     MetricCalculationSpecKey(
                         MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                        internalMetricCalculationSpec.externalMetricCalculationSpecId
+                        internalMetricCalculationSpec.externalMetricCalculationSpecId,
                       )
                       .toName()
                 }
@@ -1314,7 +1898,6 @@ class ReportsServiceTest {
           InternalMetricCalculationSpecKt.details {
             displayName = DISPLAY_NAME
             metricSpecs += INTERNAL_REACH_METRIC_SPEC
-            cumulative = false
           }
       }
       whenever(internalMetricCalculationSpecsMock.batchGetMetricCalculationSpecs(any()))
@@ -1340,9 +1923,12 @@ class ReportsServiceTest {
           reportingMetrics += internalReportingMetric
         }
       val internalRequestingReport = internalReport {
-        details = InternalReportKt.details { tags.putAll(REPORT_TAGS) }
+        details =
+          InternalReportKt.details {
+            tags.putAll(REPORT_TAGS)
+            timeIntervals = internalTimeIntervals { timeIntervals += interval }
+          }
         cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
-        timeIntervals = Intervals { timeIntervals += interval }
         reportingMetricEntries.putAll(
           mapOf(
             targetReportingSet.resourceId to
@@ -1451,7 +2037,7 @@ class ReportsServiceTest {
                   name =
                     MetricKey(
                         MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                        ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value
+                        ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value,
                       )
                       .toName()
                   state = Metric.State.RUNNING
@@ -1471,7 +2057,7 @@ class ReportsServiceTest {
                 val metricCalculationSpecName =
                   MetricCalculationSpecKey(
                       MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                      internalMetricCalculationSpec.externalMetricCalculationSpecId
+                      internalMetricCalculationSpec.externalMetricCalculationSpecId,
                     )
                     .toName()
                 metricCalculationSpecs += metricCalculationSpecName
@@ -1521,12 +2107,16 @@ class ReportsServiceTest {
   fun `createReport returns report with MAX_BATCH_SIZE_FOR_BATCH_CREATE_METRICS plus 1 metrics`() =
     runBlocking {
       val internalMetricCalculationSpec = internalMetricCalculationSpec {
+        cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
         externalMetricCalculationSpecId = "1234"
         details =
           InternalMetricCalculationSpecKt.details {
             displayName = DISPLAY_NAME
             metricSpecs += INTERNAL_REACH_METRIC_SPEC
-            cumulative = true
+            metricFrequencySpec =
+              InternalMetricCalculationSpecKt.metricFrequencySpec {
+                daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
+              }
           }
       }
       whenever(internalMetricCalculationSpecsMock.batchGetMetricCalculationSpecs(any()))
@@ -1536,24 +2126,22 @@ class ReportsServiceTest {
           }
         )
 
-      val startSec = 10L
-      val incrementSec = 1L
+      val startSec = 1704096000L
+      val incrementSec = 60 * 60 * 24
       val intervalCount = BATCH_CREATE_METRICS_LIMIT + 1
 
-      val periodicTimeInterval = periodicTimeInterval {
-        startTime = timestamp { seconds = startSec }
-        increment = duration { seconds = incrementSec }
-        this.intervalCount = intervalCount
-      }
-      val endTimesList: List<Long> =
-        (startSec + incrementSec until startSec + incrementSec + intervalCount).toList()
-      val intervals: List<Interval> =
-        endTimesList.map { end ->
-          interval {
-            startTime = timestamp { seconds = startSec }
-            endTime = timestamp { seconds = end }
-          }
+      var endSec = startSec
+      val intervals: List<Interval> = buildList {
+        for (i in 1..intervalCount) {
+          endSec += incrementSec
+          add(
+            interval {
+              startTime = timestamp { seconds = startSec }
+              endTime = timestamp { seconds = endSec }
+            }
+          )
         }
+      }
 
       val reportingMetrics =
         intervals.map { timeInterval ->
@@ -1561,15 +2149,25 @@ class ReportsServiceTest {
         }
 
       val internalRequestingReport = internalReport {
-        details = InternalReportKt.details { tags.putAll(REPORT_TAGS) }
+        details =
+          InternalReportKt.details {
+            tags.putAll(REPORT_TAGS)
+            reportingInterval =
+              InternalReportKt.DetailsKt.reportingInterval {
+                reportStart = dateTime {
+                  year = 2024
+                  month = 1
+                  day = 1
+                  utcOffset = duration { seconds = 60 * 60 * -8 }
+                }
+                reportEnd = date {
+                  year = 2026
+                  month = 9
+                  day = 28
+                }
+              }
+          }
         cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
-
-        this.periodicTimeInterval = internalPeriodicTimeInterval {
-          startTime = timestamp { seconds = startSec }
-          increment = duration { seconds = incrementSec }
-          this.intervalCount = intervalCount
-        }
-
         reportingMetricEntries.putAll(
           buildInternalReportingMetricEntryWithOneMetricCalculationSpec(
             reportingSetId = PRIMITIVE_REPORTING_SETS.first().resourceId,
@@ -1619,17 +2217,7 @@ class ReportsServiceTest {
           )
         }
 
-      whenever(
-          internalReportsMock.createReport(
-            eq(
-              internalCreateReportRequest {
-                report = internalRequestingReport
-                externalReportId = "report-id"
-              }
-            )
-          )
-        )
-        .thenReturn(internalInitialReport)
+      whenever(internalReportsMock.createReport(any())).thenReturn(internalInitialReport)
 
       whenever(
           internalReportsMock.getReport(
@@ -1647,19 +2235,16 @@ class ReportsServiceTest {
         .thenReturn(
           batchCreateMetricsResponse {
             metrics +=
-              endTimesList.mapIndexed { index, end ->
+              intervals.mapIndexed { index, interval ->
                 metric {
                   name =
                     MetricKey(
                         MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                        ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value
+                        ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value,
                       )
                       .toName()
                   reportingSet = PRIMITIVE_REPORTING_SETS.first().name
-                  timeInterval = interval {
-                    startTime = timestamp { seconds = startSec }
-                    endTime = timestamp { seconds = end }
-                  }
+                  timeInterval = interval
                   metricSpec = REACH_METRIC_SPEC
                   state = Metric.State.RUNNING
                   createTime = Instant.now().toProtoTime()
@@ -1681,18 +2266,39 @@ class ReportsServiceTest {
                   metricCalculationSpecs +=
                     MetricCalculationSpecKey(
                         MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                        internalMetricCalculationSpec.externalMetricCalculationSpecId
+                        internalMetricCalculationSpec.externalMetricCalculationSpecId,
                       )
                       .toName()
                 }
             }
-          this.periodicTimeInterval = periodicTimeInterval
+          reportingInterval =
+            ReportKt.reportingInterval {
+              reportStart = dateTime {
+                year = 2024
+                month = 1
+                day = 1
+                utcOffset = duration { seconds = 60 * 60 * -8 }
+              }
+              reportEnd = date {
+                year = 2026
+                month = 9
+                day = 28
+              }
+            }
         }
       }
 
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
         runBlocking { service.createReport(request) }
       }
+
+      verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::createReport)
+        .isEqualTo(
+          internalCreateReportRequest {
+            report = internalRequestingReport
+            externalReportId = internalInitialReport.externalReportId
+          }
+        )
 
       val batchCreateMetricsCaptor: KArgumentCaptor<BatchCreateMetricsRequest> = argumentCaptor()
       verifyBlocking(metricsMock, times(2)) {
@@ -1911,6 +2517,413 @@ class ReportsServiceTest {
   }
 
   @Test
+  fun `createReport throws INVALID_ARGUMENT when no reporting interval but reporting freq`() {
+    runBlocking {
+      whenever(internalMetricCalculationSpecsMock.batchGetMetricCalculationSpecs(any()))
+        .thenReturn(
+          batchGetMetricCalculationSpecsResponse {
+            metricCalculationSpecs +=
+              INTERNAL_REACH_METRIC_CALCULATION_SPEC.copy {
+                details =
+                  INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.copy {
+                    metricFrequencySpec =
+                      MetricCalculationSpecKt.metricFrequencySpec {
+                        daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
+                      }
+                  }
+              }
+          }
+        )
+    }
+
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearName()
+          clearCreateTime()
+          clearState()
+        }
+      reportId = "report-id"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message)
+      .contains("metric_calculation_spec with metric_frequency_spec set not")
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when report_start is missing`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearName()
+          clearTime()
+          clearCreateTime()
+          clearState()
+          reportingInterval =
+            ReportKt.reportingInterval {
+              reportEnd = date {
+                year = 2024
+                month = 1
+                day = 1
+              }
+            }
+        }
+      reportId = "report-id"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("report_start")
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when report_start missing day`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearName()
+          clearTime()
+          clearCreateTime()
+          clearState()
+          reportingInterval =
+            ReportKt.reportingInterval {
+              reportStart = dateTime {
+                year = 2023
+                month = 1
+                timeZone = timeZone { id = "America/Los_Angeles" }
+              }
+              reportEnd = date {
+                year = 2024
+                month = 1
+                day = 1
+              }
+            }
+        }
+      reportId = "report-id"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("report_start")
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when report_start missing time offset`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearName()
+          clearTime()
+          clearCreateTime()
+          clearState()
+          reportingInterval =
+            ReportKt.reportingInterval {
+              reportStart = dateTime {
+                year = 2023
+                month = 1
+                day = 1
+              }
+              reportEnd = date {
+                year = 2024
+                month = 1
+                day = 1
+              }
+            }
+        }
+      reportId = "report-id"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("report_start")
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when report_start has invalid time zone`() {
+    runBlocking {
+      whenever(internalMetricCalculationSpecsMock.batchGetMetricCalculationSpecs(any()))
+        .thenReturn(
+          batchGetMetricCalculationSpecsResponse {
+            metricCalculationSpecs +=
+              INTERNAL_REACH_METRIC_CALCULATION_SPEC.copy {
+                details =
+                  INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.copy {
+                    metricFrequencySpec =
+                      MetricCalculationSpecKt.metricFrequencySpec {
+                        daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
+                      }
+                    trailingWindow =
+                      MetricCalculationSpecKt.trailingWindow {
+                        count = 1
+                        increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
+                      }
+                  }
+              }
+          }
+        )
+    }
+
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearName()
+          clearTime()
+          clearCreateTime()
+          clearState()
+          reportingInterval =
+            ReportKt.reportingInterval {
+              reportStart = dateTime {
+                year = 2023
+                month = 1
+                day = 1
+                timeZone = timeZone { id = "America/New_New_York" }
+              }
+              reportEnd = date {
+                year = 2024
+                month = 1
+                day = 1
+              }
+            }
+        }
+      reportId = "report-id"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("report_start.time_zone.id")
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when report_start has invalid utc offset`() {
+    runBlocking {
+      whenever(internalMetricCalculationSpecsMock.batchGetMetricCalculationSpecs(any()))
+        .thenReturn(
+          batchGetMetricCalculationSpecsResponse {
+            metricCalculationSpecs +=
+              INTERNAL_REACH_METRIC_CALCULATION_SPEC.copy {
+                details =
+                  INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.copy {
+                    metricFrequencySpec =
+                      MetricCalculationSpecKt.metricFrequencySpec {
+                        daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
+                      }
+                    trailingWindow =
+                      MetricCalculationSpecKt.trailingWindow {
+                        count = 1
+                        increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
+                      }
+                  }
+              }
+          }
+        )
+    }
+
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearName()
+          clearTime()
+          clearCreateTime()
+          clearState()
+          reportingInterval =
+            ReportKt.reportingInterval {
+              reportStart = dateTime {
+                year = 2023
+                month = 1
+                day = 1
+                utcOffset = duration { seconds = 999999 }
+              }
+              reportEnd = date {
+                year = 2024
+                month = 1
+                day = 1
+              }
+            }
+        }
+      reportId = "report-id"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("report_start.utc_offset")
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when reporting interval results in 0 time intervals`() {
+    runBlocking {
+      whenever(internalMetricCalculationSpecsMock.batchGetMetricCalculationSpecs(any()))
+        .thenReturn(
+          batchGetMetricCalculationSpecsResponse {
+            metricCalculationSpecs +=
+              INTERNAL_REACH_METRIC_CALCULATION_SPEC.copy {
+                details =
+                  INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.copy {
+                    metricFrequencySpec =
+                      MetricCalculationSpecKt.metricFrequencySpec {
+                        monthly =
+                          MetricCalculationSpecKt.MetricFrequencySpecKt.monthly { dayOfMonth = 15 }
+                      }
+                    trailingWindow =
+                      MetricCalculationSpecKt.trailingWindow {
+                        count = 1
+                        increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+                      }
+                  }
+              }
+          }
+        )
+    }
+
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearName()
+          clearTime()
+          clearCreateTime()
+          clearState()
+          reportingInterval =
+            ReportKt.reportingInterval {
+              reportStart = dateTime {
+                year = 2023
+                month = 1
+                day = 1
+                utcOffset = duration { seconds = 60 * 60 * -8 }
+              }
+              reportEnd = date {
+                year = 2023
+                month = 1
+                day = 5
+              }
+            }
+        }
+      reportId = "report-id"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("No time intervals")
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when report_start after report_end`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearName()
+          clearTime()
+          clearCreateTime()
+          clearState()
+          reportingInterval =
+            ReportKt.reportingInterval {
+              reportStart = dateTime {
+                year = 3000
+                month = 1
+                day = 1
+                timeZone = timeZone { id = "America/Los_Angeles" }
+              }
+              reportEnd = date {
+                year = 2024
+                month = 1
+                day = 1
+              }
+            }
+        }
+      reportId = "report-id"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("report_end")
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when report_end not a full date`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearName()
+          clearTime()
+          clearCreateTime()
+          clearState()
+          reportingInterval =
+            ReportKt.reportingInterval {
+              reportStart = dateTime {
+                year = 2023
+                month = 1
+                day = 1
+                timeZone = timeZone { id = "America/Los_Angeles" }
+              }
+              reportEnd = date {
+                year = 2024
+                day = 1
+              }
+            }
+        }
+      reportId = "report-id"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("full date")
+  }
+
+  @Test
   fun `createReport throws INVALID_ARGUMENT when metricCalculationSpec name is invalid`() {
     val request = createReportRequest {
       parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
@@ -1938,65 +2951,6 @@ class ReportsServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.message).contains("MetricCalculationSpec")
   }
-
-  @Test
-  fun `createReport throws INVALID_ARGUMENT when TimeIntervals is set and cumulative is true`() =
-    runBlocking {
-      val internalMetricCalculationSpec = internalMetricCalculationSpec {
-        externalMetricCalculationSpecId = "1234"
-        details =
-          InternalMetricCalculationSpecKt.details {
-            displayName = DISPLAY_NAME
-            metricSpecs += INTERNAL_REACH_METRIC_SPEC
-            cumulative = true
-          }
-      }
-      whenever(internalMetricCalculationSpecsMock.batchGetMetricCalculationSpecs(any()))
-        .thenReturn(
-          batchGetMetricCalculationSpecsResponse {
-            metricCalculationSpecs += internalMetricCalculationSpec
-          }
-        )
-
-      val request = createReportRequest {
-        parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
-        reportId = "report-id"
-        report =
-          PENDING_REACH_REPORT.copy {
-            clearName()
-            clearCreateTime()
-            clearState()
-            timeIntervals = timeIntervals {
-              timeIntervals += interval {
-                startTime = START_TIME
-                endTime = END_TIME
-              }
-            }
-            reportingMetricEntries.clear()
-            reportingMetricEntries +=
-              ReportKt.reportingMetricEntry {
-                key = PRIMITIVE_REPORTING_SETS.first().name
-                value =
-                  ReportKt.reportingMetricCalculationSpec {
-                    metricCalculationSpecs +=
-                      MetricCalculationSpecKey(
-                          MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                          internalMetricCalculationSpec.externalMetricCalculationSpecId
-                        )
-                        .toName()
-                  }
-              }
-          }
-      }
-
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
-            runBlocking { service.createReport(request) }
-          }
-        }
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    }
 
   @Test
   fun `createReport throws INVALID_ARGUMENT when TimeIntervals timeIntervalsList is empty`() {
@@ -2110,93 +3064,6 @@ class ReportsServiceTest {
   }
 
   @Test
-  fun `createReport throws INVALID_ARGUMENT when PeriodicTimeInterval startTime is unspecified`() {
-    val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
-      report =
-        PENDING_REACH_REPORT.copy {
-          clearName()
-          clearCreateTime()
-          clearState()
-          clearTime()
-          periodicTimeInterval = periodicTimeInterval {
-            increment = duration { seconds = 5 }
-            intervalCount = 3
-          }
-        }
-      reportId = "report-id"
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
-          runBlocking { service.createReport(request) }
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-  }
-
-  @Test
-  fun `createReport throws INVALID_ARGUMENT when PeriodicTimeInterval increment is unspecified`() {
-    val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
-      report =
-        PENDING_REACH_REPORT.copy {
-          clearName()
-          clearCreateTime()
-          clearState()
-          clearTime()
-          periodicTimeInterval = periodicTimeInterval {
-            startTime = timestamp {
-              seconds = 5
-              nanos = 5
-            }
-            intervalCount = 3
-          }
-        }
-      reportId = "report-id"
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
-          runBlocking { service.createReport(request) }
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-  }
-
-  @Test
-  fun `createReport throws INVALID_ARGUMENT when PeriodicTimeInterval intervalCount is 0`() {
-    val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
-      report =
-        PENDING_REACH_REPORT.copy {
-          clearName()
-          clearCreateTime()
-          clearState()
-          clearTime()
-          periodicTimeInterval = periodicTimeInterval {
-            startTime = timestamp {
-              seconds = 5
-              nanos = 5
-            }
-            increment = duration { seconds = 5 }
-          }
-        }
-      reportId = "report-id"
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
-          runBlocking { service.createReport(request) }
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-  }
-
-  @Test
   fun `createReport throws INVALID_ARGUMENT when reportingMetricEntries is empty`() {
     val request = createReportRequest {
       parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
@@ -2250,7 +3117,7 @@ class ReportsServiceTest {
     val reportingSetNameForOtherMC =
       ReportingSetKey(
           MEASUREMENT_CONSUMER_KEYS.last().measurementConsumerId,
-          ExternalId(120L).apiId.value
+          ExternalId(120L).apiId.value,
         )
         .toName()
     val request = createReportRequest {
@@ -2372,10 +3239,10 @@ class ReportsServiceTest {
         withReportScheduleInfoAndMeasurementConsumerPrincipal(
           ReportScheduleInfoServerInterceptor.ReportScheduleInfo(
             reportScheduleName,
-            nextReportCreationTime
+            nextReportCreationTime,
           ),
           measurementConsumerKey.toName(),
-          CONFIG
+          CONFIG,
         ) {
           runBlocking { service.createReport(request) }
         }
@@ -2402,10 +3269,10 @@ class ReportsServiceTest {
         withReportScheduleInfoAndMeasurementConsumerPrincipal(
           ReportScheduleInfoServerInterceptor.ReportScheduleInfo(
             "name123",
-            timestamp { seconds = 1000 }
+            timestamp { seconds = 1000 },
           ),
           MEASUREMENT_CONSUMER_KEYS.first().toName(),
-          CONFIG
+          CONFIG,
         ) {
           runBlocking { service.createReport(request) }
         }
@@ -2470,7 +3337,6 @@ class ReportsServiceTest {
               metricCalculationSpec = REACH_METRIC_CALCULATION_SPEC_NAME
               displayName = INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.displayName
               reportingSet = SUCCEEDED_REACH_METRIC.reportingSet
-              cumulative = INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.cumulative
               resultAttributes +=
                 ReportKt.MetricCalculationResultKt.resultAttribute {
                   metric = failedReachMetric.name
@@ -2498,19 +3364,22 @@ class ReportsServiceTest {
   @Test
   fun `getReport returns the report with RUNNING when there are more than max batch size metrics`():
     Unit = runBlocking {
-    val startSec = 10L
-    val incrementSec = 1L
+    val startSec = 1704096000L
+    val incrementSec = 60 * 60 * 24
     val intervalCount = BATCH_GET_METRICS_LIMIT + 1
 
-    val endTimesList: List<Long> =
-      (startSec + incrementSec until startSec + incrementSec + intervalCount).toList()
-    val intervals: List<Interval> =
-      endTimesList.map { end ->
-        interval {
-          startTime = timestamp { seconds = startSec }
-          endTime = timestamp { seconds = end }
-        }
+    var endSec = startSec
+    val intervals: List<Interval> = buildList {
+      for (i in 1..intervalCount) {
+        endSec += incrementSec
+        add(
+          interval {
+            startTime = timestamp { seconds = startSec }
+            endTime = timestamp { seconds = endSec }
+          }
+        )
       }
+    }
 
     val reportingMetrics =
       intervals.map { timeInterval ->
@@ -2518,12 +3387,12 @@ class ReportsServiceTest {
       }
 
     val internalMetricCalculationSpec = internalMetricCalculationSpec {
+      cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
       externalMetricCalculationSpecId = "1234"
       details =
         InternalMetricCalculationSpecKt.details {
           displayName = DISPLAY_NAME
           metricSpecs += INTERNAL_REACH_METRIC_SPEC
-          cumulative = true
         }
     }
     whenever(internalMetricCalculationSpecsMock.batchGetMetricCalculationSpecs(any()))
@@ -2534,15 +3403,25 @@ class ReportsServiceTest {
       )
 
     val internalPendingReport = internalReport {
-      details = InternalReportKt.details { tags.putAll(REPORT_TAGS) }
+      details =
+        InternalReportKt.details {
+          tags.putAll(REPORT_TAGS)
+          reportingInterval =
+            InternalReportKt.DetailsKt.reportingInterval {
+              reportStart = dateTime {
+                year = 2024
+                month = 1
+                day = 1
+                utcOffset = duration { seconds = 60 * 60 * -8 }
+              }
+              reportEnd = date {
+                year = 2026
+                month = 9
+                day = 28
+              }
+            }
+        }
       cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
-
-      this.periodicTimeInterval = internalPeriodicTimeInterval {
-        startTime = timestamp { seconds = startSec }
-        increment = duration { seconds = incrementSec }
-        this.intervalCount = intervalCount
-      }
-
       externalReportId = "report-id"
       createTime = Instant.now().toProtoTime()
 
@@ -2558,7 +3437,7 @@ class ReportsServiceTest {
         buildInternalReportingMetricEntryWithOneMetricCalculationSpec(
           reportingSetId = PRIMITIVE_REPORTING_SETS.first().resourceId,
           reportingMetrics = updatedReportingMetrics,
-          metricCalculationSpecId = internalMetricCalculationSpec.externalMetricCalculationSpecId
+          metricCalculationSpecId = internalMetricCalculationSpec.externalMetricCalculationSpecId,
         )
       )
     }
@@ -2579,19 +3458,16 @@ class ReportsServiceTest {
       .thenReturn(
         batchGetMetricsResponse {
           metrics +=
-            endTimesList.mapIndexed { index, end ->
+            intervals.mapIndexed { index, interval ->
               metric {
                 name =
                   MetricKey(
                       MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                      ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value
+                      ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value,
                     )
                     .toName()
                 reportingSet = PRIMITIVE_REPORTING_SETS.first().name
-                timeInterval = interval {
-                  startTime = timestamp { seconds = startSec }
-                  endTime = timestamp { seconds = end }
-                }
+                timeInterval = interval
                 metricSpec = REACH_METRIC_SPEC
                 state = Metric.State.RUNNING
                 createTime = Instant.now().toProtoTime()
@@ -2938,7 +3814,7 @@ class ReportsServiceTest {
         val metricsMap =
           mapOf(
             SUCCEEDED_REACH_METRIC.name to SUCCEEDED_REACH_METRIC,
-            SUCCEEDED_WATCH_DURATION_METRIC.name to SUCCEEDED_WATCH_DURATION_METRIC
+            SUCCEEDED_WATCH_DURATION_METRIC.name to SUCCEEDED_WATCH_DURATION_METRIC,
           )
         batchGetMetricsResponse {
           metrics += request.namesList.map { metricName -> metricsMap.getValue(metricName) }
@@ -2962,7 +3838,6 @@ class ReportsServiceTest {
                 metricCalculationSpec = WATCH_DURATION_METRIC_CALCULATION_SPEC_NAME
                 displayName = DISPLAY_NAME
                 reportingSet = SUCCEEDED_WATCH_DURATION_METRIC.reportingSet
-                cumulative = false
                 resultAttributes +=
                   ReportKt.MetricCalculationResultKt.resultAttribute {
                     metric = SUCCEEDED_WATCH_DURATION_METRIC.name
@@ -2999,7 +3874,7 @@ class ReportsServiceTest {
       val metricsMap =
         mapOf(
           failedReachMetric.name to failedReachMetric,
-          failedWatchDurationMetric.name to failedWatchDurationMetric
+          failedWatchDurationMetric.name to failedWatchDurationMetric,
         )
       batchGetMetricsResponse {
         metrics += request.namesList.map { metricName -> metricsMap.getValue(metricName) }
@@ -3022,7 +3897,6 @@ class ReportsServiceTest {
               metricCalculationSpec = REACH_METRIC_CALCULATION_SPEC_NAME
               displayName = INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.displayName
               reportingSet = SUCCEEDED_REACH_METRIC.reportingSet
-              cumulative = INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.cumulative
               resultAttributes +=
                 ReportKt.MetricCalculationResultKt.resultAttribute {
                   metric = failedReachMetric.name
@@ -3040,7 +3914,6 @@ class ReportsServiceTest {
               metricCalculationSpec = WATCH_DURATION_METRIC_CALCULATION_SPEC_NAME
               displayName = INTERNAL_WATCH_DURATION_METRIC_CALCULATION_SPEC.details.displayName
               reportingSet = SUCCEEDED_WATCH_DURATION_METRIC.reportingSet
-              cumulative = INTERNAL_WATCH_DURATION_METRIC_CALCULATION_SPEC.details.cumulative
               resultAttributes +=
                 ReportKt.MetricCalculationResultKt.resultAttribute {
                   metric = failedWatchDurationMetric.name
@@ -3197,6 +4070,174 @@ class ReportsServiceTest {
     assertThat(exception.message).contains("not a valid CEL expression")
   }
 
+  private fun assertReportCreatedWithReportingInterval(
+    reportingInterval: ReportingInterval,
+    timeIntervals: List<Interval>,
+    metricCalculationSpecFrequency: MetricCalculationSpec.MetricFrequencySpec?,
+    metricCalculationSpecTrailingWindow: MetricCalculationSpec.TrailingWindow? = null,
+  ) = runBlocking {
+    val targetReportingSet = PRIMITIVE_REPORTING_SETS.first()
+    val predicates = listOf("gender == MALE", "gender == FEMALE")
+    val filter = "device == MOBILE"
+
+    val internalMetricCalculationSpec = internalMetricCalculationSpec {
+      cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+      externalMetricCalculationSpecId = "1234"
+      details =
+        InternalMetricCalculationSpecKt.details {
+          displayName = DISPLAY_NAME
+          metricSpecs += INTERNAL_REACH_METRIC_SPEC
+          groupings += InternalMetricCalculationSpecKt.grouping { this.predicates += predicates }
+          this.filter = filter
+          if (metricCalculationSpecFrequency != null) {
+            metricFrequencySpec = metricCalculationSpecFrequency
+          }
+          if (metricCalculationSpecTrailingWindow != null) {
+            trailingWindow = metricCalculationSpecTrailingWindow
+          }
+        }
+    }
+
+    whenever(internalMetricCalculationSpecsMock.batchGetMetricCalculationSpecs(any()))
+      .thenReturn(
+        batchGetMetricCalculationSpecsResponse {
+          metricCalculationSpecs += internalMetricCalculationSpec
+        }
+      )
+
+    val initialReportingMetrics: List<InternalReport.ReportingMetric> =
+      timeIntervals
+        .map { interval ->
+          predicates.map { predicate ->
+            buildInitialReportingMetric(interval, INTERNAL_REACH_METRIC_SPEC, listOf(predicate))
+          }
+        }
+        .flatten()
+
+    val (internalRequestingReport, internalInitialReport, internalPendingReport) =
+      buildInternalReports(
+        cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
+        timeIntervals = null,
+        reportingSetId = targetReportingSet.resourceId,
+        reportingMetrics = initialReportingMetrics,
+        metricCalculationSpecId = internalMetricCalculationSpec.externalMetricCalculationSpecId,
+        reportingInterval =
+          InternalReportKt.DetailsKt.reportingInterval {
+            reportStart = reportingInterval.reportStart
+            reportEnd = reportingInterval.reportEnd
+          },
+      )
+
+    whenever(internalReportsMock.createReport(any())).thenReturn(internalInitialReport)
+
+    whenever(
+        internalReportsMock.getReport(
+          eq(
+            internalGetReportRequest {
+              cmmsMeasurementConsumerId = internalInitialReport.cmmsMeasurementConsumerId
+              externalReportId = internalInitialReport.externalReportId
+            }
+          )
+        )
+      )
+      .thenReturn(internalPendingReport)
+
+    val requestingMetrics: List<Metric> =
+      timeIntervals
+        .map { interval ->
+          predicates.map { predicate ->
+            metric {
+              reportingSet = targetReportingSet.name
+              timeInterval = interval
+              metricSpec = REACH_METRIC_SPEC
+              this.filters += predicate
+              this.filters += filter
+            }
+          }
+        }
+        .flatten()
+
+    whenever(metricsMock.batchCreateMetrics(any()))
+      .thenReturn(
+        batchCreateMetricsResponse {
+          metrics +=
+            requestingMetrics.mapIndexed { index, metric ->
+              metric.copy {
+                name =
+                  MetricKey(
+                      MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
+                      ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value,
+                    )
+                    .toName()
+                state = Metric.State.RUNNING
+                createTime = Instant.now().toProtoTime()
+              }
+            }
+        }
+      )
+
+    val requestingReport = report {
+      tags.putAll(REPORT_TAGS)
+      reportingMetricEntries +=
+        ReportKt.reportingMetricEntry {
+          key = targetReportingSet.name
+          value =
+            ReportKt.reportingMetricCalculationSpec {
+              metricCalculationSpecs +=
+                MetricCalculationSpecKey(
+                    MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
+                    internalMetricCalculationSpec.externalMetricCalculationSpecId,
+                  )
+                  .toName()
+            }
+        }
+      this.reportingInterval = reportingInterval
+    }
+
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      report = requestingReport
+      reportId = internalInitialReport.externalReportId
+    }
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        runBlocking { service.createReport(request) }
+      }
+
+    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::createReport)
+      .isEqualTo(
+        internalCreateReportRequest {
+          report = internalRequestingReport
+          externalReportId = internalInitialReport.externalReportId
+        }
+      )
+
+    verifyProtoArgument(metricsMock, MetricsCoroutineImplBase::batchCreateMetrics)
+      .isEqualTo(
+        batchCreateMetricsRequest {
+          parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+          requests +=
+            requestingMetrics.mapIndexed { requestId, metric ->
+              createMetricRequest {
+                parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+                this.metric = metric
+                this.requestId = ExternalId(REACH_METRIC_ID_BASE_LONG + requestId).apiId.value
+                metricId = "$METRIC_ID_PREFIX${this.requestId}"
+              }
+            }
+        }
+      )
+
+    assertThat(result)
+      .isEqualTo(
+        requestingReport.copy {
+          name = internalPendingReport.resourceName
+          state = Report.State.RUNNING
+          createTime = internalPendingReport.createTime
+        }
+      )
+  }
+
   companion object {
     private fun buildInitialReportingMetric(
       timeInterval: Interval,
@@ -3232,24 +4273,33 @@ class ReportsServiceTest {
 
     private fun buildInternalReports(
       cmmsMeasurementConsumerId: String,
-      timeIntervals: List<Interval>,
+      timeIntervals: List<Interval>?,
       reportingSetId: String,
       reportingMetrics: List<InternalReport.ReportingMetric>,
       metricCalculationSpecId: String,
       reportIdBase: String = "",
-      metricIdBaseLong: Long = REACH_METRIC_ID_BASE_LONG
+      metricIdBaseLong: Long = REACH_METRIC_ID_BASE_LONG,
+      reportingInterval: InternalReport.Details.ReportingInterval? = null,
     ): InternalReports {
       // Internal reports of reach
       val internalRequestingReport = internalReport {
-        details = InternalReportKt.details { tags.putAll(REPORT_TAGS) }
+        details =
+          InternalReportKt.details {
+            tags.putAll(REPORT_TAGS)
+            if (timeIntervals != null) {
+              this.timeIntervals = internalTimeIntervals { this.timeIntervals += timeIntervals }
+            }
+            if (reportingInterval != null) {
+              this.reportingInterval = reportingInterval
+            }
+          }
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-        this.timeIntervals = Intervals { this.timeIntervals += timeIntervals }
 
         reportingMetricEntries.putAll(
           buildInternalReportingMetricEntryWithOneMetricCalculationSpec(
             reportingSetId = reportingSetId,
             reportingMetrics = reportingMetrics,
-            metricCalculationSpecId = metricCalculationSpecId
+            metricCalculationSpecId = metricCalculationSpecId,
           )
         )
       }
@@ -3269,7 +4319,7 @@ class ReportsServiceTest {
             buildInternalReportingMetricEntryWithOneMetricCalculationSpec(
               reportingSetId = reportingSetId,
               reportingMetrics = initialReportingMetrics,
-              metricCalculationSpecId = metricCalculationSpecId
+              metricCalculationSpecId = metricCalculationSpecId,
             )
           )
         }
@@ -3287,7 +4337,7 @@ class ReportsServiceTest {
             buildInternalReportingMetricEntryWithOneMetricCalculationSpec(
               reportingSetId = reportingSetId,
               reportingMetrics = pendingReportingMetrics,
-              metricCalculationSpecId = metricCalculationSpecId
+              metricCalculationSpecId = metricCalculationSpecId,
             )
           )
         }
@@ -3307,7 +4357,7 @@ class ReportsServiceTest {
           name =
             ReportingSetKey(
                 MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                ExternalId(index + 110L).apiId.value
+                ExternalId(index + 110L).apiId.value,
               )
               .toName()
           filter = "AGE>18"
@@ -3513,7 +4563,7 @@ class ReportsServiceTest {
         name =
           MetricKey(
               MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-              ExternalId(REACH_METRIC_ID_BASE_LONG).apiId.value
+              ExternalId(REACH_METRIC_ID_BASE_LONG).apiId.value,
             )
             .toName()
         state = Metric.State.RUNNING
@@ -3530,7 +4580,7 @@ class ReportsServiceTest {
       name =
         MetricKey(
             MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-            ExternalId(WATCH_DURATION_METRIC_ID_BASE_LONG).apiId.value
+            ExternalId(WATCH_DURATION_METRIC_ID_BASE_LONG).apiId.value,
           )
           .toName()
       reportingSet = PRIMITIVE_REPORTING_SETS.first().name
@@ -3560,7 +4610,7 @@ class ReportsServiceTest {
           endTime = END_TIME
         },
         INTERNAL_REACH_METRIC_SPEC,
-        listOf()
+        listOf(),
       )
 
     private const val REACH_METRIC_CALCULATION_SPEC_ID = "R1234"
@@ -3573,7 +4623,6 @@ class ReportsServiceTest {
         InternalMetricCalculationSpecKt.details {
           displayName = DISPLAY_NAME
           metricSpecs += INTERNAL_REACH_METRIC_SPEC
-          cumulative = false
         }
     }
 
@@ -3590,7 +4639,7 @@ class ReportsServiceTest {
         reportingSetId = PRIMITIVE_REPORTING_SETS.first().resourceId,
         reportingMetrics = listOf(INITIAL_REACH_REPORTING_METRIC),
         metricCalculationSpecId = REACH_METRIC_CALCULATION_SPEC_ID,
-        reportIdBase = "reach-"
+        reportIdBase = "reach-",
       )
 
     private val INITIAL_WATCH_DURATION_REPORTING_METRIC =
@@ -3600,7 +4649,7 @@ class ReportsServiceTest {
           endTime = END_TIME
         },
         INTERNAL_WATCH_DURATION_METRIC_SPEC,
-        listOf()
+        listOf(),
       )
 
     private const val WATCH_DURATION_METRIC_CALCULATION_SPEC_ID = "W1234"
@@ -3613,7 +4662,6 @@ class ReportsServiceTest {
         InternalMetricCalculationSpecKt.details {
           displayName = DISPLAY_NAME
           metricSpecs += INTERNAL_WATCH_DURATION_METRIC_SPEC
-          cumulative = false
         }
     }
 
@@ -3631,7 +4679,7 @@ class ReportsServiceTest {
         reportingMetrics = listOf(INITIAL_WATCH_DURATION_REPORTING_METRIC),
         metricCalculationSpecId = WATCH_DURATION_METRIC_CALCULATION_SPEC_ID,
         reportIdBase = "duration-",
-        metricIdBaseLong = WATCH_DURATION_METRIC_ID_BASE_LONG
+        metricIdBaseLong = WATCH_DURATION_METRIC_ID_BASE_LONG,
       )
 
     // Public reports
@@ -3664,7 +4712,6 @@ class ReportsServiceTest {
             metricCalculationSpec = REACH_METRIC_CALCULATION_SPEC_NAME
             displayName = DISPLAY_NAME
             reportingSet = SUCCEEDED_REACH_METRIC.reportingSet
-            cumulative = false
             resultAttributes +=
               ReportKt.MetricCalculationResultKt.resultAttribute {
                 metric = SUCCEEDED_REACH_METRIC.name

@@ -49,7 +49,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.RevokeCertif
 
 class SpannerCertificatesService(
   private val idGenerator: IdGenerator,
-  private val client: AsyncDatabaseClient
+  private val client: AsyncDatabaseClient,
 ) : CertificatesCoroutineImplBase() {
   override suspend fun createCertificate(request: Certificate): Certificate {
     grpcRequire(request.parentCase != Certificate.ParentCase.PARENT_NOT_SET) {
@@ -68,7 +68,7 @@ class SpannerCertificatesService(
     } catch (e: CertSubjectKeyIdAlreadyExistsException) {
       throw e.asStatusRuntimeException(
         Status.Code.ALREADY_EXISTS,
-        "Certificate with the subject key identifier (SKID) already exists."
+        "Certificate with the subject key identifier (SKID) already exists.",
       )
     } catch (e: DuchyNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Duchy not found.")
@@ -89,7 +89,7 @@ class SpannerCertificatesService(
           CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
             .bindWhereClause(
               ExternalId(request.externalMeasurementConsumerId),
-              externalCertificateId
+              externalCertificateId,
             )
         GetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> {
           val duchyId =
@@ -149,7 +149,7 @@ class SpannerCertificatesService(
     } catch (e: CertificateRevocationStateIllegalException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Certificate is in wrong State."
+        "Certificate is in wrong State.",
       )
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error")
@@ -169,7 +169,7 @@ class SpannerCertificatesService(
     } catch (e: CertificateRevocationStateIllegalException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Certificate is in wrong State."
+        "Certificate is in wrong State.",
       )
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error")

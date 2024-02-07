@@ -58,6 +58,7 @@ import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
+import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
 import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
@@ -137,9 +138,15 @@ private val EVENT_GROUP: EventGroup = eventGroup {
   measurementConsumer = MEASUREMENT_CONSUMER_NAME
   eventGroupReferenceId = "aaa"
   measurementConsumerPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
+  // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this field.
+  signedMeasurementConsumerPublicKey = signedMessage {
+    message = this@eventGroup.measurementConsumerPublicKey
+  }
   vidModelLines.addAll(VID_MODEL_LINES)
   eventTemplates.addAll(EVENT_TEMPLATES)
   encryptedMetadata = ENCRYPTED_METADATA
+  // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this field.
+  serializedEncryptedMetadata = ENCRYPTED_METADATA.ciphertext
   state = EventGroup.State.ACTIVE
 }
 
@@ -188,7 +195,7 @@ class EventGroupsServiceTest {
         flowOf(
           INTERNAL_EVENT_GROUP,
           INTERNAL_EVENT_GROUP.copy { externalEventGroupId = EVENT_GROUP_EXTERNAL_ID_2 },
-          INTERNAL_EVENT_GROUP.copy { externalEventGroupId = EVENT_GROUP_EXTERNAL_ID_3 }
+          INTERNAL_EVENT_GROUP.copy { externalEventGroupId = EVENT_GROUP_EXTERNAL_ID_3 },
         )
       )
   }

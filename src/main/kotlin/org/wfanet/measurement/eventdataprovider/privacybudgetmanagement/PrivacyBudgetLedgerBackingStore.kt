@@ -16,20 +16,6 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 import java.time.Instant
 
 /**
- * Representation of a balance for [privacyBucketGroup] in the privacy budget ledger backing store.
- * Note that a given [privacyBucketGroup] may have multiple rows associated to it due to different
- * [dpCharge]s. The total charge to the PrivacyBucketGroup is obtained by aggregating all the
- * charges specified in all the rows for that bucket group. This aggregation may be non-linear,
- * e.g., determining total privacy budget usage is not as simple as just adding up the charges for
- * the individual rows.
- */
-data class PrivacyBudgetBalanceEntry(
-  val privacyBucketGroup: PrivacyBucketGroup,
-  val dpCharge: DpCharge,
-  val repetitionCount: Int
-)
-
-/**
  * Representation of an AcdpCharge balance for [privacyBucketGroup] in the privacy budget ledger
  * backing store. Note that a given [privacyBucketGroup] should only have one row associated to it
  * which is the aggregated [acdpCharge]s. When checking the privacy usage, the aggregated
@@ -48,7 +34,7 @@ data class PrivacyBudgetLedgerEntry(
   val measurementConsumerId: String,
   val referenceId: String,
   val isRefund: Boolean,
-  val createTime: Instant
+  val createTime: Instant,
 )
 /** Manages the persistence of privacy budget data. */
 interface PrivacyBudgetLedgerBackingStore : AutoCloseable {
@@ -78,14 +64,6 @@ interface PrivacyBudgetLedgerBackingStore : AutoCloseable {
 interface PrivacyBudgetLedgerTransactionContext : AutoCloseable {
 
   /**
-   * Returns a list of all rows within the privacy budget ledger where the PrivacyBucket of the row
-   * intersects with the given privacyBucket.
-   */
-  suspend fun findIntersectingBalanceEntries(
-    privacyBucketGroup: PrivacyBucketGroup
-  ): List<PrivacyBudgetBalanceEntry>
-
-  /**
    * Returns the row in the PrivacyBudgetAcdpBalance of the PrivacyBucket. Each PrivacyBucketGroup
    * should only have one row.
    */
@@ -94,23 +72,13 @@ interface PrivacyBudgetLedgerTransactionContext : AutoCloseable {
   ): PrivacyBudgetAcdpBalanceEntry
 
   /**
-   * Adds new entries to the PrivacyBudgetLedger specifying a DpCharge to a privacy budget, adds the
-   * [reference] that created these charges
-   */
-  suspend fun addLedgerEntries(
-    privacyBucketGroups: Set<PrivacyBucketGroup>,
-    dpCharges: Set<DpCharge>,
-    reference: Reference
-  )
-
-  /**
    * Adds new entries to the PrivacyBudgetAcdpLedger specifying a AcdpCharge to a privacy budget,
    * adds the [reference] that created these charges
    */
   suspend fun addAcdpLedgerEntries(
     privacyBucketGroups: Set<PrivacyBucketGroup>,
     acdpCharges: Set<AcdpCharge>,
-    reference: Reference
+    reference: Reference,
   )
 
   fun getQueryTotalAcdpCharge(acdpCharges: Set<AcdpCharge>, isRefund: Boolean): AcdpCharge {

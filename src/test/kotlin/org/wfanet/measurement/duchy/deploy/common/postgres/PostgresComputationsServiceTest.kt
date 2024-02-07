@@ -74,7 +74,7 @@ class PostgresComputationsServiceTest : ComputationsServiceTest<PostgresComputat
       computationStore = computationStore,
       requisitionStore = requisitionStore,
       computationLogEntriesClient = systemComputationLogEntriesClient,
-      clock = clock
+      clock = clock,
     )
   }
 

@@ -357,14 +357,14 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
         DataProviderCertificateKey::fromName,
         DuchyCertificateKey::fromName,
         MeasurementConsumerCertificateKey::fromName,
-        ModelProviderCertificateKey::fromName
+        ModelProviderCertificateKey::fromName,
       )
     private val CERTIFICATE_PARENT_KEY_PARSERS: List<(String) -> CertificateParentKey?> =
       listOf(
         DataProviderKey::fromName,
         DuchyKey::fromName,
         MeasurementConsumerKey::fromName,
-        ModelProviderKey::fromName
+        ModelProviderKey::fromName,
       )
 
     /**
@@ -442,7 +442,7 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
 
     private fun buildNextPageToken(
       internalFilter: StreamCertificatesRequest.Filter,
-      lastCertificate: InternalCertificate
+      lastCertificate: InternalCertificate,
     ) = listCertificatesPageToken {
       parentKey =
         ListCertificatesPageTokenKt.parentKey {
@@ -486,7 +486,7 @@ private fun InternalCertificate.toCertificate(): Certificate {
       InternalCertificate.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID ->
         MeasurementConsumerCertificateKey(
             externalIdToApiId(externalMeasurementConsumerId),
-            certificateApiId
+            certificateApiId,
           )
           .toName()
       InternalCertificate.ParentCase.EXTERNAL_DATA_PROVIDER_ID ->

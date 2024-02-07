@@ -61,7 +61,7 @@ import org.jetbrains.annotations.BlockingExecutor
 
 class KubernetesClient(
   val apiClient: ApiClient = Configuration.getDefaultApiClient(),
-  private val coroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO
+  private val coroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
 ) {
   private val coreApi = CoreV1Api(apiClient)
   private val appsApi = AppsV1Api(apiClient)
@@ -69,7 +69,7 @@ class KubernetesClient(
   /** Restarts a [V1Deployment] by adding an annotation. */
   suspend fun restartDeployment(
     name: String,
-    namespace: String = Namespaces.NAMESPACE_DEFAULT
+    namespace: String = Namespaces.NAMESPACE_DEFAULT,
   ): V1Deployment {
     return appsApi.restartDeployment(name, namespace)
   }
@@ -92,7 +92,7 @@ class KubernetesClient(
     name: String,
     key: String,
     value: String,
-    namespace: String = Namespaces.NAMESPACE_DEFAULT
+    namespace: String = Namespaces.NAMESPACE_DEFAULT,
   ): V1ConfigMap {
     return coreApi.updateConfigMap(name, key, value, namespace)
   }
@@ -105,7 +105,7 @@ class KubernetesClient(
 
   private fun <T : KubernetesObject> watch(
     call: okhttp3.Call,
-    typeToken: TypeToken<Watch.Response<T>>
+    typeToken: TypeToken<Watch.Response<T>>,
   ): Flow<Watch.Response<T>> {
     return channelFlow {
         val closed = AtomicBoolean(false)
@@ -136,7 +136,7 @@ class KubernetesClient(
   suspend fun waitUntilDeploymentReady(
     name: String,
     namespace: String = Namespaces.NAMESPACE_DEFAULT,
-    timeout: Duration
+    timeout: Duration,
   ): V1Deployment {
     return watch<V1Deployment>(
         appsApi.listNamespacedDeploymentCall(
@@ -151,7 +151,7 @@ class KubernetesClient(
           null,
           timeout.seconds.toInt(),
           true,
-          null
+          null,
         )
       )
       .filter { response: Watch.Response<V1Deployment> ->
@@ -172,7 +172,7 @@ class KubernetesClient(
     return waitUntilDeploymentReady(
       requireNotNull(deployment.metadata?.name),
       requireNotNull(deployment.metadata?.namespace),
-      timeout
+      timeout,
     )
   }
 
@@ -180,7 +180,7 @@ class KubernetesClient(
   suspend fun waitForServiceAccount(
     name: String,
     namespace: String = Namespaces.NAMESPACE_DEFAULT,
-    timeout: Duration
+    timeout: Duration,
   ): V1ServiceAccount {
     return watch<V1ServiceAccount>(
         coreApi.listNamespacedServiceAccountCall(
@@ -195,7 +195,7 @@ class KubernetesClient(
           null,
           timeout.seconds.toInt(),
           true,
-          null
+          null,
         )
       )
       .filter {
@@ -251,7 +251,7 @@ private suspend fun AppsV1Api.restartDeployment(name: String, namespace: String)
     listOf(
       JsonPatchOperation.add(
         "/spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt",
-        DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.now())
+        DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.now()),
       )
     )
   return apiCall { callback ->
@@ -264,7 +264,7 @@ private suspend fun AppsV1Api.restartDeployment(name: String, namespace: String)
       null,
       null,
       null,
-      callback
+      callback,
     )
   }
 }
@@ -295,7 +295,7 @@ private suspend fun CoreV1Api.listPods(labelSelector: String, namespace: String)
       null,
       null,
       null,
-      callback
+      callback,
     )
   }
 }
@@ -304,7 +304,7 @@ private suspend fun CoreV1Api.updateConfigMap(
   name: String,
   key: String,
   value: String,
-  namespace: String
+  namespace: String,
 ): V1ConfigMap {
   val patchOps = listOf(JsonPatchOperation.add("/data/$key", value))
   return apiCall { callback ->
@@ -317,7 +317,7 @@ private suspend fun CoreV1Api.updateConfigMap(
       null,
       null,
       null,
-      callback
+      callback,
     )
   }
 }
@@ -336,11 +336,7 @@ private constructor(private val delegate: CompletableDeferred<T>) :
     delegate.completeExceptionally(e)
   }
 
-  override fun onSuccess(
-    result: T,
-    statusCode: Int,
-    responseHeaders: Map<String, List<String>>,
-  ) {
+  override fun onSuccess(result: T, statusCode: Int, responseHeaders: Map<String, List<String>>) {
     delegate.complete(result)
   }
 

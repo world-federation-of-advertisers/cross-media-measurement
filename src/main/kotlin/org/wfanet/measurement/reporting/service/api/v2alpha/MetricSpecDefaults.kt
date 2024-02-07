@@ -55,7 +55,7 @@ fun MetricSpec.withDefaults(metricSpecConfig: MetricSpecConfig): MetricSpec {
         MetricSpec.TypeCase.TYPE_NOT_SET ->
           throw MetricSpecDefaultsException(
             "Invalid metric spec type",
-            IllegalArgumentException("The metric type in Metric is not specified.")
+            IllegalArgumentException("The metric type in Metric is not specified."),
           )
       }
 
@@ -69,25 +69,25 @@ fun MetricSpec.withDefaults(metricSpecConfig: MetricSpecConfig): MetricSpec {
       if (vidSamplingInterval.start < 0) {
         throw MetricSpecDefaultsException(
           "Invalid vidSamplingInterval",
-          IllegalArgumentException("vidSamplingInterval.start cannot be negative.")
+          IllegalArgumentException("vidSamplingInterval.start cannot be negative."),
         )
       }
       if (vidSamplingInterval.start >= 1) {
         throw MetricSpecDefaultsException(
           "Invalid vidSamplingInterval",
-          IllegalArgumentException("vidSamplingInterval.start must be smaller than 1.")
+          IllegalArgumentException("vidSamplingInterval.start must be smaller than 1."),
         )
       }
       if (vidSamplingInterval.width <= 0) {
         throw MetricSpecDefaultsException(
           "Invalid vidSamplingInterval",
-          IllegalArgumentException("vidSamplingInterval.width must be greater than 0.")
+          IllegalArgumentException("vidSamplingInterval.width must be greater than 0."),
         )
       }
       if (vidSamplingInterval.start + vidSamplingInterval.width > 1) {
         throw MetricSpecDefaultsException(
           "Invalid vidSamplingInterval",
-          IllegalArgumentException("vidSamplingInterval start + width cannot be greater than 1.")
+          IllegalArgumentException("vidSamplingInterval start + width cannot be greater than 1."),
         )
       }
     }
@@ -104,7 +104,7 @@ private fun MetricSpec.ReachParams.withDefaults(
   if (!hasPrivacyParams()) {
     throw MetricSpecDefaultsException(
       "Invalid privacy params",
-      IllegalArgumentException("privacyParams in reach is not set.")
+      IllegalArgumentException("privacyParams in reach is not set."),
     )
   }
 
@@ -112,7 +112,7 @@ private fun MetricSpec.ReachParams.withDefaults(
     privacyParams =
       privacyParams.withDefaults(
         metricSpecConfig.reachParams.privacyParams.epsilon,
-        metricSpecConfig.reachParams.privacyParams.delta
+        metricSpecConfig.reachParams.privacyParams.delta,
       )
   }
 }
@@ -127,13 +127,13 @@ private fun MetricSpec.ReachAndFrequencyParams.withDefaults(
   if (!hasReachPrivacyParams()) {
     throw MetricSpecDefaultsException(
       "Invalid privacy params",
-      IllegalArgumentException("reachPrivacyParams in reach-and-frequency is not set.")
+      IllegalArgumentException("reachPrivacyParams in reach-and-frequency is not set."),
     )
   }
   if (!hasFrequencyPrivacyParams()) {
     throw MetricSpecDefaultsException(
       "Invalid privacy params",
-      IllegalArgumentException("frequencyPrivacyParams in reach-and-frequency  is not set.")
+      IllegalArgumentException("frequencyPrivacyParams in reach-and-frequency  is not set."),
     )
   }
 
@@ -141,12 +141,12 @@ private fun MetricSpec.ReachAndFrequencyParams.withDefaults(
     reachPrivacyParams =
       reachPrivacyParams.withDefaults(
         metricSpecConfig.reachAndFrequencyParams.reachPrivacyParams.epsilon,
-        metricSpecConfig.reachAndFrequencyParams.reachPrivacyParams.delta
+        metricSpecConfig.reachAndFrequencyParams.reachPrivacyParams.delta,
       )
     frequencyPrivacyParams =
       frequencyPrivacyParams.withDefaults(
         metricSpecConfig.reachAndFrequencyParams.frequencyPrivacyParams.epsilon,
-        metricSpecConfig.reachAndFrequencyParams.frequencyPrivacyParams.delta
+        metricSpecConfig.reachAndFrequencyParams.frequencyPrivacyParams.delta,
       )
     if (maximumFrequency == 0) {
       maximumFrequency = metricSpecConfig.reachAndFrequencyParams.maximumFrequency
@@ -164,7 +164,7 @@ private fun MetricSpec.WatchDurationParams.withDefaults(
   if (!hasPrivacyParams()) {
     throw MetricSpecDefaultsException(
       "Invalid privacy params",
-      IllegalArgumentException("privacyParams in watch duration is not set.")
+      IllegalArgumentException("privacyParams in watch duration is not set."),
     )
   }
 
@@ -172,7 +172,7 @@ private fun MetricSpec.WatchDurationParams.withDefaults(
     privacyParams =
       privacyParams.withDefaults(
         metricSpecConfig.watchDurationParams.privacyParams.epsilon,
-        metricSpecConfig.watchDurationParams.privacyParams.delta
+        metricSpecConfig.watchDurationParams.privacyParams.delta,
       )
     maximumWatchDurationPerUser =
       if (hasMaximumWatchDurationPerUser()) {
@@ -193,7 +193,7 @@ private fun MetricSpec.ImpressionCountParams.withDefaults(
   if (!hasPrivacyParams()) {
     throw MetricSpecDefaultsException(
       "Invalid privacy params",
-      IllegalArgumentException("privacyParams in impression count is not set.")
+      IllegalArgumentException("privacyParams in impression count is not set."),
     )
   }
 
@@ -201,7 +201,7 @@ private fun MetricSpec.ImpressionCountParams.withDefaults(
     privacyParams =
       privacyParams.withDefaults(
         metricSpecConfig.impressionCountParams.privacyParams.epsilon,
-        metricSpecConfig.impressionCountParams.privacyParams.delta
+        metricSpecConfig.impressionCountParams.privacyParams.delta,
       )
     maximumFrequencyPerUser =
       if (hasMaximumFrequencyPerUser()) {
@@ -218,7 +218,7 @@ private fun MetricSpec.ImpressionCountParams.withDefaults(
  */
 private fun MetricSpec.DifferentialPrivacyParams.withDefaults(
   defaultEpsilon: Double,
-  defaultDelta: Double
+  defaultDelta: Double,
 ): MetricSpec.DifferentialPrivacyParams {
   return copy {
     epsilon = if (hasEpsilon()) epsilon else defaultEpsilon

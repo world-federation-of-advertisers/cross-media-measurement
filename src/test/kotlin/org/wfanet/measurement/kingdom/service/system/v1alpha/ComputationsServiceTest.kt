@@ -291,7 +291,7 @@ class ComputationsServiceTest {
   private val service =
     ComputationsService(
       InternalMeasurementsCoroutineStub(grpcTestServerRule.channel),
-      duchyIdProvider
+      duchyIdProvider,
     )
 
   @Test
@@ -381,7 +381,7 @@ class ComputationsServiceTest {
       )
     verifyProtoArgument(
         internalMeasurementsServiceMock,
-        InternalMeasurementsCoroutineService::getMeasurementByComputationId
+        InternalMeasurementsCoroutineService::getMeasurementByComputationId,
       )
       .isEqualTo(
         GetMeasurementByComputationIdRequest.newBuilder()
@@ -477,7 +477,7 @@ class ComputationsServiceTest {
       )
     verifyProtoArgument(
         internalMeasurementsServiceMock,
-        InternalMeasurementsCoroutineService::getMeasurementByComputationId
+        InternalMeasurementsCoroutineService::getMeasurementByComputationId,
       )
       .isEqualTo(
         getMeasurementByComputationIdRequest { externalComputationId = EXTERNAL_COMPUTATION_ID }
@@ -515,13 +515,13 @@ class ComputationsServiceTest {
         expectedResponse(101),
         expectedResponse(102),
         expectedResponse(103),
-        expectedResponse(104)
+        expectedResponse(104),
       )
       .inOrder()
 
     fun expectedStreamMeasurementsRequest(
       lastSeenUpdateTimeSeconds: Long,
-      lastSeenExternalComputationId: Long
+      lastSeenExternalComputationId: Long,
     ): StreamMeasurementsRequest = streamMeasurementsRequest {
       measurementView = InternalMeasurement.View.COMPUTATION
       filter = filter {
@@ -532,7 +532,7 @@ class ComputationsServiceTest {
             InternalMeasurement.State.PENDING_COMPUTATION,
             InternalMeasurement.State.FAILED,
             InternalMeasurement.State.CANCELLED,
-            InternalMeasurement.State.SUCCEEDED
+            InternalMeasurement.State.SUCCEEDED,
           )
         externalDuchyId = DUCHY_ID
         if (lastSeenExternalComputationId != 0L) {
@@ -554,7 +554,7 @@ class ComputationsServiceTest {
           .containsExactly(
             expectedStreamMeasurementsRequest(0, 0),
             expectedStreamMeasurementsRequest(1001, 101),
-            expectedStreamMeasurementsRequest(1003, 103)
+            expectedStreamMeasurementsRequest(1003, 103),
           )
           .inOrder()
       }
@@ -581,7 +581,7 @@ class ComputationsServiceTest {
 
     verifyProtoArgument(
         internalMeasurementsServiceMock,
-        InternalMeasurementsCoroutineService::setMeasurementResult
+        InternalMeasurementsCoroutineService::setMeasurementResult,
       )
       .isEqualTo(
         SetMeasurementResultRequest.newBuilder()

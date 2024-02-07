@@ -1,4 +1,4 @@
-load("@wfa_common_jvm//build/rules_kotlin:defs.bzl", "kt_jvm_library")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(
     default_testonly = True,
@@ -25,7 +25,7 @@ kt_jvm_library(
     srcs = ["MetadataBigQueryEventQuery.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:bigquery_event_query",
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:test_metadata_messages_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:test_metadata_message_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:key_storage",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
     ],
@@ -41,6 +41,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:api_key_authentication_server_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/common:sample_vids",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:test_identifiers",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:vid_sampling",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:event_query",
@@ -63,7 +64,6 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/org/apache/commons:math3",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:jdk8",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:hashing",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
     ],

@@ -45,7 +45,7 @@ class PostgresReportsService(
     } catch (e: MeasurementCalculationTimeIntervalNotFoundException) {
       throw e.asStatusRuntimeException(
         Status.Code.INVALID_ARGUMENT,
-        "Measurement Calculation Time Interval not found in Report"
+        "Measurement Calculation Time Interval not found in Report",
       )
     }
   }
@@ -57,7 +57,7 @@ class PostgresReportsService(
           .getReportByExternalId(
             client.singleUse(),
             request.measurementConsumerReferenceId,
-            request.externalReportId
+            request.externalReportId,
           )
           .report
       }
@@ -75,7 +75,7 @@ class PostgresReportsService(
           .getReportByIdempotencyKey(
             client.singleUse(),
             request.measurementConsumerReferenceId,
-            request.reportIdempotencyKey
+            request.reportIdempotencyKey,
           )
           .report
       }

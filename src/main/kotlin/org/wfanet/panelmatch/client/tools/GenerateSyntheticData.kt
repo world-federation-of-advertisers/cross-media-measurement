@@ -45,7 +45,7 @@ private val UNTIL_TIME =
 
 @Command(
   name = "generate-synthetic-data",
-  description = ["Generates synthetic data for Panel Match."]
+  description = ["Generates synthetic data for Panel Match."],
 )
 class GenerateSyntheticData : Runnable {
   @set:Option(
@@ -60,7 +60,7 @@ class GenerateSyntheticData : Runnable {
     names = ["--unprocessed_events_output_path"],
     description = ["Path to the file where UnprocessedEvent protos will be written."],
     required = false,
-    defaultValue = "edp-unprocessed-events"
+    defaultValue = "edp-unprocessed-events",
   )
   private lateinit var unprocessedEventsFile: File
 
@@ -68,7 +68,7 @@ class GenerateSyntheticData : Runnable {
     names = ["--join_keys_output_path"],
     description = ["Path to the file where JoinKeyAndIdCollection proto will be written."],
     required = false,
-    defaultValue = "mp-plaintext-join-keys"
+    defaultValue = "mp-plaintext-join-keys",
   )
   private lateinit var joinKeysFile: File
 
@@ -76,7 +76,7 @@ class GenerateSyntheticData : Runnable {
     names = ["--join_key_sample_rate"],
     description = ["The sample rate [0, 1] used for selecting an UnprocessedEvent proto."],
     required = true,
-    defaultValue = "0.0005"
+    defaultValue = "0.0005",
   )
   var sampleRate by Delegates.notNull<Double>()
     private set
@@ -91,7 +91,7 @@ class GenerateSyntheticData : Runnable {
   @Option(
     names = ["--compression_parameters_output_path"],
     description = ["Path to the file where the CompressionParameters proto will be written."],
-    required = false
+    required = false,
   )
   private lateinit var brotliOutputFile: File
 
@@ -105,7 +105,7 @@ class GenerateSyntheticData : Runnable {
   @Option(
     names = ["--previous_join_keys_output_path"],
     description = ["Path to the file where previous day's join keys will be copied to."],
-    required = false
+    required = false,
   )
   private lateinit var joinKeyOutputFile: File
 

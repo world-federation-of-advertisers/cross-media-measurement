@@ -21,6 +21,7 @@ import kotlin.random.Random
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
@@ -40,19 +41,22 @@ abstract class EdpSimulatorRunner : Runnable {
   protected lateinit var flags: EdpSimulatorFlags
     private set
 
-  protected fun run(eventQuery: EventQuery<Message>, eventGroupMetadata: Message) {
+  protected fun run(
+    eventQuery: EventQuery<Message>,
+    metadataByReferenceIdSuffix: Map<String, Message>,
+  ) {
     val clientCerts =
       SigningCerts.fromPemFiles(
         certificateFile = flags.tlsFlags.certFile,
         privateKeyFile = flags.tlsFlags.privateKeyFile,
-        trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
+        trustedCertCollectionFile = flags.tlsFlags.certCollectionFile,
       )
 
     val v2AlphaPublicApiChannel: ManagedChannel =
       buildMutualTlsChannel(
         flags.kingdomPublicApiFlags.target,
         clientCerts,
-        flags.kingdomPublicApiFlags.certHost
+        flags.kingdomPublicApiFlags.certHost,
       )
     val requisitionsStub = RequisitionsCoroutineStub(v2AlphaPublicApiChannel)
     val eventGroupsStub = EventGroupsCoroutineStub(v2AlphaPublicApiChannel)
@@ -60,6 +64,7 @@ abstract class EdpSimulatorRunner : Runnable {
       EventGroupMetadataDescriptorsCoroutineStub(v2AlphaPublicApiChannel)
     val measurementConsumersStub = MeasurementConsumersCoroutineStub(v2AlphaPublicApiChannel)
     val certificatesStub = CertificatesCoroutineStub(v2AlphaPublicApiChannel)
+    val dataProvidersStub = DataProvidersCoroutineStub(v2AlphaPublicApiChannel)
 
     val requisitionFulfillmentStub =
       RequisitionFulfillmentCoroutineStub(
@@ -96,6 +101,7 @@ abstract class EdpSimulatorRunner : Runnable {
         flags.mcResourceName,
         measurementConsumersStub,
         certificatesStub,
+        dataProvidersStub,
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
@@ -105,10 +111,9 @@ abstract class EdpSimulatorRunner : Runnable {
         createNoOpPrivacyBudgetManager(),
         clientCerts.trustedCertificates,
         random = random,
-        compositionMechanism = flags.compositionMechanism,
       )
     runBlocking {
-      edpSimulator.ensureEventGroup(eventGroupMetadata)
+      edpSimulator.ensureEventGroups(metadataByReferenceIdSuffix)
       edpSimulator.run()
     }
   }

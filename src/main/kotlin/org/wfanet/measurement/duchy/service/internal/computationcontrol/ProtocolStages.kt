@@ -65,7 +65,7 @@ sealed class ProtocolStages(val stageType: ComputationStage.StageCase) {
   /** Returns the updated [ComputationDetails] with values in [ComputationStageInput]. */
   abstract fun updateComputationDetails(
     details: ComputationDetails,
-    input: ComputationStageInput
+    input: ComputationStageInput,
   ): ComputationDetails
 
   /** Returns whether the [ComputationToken] is in the state to advance to the next stage. */
@@ -90,7 +90,7 @@ class LiquidLegionsV2Stages() :
   ProtocolStages(ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2) {
   override fun outputBlob(
     token: ComputationToken,
-    dataOrigin: String
+    dataOrigin: String,
   ): ComputationStageBlobMetadata =
     when (val protocolStage = token.computationStage.liquidLegionsSketchAggregationV2) {
       LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS -> {
@@ -151,7 +151,7 @@ class LiquidLegionsV2Stages() :
 
   override fun isValidStage(
     currentStage: ComputationStage,
-    requestStage: ComputationStage
+    requestStage: ComputationStage,
   ): Boolean = currentStage == requestStage
 
   override fun expectBlob(stage: ComputationStage): Boolean = true
@@ -160,7 +160,7 @@ class LiquidLegionsV2Stages() :
 
   override fun updateComputationDetails(
     details: ComputationDetails,
-    input: ComputationStageInput
+    input: ComputationStageInput,
   ): ComputationDetails =
     throw IllegalStageException(
       LiquidLegionsSketchAggregationV2.Stage.STAGE_UNSPECIFIED.toProtocolStage()
@@ -177,7 +177,7 @@ class ReachOnlyLiquidLegionsV2Stages() :
   ProtocolStages(ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2) {
   override fun outputBlob(
     token: ComputationToken,
-    dataOrigin: String
+    dataOrigin: String,
   ): ComputationStageBlobMetadata =
     when (val protocolStage = token.computationStage.reachOnlyLiquidLegionsSketchAggregationV2) {
       ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS -> {
@@ -231,7 +231,7 @@ class ReachOnlyLiquidLegionsV2Stages() :
 
   override fun isValidStage(
     currentStage: ComputationStage,
-    requestStage: ComputationStage
+    requestStage: ComputationStage,
   ): Boolean = currentStage == requestStage
 
   override fun expectBlob(stage: ComputationStage): Boolean = true
@@ -240,7 +240,7 @@ class ReachOnlyLiquidLegionsV2Stages() :
 
   override fun updateComputationDetails(
     details: ComputationDetails,
-    input: ComputationStageInput
+    input: ComputationStageInput,
   ): ComputationDetails =
     throw IllegalStageException(
       ReachOnlyLiquidLegionsSketchAggregationV2.Stage.STAGE_UNSPECIFIED.toProtocolStage()
@@ -257,7 +257,7 @@ class HonestMajorityShareShuffleStages() :
   ProtocolStages(ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE) {
   override fun outputBlob(
     token: ComputationToken,
-    dataOrigin: String
+    dataOrigin: String,
   ): ComputationStageBlobMetadata {
     val protocolStage = token.computationStage.honestMajorityShareShuffle
 
@@ -309,7 +309,7 @@ class HonestMajorityShareShuffleStages() :
 
   override fun isValidStage(
     currentStage: ComputationStage,
-    requestStage: ComputationStage
+    requestStage: ComputationStage,
   ): Boolean {
     require(currentStage.hasHonestMajorityShareShuffle())
     require(requestStage.hasHonestMajorityShareShuffle())
@@ -324,7 +324,7 @@ class HonestMajorityShareShuffleStages() :
         setOf(
             HonestMajorityShareShuffle.Stage.INITIALIZED,
             HonestMajorityShareShuffle.Stage.SETUP_PHASE,
-            HonestMajorityShareShuffle.Stage.WAIT_ON_SHUFFLE_INPUT
+            HonestMajorityShareShuffle.Stage.WAIT_ON_SHUFFLE_INPUT,
           )
           .contains(currentProtocolStage)
       else -> currentProtocolStage == requestProtocolStage
@@ -370,7 +370,7 @@ class HonestMajorityShareShuffleStages() :
 
   override fun updateComputationDetails(
     details: ComputationDetails,
-    input: ComputationStageInput
+    input: ComputationStageInput,
   ): ComputationDetails {
     require(details.hasHonestMajorityShareShuffle())
     require(!input.honestMajorityShareShuffleShufflePhaseInput.peerRandomSeed.isEmpty)

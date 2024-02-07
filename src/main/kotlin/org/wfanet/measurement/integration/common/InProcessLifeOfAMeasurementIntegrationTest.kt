@@ -45,7 +45,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.Computa
 abstract class InProcessLifeOfAMeasurementIntegrationTest(
   kingdomDataServicesRule: ProviderRule<DataServices>,
   duchyDependenciesRule:
-    ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>
+    ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>,
 ) {
 
   @get:Rule
@@ -84,7 +84,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
     val eventQuery =
       MetadataSyntheticGeneratorEventQuery(
         SyntheticGenerationSpecs.POPULATION_SPEC,
-        InProcessCmmsComponents.MC_ENCRYPTION_PRIVATE_KEY
+        InProcessCmmsComponents.MC_ENCRYPTION_PRIVATE_KEY,
       )
     mcSimulator =
       MeasurementConsumerSimulator(
@@ -92,7 +92,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
           measurementConsumerData.name,
           InProcessCmmsComponents.MC_ENTITY_CONTENT.signingKey,
           InProcessCmmsComponents.MC_ENCRYPTION_PRIVATE_KEY,
-          measurementConsumerData.apiAuthenticationKey
+          measurementConsumerData.apiAuthenticationKey,
         ),
         OUTPUT_DP_PARAMS,
         publicDataProvidersClient,
@@ -103,7 +103,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
         RESULT_POLLING_DELAY,
         InProcessCmmsComponents.TRUSTED_CERTIFICATES,
         eventQuery,
-        NoiseMechanism.CONTINUOUS_GAUSSIAN
+        NoiseMechanism.CONTINUOUS_GAUSSIAN,
       )
   }
 
@@ -130,6 +130,13 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
       // Use frontend simulator to create a direct reach and frequency measurement and verify its
       // result.
       mcSimulator.testDirectReachAndFrequency("1234")
+    }
+
+  @Test
+  fun `create a direct reach-only measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      // Use frontend simulator to create a direct reach-only measurement and verify its result.
+      mcSimulator.testDirectReachOnly("1234")
     }
 
   @Test
@@ -164,9 +171,12 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
   // TODO(@renjiez): Add Multi-round test given the same input to verify correctness.
 
   companion object {
+    // Epsilon can vary from 0.0001 to 1.0, delta = 1e-15 is a realistic value.
+    // Set epsilon higher without exceeding privacy budget so the noise is smaller in the
+    // integration test. Check sample values in CompositionTest.kt.
     private val OUTPUT_DP_PARAMS = differentialPrivacyParams {
       epsilon = 1.0
-      delta = 1.0
+      delta = 1e-15
     }
     private val RESULT_POLLING_DELAY = Duration.ofSeconds(10)
 

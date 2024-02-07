@@ -25,6 +25,7 @@ import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpecKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpecKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.fieldValue
@@ -189,7 +190,7 @@ class SyntheticDataGenerationTest {
       SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           population,
-          eventGroupSpec
+          eventGroupSpec,
         )
         .toList()
 
@@ -250,6 +251,478 @@ class SyntheticDataGenerationTest {
   }
 
   @Test
+  fun `generateEvents returns a sequence of sampled events when sample size specified`() {
+
+    val sampleSizeForFreqOne = 2
+    val firstsampleSizeForFreqTwo = 5
+    val secondSampleSizeForFreqTwo = 10
+
+    val population = syntheticPopulationSpec {
+      vidRange = vidRange {
+        start = 0L
+        endExclusive = 100L
+      }
+
+      populationFields += "person.gender"
+      populationFields += "person.age_group"
+
+      nonPopulationFields += "banner_ad.viewable"
+      nonPopulationFields += "video_ad.viewed_fraction"
+
+      subPopulations +=
+        SyntheticPopulationSpecKt.subPopulation {
+          vidSubRange = vidRange {
+            start = 0L
+            endExclusive = 50L
+          }
+
+          populationFieldsValues["person.gender"] = fieldValue {
+            enumValue = Person.Gender.MALE_VALUE
+          }
+          populationFieldsValues["person.age_group"] = fieldValue {
+            enumValue = Person.AgeGroup.YEARS_18_TO_34_VALUE
+          }
+        }
+      subPopulations +=
+        SyntheticPopulationSpecKt.subPopulation {
+          vidSubRange = vidRange {
+            start = 50L
+            endExclusive = 100L
+          }
+
+          populationFieldsValues["person.gender"] = fieldValue {
+            enumValue = Person.Gender.FEMALE_VALUE
+          }
+          populationFieldsValues["person.age_group"] = fieldValue {
+            enumValue = Person.AgeGroup.YEARS_18_TO_34_VALUE
+          }
+        }
+    }
+    val eventGroupSpec = syntheticEventGroupSpec {
+      description = "event group 1"
+      rngType = SyntheticEventGroupSpec.RngType.JAVA_UTIL_RANDOM
+
+      dateSpecs +=
+        SyntheticEventGroupSpecKt.dateSpec {
+          dateRange =
+            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+              start = date {
+                year = 2023
+                month = 6
+                day = 27
+              }
+              endExclusive = date {
+                year = 2023
+                month = 6
+                day = 28
+              }
+            }
+
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 2
+
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  randomSeed = 42L
+                  vidRange = vidRange {
+                    start = 0L
+                    endExclusive = 25L
+                  }
+
+                  sampleSize = firstsampleSizeForFreqTwo
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.5
+                  }
+                }
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  randomSeed = 42L
+                  vidRange = vidRange {
+                    start = 25L
+                    endExclusive = 50L
+                  }
+
+                  sampleSize = secondSampleSizeForFreqTwo
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = false }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.7
+                  }
+                }
+            }
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 1
+
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  randomSeed = 42L
+                  vidRange = vidRange {
+                    start = 50L
+                    endExclusive = 75L
+                  }
+
+                  sampleSize = sampleSizeForFreqOne
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.8
+                  }
+                }
+            }
+        }
+    }
+
+    val labeledEvents: List<LabeledEvent<TestEvent>> =
+      SyntheticDataGeneration.generateEvents(
+          TestEvent.getDefaultInstance(),
+          population,
+          eventGroupSpec,
+        )
+        .toList()
+    val expectedNumberOfEvents =
+      sampleSizeForFreqOne + 2 * (firstsampleSizeForFreqTwo + secondSampleSizeForFreqTwo)
+    assertThat(labeledEvents.size).isEqualTo(expectedNumberOfEvents)
+  }
+
+  @Test
+  fun `generateEvents throws IllegalStateException for sample size larger than vidRange`() {
+
+    val population = syntheticPopulationSpec {
+      vidRange = vidRange {
+        start = 0L
+        endExclusive = 100L
+      }
+
+      populationFields += "person.gender"
+      populationFields += "person.age_group"
+
+      nonPopulationFields += "banner_ad.viewable"
+      nonPopulationFields += "video_ad.viewed_fraction"
+
+      subPopulations +=
+        SyntheticPopulationSpecKt.subPopulation {
+          vidSubRange = vidRange {
+            start = 0L
+            endExclusive = 50L
+          }
+
+          populationFieldsValues["person.gender"] = fieldValue {
+            enumValue = Person.Gender.MALE_VALUE
+          }
+          populationFieldsValues["person.age_group"] = fieldValue {
+            enumValue = Person.AgeGroup.YEARS_18_TO_34_VALUE
+          }
+        }
+      subPopulations +=
+        SyntheticPopulationSpecKt.subPopulation {
+          vidSubRange = vidRange {
+            start = 50L
+            endExclusive = 100L
+          }
+
+          populationFieldsValues["person.gender"] = fieldValue {
+            enumValue = Person.Gender.FEMALE_VALUE
+          }
+          populationFieldsValues["person.age_group"] = fieldValue {
+            enumValue = Person.AgeGroup.YEARS_18_TO_34_VALUE
+          }
+        }
+    }
+    val eventGroupSpec = syntheticEventGroupSpec {
+      description = "event group 1"
+      rngType = SyntheticEventGroupSpec.RngType.JAVA_UTIL_RANDOM
+
+      dateSpecs +=
+        SyntheticEventGroupSpecKt.dateSpec {
+          dateRange =
+            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+              start = date {
+                year = 2023
+                month = 6
+                day = 27
+              }
+              endExclusive = date {
+                year = 2023
+                month = 6
+                day = 28
+              }
+            }
+
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 2
+
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  randomSeed = 42L
+                  vidRange = vidRange {
+                    start = 0L
+                    endExclusive = 25L
+                  }
+
+                  sampleSize = 50
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.5
+                  }
+                }
+            }
+        }
+    }
+
+    assertFailsWith<IllegalStateException> {
+      SyntheticDataGeneration.generateEvents(
+        TestEvent.getDefaultInstance(),
+        population,
+        eventGroupSpec,
+      )
+    }
+  }
+
+  @Test
+  fun `generateEvents throws IllegalStateException for RNG not specified when sampling enabled`() {
+
+    val sampleSizeForFreqOne = 2
+    val firstsampleSizeForFreqTwo = 5
+    val secondSampleSizeForFreqTwo = 10
+
+    val population = syntheticPopulationSpec {
+      vidRange = vidRange {
+        start = 0L
+        endExclusive = 100L
+      }
+
+      populationFields += "person.gender"
+      populationFields += "person.age_group"
+
+      nonPopulationFields += "banner_ad.viewable"
+      nonPopulationFields += "video_ad.viewed_fraction"
+
+      subPopulations +=
+        SyntheticPopulationSpecKt.subPopulation {
+          vidSubRange = vidRange {
+            start = 0L
+            endExclusive = 50L
+          }
+
+          populationFieldsValues["person.gender"] = fieldValue {
+            enumValue = Person.Gender.MALE_VALUE
+          }
+          populationFieldsValues["person.age_group"] = fieldValue {
+            enumValue = Person.AgeGroup.YEARS_18_TO_34_VALUE
+          }
+        }
+      subPopulations +=
+        SyntheticPopulationSpecKt.subPopulation {
+          vidSubRange = vidRange {
+            start = 50L
+            endExclusive = 100L
+          }
+
+          populationFieldsValues["person.gender"] = fieldValue {
+            enumValue = Person.Gender.FEMALE_VALUE
+          }
+          populationFieldsValues["person.age_group"] = fieldValue {
+            enumValue = Person.AgeGroup.YEARS_18_TO_34_VALUE
+          }
+        }
+    }
+    val eventGroupSpec = syntheticEventGroupSpec {
+      description = "event group 1"
+
+      dateSpecs +=
+        SyntheticEventGroupSpecKt.dateSpec {
+          dateRange =
+            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+              start = date {
+                year = 2023
+                month = 6
+                day = 27
+              }
+              endExclusive = date {
+                year = 2023
+                month = 6
+                day = 28
+              }
+            }
+
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 2
+
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  randomSeed = 42L
+                  vidRange = vidRange {
+                    start = 0L
+                    endExclusive = 25L
+                  }
+
+                  sampleSize = firstsampleSizeForFreqTwo
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.5
+                  }
+                }
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  randomSeed = 42L
+                  vidRange = vidRange {
+                    start = 25L
+                    endExclusive = 50L
+                  }
+
+                  sampleSize = secondSampleSizeForFreqTwo
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = false }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.7
+                  }
+                }
+            }
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 1
+
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  randomSeed = 42L
+                  vidRange = vidRange {
+                    start = 50L
+                    endExclusive = 75L
+                  }
+
+                  sampleSize = sampleSizeForFreqOne
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.8
+                  }
+                }
+            }
+        }
+    }
+
+    assertFailsWith<IllegalStateException> {
+      SyntheticDataGeneration.generateEvents(
+        TestEvent.getDefaultInstance(),
+        population,
+        eventGroupSpec,
+      )
+    }
+  }
+
+  fun `generateEvents throws IllegalArgumentException when vid ranges overlap`() {
+    val population = syntheticPopulationSpec {
+      vidRange = vidRange {
+        start = 0L
+        endExclusive = 100L
+      }
+
+      populationFields += "person.gender"
+      populationFields += "person.age_group"
+
+      nonPopulationFields += "banner_ad.viewable"
+      nonPopulationFields += "video_ad.viewed_fraction"
+
+      subPopulations +=
+        SyntheticPopulationSpecKt.subPopulation {
+          vidSubRange = vidRange {
+            start = 0L
+            endExclusive = 50L
+          }
+
+          populationFieldsValues["person.gender"] = fieldValue {
+            enumValue = Person.Gender.MALE_VALUE
+          }
+          populationFieldsValues["person.age_group"] = fieldValue {
+            enumValue = Person.AgeGroup.YEARS_18_TO_34_VALUE
+          }
+        }
+      subPopulations +=
+        SyntheticPopulationSpecKt.subPopulation {
+          vidSubRange = vidRange {
+            start = 50L
+            endExclusive = 100L
+          }
+
+          populationFieldsValues["person.gender"] = fieldValue {
+            enumValue = Person.Gender.FEMALE_VALUE
+          }
+          populationFieldsValues["person.age_group"] = fieldValue {
+            enumValue = Person.AgeGroup.YEARS_18_TO_34_VALUE
+          }
+        }
+    }
+    val eventGroupSpec = syntheticEventGroupSpec {
+      description = "event group 1"
+
+      dateSpecs +=
+        SyntheticEventGroupSpecKt.dateSpec {
+          dateRange =
+            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+              start = date {
+                year = 2023
+                month = 6
+                day = 27
+              }
+              endExclusive = date {
+                year = 2023
+                month = 6
+                day = 28
+              }
+            }
+
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 2
+
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 0L
+                    endExclusive = 25L
+                  }
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.5
+                  }
+                }
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    // 20 is in between 0 and 25, the previous range.
+                    start = 20L
+                    endExclusive = 50L
+                  }
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = false }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.7
+                  }
+                }
+            }
+        }
+    }
+
+    assertFailsWith<IllegalArgumentException> {
+      SyntheticDataGeneration.generateEvents(
+          TestEvent.getDefaultInstance(),
+          population,
+          eventGroupSpec,
+        )
+        .toList()
+    }
+  }
+
+  @Test
   fun `generateEvents returns messages with a Duration field`() {
     val populationSpec = syntheticPopulationSpec {
       vidRange = vidRange {
@@ -303,7 +776,7 @@ class SyntheticDataGenerationTest {
       SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           populationSpec,
-          eventGroupSpec
+          eventGroupSpec,
         )
         .map { TestEvent.parseFrom(it.message.toByteString()) }
         .toList()
@@ -378,7 +851,7 @@ class SyntheticDataGenerationTest {
       SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           population,
-          eventGroupSpec
+          eventGroupSpec,
         )
         .toList()
     }
@@ -448,7 +921,7 @@ class SyntheticDataGenerationTest {
       SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           population,
-          eventGroupSpec
+          eventGroupSpec,
         )
         .toList()
     }
@@ -518,7 +991,7 @@ class SyntheticDataGenerationTest {
       SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           population,
-          eventGroupSpec
+          eventGroupSpec,
         )
         .toList()
     }
@@ -588,7 +1061,7 @@ class SyntheticDataGenerationTest {
       SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           population,
-          eventGroupSpec
+          eventGroupSpec,
         )
         .toList()
     }

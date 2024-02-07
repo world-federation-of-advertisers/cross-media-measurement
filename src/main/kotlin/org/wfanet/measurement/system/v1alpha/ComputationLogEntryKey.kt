@@ -26,14 +26,14 @@ private val parser =
 data class ComputationLogEntryKey(
   val computationId: String,
   val duchyId: String,
-  val computationLogEntryId: String
+  val computationLogEntryId: String,
 ) : ResourceKey {
   override fun toName(): String {
     return parser.assembleName(
       mapOf(
         IdVariable.COMPUTATION to computationId,
         IdVariable.DUCHY to duchyId,
-        IdVariable.COMPUTATION_LOG_ENTRY to computationLogEntryId
+        IdVariable.COMPUTATION_LOG_ENTRY to computationLogEntryId,
       )
     )
   }
@@ -46,7 +46,7 @@ data class ComputationLogEntryKey(
         ComputationLogEntryKey(
           it.getValue(IdVariable.COMPUTATION),
           it.getValue(IdVariable.DUCHY),
-          it.getValue(IdVariable.COMPUTATION_LOG_ENTRY)
+          it.getValue(IdVariable.COMPUTATION_LOG_ENTRY),
         )
       }
     }

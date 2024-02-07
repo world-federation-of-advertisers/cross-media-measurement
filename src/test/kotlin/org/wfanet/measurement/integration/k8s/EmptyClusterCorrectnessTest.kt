@@ -115,7 +115,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     val worker2Cert: String,
     val measurementConsumer: String,
     val apiKey: String,
-    val dataProviders: Map<String, Resources.Resource>
+    val dataProviders: Map<String, Resources.Resource>,
   ) {
     companion object {
       fun from(resources: Iterable<Resources.Resource>): ResourceInfo {
@@ -157,7 +157,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           requireNotNull(worker2Cert),
           requireNotNull(measurementConsumer),
           requireNotNull(apiKey),
-          dataProviders
+          dataProviders,
         )
       }
     }
@@ -167,7 +167,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
   class LocalMeasurementSystem(
     k8sClient: Lazy<KubernetesClient>,
     tempDir: Lazy<TemporaryFolder>,
-    runId: Lazy<String>
+    runId: Lazy<String>,
   ) : TestRule, MeasurementSystem {
     private val portForwarders = mutableListOf<PortForwarder>()
     private val channels = mutableListOf<ManagedChannel>()
@@ -228,7 +228,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         resourceInfo.measurementConsumer,
         measurementConsumerContent.signingKey,
         encryptionPrivateKey,
-        resourceInfo.apiKey
+        resourceInfo.apiKey,
       )
     }
 
@@ -264,15 +264,15 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           MEASUREMENT_CONSUMER_SIGNING_CERTS.trustedCertificates,
           MetadataSyntheticGeneratorEventQuery(
             SyntheticGenerationSpecs.POPULATION_SPEC,
-            MC_ENCRYPTION_PRIVATE_KEY
+            MC_ENCRYPTION_PRIVATE_KEY,
           ),
-          ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+          ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
         )
         .also {
           try {
             eventGroupsClient.waitForEventGroups(
               measurementConsumerData.name,
-              measurementConsumerData.apiAuthenticationKey
+              measurementConsumerData.apiAuthenticationKey,
             )
           } catch (e: StatusException) {
             throw Exception("Error waiting for EventGroups", e)
@@ -302,7 +302,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           val configTemplate: File = outputDir.resolve("config.yaml")
           kustomize(
             outputDir.toPath().resolve(LOCAL_K8S_TESTING_PATH).resolve("cmms").toFile(),
-            configTemplate
+            configTemplate,
           )
 
           val configContent =
@@ -338,7 +338,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         val config: File = outputDir.resolve("config.yaml")
         kustomize(
           outputDir.toPath().resolve(LOCAL_K8S_PATH).resolve("kingdom_setup").toFile(),
-          config
+          config,
         )
 
         kubectlApply(config)
@@ -348,7 +348,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     private suspend fun runResourceSetup(
       duchyCerts: List<DuchyCert>,
       edpEntityContents: List<EntityContent>,
-      measurementConsumerContent: EntityContent
+      measurementConsumerContent: EntityContent,
     ): ResourceSetupOutput {
       val outputDir = withContext(Dispatchers.IO) { tempDir.newFolder("resource-setup") }
 
@@ -391,7 +391,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
                   MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(publicChannel),
                   runId,
                   outputDir = outputDir,
-                  requiredDuchies = listOf("aggregator", "worker1", "worker2")
+                  requiredDuchies = listOf("aggregator", "worker1", "worker2"),
                 )
               withContext(Dispatchers.IO) {
                 resourceSetup
@@ -404,7 +404,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
       return ResourceSetupOutput(
         resources,
-        outputDir.resolve(ResourceSetup.AKID_PRINCIPAL_MAP_FILE)
+        outputDir.resolve(ResourceSetup.AKID_PRINCIPAL_MAP_FILE),
       )
     }
 
@@ -419,7 +419,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         "kustomize",
         kustomizationDir.toString(),
         "--output",
-        output.toString()
+        output.toString(),
       )
     }
 
@@ -441,7 +441,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
     data class ResourceSetupOutput(
       val resources: List<Resources.Resource>,
-      val akidPrincipalMap: File
+      val akidPrincipalMap: File,
     )
   }
 
@@ -473,7 +473,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       LocalMeasurementSystem(
         lazy { KubernetesClient(ClientBuilder.defaultClient()) },
         lazy { tempDir },
-        lazy { UUID.randomUUID().toString() }
+        lazy { UUID.randomUUID().toString() },
       )
 
     @ClassRule
@@ -482,7 +482,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
     private suspend fun EventGroupsGrpcKt.EventGroupsCoroutineStub.waitForEventGroups(
       measurementConsumer: String,
-      apiKey: String
+      apiKey: String,
     ) {
       logger.info { "Waiting for all event groups to be created..." }
       while (currentCoroutineContext().isActive) {

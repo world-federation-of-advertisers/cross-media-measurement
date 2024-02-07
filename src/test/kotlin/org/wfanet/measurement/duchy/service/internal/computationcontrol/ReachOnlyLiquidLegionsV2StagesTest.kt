@@ -50,13 +50,13 @@ class ReachOnlyLiquidLegionsV2StagesTest {
     for (stage in Stage.values()) {
       when (stage) {
         Stage.WAIT_SETUP_PHASE_INPUTS,
-        Stage.WAIT_EXECUTION_PHASE_INPUTS, -> {
+        Stage.WAIT_EXECUTION_PHASE_INPUTS -> {
           val next =
             stages.nextStage(stage.toProtocolStage()).reachOnlyLiquidLegionsSketchAggregationV2
           assertTrue("$next is not a valid successor of $stage") {
             ReachOnlyLiquidLegionsSketchAggregationV2Protocol.EnumStages.validTransition(
               stage,
-              next
+              next,
             )
           }
         }

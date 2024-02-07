@@ -66,11 +66,7 @@ class CustomStorageFlags {
   lateinit var s3Region: String
     private set
 
-  @CommandLine.Option(
-    names = ["--tink-key-uri"],
-    description = ["URI for tink"],
-    required = true,
-  )
+  @CommandLine.Option(names = ["--tink-key-uri"], description = ["URI for tink"], required = true)
   private lateinit var tinkKeyUri: String
 
   @CommandLine.Mixin private lateinit var gcsFlags: GcsFromFlags.Flags

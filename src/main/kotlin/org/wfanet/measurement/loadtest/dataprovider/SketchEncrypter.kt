@@ -33,7 +33,7 @@ interface SketchEncrypter {
     sketch: Sketch,
     ellipticCurveId: Int,
     encryptionKey: ElGamalPublicKey,
-    maximumValue: Int
+    maximumValue: Int,
   ): ByteString
 
   /** Encrypts a sketch without maximumValue. */
@@ -50,7 +50,7 @@ interface SketchEncrypter {
     /** Combines [keys] into a single key. */
     fun combineElGamalPublicKeys(
       ellipticCurveId: Int,
-      keys: Iterable<ElGamalPublicKey>
+      keys: Iterable<ElGamalPublicKey>,
     ): ElGamalPublicKey {
       val request = combineElGamalPublicKeysRequest {
         curveId = ellipticCurveId.toLong()
@@ -75,7 +75,7 @@ private class SketchEncrypterImpl : SketchEncrypter {
     sketch: Sketch,
     ellipticCurveId: Int,
     encryptionKey: ElGamalPublicKey,
-    maximumValue: Int
+    maximumValue: Int,
   ): ByteString {
     val request = encryptSketchRequest {
       this.sketch = sketch
@@ -92,7 +92,7 @@ private class SketchEncrypterImpl : SketchEncrypter {
   override fun encrypt(
     sketch: Sketch,
     ellipticCurveId: Int,
-    encryptionKey: ElGamalPublicKey
+    encryptionKey: ElGamalPublicKey,
   ): ByteString {
     val request = encryptSketchRequest {
       this.sketch = sketch

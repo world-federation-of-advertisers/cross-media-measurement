@@ -1,3 +1,8 @@
+# Enable Bzlmod.
+common --enable_bzlmod
+common --registry=https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main
+common --registry=https://bcr.bazel.build
+
 # Use clang as C++ compiler.
 build --repo_env='CC=clang'
 
@@ -7,11 +12,21 @@ build --cxxopt='-std=c++17'
 # Use JDK 11. See https://github.com/bazelbuild/bazel/issues/6245.
 build --java_runtime_version=remotejdk_11
 
-# Target Java 8.
-build --java_language_version=8
+# Target Java 9.
+build --java_language_version=9
 
 # Pass environment variables.
 test --test_env TESTCONTAINERS_RYUK_DISABLED=true
+
+# Disable remote cache upload by default.
+build --noremote_upload_local_results
+
+# Configuration for continuous integration (CI).
+common:ci --lockfile_mode=error
+build:ci --compilation_mode=opt
+build:ci --host_platform //build/platforms:ubuntu_20_04
+build:remote-cache --remote_cache=https://storage.googleapis.com/halo-cmm-build-cache/cross-media-measurement
+build:remote-cache --google_default_credentials
 
 # Configuration for GitHub Container Registry
 build:ghcr --define container_registry=ghcr.io

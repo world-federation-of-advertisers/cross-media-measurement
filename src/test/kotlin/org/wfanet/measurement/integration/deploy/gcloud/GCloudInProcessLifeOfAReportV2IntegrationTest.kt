@@ -32,12 +32,12 @@ import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata.REPO
 class GCloudInProcessLifeOfAReportV2IntegrationTest :
   InProcessLifeOfAReportIntegrationTest(
     KingdomDataServicesProviderRule(),
-    PostgresDuchyDependencyProviderRule(duchyDatabaseProvider, ALL_DUCHY_NAMES)
+    PostgresDuchyDependencyProviderRule(duchyDatabaseProvider, ALL_DUCHY_NAMES),
   ) {
   override val internalReportingServerServices by lazy {
     PostgresServices.create(
       RandomIdGenerator(Clock.systemUTC()),
-      reportingDatabaseProvider.createDatabase()
+      reportingDatabaseProvider.createDatabase(),
     )
   }
 

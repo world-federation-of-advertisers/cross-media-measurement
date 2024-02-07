@@ -49,19 +49,19 @@ object ComputationProtocolStages :
           ComputationTypes.protocolEnumToLong(LIQUID_LEGIONS_SKETCH_AGGREGATION_V2),
           LiquidLegionsSketchAggregationV2Protocol.EnumStages.enumToLong(
             value.liquidLegionsSketchAggregationV2
-          )
+          ),
         )
       ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         ComputationStageLongValues(
           ComputationTypes.protocolEnumToLong(REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2),
           ReachOnlyLiquidLegionsSketchAggregationV2Protocol.EnumStages.enumToLong(
             value.reachOnlyLiquidLegionsSketchAggregationV2
-          )
+          ),
         )
       ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
         ComputationStageLongValues(
           ComputationTypes.protocolEnumToLong(HONEST_MAJORITY_SHARE_SHUFFLE),
-          HonestMajorityShareShuffleProtocol.EnumStages.enumToLong(value.honestMajorityShareShuffle)
+          HonestMajorityShareShuffleProtocol.EnumStages.enumToLong(value.honestMajorityShareShuffle),
         )
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
@@ -121,7 +121,7 @@ object ComputationProtocolStages :
 
   override fun validTransition(
     currentStage: ComputationStage,
-    nextStage: ComputationStage
+    nextStage: ComputationStage,
   ): Boolean {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     return nextStage in

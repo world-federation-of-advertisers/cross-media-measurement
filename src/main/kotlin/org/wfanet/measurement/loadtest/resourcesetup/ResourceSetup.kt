@@ -66,7 +66,6 @@ import org.wfanet.measurement.internal.kingdom.account as internalAccount
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
-import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.kingdom.service.api.v2alpha.fillCertificateFromDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.parseCertificateDer
 import org.wfanet.measurement.loadtest.common.ConsoleOutput
@@ -101,7 +100,7 @@ class ResourceSetup(
 ) {
   data class MeasurementConsumerAndKey(
     val measurementConsumer: MeasurementConsumer,
-    val apiAuthenticationKey: String
+    val apiAuthenticationKey: String,
   )
 
   /** Process to create resources. */
@@ -309,7 +308,7 @@ class ResourceSetup(
 
   suspend fun createMeasurementConsumer(
     measurementConsumerContent: EntityContent,
-    internalAccount: InternalAccount
+    internalAccount: InternalAccount,
   ): MeasurementConsumerAndKey {
     val accountName = AccountKey(externalIdToApiId(internalAccount.externalAccountId)).toName()
     val accountActivationToken = externalIdToApiId(internalAccount.activationToken)
@@ -354,7 +353,7 @@ class ResourceSetup(
         publicKey =
           signEncryptionPublicKey(
             measurementConsumerContent.encryptionPublicKey,
-            measurementConsumerContent.signingKey
+            measurementConsumerContent.signingKey,
           )
         displayName = measurementConsumerContent.displayName
         measurementConsumerCreationToken = mcCreationToken
@@ -403,7 +402,7 @@ class ResourceSetup(
       name =
         DuchyCertificateKey(
             internalCertificate.externalDuchyId,
-            externalIdToApiId(internalCertificate.externalCertificateId)
+            externalIdToApiId(internalCertificate.externalCertificateId),
           )
           .toName()
       x509Der = internalCertificate.details.x509Der

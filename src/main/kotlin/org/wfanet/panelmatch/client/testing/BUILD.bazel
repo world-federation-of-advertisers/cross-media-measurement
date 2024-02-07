@@ -5,13 +5,6 @@ jar of all the testing dependencies.
 """
 
 load("@rules_jvm_external//:defs.bzl", "java_export")
-load(
-    "//build:panel_exchange_client_maven_deps.bzl",
-    "panel_exchange_client_maven_deploy_env",
-    "panel_exchange_client_maven_runtime_deps",
-    "panel_exchange_client_maven_test_deploy_env",
-    "panel_exchange_client_maven_test_runtime_deps",
-)
 
 package(
     default_testonly = True,
@@ -44,13 +37,9 @@ java_library(
 
 java_export(
     name = "maven_testing",
-    deploy_env = ["//src/main/kotlin/org/wfanet/panelmatch/client/deploy:deploy"] +
-                 panel_exchange_client_maven_deploy_env() +
-                 panel_exchange_client_maven_test_deploy_env(),
+    deploy_env = ["//src/main/kotlin/org/wfanet/panelmatch/client/deploy:deploy"],
     maven_coordinates = "org.wfanet:panel-exchange-client-testing:$${TAG_NAME}",
     pom_template = "//deploy:pom_template.xml",
     tags = ["no-javadocs"],
-    runtime_deps = [":testing"] +
-                   panel_exchange_client_maven_runtime_deps() +
-                   panel_exchange_client_maven_test_runtime_deps(),
+    runtime_deps = [":testing"],
 )

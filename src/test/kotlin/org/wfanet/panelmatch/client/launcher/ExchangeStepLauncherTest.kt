@@ -24,7 +24,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verifyBlocking
-import org.mockito.kotlin.verifyZeroInteractions
+import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepKey
@@ -51,14 +51,14 @@ private val EXCHANGE_STEP_ATTEMPT_KEY: CanonicalExchangeStepAttemptKey =
     recurringExchangeId = RECURRING_EXCHANGE_ID,
     exchangeId = EXCHANGE_ID,
     exchangeStepId = EXCHANGE_STEP_ID,
-    exchangeStepAttemptId = EXCHANGE_STEP_ATTEMPT_ID
+    exchangeStepAttemptId = EXCHANGE_STEP_ATTEMPT_ID,
   )
 
 private val EXCHANGE_STEP_KEY =
   CanonicalExchangeStepKey(
     recurringExchangeId = RECURRING_EXCHANGE_ID,
     exchangeId = EXCHANGE_ID,
-    exchangeStepId = EXCHANGE_STEP_ID
+    exchangeStepId = EXCHANGE_STEP_ID,
   )
 
 private val DATE = LocalDate.now()
@@ -96,7 +96,7 @@ class ExchangeStepLauncherTest {
     launcher.findAndRunExchangeStep()
 
     verifyBlocking(apiClient) { claimExchangeStep() }
-    verifyZeroInteractions(jobLauncher, validator)
+    verifyNoInteractions(jobLauncher, validator)
   }
 
   @Test
@@ -142,7 +142,7 @@ class ExchangeStepLauncherTest {
       finishExchangeStepAttempt(
         keyCaptor.capture(),
         stateCaptor.capture(),
-        messagesCaptor.capture()
+        messagesCaptor.capture(),
       )
 
       assertThat(keyCaptor.firstValue).isEqualTo(EXCHANGE_STEP_ATTEMPT_KEY)
@@ -150,7 +150,7 @@ class ExchangeStepLauncherTest {
       assertThat(messagesCaptor.firstValue).containsExactly(message)
     }
 
-    verifyZeroInteractions(jobLauncher)
+    verifyNoInteractions(jobLauncher)
   }
 
   @Test
@@ -170,7 +170,7 @@ class ExchangeStepLauncherTest {
       finishExchangeStepAttempt(
         keyCaptor.capture(),
         stateCaptor.capture(),
-        messagesCaptor.capture()
+        messagesCaptor.capture(),
       )
 
       assertThat(keyCaptor.firstValue).isEqualTo(EXCHANGE_STEP_ATTEMPT_KEY)
@@ -178,7 +178,7 @@ class ExchangeStepLauncherTest {
       assertThat(messagesCaptor.firstValue).containsExactly(message)
     }
 
-    verifyZeroInteractions(jobLauncher)
+    verifyNoInteractions(jobLauncher)
   }
 
   @Test
@@ -199,7 +199,7 @@ class ExchangeStepLauncherTest {
       finishExchangeStepAttempt(
         keyCaptor.capture(),
         stateCaptor.capture(),
-        messagesCaptor.capture()
+        messagesCaptor.capture(),
       )
 
       assertThat(keyCaptor.firstValue).isEqualTo(EXCHANGE_STEP_ATTEMPT_KEY)

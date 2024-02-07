@@ -152,7 +152,7 @@ class ModelOutagesServiceTest {
           flowOf(
             INTERNAL_MODEL_OUTAGE,
             INTERNAL_MODEL_OUTAGE.copy { externalModelOutageId = EXTERNAL_MODEL_OUTAGE_ID_2 },
-            INTERNAL_MODEL_OUTAGE.copy { externalModelOutageId = EXTERNAL_MODEL_OUTAGE_ID_3 }
+            INTERNAL_MODEL_OUTAGE.copy { externalModelOutageId = EXTERNAL_MODEL_OUTAGE_ID_3 },
           )
         )
     }
@@ -163,10 +163,7 @@ class ModelOutagesServiceTest {
 
   @Before
   fun initService() {
-    service =
-      ModelOutagesService(
-        ModelOutagesCoroutineStub(grpcTestServerRule.channel),
-      )
+    service = ModelOutagesService(ModelOutagesCoroutineStub(grpcTestServerRule.channel))
   }
 
   @Test

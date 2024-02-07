@@ -36,7 +36,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  */
 class CreateAccount(
   private val externalCreatorAccountId: ExternalId?,
-  private val externalOwnedMeasurementConsumerId: ExternalId?
+  private val externalOwnedMeasurementConsumerId: ExternalId?,
 ) : SimpleSpannerWriter<Account>() {
 
   override suspend fun TransactionScope.runTransaction(): Account {
@@ -58,7 +58,7 @@ class CreateAccount(
               .checkOwnershipExist(
                 transactionContext,
                 readCreatorAccountResult.accountId,
-                source.externalOwnedMeasurementConsumerId
+                source.externalOwnedMeasurementConsumerId,
               )
               ?.let {
                 externalOwnedMeasurementConsumerId = source.externalOwnedMeasurementConsumerId.value

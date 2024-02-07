@@ -59,7 +59,7 @@ class RecordOutputBlobPath<ProtocolT, StageT>(
         )
         ?: error(
           "No ComputationBlobReferences row for " +
-            "($localId, $stage, ${blobRef.idInRelationalDatabase})",
+            "($localId, $stage, ${blobRef.idInRelationalDatabase})"
         )
     check(type == ComputationBlobDependency.OUTPUT) { "Cannot write to $type blob" }
 

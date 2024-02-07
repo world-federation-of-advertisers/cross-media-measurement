@@ -18,7 +18,6 @@ package org.wfanet.measurement.reporting.job
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.timestamp
-import com.google.protobuf.util.Timestamps
 import com.google.type.DayOfWeek
 import com.google.type.date
 import com.google.type.dateTime
@@ -90,7 +89,6 @@ import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineIm
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
-import org.wfanet.measurement.reporting.v2alpha.periodicTimeInterval
 import org.wfanet.measurement.reporting.v2alpha.report
 
 @RunWith(JUnit4::class)
@@ -113,7 +111,7 @@ class ReportSchedulingJobTest {
             INTERNAL_COMPOSITE_REPORTING_SET.externalReportingSetId to
               INTERNAL_COMPOSITE_REPORTING_SET,
             INTERNAL_PRIMITIVE_REPORTING_SET.externalReportingSetId to
-              INTERNAL_PRIMITIVE_REPORTING_SET
+              INTERNAL_PRIMITIVE_REPORTING_SET,
           )
         batchGetReportingSetsResponse {
           reportingSets +=
@@ -190,7 +188,7 @@ class ReportSchedulingJobTest {
 
     verifyProtoArgument(
         reportScheduleIterationsMock,
-        ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration
+        ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration,
       )
       .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
       .isEqualTo(
@@ -210,21 +208,28 @@ class ReportSchedulingJobTest {
           requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
           report =
             publicReportSchedule.reportTemplate.copy {
-              periodicTimeInterval = periodicTimeInterval {
-                startTime = timestamp {
-                  seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+              reportingInterval =
+                ReportKt.reportingInterval {
+                  reportStart = dateTime {
+                    year = 2022
+                    month = 1
+                    day = 1
+                    hours = 13
+                    timeZone = timeZone { id = "America/Los_Angeles" }
+                  }
+                  reportEnd = date {
+                    year = 2022
+                    month = 1
+                    day = 2
+                  }
                 }
-                increment =
-                  Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
-                intervalCount = 1
-              }
             }
         }
       )
 
     verifyProtoArgument(
         reportScheduleIterationsMock,
-        ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState
+        ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState,
       )
       .isEqualTo(
         setReportScheduleIterationStateRequest {
@@ -251,7 +256,7 @@ class ReportSchedulingJobTest {
                     eventStart = dateTime {
                       year = 2022
                       month = 1
-                      day = 2
+                      day = 2 // Saturday
                       hours = 13
                       timeZone = timeZone { id = "America/Los_Angeles" }
                     }
@@ -265,6 +270,14 @@ class ReportSchedulingJobTest {
                         weekly =
                           ReportScheduleKt.FrequencyKt.weekly { dayOfWeek = DayOfWeek.SATURDAY }
                       }
+                    reportWindow =
+                      ReportScheduleKt.reportWindow {
+                        trailingWindow =
+                          ReportScheduleKt.ReportWindowKt.trailingWindow {
+                            count = 1
+                            increment = ReportSchedule.ReportWindow.TrailingWindow.Increment.DAY
+                          }
+                      }
                   }
               }
           }
@@ -274,7 +287,7 @@ class ReportSchedulingJobTest {
 
       verifyProtoArgument(
           reportSchedulesMock,
-          ReportSchedulesCoroutineImplBase::listReportSchedules
+          ReportSchedulesCoroutineImplBase::listReportSchedules,
         )
         .isEqualTo(
           listReportSchedulesRequest {
@@ -289,7 +302,7 @@ class ReportSchedulingJobTest {
 
       verifyProtoArgument(
           reportScheduleIterationsMock,
-          ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration
+          ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration,
         )
         .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
         .isEqualTo(
@@ -309,17 +322,21 @@ class ReportSchedulingJobTest {
             requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
             report =
               publicReportSchedule.reportTemplate.copy {
-                periodicTimeInterval = periodicTimeInterval {
-                  startTime = timestamp {
-                    seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+                reportingInterval =
+                  ReportKt.reportingInterval {
+                    reportStart = dateTime {
+                      year = 2022
+                      month = 1
+                      day = 1
+                      hours = 13
+                      timeZone = timeZone { id = "America/Los_Angeles" }
+                    }
+                    reportEnd = date {
+                      year = 2022
+                      month = 1
+                      day = 2
+                    }
                   }
-                  increment =
-                    Timestamps.between(
-                      startTime,
-                      INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
-                    )
-                  intervalCount = 1
-                }
               }
           }
         )
@@ -334,7 +351,7 @@ class ReportSchedulingJobTest {
 
       verifyProtoArgument(
           reportScheduleIterationsMock,
-          ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState
+          ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState,
         )
         .isEqualTo(
           setReportScheduleIterationStateRequest {
@@ -367,7 +384,7 @@ class ReportSchedulingJobTest {
 
       verifyProtoArgument(
           reportSchedulesMock,
-          ReportSchedulesCoroutineImplBase::listReportSchedules
+          ReportSchedulesCoroutineImplBase::listReportSchedules,
         )
         .isEqualTo(
           listReportSchedulesRequest {
@@ -394,7 +411,7 @@ class ReportSchedulingJobTest {
         .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
         .containsExactly(
           reportScheduleIteration,
-          reportScheduleIteration.copy { externalReportScheduleId = otherReportScheduleId }
+          reportScheduleIteration.copy { externalReportScheduleId = otherReportScheduleId },
         )
 
       val getDataProviderCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
@@ -413,14 +430,21 @@ class ReportSchedulingJobTest {
         requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
         report =
           publicReportSchedule.reportTemplate.copy {
-            periodicTimeInterval = periodicTimeInterval {
-              startTime = timestamp {
-                seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+            reportingInterval =
+              ReportKt.reportingInterval {
+                reportStart = dateTime {
+                  year = 2022
+                  month = 1
+                  day = 1
+                  hours = 13
+                  timeZone = timeZone { id = "America/Los_Angeles" }
+                }
+                reportEnd = date {
+                  year = 2022
+                  month = 1
+                  day = 2
+                }
               }
-              increment =
-                Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
-              intervalCount = 1
-            }
           }
       }
       assertThat(createReportCaptor.allValues)
@@ -445,7 +469,7 @@ class ReportSchedulingJobTest {
           setReportScheduleIterationStateRequest,
           setReportScheduleIterationStateRequest.copy {
             externalReportScheduleId = otherReportScheduleId
-          }
+          },
         )
     }
 
@@ -485,7 +509,7 @@ class ReportSchedulingJobTest {
         .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
         .containsExactly(
           reportScheduleIteration,
-          reportScheduleIteration.copy { externalReportScheduleId = otherReportScheduleId }
+          reportScheduleIteration.copy { externalReportScheduleId = otherReportScheduleId },
         )
 
       val getDataProviderCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
@@ -504,14 +528,21 @@ class ReportSchedulingJobTest {
         requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
         report =
           publicReportSchedule.reportTemplate.copy {
-            periodicTimeInterval = periodicTimeInterval {
-              startTime = timestamp {
-                seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+            reportingInterval =
+              ReportKt.reportingInterval {
+                reportStart = dateTime {
+                  year = 2022
+                  month = 1
+                  day = 1
+                  hours = 13
+                  timeZone = timeZone { id = "America/Los_Angeles" }
+                }
+                reportEnd = date {
+                  year = 2022
+                  month = 1
+                  day = 2
+                }
               }
-              increment =
-                Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
-              intervalCount = 1
-            }
           }
       }
       assertThat(createReportCaptor.allValues)
@@ -541,7 +572,7 @@ class ReportSchedulingJobTest {
       assertThat(setReportScheduleIterationStateCaptor.allValues)
         .containsExactly(
           setReportScheduleIterationStateSuccessRequest,
-          setReportScheduleIterationStateFailureRequest
+          setReportScheduleIterationStateFailureRequest,
         )
     }
 
@@ -581,7 +612,7 @@ class ReportSchedulingJobTest {
         .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
         .containsExactly(
           reportScheduleIteration,
-          reportScheduleIteration.copy { externalReportScheduleId = otherReportScheduleId }
+          reportScheduleIteration.copy { externalReportScheduleId = otherReportScheduleId },
         )
 
       val getDataProviderCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
@@ -600,14 +631,21 @@ class ReportSchedulingJobTest {
         requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
         report =
           publicReportSchedule.reportTemplate.copy {
-            periodicTimeInterval = periodicTimeInterval {
-              startTime = timestamp {
-                seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+            reportingInterval =
+              ReportKt.reportingInterval {
+                reportStart = dateTime {
+                  year = 2022
+                  month = 1
+                  day = 1
+                  hours = 13
+                  timeZone = timeZone { id = "America/Los_Angeles" }
+                }
+                reportEnd = date {
+                  year = 2022
+                  month = 1
+                  day = 2
+                }
               }
-              increment =
-                Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
-              intervalCount = 1
-            }
           }
       }
       assertThat(createReportCaptor.allValues)
@@ -679,7 +717,7 @@ class ReportSchedulingJobTest {
           reportScheduleIteration,
           reportScheduleIteration.copy {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID_2
-          }
+          },
         )
 
       val getDataProviderCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
@@ -698,14 +736,21 @@ class ReportSchedulingJobTest {
         requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
         report =
           publicReportSchedule.reportTemplate.copy {
-            periodicTimeInterval = periodicTimeInterval {
-              startTime = timestamp {
-                seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+            reportingInterval =
+              ReportKt.reportingInterval {
+                reportStart = dateTime {
+                  year = 2022
+                  month = 1
+                  day = 1
+                  hours = 13
+                  timeZone = timeZone { id = "America/Los_Angeles" }
+                }
+                reportEnd = date {
+                  year = 2022
+                  month = 1
+                  day = 2
+                }
               }
-              increment =
-                Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
-              intervalCount = 1
-            }
           }
       }
       assertThat(createReportCaptor.allValues)
@@ -727,13 +772,13 @@ class ReportSchedulingJobTest {
                         metricCalculationSpecs +=
                           MetricCalculationSpecKey(
                               CMMS_MEASUREMENT_CONSUMER_ID_2,
-                              METRIC_CALCULATION_SPEC_ID
+                              METRIC_CALCULATION_SPEC_ID,
                             )
                             .toName()
                       }
                   }
               }
-          }
+          },
         )
 
       val setReportScheduleIterationStateCaptor:
@@ -754,7 +799,7 @@ class ReportSchedulingJobTest {
           setReportScheduleIterationStateRequest,
           setReportScheduleIterationStateRequest.copy {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID_2
-          }
+          },
         )
     }
 
@@ -796,7 +841,7 @@ class ReportSchedulingJobTest {
 
     verifyProtoArgument(
         reportScheduleIterationsMock,
-        ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration
+        ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration,
       )
       .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
       .isEqualTo(
@@ -859,7 +904,7 @@ class ReportSchedulingJobTest {
 
     verifyProtoArgument(
         reportScheduleIterationsMock,
-        ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration
+        ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration,
       )
       .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
       .isEqualTo(
@@ -922,7 +967,7 @@ class ReportSchedulingJobTest {
 
     verifyProtoArgument(
         reportScheduleIterationsMock,
-        ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration
+        ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration,
       )
       .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
       .isEqualTo(
@@ -985,7 +1030,7 @@ class ReportSchedulingJobTest {
 
     verifyProtoArgument(
         reportScheduleIterationsMock,
-        ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration
+        ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration,
       )
       .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
       .isEqualTo(
@@ -1051,7 +1096,7 @@ class ReportSchedulingJobTest {
 
       verifyProtoArgument(
           reportScheduleIterationsMock,
-          ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration
+          ReportScheduleIterationsCoroutineImplBase::createReportScheduleIteration,
         )
         .ignoringFields(ReportScheduleIteration.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
         .isEqualTo(
@@ -1134,7 +1179,7 @@ class ReportSchedulingJobTest {
 
     verifyProtoArgument(
         reportScheduleIterationsMock,
-        ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState
+        ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState,
       )
       .isEqualTo(
         setReportScheduleIterationStateRequest {
@@ -1159,7 +1204,7 @@ class ReportSchedulingJobTest {
 
       verifyProtoArgument(
           reportScheduleIterationsMock,
-          ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState
+          ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState,
         )
         .isEqualTo(
           setReportScheduleIterationStateRequest {
@@ -1205,24 +1250,28 @@ class ReportSchedulingJobTest {
             requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
             report =
               publicReportSchedule.reportTemplate.copy {
-                periodicTimeInterval = periodicTimeInterval {
-                  startTime = timestamp {
-                    seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+                reportingInterval =
+                  ReportKt.reportingInterval {
+                    reportStart = dateTime {
+                      year = 2022
+                      month = 1
+                      day = 1
+                      hours = 13
+                      timeZone = timeZone { id = "America/Los_Angeles" }
+                    }
+                    reportEnd = date {
+                      year = 2022
+                      month = 1
+                      day = 2
+                    }
                   }
-                  increment =
-                    Timestamps.between(
-                      startTime,
-                      INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
-                    )
-                  intervalCount = 1
-                }
               }
           }
         )
 
       verifyProtoArgument(
           reportScheduleIterationsMock,
-          ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState
+          ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState,
         )
         .isEqualTo(
           setReportScheduleIterationStateRequest {
@@ -1267,21 +1316,28 @@ class ReportSchedulingJobTest {
           requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
           report =
             publicReportSchedule.reportTemplate.copy {
-              periodicTimeInterval = periodicTimeInterval {
-                startTime = timestamp {
-                  seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+              reportingInterval =
+                ReportKt.reportingInterval {
+                  reportStart = dateTime {
+                    year = 2022
+                    month = 1
+                    day = 1
+                    hours = 13
+                    timeZone = timeZone { id = "America/Los_Angeles" }
+                  }
+                  reportEnd = date {
+                    year = 2022
+                    month = 1
+                    day = 2
+                  }
                 }
-                increment =
-                  Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
-                intervalCount = 1
-              }
             }
         }
       )
 
     verifyProtoArgument(
         reportScheduleIterationsMock,
-        ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState
+        ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState,
       )
       .isEqualTo(
         setReportScheduleIterationStateRequest {
@@ -1326,21 +1382,28 @@ class ReportSchedulingJobTest {
           requestId = INTERNAL_REPORT_SCHEDULE_ITERATION.createReportRequestId
           report =
             publicReportSchedule.reportTemplate.copy {
-              periodicTimeInterval = periodicTimeInterval {
-                startTime = timestamp {
-                  seconds = 1641070800 // January 1, 2022 at 1 PM, America/Los_Angeles
+              reportingInterval =
+                ReportKt.reportingInterval {
+                  reportStart = dateTime {
+                    year = 2022
+                    month = 1
+                    day = 1
+                    hours = 13
+                    timeZone = timeZone { id = "America/Los_Angeles" }
+                  }
+                  reportEnd = date {
+                    year = 2022
+                    month = 1
+                    day = 2
+                  }
                 }
-                increment =
-                  Timestamps.between(startTime, INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime)
-                intervalCount = 1
-              }
             }
         }
       )
 
     verifyProtoArgument(
         reportScheduleIterationsMock,
-        ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState
+        ReportScheduleIterationsCoroutineImplBase::setReportScheduleIterationState,
       )
       .isEqualTo(
         setReportScheduleIterationStateRequest {
@@ -1533,11 +1596,21 @@ class ReportSchedulingJobTest {
             }
         }
       state = Report.State.RUNNING
-      periodicTimeInterval = periodicTimeInterval {
-        startTime = timestamp { seconds = 100 }
-        increment = Timestamps.between(startTime, timestamp { seconds = 200 })
-        intervalCount = 1
-      }
+      reportingInterval =
+        ReportKt.reportingInterval {
+          reportStart = dateTime {
+            year = 2022
+            month = 1
+            day = 1
+            hours = 13
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          reportEnd = date {
+            year = 2022
+            month = 1
+            day = 2
+          }
+        }
       createTime = timestamp { seconds = 50 }
       reportSchedule = REPORT_SCHEDULE_NAME
     }

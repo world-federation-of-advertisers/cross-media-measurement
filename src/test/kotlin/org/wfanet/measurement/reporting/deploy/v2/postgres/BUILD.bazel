@@ -1,8 +1,10 @@
-load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 kt_jvm_test(
     name = "PostgresMeasurementConsumersServiceTest",
     srcs = ["PostgresMeasurementConsumersServiceTest.kt"],
+    # TODO(world-federation-of-advertisers/cross-media-measurement#827): Remove when flakiness is resolved.
+    flaky = True,
     tags = ["cpu:2"],
     test_class = "org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementConsumersServiceTest",
     runtime_deps = [
@@ -19,6 +21,8 @@ kt_jvm_test(
 kt_jvm_test(
     name = "PostgresMeasurementsServiceTest",
     srcs = ["PostgresMeasurementsServiceTest.kt"],
+    # TODO(world-federation-of-advertisers/cross-media-measurement#827): Remove when flakiness is resolved.
+    flaky = True,
     tags = ["cpu:2"],
     test_class = "org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementsServiceTest",
     runtime_deps = [
@@ -35,6 +39,8 @@ kt_jvm_test(
 kt_jvm_test(
     name = "PostgresMetricsServiceTest",
     srcs = ["PostgresMetricsServiceTest.kt"],
+    # TODO(world-federation-of-advertisers/cross-media-measurement#827): Remove when flakiness is resolved.
+    flaky = True,
     tags = ["cpu:2"],
     test_class = "org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMetricsServiceTest",
     runtime_deps = [
@@ -51,6 +57,8 @@ kt_jvm_test(
 kt_jvm_test(
     name = "PostgresReportingSetsServiceTest",
     srcs = ["PostgresReportingSetsServiceTest.kt"],
+    # TODO(world-federation-of-advertisers/cross-media-measurement#827): Remove when flakiness is resolved.
+    flaky = True,
     tags = ["cpu:2"],
     test_class = "org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportingSetsServiceTest",
     runtime_deps = [
@@ -67,6 +75,8 @@ kt_jvm_test(
 kt_jvm_test(
     name = "PostgresReportsServiceTest",
     srcs = ["PostgresReportsServiceTest.kt"],
+    # TODO(world-federation-of-advertisers/cross-media-measurement#827): Remove when flakiness is resolved.
+    flaky = True,
     tags = ["cpu:2"],
     test_class = "org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportsServiceTest",
     runtime_deps = [
@@ -83,6 +93,8 @@ kt_jvm_test(
 kt_jvm_test(
     name = "PostgresMetricCalculationSpecsServiceTest",
     srcs = ["PostgresMetricCalculationSpecsServiceTest.kt"],
+    # TODO(world-federation-of-advertisers/cross-media-measurement#827): Remove when flakiness is resolved.
+    flaky = True,
     tags = ["cpu:2"],
     test_class = "org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMetricCalculationSpecsServiceTest",
     runtime_deps = [
@@ -99,6 +111,8 @@ kt_jvm_test(
 kt_jvm_test(
     name = "PostgresReportSchedulesServiceTest",
     srcs = ["PostgresReportSchedulesServiceTest.kt"],
+    # TODO(world-federation-of-advertisers/cross-media-measurement#827): Remove when flakiness is resolved.
+    flaky = True,
     tags = ["cpu:2"],
     test_class = "org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportSchedulesServiceTest",
     runtime_deps = [
@@ -115,6 +129,8 @@ kt_jvm_test(
 kt_jvm_test(
     name = "PostgresReportScheduleIterationsServiceTest",
     srcs = ["PostgresReportScheduleIterationsServiceTest.kt"],
+    # TODO(world-federation-of-advertisers/cross-media-measurement#827): Remove when flakiness is resolved.
+    flaky = True,
     tags = ["cpu:2"],
     test_class = "org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportScheduleIterationsServiceTest",
     runtime_deps = [
