@@ -183,12 +183,12 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       }
       ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
         // For each EDP, insert a Requisitions for each non-aggregator.
-        insertHmssRequisitions(
+        insertRequisitions(
           measurementConsumerId,
           measurementId,
           createMeasurementRequest.measurement.dataProvidersMap,
           Requisition.State.PENDING_PARAMS,
-          includedDuchyEntries.map { InternalId(it.internalDuchyId) }.drop(1)
+          includedDuchyEntries.drop(1),
         )
       }
       ProtocolConfig.ProtocolCase.DIRECT,
@@ -297,6 +297,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
     measurementId: InternalId,
     dataProvidersMap: Map<Long, Measurement.DataProviderValue>,
     initialRequisitionState: Requisition.State,
+    fulfillingDuchies: List<DuchyIds.Entry> = emptyList(),
   ) {
     for ((externalDataProviderId, dataProviderValue) in dataProvidersMap) {
       insertRequisition(
@@ -305,28 +306,8 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         ExternalId(externalDataProviderId),
         dataProviderValue,
         initialRequisitionState,
+        fulfillingDuchies,
       )
-    }
-  }
-
-  private suspend fun TransactionScope.insertHmssRequisitions(
-    measurementConsumerId: InternalId,
-    measurementId: InternalId,
-    dataProvidersMap: Map<Long, Measurement.DataProviderValue>,
-    initialRequisitionState: Requisition.State,
-    duchyIds: List<InternalId>
-  ) {
-    for ((externalDataProviderId, dataProviderValue) in dataProvidersMap) {
-      for (duchyId in duchyIds) {
-        insertRequisition(
-          measurementConsumerId,
-          measurementId,
-          ExternalId(externalDataProviderId),
-          dataProviderValue,
-          initialRequisitionState,
-          duchyId
-        )
-      }
     }
   }
 
@@ -336,8 +317,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
     externalDataProviderId: ExternalId,
     dataProviderValue: Measurement.DataProviderValue,
     initialRequisitionState: Requisition.State,
-    initialRequisitionState: Requisition.State,
-    duchyId: InternalId? = null
+    fulfillingDuchies: List<DuchyIds.Entry> = emptyList(),
   ) {
     val dataProviderId =
       DataProviderReader.readDataProviderId(transactionContext, externalDataProviderId)
@@ -370,6 +350,13 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         dataProviderPublicKeySignatureAlgorithmOid =
           dataProviderValue.dataProviderPublicKeySignatureAlgorithmOid
       }
+    val fulfillingDuchyId =
+      if (fulfillingDuchies.isNotEmpty()) {
+        val index = (externalRequisitionId.value % fulfillingDuchies.size).toInt()
+        fulfillingDuchies[index].internalDuchyId
+      } else {
+        null
+      }
 
     transactionContext.bufferInsertMutation("Requisitions") {
       set("MeasurementConsumerId" to measurementConsumerId)
@@ -380,7 +367,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       set("ExternalRequisitionId" to externalRequisitionId)
       set("DataProviderCertificateId" to dataProviderCertificateId)
       set("State" to initialRequisitionState)
-      duchyId?.let { set("FulfillingDuchyId" to it) }
+      fulfillingDuchyId?.let { set("FulfillingDuchyId" to it) }
       set("RequisitionDetails" to details)
       setJson("RequisitionDetailsJson" to details)
     }

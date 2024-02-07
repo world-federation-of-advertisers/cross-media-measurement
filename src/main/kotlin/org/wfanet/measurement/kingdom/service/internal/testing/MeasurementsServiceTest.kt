@@ -549,12 +549,11 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         )
         .toList()
 
-    assertThat(requisitions.size).isEqualTo(createdMeasurement.dataProvidersCount * 2)
-    assertThat(requisitions.map { it.externalFulfillingDuchyId })
-      .containsExactly(
-        Population.WORKER1_DUCHY.externalDuchyId,
-        Population.WORKER2_DUCHY.externalDuchyId
-      )
+    assertThat(requisitions.size).isEqualTo(createdMeasurement.dataProvidersCount)
+    val fulfillingDuchyIndex = requisitions[0].externalRequisitionId % 2
+    // check the externalFulfillingDuchyId of either "worker1" or "worker2"
+    assertThat(requisitions[0].externalFulfillingDuchyId)
+      .isEqualTo("worker${fulfillingDuchyIndex + 1}")
   }
 
   @Test
