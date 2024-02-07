@@ -28,12 +28,17 @@ import org.wfanet.measurement.internal.duchy.requisitionMetadata
 
 /** Performs read operations on Requisitions tables */
 class RequisitionReader {
-  data class RequisitionResult(val computationId: Long, val requisitionId: Long) {
+  data class RequisitionResult(
+    val computationId: Long,
+    val requisitionId: Long,
+    val requisitionDetails: RequisitionDetails,
+  ) {
     constructor(
       row: ResultRow
     ) : this(
       computationId = row.get<Long>("ComputationId"),
       requisitionId = row.get<Long>("RequisitionId"),
+      requisitionDetails = row.getProtoMessage("RequisitionDetails", RequisitionDetails.parser()),
     )
   }
 
@@ -51,7 +56,7 @@ class RequisitionReader {
     val sql =
       boundStatement(
         """
-        SELECT ComputationId, RequisitionId
+        SELECT ComputationId, RequisitionId, RequisitionDetails
         FROM Requisitions
         WHERE
           ExternalRequisitionId = $1
@@ -114,7 +119,6 @@ class RequisitionReader {
         RequisitionFingerprint,
         PathToBlob,
         RandomSeed,
-        PublicApiVersion,
         RequisitionDetails
       FROM Requisitions
         WHERE ComputationId = $1
@@ -135,7 +139,6 @@ class RequisitionReader {
       }
       row.get<String?>("PathToBlob")?.let { path = it }
       row.get<ByteString?>("RandomSeed")?.let { secretSeed = it }
-      row.get<String?>("PublicApiVersion")?.let { publicApiVersion = it }
       details = row.getProtoMessage("RequisitionDetails", RequisitionDetails.parser())
     }
   }

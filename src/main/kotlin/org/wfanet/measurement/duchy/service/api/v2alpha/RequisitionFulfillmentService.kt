@@ -14,13 +14,13 @@
 
 package org.wfanet.measurement.duchy.service.api.v2alpha
 
+import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
-import org.wfanet.measurement.api.v2alpha.EncryptedMessage
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -101,7 +101,7 @@ class RequisitionFulfillmentService(
               grpcRequire(header.honestMajorityShareShuffle.hasSecretSeed()) {
                 "Secret seed not be specified for HMSS protocol."
               }
-              header.honestMajorityShareShuffle.secretSeed
+              header.honestMajorityShareShuffle.secretSeed.ciphertext
             } else {
               null
             }
@@ -191,15 +191,15 @@ class RequisitionFulfillmentService(
     token: ComputationToken,
     key: ExternalRequisitionKey,
     blobPath: String,
-    secretSeed: EncryptedMessage?,
+    secretSeedCiphertext: ByteString?,
   ) {
     computationsClient.recordRequisitionFulfillment(
       recordRequisitionFulfillmentRequest {
         this.token = token
         this.key = key
         this.blobPath = blobPath
-        if (secretSeed != null) {
-          this.secretSeed = secretSeed
+        if (secretSeedCiphertext != null) {
+          this.secretSeedCiphertext = secretSeedCiphertext
         }
         publicApiVersion = Version.V2_ALPHA.string
       }

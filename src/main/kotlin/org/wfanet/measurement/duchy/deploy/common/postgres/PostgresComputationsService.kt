@@ -443,7 +443,7 @@ class PostgresComputationsService(
           localId = request.token.localComputationId,
           externalRequisitionKey = request.key,
           pathToBlob = request.blobPath,
-          seed = if (request.hasSecretSeed()) request.secretSeed.toByteString() else null,
+          seed = if (!request.secretSeedCiphertext.isEmpty) request.secretSeedCiphertext else null,
           publicApiVersion = request.publicApiVersion,
           computationReader = computationReader,
         )

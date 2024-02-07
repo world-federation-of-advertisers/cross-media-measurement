@@ -21,6 +21,7 @@ import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationRe
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.RequisitionReader
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
+import org.wfanet.measurement.internal.duchy.copy
 
 /**
  * [PostgresWriter] to record the data for a requisition by a path to the blob or a seed.
@@ -58,6 +59,11 @@ class RecordRequisitionData(
     require(localId == requisition.computationId) {
       "The token doesn't match the computation owns the requisition."
     }
+    val requisitionDetails =
+      requisition.requisitionDetails.copy {
+        publicApiVersion = this@RecordRequisitionData.publicApiVersion
+      }
+
     val writeTime = clock.instant()
     updateComputation(localId = localId, updateTime = writeTime)
     updateRequisition(
@@ -67,7 +73,7 @@ class RecordRequisitionData(
       requisitionFingerprint = externalRequisitionKey.requisitionFingerprint,
       pathToBlob = pathToBlob,
       randomSeed = seed,
-      publicApiVersion = publicApiVersion,
+      requisitionDetails = requisitionDetails,
       updateTime = writeTime,
     )
 

@@ -205,7 +205,7 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
     token: ComputationEditToken<ProtocolT, StageT>,
     externalRequisitionKey: ExternalRequisitionKey,
     pathToBlob: String,
-    secretSeed: ByteString? = null,
+    secretSeedCiphertext: ByteString? = null,
     publicApiVersion: String,
   )
 

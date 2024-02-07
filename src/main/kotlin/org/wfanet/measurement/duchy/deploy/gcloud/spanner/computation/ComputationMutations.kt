@@ -424,7 +424,6 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     requisitionFingerprint: ByteString,
     pathToBlob: String? = null,
     randomSeed: ByteString? = null,
-    publicApiVersion: String? = null,
     requisitionDetails: RequisitionDetails? = null,
   ): Mutation {
     return newBuilderFunction("Requisitions")
@@ -435,7 +434,6 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
         set("RequisitionFingerprint" to requisitionFingerprint.toGcloudByteArray())
         pathToBlob?.let { set("PathToBlob" to nonNullValueString(it)) }
         randomSeed?.let { set("RandomSeed" to it.toGcloudByteArray()) }
-        publicApiVersion?.let { set("PublicApiVersion" to it) }
         requisitionDetails?.let {
           set("RequisitionDetails" to it)
           setJson("RequisitionDetailsJSON" to it)
@@ -457,7 +455,6 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     requisitionFingerprint: ByteString,
     pathToBlob: String? = null,
     randomSeed: ByteString? = null,
-    publicApiVersion: String? = null,
     requisitionDetails: RequisitionDetails = RequisitionDetails.getDefaultInstance(),
   ): Mutation {
     return requisition(
@@ -468,7 +465,6 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
       requisitionFingerprint,
       pathToBlob,
       randomSeed,
-      publicApiVersion,
       requisitionDetails,
     )
   }
@@ -486,7 +482,6 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     requisitionFingerprint: ByteString,
     pathToBlob: String? = null,
     randomSeed: ByteString? = null,
-    publicApiVersion: String? = null,
     requisitionDetails: RequisitionDetails? = null,
   ): Mutation {
     return requisition(
@@ -497,7 +492,6 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
       requisitionFingerprint,
       pathToBlob,
       randomSeed,
-      publicApiVersion,
       requisitionDetails,
     )
   }

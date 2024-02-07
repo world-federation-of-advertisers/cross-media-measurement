@@ -43,13 +43,13 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_go",
-    repo_name = "io_bazel_rules_go",
     version = "0.43.0",
+    repo_name = "io_bazel_rules_go",
 )
 bazel_dep(
     name = "gazelle",
-    repo_name = "bazel_gazelle",
     version = "0.34.0",
+    repo_name = "bazel_gazelle",
 )
 bazel_dep(
     name = "rules_java",
@@ -65,8 +65,8 @@ bazel_dep(
 )
 bazel_dep(
     name = "protobuf",
-    repo_name = "com_google_protobuf",
     version = "23.1",
+    repo_name = "com_google_protobuf",
 )
 bazel_dep(
     name = "aspect_rules_ts",
@@ -86,18 +86,18 @@ bazel_dep(
 )
 bazel_dep(
     name = "abseil-cpp",
-    repo_name = "com_google_absl",
     version = "20230802.1",
+    repo_name = "com_google_absl",
 )
 bazel_dep(
     name = "googletest",
-    repo_name = "com_google_googletest",
     version = "1.14.0.bcr.1",
+    repo_name = "com_google_googletest",
 )
 bazel_dep(
     name = "glog",  # For shell-encryption.
-    repo_name = "com_github_google_glog",
     version = "0.6.0",
+    repo_name = "com_github_google_glog",
 )
 bazel_dep(
     name = "boringssl",  # For shell-encryption.
@@ -107,33 +107,33 @@ bazel_dep(
 # WFA registry modules.
 bazel_dep(
     name = "rules_kotlin_jvm",
-    repo_name = "wfa_rules_kotlin_jvm",
     version = "0.2.0",
+    repo_name = "wfa_rules_kotlin_jvm",
 )
 bazel_dep(
     name = "rules_swig",
-    repo_name = "wfa_rules_swig",
     version = "0.1.0",
+    repo_name = "wfa_rules_swig",
 )
 bazel_dep(
     name = "rules_cue",
-    repo_name = "wfa_rules_cue",
     version = "0.4.0",
+    repo_name = "wfa_rules_cue",
 )
 bazel_dep(
     name = "common-jvm",
-    repo_name = "wfa_common_jvm",
     version = "0.74.1",
+    repo_name = "wfa_common_jvm",
 )
 bazel_dep(
     name = "common-cpp",
-    repo_name = "wfa_common_cpp",
     version = "0.12.0",
+    repo_name = "wfa_common_cpp",
 )
 bazel_dep(
     name = "cross-media-measurement-api",
-    repo_name = "wfa_measurement_proto",
     version = "0.57.0",
+    repo_name = "wfa_measurement_proto",
 )
 
 # DO_NOT_SUBMIT: Use release version.
@@ -145,59 +145,57 @@ archive_override(
 
 bazel_dep(
     name = "consent-signaling-client",
-    repo_name = "wfa_consent_signaling_client",
     version = "0.20.0",
+    repo_name = "wfa_consent_signaling_client",
 )
 bazel_dep(
     name = "any-sketch",
-    repo_name = "any_sketch",
     version = "0.6.0",
+    repo_name = "any_sketch",
 )
 bazel_dep(
     name = "any-sketch-java",
-    repo_name = "any_sketch_java",
     version = "0.5.0",
+    repo_name = "any_sketch_java",
 )
 bazel_dep(
     name = "googleapis",
-    repo_name = "com_google_googleapis",
     version = "0.0.0-bzlmod.1",
+    repo_name = "com_google_googleapis",
 )
 bazel_dep(
     name = "private-join-and-compute",
-    repo_name = "com_google_private_join_and_compute",
     version = "0.0.0-20230417-e028e59",
+    repo_name = "com_google_private_join_and_compute",
 )
 bazel_dep(
     name = "virtual-people-common",
-    repo_name = "wfa_virtual_people_common",
     version = "0.4.0",
+    repo_name = "wfa_virtual_people_common",
 )
 bazel_dep(
     name = "grpc-gateway",
-    repo_name = "grpc_ecosystem_grpc_gateway",
     version = "2.18.1",
+    repo_name = "grpc_ecosystem_grpc_gateway",
 )
 bazel_dep(
     name = "cloud-spanner-emulator-bin",
-    repo_name = "cloud_spanner_emulator",
     version = "1.5.13",
+    repo_name = "cloud_spanner_emulator",
 )
 bazel_dep(
     name = "riegeli",
-    repo_name = "com_google_riegeli",
     version = "0.0.0-20240122-ac83dce",
+    repo_name = "com_google_riegeli",
 )
 
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
-
 maven.artifact(
     artifact = "beam-runners-google-cloud-dataflow-java",
     exclusions = ["org.apache.beam:beam-sdks-java-io-kafka"],
     group = "org.apache.beam",
     version = APACHE_BEAM_VERSION,
 )
-
 maven.artifact(
     artifact = "beam-sdks-java-io-google-cloud-platform",
     exclusions = [
@@ -207,7 +205,6 @@ maven.artifact(
     group = "org.apache.beam",
     version = APACHE_BEAM_VERSION,
 )
-
 maven.install(
     artifacts = [
         "com.google.cloud:google-cloud-security-private-ca:2.3.1",
@@ -234,52 +231,43 @@ maven.install(
     lock_file = "//:maven_install.json",
     strict_visibility = True,
 )
-
 use_repo(maven, "maven", "unpinned_maven")
 
 npm = use_extension("@aspect_rules_js//npm:extensions.bzl", "npm")
-
 npm.npm_translate_lock(
     name = "npm",
     npmrc = "//:.npmrc",
     pnpm_lock = "//:pnpm-lock.yaml",
     verify_node_modules_ignored = "//:.bazelignore",
 )
-
 use_repo(npm, "npm")
 
 go_deps = use_extension("@bazel_gazelle//:extensions.bzl", "go_deps")
-
 go_deps.module(
     path = "github.com/golang/glog",
     sum = "h1:DVjP2PbBOzHyzA+dn3WhHIq4NdVu3Q+pvivFICf/7fo=",
     version = "v1.1.2",
 )
-
 go_deps.module(
     path = "google.golang.org/genproto",
     sum = "h1:I6WNifs6pF9tNdSob2W24JtyxIYjzFB9qDlpUC76q+U=",
     version = "v0.0.0-20231030173426-d783a09b4405",
 )
-
 go_deps.module(
     path = "google.golang.org/genproto/googleapis/api",
     sum = "h1:JpwMPBpFN3uKhdaekDpiNlImDdkUAyiJ6ez/uxGaUSo=",
     version = "v0.0.0-20231106174013-bbf56f31fb17",
 )
-
 go_deps.module(
     path = "google.golang.org/genproto/googleapis/rpc",
     sum = "h1:AB/lmRny7e2pLhFEYIbl5qkDAUt2h0ZRO4wGPhZf+ik=",
     version = "v0.0.0-20231030173426-d783a09b4405",
 )
-
 go_deps.module(
     path = "google.golang.org/grpc",
     sum = "h1:Z5Iec2pjwb+LEOqzpB2MR12/eKFhDPhuqW91O+4bwUk=",
     version = "v1.59.0",
 )
-
 use_repo(
     go_deps,
     "com_github_golang_glog",
@@ -290,7 +278,6 @@ use_repo(
 )
 
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")
-
 python.toolchain(
     # Allow containerized builds using rootless Docker.
     # See https://github.com/bazelbuild/rules_python/pull/713#issuecomment-1885628496

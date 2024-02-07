@@ -66,7 +66,6 @@ class ComputationTokenProtoQuery(
                  r2.RequisitionFingerprint,
                  r2.PathToBlob,
                  r2.RandomSeed,
-                 r2.PublicApiVersion,
                  r2.RequisitionDetails
                FROM Requisitions AS r2
                WHERE c.ComputationId = r2.ComputationId
@@ -101,7 +100,6 @@ class ComputationTokenProtoQuery(
                  r2.RequisitionFingerprint,
                  r2.PathToBlob,
                  r2.RandomSeed,
-                 r2.PublicApiVersion,
                  r2.RequisitionDetails
                FROM Requisitions AS r2
                WHERE c.ComputationId = r2.ComputationId
@@ -164,9 +162,6 @@ class ComputationTokenProtoQuery(
             }
             if (!it.isNull("RandomSeed")) {
               secretSeed = it.getBytesAsByteString("RandomSeed")
-            }
-            if (!it.isNull("PublicApiVersion")) {
-              publicApiVersion = it.getString("PublicApiVersion")
             }
             details = it.getProtoMessage("RequisitionDetails", RequisitionDetails.parser())
           }

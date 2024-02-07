@@ -257,7 +257,7 @@ class RequisitionFulfillmentServiceTest {
           token = fakeToken
           key = REQUISITION_KEY
           blobPath = blob.blobKey
-          secretSeed = TEST_REQUISITION_SEED
+          secretSeedCiphertext = TEST_REQUISITION_SEED.ciphertext
           publicApiVersion = Version.V2_ALPHA.string
         }
       )

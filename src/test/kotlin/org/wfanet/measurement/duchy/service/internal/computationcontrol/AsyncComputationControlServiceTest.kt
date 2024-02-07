@@ -31,9 +31,6 @@ import org.mockito.kotlin.stub
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.Version
-import org.wfanet.measurement.api.v2alpha.SignedMessage
-import org.wfanet.measurement.api.v2alpha.encryptedMessage
-import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
@@ -80,14 +77,8 @@ private val COMMON_SEED = "seed_1".toByteStringUtf8()
 private val PEER_COMMON_SEED = "seed_2".toByteStringUtf8()
 private val REQUISITION_PATH_1 = "path 1"
 private val REQUISITION_PATH_2 = "path 2"
-private val REQUISITION_SEED_1 = encryptedMessage {
-  ciphertext = "encrypted seed 1".toByteStringUtf8()
-  typeUrl = ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
-}
-private val REQUISITION_SEED_2 = encryptedMessage {
-  ciphertext = "encrypted seed 2".toByteStringUtf8()
-  typeUrl = ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
-}
+private val REQUISITION_SEED_1 = "encrypted seed 1".toByteStringUtf8()
+private val REQUISITION_SEED_2 = "encrypted seed 2".toByteStringUtf8()
 private const val AGGREGATION_BLOB_ID_1 = 1L
 private const val AGGREGATION_BLOB_ID_2 = 2L
 private val AGGREGATION_BLOB_PATH_1 = "path_1"
@@ -437,12 +428,12 @@ class AsyncComputationControlServiceTest {
       }
       if (requisitionFulfilled) {
         requisitions += requisitionMetadata {
-          secretSeed = REQUISITION_SEED_1.toByteString()
+          secretSeed = REQUISITION_SEED_1
           path = REQUISITION_PATH_1
           publicApiVersion = Version.V2_ALPHA.string
         }
         requisitions += requisitionMetadata {
-          secretSeed = REQUISITION_SEED_2.toByteString()
+          secretSeed = REQUISITION_SEED_2
           path = REQUISITION_PATH_2
           publicApiVersion = Version.V2_ALPHA.string
         }

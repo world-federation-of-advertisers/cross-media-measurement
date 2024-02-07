@@ -19,7 +19,6 @@ package wfa.measurement.internal.duchy;
 import "google/protobuf/duration.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
-import "wfa/measurement/api/v2alpha/crypto.proto";
 import "wfa/measurement/internal/duchy/computation_details.proto";
 import "wfa/measurement/internal/duchy/computation_protocols.proto";
 import "wfa/measurement/internal/duchy/computation_token.proto";
@@ -304,11 +303,11 @@ message RecordRequisitionFulfillmentRequest {
   // The blob path where the data of the requisition is stored.
   // Required. Must be non-empty.
   string blob_path = 3;
-  // The random seed that is signed, encrypted, and serialized.
+  // The random seed that is signed and encrypted.
   //
   // RandomSeed is defined in CMMS public api. The RandomSeed is firstly signed
   // as a SignedMessage then encrypted into a EncryptedMessage.
-  .wfa.measurement.api.v2alpha.EncryptedMessage secret_seed = 4;
+  bytes secret_seed_ciphertext = 4;
   // Version of the public API.
   string public_api_version = 5;
 }

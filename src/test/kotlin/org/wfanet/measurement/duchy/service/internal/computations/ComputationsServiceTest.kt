@@ -28,9 +28,6 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v2alpha.SignedMessage
-import org.wfanet.measurement.api.v2alpha.encryptedMessage
-import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.chainRulesSequentially
@@ -59,6 +56,7 @@ import org.wfanet.measurement.internal.duchy.getComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.recordRequisitionFulfillmentRequest
+import org.wfanet.measurement.internal.duchy.requisitionDetails
 import org.wfanet.measurement.internal.duchy.requisitionEntry
 import org.wfanet.measurement.internal.duchy.requisitionMetadata
 import org.wfanet.measurement.internal.duchy.updateComputationDetailsRequest
@@ -496,22 +494,21 @@ class ComputationsServiceTest {
       token = tokenAtStart
       key = requisitionKey
       blobPath = "this is a new path"
+      publicApiVersion = "v2alpha"
     }
 
-    assertThat(service.recordRequisitionFulfillment(request))
+    assertThat(service.recordRequisitionFulfillment(request).token)
       .isEqualTo(
-        tokenAtStart
-          .toBuilder()
-          .clearRequisitions()
-          .apply {
-            version = 1
-            addRequisitionsBuilder().apply {
-              externalKey = requisitionKey
-              path = "this is a new path"
-            }
+        tokenAtStart.copy {
+          version = 1
+
+          requisitions.clear()
+          requisitions += requisitionMetadata {
+            externalKey = requisitionKey
+            path = "this is a new path"
+            details = requisitionDetails { this.publicApiVersion = "v2alpha" }
           }
-          .build()
-          .toRecordRequisitionBlobPathResponse()
+        }
       )
   }
 
@@ -531,15 +528,12 @@ class ComputationsServiceTest {
 
     val tokenAtStart = service.getComputationToken(id.toGetTokenRequest()).token
 
-    val secretSeed = encryptedMessage {
-      ciphertext = "signed seed 1".toByteStringUtf8()
-      typeUrl = ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
-    }
+    val secretSeed = "signed secret seed".toByteStringUtf8()
     val request = recordRequisitionFulfillmentRequest {
       token = tokenAtStart
       key = requisitionKey
       blobPath = "this is a new path"
-      this.secretSeed = secretSeed
+      this.secretSeedCiphertext = secretSeed
       publicApiVersion = "v2alpha"
     }
 
@@ -551,8 +545,8 @@ class ComputationsServiceTest {
           requisitions += requisitionMetadata {
             externalKey = requisitionKey
             path = "this is a new path"
-            this.secretSeed = secretSeed.toByteString()
-            publicApiVersion = "v2alpha"
+            this.secretSeed = secretSeed
+            details = requisitionDetails { this.publicApiVersion = "v2alpha" }
           }
         }
       )

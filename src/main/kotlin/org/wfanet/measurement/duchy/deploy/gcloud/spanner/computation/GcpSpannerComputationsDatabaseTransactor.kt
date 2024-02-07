@@ -45,9 +45,11 @@ import org.wfanet.measurement.gcloud.spanner.TransactionWork
 import org.wfanet.measurement.gcloud.spanner.getNullableString
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
+import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
+import org.wfanet.measurement.internal.duchy.RequisitionDetails
 import org.wfanet.measurement.internal.duchy.RequisitionEntry
 import org.wfanet.measurement.internal.duchy.copy
 
@@ -668,22 +670,31 @@ class GcpSpannerComputationsDatabaseTransactor<
       "Cannot insert blank public api version. $externalRequisitionKey"
     }
     databaseClient.readWriteTransaction().execute { txn ->
+      val parameterizedRequisitionQueryString =
+        """
+        SELECT ComputationId, RequisitionId, RequisitionDetails
+        FROM Requisitions
+        WHERE ExternalRequisitionId = @external_requisition_id
+          AND RequisitionFingerprint = @requisition_fingerprint
+      """
+          .trimIndent()
+      val requisitionQuery =
+        statement(parameterizedRequisitionQueryString) {
+          bind("external_requisition_id").to(externalRequisitionKey.externalRequisitionId)
+          bind("requisition_fingerprint")
+            .to(externalRequisitionKey.requisitionFingerprint.toGcloudByteArray())
+        }
       val row =
-        txn.readRowUsingIndex(
-          "Requisitions",
-          "RequisitionsByExternalId",
-          Key.of(
-            externalRequisitionKey.externalRequisitionId,
-            externalRequisitionKey.requisitionFingerprint.toGcloudByteArray(),
-          ),
-          listOf("ComputationId", "RequisitionId"),
-        ) ?: error("No Computation found row for this requisition: $externalRequisitionKey")
+        txn.executeQuery(requisitionQuery).firstOrNull()
+          ?: error("No row found for this requisition: $externalRequisitionKey")
       val localComputationId = row.getLong("ComputationId")
       val requisitionId = row.getLong("RequisitionId")
+      val details = row.getProtoMessage("RequisitionDetails", RequisitionDetails.parser())
       require(localComputationId == token.localId) {
         "The token doesn't match the computation owns the requisition."
       }
 
+      val updatedDetails = details.copy { this.publicApiVersion = publicApiVersion }
       txn.buffer(
         listOf(
           computationMutations.updateComputation(
@@ -697,7 +708,7 @@ class GcpSpannerComputationsDatabaseTransactor<
             requisitionFingerprint = externalRequisitionKey.requisitionFingerprint,
             pathToBlob = pathToBlob,
             randomSeed = secretSeed,
-            publicApiVersion = publicApiVersion,
+            requisitionDetails = updatedDetails,
           ),
         )
       )
@@ -708,15 +719,18 @@ class GcpSpannerComputationsDatabaseTransactor<
     token: ComputationEditToken<ProtocolT, StageT>,
     externalRequisitionKey: ExternalRequisitionKey,
     pathToBlob: String,
-    secretSeed: ByteString?,
+    secretSeedCiphertext: ByteString?,
     publicApiVersion: String,
   ) {
     require(pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $externalRequisitionKey" }
+    require(publicApiVersion.isNotBlank()) {
+      "Cannot insert blank public api version. $externalRequisitionKey"
+    }
     writeRequisitionFulfillment(
       token,
       externalRequisitionKey,
       pathToBlob,
-      secretSeed,
+      secretSeedCiphertext,
       publicApiVersion,
     )
   }

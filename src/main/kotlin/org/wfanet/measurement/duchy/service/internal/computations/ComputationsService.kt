@@ -341,7 +341,7 @@ class ComputationsService(
       request.token.toDatabaseEditToken(),
       request.key,
       request.blobPath,
-      if (request.hasSecretSeed()) request.secretSeed.toByteString() else null,
+      if (!request.secretSeedCiphertext.isEmpty) request.secretSeedCiphertext else null,
       request.publicApiVersion,
     )
     return checkNotNull(computationsDatabase.readComputationToken(request.key))
