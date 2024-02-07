@@ -16,14 +16,15 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import com.google.common.hash.Hashing
 import com.google.protobuf.Descriptors.FieldDescriptor
 import com.google.protobuf.Message
+import com.google.protobuf.kotlin.toByteStringUtf8
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.time.ZoneOffset
-import java.util.Random
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.random.Random as KotlinRandom
-import kotlin.random.asKotlinRandom
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SimulatorSyntheticDataSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
@@ -36,11 +37,14 @@ import org.wfanet.measurement.common.rangeTo
 import org.wfanet.measurement.common.toLocalDate
 
 object SyntheticDataGeneration {
+  private val VID_SAMPLING_FINGERPRINT_FUNCTION = Hashing.farmHashFingerprint64()
+  private const val FINGERPRINT_BUFFER_SIZE_BYTES = 512
+
   /**
-   * Generates a sequence of [EventQuery.LabeledEvent].
+   * Generates a sequence of [LabeledEvent].
    *
    * Consumption of [Sequence] throws
-   * * [IllegalArgumentException] when [SimulatorSyntheticDataSpec] is invalid, or incompatible
+   * * [IllegalStateException] when [SimulatorSyntheticDataSpec] is invalid, or incompatible
    * * with [T].
    *
    * @param messageInstance an instance of the event message type [T]
@@ -52,28 +56,6 @@ object SyntheticDataGeneration {
     populationSpec: SyntheticPopulationSpec,
     syntheticEventGroupSpec: SyntheticEventGroupSpec,
   ): Sequence<LabeledEvent<T>> {
-    var samplingRequired = false
-    val vidRangeSpecs =
-      syntheticEventGroupSpec.dateSpecsList
-        .flatMap { it.frequencySpecsList }
-        .flatMap { it.vidRangeSpecsList }
-
-    for (vidRangeSpec in vidRangeSpecs) {
-      val vidRangeWidth = vidRangeSpec.vidRange.endExclusive - vidRangeSpec.vidRange.start
-      check(vidRangeWidth >= vidRangeSpec.sampleSize) {
-        "all vidRange widths should be larger than sampleSizes"
-      }
-      if (vidRangeSpec.sampleSize > 0) {
-        samplingRequired = true
-      }
-    }
-
-    if (samplingRequired) {
-      check(syntheticEventGroupSpec.rngType == SyntheticEventGroupSpec.RngType.JAVA_UTIL_RANDOM) {
-        "Expecting JAVA_UTIL_RANDOM rng type, got ${syntheticEventGroupSpec.rngType}"
-      }
-    }
-
     val subPopulations = populationSpec.subPopulationsList
 
     return sequence {
@@ -84,10 +66,15 @@ object SyntheticDataGeneration {
           check(!frequencySpec.hasOverlaps()) { "The VID ranges should be non-overlapping." }
 
           for (vidRangeSpec: VidRangeSpec in frequencySpec.vidRangeSpecsList) {
-            val random = Random(vidRangeSpec.randomSeed).asKotlinRandom()
             val subPopulation: SubPopulation =
               vidRangeSpec.vidRange.findSubPopulation(subPopulations)
-                ?: throw IllegalArgumentException()
+                ?: error("Sub-population not found")
+            check(vidRangeSpec.samplingRate in 0.0..1.0) { "Invalid sampling_rate" }
+            if (vidRangeSpec.sampled) {
+              check(syntheticEventGroupSpec.samplingNonce != 0L) {
+                "sampling_nonce is required for VID sampling"
+              }
+            }
 
             val builder: Message.Builder = messageInstance.newBuilderForType()
 
@@ -95,23 +82,30 @@ object SyntheticDataGeneration {
               val subPopulationFieldValue: FieldValue =
                 subPopulation.populationFieldsValuesMap.getValue(it)
               val fieldPath = it.split('.')
-              builder.setField(fieldPath, subPopulationFieldValue)
+              try {
+                builder.setField(fieldPath, subPopulationFieldValue)
+              } catch (e: IllegalArgumentException) {
+                throw IllegalStateException(e)
+              }
             }
 
             populationSpec.nonPopulationFieldsList.forEach {
               val nonPopulationFieldValue: FieldValue =
                 vidRangeSpec.nonPopulationFieldValuesMap.getValue(it)
               val fieldPath = it.split('.')
-              builder.setField(fieldPath, nonPopulationFieldValue)
+              try {
+                builder.setField(fieldPath, nonPopulationFieldValue)
+              } catch (e: IllegalArgumentException) {
+                throw IllegalStateException(e)
+              }
             }
 
             @Suppress("UNCHECKED_CAST") // Safe per protobuf API.
             val message = builder.build() as T
 
             for (date in dateProgression) {
-              for (i in 0 until frequencySpec.frequency) {
-                val sampledVids = sampleVids(vidRangeSpec, random)
-                for (vid in sampledVids) {
+              for (i in 1..frequencySpec.frequency) {
+                for (vid in vidRangeSpec.sampledVids(syntheticEventGroupSpec.samplingNonce)) {
                   yield(LabeledEvent(date.atStartOfDay().toInstant(ZoneOffset.UTC), vid, message))
                 }
               }
@@ -122,18 +116,34 @@ object SyntheticDataGeneration {
     }
   }
 
-  /**
-   * Returns the sampled Vids from [vidRangeSpec]. Given the same [vidRangeSpec] and [randomSeed],
-   * returns the same vids. Returns all of the vids if sample size is 0.
-   */
-  private fun sampleVids(vidRangeSpec: VidRangeSpec, random: KotlinRandom): Sequence<Long> {
-    val vidRangeSequence =
-      (vidRangeSpec.vidRange.start until vidRangeSpec.vidRange.endExclusive).asSequence()
-    if (vidRangeSpec.sampleSize == 0) {
-      return vidRangeSequence
+  /** Returns the VIDs which are in the sample for this [VidRangeSpec]. */
+  private fun VidRangeSpec.sampledVids(samplingNonce: Long): Sequence<Long> {
+    return (vidRange.start until vidRange.endExclusive).asSequence().filter {
+      inSample(it, samplingNonce)
     }
-    return vidRangeSequence.shuffled(random).take(vidRangeSpec.sampleSize)
   }
+
+  /** Returns whether [vid] is in the sample specified by this [VidRangeSpec]. */
+  private fun VidRangeSpec.inSample(vid: Long, samplingNonce: Long): Boolean {
+    if (!sampled) {
+      return true
+    }
+
+    val buffer =
+      ByteBuffer.allocate(FINGERPRINT_BUFFER_SIZE_BYTES)
+        .order(ByteOrder.LITTLE_ENDIAN)
+        .putLong(vid)
+        .putLong(samplingNonce)
+        .putFieldValueMap(nonPopulationFieldValuesMap)
+        .flip()
+    val fingerprint = VID_SAMPLING_FINGERPRINT_FUNCTION.hashBytes(buffer).asLong()
+    val rangeValue: Double = fingerprint.toDouble() / Long.MAX_VALUE
+    return rangeValue in -samplingRate..samplingRate
+  }
+
+  /** Whether the [VidRange] in this [VidRangeSpec] should be sampled. */
+  private val VidRangeSpec.sampled: Boolean
+    get() = samplingRate > 0.0 && samplingRate < 1.0
 
   /**
    * Returns the [SubPopulation] from a list of [SubPopulation] that contains the [VidRange] in its
@@ -211,3 +221,34 @@ private fun SyntheticEventGroupSpec.FrequencySpec.hasOverlaps() =
 
 private fun VidRange.overlaps(other: VidRange) =
   max(start, other.start) < min(endExclusive, other.endExclusive)
+
+private fun ByteBuffer.putFieldValueMap(fieldValueMap: Map<String, FieldValue>): ByteBuffer {
+  for ((key, value) in fieldValueMap.entries.sortedBy { it.key }) {
+    putStringUtf8(key)
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum accessors cannot return null.
+    when (value.valueCase) {
+      FieldValue.ValueCase.STRING_VALUE -> putStringUtf8(value.stringValue)
+      FieldValue.ValueCase.BOOL_VALUE -> putBoolean(value.boolValue)
+      FieldValue.ValueCase.DOUBLE_VALUE -> putDouble(value.doubleValue)
+      FieldValue.ValueCase.FLOAT_VALUE -> putFloat(value.floatValue)
+      FieldValue.ValueCase.ENUM_VALUE,
+      FieldValue.ValueCase.INT32_VALUE -> putInt(value.enumValue)
+      FieldValue.ValueCase.INT64_VALUE -> putLong(value.int64Value)
+      FieldValue.ValueCase.DURATION_VALUE ->
+        putLong(value.durationValue.seconds).putInt(value.durationValue.nanos)
+      FieldValue.ValueCase.TIMESTAMP_VALUE ->
+        putLong(value.timestampValue.seconds).putInt(value.timestampValue.nanos)
+      FieldValue.ValueCase.VALUE_NOT_SET -> throw IllegalArgumentException("value not set")
+    }
+  }
+  return this // For chaining.
+}
+
+private fun ByteBuffer.putBoolean(value: Boolean): ByteBuffer {
+  val byte: Byte = if (value) 1 else 0
+  return put(byte)
+}
+
+private fun ByteBuffer.putStringUtf8(value: String): ByteBuffer {
+  return put(value.toByteStringUtf8().asReadOnlyByteBuffer())
+}
