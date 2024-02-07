@@ -15,7 +15,6 @@
 package org.wfanet.measurement.duchy.daemon.herald
 
 import java.util.logging.Logger
-import org.wfanet.measurement.api.v2alpha.RequisitionKey
 import org.wfanet.measurement.duchy.daemon.utils.key
 import org.wfanet.measurement.duchy.daemon.utils.toKingdomComputationDetails
 import org.wfanet.measurement.duchy.daemon.utils.toRequisitionEntries
@@ -30,7 +29,6 @@ import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 
-
 object HonestMajorityShareShuffleStarter {
   private val logger: Logger = Logger.getLogger(this::class.java.name)
 
@@ -41,7 +39,7 @@ object HonestMajorityShareShuffleStarter {
     computationStorageClient: ComputationsGrpcKt.ComputationsCoroutineStub,
     systemComputation: Computation,
     protocolSetupConfig: HonestMajorityShareShuffleSetupConfig,
-    blobStorageBucket: String
+    blobStorageBucket: String,
   ) {
     require(systemComputation.name.isNotEmpty()) { "Resource name not specified" }
     val globalId: String = systemComputation.key.computationId
@@ -55,20 +53,21 @@ object HonestMajorityShareShuffleStarter {
         }
     }
     val requisitions =
-      systemComputation.requisitionsList.filter {
-        val participantKey = ComputationParticipantKey.fromName(it.fulfillingComputationParticipant)
-        participantKey != null && participantKey.duchyId == duchyId
-      }.toRequisitionEntries(systemComputation.measurementSpec)
+      systemComputation.requisitionsList
+        .filter {
+          val participantKey =
+            ComputationParticipantKey.fromName(it.fulfillingComputationParticipant)
+          participantKey != null && participantKey.duchyId == duchyId
+        }
+        .toRequisitionEntries(systemComputation.measurementSpec)
 
     computationStorageClient.createComputation(
       createComputationRequest {
-        computationType =
-          ComputationTypeEnum.ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE
+        computationType = ComputationTypeEnum.ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE
         globalComputationId = globalId
         computationDetails = initialComputationDetails
         this.requisitions += requisitions
       }
     )
   }
-
 }
