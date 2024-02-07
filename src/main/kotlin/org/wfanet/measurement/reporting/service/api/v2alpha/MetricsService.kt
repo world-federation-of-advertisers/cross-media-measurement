@@ -224,6 +224,7 @@ class MetricsService(
   signingPrivateKeyDir: File,
   trustedCertificates: Map<ByteString, X509Certificate>,
   certificateCacheExpirationDuration: Duration = Duration.ofMinutes(60),
+  dataProviderCacheExpirationDuration: Duration = Duration.ofMinutes(60),
   keyReaderContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
   cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
 ) : MetricsCoroutineImplBase() {
@@ -246,7 +247,8 @@ class MetricsService(
       secureRandom,
       signingPrivateKeyDir,
       trustedCertificates,
-      certificateCacheExpirationDuration,
+      certificateCacheExpirationDuration = certificateCacheExpirationDuration,
+      dataProviderCacheExpirationDuration = dataProviderCacheExpirationDuration,
       keyReaderContext,
       cacheLoaderContext,
     )
@@ -263,6 +265,7 @@ class MetricsService(
     private val signingPrivateKeyDir: File,
     private val trustedCertificates: Map<ByteString, X509Certificate>,
     certificateCacheExpirationDuration: Duration,
+    dataProviderCacheExpirationDuration: Duration,
     private val keyReaderContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
     cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
   ) {
@@ -286,7 +289,7 @@ class MetricsService(
     private val dataProviderCache: LoadingCache<ResourceNameApiAuthenticationKey, DataProvider> =
       LoadingCache(
         Caffeine.newBuilder()
-          .expireAfterWrite(certificateCacheExpirationDuration)
+          .expireAfterWrite(dataProviderCacheExpirationDuration)
           .executor(
             (cacheLoaderContext[ContinuationInterceptor] as CoroutineDispatcher).asExecutor()
           )
