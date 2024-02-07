@@ -185,10 +185,10 @@ message CartesianSyntheticEventGroupSpecRecipe {
     message FieldValueRatio {
       // Value of the non_population_field.
       FieldValue field_value = 2;
-      // Ratio of this field value for this dimension. Must sum up to 1 for
-      // specs with the same field_name.
+      // Ratio of this field value for this dimension.
       float ratio = 3;
     }
+    // Ratios in these fields must sum up to 1.
     repeated FieldValueRatio field_value_ratios = 2;
   }
 
@@ -205,7 +205,7 @@ message CartesianSyntheticEventGroupSpecRecipe {
     // This value together with FrequencyDimensionSpecs implies total
     // impressions.
     int64 total_reach = 2;
-    // A map of frequencies to their values ratios.
+    // A map of frequencies to their values ratios. Ratios must sum up to 1.
     map<int64, float> frequency_ratios = 3;
     // Each NonPopulationDimension must have a unique field_name.
     repeated NonPopulationDimensionSpec non_population_dimension_specs = 4;
