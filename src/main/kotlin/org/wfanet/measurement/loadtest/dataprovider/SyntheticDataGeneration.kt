@@ -306,17 +306,17 @@ fun CartesianSyntheticEventGroupSpecRecipe.toSyntheticEventGroupSpec(
       }
 
       // Check if all non Population dimension ratios sum up to 1.
-      dateSpec.nonPopulationDimensionSpecsList.forEach {
-        check(it.fieldValueRatiosList.map { it.ratio }.sum() == 1.0f) {
-          "Non population dimension : ${it.fieldName} does not sum up to 1."
+      dateSpec.nonPopulationDimensionSpecsMap.forEach { (fieldName, nonPopulationDimensionSpec) ->
+        check(nonPopulationDimensionSpec.fieldValueRatiosList.map { it.ratio }.sum() == 1.0f) {
+          "Non population dimension : ${fieldName} does not sum up to 1."
         }
       }
 
       val groupedNonPopulationDimensionSpecs =
-        dateSpec.nonPopulationDimensionSpecsList
-          .flatMap { nonPopulationDimensionSpec ->
+        dateSpec.nonPopulationDimensionSpecsMap
+          .flatMap { (fieldName, nonPopulationDimensionSpec) ->
             nonPopulationDimensionSpec.fieldValueRatiosList.map {
-              NonPopulationDimension(nonPopulationDimensionSpec.fieldName, it.fieldValue, it.ratio)
+              NonPopulationDimension(fieldName, it.fieldValue, it.ratio)
             }
           }
           .groupBy { it.fieldName }

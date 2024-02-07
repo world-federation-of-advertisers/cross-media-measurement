@@ -1115,9 +1115,8 @@ class SyntheticDataGenerationTest {
           frequencyRatios[1] = 0.5f
           frequencyRatios[2] = 0.5f
 
-          nonPopulationDimensionSpecs +=
+          nonPopulationDimensionSpecs["banner_ad.viewable"] =
             CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
-              fieldName = "banner_ad.viewable"
               fieldValueRatios += fieldValueRatio {
                 fieldValue = fieldValue { boolValue = true }
                 ratio = 0.5f
@@ -1127,10 +1126,8 @@ class SyntheticDataGenerationTest {
                 ratio = 0.5f
               }
             }
-          nonPopulationDimensionSpecs +=
+          nonPopulationDimensionSpecs["video_ad.viewed_fraction"] =
             CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
-              fieldName = "video_ad.viewed_fraction"
-
               fieldValueRatios += fieldValueRatio {
                 fieldValue = fieldValue { doubleValue = 0.3 }
                 ratio = 0.5f
@@ -1557,9 +1554,8 @@ class SyntheticDataGenerationTest {
           frequencyRatios[1] = 0.5f
           frequencyRatios[2] = 0.5f
 
-          nonPopulationDimensionSpecs +=
+          nonPopulationDimensionSpecs["banner_ad.viewable"] =
             CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
-              fieldName = "banner_ad.viewable"
               fieldValueRatios += fieldValueRatio {
                 fieldValue = fieldValue { boolValue = true }
                 ratio = 0.5f
@@ -1569,10 +1565,8 @@ class SyntheticDataGenerationTest {
                 ratio = 0.5f
               }
             }
-          nonPopulationDimensionSpecs +=
+          nonPopulationDimensionSpecs["video_ad.viewed_fraction"] =
             CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
-              fieldName = "video_ad.viewed_fraction"
-
               fieldValueRatios += fieldValueRatio {
                 fieldValue = fieldValue { doubleValue = 0.3 }
                 ratio = 0.5f
@@ -1603,9 +1597,8 @@ class SyntheticDataGenerationTest {
           frequencyRatios[1] = 0.5f
           frequencyRatios[2] = 0.5f
 
-          nonPopulationDimensionSpecs +=
+          nonPopulationDimensionSpecs["banner_ad.viewable"] =
             CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
-              fieldName = "banner_ad.viewable"
               fieldValueRatios += fieldValueRatio {
                 fieldValue = fieldValue { boolValue = true }
                 ratio = 0.5f
@@ -1615,10 +1608,8 @@ class SyntheticDataGenerationTest {
                 ratio = 0.5f
               }
             }
-          nonPopulationDimensionSpecs +=
+          nonPopulationDimensionSpecs["video_ad.viewed_fraction"] =
             CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
-              fieldName = "video_ad.viewed_fraction"
-
               fieldValueRatios += fieldValueRatio {
                 fieldValue = fieldValue { doubleValue = 0.3 }
                 ratio = 0.5f
@@ -1711,18 +1702,15 @@ class SyntheticDataGenerationTest {
 
           frequencyRatios[1] = 1.0f
 
-          nonPopulationDimensionSpecs +=
+          nonPopulationDimensionSpecs["banner_ad.viewable"] =
             CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
-              fieldName = "banner_ad.viewable"
               fieldValueRatios += fieldValueRatio {
                 fieldValue = fieldValue { boolValue = true }
                 ratio = 1.0f
               }
             }
-          nonPopulationDimensionSpecs +=
+          nonPopulationDimensionSpecs["video_ad.viewed_fraction"] =
             CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
-              fieldName = "video_ad.viewed_fraction"
-
               fieldValueRatios += fieldValueRatio {
                 fieldValue = fieldValue { doubleValue = 0.3 }
                 ratio = 1.0f
@@ -1802,9 +1790,8 @@ class SyntheticDataGenerationTest {
 
           frequencyRatios[1] = 1.0f
 
-          nonPopulationDimensionSpecs +=
+          nonPopulationDimensionSpecs["banner_ad.viewable"] =
             CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
-              fieldName = "banner_ad.viewable"
               fieldValueRatios += fieldValueRatio {
                 fieldValue = fieldValue { boolValue = true }
                 ratio = 0.8f
@@ -1814,10 +1801,8 @@ class SyntheticDataGenerationTest {
                 ratio = 0.5f
               }
             }
-          nonPopulationDimensionSpecs +=
+          nonPopulationDimensionSpecs["video_ad.viewed_fraction"] =
             CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
-              fieldName = "video_ad.viewed_fraction"
-
               fieldValueRatios += fieldValueRatio {
                 fieldValue = fieldValue { doubleValue = 0.3 }
                 ratio = 1.0f
@@ -1896,18 +1881,15 @@ class SyntheticDataGenerationTest {
             }
 
           frequencyRatios[1] = 1.0f
-          nonPopulationDimensionSpecs +=
+          nonPopulationDimensionSpecs["banner_ad.viewable"] =
             CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
-              fieldName = "banner_ad.viewable"
               fieldValueRatios += fieldValueRatio {
                 fieldValue = fieldValue { boolValue = true }
                 ratio = 1.0f
               }
             }
-          nonPopulationDimensionSpecs +=
+          nonPopulationDimensionSpecs["video_ad.viewed_fraction"] =
             CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
-              fieldName = "video_ad.viewed_fraction"
-
               fieldValueRatios += fieldValueRatio {
                 fieldValue = fieldValue { doubleValue = 0.3 }
                 ratio = 1.0f
