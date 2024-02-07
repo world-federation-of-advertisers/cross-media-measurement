@@ -37,37 +37,40 @@ class S3StorageFactory(
 ) : StorageFactory {
 
   override fun build(options: PipelineOptions?): StorageClient {
-    if (options == null) {
+    // if (options == null) {
       return build()
-    }
-    val beamOptions = options.`as`(BeamOptions::class.java)
-    @Suppress(
-      "USELESS_ELVIS",
-    ) // Beam returns String?
-    val accessKey = beamOptions.awsAccessKey ?: ""
-    @Suppress(
-      "USELESS_ELVIS",
-    ) // Beam returns String?
-    val secretAccessKey = beamOptions.awsSecretAccessKey ?: ""
-    @Suppress(
-      "USELESS_ELVIS",
-    ) // Beam returns String?
-    val sessionToken = beamOptions.awsSessionToken ?: ""
-    if (accessKey.isEmpty() || secretAccessKey.isEmpty() || sessionToken.isEmpty()) {
-      return build()
-    }
-    val builtCredentials = AwsSessionCredentials.create(accessKey, secretAccessKey, sessionToken)
-    return S3StorageClient(
-        S3AsyncClient.builder()
-          .region(Region.of(storageDetails.aws.region))
-          .credentialsProvider(StaticCredentialsProvider.create(builtCredentials))
-          .build(),
-        storageDetails.aws.bucket
-      )
-      .withPrefix(exchangeDateKey.path)
+    // }
+    // val beamOptions = options.`as`(BeamOptions::class.java)
+    // @Suppress(
+    //   "USELESS_ELVIS",
+    // ) // Beam returns String?
+    // val accessKey = beamOptions.awsAccessKey ?: ""
+    // @Suppress(
+    //   "USELESS_ELVIS",
+    // ) // Beam returns String?
+    // val secretAccessKey = beamOptions.awsSecretAccessKey ?: ""
+    // @Suppress(
+    //   "USELESS_ELVIS",
+    // ) // Beam returns String?
+    // val sessionToken = beamOptions.awsSessionToken ?: ""
+    // if (accessKey.isEmpty() || secretAccessKey.isEmpty() || sessionToken.isEmpty()) {
+    //   return build()
+    // }
+    // val builtCredentials = AwsSessionCredentials.create(accessKey, secretAccessKey, sessionToken)
+    // return S3StorageClient(
+    //     S3AsyncClient.builder()
+    //       .region(Region.of(storageDetails.aws.region))
+    //       .credentialsProvider(StaticCredentialsProvider.create(builtCredentials))
+    //       .build(),
+    //     storageDetails.aws.bucket
+    //   )
+    //   .withPrefix(exchangeDateKey.path)
   }
 
   override fun build(): StorageClient {
+
+    val client: StsClient = StsClient.builder().build()
+    println(client.callerIdentity)
     if (storageDetails.aws.role.roleArn.isEmpty()) {
       return S3StorageClient(
           S3AsyncClient.builder().region(Region.of(storageDetails.aws.region)).build(),
@@ -75,7 +78,6 @@ class S3StorageFactory(
         )
         .withPrefix(exchangeDateKey.path)
     } else {
-      val client: StsClient = StsClient.builder().build()
       val assumeRoleRequestBuilder =
         AssumeRoleRequest.builder()
           .roleArn(storageDetails.aws.role.roleArn)

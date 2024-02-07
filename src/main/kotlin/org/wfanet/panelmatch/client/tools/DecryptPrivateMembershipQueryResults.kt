@@ -139,6 +139,8 @@ class DecryptPrivateMembershipQueryResults : Runnable {
   private lateinit var s3Bucket: String
 
   private val rootStorageClient: StorageClient by lazy {
+    logger.log(Level.INFO,"$s3Region -- $s3Bucket")
+
     when (storageType) {
       StorageDetails.PlatformCase.AWS ->
         S3StorageClient(S3AsyncClient.builder().region(Region.of(s3Region)).build(), s3Bucket)
