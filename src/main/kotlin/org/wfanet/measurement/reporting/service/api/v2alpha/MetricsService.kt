@@ -20,7 +20,7 @@ import com.github.benmanes.caffeine.cache.Caffeine
 import com.google.common.util.concurrent.UncheckedExecutionException
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
-import com.google.protobuf.Duration
+import com.google.protobuf.Duration as ProtoDuration
 import com.google.protobuf.duration
 import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.util.Durations
@@ -34,7 +34,7 @@ import java.security.SecureRandom
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
-import java.time.Duration as JavaDuration
+import java.time.Duration as Duration
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.ContinuationInterceptor
 import kotlin.coroutines.CoroutineContext
@@ -224,7 +224,7 @@ class MetricsService(
   secureRandom: SecureRandom,
   signingPrivateKeyDir: File,
   trustedCertificates: Map<ByteString, X509Certificate>,
-  certificateCacheExpirationDuration: JavaDuration = JavaDuration.ofMinutes(60),
+  certificateCacheExpirationDuration: Duration = Duration.ofMinutes(60),
   keyReaderContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
   cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
 ) : MetricsCoroutineImplBase() {
@@ -263,7 +263,7 @@ class MetricsService(
     private val secureRandom: SecureRandom,
     private val signingPrivateKeyDir: File,
     private val trustedCertificates: Map<ByteString, X509Certificate>,
-    certificateCacheExpirationDuration: JavaDuration,
+    certificateCacheExpirationDuration: Duration,
     private val keyReaderContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
     cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
   ) {
@@ -1085,7 +1085,7 @@ class MetricsService(
           .getCertificate(getCertificateRequest { this.name = name })
       } catch (e: StatusException) {
         throw when (e.status.code) {
-            Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription("$name not found.")
+            Status.Code.NOT_FOUND -> Status.FAILED_PRECONDITION.withDescription("Certificate $name not found.")
             else -> Status.UNKNOWN.withDescription("Unable to retrieve Certificate $name.")
           }
           .withCause(e)
@@ -1787,7 +1787,7 @@ private fun calculateWatchDurationResult(
     }
   }
   return watchDurationResult {
-    val watchDuration: Duration =
+    val watchDuration: ProtoDuration =
       weightedMeasurements
         .map { weightedMeasurement ->
           aggregateResults(weightedMeasurement.measurement.details.resultsList)
@@ -1850,8 +1850,8 @@ private fun calculatePopulationResult(
   return populationCountResult { value = populationResult.population.value }
 }
 
-/** Converts [Duration] format to [Double] second. */
-private fun Duration.toDoubleSecond(): Double {
+/** Converts [ProtoDuration] format to [Double] second. */
+private fun ProtoDuration.toDoubleSecond(): Double {
   val source = this
   return source.seconds + (source.nanos.toDouble() / NANOS_PER_SECOND)
 }
@@ -2529,7 +2529,7 @@ fun buildStatsMethodology(reachResult: InternalMeasurement.Result.Reach): Method
   }
 }
 
-private operator fun Duration.times(weight: Int): Duration {
+private operator fun ProtoDuration.times(weight: Int): ProtoDuration {
   val source = this
   return duration {
     val weightedTotalNanos: Long =
@@ -2539,7 +2539,7 @@ private operator fun Duration.times(weight: Int): Duration {
   }
 }
 
-private operator fun Duration.plus(other: Duration): Duration {
+private operator fun ProtoDuration.plus(other: ProtoDuration): ProtoDuration {
   return Durations.add(this, other)
 }
 

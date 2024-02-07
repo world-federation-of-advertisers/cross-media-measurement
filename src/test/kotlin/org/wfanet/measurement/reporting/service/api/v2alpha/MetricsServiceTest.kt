@@ -3958,7 +3958,7 @@ class MetricsServiceTest {
   }
 
   @Test
-  fun `createMetric throws exception when getCertificate throws exception`() = runBlocking {
+  fun `createMetric throws UNKNOWN when getCertificate throws UNKNOWN`() = runBlocking {
     whenever(certificatesMock.getCertificate(any()))
       .thenThrow(StatusRuntimeException(Status.UNKNOWN))
 
@@ -3977,6 +3977,28 @@ class MetricsServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.UNKNOWN)
     assertThat(exception).hasMessageThat().contains("certificates/")
   }
+
+  @Test
+  fun `createMetric throws FAILED_PRECONDITION when getCertificate throws NOT_FOUND`() =
+    runBlocking {
+      whenever(certificatesMock.getCertificate(any()))
+        .thenThrow(StatusRuntimeException(Status.NOT_FOUND))
+
+      val request = createMetricRequest {
+        parent = MEASUREMENT_CONSUMERS.values.first().name
+        metric = REQUESTING_INCREMENTAL_REACH_METRIC
+        metricId = "metric-id"
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+            runBlocking { service.createMetric(request) }
+          }
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception).hasMessageThat().contains("certificates/")
+    }
 
   @Test
   fun `batchCreateMetrics creates CMMS measurements`() = runBlocking {
