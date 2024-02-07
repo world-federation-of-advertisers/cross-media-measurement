@@ -1,0 +1,459 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations: {}
+  labels:
+    app.kubernetes.io/component: workflow-daemon
+    app.kubernetes.io/name: example-panel-exchange-daemon
+    app.kubernetes.io/part-of: halo-panel-exchange
+  name: example-panel-exchange-daemon-deployment
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: example-panel-exchange-daemon
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: example-panel-exchange-daemon
+    spec:
+      containers:
+      - args:
+        - --id=YWeNzPLz_VU
+        - --party-type=MODEL_PROVIDER
+        - --s3-region=us-west-1
+        - --s3-storage-bucket=tf-test-blob-storage
+        - --tls-cert-file=/var/run/secrets/files/mp2_tls.pem
+        - --tls-key-file=/var/run/secrets/files/mp2_tls.key
+        - --tink-key-uri=aws-kms://arn:aws:kms:us-west-1:010295286036:key/3c682a91-26aa-41e4-85b1-192cd2d4504b
+        - --cert-collection-file=/var/run/secrets/files/all_root_certs.pem
+        - --blob-size-limit-bytes=1000000000
+        - --storage-signing-algorithm=RSA
+        - --task-timeout=24h
+        - --exchange-api-target=kingdom.originmediameasurement.com:8443
+        - --exchange-api-cert-host=kingdom.originmediameasurement.com
+        - --debug-verbose-grpc-client-logging=true
+        - --channel-shutdown-timeout=3s
+        - --polling-interval=1m
+        - --preprocessing-max-byte-size=1000000
+        - --preprocessing-file-count=1000
+        - --x509-common-name=Halo
+        - --x509-organization=Halo
+        - --x509-dns-name=halo-cmm.org
+        - --x509-valid-days=365
+        - --beam-job-endpoint=spark-beam-job-server:32090
+        - --certificate-authority-arn=arn:aws:acm-pca:us-west-1:010295286036:certificate-authority/e1e84428-873a-4751-993f-eec8da6f228f
+        - --use-direct-runner=false
+        env:
+        - name: JAVA_TOOL_OPTIONS
+          value: -Xmx3584m
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: /var/run/secrets/files/halo-test-px-creds.json
+        image: 010295286036.dkr.ecr.us-west-1.amazonaws.com/halo/panel-exchange/aws-example-daemon
+        imagePullPolicy: Always
+        name: example-panel-exchange-daemon-container
+        ports: []
+        resources:
+          limits:
+            cpu: 400m
+            memory: 4Gi
+          requests:
+            cpu: 100m
+            memory: 1Gi
+        volumeMounts:
+        - mountPath: /var/run/secrets/files
+          name: example-panel-exchange-daemon-files
+          readOnly: true
+      initContainers: []
+#      nodeSelector:
+#        k8s.io/cluster-autoscaler/node-template/label/node-lifecycle: on-demand
+      volumes:
+      - name: example-panel-exchange-daemon-files
+        secret:
+          secretName: certs-and-configs-mgt7hbh6g5
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: spark-beam-pv
+  namespace: default
+spec:
+  storageClassName: ""
+  claimRef:
+    name: spark-beam-pvc
+    namespace: default
+  capacity:
+    storage: 24Gi # Doesn't really matter, as EFS does not enforce it anyway
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteMany
+  mountOptions:
+    - hard
+    - nfsvers=4.1
+    - rsize=1048576
+    - wsize=1048576
+    - timeo=600
+    - retrans=2
+  nfs:
+    path: /
+    server: fs-0658b21ef8060950c.efs.us-west-1.amazonaws.com
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: spark-beam-pvc
+  namespace: default
+spec:
+  storageClassName: ""
+  volumeName: spark-beam-pv
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 2Gi
+#---
+#apiVersion: apps/v1
+#kind: Deployment
+#metadata:
+#  name: cluster-autoscaler
+#  namespace: default
+#  labels:
+#    app: cluster-autoscaler
+#spec:
+#  replicas: 1
+#  selector:
+#    matchLabels:
+#      app: cluster-autoscaler
+#  template:
+#    metadata:
+#      labels:
+#        app: cluster-autoscaler
+#      annotations:
+#        prometheus.io/scrape: 'true'
+#        prometheus.io/port: '8085'
+#    spec:
+#      priorityClassName: system-cluster-critical
+#      securityContext:
+#        runAsNonRoot: true
+#        runAsUser: 65534
+#        fsGroup: 65534
+#        seccompProfile:
+#          type: RuntimeDefault
+#      serviceAccountName: cluster-autoscaler
+#      containers:
+#        - image: registry.k8s.io/autoscaling/cluster-autoscaler:v1.26.3
+#          name: cluster-autoscaler
+#          resources:
+#            limits:
+#              cpu: 100m
+#              memory: 600Mi
+#            requests:
+#              cpu: 100m
+#              memory: 600Mi
+#          command:
+#            - ./cluster-autoscaler
+#            - --v=4
+#            - --stderrthreshold=info
+#            - --cloud-provider=aws
+#            - --skip-nodes-with-local-storage=false
+#            - --expander=least-waste
+#            - --node-group-auto-discovery=asg:tag=k8s.io/cluster-autoscaler/enabled,k8s.io/cluster-autoscaler/spark
+#          volumeMounts:
+#            - name: ssl-certs
+#              mountPath: /etc/ssl/certs/ca-certificates.crt # /etc/ssl/certs/ca-bundle.crt for Amazon Linux Worker Nodes
+#              readOnly: true
+#          imagePullPolicy: "Always"
+#          securityContext:
+#            allowPrivilegeEscalation: false
+#            capabilities:
+#              drop:
+#                - ALL
+#            readOnlyRootFilesystem: true
+#      nodeSelector:
+#        k8s.io/cluster-autoscaler/node-template/label/node-lifecycle: on-demand
+#      volumes:
+#        - name: ssl-certs
+#          hostPath:
+#            path: "/etc/ssl/certs/ca-bundle.crt"
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+ name: spark-beam-jobserver
+ labels:
+    app.kubernetes.io/component: spark-beam-jobserver
+    app.kubernetes.io/name: spark-beam-jobserver
+    app.kubernetes.io/part-of: halo-panel-exchange
+ namespace: default
+spec:
+ serviceName: spark-headless
+ selector:
+   matchLabels:
+     app.kubernetes.io/name: spark-beam-jobserver
+ template:
+  metadata:
+    labels:
+      app: spark-beam-jobserver
+      app.kubernetes.io/instance: spark-beam-primary
+      app.kubernetes.io/name: spark-beam-jobserver
+  spec:
+    containers:
+    - name: spark-beam-jobserver
+      image: apache/beam_spark3_job_server:2.48.0
+      imagePullPolicy: Always
+      ports:
+      - containerPort: 8099
+        name: jobservice
+      - containerPort: 8098
+        name: artifact
+      - containerPort: 8097
+        name: expansion
+      #volumeMounts:
+      # - name: beam-artifact-staging
+      #    mountPath: "/tmp/beam-artifact-staging"
+      command: [
+          "/bin/bash", "-c", "./spark-job-server.sh --job-port=8099 --spark-master-url=k8s://spark-primary:7077"
+      ]
+    volumes:
+    - name: example-panel-exchange-daemon-files
+      secret:
+        secretName: certs-and-configs-mgt7hbh6g5
+    #    nodeSelector:
+    #      k8s.io/cluster-autoscaler/node-template/label/node-lifecycle: on-demand
+    #volumes:
+    #- name: beam-artifact-staging
+    #  persistentVolumeClaim:
+    #    claimName: spark-beam-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-beam-jobserver
+  labels:
+    app.kubernetes.io/component: spark-beam-jobserver-service
+    app.kubernetes.io/name: spark-beam-jobserver
+    app.kubernetes.io/part-of: halo-panel-exchange
+    app: spark-beam-jobserver
+spec:
+  selector:
+    app: spark-beam-jobserver
+  type: NodePort
+  ports:
+  - port: 8099
+    nodePort: 32090
+    name: job-service
+  - port: 8098
+    nodePort: 32091
+    name: artifacts
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-primary
+  labels:
+    app.kubernetes.io/component: spark-primary-service
+    app.kubernetes.io/name: spark-beam-jobserver
+    app.kubernetes.io/part-of: halo-panel-exchange
+    app: spark
+    component: primary
+spec:
+  type: ClusterIP
+  ports:
+  - name: masterendpoint
+    port: 7077
+    targetPort: 7077
+  - name: rest
+    port: 6066
+    targetPort: 6066
+  - name: ui
+    port: 8080
+    targetPort: 8080
+  - name: driver-rpc-port
+    protocol: TCP
+    port: 7078
+    targetPort: 7078
+  - name: blockmanager
+    protocol: TCP
+    port: 7079
+    targetPort: 7079
+
+  selector:
+    app: spark
+    component: primary
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: spark-primary
+spec:
+  serviceName: spark-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spark
+  template:
+    metadata:
+      labels:
+        app: spark
+        component: primary
+        app.kubernetes.io/component: workflow-daemon
+        app.kubernetes.io/part-of: halo-panel-exchange
+        app.kubernetes.io/instance: spark-beam-primary
+        app.kubernetes.io/name: spark
+    spec:
+      containers:
+      - name: primary
+        image: public.ecr.aws/bitnami/spark:latest
+        env:
+        - name: SPARK_MODE
+          value: "master"
+        - name: SPARK_RPC_AUTHENTICATION_ENABLED
+          value: "no"
+        - name: SPARK_RPC_ENCRYPTION_ENABLED
+          value: "no"
+        - name: SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED
+          value: "no"
+        - name: SPARK_SSL_ENABLED
+          value: "no"
+        ports:
+        - containerPort: 7077
+          name: masterendpoint
+        - containerPort: 8080
+          name: ui
+        - containerPort: 7078
+          name: driver-rpc-port
+        - containerPort: 7079
+          name: blockmanager
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: 1.0
+            memory: 1Gi
+          requests:
+            cpu: 0.5
+            memory: 0.5Gi
+      serviceAccountName: mp-workflow
+      volumes:
+      - name: example-panel-exchange-daemon-files
+        secret:
+          secretName: certs-and-configs-mgt7hbh6g5
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: spark-children
+  labels:
+    app: spark
+    app.kubernetes.io/instance: spark-beam-children
+    app.kubernetes.io/name: spark-beam-jobserver
+spec:
+  serviceName: spark-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spark
+  template:
+    metadata:
+      labels:
+        app: spark
+        component: children
+        app.kubernetes.io/instance: spark-beam-children
+        app.kubernetes.io/name: spark-beam-jobserver
+    spec:
+      containers:
+      - name: docker
+        image: docker:24.0.4-dind
+        securityContext:
+          privileged: true
+        volumeMounts:
+          - name: dind-storage
+            mountPath: /var/lib/docker
+        env:
+          - name: DOCKER_TLS_CERTDIR
+            value: ""
+        resources:
+          limits:
+            cpu: 1.0
+            memory: 1Gi
+          requests:
+            cpu: 0.5
+            memory: 100Mi
+      - name: children
+        image: public.ecr.aws/bitnami/spark:latest
+        env:
+        - name: SPARK_MODE
+          value: "worker"
+        - name: SPARK_MASTER_URL
+          value: "spark://spark-primary:7077"
+        - name: SPARK_WORKER_MEMORY
+          value: "1G"
+        - name: SPARK_WORKER_CORES
+          value: "1"
+        - name: SPARK_RPC_AUTHENTICATION_ENABLED
+          value: "no"
+        - name: SPARK_RPC_ENCRYPTION_ENABLED
+          value: "no"
+        - name: SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED
+          value: "no"
+        - name: SPARK_SSL_ENABLED
+          value: "no"
+        ports:
+          - containerPort: 8081
+            name: ui
+        #volumeMounts:
+        #  - name: beam-artifact-staging
+        #    mountPath: "/tmp/beam-artifact-staging"
+        resources:
+          limits:
+            cpu: 1
+            memory: 2Gi
+          requests:
+            cpu: 0.5
+            memory: 1Gi
+      serviceAccountName: mp-workflow
+      volumes:
+      - name: dind-storage
+        emptyDir:
+      - name: example-panel-exchange-daemon-files
+        secret:
+          secretName: certs-and-configs-mgt7hbh6g5
+      #- name: beam-artifact-staging
+      #  persistentVolumeClaim:
+      #    claimName: spark-beam-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-children
+  labels:
+    app: spark
+    component: children
+    app.kubernetes.io/instance: spark-beam-children
+    app.kubernetes.io/name: spark-beam-jobserver
+spec:
+  type: ClusterIP
+  ports:
+  - name: ui
+    port: 8081
+    targetPort: 8081
+  selector:
+    app: spark
+    component: children
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-headless
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/instance: spark-beam-headless
+    app.kubernetes.io/name: spark-beam-jobserver
+  type: ClusterIP
