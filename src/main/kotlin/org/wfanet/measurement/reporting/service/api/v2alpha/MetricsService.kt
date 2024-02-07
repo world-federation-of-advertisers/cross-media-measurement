@@ -574,7 +574,6 @@ class MetricsService(
                   )
                 )
 
-
               if (
                 certificate.revocationState !=
                   Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED
