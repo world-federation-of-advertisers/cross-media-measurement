@@ -219,7 +219,9 @@ class InProcessReportingServer(
                 SecureRandom(),
                 signingPrivateKeyDir,
                 trustedCertificates,
+                Duration.ofMinutes(60),
                 Dispatchers.IO,
+                Dispatchers.Default,
               )
               .withMetadataPrincipalIdentities(measurementConsumerConfigs),
             ReportingSetsService(internalReportingSetsClient)
