@@ -156,3 +156,64 @@ message SyntheticEventGroupSpec {
   // specified in any `VidRangeSpec`.
   int64 sampling_nonce = 3;
 }
+
+// Recepie to generate a `SyntheticEventGroupSpec`.
+//
+// Each `CartesianSyntheticEventGroupSpecRecipe` is mapped to a
+// `SyntheticEventGroupSpec` by first taking the cartesian product of each
+// NonPopulationDimension and FrequencyDimensionSpec. This product is then
+// crossed with all the subPopulations given a `SyntheticPopulationSpec`.
+// The resulting product is used to create a
+// `SyntheticEventGroupSpec.FrequencySpec` by setting the `VidRange` to be the
+// range of the subpopulation of the product and setting the sampling_rate to be
+// the proportion of that product's desired VidRange to the subpopulation's and
+// setting the frequency to be the frequency value contributed by the
+// `FrequencyDimensionSpec` in the product. VidRange These operations are done
+// for each DateSpec.
+message CartesianSyntheticEventGroupSpecRecipe {
+  string description = 1;
+
+  // Random nonce value to be used in every `VidRangeSpec` in the resulting
+  // `SyntheticEventGroupSpec`. Required.
+  int64 sampling_nonce = 2;
+
+  // The specification of Frequency dimension.
+  message FrequencyDimensionSpec {
+    int64 frequency = 1;
+    // Ratio of total reach that originates from this frequency.
+    // Must sum up to 1.
+    float ratio = 2;
+  }
+
+  // The specification of NonPopulation field dimensions.
+  message NonPopulationDimensionSpec {
+    // Maps to `non_population_fields` from `SyntheticPopulationSpec`.
+    string field_name = 1;
+    // Value of the non_population_field.
+    FieldValue field_value = 2;
+    // Ratio of this field value for this dimension. Must sum up to 1 for specs
+    // with the same field_name.
+    float ratio = 3;
+  }
+
+  // The specification for all frequencies reached for a specific date range.
+  message DateSpec {
+    // A range of `Date`s represented with a beginning and exclusive end.
+    message DateRange {
+      google.type.Date start = 1;
+      google.type.Date end_exclusive = 2;
+    }
+    // Dates the VIDs were reached.
+    SyntheticEventGroupSpec.DateSpec.DateRange date_range = 1;
+
+    // This value together with FrequencyDimensionSpecs implies total
+    // impressions.
+    int64 total_reach = 2;
+    // Each FrequencyDimensionSpec must have a unique frequency.
+    repeated FrequencyDimensionSpec frequency_dimension_specs = 3;
+    // Each NonPopulationDimension must have a unique field_name.
+    repeated NonPopulationDimensionSpec non_population_dimension_specs = 4;
+  }
+  // `DateSpec`s should describe non-overlapping date ranges.
+  repeated DateSpec date_specs = 3;
+}

@@ -25,13 +25,19 @@ import java.nio.ByteOrder
 import java.time.ZoneOffset
 import kotlin.math.max
 import kotlin.math.min
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.CartesianSyntheticEventGroupSpecRecipe
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.CartesianSyntheticEventGroupSpecRecipe.FrequencyDimensionSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.CartesianSyntheticEventGroupSpecRecipe.NonPopulationDimensionSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SimulatorSyntheticDataSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpecKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec.SubPopulation
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.VidRange
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.syntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.vidRange
 import org.wfanet.measurement.common.LocalDateProgression
 import org.wfanet.measurement.common.rangeTo
 import org.wfanet.measurement.common.toLocalDate
@@ -252,3 +258,134 @@ private fun ByteBuffer.putBoolean(value: Boolean): ByteBuffer {
 private fun ByteBuffer.putStringUtf8(value: String): ByteBuffer {
   return put(value.toByteStringUtf8().asReadOnlyByteBuffer())
 }
+
+/**
+ * Converts a [CartesianSyntheticEventGroupSpecRecipe] to [SyntheticEventGroupSpec] using a
+ * [SyntheticPopulationSpec].
+ *
+ * For each dateSpec in [the CartesianSyntheticEventGroupSpecRecipe];
+ * 1. Group the nonPopulationDimensionSpecs based on their field names. These groups specify the
+ *    distribution of the data for the respective dimensions.
+ * 2. Cross these groups with each other and the frequencyDimensionSpecs. This produces a desired
+ *    distribution for all the non population dimensions and the frequencies.
+ * 3. Cross this result with the subPopulations defined in the syntheticPopulationSpec. This will
+ *    not add any fields since the poopualtion values are defiend in the syntheticPopulationSpec,
+ *    this operation is used to query the vid ranges to be used for the resulting cartesian product.
+ * 4. Create frequency specs from these groups such that the frequency field is set from
+ *    frequencyDimensionSpec, . the vidRange is the vid Range of the subpopulation and the sampling
+ *    rate is the product of all ratios in dimensions and total reach divided by total number of
+ *    vids.
+ *
+ * Since the algorithm takes the cross product of the population spec, it needs to define at least
+ * one sub population.
+ *
+ * @throws IllegalArgumentException for a [CartesianSyntheticEventGroupSpecRecipe] that implies vids
+ *   that are not specified in [syntheticPopulationSpec]
+ * @throws IllegalArgumentException for a [syntheticPopulationSpec] that does not have any
+ *   subPopulations
+ * @throws IllegalArgumentException for a [CartesianSyntheticEventGroupSpecRecipe] that has
+ *   frequency or nonpolation dimensions that don't sum up to 1 in thier ratios.
+ */
+fun CartesianSyntheticEventGroupSpecRecipe.toSyntheticEventGroupSpec(
+  syntheticPopulationSpec: SyntheticPopulationSpec
+): SyntheticEventGroupSpec {
+  check(syntheticPopulationSpec.subPopulationsList.isNotEmpty()) {
+    "syntheticPopulationSpec must have sub populations"
+  }
+  check(samplingNonce != 0L) {
+    "CartesianSyntheticEventGroupSpecRecipe must specify a samplingNonce"
+  }
+
+  val subPopulations = syntheticPopulationSpec.subPopulationsList
+  val numAvaliableVids =
+    subPopulations.map { it.vidSubRange.endExclusive - it.vidSubRange.start }.sum()
+
+  val mappedDateSpecs =
+    this.dateSpecsList.map { dateSpec ->
+      val totalReach = dateSpec.totalReach
+      check(totalReach <= numAvaliableVids) {
+        "CartesianSyntheticEventGroupSpecRecipe implies vids that do not exist"
+      }
+      // Group NonPopulationDimensionSpecs by name.
+      val groupedNonPopulationDimensionSpecs =
+        dateSpec.nonPopulationDimensionSpecsList.groupBy { it.fieldName }
+
+      // Check if all non Population dimension ratios sum up to 1.
+      groupedNonPopulationDimensionSpecs.forEach { (fieldName, group) ->
+        check(group.map { it.ratio }.sum() == 1.0f) {
+          "Non population dimension : $fieldName does not sum up to 1."
+        }
+      }
+
+      // Check if FrequencyDimensionSpec ratios sum up to 1.
+      check(dateSpec.frequencyDimensionSpecsList.map { it.ratio }.sum() == 1.0f) {
+        "Frequency dimension does not sum up to 1."
+      }
+
+      // Take the cartesian product of all non population dimensions
+      val nonPopulationCartesianProduct: List<List<NonPopulationDimensionSpec>> =
+        groupedNonPopulationDimensionSpecs
+          .map { (_, group) -> group }
+          .fold(listOf(emptyList<NonPopulationDimensionSpec>())) { acc, inner ->
+            acc.flatMap { outer -> inner.map { element -> outer + listOf(element) } }
+          }
+
+      val mappedFrequencySpecs = mutableListOf<SyntheticEventGroupSpec.FrequencySpec>()
+      // Take the cartesian product with frequencyDimensionSpecs.
+      for (freqDimension in dateSpec.frequencyDimensionSpecsList) {
+        for (nonPopulationSpecs in nonPopulationCartesianProduct) {
+
+          // Take the cartesian product with syntheticPopulationSpec.
+          subPopulations.forEach { subPopulation ->
+            // Number of vids in this region is the product of all the ratios in the dimensions.
+            val nonPopulationBucketWidth =
+              (totalReach *
+                freqDimension.ratio *
+                nonPopulationSpecs.map { it.ratio }.reduce { acc, element -> acc * element })
+
+            // The proportion of vids that should be sampled from this subPopulation.
+            // The calculation is as follows:
+            // (nonPopulationBucketWidth * (subPopWidth / numAvaliableVids)) / subPopWidth
+            val samplingRate = (nonPopulationBucketWidth / numAvaliableVids.toDouble())
+            mappedFrequencySpecs +=
+              createFrequencySpec(
+                samplingRate,
+                freqDimension,
+                nonPopulationSpecs,
+                subPopulation.vidSubRange,
+              )
+          }
+        }
+      }
+      SyntheticEventGroupSpecKt.dateSpec {
+        dateRange = dateSpec.dateRange
+        frequencySpecs += mappedFrequencySpecs
+      }
+    }
+  val givenDescription = this.description
+  val givenSamplingNonce = this.samplingNonce
+  return syntheticEventGroupSpec {
+    description = givenDescription
+    samplingNonce = givenSamplingNonce
+    dateSpecs += mappedDateSpecs
+  }
+}
+
+private fun createFrequencySpec(
+  rate: Double,
+  freqDimension: FrequencyDimensionSpec,
+  nonPopulationSpecs: List<NonPopulationDimensionSpec>,
+  range: VidRange,
+) =
+  SyntheticEventGroupSpecKt.frequencySpec {
+    frequency = freqDimension.frequency
+
+    vidRangeSpecs +=
+      SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+        vidRange = range
+        samplingRate = rate
+        nonPopulationFieldValues.putAll(
+          nonPopulationSpecs.associate { it.fieldName to it.fieldValue }
+        )
+      }
+  }
