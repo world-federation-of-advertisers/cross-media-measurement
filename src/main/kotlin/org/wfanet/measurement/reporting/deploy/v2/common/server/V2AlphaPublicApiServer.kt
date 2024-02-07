@@ -186,8 +186,10 @@ private fun run(
       SecureRandom(),
       v2AlphaFlags.signingPrivateKeyStoreDir,
       commonServerFlags.tlsFlags.signingCerts.trustedCertificates,
-      certificateCacheExpirationDuration = v2AlphaPublicServerFlags.certificateCacheExpirationDuration,
-      dataProviderCacheExpirationDuration = v2AlphaPublicServerFlags.dataProviderCacheExpirationDuration,
+      certificateCacheExpirationDuration =
+        v2AlphaPublicServerFlags.certificateCacheExpirationDuration,
+      dataProviderCacheExpirationDuration =
+        v2AlphaPublicServerFlags.dataProviderCacheExpirationDuration,
       Dispatchers.IO,
       Dispatchers.Default,
     )
