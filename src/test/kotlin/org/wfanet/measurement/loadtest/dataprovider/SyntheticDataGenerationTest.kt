@@ -26,6 +26,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.CartesianSyntheticEventGroupSpecRecipeKt
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.CartesianSyntheticEventGroupSpecRecipeKt.NonPopulationDimensionSpecKt.fieldValueRatio
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpecKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpecKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.cartesianSyntheticEventGroupSpecRecipe
@@ -1111,41 +1112,33 @@ class SyntheticDataGenerationTest {
                 day = 28
               }
             }
+          frequencyRatios[1] = 0.5f
+          frequencyRatios[2] = 0.5f
 
-          frequencyDimensionSpecs +=
-            CartesianSyntheticEventGroupSpecRecipeKt.frequencyDimensionSpec {
-              frequency = 1
-              ratio = 0.5f
-            }
-
-          frequencyDimensionSpecs +=
-            CartesianSyntheticEventGroupSpecRecipeKt.frequencyDimensionSpec {
-              frequency = 2
-              ratio = 0.5f
-            }
           nonPopulationDimensionSpecs +=
             CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
               fieldName = "banner_ad.viewable"
-              fieldValue = fieldValue { boolValue = true }
-              ratio = 0.5f
-            }
-          nonPopulationDimensionSpecs +=
-            CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
-              fieldName = "banner_ad.viewable"
-              fieldValue = fieldValue { boolValue = false }
-              ratio = 0.5f
+              fieldValueRatios += fieldValueRatio {
+                fieldValue = fieldValue { boolValue = true }
+                ratio = 0.5f
+              }
+              fieldValueRatios += fieldValueRatio {
+                fieldValue = fieldValue { boolValue = false }
+                ratio = 0.5f
+              }
             }
           nonPopulationDimensionSpecs +=
             CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
               fieldName = "video_ad.viewed_fraction"
-              fieldValue = fieldValue { doubleValue = 0.3 }
-              ratio = 0.5f
-            }
-          nonPopulationDimensionSpecs +=
-            CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
-              fieldName = "video_ad.viewed_fraction"
-              fieldValue = fieldValue { doubleValue = 0.7 }
-              ratio = 0.5f
+
+              fieldValueRatios += fieldValueRatio {
+                fieldValue = fieldValue { doubleValue = 0.3 }
+                ratio = 0.5f
+              }
+              fieldValueRatios += fieldValueRatio {
+                fieldValue = fieldValue { doubleValue = 0.7 }
+                ratio = 0.5f
+              }
             }
         }
     }
@@ -1561,40 +1554,33 @@ class SyntheticDataGenerationTest {
               }
             }
 
-          frequencyDimensionSpecs +=
-            CartesianSyntheticEventGroupSpecRecipeKt.frequencyDimensionSpec {
-              frequency = 1
-              ratio = 0.5f
-            }
+          frequencyRatios[1] = 0.5f
+          frequencyRatios[2] = 0.5f
 
-          frequencyDimensionSpecs +=
-            CartesianSyntheticEventGroupSpecRecipeKt.frequencyDimensionSpec {
-              frequency = 2
-              ratio = 0.5f
-            }
           nonPopulationDimensionSpecs +=
             CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
               fieldName = "banner_ad.viewable"
-              fieldValue = fieldValue { boolValue = true }
-              ratio = 0.5f
-            }
-          nonPopulationDimensionSpecs +=
-            CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
-              fieldName = "banner_ad.viewable"
-              fieldValue = fieldValue { boolValue = false }
-              ratio = 0.5f
+              fieldValueRatios += fieldValueRatio {
+                fieldValue = fieldValue { boolValue = true }
+                ratio = 0.5f
+              }
+              fieldValueRatios += fieldValueRatio {
+                fieldValue = fieldValue { boolValue = false }
+                ratio = 0.5f
+              }
             }
           nonPopulationDimensionSpecs +=
             CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
               fieldName = "video_ad.viewed_fraction"
-              fieldValue = fieldValue { doubleValue = 0.3 }
-              ratio = 0.5f
-            }
-          nonPopulationDimensionSpecs +=
-            CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
-              fieldName = "video_ad.viewed_fraction"
-              fieldValue = fieldValue { doubleValue = 0.7 }
-              ratio = 0.5f
+
+              fieldValueRatios += fieldValueRatio {
+                fieldValue = fieldValue { doubleValue = 0.3 }
+                ratio = 0.5f
+              }
+              fieldValueRatios += fieldValueRatio {
+                fieldValue = fieldValue { doubleValue = 0.7 }
+                ratio = 0.5f
+              }
             }
         }
       dateSpecs +=
@@ -1614,40 +1600,33 @@ class SyntheticDataGenerationTest {
               }
             }
 
-          frequencyDimensionSpecs +=
-            CartesianSyntheticEventGroupSpecRecipeKt.frequencyDimensionSpec {
-              frequency = 1
-              ratio = 0.5f
-            }
+          frequencyRatios[1] = 0.5f
+          frequencyRatios[2] = 0.5f
 
-          frequencyDimensionSpecs +=
-            CartesianSyntheticEventGroupSpecRecipeKt.frequencyDimensionSpec {
-              frequency = 2
-              ratio = 0.5f
-            }
           nonPopulationDimensionSpecs +=
             CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
               fieldName = "banner_ad.viewable"
-              fieldValue = fieldValue { boolValue = true }
-              ratio = 0.5f
-            }
-          nonPopulationDimensionSpecs +=
-            CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
-              fieldName = "banner_ad.viewable"
-              fieldValue = fieldValue { boolValue = false }
-              ratio = 0.5f
+              fieldValueRatios += fieldValueRatio {
+                fieldValue = fieldValue { boolValue = true }
+                ratio = 0.5f
+              }
+              fieldValueRatios += fieldValueRatio {
+                fieldValue = fieldValue { boolValue = false }
+                ratio = 0.5f
+              }
             }
           nonPopulationDimensionSpecs +=
             CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
               fieldName = "video_ad.viewed_fraction"
-              fieldValue = fieldValue { doubleValue = 0.3 }
-              ratio = 0.5f
-            }
-          nonPopulationDimensionSpecs +=
-            CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
-              fieldName = "video_ad.viewed_fraction"
-              fieldValue = fieldValue { doubleValue = 0.7 }
-              ratio = 0.5f
+
+              fieldValueRatios += fieldValueRatio {
+                fieldValue = fieldValue { doubleValue = 0.3 }
+                ratio = 0.5f
+              }
+              fieldValueRatios += fieldValueRatio {
+                fieldValue = fieldValue { doubleValue = 0.7 }
+                ratio = 0.5f
+              }
             }
         }
     }
@@ -1730,22 +1709,24 @@ class SyntheticDataGenerationTest {
               }
             }
 
-          frequencyDimensionSpecs +=
-            CartesianSyntheticEventGroupSpecRecipeKt.frequencyDimensionSpec {
-              frequency = 1
-              ratio = 1.0f
-            }
+          frequencyRatios[1] = 1.0f
+
           nonPopulationDimensionSpecs +=
             CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
               fieldName = "banner_ad.viewable"
-              fieldValue = fieldValue { boolValue = true }
-              ratio = 1.0f
+              fieldValueRatios += fieldValueRatio {
+                fieldValue = fieldValue { boolValue = true }
+                ratio = 1.0f
+              }
             }
           nonPopulationDimensionSpecs +=
             CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
               fieldName = "video_ad.viewed_fraction"
-              fieldValue = fieldValue { doubleValue = 0.3 }
-              ratio = 1.0f
+
+              fieldValueRatios += fieldValueRatio {
+                fieldValue = fieldValue { doubleValue = 0.3 }
+                ratio = 1.0f
+              }
             }
         }
     }
@@ -1819,28 +1800,28 @@ class SyntheticDataGenerationTest {
               }
             }
 
-          frequencyDimensionSpecs +=
-            CartesianSyntheticEventGroupSpecRecipeKt.frequencyDimensionSpec {
-              frequency = 1
-              ratio = 1.0f
-            }
+          frequencyRatios[1] = 1.0f
+
           nonPopulationDimensionSpecs +=
             CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
               fieldName = "banner_ad.viewable"
-              fieldValue = fieldValue { boolValue = true }
-              ratio = 0.8f
-            }
-          nonPopulationDimensionSpecs +=
-            CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
-              fieldName = "banner_ad.viewable"
-              fieldValue = fieldValue { boolValue = false }
-              ratio = 0.5f
+              fieldValueRatios += fieldValueRatio {
+                fieldValue = fieldValue { boolValue = true }
+                ratio = 0.8f
+              }
+              fieldValueRatios += fieldValueRatio {
+                fieldValue = fieldValue { boolValue = false }
+                ratio = 0.5f
+              }
             }
           nonPopulationDimensionSpecs +=
             CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
               fieldName = "video_ad.viewed_fraction"
-              fieldValue = fieldValue { doubleValue = 0.3 }
-              ratio = 1.0f
+
+              fieldValueRatios += fieldValueRatio {
+                fieldValue = fieldValue { doubleValue = 0.3 }
+                ratio = 1.0f
+              }
             }
         }
     }
@@ -1848,14 +1829,7 @@ class SyntheticDataGenerationTest {
       cartesianSyntheticEventGroupSpecRecipe.toSyntheticEventGroupSpec(populationSpec)
     }
   }
-              
-              
-              
-              
-              
-              
-              
-         
+
   @Test
   fun `toSyntheticEventGroupSpec throws when total reach is larger than avaliable vids`() {
 
@@ -1921,34 +1895,28 @@ class SyntheticDataGenerationTest {
               }
             }
 
-          frequencyDimensionSpecs +=
-            CartesianSyntheticEventGroupSpecRecipeKt.frequencyDimensionSpec {
-              frequency = 1
-              ratio = 1.0f
-            }
+          frequencyRatios[1] = 1.0f
           nonPopulationDimensionSpecs +=
             CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
               fieldName = "banner_ad.viewable"
-              fieldValue = fieldValue { boolValue = true }
-              ratio = 1.0f
+              fieldValueRatios += fieldValueRatio {
+                fieldValue = fieldValue { boolValue = true }
+                ratio = 1.0f
+              }
             }
           nonPopulationDimensionSpecs +=
             CartesianSyntheticEventGroupSpecRecipeKt.nonPopulationDimensionSpec {
               fieldName = "video_ad.viewed_fraction"
-              fieldValue = fieldValue { doubleValue = 0.3 }
-              ratio = 1.0f
+
+              fieldValueRatios += fieldValueRatio {
+                fieldValue = fieldValue { doubleValue = 0.3 }
+                ratio = 1.0f
+              }
             }
         }
     }
     assertFailsWith<IllegalStateException> {
       cartesianSyntheticEventGroupSpecRecipe.toSyntheticEventGroupSpec(populationSpec)
     }
-  }     
-              
-              
-              
-              
-              
-              
-              
+  }
 }

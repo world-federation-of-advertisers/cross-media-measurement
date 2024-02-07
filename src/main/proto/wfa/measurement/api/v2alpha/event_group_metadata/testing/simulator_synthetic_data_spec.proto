@@ -177,23 +177,19 @@ message CartesianSyntheticEventGroupSpecRecipe {
   // `SyntheticEventGroupSpec`. Required.
   int64 sampling_nonce = 2;
 
-  // The specification of Frequency dimension.
-  message FrequencyDimensionSpec {
-    int64 frequency = 1;
-    // Ratio of total reach that originates from this frequency.
-    // Must sum up to 1.
-    float ratio = 2;
-  }
-
   // The specification of NonPopulation field dimensions.
   message NonPopulationDimensionSpec {
     // Maps to `non_population_fields` from `SyntheticPopulationSpec`.
     string field_name = 1;
-    // Value of the non_population_field.
-    FieldValue field_value = 2;
-    // Ratio of this field value for this dimension. Must sum up to 1 for specs
-    // with the same field_name.
-    float ratio = 3;
+
+    message FieldValueRatio {
+      // Value of the non_population_field.
+      FieldValue field_value = 2;
+      // Ratio of this field value for this dimension. Must sum up to 1 for
+      // specs with the same field_name.
+      float ratio = 3;
+    }
+    repeated FieldValueRatio field_value_ratios = 2;
   }
 
   // The specification for all frequencies reached for a specific date range.
@@ -209,8 +205,8 @@ message CartesianSyntheticEventGroupSpecRecipe {
     // This value together with FrequencyDimensionSpecs implies total
     // impressions.
     int64 total_reach = 2;
-    // Each FrequencyDimensionSpec must have a unique frequency.
-    repeated FrequencyDimensionSpec frequency_dimension_specs = 3;
+    // A map of frequencies to their values ratios.
+    map<int64, float> frequency_ratios = 3;
     // Each NonPopulationDimension must have a unique field_name.
     repeated NonPopulationDimensionSpec non_population_dimension_specs = 4;
   }
