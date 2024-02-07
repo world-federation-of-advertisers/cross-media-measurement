@@ -17,7 +17,6 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.github.benmanes.caffeine.cache.Caffeine
-import com.google.common.util.concurrent.UncheckedExecutionException
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
 import com.google.protobuf.Duration as ProtoDuration
@@ -568,23 +567,13 @@ class MetricsService(
                 }
 
               val certificate =
-                try {
-                  certificateCache.getValue(
-                    ResourceNameApiAuthenticationKey(
-                      name = dataProvider.certificate,
-                      apiAuthenticationKey = apiAuthenticationKey,
-                    )
+                certificateCache.getValue(
+                  ResourceNameApiAuthenticationKey(
+                    name = dataProvider.certificate,
+                    apiAuthenticationKey = apiAuthenticationKey,
                   )
-                } catch (e: UncheckedExecutionException) {
-                  if (e.cause != null) {
-                    throw e.cause!!
-                  } else {
-                    throw Status.UNKNOWN.withDescription(
-                        "Unable to retrieve Certificate ${dataProvider.certificate}."
-                      )
-                      .asRuntimeException()
-                  }
-                }
+                )
+
 
               if (
                 certificate.revocationState !=
@@ -768,23 +757,13 @@ class MetricsService(
       principal: MeasurementConsumerPrincipal
     ): ByteString {
       val certificate =
-        try {
-          certificateCache.getValue(
-            ResourceNameApiAuthenticationKey(
-              name = principal.config.signingCertificateName,
-              apiAuthenticationKey = principal.config.apiKey,
-            )
+        certificateCache.getValue(
+          ResourceNameApiAuthenticationKey(
+            name = principal.config.signingCertificateName,
+            apiAuthenticationKey = principal.config.apiKey,
           )
-        } catch (e: UncheckedExecutionException) {
-          if (e.cause != null) {
-            throw e.cause!!
-          } else {
-            throw Status.UNKNOWN.withDescription(
-                "Unable to retrieve Certificate ${principal.config.signingCertificateName}."
-              )
-              .asRuntimeException()
-          }
-        }
+        )
+
       return certificate.x509Der
     }
 
@@ -1026,23 +1005,13 @@ class MetricsService(
       apiAuthenticationKey: String,
     ): Measurement.Result {
       val certificate =
-        try {
-          certificateCache.getValue(
-            ResourceNameApiAuthenticationKey(
-              name = measurementResultOutput.certificate,
-              apiAuthenticationKey = apiAuthenticationKey,
-            )
+        certificateCache.getValue(
+          ResourceNameApiAuthenticationKey(
+            name = measurementResultOutput.certificate,
+            apiAuthenticationKey = apiAuthenticationKey,
           )
-        } catch (e: UncheckedExecutionException) {
-          if (e.cause != null) {
-            throw e.cause!!
-          } else {
-            throw Status.UNKNOWN.withDescription(
-                "Unable to retrieve Certificate ${measurementResultOutput.certificate}."
-              )
-              .asRuntimeException()
-          }
-        }
+        )
+
       val signedResult =
         decryptResult(measurementResultOutput.encryptedResult, encryptionPrivateKeyHandle)
 
