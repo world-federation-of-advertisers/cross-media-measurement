@@ -33,7 +33,7 @@ import java.security.SecureRandom
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
-import java.time.Duration as Duration
+import java.time.Duration
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.ContinuationInterceptor
 import kotlin.coroutines.CoroutineContext
