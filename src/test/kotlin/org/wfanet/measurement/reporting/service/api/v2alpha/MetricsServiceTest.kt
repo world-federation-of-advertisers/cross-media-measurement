@@ -3958,6 +3958,49 @@ class MetricsServiceTest {
   }
 
   @Test
+  fun `createMetric throws UNKNOWN when getCertificate throws UNKNOWN`() = runBlocking {
+    whenever(certificatesMock.getCertificate(any()))
+      .thenThrow(StatusRuntimeException(Status.UNKNOWN))
+
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric = REQUESTING_INCREMENTAL_REACH_METRIC
+      metricId = "metric-id"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.createMetric(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNKNOWN)
+    assertThat(exception).hasMessageThat().contains("certificates/")
+  }
+
+  @Test
+  fun `createMetric throws FAILED_PRECONDITION when getCertificate throws NOT_FOUND`() =
+    runBlocking {
+      whenever(certificatesMock.getCertificate(any()))
+        .thenThrow(StatusRuntimeException(Status.NOT_FOUND))
+
+      val request = createMetricRequest {
+        parent = MEASUREMENT_CONSUMERS.values.first().name
+        metric = REQUESTING_INCREMENTAL_REACH_METRIC
+        metricId = "metric-id"
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+            runBlocking { service.createMetric(request) }
+          }
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception).hasMessageThat().contains("certificates/")
+    }
+
+  @Test
   fun `batchCreateMetrics creates CMMS measurements`() = runBlocking {
     val request = batchCreateMetricsRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
@@ -5479,6 +5522,46 @@ class MetricsServiceTest {
             }
           }
         )
+    }
+
+  @Test
+  fun `getMetric throws FAILED_PRECONDITION when measurements SUCCEEDED but EDP cert is revoked`() =
+    runBlocking {
+      whenever(measurementsMock.batchGetMeasurements(any())).thenAnswer {
+        val batchGetMeasurementsRequest = it.arguments[0] as BatchGetMeasurementsRequest
+        val measurementsMap =
+          mapOf(
+            SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.name to SUCCEEDED_UNION_ALL_REACH_MEASUREMENT,
+            SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.name to
+              SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT,
+            PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name to
+              PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT,
+          )
+        batchGetMeasurementsResponse {
+          measurements +=
+            batchGetMeasurementsRequest.namesList.map { name -> measurementsMap.getValue(name) }
+        }
+      }
+
+      val dataProvider = DATA_PROVIDERS.values.first()
+      whenever(certificatesMock.getCertificate(any()))
+        .thenReturn(
+          certificate {
+            name = dataProvider.certificate
+            x509Der = DATA_PROVIDER_SIGNING_KEY.certificate.encoded.toByteString()
+            revocationState = Certificate.RevocationState.REVOKED
+          }
+        )
+      val request = getMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+            runBlocking { service.getMetric(request) }
+          }
+        }
+
+      assertThat(exception).hasMessageThat().ignoringCase().contains("revoked")
     }
 
   @Test

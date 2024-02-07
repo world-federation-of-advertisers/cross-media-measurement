@@ -122,7 +122,9 @@ private fun run(
       SecureRandom(),
       v2AlphaFlags.signingPrivateKeyStoreDir,
       commonServerFlags.tlsFlags.signingCerts.trustedCertificates,
+      Duration.ofMinutes(60),
       Dispatchers.IO,
+      Dispatchers.Default,
     )
 
   val inProcessMetricsServerName = InProcessServerBuilder.generateName()
