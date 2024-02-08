@@ -107,7 +107,7 @@ class RequisitionFulfillmentService(
                 header.honestMajorityShareShuffle.secretSeed.typeUrl ==
                   ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
               ) {
-                "ciphertext of secret seed must be a SignedMessage."
+                "ciphertext of secret seed must be of SignedMessage."
               }
               header.honestMajorityShareShuffle.secretSeed.ciphertext
             } else {
