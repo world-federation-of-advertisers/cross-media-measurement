@@ -261,22 +261,6 @@ private fun ByteBuffer.putStringUtf8(value: String): ByteBuffer {
  * Converts a [CartesianSyntheticEventGroupSpecRecipe] to [SyntheticEventGroupSpec] using a
  * [SyntheticPopulationSpec].
  *
- * For each dateSpec in [the CartesianSyntheticEventGroupSpecRecipe];
- * 1. Group the nonPopulationDimensionSpecs based on their field names. These groups specify the
- *    distribution of the data for the respective dimensions.
- * 2. Cross these groups with each other and the frequencyDimensionSpecs. This produces a desired
- *    distribution for all the non population dimensions and the frequencies.
- * 3. Cross this result with the subPopulations defined in the syntheticPopulationSpec. This will
- *    not add any fields since the poopualtion values are defiend in the syntheticPopulationSpec,
- *    this operation is used to query the vid ranges to be used for the resulting cartesian product.
- * 4. Create frequency specs from these groups such that the frequency field is set from
- *    frequencyDimensionSpec, . the vidRange is the vid Range of the subpopulation and the sampling
- *    rate is the product of all ratios in dimensions and total reach divided by total number of
- *    vids.
- *
- * Since the algorithm takes the cross product of the population spec, it needs to define at least
- * one sub population.
- *
  * @throws IllegalArgumentException for a [CartesianSyntheticEventGroupSpecRecipe] that implies vids
  *   that are not specified in [syntheticPopulationSpec]
  * @throws IllegalArgumentException for a [syntheticPopulationSpec] that does not have any

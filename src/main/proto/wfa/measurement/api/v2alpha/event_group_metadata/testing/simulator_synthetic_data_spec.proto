@@ -159,17 +159,21 @@ message SyntheticEventGroupSpec {
 
 // Recepie to generate a `SyntheticEventGroupSpec`.
 //
-// Each `CartesianSyntheticEventGroupSpecRecipe` is mapped to a
-// `SyntheticEventGroupSpec` by first taking the cartesian product of each
-// NonPopulationDimension and FrequencyDimensionSpec. This product is then
-// crossed with all the subPopulations given a `SyntheticPopulationSpec`.
-// The resulting product is used to create a
-// `SyntheticEventGroupSpec.FrequencySpec` by setting the `VidRange` to be the
-// range of the subpopulation of the product and setting the sampling_rate to be
-// the proportion of that product's desired VidRange to the subpopulation's and
-// setting the frequency to be the frequency value contributed by the
-// `FrequencyDimensionSpec` in the product. VidRange These operations are done
-// for each DateSpec.
+
+// For each dateSpec in `CartesianSyntheticEventGroupSpecRecipe`;
+// 1. Group the nonPopulationDimensionSpecs based on their field names. These
+//  groups specify the distribution of the data for the respective dimensions.
+// 2. Cross these groups with each other and the frequencyDimensionSpecs. This
+//  produces a desired distribution for all the non population dimensions and
+//  the frequencies.
+// 3. Cross this result with the subPopulations defined in the
+//  syntheticPopulationSpec. This will not add any fields since the poopualtion
+//  values are defiend in the syntheticPopulationSpec, this operation is used to
+//  query the vid ranges to be used for the resulting cartesian product.
+// 4. Create frequency specs from these groups such that the frequency field is
+//  set from frequencyDimensionSpec, . the vidRange is the vid Range of the
+//  subpopulation and the sampling rate is the product of all ratios in
+//  dimensions and total reach divided by total number of vids.
 message CartesianSyntheticEventGroupSpecRecipe {
   string description = 1;
 
