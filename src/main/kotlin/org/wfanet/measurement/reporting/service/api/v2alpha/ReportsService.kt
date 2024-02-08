@@ -164,8 +164,8 @@ class ReportsService(
       results.subList(0, min(results.size, listReportsPageToken.pageSize))
 
     // Get metrics.
-    val metricNames: Flow<String> =
-      subResults.flatMap { internalReport -> internalReport.metricNames }.distinct().asFlow()
+    val metricNames: List<String> =
+      subResults.flatMap { internalReport -> internalReport.metricNames }.distinct()
 
     val callRpc: suspend (List<String>) -> BatchGetMetricsResponse = { items ->
       batchGetMetrics(principal.resourceKey.toName(), items)
@@ -174,7 +174,6 @@ class ReportsService(
       submitBatchRequests(metricNames, BATCH_GET_METRICS_LIMIT, callRpc) { response ->
           response.metricsList
         }
-        .toList()
         .associateBy { checkNotNull(MetricKey.fromName(it.name)).metricId }
 
     return listReportsResponse {
@@ -230,7 +229,7 @@ class ReportsService(
       }
 
     // Get metrics.
-    val metricNames: Flow<String> = internalReport.metricNames.distinct().asFlow()
+    val metricNames: List<String> = internalReport.metricNames.distinct()
 
     val callRpc: suspend (List<String>) -> BatchGetMetricsResponse = { items ->
       batchGetMetrics(principal.resourceKey.toName(), items)
@@ -239,7 +238,6 @@ class ReportsService(
       submitBatchRequests(metricNames, BATCH_GET_METRICS_LIMIT, callRpc) { response ->
           response.metricsList
         }
-        .toList()
         .associateBy { checkNotNull(MetricKey.fromName(it.name)).metricId }
 
     // Convert the internal report to public and return.
@@ -309,6 +307,8 @@ class ReportsService(
           key.metricCalculationSpecId
         }
       }
+        .distinct()
+
     val externalIdToMetricCalculationSpecMap: Map<String, InternalMetricCalculationSpec> =
       createExternalIdToMetricCalculationSpecMap(
         parentKey.measurementConsumerId,
@@ -360,7 +360,7 @@ class ReportsService(
       }
 
     // Create metrics.
-    val createMetricRequests: Flow<CreateMetricRequest> =
+    val createMetricRequests: List<CreateMetricRequest> =
       internalReport.reportingMetricEntriesMap
         .flatMap { (reportingSetId, reportingMetricCalculationSpec) ->
           reportingMetricCalculationSpec.metricCalculationSpecReportingMetricsList.flatMap {
@@ -377,7 +377,6 @@ class ReportsService(
             }
           }
         }
-        .asFlow()
 
     val callRpc: suspend (List<CreateMetricRequest>) -> BatchCreateMetricsResponse = { items ->
       batchCreateMetrics(request.parent, items)
@@ -387,7 +386,6 @@ class ReportsService(
           response: BatchCreateMetricsResponse ->
           response.metricsList
         }
-        .toList()
         .associateBy { checkNotNull(MetricKey.fromName(it.name)).metricId }
 
     // Once all metrics are created, get the updated internal report with the metric IDs filled.
@@ -482,6 +480,8 @@ class ReportsService(
               it.externalMetricCalculationSpecId
             }
           }
+            .distinct()
+
         val externalIdToMetricCalculationMap: Map<String, InternalMetricCalculationSpec> =
           createExternalIdToMetricCalculationSpecMap(
             internalReport.cmmsMeasurementConsumerId,

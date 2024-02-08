@@ -16,11 +16,14 @@
 
 package org.wfanet.measurement.reporting.service.api
 
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.flatMapConcat
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 class BatchRequestException(message: String? = null, cause: Throwable? = null) :
   Exception(message, cause)
@@ -48,13 +51,12 @@ fun <T> Flow<T>.chunked(chunkSize: Int): Flow<List<T>> {
 }
 
 /** Submits multiple RPCs by dividing the input items to batches. */
-@OptIn(ExperimentalCoroutinesApi::class) // For `flatMapConcat`.
 suspend fun <ITEM, RESP, RESULT> submitBatchRequests(
-  items: Flow<ITEM>,
+  items: Collection<ITEM>,
   limit: Int,
   callRpc: suspend (List<ITEM>) -> RESP,
   parseResponse: (RESP) -> List<RESULT>,
-): Flow<RESULT> {
+): List<RESULT> {
   if (limit <= 0) {
     throw BatchRequestException(
       "Invalid limit",
@@ -62,5 +64,18 @@ suspend fun <ITEM, RESP, RESULT> submitBatchRequests(
     )
   }
 
-  return items.chunked(limit).flatMapConcat { batch -> parseResponse(callRpc(batch)).asFlow() }
+  // For network requests, the number of concurrent coroutines needs to be capped. To be on the safe
+  // side, a low number is chosen.
+  val batchSemaphore = Semaphore(3)
+  return coroutineScope {
+    val deferred: List<Deferred<List<RESULT>>> = items.chunked(limit).map { batch: List<ITEM> ->
+      async {
+        batchSemaphore.withPermit {
+          parseResponse(callRpc(batch))
+        }
+      }
+    }
+    val responses: List<List<RESULT>> = deferred.awaitAll()
+    responses.flatten()
+  }
 }

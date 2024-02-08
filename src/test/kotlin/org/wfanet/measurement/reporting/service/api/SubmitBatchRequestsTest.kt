@@ -89,7 +89,7 @@ class SubmitBatchRequestsTest {
         ceil(INTERNAL_PRIMITIVE_REPORTING_SETS.size / BATCH_GET_REPORTING_SETS_LIMIT.toFloat())
           .toInt()
 
-      val items = INTERNAL_PRIMITIVE_REPORTING_SETS.map { it.externalReportingSetId }.asFlow()
+      val items = INTERNAL_PRIMITIVE_REPORTING_SETS.map { it.externalReportingSetId }
 
       val parseResponse: (BatchGetReportingSetsResponse) -> List<InternalReportingSet> =
         { response ->
@@ -103,7 +103,6 @@ class SubmitBatchRequestsTest {
             ::batchGetReportingSets,
             parseResponse,
           )
-          .toList()
 
       val batchGetReportingSetsCaptor: KArgumentCaptor<BatchGetReportingSetsRequest> =
         argumentCaptor()
@@ -121,7 +120,7 @@ class SubmitBatchRequestsTest {
       val expectedReportingSets =
         INTERNAL_PRIMITIVE_REPORTING_SETS.subList(0, numberTargetReportingSet)
       val expectedNumberBatches = 1
-      val items = expectedReportingSets.map { it.externalReportingSetId }.asFlow()
+      val items = expectedReportingSets.map { it.externalReportingSetId }
 
       val parseResponse: (BatchGetReportingSetsResponse) -> List<InternalReportingSet> =
         { response ->
@@ -135,7 +134,6 @@ class SubmitBatchRequestsTest {
             ::batchGetReportingSets,
             parseResponse,
           )
-          .toList()
 
       val batchGetReportingSetsCaptor: KArgumentCaptor<BatchGetReportingSetsRequest> =
         argumentCaptor()
@@ -154,12 +152,11 @@ class SubmitBatchRequestsTest {
 
     val result: List<InternalReportingSet> =
       submitBatchRequests(
-          flow {},
-          BATCH_GET_REPORTING_SETS_LIMIT,
-          ::batchGetReportingSets,
-          parseResponse,
+        emptyList(),
+        BATCH_GET_REPORTING_SETS_LIMIT,
+        ::batchGetReportingSets,
+        parseResponse,
         )
-        .toList()
 
     val batchGetReportingSetsCaptor: KArgumentCaptor<BatchGetReportingSetsRequest> =
       argumentCaptor()

@@ -293,7 +293,7 @@ class MetricsService(
       val measurementConsumer: MeasurementConsumer = getMeasurementConsumer(principal)
 
       // Gets all external IDs of primitive reporting sets from the metric list.
-      val externalPrimitiveReportingSetIds: Flow<String> =
+      val externalPrimitiveReportingSetIds: List<String> =
         internalMetricsList
           .flatMap { internalMetric ->
             internalMetric.weightedMeasurementsList.flatMap { weightedMeasurement ->
@@ -303,7 +303,6 @@ class MetricsService(
             }
           }
           .distinct()
-          .asFlow()
 
       val callBatchGetInternalReportingSetsRpc:
         suspend (List<String>) -> BatchGetReportingSetsResponse =
@@ -319,7 +318,6 @@ class MetricsService(
           ) { response: BatchGetReportingSetsResponse ->
             response.reportingSetsList
           }
-          .toList()
           .associateBy { it.externalReportingSetId }
 
       val dataProviderNames = mutableSetOf<String>()
@@ -357,9 +355,9 @@ class MetricsService(
           batchCreateCmmsMeasurements(principal, items)
         }
 
-      val cmmsMeasurements: Flow<Measurement> =
+      val cmmsMeasurements: List<Measurement> =
         submitBatchRequests(
-          cmmsCreateMeasurementRequests.asFlow(),
+          cmmsCreateMeasurementRequests,
           BATCH_KINGDOM_MEASUREMENTS_LIMIT,
           callBatchCreateMeasurementsRpc,
         ) { response: BatchCreateMeasurementsResponse ->
@@ -385,7 +383,6 @@ class MetricsService(
         ) { response: BatchSetCmmsMeasurementIdsResponse ->
           response.measurementsList
         }
-        .toList()
     }
 
     /** Sets a batch of CMMS [MeasurementIds] to the [InternalMeasurement] table. */
@@ -792,13 +789,12 @@ class MetricsService(
                 batchSetInternalMeasurementResults(items, apiAuthenticationKey, principal)
               }
             submitBatchRequests(
-                measurementsList.asFlow(),
+                measurementsList,
                 BATCH_SET_MEASUREMENT_RESULTS_LIMIT,
                 callBatchSetInternalMeasurementResultsRpc,
               ) { response: BatchSetCmmsMeasurementResultsResponse ->
                 response.measurementsList
               }
-              .toList()
 
             anyUpdate = true
           }
@@ -815,13 +811,12 @@ class MetricsService(
                 )
               }
             submitBatchRequests(
-                measurementsList.asFlow(),
+                measurementsList,
                 BATCH_SET_MEASUREMENT_FAILURES_LIMIT,
                 callBatchSetInternalMeasurementFailuresRpc,
               ) { response: BatchSetCmmsMeasurementFailuresResponse ->
                 response.measurementsList
               }
-              .toList()
 
             anyUpdate = true
           }
@@ -918,13 +913,12 @@ class MetricsService(
         }
 
       return submitBatchRequests(
-          measurementNames.asFlow(),
+          measurementNames,
           BATCH_KINGDOM_MEASUREMENTS_LIMIT,
           callBatchGetMeasurementsRpc,
         ) { response: BatchGetMeasurementsResponse ->
           response.measurementsList
         }
-        .toList()
     }
 
     /** Batch get CMMS measurements. */

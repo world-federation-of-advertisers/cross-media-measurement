@@ -674,14 +674,14 @@ class ReportSchedulesService(
         retrievedExternalReportingSetIdSet.addAll(externalReportingSetIdSet)
 
         submitBatchRequests(
-            externalReportingSetIdSet.asFlow(),
+            externalReportingSetIdSet,
             BATCH_GET_REPORTING_SETS_LIMIT,
             callRpc,
           ) { response ->
             externalReportingSetIdSet.clear()
             response.reportingSetsList
           }
-          .collect {
+          .forEach {
             if (it.hasComposite()) {
               val lhsExternalReportingSetId = it.composite.lhs.externalReportingSetId
               if (lhsExternalReportingSetId.isNotEmpty()) {

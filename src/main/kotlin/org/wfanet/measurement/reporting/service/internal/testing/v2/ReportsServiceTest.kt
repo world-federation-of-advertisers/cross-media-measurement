@@ -635,7 +635,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       )
 
     var metricIndex = 0
-    val createMetricsRequests: Flow<CreateMetricRequest> =
+    val createMetricsRequests: List<CreateMetricRequest> =
       createdReport.reportingMetricEntriesMap.entries
         .flatMap { entry ->
           val reportingSet = createdReportingSetsByExternalId.getValue(entry.key)
@@ -660,7 +660,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
             }
           }
         }
-        .asFlow()
+
     val callRpc: suspend (List<CreateMetricRequest>) -> BatchCreateMetricsResponse = { items ->
       metricsService.batchCreateMetrics(
         batchCreateMetricsRequest {
@@ -672,7 +672,6 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
     submitBatchRequests(createMetricsRequests, MAX_BATCH_SIZE, callRpc) { response ->
         response.metricsList
       }
-      .toList()
 
     val retrievedReport =
       service.getReport(
