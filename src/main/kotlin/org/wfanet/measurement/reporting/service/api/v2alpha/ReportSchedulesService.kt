@@ -33,7 +33,6 @@ import java.time.ZonedDateTime
 import java.time.temporal.TemporalAdjusters
 import java.time.zone.ZoneRulesException
 import kotlin.math.min
-import kotlinx.coroutines.flow.asFlow
 import org.projectnessie.cel.Env
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -673,11 +672,8 @@ class ReportSchedulesService(
       while (externalReportingSetIdSet.isNotEmpty()) {
         retrievedExternalReportingSetIdSet.addAll(externalReportingSetIdSet)
 
-        submitBatchRequests(
-            externalReportingSetIdSet,
-            BATCH_GET_REPORTING_SETS_LIMIT,
-            callRpc,
-          ) { response ->
+        submitBatchRequests(externalReportingSetIdSet, BATCH_GET_REPORTING_SETS_LIMIT, callRpc) {
+            response ->
             externalReportingSetIdSet.clear()
             response.reportingSetsList
           }

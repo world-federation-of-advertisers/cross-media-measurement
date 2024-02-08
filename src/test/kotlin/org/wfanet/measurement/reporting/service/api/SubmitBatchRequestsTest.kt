@@ -20,9 +20,6 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.math.ceil
-import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -98,11 +95,11 @@ class SubmitBatchRequestsTest {
 
       val result =
         submitBatchRequests(
-            items,
-            BATCH_GET_REPORTING_SETS_LIMIT,
-            ::batchGetReportingSets,
-            parseResponse,
-          )
+          items,
+          BATCH_GET_REPORTING_SETS_LIMIT,
+          ::batchGetReportingSets,
+          parseResponse,
+        )
 
       val batchGetReportingSetsCaptor: KArgumentCaptor<BatchGetReportingSetsRequest> =
         argumentCaptor()
@@ -129,11 +126,11 @@ class SubmitBatchRequestsTest {
 
       val result =
         submitBatchRequests(
-            items,
-            BATCH_GET_REPORTING_SETS_LIMIT,
-            ::batchGetReportingSets,
-            parseResponse,
-          )
+          items,
+          BATCH_GET_REPORTING_SETS_LIMIT,
+          ::batchGetReportingSets,
+          parseResponse,
+        )
 
       val batchGetReportingSetsCaptor: KArgumentCaptor<BatchGetReportingSetsRequest> =
         argumentCaptor()
@@ -156,7 +153,7 @@ class SubmitBatchRequestsTest {
         BATCH_GET_REPORTING_SETS_LIMIT,
         ::batchGetReportingSets,
         parseResponse,
-        )
+      )
 
     val batchGetReportingSetsCaptor: KArgumentCaptor<BatchGetReportingSetsRequest> =
       argumentCaptor()

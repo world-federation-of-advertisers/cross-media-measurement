@@ -35,8 +35,6 @@ import java.time.temporal.Temporal
 import java.time.temporal.TemporalAdjusters
 import java.time.zone.ZoneRulesException
 import kotlin.math.min
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.toList
 import org.projectnessie.cel.Env
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
@@ -298,15 +296,16 @@ class ReportsService(
     validateTime(request.report)
 
     val externalMetricCalculationSpecIds: List<String> =
-      request.report.reportingMetricEntriesList.flatMap { reportingMetricEntry ->
-        reportingMetricEntry.value.metricCalculationSpecsList.map {
-          val key =
-            grpcRequireNotNull(MetricCalculationSpecKey.fromName(it)) {
-              "MetricCalculationSpec name $it is invalid."
-            }
-          key.metricCalculationSpecId
+      request.report.reportingMetricEntriesList
+        .flatMap { reportingMetricEntry ->
+          reportingMetricEntry.value.metricCalculationSpecsList.map {
+            val key =
+              grpcRequireNotNull(MetricCalculationSpecKey.fromName(it)) {
+                "MetricCalculationSpec name $it is invalid."
+              }
+            key.metricCalculationSpecId
+          }
         }
-      }
         .distinct()
 
     val externalIdToMetricCalculationSpecMap: Map<String, InternalMetricCalculationSpec> =
@@ -361,22 +360,22 @@ class ReportsService(
 
     // Create metrics.
     val createMetricRequests: List<CreateMetricRequest> =
-      internalReport.reportingMetricEntriesMap
-        .flatMap { (reportingSetId, reportingMetricCalculationSpec) ->
-          reportingMetricCalculationSpec.metricCalculationSpecReportingMetricsList.flatMap {
-            metricCalculationSpecReportingMetrics ->
-            metricCalculationSpecReportingMetrics.reportingMetricsList.map {
-              it.toCreateMetricRequest(
-                principal.resourceKey,
-                reportingSetId,
-                externalIdToMetricCalculationSpecMap
-                  .getValue(metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId)
-                  .details
-                  .filter,
-              )
-            }
+      internalReport.reportingMetricEntriesMap.flatMap {
+        (reportingSetId, reportingMetricCalculationSpec) ->
+        reportingMetricCalculationSpec.metricCalculationSpecReportingMetricsList.flatMap {
+          metricCalculationSpecReportingMetrics ->
+          metricCalculationSpecReportingMetrics.reportingMetricsList.map {
+            it.toCreateMetricRequest(
+              principal.resourceKey,
+              reportingSetId,
+              externalIdToMetricCalculationSpecMap
+                .getValue(metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId)
+                .details
+                .filter,
+            )
           }
         }
+      }
 
     val callRpc: suspend (List<CreateMetricRequest>) -> BatchCreateMetricsResponse = { items ->
       batchCreateMetrics(request.parent, items)
@@ -475,11 +474,12 @@ class ReportsService(
 
       if (state == Report.State.SUCCEEDED || state == Report.State.FAILED) {
         val externalMetricCalculationSpecIds =
-          internalReport.reportingMetricEntriesMap.flatMap { reportingMetricCalculationSpec ->
-            reportingMetricCalculationSpec.value.metricCalculationSpecReportingMetricsList.map {
-              it.externalMetricCalculationSpecId
+          internalReport.reportingMetricEntriesMap
+            .flatMap { reportingMetricCalculationSpec ->
+              reportingMetricCalculationSpec.value.metricCalculationSpecReportingMetricsList.map {
+                it.externalMetricCalculationSpecId
+              }
             }
-          }
             .distinct()
 
         val externalIdToMetricCalculationMap: Map<String, InternalMetricCalculationSpec> =

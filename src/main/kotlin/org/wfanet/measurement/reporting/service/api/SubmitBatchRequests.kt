@@ -68,13 +68,10 @@ suspend fun <ITEM, RESP, RESULT> submitBatchRequests(
   // side, a low number is chosen.
   val batchSemaphore = Semaphore(3)
   return coroutineScope {
-    val deferred: List<Deferred<List<RESULT>>> = items.chunked(limit).map { batch: List<ITEM> ->
-      async {
-        batchSemaphore.withPermit {
-          parseResponse(callRpc(batch))
-        }
+    val deferred: List<Deferred<List<RESULT>>> =
+      items.chunked(limit).map { batch: List<ITEM> ->
+        async { batchSemaphore.withPermit { parseResponse(callRpc(batch)) } }
       }
-    }
     val responses: List<List<RESULT>> = deferred.awaitAll()
     responses.flatten()
   }

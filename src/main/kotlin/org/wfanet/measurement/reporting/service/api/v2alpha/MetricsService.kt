@@ -47,8 +47,6 @@ import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
@@ -372,17 +370,17 @@ class MetricsService(
         }
 
       submitBatchRequests(
-          cmmsMeasurements.map {
-            measurementIds {
-              cmmsCreateMeasurementRequestId = it.measurementReferenceId
-              cmmsMeasurementId = MeasurementKey.fromName(it.name)!!.measurementId
-            }
-          },
-          BATCH_SET_CMMS_MEASUREMENT_IDS_LIMIT,
-          callBatchSetCmmsMeasurementIdsRpc,
-        ) { response: BatchSetCmmsMeasurementIdsResponse ->
-          response.measurementsList
-        }
+        cmmsMeasurements.map {
+          measurementIds {
+            cmmsCreateMeasurementRequestId = it.measurementReferenceId
+            cmmsMeasurementId = MeasurementKey.fromName(it.name)!!.measurementId
+          }
+        },
+        BATCH_SET_CMMS_MEASUREMENT_IDS_LIMIT,
+        callBatchSetCmmsMeasurementIdsRpc,
+      ) { response: BatchSetCmmsMeasurementIdsResponse ->
+        response.measurementsList
+      }
     }
 
     /** Sets a batch of CMMS [MeasurementIds] to the [InternalMeasurement] table. */
@@ -789,12 +787,12 @@ class MetricsService(
                 batchSetInternalMeasurementResults(items, apiAuthenticationKey, principal)
               }
             submitBatchRequests(
-                measurementsList,
-                BATCH_SET_MEASUREMENT_RESULTS_LIMIT,
-                callBatchSetInternalMeasurementResultsRpc,
-              ) { response: BatchSetCmmsMeasurementResultsResponse ->
-                response.measurementsList
-              }
+              measurementsList,
+              BATCH_SET_MEASUREMENT_RESULTS_LIMIT,
+              callBatchSetInternalMeasurementResultsRpc,
+            ) { response: BatchSetCmmsMeasurementResultsResponse ->
+              response.measurementsList
+            }
 
             anyUpdate = true
           }
@@ -811,12 +809,12 @@ class MetricsService(
                 )
               }
             submitBatchRequests(
-                measurementsList,
-                BATCH_SET_MEASUREMENT_FAILURES_LIMIT,
-                callBatchSetInternalMeasurementFailuresRpc,
-              ) { response: BatchSetCmmsMeasurementFailuresResponse ->
-                response.measurementsList
-              }
+              measurementsList,
+              BATCH_SET_MEASUREMENT_FAILURES_LIMIT,
+              callBatchSetInternalMeasurementFailuresRpc,
+            ) { response: BatchSetCmmsMeasurementFailuresResponse ->
+              response.measurementsList
+            }
 
             anyUpdate = true
           }
@@ -913,12 +911,12 @@ class MetricsService(
         }
 
       return submitBatchRequests(
-          measurementNames,
-          BATCH_KINGDOM_MEASUREMENTS_LIMIT,
-          callBatchGetMeasurementsRpc,
-        ) { response: BatchGetMeasurementsResponse ->
-          response.measurementsList
-        }
+        measurementNames,
+        BATCH_KINGDOM_MEASUREMENTS_LIMIT,
+        callBatchGetMeasurementsRpc,
+      ) { response: BatchGetMeasurementsResponse ->
+        response.measurementsList
+      }
     }
 
     /** Batch get CMMS measurements. */
