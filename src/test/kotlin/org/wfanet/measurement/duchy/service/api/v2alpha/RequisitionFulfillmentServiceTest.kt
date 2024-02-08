@@ -74,8 +74,8 @@ import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoro
 import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.fulfillRequisitionRequest as systemFulfillRequisitionRequest
 
-private fun String.toSecretSeed(): EncryptedMessage {
-  val randomSeed = randomSeed { data = this@toSecretSeed.toByteStringUtf8() }
+private fun buildSecretSeed(seed: String): EncryptedMessage {
+  val randomSeed = randomSeed { data = seed.toByteStringUtf8() }
   val signedMessage = signedMessage {
     message = Any.pack(randomSeed)
     signature = "fake signature".toByteStringUtf8()
@@ -96,7 +96,7 @@ private val NONCE_HASH =
   HexString("45FEAA185D434E0EB4747F547F0918AA5B8403DBBD7F90D6F0D8C536E2D620D7")
 private val REQUISITION_FINGERPRINT = "A fingerprint".toByteStringUtf8()
 private val TEST_REQUISITION_DATA = "some data".toByteStringUtf8()
-private val TEST_REQUISITION_SEED = "secret seed".toSecretSeed()
+private val TEST_REQUISITION_SEED = buildSecretSeed("secret seed")
 private val HEADER = header {
   name = CanonicalRequisitionKey(DATA_PROVIDER_API_ID, REQUISITION_API_ID).toName()
   requisitionFingerprint = REQUISITION_FINGERPRINT

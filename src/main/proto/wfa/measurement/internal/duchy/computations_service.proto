@@ -305,8 +305,8 @@ message RecordRequisitionFulfillmentRequest {
   string blob_path = 3;
   // The random seed that is signed and encrypted.
   //
-  // RandomSeed is defined in CMMS public api. The RandomSeed is firstly signed
-  // as a SignedMessage then encrypted into a EncryptedMessage.
+  // This is a ciphertext containing a serialized `SignedMessage` from the
+  // public API.
   bytes secret_seed_ciphertext = 4;
   // Version of the public API.
   string public_api_version = 5;

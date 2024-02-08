@@ -138,7 +138,7 @@ class RequisitionReader {
         requisitionFingerprint = row["RequisitionFingerprint"]
       }
       row.get<String?>("PathToBlob")?.let { path = it }
-      row.get<ByteString?>("RandomSeed")?.let { secretSeed = it }
+      row.get<ByteString?>("RandomSeed")?.let { secretSeedCiphertext = it }
       details = row.getProtoMessage("RequisitionDetails", RequisitionDetails.parser())
     }
   }

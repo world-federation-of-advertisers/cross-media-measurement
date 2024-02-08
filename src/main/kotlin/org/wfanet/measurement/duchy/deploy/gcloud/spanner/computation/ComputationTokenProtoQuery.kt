@@ -161,7 +161,7 @@ class ComputationTokenProtoQuery(
               path = it.getString("PathToBlob")
             }
             if (!it.isNull("RandomSeed")) {
-              secretSeed = it.getBytesAsByteString("RandomSeed")
+              secretSeedCiphertext = it.getBytesAsByteString("RandomSeed")
             }
             details = it.getProtoMessage("RequisitionDetails", RequisitionDetails.parser())
           }

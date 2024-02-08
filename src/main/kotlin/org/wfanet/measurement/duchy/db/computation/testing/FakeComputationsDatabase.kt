@@ -334,7 +334,7 @@ private constructor(
         requisitions[requisitionIndex].copy {
           path = pathToBlob
           if (secretSeedCiphertext != null) {
-            this.secretSeed = secretSeedCiphertext
+            this.secretSeedCiphertext = secretSeedCiphertext
           }
           details = details.copy { this.publicApiVersion = publicApiVersion }
         }

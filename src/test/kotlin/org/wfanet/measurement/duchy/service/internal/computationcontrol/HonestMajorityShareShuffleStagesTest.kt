@@ -74,11 +74,11 @@ private val FULFILLED_WAIT_ON_SHUFFLE_INPUT_TOKEN =
   WAIT_ON_SHUFFLE_INPUT_TOKEN.copy {
     requisitions.clear()
     requisitions += requisitionMetadata {
-      secretSeed = "seed_1".toByteStringUtf8()
+      secretSeedCiphertext = "seed_1".toByteStringUtf8()
       path = "path_1"
     }
     requisitions += requisitionMetadata {
-      secretSeed = "seed_2".toByteStringUtf8()
+      secretSeedCiphertext = "seed_2".toByteStringUtf8()
       path = "path_2"
     }
   }
@@ -87,11 +87,11 @@ private val READY_WAIT_ON_SHUFFLE_INPUT_TOKEN =
   UPDATED_WAIT_ON_SHUFFLE_INPUT_TOKEN.copy {
     requisitions.clear()
     requisitions += requisitionMetadata {
-      secretSeed = "seed_1".toByteStringUtf8()
+      secretSeedCiphertext = "seed_1".toByteStringUtf8()
       path = "path_1"
     }
     requisitions += requisitionMetadata {
-      secretSeed = "seed_2".toByteStringUtf8()
+      secretSeedCiphertext = "seed_2".toByteStringUtf8()
       path = "path_2"
     }
   }

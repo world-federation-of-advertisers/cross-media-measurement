@@ -97,9 +97,9 @@ message RequisitionMetadata {
   // fulfilled when it is specified.
   string path = 2;
 
-  // The requisition data in format of a secret seed. It is an serialized
-  // EncryptedMessage with data of SignedMessage.
-  bytes secret_seed = 4;
+  // The requisition data in format of a secret seed. It is ciphertext
+  // containing a serialized `SignedMessage` message from the CMMS public API.
+  bytes secret_seed_ciphertext = 4;
 
   // The public api version.
   string public_api_version = 5;

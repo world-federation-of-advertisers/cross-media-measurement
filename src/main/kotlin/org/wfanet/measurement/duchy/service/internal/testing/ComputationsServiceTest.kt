@@ -1040,7 +1040,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
         requisitions[0] =
           requisitions[0].copy {
             path = blobPath
-            this.secretSeed = secretSeed
+            this.secretSeedCiphertext = secretSeed
             details = details.copy { publicApiVersion = Version.V2_ALPHA.string }
           }
       }

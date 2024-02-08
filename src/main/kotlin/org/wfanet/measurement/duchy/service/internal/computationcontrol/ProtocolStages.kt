@@ -390,7 +390,7 @@ class HonestMajorityShareShuffleStages() :
     !computationDetails.honestMajorityShareShuffle.seeds.commonRandomSeedFromPeer.isEmpty
 
   private fun ComputationToken.requisitionsFulfilled(): Boolean =
-    requisitionsList.all { !it.secretSeed.isEmpty && it.path.isNotBlank() }
+    requisitionsList.all { !it.secretSeedCiphertext.isEmpty && it.path.isNotBlank() }
 
   override fun readyForNextStage(token: ComputationToken): Boolean {
     require(token.computationStage.hasHonestMajorityShareShuffle())

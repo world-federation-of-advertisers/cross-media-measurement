@@ -428,12 +428,12 @@ class AsyncComputationControlServiceTest {
       }
       if (requisitionFulfilled) {
         requisitions += requisitionMetadata {
-          secretSeed = REQUISITION_SEED_1
+          secretSeedCiphertext = REQUISITION_SEED_1
           path = REQUISITION_PATH_1
           publicApiVersion = Version.V2_ALPHA.string
         }
         requisitions += requisitionMetadata {
-          secretSeed = REQUISITION_SEED_2
+          secretSeedCiphertext = REQUISITION_SEED_2
           path = REQUISITION_PATH_2
           publicApiVersion = Version.V2_ALPHA.string
         }

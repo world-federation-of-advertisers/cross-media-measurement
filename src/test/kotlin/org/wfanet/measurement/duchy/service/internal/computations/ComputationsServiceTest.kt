@@ -545,7 +545,7 @@ class ComputationsServiceTest {
           requisitions += requisitionMetadata {
             externalKey = requisitionKey
             path = "this is a new path"
-            this.secretSeed = secretSeed
+            this.secretSeedCiphertext = secretSeed
             details = requisitionDetails { this.publicApiVersion = "v2alpha" }
           }
         }
