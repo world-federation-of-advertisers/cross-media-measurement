@@ -17,20 +17,20 @@ import { formatNumberWithMagnitude } from '../../util/formatting';
 import './d3_wrapper.css';
 
 export const removeGraph = (cardId) => {
-    d3.select(`#${cardId}-line`).selectAll("*").remove();
+    d3.select(`#${cardId}-chart`).selectAll("*").remove();
 }
 
-const initializeGraph = (cardId, dimensions) => {
+const initializeGraph = (cardId, dimensions, isLegend = false) => {
     // Specify the chart’s dimensions.
     const width = dimensions.width;
     const height = dimensions.height;
 
     // Create the SVG container.
-    const svg = d3.select(`#${cardId}-line`).append('svg')
+    const svg = d3.select(`#${cardId}`).append('svg')
         .attr("width", width)
         .attr("height", height)
         .attr("viewBox", [0, 0, width, height])
-        .attr("class", "chart-card");
+        .attr("class", isLegend ? "legend" : "chart-card");
 
     return svg;
 }
@@ -42,7 +42,7 @@ const setUpUtcScale = (svg, data, dimensions, margins) => {
         .range([margins.left, dimensions.width - margins.right]);
 
     // Add the horizontal axis.
-    const arr = new Set(data.map(item => item.date.toString())).size
+    const arr = new Set(data.map(item => item.variable.toString())).size
     const ticks = Math.min(arr - 1, dimensions.width / 80)
     svg.append("g")
         .attr("transform", `translate(0,${dimensions.height - margins.bottom})`)
@@ -76,7 +76,7 @@ const setUpLinearXScale = (svg, data, dimensions, margins) => {
 const setUpScaleBandXScale = (svg, data, dimensions, margins) => {
     // Create the positional scales.
     const x = d3.scaleBand()
-        .domain(new Set(data.map(d => d.date)))
+        .domain(new Set(data.map(d => d.variable)))
         .range([margins.left, dimensions.width - margins.right])
         .padding(0.5);
 
@@ -129,7 +129,7 @@ const setUpLinearYScale = (svg, data, dimensions, margins, isPercent = false) =>
 
 const drawMultiLines = (svg, groups, groupColors) => {
     // Draw the lines.
-    const line = d3.line().curve(d3.curveMonotoneX);;
+    const line = d3.line().curve(d3.curveMonotoneX);
     svg.append("g")
         .attr("fill", "none")
         .attr("stroke-width", 1.5)
@@ -138,7 +138,7 @@ const drawMultiLines = (svg, groups, groupColors) => {
       .selectAll("path")
       .data(groups.values())
       .join("path")
-        .attr("stroke", function(d){ return groupColors[d.group] })
+        .style("stroke", function(d){ return groupColors[d.z] })
         .style("mix-blend-mode", "multiply")
         .attr("d", line);
 }
@@ -149,9 +149,11 @@ const drawBar = (svg, data, x, y, groupColors) => {
         .rangeRound([0, x.bandwidth()])
         .padding(0.05);
 
+    const groupedData = d3.group(data, d => d.variable);
+
     svg.append("g")
         .selectAll()
-        .data(d3.group(data, d => d.variable))
+        .data(groupedData)
         .join("g")
             .attr("transform", ([variable]) => `translate(${x(variable)},0)`)
         .selectAll()
@@ -165,7 +167,7 @@ const drawBar = (svg, data, x, y, groupColors) => {
 }
 
 export const createMultiLineChart = (cardId, data, dimensions, margins, colorMap) => { 
-    const svg = initializeGraph(cardId, dimensions);
+    const svg = initializeGraph(`${cardId}-chart`, dimensions);
     const x = setUpUtcScale(svg, data, dimensions, margins);
     const y = setUpLinearYScale(svg, data, dimensions, margins);
 
@@ -176,18 +178,10 @@ export const createMultiLineChart = (cardId, data, dimensions, margins, colorMap
     const groups = d3.rollup(points, v => Object.assign(v, {z: v[0][2]}), d => d[2]);
 
     drawMultiLines(svg, groups, colorMap);
-
-    const legendDimensions = {
-        width: 100,
-        height: 100,
-    }
-    const svgLegend = initializeGraph(cardId, legendDimensions);
-    const keys = new Set(data.map(x => x.group));
-    addLegend(svgLegend, keys, colorMap)
 }
 
 export const createPercentMultiLineChart = (cardId, data, dimensions, margins, colorMap) => { 
-    const svg = initializeGraph(cardId, dimensions);
+    const svg = initializeGraph(`${cardId}-chart`, dimensions);
     const x = setUpLinearXScale(svg, data, dimensions, margins)
     const y = setUpLinearYScale(svg, data, dimensions, margins, true);
 
@@ -201,7 +195,7 @@ export const createPercentMultiLineChart = (cardId, data, dimensions, margins, c
 }
 
 export const createPercentBarChart = (cardId, data, dimensions, margins) => {
-    const svg = initializeGraph(cardId, dimensions);
+    const svg = initializeGraph(`${cardId}-chart`, dimensions);
     const x = setUpScaleBandXScale(svg, data, dimensions, margins);
     const y = setUpLinearYScale(svg, data, dimensions, margins, true)
 
@@ -209,26 +203,17 @@ export const createPercentBarChart = (cardId, data, dimensions, margins) => {
 }
 
 export const createBarChart = (cardId, data, dimensions, margins, colorMap) => {
-    const svg = initializeGraph(cardId, dimensions);
+    const svg = initializeGraph(`${cardId}-chart`, dimensions);
     const x = setUpScaleBandXScale(svg, data, dimensions, margins);
     const y = setUpLinearYScale(svg, data, dimensions, margins, false)
 
     drawBar(svg, data, x, y, colorMap);
-
-    // TODO (@bdomen-ggl):
-    //   Can calculate width based on longest length of string plus icon plus padding.
-    //   Can calculate height based on number of strings plus icon plus padding
-    //   Can display legend horizontally based on dimensions
-    const legendDimensions = {
-        width: 100,
-        height: 100,
-    }
-    const svgLegend = initializeGraph(cardId, legendDimensions);
-    const keys = new Set(data.map(x => x.group));
-    addLegend(svgLegend, keys, colorMap)
 }
 
-const addLegend = (svg, keys, colorMap) => {
+export const createLegend = (cardId, dimensions, colorMap) => {
+    const svg = initializeGraph(`${cardId}-legend`, dimensions, true);
+    const keys = Object.keys(colorMap);
+
     var size = 20
     svg.selectAll("legendDots")
         .data(keys)
