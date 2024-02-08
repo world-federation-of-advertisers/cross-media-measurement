@@ -42,6 +42,7 @@ class ApacheBeamTask(
     try {
       val finalState = pipeline.run().waitUntilFinish()
       check(finalState == PipelineResult.State.DONE) { "Pipeline is in state $finalState" }
+
     } catch (e: Exception) {
       throw ExchangeTaskFailedException.ofPermanent(e)
     }

@@ -17,7 +17,6 @@ package org.wfanet.panelmatch.client.deploy.example.aws
 import com.google.crypto.tink.integration.awskms.AwsKmsClient
 import java.util.Optional
 import kotlin.properties.Delegates
-import org.apache.beam.runners.dataflow.options.DataflowWorkerLoggingOptions
 import org.apache.beam.runners.direct.DirectRunner
 import org.apache.beam.sdk.options.PipelineOptions
 import org.apache.beam.sdk.options.PipelineOptionsFactory

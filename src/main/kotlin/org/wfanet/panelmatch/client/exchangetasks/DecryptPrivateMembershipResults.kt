@@ -38,11 +38,13 @@ suspend fun ApacheBeamContext.decryptPrivateMembershipResults(
 ) {
   val encryptedQueryResults: PCollection<EncryptedQueryResult> =
     readShardedPCollection("encrypted-results", encryptedQueryResult {})
+  println("decrypt inputs reading")
 
   val queryAndIds = readShardedPCollection("query-to-ids-map", queryIdAndId {})
 
   // TODO: remove this functionality v2.0.0
   // For backwards compatibility for workflows without discarded-join-keys
+  println("decrypt inputs collected")
   val discardedJoinKeys: List<JoinKeyIdentifier> =
     if ("discarded-join-keys" in inputLabels) {
       JoinKeyIdentifierCollection.parseFrom(readBlob("discarded-join-keys")).joinKeyIdentifiersList
@@ -81,6 +83,8 @@ suspend fun ApacheBeamContext.decryptPrivateMembershipResults(
       }
       .toSingletonView("Private RLWE Keys Singleton")
 
+  println("decrypt beginning")
+
   val keyedDecryptedEventDataSet: PCollection<KeyedDecryptedEventDataSet> =
     decryptQueryResults(
       encryptedQueryResults,
@@ -94,5 +98,7 @@ suspend fun ApacheBeamContext.decryptPrivateMembershipResults(
       hkdfPepper,
     )
 
+
+  println("writing sharded output")
   keyedDecryptedEventDataSet.writeShardedFiles("decrypted-event-data")
 }

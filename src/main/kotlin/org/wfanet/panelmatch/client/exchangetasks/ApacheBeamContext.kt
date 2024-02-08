@@ -16,6 +16,9 @@ package org.wfanet.panelmatch.client.exchangetasks
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.Message
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.apache.beam.sdk.Pipeline
 import org.apache.beam.sdk.values.PCollection
 import org.apache.beam.sdk.values.PCollectionView
@@ -41,7 +44,7 @@ import org.wfanet.panelmatch.common.storage.toStringUtf8
  * @param inputBlobs map of keys to blobs
  * @param storageFactory the kind of storage this task will read from
  */
-class ApacheBeamContext(
+class ApacheBeamContext @OptIn(ExperimentalCoroutinesApi::class) constructor(
   val pipeline: Pipeline,
   val outputLabels: Map<String, String>,
   val inputLabels: Map<String, String>,
@@ -79,7 +82,8 @@ class ApacheBeamContext(
 
   fun <T : Message> PCollection<T>.writeShardedFiles(manifestLabel: String) {
     val shardedFileName = outputManifests.getValue(manifestLabel)
-    apply("Write ${shardedFileName.spec}", WriteShardedData(shardedFileName.spec, storageFactory))
+    apply("Write ${shardedFileName.spec}",
+          WriteShardedData(shardedFileName.spec, storageFactory))
   }
 
   fun <T : Message> PCollection<T>.writeSingleBlob(label: String) {

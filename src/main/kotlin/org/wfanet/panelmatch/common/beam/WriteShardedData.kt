@@ -93,7 +93,7 @@ class WriteShardedData<T : Message>(
 
 private class WriteFilesFn<T : Message>(
   private val fileSpec: String,
-  private val storageFactory: StorageFactory
+  private val storageFactory: StorageFactory,
 ) : DoFn<KV<Int, Iterable<@JvmWildcard T>>, String>() {
 
   @ProcessElement
@@ -101,6 +101,7 @@ private class WriteFilesFn<T : Message>(
     val pipelineOptions = context.getPipelineOptions()
     val kv = context.element()
     val blobKey = ShardedFileName(fileSpec).fileNameForShard(kv.key)
+    println("writing decrypted file: $blobKey")
     val storageClient = storageFactory.build(pipelineOptions)
     val messageFlow = kv.value.asFlow().map { it.toDelimitedByteString() }
 

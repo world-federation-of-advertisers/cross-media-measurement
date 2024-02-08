@@ -20,6 +20,7 @@ import com.google.protobuf.MessageLite
 import java.io.InputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Semaphore
 import org.apache.beam.sdk.extensions.protobuf.ProtoCoder
 import org.apache.beam.sdk.metrics.Metrics
 import org.apache.beam.sdk.transforms.Create
@@ -65,18 +66,37 @@ private class ReadBlobFn<T : MessageLite>(
   fun processElement(context: ProcessContext) =
     runBlocking(Dispatchers.IO) {
       val pipelineOptions = context.getPipelineOptions()
-      val blob: Blob =
-        storageFactory.build(pipelineOptions).getBlob(context.element()) ?: return@runBlocking
-      val inputStream: InputStream = blob.newInputStream(this)
+      val contextElement = context.element()
+      semaphore.acquire()
+      println("lock acquired, ${semaphore.availablePermits} remain.")
+      println("getting blob: $contextElement")
+      try {
+        val blob: Blob =
+          storageFactory.build(pipelineOptions).getBlob(contextElement) ?: return@runBlocking
+        println("blob gotten: $contextElement")
+        val inputStream: InputStream = blob.newInputStream(this)
 
-      var elements = 0L
+        var elements = 0L
 
-      for (message in inputStream.parseDelimitedMessages(prototype)) {
-        itemSizeDistribution.update(message.serializedSize.toLong())
-        context.output(message)
-        elements++
+        for (message in inputStream.parseDelimitedMessages(prototype)) {
+          itemSizeDistribution.update(message.serializedSize.toLong())
+          context.output(message)
+          elements++
+        }
+
+        elementCountDistribution.update(elements)
+        println("blobKey $contextElement has been read with $elements elements.")
+      } catch (e: Exception) {
+        println("error reading blob for $contextElement")
+        throw e
+      } finally {
+        semaphore.release()
+        println("releasing lock for $contextElement, ${semaphore.availablePermits} remain.")
       }
-
-      elementCountDistribution.update(elements)
     }
+
+  companion object {
+    // limit parallelism per machine on reading and writing to avoid hardware constraints.
+    val semaphore = Semaphore(10)
+  }
 }
