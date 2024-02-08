@@ -122,7 +122,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.74.1",
+    version = "0.75.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -207,6 +207,7 @@ maven.artifact(
 )
 maven.install(
     artifacts = [
+        "com.github.ben-manes.caffeine:caffeine:3.1.8",
         "com.google.cloud:google-cloud-security-private-ca:2.3.1",
         "com.google.crypto.tink:tink-awskms:1.9.1",
         "com.google.crypto.tink:tink-gcpkms:1.9.0",

@@ -186,7 +186,9 @@ private fun run(
       SecureRandom(),
       v2AlphaFlags.signingPrivateKeyStoreDir,
       commonServerFlags.tlsFlags.signingCerts.trustedCertificates,
+      v2AlphaPublicServerFlags.certificateCacheExpirationDuration,
       Dispatchers.IO,
+      Dispatchers.Default,
     )
 
   val inProcessExecutorService: ExecutorService =
@@ -268,5 +270,13 @@ private class V2AlphaPublicServerFlags {
     required = true,
   )
   lateinit var authorityKeyIdentifierToPrincipalMapFile: File
+    private set
+
+  @CommandLine.Option(
+    names = ["--certificate-cache-expiration-duration"],
+    description = ["Duration to mark cache entries as expired in format 1d1h1m1s1ms1ns"],
+    required = true,
+  )
+  lateinit var certificateCacheExpirationDuration: Duration
     private set
 }
