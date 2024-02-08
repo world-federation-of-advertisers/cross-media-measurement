@@ -17,7 +17,14 @@ import Card from 'react-bootstrap/Card';
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 import { FilterChartIcon, OptionsIcon } from '../../public/asset/icon';
-import { createMultiLineChart, createBarChart, createPercentBarChart, createPercentMultiLineChart, removeGraph } from './d3_wrapper';
+import {
+  createLegend,
+  createMultiLineChart,
+  createBarChart,
+  createPercentBarChart,
+  createPercentMultiLineChart,
+  removeGraph
+} from './d3_wrapper';
 
 export enum ChartType {
   percentMultiLine,
@@ -41,8 +48,10 @@ const componentStyle = {
 
 // TODO: Add Legend
 export function Chart({cardId, title, data, config, type}: props) {
-  const refContainer = useRef<HTMLDivElement>(null);
+  const chartRefContainer = useRef<HTMLDivElement>(null);
+  const legendRefContainer = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const [legendDimensions, setLegendDimensions] = useState({ width: 0, height: 0 });
 
   const createGraph = (cardId: string, data: any, dimensions: {width: number, height: number}) => {
     // Specify the chart’s dimensions.
@@ -55,12 +64,14 @@ export function Chart({cardId, title, data, config, type}: props) {
 
     if (type === ChartType.multiLine) {
       createMultiLineChart(cardId, data, dimensions, margins, config.pubColors)
+      createLegend(cardId, legendDimensions, config.pubColors);
     } else if (type === ChartType.percentMultiLine) {
       createPercentMultiLineChart(cardId, data, dimensions, margins, config.catColors)
     } else if (type === ChartType.barPercent) {
       createPercentBarChart(cardId, data, dimensions, margins, config.pubColors)
     } else if (type === ChartType.bar) {
       createBarChart(cardId, data, dimensions, margins, config.pubColors)
+      createLegend(cardId, legendDimensions, config.pubColors);
     }
   }
 
@@ -72,24 +83,25 @@ export function Chart({cardId, title, data, config, type}: props) {
     createGraph(cardId, data, dimensions);
   }, [cardId, data, dimensions]);
 
-  useEffect(() => {
-    if (refContainer.current) {
+  const resize = (container: React.RefObject<HTMLDivElement>, setDimensions: Function) => {
+    if (container.current) {
       setDimensions({
-        width: refContainer.current.offsetWidth,
-        height: Math.min(refContainer.current.offsetWidth * 0.6, 300),
+        width: container.current.offsetWidth,
+        height: container.current.offsetHeight,
       });
     }
+  }
+
+  useEffect(() => {
+    resize(chartRefContainer, setDimensions);
+    resize(legendRefContainer, setLegendDimensions);
 
     function handleResize() {
       // Delete and re-create the whole charts.
       // Even when using 'responsive svg', the fonts don't change.
       removeGraph(cardId);
-      if (refContainer.current) {
-        setDimensions({
-          width: refContainer.current.offsetWidth,
-          height: Math.min(refContainer.current.offsetWidth * 0.6, 300),
-        });
-      }
+      resize(chartRefContainer, setDimensions);
+      resize(legendRefContainer, setLegendDimensions);
     }
 
     // Attach the event listener to the window object
@@ -104,20 +116,23 @@ export function Chart({cardId, title, data, config, type}: props) {
   return (
     <Card id={cardId} style={componentStyle}>
       <Card.Body>
-        <div style={{borderBottom: '1px solid #E1E3E1'}}>
-          <Row>
-            <Col className="my-auto">
-              {title}
-            </Col>
-            <Col md="auto" className="my-auto">
-              <FilterChartIcon />
-            </Col>
-            <Col md="auto" className="my-auto">
-              <OptionsIcon />
-            </Col>
-          </Row>
+        <div className='container'>
+          <div style={{borderBottom: '1px solid #E1E3E1'}}>
+            <Row>
+              <Col className="my-auto">
+                {title}
+              </Col>
+              <Col md="auto" className="my-auto">
+                <FilterChartIcon />
+              </Col>
+              <Col md="auto" className="my-auto">
+                <OptionsIcon />
+              </Col>
+            </Row>
+          </div>
+          <div id={`${cardId}-chart`} className="chart-card" ref={chartRefContainer} />
+          <div id={`${cardId}-legend`} className="legend" ref={legendRefContainer} />
         </div>
-        <div id={`${cardId}-line`} className="chart-card" ref={refContainer} />
       </Card.Body>
     </Card>
   )

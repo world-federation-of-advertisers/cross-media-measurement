@@ -12,18 +12,41 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-.chart-card {
-    max-width: 100%;
-    height: auto;
-    overflow: visible;
+.container {
+    container-type: inline-size;
+    margin: 0 !important;
+    max-width: 100% !important;
+}
+
+.legend {
+    height: 100px;
     font: 10px sans-serif;
+}
+
+@container(max-width: 600px) {
+    .chart-card {
+        max-width: 100%;
+        aspect-ratio: 1.6;
+        height: auto;
+        overflow: visible;
+        font: 10px sans-serif;
+    }
+}
+
+@container(min-width: 600px) {
+    .chart-card {
+        max-width: 100%;
+        height: 300px;
+        overflow: visible;
+        font: 10px sans-serif;
+    }
 }
 
 .svg-container {
     display: inline-block;
     position: relative;
     width: 100%;
-    padding-bottom: 100%; /* aspect ratio */
+    padding-bottom: 100%;
     vertical-align: top;
     overflow: hidden;
 }
