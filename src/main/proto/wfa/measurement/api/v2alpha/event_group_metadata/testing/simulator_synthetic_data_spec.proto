@@ -181,12 +181,12 @@ message CartesianSyntheticEventGroupSpecRecipe {
   message NonPopulationDimensionSpec {
     message FieldValueRatio {
       // Value of the non_population_field.
-      FieldValue field_value = 2;
+      FieldValue field_value = 1;
       // Ratio of this field value for this dimension.
-      float ratio = 3;
+      float ratio = 2;
     }
     // Ratios in these fields must sum up to 1.
-    repeated FieldValueRatio field_value_ratios = 2;
+    repeated FieldValueRatio field_value_ratios = 1;
   }
 
   // The specification for all frequencies reached for a specific date range.
@@ -204,7 +204,8 @@ message CartesianSyntheticEventGroupSpecRecipe {
     int64 total_reach = 2;
     // A map of frequencies to their values ratios. Ratios must sum up to 1.
     map<int64, float> frequency_ratios = 3;
-    // A map of non population dimension names to their specs.
+    // A map of `NonPopulationDimensionSpec` keyed by field from
+    // `non_population_fields` in the corresponding `PopulationSpec`.
     map<string, NonPopulationDimensionSpec> non_population_dimension_specs = 4;
   }
   // `DateSpec`s should describe non-overlapping date ranges.
