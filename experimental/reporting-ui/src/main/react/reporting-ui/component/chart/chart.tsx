@@ -87,21 +87,30 @@ export function Chart({cardId, title, data, config, type}: props) {
     if (container.current) {
       setDimensions({
         width: container.current.offsetWidth,
-        height: container.current.offsetHeight,
+        height: Math.min(container.current.offsetWidth * 0.6, 300),
+      });
+    }
+  }
+
+  const resizeLegend = (container: React.RefObject<HTMLDivElement>, setDimensions: Function) => {
+    if (container.current) {
+      setDimensions({
+        width: 100,
+        height: 100,
       });
     }
   }
 
   useEffect(() => {
     resize(chartRefContainer, setDimensions);
-    resize(legendRefContainer, setLegendDimensions);
+    resizeLegend(legendRefContainer, setLegendDimensions);
 
     function handleResize() {
       // Delete and re-create the whole charts.
       // Even when using 'responsive svg', the fonts don't change.
       removeGraph(cardId);
       resize(chartRefContainer, setDimensions);
-      resize(legendRefContainer, setLegendDimensions);
+      resizeLegend(legendRefContainer, setLegendDimensions);
     }
 
     // Attach the event listener to the window object
@@ -116,23 +125,21 @@ export function Chart({cardId, title, data, config, type}: props) {
   return (
     <Card id={cardId} style={componentStyle}>
       <Card.Body>
-        <div className='container'>
-          <div style={{borderBottom: '1px solid #E1E3E1'}}>
-            <Row>
-              <Col className="my-auto">
-                {title}
-              </Col>
-              <Col md="auto" className="my-auto">
-                <FilterChartIcon />
-              </Col>
-              <Col md="auto" className="my-auto">
-                <OptionsIcon />
-              </Col>
-            </Row>
-          </div>
-          <div id={`${cardId}-chart`} className="chart-card" ref={chartRefContainer} />
-          <div id={`${cardId}-legend`} className="legend" ref={legendRefContainer} />
+        <div style={{borderBottom: '1px solid #E1E3E1'}}>
+          <Row>
+            <Col className="my-auto">
+              {title}
+            </Col>
+            <Col md="auto" className="my-auto">
+              <FilterChartIcon />
+            </Col>
+            <Col md="auto" className="my-auto">
+              <OptionsIcon />
+            </Col>
+          </Row>
         </div>
+        <div id={`${cardId}-chart`} className="chart-card" ref={chartRefContainer} />
+        <div id={`${cardId}-legend`} className="legend" ref={legendRefContainer} />
       </Card.Body>
     </Card>
   )
