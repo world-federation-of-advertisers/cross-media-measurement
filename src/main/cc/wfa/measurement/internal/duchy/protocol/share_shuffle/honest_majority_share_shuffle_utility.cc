@@ -29,6 +29,8 @@
 #include "any_sketch/crypto/shuffle.h"
 #include "common_cpp/macros/macros.h"
 #include "common_cpp/time/started_thread_cpu_timer.h"
+#include "google/protobuf/duration.pb.h"
+#include "google/protobuf/util/time_util.h"
 #include "math/distributed_noiser.h"
 #include "math/open_ssl_uniform_random_generator.h"
 #include "wfa/any_sketch/secret_share.pb.h"
@@ -180,7 +182,9 @@ absl::StatusOr<CompleteShufflePhaseResponse> CompleteShufflePhase(
 
   response.mutable_combined_sketch()->Add(combined_sketch.begin(),
                                           combined_sketch.end());
-  response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());
+  *response.mutable_elapsed_cpu_duration() =
+      google::protobuf::util::TimeUtil::MicrosecondsToDuration(
+          timer.ElapsedMillis());
   return response;
 }
 
