@@ -12,12 +12,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-.container {
-    container-type: inline-size;
-    margin: 0 !important;
-    max-width: 100% !important;
-}
-
 .legend {
     height: 100px;
     font: 10px sans-serif;
