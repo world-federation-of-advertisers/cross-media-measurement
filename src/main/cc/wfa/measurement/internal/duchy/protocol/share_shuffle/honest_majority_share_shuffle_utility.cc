@@ -183,7 +183,7 @@ absl::StatusOr<CompleteShufflePhaseResponse> CompleteShufflePhase(
   response.mutable_combined_sketch()->Add(combined_sketch.begin(),
                                           combined_sketch.end());
   *response.mutable_elapsed_cpu_duration() =
-      google::protobuf::util::TimeUtil::MicrosecondsToDuration(
+      google::protobuf::util::TimeUtil::MillisecondsToDuration(
           timer.ElapsedMillis());
   return response;
 }
