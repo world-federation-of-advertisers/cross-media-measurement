@@ -28,6 +28,8 @@
 #include "common_cpp/macros/macros.h"
 #include "common_cpp/time/started_thread_cpu_timer.h"
 #include "estimation/estimators.h"
+#include "google/protobuf/duration.pb.h"
+#include "google/protobuf/util/time_util.h"
 #include "math/distributed_noiser.h"
 #include "private_join_and_compute/crypto/commutative_elgamal.h"
 #include "wfa/measurement/common/crypto/constants.h"
