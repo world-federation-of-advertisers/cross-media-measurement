@@ -18,6 +18,7 @@ import './d3_wrapper.css';
 
 export const removeGraph = (cardId) => {
     d3.select(`#${cardId}-chart`).selectAll("*").remove();
+    d3.select(`#${cardId}-legend`).selectAll("*").remove();
 }
 
 const initializeGraph = (cardId, dimensions, isLegend = false) => {
