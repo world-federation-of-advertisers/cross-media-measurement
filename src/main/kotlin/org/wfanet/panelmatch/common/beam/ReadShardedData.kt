@@ -18,6 +18,8 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.Message
 import com.google.protobuf.MessageLite
 import java.io.InputStream
+import kotlin.random.Random
+import kotlin.random.nextInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Semaphore
@@ -27,8 +29,10 @@ import org.apache.beam.sdk.transforms.Create
 import org.apache.beam.sdk.transforms.DoFn
 import org.apache.beam.sdk.transforms.PTransform
 import org.apache.beam.sdk.transforms.ParDo
+import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PBegin
 import org.apache.beam.sdk.values.PCollection
+import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.StorageClient.Blob
 import org.wfanet.panelmatch.common.ShardedFileName
 import org.wfanet.panelmatch.common.parseDelimitedMessages
@@ -39,7 +43,8 @@ import org.wfanet.panelmatch.common.storage.newInputStream
 class ReadShardedData<T : Message>(
   private val prototype: T,
   private val fileSpec: String,
-  private val storageFactory: StorageFactory
+  private val storageFactory: StorageFactory,
+  private val maxConcurrentCopies: Int = 200
 ) : PTransform<PBegin, PCollection<T>>() {
   override fun expand(input: PBegin): PCollection<T> {
     val fileNames: PCollection<String> =
@@ -49,45 +54,59 @@ class ReadShardedData<T : Message>(
 
     return fileNames
       .breakFusion("Break Fusion Before ReadBlobFn")
-      .apply("Read Each Blob", ParDo.of(ReadBlobFn(prototype, storageFactory)))
+      .map("Map to random bucket") { kvOf(Random.nextInt(1, maxConcurrentCopies), it) }
+      .groupByKey("Group filenames")
+      .parDo(ReadBlobFn(prototype, storageFactory), name = "Read Each Blob")
       .setCoder(ProtoCoder.of(prototype.javaClass))
   }
 }
 
 private class ReadBlobFn<T : MessageLite>(
   private val prototype: T,
-  private val storageFactory: StorageFactory
-) : DoFn<String, T>() {
+  private val storageFactory: StorageFactory,
+) : DoFn<KV<Int, Iterable<@JvmWildcard String>>, T>() {
   private val metricsNamespace = "ReadShardedData"
   private val itemSizeDistribution = Metrics.distribution(metricsNamespace, "item-sizes")
   private val elementCountDistribution = Metrics.distribution(metricsNamespace, "element-counts")
 
+  @Setup
+  fun setup() {
+    println("running setup")
+    storageClient = storageFactory.build()
+  }
+
   @ProcessElement
   fun processElement(context: ProcessContext) =
     runBlocking(Dispatchers.IO) {
-      val pipelineOptions = context.getPipelineOptions()
-      val contextElement = context.element()
+      val pipelineOptions = context.pipelineOptions
+      val contextElement = context.element().value
       semaphore.acquire()
       println("lock acquired, ${semaphore.availablePermits} remain.")
-      println("getting blob: $contextElement")
       try {
-        val blob: Blob =
-          storageFactory.build(pipelineOptions).getBlob(contextElement) ?: return@runBlocking
-        println("blob gotten: $contextElement")
-        val inputStream: InputStream = blob.newInputStream(this)
+        for (blobKey in contextElement) {
+          println("getting blob: $blobKey")
+          try {
+            val blob: Blob =
+              storageClient.getBlob(blobKey) ?: return@runBlocking
+            println("blob gotten: $blobKey")
+            val inputStream: InputStream = blob.newInputStream(this)
 
-        var elements = 0L
+            var elements = 0L
 
-        for (message in inputStream.parseDelimitedMessages(prototype)) {
-          itemSizeDistribution.update(message.serializedSize.toLong())
-          context.output(message)
-          elements++
+            for (message in inputStream.parseDelimitedMessages(prototype)) {
+              itemSizeDistribution.update(message.serializedSize.toLong())
+              context.output(message)
+              elements++
+            }
+
+            elementCountDistribution.update(elements)
+            println("blobKey $blobKey has been read with $elements elements.")
+          } catch (e: Exception) {
+            println("error reading blob for $blobKey")
+            throw e
+          }
         }
-
-        elementCountDistribution.update(elements)
-        println("blobKey $contextElement has been read with $elements elements.")
-      } catch (e: Exception) {
-        println("error reading blob for $contextElement")
+      } catch(e: Exception) {
         throw e
       } finally {
         semaphore.release()
@@ -96,7 +115,7 @@ private class ReadBlobFn<T : MessageLite>(
     }
 
   companion object {
-    // limit parallelism per machine on reading and writing to avoid hardware constraints.
+    lateinit var storageClient: StorageClient
     val semaphore = Semaphore(10)
   }
 }
