@@ -659,12 +659,12 @@ class GcpSpannerComputationsDatabaseTransactor<
     token: ComputationEditToken<ProtocolT, StageT>,
     externalRequisitionKey: ExternalRequisitionKey,
     pathToBlob: String,
-    secretSeed: ByteString? = null,
+    secretSeedCiphertext: ByteString? = null,
     publicApiVersion: String,
   ) {
     require(pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $externalRequisitionKey" }
-    if (secretSeed != null) {
-      require(!secretSeed.isEmpty) { "Cannot insert empty seed. $externalRequisitionKey" }
+    if (secretSeedCiphertext != null) {
+      require(!secretSeedCiphertext.isEmpty) { "Cannot insert empty seed. $externalRequisitionKey" }
     }
     require(publicApiVersion.isNotBlank()) {
       "Cannot insert blank public api version. $externalRequisitionKey"
@@ -707,7 +707,7 @@ class GcpSpannerComputationsDatabaseTransactor<
             externalRequisitionId = externalRequisitionKey.externalRequisitionId,
             requisitionFingerprint = externalRequisitionKey.requisitionFingerprint,
             pathToBlob = pathToBlob,
-            randomSeed = secretSeed,
+            secretSeedCiphertext = secretSeedCiphertext,
             requisitionDetails = updatedDetails,
           ),
         )

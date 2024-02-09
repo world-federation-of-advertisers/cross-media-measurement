@@ -199,7 +199,7 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
   /**
    * Writes the blob path of requisition from a fulfillment.
    *
-   * If seed is specified, also writes the seed.
+   * If secretSeedCiphertext is specified, also writes the secretSeedCiphertext.
    */
   suspend fun writeRequisitionBlobPath(
     token: ComputationEditToken<ProtocolT, StageT>,

@@ -29,7 +29,7 @@ import org.wfanet.measurement.internal.duchy.copy
  * @param localId local identifier of the computation.
  * @param externalRequisitionKey [ExternalRequisitionKey] of the computation.
  * @param pathToBlob requisition blob path.
- * @param seed requisition random seed.
+ * @param secretSeedCiphertext requisition random seed.
  * @param clock See [Clock].
  *
  * Throws following exceptions on [execute]:
@@ -39,15 +39,15 @@ class RecordRequisitionData(
   private val localId: Long,
   private val externalRequisitionKey: ExternalRequisitionKey,
   private val pathToBlob: String,
-  private val seed: ByteString?,
+  private val secretSeedCiphertext: ByteString?,
   private val publicApiVersion: String,
   private val clock: Clock,
   private val computationReader: ComputationReader,
 ) : PostgresWriter<ComputationToken>() {
   override suspend fun TransactionScope.runTransaction(): ComputationToken {
     require(pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $externalRequisitionKey" }
-    if (seed != null) {
-      require(!seed.isEmpty) { "Cannot insert empty seed. $externalRequisitionKey" }
+    if (secretSeedCiphertext != null) {
+      require(!secretSeedCiphertext.isEmpty) { "Cannot insert empty seed. $externalRequisitionKey" }
     }
     require(publicApiVersion.isNotBlank()) {
       "Cannot insert public api version $externalRequisitionKey"
@@ -72,7 +72,7 @@ class RecordRequisitionData(
       externalRequisitionId = externalRequisitionKey.externalRequisitionId,
       requisitionFingerprint = externalRequisitionKey.requisitionFingerprint,
       pathToBlob = pathToBlob,
-      randomSeed = seed,
+      secretSeedCiphertext = secretSeedCiphertext,
       requisitionDetails = requisitionDetails,
       updateTime = writeTime,
     )
