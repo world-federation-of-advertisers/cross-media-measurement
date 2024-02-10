@@ -310,8 +310,13 @@ fun CartesianSyntheticEventGroupSpecRecipe.toSyntheticEventGroupSpec(
           }
           .groupBy { it.fieldName }
 
+      // Take the cartesian product of all non population dimensions
       val nonPopulationCartesianProduct: List<List<NonPopulationDimension>> =
-        cartesianProduct(groupedNonPopulationDimensionSpecs.map { (_, group) -> group })
+        groupedNonPopulationDimensionSpecs
+          .map { (_, group) -> group }
+          .fold(listOf(emptyList<NonPopulationDimension>())) { acc, inner ->
+            acc.flatMap { outer -> inner.map { element -> outer + listOf(element) } }
+          }
 
       val mappedFrequencySpecs = mutableListOf<SyntheticEventGroupSpec.FrequencySpec>()
       // Take the cartesian product with frequencyDimensionSpecs.
@@ -366,28 +371,6 @@ private fun createFrequencySpec(
         )
       }
   }
-
-// Takes the cartesian product of a list of lists.
-private fun cartesianProduct(
-  lists: List<List<NonPopulationDimension>>
-): List<List<NonPopulationDimension>> {
-  val result = mutableListOf<List<NonPopulationDimension>>()
-  fun helper(currentList: List<NonPopulationDimension>, index: Int) {
-    // Base case: We've processed all lists
-    if (index == lists.size) {
-      // Add the current combination and create a copy.
-      result.add(currentList.toList())
-      return
-    }
-    // Iterate over elements in the current list
-    for (item in lists[index]) {
-      // Recurse with the added element
-      helper(currentList + item, index + 1)
-    }
-  }
-  helper(listOf(), 0)
-  return result
-}
 
 data class NonPopulationDimension(
   val fieldName: String,
