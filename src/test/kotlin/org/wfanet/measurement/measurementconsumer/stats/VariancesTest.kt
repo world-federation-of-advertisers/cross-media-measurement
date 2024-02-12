@@ -3331,6 +3331,111 @@ class VariancesTest {
   }
 
   @Test
+  fun `computeMetricVariance returns for reach-frequency`() {
+    val vidSamplingIntervalWidth = 1e-4
+    val totalReach = 1L
+    val reachDpParams = DpParams(0.05, 1e-15)
+    val reachMeasurementParams =
+      ReachMeasurementParams(
+        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
+        reachDpParams,
+        NoiseMechanism.GAUSSIAN,
+      )
+    val reachMeasurementVarianceParams =
+      ReachMeasurementVarianceParams(totalReach, reachMeasurementParams)
+    val reachMeasurementVariance =
+      VariancesImpl.computeMeasurementVariance(
+        DeterministicMethodology,
+        reachMeasurementVarianceParams,
+      )
+
+    val maximumFrequency = 5
+    val relativeFrequencyDistribution =
+      (1..maximumFrequency).associateWith { (maximumFrequency - it) / 10.0 }
+    val frequencyDpParams = DpParams(0.2, 1e-15)
+    val frequencyMeasurementParams =
+      FrequencyMeasurementParams(
+        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
+        frequencyDpParams,
+        NoiseMechanism.GAUSSIAN,
+        maximumFrequency,
+      )
+    val frequencyMeasurementVarianceParams =
+      FrequencyMeasurementVarianceParams(
+        totalReach,
+        reachMeasurementVariance,
+        relativeFrequencyDistribution,
+        frequencyMeasurementParams,
+      )
+
+    val weight = 2
+    val coefficient = weight * weight.toDouble()
+
+    val weightedFrequencyMeasurementVarianceParams =
+      WeightedFrequencyMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = weight,
+        measurementVarianceParams = frequencyMeasurementVarianceParams,
+        methodology = DeterministicMethodology,
+      )
+
+    val (rKVars, rKPlusVars, nKVars, nKPlusVars) =
+      VariancesImpl.computeMetricVariance(
+        FrequencyMetricVarianceParams(listOf(weightedFrequencyMeasurementVarianceParams))
+      )
+
+    val expectedRK =
+      listOf(130523240799.76, 110944754739.79, 104418592319.84, 110944753539.91, 130523238400.0)
+        .map { it * coefficient }
+    val expectedRKPlus =
+      listOf(0.0, 130523240799.75995, 215363345459.78998, 215363344259.90997, 130523238400.0).map {
+        it * coefficient
+      }
+    val expectedNK =
+      listOf(
+          2.5828737279268425e+23,
+          2.195442669924104e+23,
+          2.06629897600801e+23,
+          2.1954426461785614e+23,
+          2.582873680435757e+23,
+        )
+        .map { it * coefficient }
+    val expectedNKPlus =
+      listOf(
+          1978861168399.0,
+          2.5828737279307992e+23,
+          4.261741614272709e+23,
+          4.2617415905271664e+23,
+          2.582873680435757e+23,
+        )
+        .map { it * coefficient }
+
+    for (frequency in 1..maximumFrequency) {
+      assertThat(rKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(rKVars.getValue(frequency), expectedRK[frequency - 1]))
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(rKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1])
+        )
+        .of(expectedRKPlus[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(nKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(nKVars.getValue(frequency), expectedNK[frequency - 1]))
+        .of(expectedNK[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(nKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1])
+        )
+        .of(expectedNKPlus[frequency - 1])
+    }
+  }
+
+  @Test
   fun `computeMetricVariance for reach-frequency throws IllegalArgumentException when no measurement params`() {
     assertFailsWith<IllegalArgumentException> {
       VariancesImpl.computeMetricVariance(FrequencyMetricVarianceParams(listOf()))
@@ -3398,6 +3503,41 @@ class VariancesTest {
         FrequencyMetricVarianceParams(listOf(weightedFrequencyMeasurementVarianceParams))
       )
     }
+  }
+
+  @Test
+  fun `computeMetricVariance returns for impression`() {
+    val impressions = 3e8.toLong()
+    val vidSamplingIntervalWidth = 1e-2
+    val dpParams = DpParams(1e-2, 1e-9)
+    val maximumFrequencyPerUser = 200
+    val impressionMeasurementParams =
+      ImpressionMeasurementParams(
+        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
+        dpParams,
+        maximumFrequencyPerUser,
+        NoiseMechanism.GAUSSIAN,
+      )
+    val impressionMeasurementVariancesParams =
+      ImpressionMeasurementVarianceParams(impressions, impressionMeasurementParams)
+
+    val weight = 2
+    val coefficient = weight * weight
+    val weightedImpressionMeasurementVarianceParams =
+      WeightedImpressionMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = weight,
+        measurementVarianceParams = impressionMeasurementVariancesParams,
+        methodology = DeterministicMethodology,
+      )
+
+    val variance =
+      VariancesImpl.computeMetricVariance(
+        ImpressionMetricVarianceParams(listOf(weightedImpressionMeasurementVarianceParams))
+      )
+    val expected = 90027432806400.0 * coefficient
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
@@ -3518,6 +3658,41 @@ class VariancesTest {
         ImpressionMetricVarianceParams(listOf(weightedImpressionMeasurementVarianceParams))
       )
     }
+  }
+
+  @Test
+  fun `computeMetricVariance returns for watch duration`() {
+    val watchDuration = 1.0
+    val vidSamplingIntervalWidth = 1.0
+    val dpParams = DpParams(1e-2, 1e-9)
+    val maximumDurationPerUser = 1.0
+    val watchDurationMeasurementParams =
+      WatchDurationMeasurementParams(
+        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
+        dpParams,
+        maximumDurationPerUser,
+        NoiseMechanism.GAUSSIAN,
+      )
+    val watchDurationMeasurementVarianceParams =
+      WatchDurationMeasurementVarianceParams(watchDuration, watchDurationMeasurementParams)
+
+    val weight = 2
+    val coefficient = weight * weight
+    val weightedWatchDurationMeasurementVarianceParams =
+      WeightedWatchDurationMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = weight,
+        measurementVarianceParams = watchDurationMeasurementVarianceParams,
+        methodology = DeterministicMethodology,
+      )
+
+    val variance =
+      VariancesImpl.computeMetricVariance(
+        WatchDurationMetricVarianceParams(listOf(weightedWatchDurationMeasurementVarianceParams))
+      )
+    val expected = 210218.58201600003 * coefficient
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test

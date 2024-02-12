@@ -627,7 +627,7 @@ object VariancesImpl : Variances {
     return FrequencyVariances(
       relativeVariances = frequencyVariances.relativeVariances.mapValues { coefficient * it.value },
       kPlusRelativeVariances =
-        frequencyVariances.relativeVariances.mapValues { coefficient * it.value },
+        frequencyVariances.kPlusRelativeVariances.mapValues { coefficient * it.value },
       countVariances = frequencyVariances.countVariances.mapValues { coefficient * it.value },
       kPlusCountVariances =
         frequencyVariances.kPlusCountVariances.mapValues { coefficient * it.value },
