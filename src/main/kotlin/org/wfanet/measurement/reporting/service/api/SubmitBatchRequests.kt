@@ -18,7 +18,6 @@ package org.wfanet.measurement.reporting.service.api
 
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -56,7 +55,7 @@ suspend fun <ITEM, RESP, RESULT> submitBatchRequests(
   limit: Int,
   callRpc: suspend (List<ITEM>) -> RESP,
   parseResponse: (RESP) -> List<RESULT>,
-): List<RESULT> {
+): Flow<List<RESULT>> {
   if (limit <= 0) {
     throw BatchRequestException(
       "Invalid limit",
@@ -67,12 +66,16 @@ suspend fun <ITEM, RESP, RESULT> submitBatchRequests(
   // For network requests, the number of concurrent coroutines needs to be capped. To be on the safe
   // side, a low number is chosen.
   val batchSemaphore = Semaphore(3)
-  return coroutineScope {
-    val deferred: List<Deferred<List<RESULT>>> =
-      items.chunked(limit).map { batch: List<ITEM> ->
-        async { batchSemaphore.withPermit { parseResponse(callRpc(batch)) } }
+  return flow {
+    coroutineScope {
+      val deferred: List<Deferred<List<RESULT>>> =
+        items.chunked(limit).map { batch: List<ITEM> ->
+          async { batchSemaphore.withPermit { parseResponse(callRpc(batch)) } }
+        }
+
+      deferred.forEach {
+        emit(it.await())
       }
-    val responses: List<List<RESULT>> = deferred.awaitAll()
-    responses.flatten()
+    }
   }
 }

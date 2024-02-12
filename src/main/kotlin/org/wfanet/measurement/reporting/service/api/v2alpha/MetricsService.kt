@@ -308,14 +308,20 @@ class MetricsService(
         }
 
       val internalPrimitiveReportingSetMap: Map<String, InternalReportingSet> =
-        submitBatchRequests(
+        buildMap {
+          submitBatchRequests(
             externalPrimitiveReportingSetIds,
             BATCH_GET_REPORTING_SETS_LIMIT,
             callBatchGetInternalReportingSetsRpc,
           ) { response: BatchGetReportingSetsResponse ->
             response.reportingSetsList
           }
-          .associateBy { it.externalReportingSetId }
+            .collect { reportingSets: List<InternalReportingSet> ->
+              for (reportingSet in reportingSets) {
+                computeIfAbsent(reportingSet.externalReportingSetId) { reportingSet }
+              }
+            }
+        }
 
       val dataProviderNames = mutableSetOf<String>()
       for (internalPrimitiveReportingSet in internalPrimitiveReportingSetMap.values) {
@@ -359,7 +365,7 @@ class MetricsService(
           callBatchCreateMeasurementsRpc,
         ) { response: BatchCreateMeasurementsResponse ->
           response.measurementsList
-        }
+        }.toList().flatten()
 
       // Set CMMS measurement IDs.
       val callBatchSetCmmsMeasurementIdsRpc:
@@ -379,7 +385,7 @@ class MetricsService(
         callBatchSetCmmsMeasurementIdsRpc,
       ) { response: BatchSetCmmsMeasurementIdsResponse ->
         response.measurementsList
-      }
+      }.collect {}
     }
 
     /** Sets a batch of CMMS [MeasurementIds] to the [InternalMeasurement] table. */
@@ -791,7 +797,7 @@ class MetricsService(
               callBatchSetInternalMeasurementResultsRpc,
             ) { response: BatchSetCmmsMeasurementResultsResponse ->
               response.measurementsList
-            }
+            }.collect {}
 
             anyUpdate = true
           }
@@ -813,7 +819,7 @@ class MetricsService(
               callBatchSetInternalMeasurementFailuresRpc,
             ) { response: BatchSetCmmsMeasurementFailuresResponse ->
               response.measurementsList
-            }
+            }.collect {}
 
             anyUpdate = true
           }
@@ -915,7 +921,7 @@ class MetricsService(
         callBatchGetMeasurementsRpc,
       ) { response: BatchGetMeasurementsResponse ->
         response.measurementsList
-      }
+      }.toList().flatten()
     }
 
     /** Batch get CMMS measurements. */

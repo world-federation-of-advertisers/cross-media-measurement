@@ -169,10 +169,16 @@ class ReportsService(
       batchGetMetrics(principal.resourceKey.toName(), items)
     }
     val externalIdToMetricMap: Map<String, Metric> =
-      submitBatchRequests(metricNames, BATCH_GET_METRICS_LIMIT, callRpc) { response ->
+      buildMap {
+        submitBatchRequests(metricNames, BATCH_GET_METRICS_LIMIT, callRpc) { response ->
           response.metricsList
         }
-        .associateBy { checkNotNull(MetricKey.fromName(it.name)).metricId }
+          .collect { metrics: List<Metric> ->
+            for (metric in metrics) {
+              computeIfAbsent(checkNotNull(MetricKey.fromName(metric.name)).metricId) { metric }
+            }
+          }
+      }
 
     return listReportsResponse {
       reports +=
@@ -233,10 +239,16 @@ class ReportsService(
       batchGetMetrics(principal.resourceKey.toName(), items)
     }
     val externalIdToMetricMap: Map<String, Metric> =
-      submitBatchRequests(metricNames, BATCH_GET_METRICS_LIMIT, callRpc) { response ->
+      buildMap {
+        submitBatchRequests(metricNames, BATCH_GET_METRICS_LIMIT, callRpc) { response ->
           response.metricsList
         }
-        .associateBy { checkNotNull(MetricKey.fromName(it.name)).metricId }
+          .collect { metrics: List<Metric> ->
+            for (metric in metrics) {
+              computeIfAbsent(checkNotNull(MetricKey.fromName(metric.name)).metricId) { metric }
+            }
+          }
+      }
 
     // Convert the internal report to public and return.
     return convertInternalReportToPublic(internalReport, externalIdToMetricMap)
@@ -381,11 +393,16 @@ class ReportsService(
       batchCreateMetrics(request.parent, items)
     }
     val externalIdToMetricMap: Map<String, Metric> =
-      submitBatchRequests(createMetricRequests, BATCH_CREATE_METRICS_LIMIT, callRpc) {
-          response: BatchCreateMetricsResponse ->
+      buildMap {
+        submitBatchRequests(createMetricRequests, BATCH_CREATE_METRICS_LIMIT, callRpc) { response ->
           response.metricsList
         }
-        .associateBy { checkNotNull(MetricKey.fromName(it.name)).metricId }
+          .collect { metrics: List<Metric> ->
+            for (metric in metrics) {
+              computeIfAbsent(checkNotNull(MetricKey.fromName(metric.name)).metricId) { metric }
+            }
+          }
+      }
 
     // Once all metrics are created, get the updated internal report with the metric IDs filled.
     val updatedInternalReport =

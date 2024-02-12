@@ -41,6 +41,7 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsResponse
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetsService
 
 private const val MEASUREMENT_CONSUMER_ID = "mc_id"
@@ -99,7 +100,7 @@ class SubmitBatchRequestsTest {
           BATCH_GET_REPORTING_SETS_LIMIT,
           ::batchGetReportingSets,
           parseResponse,
-        )
+        ).toList().flatten()
 
       val batchGetReportingSetsCaptor: KArgumentCaptor<BatchGetReportingSetsRequest> =
         argumentCaptor()
@@ -130,7 +131,7 @@ class SubmitBatchRequestsTest {
           BATCH_GET_REPORTING_SETS_LIMIT,
           ::batchGetReportingSets,
           parseResponse,
-        )
+        ).toList().flatten()
 
       val batchGetReportingSetsCaptor: KArgumentCaptor<BatchGetReportingSetsRequest> =
         argumentCaptor()
@@ -153,7 +154,7 @@ class SubmitBatchRequestsTest {
         BATCH_GET_REPORTING_SETS_LIMIT,
         ::batchGetReportingSets,
         parseResponse,
-      )
+      ).toList().flatten()
 
     val batchGetReportingSetsCaptor: KArgumentCaptor<BatchGetReportingSetsRequest> =
       argumentCaptor()
