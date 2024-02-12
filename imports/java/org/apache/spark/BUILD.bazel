@@ -1,0 +1,6 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "core",
+    actual = "@maven//:org_apache_spark_spark_core_2_12",
+)

@@ -32,7 +32,6 @@ import org.apache.beam.sdk.values.PInput
 import org.apache.beam.sdk.values.POutput
 import org.apache.beam.sdk.values.PValue
 import org.apache.beam.sdk.values.TupleTag
-import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.common.ShardedFileName
 import org.wfanet.panelmatch.common.storage.StorageFactory
 import org.wfanet.panelmatch.common.toDelimitedByteString
@@ -81,8 +80,6 @@ class WriteShardedData<T : Message>(
         .minus(groupedData.keys("Grouped Data Keys"))
         .map("Missing Files Map") { fileIndex -> kvOf(fileIndex, emptyList<T>().asIterable()) }
         .setCoder(groupedData.coder)
-
-    println("writing grouped data.")
     val filesWritten =
       PCollectionList.of(groupedData)
         .and(missingFiles)
@@ -96,34 +93,20 @@ class WriteShardedData<T : Message>(
 
 private class WriteFilesFn<T : Message>(
   private val fileSpec: String,
-  private val storageFactory: StorageFactory,
+  private val storageFactory: StorageFactory
 ) : DoFn<KV<Int, Iterable<@JvmWildcard T>>, String>() {
-
-  @Setup
-  fun setup() {
-    println("running writer setup")
-    storageClient = storageFactory.build()
-  }
 
   @ProcessElement
   fun processElement(context: ProcessContext) {
     val pipelineOptions = context.getPipelineOptions()
     val kv = context.element()
     val blobKey = ShardedFileName(fileSpec).fileNameForShard(kv.key)
-    println("writing output file: $blobKey")
-    try {
-      val messageFlow = kv.value.asFlow().map { it.toDelimitedByteString() }
-      runBlocking(Dispatchers.IO) { storageClient.writeBlob(blobKey, messageFlow) }
-    } catch (e: Exception) {
-      println(e)
-      throw e
-    }
+    val storageClient = storageFactory.build(pipelineOptions)
+    val messageFlow = kv.value.asFlow().map { it.toDelimitedByteString() }
+
+    runBlocking(Dispatchers.IO) { storageClient.writeBlob(blobKey, messageFlow) }
 
     context.output(blobKey)
-  }
-
-  companion object {
-    lateinit var storageClient: StorageClient
   }
 }
 

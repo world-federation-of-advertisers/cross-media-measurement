@@ -1,5 +1,9 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 load("@rules_java//java:defs.bzl", "java_binary")
+load(
+    "@com_github_johnynek_bazel_jar_jar//:jar_jar.bzl",
+    "jar_jar",
+)
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/panelmatch:__subpackages__",
@@ -72,13 +76,13 @@ java_binary(
     runtime_deps = [":serialize_exchange_workflow"],
 )
 
-
 kt_jvm_library(
-    testonly = True,
     name = "decrypt_private_membership_query_results",
+    testonly = True,
     srcs = ["DecryptPrivateMembershipQueryResults.kt"],
     deps = [
         "//imports/java/org/apache/beam/runners/direct",
+        "//imports/java/org/apache/beam/runners/spark",
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy",
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy/example",
         "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
@@ -104,13 +108,32 @@ kt_jvm_library(
 )
 
 java_binary(
-    testonly = True,
     name = "DecryptPrivateMembershipQueryResults",
+    testonly = True,
     main_class = "org.wfanet.panelmatch.client.tools.DecryptPrivateMembershipQueryResultsKt",
     tags = ["manual"],
     runtime_deps = [
         ":decrypt_private_membership_query_results",
+        #"@maven//:org_apache_logging_log4j_log4j",
+        #"@maven//:org_apache_logging_log4j_log4j_1_2_api",
+        #"@maven//:org_apache_logging_log4j_log4j_slf4j2_impl",
+        #"@maven//:org_apache_logging_log4j_log4j_to_slf4j",
+        "@maven//:org_apache_spark_spark_core_2_12",
+        "@maven//:org_apache_spark_spark_streaming_2_12",
     ],
+)
+
+jar_jar(
+    name = "shaded_DecryptPrivateMembershipQueryResults",
+    inline_rules = [
+        "rule com.google.protobuf.** shaded.com.google.protobuf.@1",
+        "rule com.google.common.** shaded.guava.@1",
+        "rule org.slf4j.** shaded.slf4j.@1",
+        "rule com.fasterxml.jackson.** shaded.jackson.@1",
+        "rule kotlin.** shaded.kotlin.@1",
+        "rule org.bouncycastle.** shaded.bouncycastle.@1",
+    ],
+    input_jar = ":DecryptPrivateMembershipQueryResults_deploy.jar",
 )
 
 kt_jvm_library(

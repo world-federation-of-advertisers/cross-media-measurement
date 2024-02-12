@@ -19,10 +19,10 @@ import java.io.File
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Level
+import kotlin.properties.Delegates
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
-import org.apache.beam.runners.dataflow.options.DataflowWorkerLoggingOptions
-import org.apache.beam.runners.direct.DirectRunner
+import org.apache.beam.runners.spark.SparkRunner
 import org.apache.beam.sdk.options.PipelineOptions
 import org.apache.beam.sdk.options.PipelineOptionsFactory
 import org.apache.beam.sdk.options.SdkHarnessOptions
@@ -49,6 +49,7 @@ import org.wfanet.panelmatch.client.storage.SharedStorageSelector
 import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
 import org.wfanet.panelmatch.client.storage.aws.s3.S3StorageFactory
+import java.time.LocalDate
 import org.wfanet.panelmatch.client.storage.gcloud.gcs.GcsStorageFactory
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.beam.BeamOptions
@@ -56,6 +57,7 @@ import org.wfanet.panelmatch.common.certificates.testing.TestCertificateManager
 import org.wfanet.panelmatch.common.loggerFor
 import org.wfanet.panelmatch.common.secrets.StorageClientSecretMap
 import org.wfanet.panelmatch.common.storage.StorageFactory
+import org.wfanet.panelmatch.common.storage.toByteString
 import org.wfanet.panelmatch.common.storage.withPrefix
 import picocli.CommandLine
 import picocli.CommandLine.Command
@@ -74,7 +76,7 @@ private const val BUFFER_SIZE_BYTES = 32 * 1024 * 1024 // 32MiB
 )
 class DecryptPrivateMembershipQueryResults : Runnable {
 
-  @Spec lateinit var spec : CommandSpec
+  @Spec lateinit var spec: CommandSpec
 
   val commandLine: CommandLine
     get() = spec.commandLine()
@@ -85,36 +87,62 @@ class DecryptPrivateMembershipQueryResults : Runnable {
 
   @Option(
     names = ["--root-directory"],
-    description = ["Root filesystem path to read from. If using a filesystem storage client, " +
-      "will also be the root private storage directory."],
+    description =
+      [
+        "Root filesystem path to read from. If using a filesystem storage client, " +
+          "will also be the root private storage directory."
+      ],
     required = false
   )
   private lateinit var rootDirectory: File
 
   @Option(
-    names = ["--exchange-step-file"],
-    description = ["The decrypt exchange step to run. Can be made manually, or serialized from " +
-                  "an existing workflow."],
+    names = ["--exchange-workflow-blob-key"],
+    description =
+      [
+        "The decrypt exchange step to run. Can be made manually, or serialized from " +
+          "an existing workflow."
+      ],
     required = true
   )
-  private lateinit var exchangeStepFile: File
+  private lateinit var exchangeWorkflowBlobKey: String
 
-  private val decryptStep by lazy { ExchangeStep.parseFrom(exchangeStepFile.readBytes()) }
+  @set:Option(
+    names = ["--step-index"],
+    description = ["Index of step."],
+    required = true
+  )
+  var stepIndex by Delegates.notNull<Int>()
+    private set
+
+  private val serializedExchangeWorkflow by lazy {
+    runBlocking {
+        rootStorageClient.getBlob(exchangeWorkflowBlobKey)!!.toByteString()
+    }
+  }
+
+  private val exchangeWorkflow by lazy {
+    ExchangeWorkflow.parseFrom(serializedExchangeWorkflow)
+  }
 
   @Option(
     names = ["--exchange-step-attempt-id"],
-    description = ["Resource ID for the decrypt exchange step attempt. If not tied to an " +
-      "existing exchange, the only reason to set this is to keep track of your own " +
-      "attempt counts."],
+    description =
+      [
+        "Resource ID for the decrypt exchange step attempt. If not tied to an " +
+          "existing exchange, the only reason to set this is to keep track of your own " +
+          "attempt counts."
+      ],
     required = true,
     defaultValue = "A"
   )
   private lateinit var exchangeStepAttemptId: String
 
   private val attemptKey by lazy {
-    logger.log(Level.INFO, decryptStep.name)
-    requireNotNull(ExchangeStepAttemptKey.fromName(
-      "${decryptStep.name}/attempts/$exchangeStepAttemptId"))
+    logger.log(Level.INFO, exchangeStepAttemptId)
+    requireNotNull(
+      ExchangeStepAttemptKey.fromName(exchangeStepAttemptId)
+    )
   }
 
   @Option(
@@ -139,19 +167,27 @@ class DecryptPrivateMembershipQueryResults : Runnable {
   private lateinit var s3Bucket: String
 
   private val rootStorageClient: StorageClient by lazy {
-    logger.log(Level.INFO,"$s3Region -- $s3Bucket")
+    logger.log(Level.INFO, "$s3Region -- $s3Bucket")
 
     when (storageType) {
       StorageDetails.PlatformCase.AWS ->
         S3StorageClient(S3AsyncClient.builder().region(Region.of(s3Region)).build(), s3Bucket)
       StorageDetails.PlatformCase.GCS -> GcsStorageClient.fromFlags(GcsFromFlags(gcsFlags))
       StorageDetails.PlatformCase.FILE -> FileSystemStorageClient(rootDirectory)
-      else -> throw ParameterException(
-        commandLine,
-        "Unsupported storage type. Must be one of: AWS, GCS, FILE")
-
+      else ->
+        throw ParameterException(
+          commandLine,
+          "Unsupported storage type. Must be one of: AWS, GCS, FILE"
+        )
     }
   }
+
+  @CommandLine.Option(
+    names = ["--exchange-date"],
+    description = ["Date in format of YYYY-MM-DD"],
+    required = true,
+  )
+  private lateinit var exchangeDate: String
 
   private val privateStorageInfo: StorageDetailsProvider by lazy {
     val storageClient = rootStorageClient.withPrefix("private-storage-info")
@@ -160,9 +196,9 @@ class DecryptPrivateMembershipQueryResults : Runnable {
 
   private fun makePipelineOptions(): PipelineOptions {
     return PipelineOptionsFactory.`as`(BeamOptions::class.java).apply {
-        runner = DirectRunner::class.java
-        defaultSdkHarnessLogLevel = SdkHarnessOptions.LogLevel.TRACE
-      }
+      runner = SparkRunner::class.java
+      defaultSdkHarnessLogLevel = SdkHarnessOptions.LogLevel.TRACE
+    }
   }
 
   /** [PrivateStorageSelector] for writing to local (non-shared) storage. */
@@ -177,36 +213,34 @@ class DecryptPrivateMembershipQueryResults : Runnable {
 
   private val exchangeTaskMapper: ExchangeTaskMapper by lazy {
     ProductionExchangeTaskMapper(
-      inputTaskThrottler = MinimumIntervalThrottler(clock, Duration.ofHours(24)), //Not used
+      inputTaskThrottler = MinimumIntervalThrottler(clock, Duration.ofHours(24)), // Not used
       privateStorageSelector = privateStorageSelector,
       sharedStorageSelector = sharedStorageSelector, // Not used here.
       certificateManager = TestCertificateManager, // Not used here.
       makePipelineOptions = ::makePipelineOptions,
-      taskContext = TaskParameters( // Not used. Set to defaults for consistency.
-        setOf(
-          PreprocessingParameters(
-            maxByteSize = 1000000,
-            fileCount = 1000,
+      taskContext =
+        TaskParameters( // Not used. Set to defaults for consistency.
+          setOf(
+            PreprocessingParameters(
+              maxByteSize = 1000000,
+              fileCount = 1000,
+            )
           )
         )
-      )
     )
   }
 
-
   override fun run() = runBlocking {
-    val workflow = ExchangeWorkflow.parseFrom(decryptStep.serializedExchangeWorkflow)
-    val step = workflow.getSteps(decryptStep.stepIndex)
+    val step = exchangeWorkflow.getSteps(stepIndex)
 
-    require( step.stepCase == ExchangeWorkflow.Step.StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP) {
-      "The only step type supported is DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP"
+    require(
+      step.stepCase == ExchangeWorkflow.Step.StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP
+    ) {
+      "The only step type supported is DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP. ${step.stepCase} is not supported"
     }
 
-    val exchangeContext = ExchangeContext(
-      attemptKey,
-      decryptStep.exchangeDate.toLocalDate(),
-      workflow,
-      step)
+    val exchangeContext =
+      ExchangeContext(attemptKey, LocalDate.parse(exchangeDate), exchangeWorkflow, step)
 
     val privateStorageClient: StorageClient =
       privateStorageSelector.getStorageClient(exchangeContext.exchangeDateKey)
@@ -222,7 +256,8 @@ class DecryptPrivateMembershipQueryResults : Runnable {
   }
 
   private suspend fun readInputs(
-    step: ExchangeWorkflow.Step, privateStorage: StorageClient
+    step: ExchangeWorkflow.Step,
+    privateStorage: StorageClient
   ): Map<String, StorageClient.Blob> {
     return step.inputLabelsMap.mapValues { (label, blobKey) ->
       requireNotNull(privateStorage.getBlob(blobKey)) {

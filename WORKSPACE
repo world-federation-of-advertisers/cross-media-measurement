@@ -111,14 +111,20 @@ MAVEN_ARTIFACTS_DICT = dict(common_jvm_maven_artifacts_dict().items() + {
     "com.google.cloud:google-cloud-security-private-ca": "2.3.1",
     "org.apache.beam:beam-runners-direct-java": APACHE_BEAM_VERSION,
     "org.apache.beam:beam-runners-google-cloud-dataflow-java": APACHE_BEAM_VERSION,
+    "org.apache.beam:beam-runners-spark": APACHE_BEAM_VERSION,
     "org.apache.beam:beam-sdks-java-io-google-cloud-platform": APACHE_BEAM_VERSION,
+    "org.apache.spark:spark-core_2.12": "3.5.0",
+    "org.apache.spark:spark-streaming_2.12": "3.5.0",
+    "org.apache.logging.log4j:log4j": "2.22.1",
+    "org.apache.logging.log4j:log4j-api": "2.22.1",
+    "org.apache.logging.log4j:log4j-core": "2.22.1",
     "org.slf4j:slf4j-simple": "1.7.32",
     "software.amazon.awssdk:sts": AWS_SDK_VERSION,
     "software.amazon.awssdk:auth": AWS_SDK_VERSION,
     "software.amazon.awssdk:acmpca": AWS_SDK_VERSION,
 }.items())
 
-EXCLUDED_MAVEN_ARTIFACTS = [x for x in COMMON_JVM_EXCLUDED_ARTIFACTS if x != "org.slf4j:slf4j-log4j12"] + ["org.apache.beam:beam-sdks-java-io-kafka"]
+EXCLUDED_MAVEN_ARTIFACTS = ["org.apache.beam:beam-sdks-java-io-kafka"]
 
 maven_install(
     artifacts = artifacts.dict_to_list(MAVEN_ARTIFACTS_DICT),
@@ -160,3 +166,18 @@ go_repository(
 load("@wfa_common_jvm//build:common_jvm_extra_deps.bzl", "common_jvm_extra_deps")
 
 common_jvm_extra_deps()
+
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+
+git_repository(
+    name = "com_github_johnynek_bazel_jar_jar",
+    commit = "4e7bf26da8bc8c955578fd8c8a2c763757d344df",  # Latest commit SHA as of 2023/10/31
+    remote = "https://github.com/johnynek/bazel_jar_jar.git",
+)
+
+load(
+    "@com_github_johnynek_bazel_jar_jar//:jar_jar.bzl",
+    "jar_jar_repositories",
+)
+
+jar_jar_repositories()
