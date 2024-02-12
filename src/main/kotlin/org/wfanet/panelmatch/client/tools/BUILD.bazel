@@ -114,12 +114,10 @@ java_binary(
     tags = ["manual"],
     runtime_deps = [
         ":decrypt_private_membership_query_results",
-        #"@maven//:org_apache_logging_log4j_log4j",
-        #"@maven//:org_apache_logging_log4j_log4j_1_2_api",
-        #"@maven//:org_apache_logging_log4j_log4j_slf4j2_impl",
-        #"@maven//:org_apache_logging_log4j_log4j_to_slf4j",
         "@maven//:org_apache_spark_spark_core_2_12",
         "@maven//:org_apache_spark_spark_streaming_2_12",
+        "@maven//:org_slf4j_slf4j_api",
+        "@maven//:org_slf4j_slf4j_simple",
     ],
 )
 
@@ -128,10 +126,13 @@ jar_jar(
     inline_rules = [
         "rule com.google.protobuf.** shaded.com.google.protobuf.@1",
         "rule com.google.common.** shaded.guava.@1",
-        "rule org.slf4j.** shaded.slf4j.@1",
         "rule com.fasterxml.jackson.** shaded.jackson.@1",
         "rule kotlin.** shaded.kotlin.@1",
         "rule org.bouncycastle.** shaded.bouncycastle.@1",
+        "rule org.apache.log4j.** shaded.apache.log4j.@1",
+        "rule org.slf4j.** shaded.slf4j.@1",
+        "rule org.apache.logging.log4j.** shaded.apache.logging.log4j.@1",
+        "rule org.apache.logging.slf4j.** shaded.apache.looging.slf4j.@1",
     ],
     input_jar = ":DecryptPrivateMembershipQueryResults_deploy.jar",
 )

@@ -18,6 +18,7 @@ import com.google.protobuf.ByteString
 import java.io.File
 import java.time.Clock
 import java.time.Duration
+import java.time.LocalDate
 import java.util.logging.Level
 import kotlin.properties.Delegates
 import kotlinx.coroutines.flow.Flow
@@ -26,13 +27,11 @@ import org.apache.beam.runners.spark.SparkRunner
 import org.apache.beam.sdk.options.PipelineOptions
 import org.apache.beam.sdk.options.PipelineOptionsFactory
 import org.apache.beam.sdk.options.SdkHarnessOptions
-import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.aws.s3.S3StorageClient
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.StorageClient
@@ -49,10 +48,8 @@ import org.wfanet.panelmatch.client.storage.SharedStorageSelector
 import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
 import org.wfanet.panelmatch.client.storage.aws.s3.S3StorageFactory
-import java.time.LocalDate
 import org.wfanet.panelmatch.client.storage.gcloud.gcs.GcsStorageFactory
 import org.wfanet.panelmatch.common.ExchangeDateKey
-import org.wfanet.panelmatch.common.beam.BeamOptions
 import org.wfanet.panelmatch.common.certificates.testing.TestCertificateManager
 import org.wfanet.panelmatch.common.loggerFor
 import org.wfanet.panelmatch.common.secrets.StorageClientSecretMap
@@ -107,23 +104,15 @@ class DecryptPrivateMembershipQueryResults : Runnable {
   )
   private lateinit var exchangeWorkflowBlobKey: String
 
-  @set:Option(
-    names = ["--step-index"],
-    description = ["Index of step."],
-    required = true
-  )
+  @set:Option(names = ["--step-index"], description = ["Index of step."], required = true)
   var stepIndex by Delegates.notNull<Int>()
     private set
 
   private val serializedExchangeWorkflow by lazy {
-    runBlocking {
-        rootStorageClient.getBlob(exchangeWorkflowBlobKey)!!.toByteString()
-    }
+    runBlocking { rootStorageClient.getBlob(exchangeWorkflowBlobKey)!!.toByteString() }
   }
 
-  private val exchangeWorkflow by lazy {
-    ExchangeWorkflow.parseFrom(serializedExchangeWorkflow)
-  }
+  private val exchangeWorkflow by lazy { ExchangeWorkflow.parseFrom(serializedExchangeWorkflow) }
 
   @Option(
     names = ["--exchange-step-attempt-id"],
@@ -140,9 +129,7 @@ class DecryptPrivateMembershipQueryResults : Runnable {
 
   private val attemptKey by lazy {
     logger.log(Level.INFO, exchangeStepAttemptId)
-    requireNotNull(
-      ExchangeStepAttemptKey.fromName(exchangeStepAttemptId)
-    )
+    requireNotNull(ExchangeStepAttemptKey.fromName(exchangeStepAttemptId))
   }
 
   @Option(
@@ -195,7 +182,7 @@ class DecryptPrivateMembershipQueryResults : Runnable {
   }
 
   private fun makePipelineOptions(): PipelineOptions {
-    return PipelineOptionsFactory.`as`(BeamOptions::class.java).apply {
+    return PipelineOptionsFactory.`as`(SdkHarnessOptions::class.java).apply {
       runner = SparkRunner::class.java
       defaultSdkHarnessLogLevel = SdkHarnessOptions.LogLevel.TRACE
     }
