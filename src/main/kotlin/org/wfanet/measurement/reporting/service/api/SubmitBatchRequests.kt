@@ -49,7 +49,11 @@ fun <T> Flow<T>.chunked(chunkSize: Int): Flow<List<T>> {
   }
 }
 
-/** Submits multiple RPCs by dividing the input items to batches. */
+/**
+ * Submits multiple RPCs by dividing the input items to batches.
+ *
+ * @return [Flow] that emits [List]s containing the results of the multiple RPCs.
+ */
 suspend fun <ITEM, RESP, RESULT> submitBatchRequests(
   items: Collection<ITEM>,
   limit: Int,
