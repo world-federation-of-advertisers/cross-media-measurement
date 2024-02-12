@@ -231,6 +231,7 @@ class MetricsService(
   signingPrivateKeyDir: File,
   trustedCertificates: Map<ByteString, X509Certificate>,
   certificateCacheExpirationDuration: Duration = Duration.ofMinutes(60),
+  dataProviderCacheExpirationDuration: Duration = Duration.ofMinutes(60),
   keyReaderContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
   cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
 ) : MetricsCoroutineImplBase() {
@@ -253,7 +254,8 @@ class MetricsService(
       secureRandom,
       signingPrivateKeyDir,
       trustedCertificates,
-      certificateCacheExpirationDuration,
+      certificateCacheExpirationDuration = certificateCacheExpirationDuration,
+      dataProviderCacheExpirationDuration = dataProviderCacheExpirationDuration,
       keyReaderContext,
       cacheLoaderContext,
     )
@@ -270,6 +272,7 @@ class MetricsService(
     private val signingPrivateKeyDir: File,
     private val trustedCertificates: Map<ByteString, X509Certificate>,
     certificateCacheExpirationDuration: Duration,
+    dataProviderCacheExpirationDuration: Duration,
     private val keyReaderContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
     cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
   ) {
@@ -288,6 +291,18 @@ class MetricsService(
           .buildAsync()
       ) { key ->
         getCertificate(name = key.name, apiAuthenticationKey = key.apiAuthenticationKey)
+      }
+
+    private val dataProviderCache: LoadingCache<ResourceNameApiAuthenticationKey, DataProvider> =
+      LoadingCache(
+        Caffeine.newBuilder()
+          .expireAfterWrite(dataProviderCacheExpirationDuration)
+          .executor(
+            (cacheLoaderContext[ContinuationInterceptor] as CoroutineDispatcher).asExecutor()
+          )
+          .buildAsync()
+      ) { key ->
+        getDataProvider(name = key.name, apiAuthenticationKey = key.apiAuthenticationKey)
       }
 
     /**
@@ -559,19 +574,12 @@ class MetricsService(
           deferredDataProviderInfoList.add(
             async {
               val dataProvider: DataProvider =
-                try {
-                  dataProvidersStub
-                    .withAuthenticationKey(apiAuthenticationKey)
-                    .getDataProvider(getDataProviderRequest { name = dataProviderName })
-                } catch (e: StatusException) {
-                  throw when (e.status.code) {
-                      Status.Code.NOT_FOUND ->
-                        Status.FAILED_PRECONDITION.withDescription("$dataProviderName not found")
-                      else -> Status.UNKNOWN.withDescription("Unable to retrieve $dataProviderName")
-                    }
-                    .withCause(e)
-                    .asRuntimeException()
-                }
+                dataProviderCache.getValue(
+                  ResourceNameApiAuthenticationKey(
+                    name = dataProviderName,
+                    apiAuthenticationKey = apiAuthenticationKey,
+                  )
+                )
 
               val certificate =
                 certificateCache.getValue(
@@ -1212,6 +1220,29 @@ class MetricsService(
             Status.Code.NOT_FOUND ->
               Status.FAILED_PRECONDITION.withDescription("Certificate $name not found.")
             else -> Status.UNKNOWN.withDescription("Unable to retrieve Certificate $name.")
+          }
+          .withCause(e)
+          .asRuntimeException()
+      }
+    }
+
+    /**
+     * Returns the [DataProvider] from the CMMS system.
+     *
+     * @param[name] resource name of the [DataProvider]
+     * @param[apiAuthenticationKey] API key to act as the [MeasurementConsumer] client
+     * @throws [StatusRuntimeException] with [Status.FAILED_PRECONDITION] when retrieving the
+     *   [DataProvider] fails.
+     */
+    private suspend fun getDataProvider(name: String, apiAuthenticationKey: String): DataProvider {
+      return try {
+        dataProvidersStub
+          .withAuthenticationKey(apiAuthenticationKey)
+          .getDataProvider(getDataProviderRequest { this.name = name })
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+            Status.Code.NOT_FOUND -> Status.FAILED_PRECONDITION.withDescription("$name not found")
+            else -> Status.UNKNOWN.withDescription("Unable to retrieve $name")
           }
           .withCause(e)
           .asRuntimeException()
