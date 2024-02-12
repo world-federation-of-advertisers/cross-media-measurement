@@ -667,8 +667,9 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       )
     }
     submitBatchRequests(createMetricsRequests, MAX_BATCH_SIZE, callRpc) { response ->
-      response.metricsList
-    }.collect {}
+        response.metricsList
+      }
+      .collect {}
 
     val retrievedReport =
       service.getReport(

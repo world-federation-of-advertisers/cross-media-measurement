@@ -20,6 +20,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.math.ceil
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -41,7 +42,6 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsResponse
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
-import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetsService
 
 private const val MEASUREMENT_CONSUMER_ID = "mc_id"
@@ -96,11 +96,13 @@ class SubmitBatchRequestsTest {
 
       val result =
         submitBatchRequests(
-          items,
-          BATCH_GET_REPORTING_SETS_LIMIT,
-          ::batchGetReportingSets,
-          parseResponse,
-        ).toList().flatten()
+            items,
+            BATCH_GET_REPORTING_SETS_LIMIT,
+            ::batchGetReportingSets,
+            parseResponse,
+          )
+          .toList()
+          .flatten()
 
       val batchGetReportingSetsCaptor: KArgumentCaptor<BatchGetReportingSetsRequest> =
         argumentCaptor()
@@ -127,11 +129,13 @@ class SubmitBatchRequestsTest {
 
       val result =
         submitBatchRequests(
-          items,
-          BATCH_GET_REPORTING_SETS_LIMIT,
-          ::batchGetReportingSets,
-          parseResponse,
-        ).toList().flatten()
+            items,
+            BATCH_GET_REPORTING_SETS_LIMIT,
+            ::batchGetReportingSets,
+            parseResponse,
+          )
+          .toList()
+          .flatten()
 
       val batchGetReportingSetsCaptor: KArgumentCaptor<BatchGetReportingSetsRequest> =
         argumentCaptor()
@@ -150,11 +154,13 @@ class SubmitBatchRequestsTest {
 
     val result: List<InternalReportingSet> =
       submitBatchRequests(
-        emptyList(),
-        BATCH_GET_REPORTING_SETS_LIMIT,
-        ::batchGetReportingSets,
-        parseResponse,
-      ).toList().flatten()
+          emptyList(),
+          BATCH_GET_REPORTING_SETS_LIMIT,
+          ::batchGetReportingSets,
+          parseResponse,
+        )
+        .toList()
+        .flatten()
 
     val batchGetReportingSetsCaptor: KArgumentCaptor<BatchGetReportingSetsRequest> =
       argumentCaptor()

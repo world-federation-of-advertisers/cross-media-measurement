@@ -73,9 +73,7 @@ suspend fun <ITEM, RESP, RESULT> submitBatchRequests(
           async { batchSemaphore.withPermit { parseResponse(callRpc(batch)) } }
         }
 
-      deferred.forEach {
-        emit(it.await())
-      }
+      deferred.forEach { emit(it.await()) }
     }
   }
 }

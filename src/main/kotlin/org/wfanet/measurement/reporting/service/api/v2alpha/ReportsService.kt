@@ -168,17 +168,16 @@ class ReportsService(
     val callRpc: suspend (List<String>) -> BatchGetMetricsResponse = { items ->
       batchGetMetrics(principal.resourceKey.toName(), items)
     }
-    val externalIdToMetricMap: Map<String, Metric> =
-      buildMap {
-        submitBatchRequests(metricNames, BATCH_GET_METRICS_LIMIT, callRpc) { response ->
+    val externalIdToMetricMap: Map<String, Metric> = buildMap {
+      submitBatchRequests(metricNames, BATCH_GET_METRICS_LIMIT, callRpc) { response ->
           response.metricsList
         }
-          .collect { metrics: List<Metric> ->
-            for (metric in metrics) {
-              computeIfAbsent(checkNotNull(MetricKey.fromName(metric.name)).metricId) { metric }
-            }
+        .collect { metrics: List<Metric> ->
+          for (metric in metrics) {
+            computeIfAbsent(checkNotNull(MetricKey.fromName(metric.name)).metricId) { metric }
           }
-      }
+        }
+    }
 
     return listReportsResponse {
       reports +=
@@ -238,17 +237,16 @@ class ReportsService(
     val callRpc: suspend (List<String>) -> BatchGetMetricsResponse = { items ->
       batchGetMetrics(principal.resourceKey.toName(), items)
     }
-    val externalIdToMetricMap: Map<String, Metric> =
-      buildMap {
-        submitBatchRequests(metricNames, BATCH_GET_METRICS_LIMIT, callRpc) { response ->
+    val externalIdToMetricMap: Map<String, Metric> = buildMap {
+      submitBatchRequests(metricNames, BATCH_GET_METRICS_LIMIT, callRpc) { response ->
           response.metricsList
         }
-          .collect { metrics: List<Metric> ->
-            for (metric in metrics) {
-              computeIfAbsent(checkNotNull(MetricKey.fromName(metric.name)).metricId) { metric }
-            }
+        .collect { metrics: List<Metric> ->
+          for (metric in metrics) {
+            computeIfAbsent(checkNotNull(MetricKey.fromName(metric.name)).metricId) { metric }
           }
-      }
+        }
+    }
 
     // Convert the internal report to public and return.
     return convertInternalReportToPublic(internalReport, externalIdToMetricMap)
@@ -392,17 +390,16 @@ class ReportsService(
     val callRpc: suspend (List<CreateMetricRequest>) -> BatchCreateMetricsResponse = { items ->
       batchCreateMetrics(request.parent, items)
     }
-    val externalIdToMetricMap: Map<String, Metric> =
-      buildMap {
-        submitBatchRequests(createMetricRequests, BATCH_CREATE_METRICS_LIMIT, callRpc) { response ->
+    val externalIdToMetricMap: Map<String, Metric> = buildMap {
+      submitBatchRequests(createMetricRequests, BATCH_CREATE_METRICS_LIMIT, callRpc) { response ->
           response.metricsList
         }
-          .collect { metrics: List<Metric> ->
-            for (metric in metrics) {
-              computeIfAbsent(checkNotNull(MetricKey.fromName(metric.name)).metricId) { metric }
-            }
+        .collect { metrics: List<Metric> ->
+          for (metric in metrics) {
+            computeIfAbsent(checkNotNull(MetricKey.fromName(metric.name)).metricId) { metric }
           }
-      }
+        }
+    }
 
     // Once all metrics are created, get the updated internal report with the metric IDs filled.
     val updatedInternalReport =
