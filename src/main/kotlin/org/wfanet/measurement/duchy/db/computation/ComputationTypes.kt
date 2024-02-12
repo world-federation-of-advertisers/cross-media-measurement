@@ -36,5 +36,7 @@ fun ComputationStage.toComputationType() =
       ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
     ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
       ComputationType.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+    ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
+      ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE
     else -> ComputationType.UNRECOGNIZED
   }

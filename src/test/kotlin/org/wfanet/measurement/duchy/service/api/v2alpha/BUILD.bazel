@@ -9,6 +9,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/api/v2alpha:requisition_fulfillment_service",
         "//src/main/kotlin/org/wfanet/measurement/system/v1alpha:resource_key",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:random_seed_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_fulfillment_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_details_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_token_kt_jvm_proto",
