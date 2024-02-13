@@ -29,6 +29,9 @@ message RequisitionDetails {
 
   // Nonce value for a fulfilled Requisition.
   fixed64 nonce = 3;
+
+  // Public api version of the fulfillment.
+  string public_api_version = 4;
 }
 
 // Lookup key for Requisition by external ID.

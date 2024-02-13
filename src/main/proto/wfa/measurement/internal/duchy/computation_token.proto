@@ -93,13 +93,14 @@ message RequisitionMetadata {
   // Detail of the requisition.
   RequisitionDetails details = 3;
 
-  // The requisition data in format of either a path to the BLOB or a seed
-  // that can be expanded into data.
-  // The requisition is fulfilled when one of them is specified.
-  oneof data {
-    // The path to the blob.
-    string path = 2;
-    // The seed that can be expanded into the a deterministic blob.
-    bytes seed = 4;
-  }
+  // The requisition data in format of a path to the BLOB. The requisition is
+  // fulfilled when it is specified.
+  string path = 2;
+
+  // The requisition data in format of a secret seed. It is ciphertext
+  // containing a serialized `SignedMessage` message from the CMMS public API.
+  bytes secret_seed_ciphertext = 4;
+
+  // The public api version.
+  string public_api_version = 5;
 }

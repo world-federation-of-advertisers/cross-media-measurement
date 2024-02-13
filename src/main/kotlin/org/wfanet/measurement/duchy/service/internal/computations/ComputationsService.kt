@@ -59,14 +59,11 @@ import org.wfanet.measurement.internal.duchy.PurgeComputationsRequest
 import org.wfanet.measurement.internal.duchy.PurgeComputationsResponse
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathResponse
-import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathRequest
-import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathResponse
-import org.wfanet.measurement.internal.duchy.RecordRequisitionSeedRequest
-import org.wfanet.measurement.internal.duchy.RecordRequisitionSeedResponse
+import org.wfanet.measurement.internal.duchy.RecordRequisitionFulfillmentRequest
+import org.wfanet.measurement.internal.duchy.RecordRequisitionFulfillmentResponse
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsResponse
 import org.wfanet.measurement.internal.duchy.purgeComputationsResponse
-import org.wfanet.measurement.internal.duchy.recordRequisitionSeedResponse
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
@@ -337,28 +334,18 @@ class ComputationsService(
     return EnqueueComputationResponse.getDefaultInstance()
   }
 
-  override suspend fun recordRequisitionBlobPath(
-    request: RecordRequisitionBlobPathRequest
-  ): RecordRequisitionBlobPathResponse {
+  override suspend fun recordRequisitionFulfillment(
+    request: RecordRequisitionFulfillmentRequest
+  ): RecordRequisitionFulfillmentResponse {
     computationsDatabase.writeRequisitionBlobPath(
       request.token.toDatabaseEditToken(),
       request.key,
       request.blobPath,
+      if (!request.secretSeedCiphertext.isEmpty) request.secretSeedCiphertext else null,
+      request.publicApiVersion,
     )
     return checkNotNull(computationsDatabase.readComputationToken(request.key))
       .toRecordRequisitionBlobPathResponse()
-  }
-
-  override suspend fun recordRequisitionSeed(
-    request: RecordRequisitionSeedRequest
-  ): RecordRequisitionSeedResponse {
-    computationsDatabase.writeRequisitionSeed(
-      request.token.toDatabaseEditToken(),
-      request.key,
-      request.seed,
-    )
-    val updatedToken = checkNotNull(computationsDatabase.readComputationToken(request.key))
-    return recordRequisitionSeedResponse { token = updatedToken }
   }
 
   private fun newCreateComputationLogEntryRequest(

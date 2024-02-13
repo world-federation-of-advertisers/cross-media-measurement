@@ -83,13 +83,9 @@ service Computations {
   rpc EnqueueComputation(EnqueueComputationRequest)
       returns (EnqueueComputationResponse);
 
-  // Records the blob path where the data of a requisition is stored.
-  rpc RecordRequisitionBlobPath(RecordRequisitionBlobPathRequest)
-      returns (RecordRequisitionBlobPathResponse);
-
-  // Record the seed of a requisition.
-  rpc RecordRequisitionSeed(RecordRequisitionSeedRequest)
-      returns (RecordRequisitionSeedResponse);
+  // Records the requisition containing a blob path and an optional seed.
+  rpc RecordRequisitionFulfillment(RecordRequisitionFulfillmentRequest)
+      returns (RecordRequisitionFulfillmentResponse);
 }
 
 // Request to create a new computation.
@@ -297,8 +293,9 @@ message EnqueueComputationResponse {
   // Intentionally blank
 }
 
-// Request to record the blob path where the data of a requisition is stored.
-message RecordRequisitionBlobPathRequest {
+// Request to record the blob path where the data of a requisition is stored and
+// the seed if applicable.
+message RecordRequisitionFulfillmentRequest {
   // Token for the computation to update. Required.
   ComputationToken token = 1;
   // The public API resource key of the requisition to update. Required.
@@ -306,23 +303,16 @@ message RecordRequisitionBlobPathRequest {
   // The blob path where the data of the requisition is stored.
   // Required. Must be non-empty.
   string blob_path = 3;
+  // The random seed that is signed and encrypted.
+  //
+  // This is a ciphertext containing a serialized `SignedMessage` from the
+  // public API.
+  bytes secret_seed_ciphertext = 4;
+  // Version of the public API.
+  string public_api_version = 5;
 }
-message RecordRequisitionBlobPathResponse {
-  // The computationToken of the parent computation after updating.
-  ComputationToken token = 1;
-}
-
-// Request to record the seed of a requisition.
-message RecordRequisitionSeedRequest {
-  // Token for the computation to update. Required.
-  ComputationToken token = 1;
-  // The public API resource key of the requisition to update. Required.
-  ExternalRequisitionKey key = 2;
-  // The seed in the requisition
-  bytes seed = 3;
-}
-// Response to record the seed of a requisition.
-message RecordRequisitionSeedResponse {
+// Response to record Requisition.
+message RecordRequisitionFulfillmentResponse {
   // The computationToken of the parent computation after updating.
   ComputationToken token = 1;
 }

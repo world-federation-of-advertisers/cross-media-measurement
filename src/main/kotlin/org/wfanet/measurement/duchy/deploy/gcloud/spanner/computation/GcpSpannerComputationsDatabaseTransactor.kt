@@ -45,9 +45,11 @@ import org.wfanet.measurement.gcloud.spanner.TransactionWork
 import org.wfanet.measurement.gcloud.spanner.getNullableString
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
+import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
+import org.wfanet.measurement.internal.duchy.RequisitionDetails
 import org.wfanet.measurement.internal.duchy.RequisitionEntry
 import org.wfanet.measurement.internal.duchy.copy
 
@@ -653,32 +655,46 @@ class GcpSpannerComputationsDatabaseTransactor<
     }
   }
 
-  private suspend fun writeRequisitionData(
+  private suspend fun writeRequisitionFulfillment(
     token: ComputationEditToken<ProtocolT, StageT>,
     externalRequisitionKey: ExternalRequisitionKey,
-    pathToBlob: String? = null,
-    seed: ByteString? = null,
+    pathToBlob: String,
+    secretSeedCiphertext: ByteString? = null,
+    publicApiVersion: String,
   ) {
-    require((pathToBlob != null && seed == null) || (pathToBlob == null && seed != null)) {
-      "There must be only one of seed or pathToBlob non-null."
+    require(pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $externalRequisitionKey" }
+    if (secretSeedCiphertext != null) {
+      require(!secretSeedCiphertext.isEmpty) { "Cannot insert empty seed. $externalRequisitionKey" }
+    }
+    require(publicApiVersion.isNotBlank()) {
+      "Cannot insert blank public api version. $externalRequisitionKey"
     }
     databaseClient.readWriteTransaction().execute { txn ->
+      val parameterizedRequisitionQueryString =
+        """
+        SELECT ComputationId, RequisitionId, RequisitionDetails
+        FROM Requisitions
+        WHERE ExternalRequisitionId = @external_requisition_id
+          AND RequisitionFingerprint = @requisition_fingerprint
+      """
+          .trimIndent()
+      val requisitionQuery =
+        statement(parameterizedRequisitionQueryString) {
+          bind("external_requisition_id").to(externalRequisitionKey.externalRequisitionId)
+          bind("requisition_fingerprint")
+            .to(externalRequisitionKey.requisitionFingerprint.toGcloudByteArray())
+        }
       val row =
-        txn.readRowUsingIndex(
-          "Requisitions",
-          "RequisitionsByExternalId",
-          Key.of(
-            externalRequisitionKey.externalRequisitionId,
-            externalRequisitionKey.requisitionFingerprint.toGcloudByteArray(),
-          ),
-          listOf("ComputationId", "RequisitionId"),
-        ) ?: error("No Computation found row for this requisition: $externalRequisitionKey")
+        txn.executeQuery(requisitionQuery).firstOrNull()
+          ?: error("No row found for this requisition: $externalRequisitionKey")
       val localComputationId = row.getLong("ComputationId")
       val requisitionId = row.getLong("RequisitionId")
+      val details = row.getProtoMessage("RequisitionDetails", RequisitionDetails.parser())
       require(localComputationId == token.localId) {
         "The token doesn't match the computation owns the requisition."
       }
 
+      val updatedDetails = details.copy { this.publicApiVersion = publicApiVersion }
       txn.buffer(
         listOf(
           computationMutations.updateComputation(
@@ -691,7 +707,8 @@ class GcpSpannerComputationsDatabaseTransactor<
             externalRequisitionId = externalRequisitionKey.externalRequisitionId,
             requisitionFingerprint = externalRequisitionKey.requisitionFingerprint,
             pathToBlob = pathToBlob,
-            randomSeed = seed,
+            secretSeedCiphertext = secretSeedCiphertext,
+            requisitionDetails = updatedDetails,
           ),
         )
       )
@@ -702,18 +719,20 @@ class GcpSpannerComputationsDatabaseTransactor<
     token: ComputationEditToken<ProtocolT, StageT>,
     externalRequisitionKey: ExternalRequisitionKey,
     pathToBlob: String,
+    secretSeedCiphertext: ByteString?,
+    publicApiVersion: String,
   ) {
     require(pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $externalRequisitionKey" }
-    writeRequisitionData(token, externalRequisitionKey, pathToBlob = pathToBlob)
-  }
-
-  override suspend fun writeRequisitionSeed(
-    token: ComputationEditToken<ProtocolT, StageT>,
-    externalRequisitionKey: ExternalRequisitionKey,
-    seed: ByteString,
-  ) {
-    require(!seed.isEmpty) { "Cannot insert empty seed. $externalRequisitionKey" }
-    writeRequisitionData(token, externalRequisitionKey, seed = seed)
+    require(publicApiVersion.isNotBlank()) {
+      "Cannot insert blank public api version. $externalRequisitionKey"
+    }
+    writeRequisitionFulfillment(
+      token,
+      externalRequisitionKey,
+      pathToBlob,
+      secretSeedCiphertext,
+      publicApiVersion,
+    )
   }
 
   override suspend fun insertComputationStat(

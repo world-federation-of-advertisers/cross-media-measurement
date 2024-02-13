@@ -321,6 +321,8 @@ private constructor(
     token: ComputationEditToken<ComputationType, ComputationStage>,
     externalRequisitionKey: ExternalRequisitionKey,
     pathToBlob: String,
+    secretSeedCiphertext: ByteString?,
+    publicApiVersion: String,
   ) {
     @Suppress("CANDIDATE_CHOSEN_USING_OVERLOAD_RESOLUTION_BY_LAMBDA_ANNOTATION")
     updateToken(token) {
@@ -328,22 +330,14 @@ private constructor(
       if (requisitionIndex < 0) {
         error("Requisition not found: ${externalRequisitionKey.toJson()}")
       }
-      requisitions[requisitionIndex] = requisitions[requisitionIndex].copy { path = pathToBlob }
-    }
-  }
-
-  override suspend fun writeRequisitionSeed(
-    token: ComputationEditToken<ComputationType, ComputationStage>,
-    externalRequisitionKey: ExternalRequisitionKey,
-    seed: ByteString,
-  ) {
-    @Suppress("CANDIDATE_CHOSEN_USING_OVERLOAD_RESOLUTION_BY_LAMBDA_ANNOTATION")
-    updateToken(token) {
-      val requisitionIndex = requisitions.indexOfFirst { it.externalKey == externalRequisitionKey }
-      if (requisitionIndex < 0) {
-        error("Requisition not found: ${externalRequisitionKey.toJson()}")
-      }
-      requisitions[requisitionIndex] = requisitions[requisitionIndex].copy { this.seed = seed }
+      requisitions[requisitionIndex] =
+        requisitions[requisitionIndex].copy {
+          path = pathToBlob
+          if (secretSeedCiphertext != null) {
+            this.secretSeedCiphertext = secretSeedCiphertext
+          }
+          details = details.copy { this.publicApiVersion = publicApiVersion }
+        }
     }
   }
 

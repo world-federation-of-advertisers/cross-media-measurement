@@ -5,6 +5,7 @@ kt_jvm_test(
     srcs = ["AsyncComputationControlServiceTest.kt"],
     test_class = "org.wfanet.measurement.duchy.service.internal.computationcontrol.AsyncComputationControlServiceTest",
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computationcontrol:async_computation_control_service",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computations",

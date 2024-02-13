@@ -26,7 +26,7 @@ import org.wfanet.measurement.internal.duchy.FinishComputationResponse
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathResponse
-import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathResponse
+import org.wfanet.measurement.internal.duchy.RecordRequisitionFulfillmentResponse
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsResponse
 
 fun String.toGetTokenRequest(): GetComputationTokenRequest =
@@ -61,8 +61,8 @@ fun ComputationToken.toRecordOutputBlobPathResponse(): RecordOutputBlobPathRespo
   RecordOutputBlobPathResponse.newBuilder().setToken(this).build()!!
 
 /** Wraps a [ComputationToken] in a [RecordRequisitionBlobPathResponse]. */
-fun ComputationToken.toRecordRequisitionBlobPathResponse(): RecordRequisitionBlobPathResponse =
-  RecordRequisitionBlobPathResponse.newBuilder().setToken(this).build()!!
+fun ComputationToken.toRecordRequisitionBlobPathResponse(): RecordRequisitionFulfillmentResponse =
+  RecordRequisitionFulfillmentResponse.newBuilder().setToken(this).build()!!
 
 /** Extract the list of output blob paths from a [ComputationToken]. */
 fun ComputationToken.outputPathList(): List<String> =
