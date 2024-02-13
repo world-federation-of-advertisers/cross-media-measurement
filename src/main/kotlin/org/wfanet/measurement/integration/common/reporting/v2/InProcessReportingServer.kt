@@ -220,6 +220,7 @@ class InProcessReportingServer(
                 signingPrivateKeyDir,
                 trustedCertificates,
                 Duration.ofMinutes(60),
+                Duration.ofMinutes(60),
                 Dispatchers.IO,
                 Dispatchers.Default,
               )
