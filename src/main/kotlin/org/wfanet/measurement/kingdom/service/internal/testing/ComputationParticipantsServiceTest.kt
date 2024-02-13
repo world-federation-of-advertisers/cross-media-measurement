@@ -77,7 +77,7 @@ private val EL_GAMAL_PUBLIC_KEY_SIGNATURE =
 private val TINK_PUBLIC_KEY = ByteString.copyFromUtf8("This is an Tink Public Key.")
 private val TINK_PUBLIC_KEY_SIGNATURE =
   ByteString.copyFromUtf8("This is an Tink Public Key signature.")
-private val TINK_PUBLIC_KEY_SIGNATURE_ALGORTIHM_OID = "4.99"
+private val TINK_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID = "2.9999"
 
 @RunWith(JUnit4::class)
 abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCoroutineImplBase> {
@@ -489,7 +489,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
         tinkPublicKey = TINK_PUBLIC_KEY
         tinkPublicKeySignature = TINK_PUBLIC_KEY_SIGNATURE
-        tinkPublicKeySignatureAlgorithmOid = TINK_PUBLIC_KEY_SIGNATURE_ALGORTIHM_OID
+        tinkPublicKeySignatureAlgorithmOid = TINK_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
       }
     }
 

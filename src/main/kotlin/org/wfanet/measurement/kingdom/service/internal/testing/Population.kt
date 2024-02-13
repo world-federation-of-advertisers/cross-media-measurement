@@ -344,7 +344,8 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
         measurementSpecSignature = "MeasurementSpec signature".toByteStringUtf8()
         measurementSpecSignatureAlgorithmOid = "2.9999"
         protocolConfig = protocolConfig {
-          honestMajorityShareShuffle = ProtocolConfigKt.honestMajorityShareShuffle {}
+          honestMajorityShareShuffle =
+            ProtocolConfig.HonestMajorityShareShuffle.getDefaultInstance()
         }
       }
     return createMeasurement(
