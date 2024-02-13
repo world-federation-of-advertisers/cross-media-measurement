@@ -72,7 +72,7 @@ message FulfillRequisitionRequest {
   message ComputedRequisitionParams {
     fixed64 external_computation_id = 1;
     // The human-friendly external ID of the Duchy that marked this
-    // `Requisition` as `FULFILLED`.
+    // `Requisition` as `FULFILLED` or being assigned to fulfill.
     string external_fulfilling_duchy_id = 2;
   }
 
