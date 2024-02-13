@@ -351,6 +351,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       }
     val fulfillingDuchyId =
       if (fulfillingDuchies.isNotEmpty()) {
+        // Requisitions for the same measurement might go to different duchies.
         val index = (externalRequisitionId.value % fulfillingDuchies.size).toInt()
         fulfillingDuchies[index].internalDuchyId
       } else {
