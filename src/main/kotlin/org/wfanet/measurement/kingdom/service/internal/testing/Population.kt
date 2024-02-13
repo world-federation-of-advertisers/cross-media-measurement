@@ -291,7 +291,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     )
   }
 
-  suspend fun createComputedMeasurement(
+  suspend fun createLlv2Measurement(
     measurementsService: MeasurementsCoroutineImplBase,
     measurementConsumer: MeasurementConsumer,
     providedMeasurementId: String,
@@ -317,13 +317,55 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     )
   }
 
-  suspend fun createComputedMeasurement(
+  suspend fun createLlv2Measurement(
     measurementsService: MeasurementsCoroutineImplBase,
     measurementConsumer: MeasurementConsumer,
     providedMeasurementId: String,
     vararg dataProviders: DataProvider,
   ): Measurement {
-    return createComputedMeasurement(
+    return createLlv2Measurement(
+      measurementsService,
+      measurementConsumer,
+      providedMeasurementId,
+      dataProviders.associate { it.externalDataProviderId to it.toDataProviderValue() },
+    )
+  }
+
+  suspend fun createHmssMeasurement(
+    measurementsService: MeasurementsCoroutineImplBase,
+    measurementConsumer: MeasurementConsumer,
+    providedMeasurementId: String,
+    dataProviders: Map<Long, Measurement.DataProviderValue> = mapOf(),
+  ): Measurement {
+    val details =
+      MeasurementKt.details {
+        apiVersion = API_VERSION
+        measurementSpec = "MeasurementSpec".toByteStringUtf8()
+        measurementSpecSignature = "MeasurementSpec signature".toByteStringUtf8()
+        measurementSpecSignatureAlgorithmOid = "2.9999"
+        duchyProtocolConfig = duchyProtocolConfig {
+          liquidLegionsV2 = DuchyProtocolConfigKt.liquidLegionsV2 {}
+        }
+        protocolConfig = protocolConfig {
+          honestMajorityShareShuffle = ProtocolConfigKt.honestMajorityShareShuffle {}
+        }
+      }
+    return createMeasurement(
+      measurementsService,
+      measurementConsumer,
+      providedMeasurementId,
+      dataProviders,
+      details,
+    )
+  }
+
+  suspend fun createHmssMeasurement(
+    measurementsService: MeasurementsCoroutineImplBase,
+    measurementConsumer: MeasurementConsumer,
+    providedMeasurementId: String,
+    vararg dataProviders: DataProvider,
+  ): Measurement {
+    return createHmssMeasurement(
       measurementsService,
       measurementConsumer,
       providedMeasurementId,

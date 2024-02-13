@@ -97,6 +97,21 @@ message ComputationParticipant {
       string el_gamal_public_key_signature_algorithm_oid = 3;
     }
 
+    // Parameters for the Honest Majority Share Shuffle protocol.
+    message HonestMajorityShareShuffle {
+      // Serialized Keyset of TinkPublicKeyHandle.
+      bytes tink_public_key = 1 [(google.api.field_behavior) = REQUIRED];
+      // Digital signautre of `tink_public_key` which can be verified using
+      // 'duchy_certificate'.
+      bytes tink_public_key_signature = 2
+          [(google.api.field_behavior) = REQUIRED];
+      // Object identifier (OID) of the signature algorithm in dot notation.
+      //
+      // If not specified, this is assumed to be the signature algorithm of the
+      // accompanying certificate
+      string tink_public_key_signature_algorithm_oid = 3;
+    }
+
     // Protocol. Required.
     oneof protocol {
       // Requisition parameters for the Liquid Legions v2 protocol.
@@ -104,6 +119,9 @@ message ComputationParticipant {
 
       // Requisition parameters for the Reach-Only Liquid Legions v2 protocol.
       LiquidLegionsV2 reach_only_liquid_legions_v2 = 4;
+
+      // Requisition parameters for the Honest Majority Share Shuffle protocol.
+      HonestMajorityShareShuffle honest_majority_share_shuffle = 6;
     }
   }
   // Parameters needed for `Requisition` to be made available in public API.

@@ -246,6 +246,9 @@ message Requisition {
 
       ComputationParticipant.LiquidLegionsV2Details
           reach_only_liquid_legions_v2 = 3;
+
+      ComputationParticipant.HonestMajorityShareShuffleDetails
+          honest_majority_share_shuffle = 4;
     }
   }
   // Map of external Duchy ID to DuchyValue.
