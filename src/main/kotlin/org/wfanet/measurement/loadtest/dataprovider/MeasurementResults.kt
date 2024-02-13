@@ -63,7 +63,7 @@ object MeasurementResults {
   }
 
   /** Computes impression using the "Dynamic Clipping" methodology. */
-  fun computeDynamicClipImpression(
+  fun computeDynamicClippingImpression(
     sampledVids: Iterable<Long>,
     privacyParams: DpParams,
   ): DynamicClipping.Result {

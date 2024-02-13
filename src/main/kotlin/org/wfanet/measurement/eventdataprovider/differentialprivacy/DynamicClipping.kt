@@ -259,6 +259,8 @@ class DynamicClipping(
     /** A helper function to convert frequencyHistogramMap to histogramList for DynamicClipping */
     @VisibleForTesting
     internal fun frequencyHistogramMapToList(frequencyMap: Map<Long, Long>): List<Long> {
+      if (frequencyMap.isEmpty()) return listOf(0L)
+
       // frequencyMap.keys.max().toInt() + 1 since the first element in histogramList should be 0.
       val histogramList = MutableList(frequencyMap.keys.max().toInt() + 1) { 0L }
       for ((frequency, count) in frequencyMap) {
