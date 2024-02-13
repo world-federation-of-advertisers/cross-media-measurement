@@ -101,9 +101,11 @@ class RequisitionFulfillmentService(
               grpcRequire(!header.honestMajorityShareShuffle.secretSeed.isEmpty) {
                 "Secret seed cannot be empty for HMSS protocol."
               }
-              header.honestMajorityShareShuffle.secretSeed
-            } else {
-              null
+              recordRequisitionSeedLocally(
+                computationToken,
+                externalRequisitionKey,
+                header.honestMajorityShareShuffle.seed,
+              )
             }
 
           val blob =

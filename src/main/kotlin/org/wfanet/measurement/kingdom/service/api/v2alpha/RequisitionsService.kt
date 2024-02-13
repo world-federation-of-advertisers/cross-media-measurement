@@ -44,7 +44,7 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.Requisition.DuchyEntry
 import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
 import org.wfanet.measurement.api.v2alpha.Requisition.State
-import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.liquidLegionsV2
+import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
@@ -435,6 +435,9 @@ private fun DuchyValue.toDuchyEntryValue(
       DuchyValue.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
         reachOnlyLiquidLegionsV2 = source.reachOnlyLiquidLegionsV2.toDuchyEntryLlV2(apiVersion)
       }
+      DuchyValue.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+        honestMajorityShareShuffle = source.honestMajorityShareShuffle.toDuchyEntryHmss(apiVersion)
+      }
       DuchyValue.ProtocolCase.PROTOCOL_NOT_SET -> error("protocol not set")
     }
   }
@@ -444,11 +447,32 @@ private fun ComputationParticipant.LiquidLegionsV2Details.toDuchyEntryLlV2(
   apiVersion: Version
 ): DuchyEntry.LiquidLegionsV2 {
   val source = this
-  return liquidLegionsV2 {
+  return DuchyEntryKt.liquidLegionsV2 {
     elGamalPublicKey = signedMessage {
       setMessage(
         any {
           value = source.elGamalPublicKey
+          typeUrl =
+            when (apiVersion) {
+              Version.V2_ALPHA -> ProtoReflection.getTypeUrl(ElGamalPublicKey.getDescriptor())
+            }
+        }
+      )
+      signature = source.elGamalPublicKeySignature
+      signatureAlgorithmOid = source.elGamalPublicKeySignatureAlgorithmOid
+    }
+  }
+}
+
+private fun ComputationParticipant.HonestMajorityShareShuffleDetails.toDuchyEntryHmss(
+  apiVersion: Version
+): DuchyEntry.HonestMajorityShareShuffle {
+  val source = this
+  return DuchyEntryKt.honestMajorityShareShuffle {
+    publicKey = signedMessage {
+      setMessage(
+        any {
+          value = source.tinkPublicKey
           typeUrl =
             when (apiVersion) {
               Version.V2_ALPHA -> ProtoReflection.getTypeUrl(ElGamalPublicKey.getDescriptor())
