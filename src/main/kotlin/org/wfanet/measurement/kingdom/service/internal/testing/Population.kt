@@ -343,9 +343,6 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
         measurementSpec = "MeasurementSpec".toByteStringUtf8()
         measurementSpecSignature = "MeasurementSpec signature".toByteStringUtf8()
         measurementSpecSignatureAlgorithmOid = "2.9999"
-        duchyProtocolConfig = duchyProtocolConfig {
-          liquidLegionsV2 = DuchyProtocolConfigKt.liquidLegionsV2 {}
-        }
         protocolConfig = protocolConfig {
           honestMajorityShareShuffle = ProtocolConfigKt.honestMajorityShareShuffle {}
         }

@@ -106,9 +106,6 @@ message ComputationParticipant {
       bytes tink_public_key_signature = 2
           [(google.api.field_behavior) = REQUIRED];
       // Object identifier (OID) of the signature algorithm in dot notation.
-      //
-      // If not specified, this is assumed to be the signature algorithm of the
-      // accompanying certificate
       string tink_public_key_signature_algorithm_oid = 3;
     }
 
