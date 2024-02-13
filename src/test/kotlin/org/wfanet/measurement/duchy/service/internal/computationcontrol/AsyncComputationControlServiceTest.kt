@@ -30,6 +30,7 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
@@ -74,8 +75,10 @@ import org.wfanet.measurement.internal.duchy.updateComputationDetailsRequest
 
 private val COMMON_SEED = "seed_1".toByteStringUtf8()
 private val PEER_COMMON_SEED = "seed_2".toByteStringUtf8()
-private val REQUISITION_PATH = "path"
-private val REQUISITION_SEED = "requisition seed".toByteStringUtf8()
+private val REQUISITION_PATH_1 = "path 1"
+private val REQUISITION_PATH_2 = "path 2"
+private val REQUISITION_SEED_1 = "encrypted seed 1".toByteStringUtf8()
+private val REQUISITION_SEED_2 = "encrypted seed 2".toByteStringUtf8()
 private const val AGGREGATION_BLOB_ID_1 = 1L
 private const val AGGREGATION_BLOB_ID_2 = 2L
 private val AGGREGATION_BLOB_PATH_1 = "path_1"
@@ -424,8 +427,16 @@ class AsyncComputationControlServiceTest {
           }
       }
       if (requisitionFulfilled) {
-        requisitions += requisitionMetadata { path = REQUISITION_PATH }
-        requisitions += requisitionMetadata { seed = REQUISITION_SEED }
+        requisitions += requisitionMetadata {
+          secretSeedCiphertext = REQUISITION_SEED_1
+          path = REQUISITION_PATH_1
+          publicApiVersion = Version.V2_ALPHA.string
+        }
+        requisitions += requisitionMetadata {
+          secretSeedCiphertext = REQUISITION_SEED_2
+          path = REQUISITION_PATH_2
+          publicApiVersion = Version.V2_ALPHA.string
+        }
       } else {
         requisitions += requisitionMetadata {}
         requisitions += requisitionMetadata {}
