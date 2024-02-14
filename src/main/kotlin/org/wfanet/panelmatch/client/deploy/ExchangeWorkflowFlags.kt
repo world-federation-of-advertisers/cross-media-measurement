@@ -130,10 +130,11 @@ class ExchangeWorkflowFlags {
     required = false,
   )
   private fun maxClaimedStepsIsPositive(value: Int?) {
-    if ( (value ?: 1) < 1) {
+    if ((value ?: 1) < 1) {
       throw ParameterException(
         spec.commandLine(),
-        "Max-parallel-claimed-tasks must be greater than 0 if set. Currently it is $value")
+        "Max-parallel-claimed-tasks must be greater than 0 if set. Currently it is $value"
+      )
     }
     maxParallelClaimedExchangeSteps = value
   }

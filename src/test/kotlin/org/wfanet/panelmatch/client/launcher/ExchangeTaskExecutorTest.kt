@@ -194,16 +194,3 @@ private class PermanentThrowingExchangeTask(taskName: String) : ExchangeTask {
   ): Map<String, Flow<ByteString>> =
     throw ExchangeTaskFailedException.ofPermanent(IllegalStateException())
 }
-
-private class CoroutineScopeThrowingExchangeTask(taskName: String) : ExchangeTask {
-  @kotlinx.coroutines.ExperimentalCoroutinesApi
-  private val newContext = newSingleThreadContext("ThreadForCrashes")
-  override suspend fun execute(
-    input: Map<String, StorageClient.Blob>
-  ): Map<String, Flow<ByteString>> {
-    withContext(newContext) {
-      launch { throw IllegalArgumentException("Error") }.join()
-    }
-    return emptyMap()
-  }
-}

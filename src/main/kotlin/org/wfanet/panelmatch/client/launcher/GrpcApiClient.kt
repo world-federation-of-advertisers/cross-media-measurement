@@ -87,21 +87,9 @@ class GrpcApiClient(
     finalState: ExchangeStepAttempt.State,
     logEntryMessages: Iterable<String>,
   ) {
-    finishExchangeStepAttempt(
-      key.toName(),
-      finalState,
-      logEntryMessages
-    )
-  }
-
-  suspend fun finishExchangeStepAttempt(
-    keyName: String,
-    finalState: ExchangeStepAttempt.State,
-    logEntryMessages: Iterable<String>,
-  ) {
     semaphore?.release()
     val request = finishExchangeStepAttemptRequest {
-      name = keyName
+      name = key.toName()
       this.finalState = finalState
       for (message in logEntryMessages) {
         logEntries += makeLogEntry(message)
