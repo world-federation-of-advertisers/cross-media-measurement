@@ -35,8 +35,8 @@
 #include "wfa/measurement/common/crypto/protocol_cryptor.h"
 #include "wfa/measurement/common/string_block_sorter.h"
 #include "wfa/measurement/internal/duchy/noise_mechanism.pb.h"
+#include "wfa/measurement/internal/duchy/protocol/common/noise_parameters_computation.h"
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/multithreading_helper.h"
-#include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/noise_parameters_computation.h"
 
 namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
 
@@ -75,6 +75,12 @@ using ::wfa::measurement::common::crypto::ProtocolCryptor;
 using ::wfa::measurement::common::crypto::ProtocolCryptorOptions;
 using ::wfa::measurement::internal::duchy::ElGamalPublicKey;
 using ::wfa::measurement::internal::duchy::NoiseMechanism;
+using ::wfa::measurement::internal::duchy::protocol::common::
+    GetBlindHistogramNoiser;
+using ::wfa::measurement::internal::duchy::protocol::common::GetFrequencyNoiser;
+using ::wfa::measurement::internal::duchy::protocol::common::
+    GetGlobalReachDpNoiser;
+using ::wfa::measurement::internal::duchy::protocol::common::GetPublisherNoiser;
 
 // Blinds the last layer of ElGamal Encryption of register indexes, and return
 // the deterministically encrypted results.
