@@ -196,7 +196,7 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
       if (!measurementStruct.isNull("ExternalComputationId")) {
         externalComputationId = measurementStruct.getLong("ExternalComputationId")
       }
-      if (state == Requisition.State.FULFILLED && !requisitionStruct.isNull("FulfillingDuchyId")) {
+      if (!requisitionStruct.isNull("FulfillingDuchyId")) {
         val fulfillingDuchyId = requisitionStruct.getLong("FulfillingDuchyId")
         externalFulfillingDuchyId =
           checkNotNull(DuchyIds.getExternalId(fulfillingDuchyId)) {
