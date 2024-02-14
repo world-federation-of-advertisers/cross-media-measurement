@@ -72,15 +72,14 @@ suspend fun <ITEM, RESP, RESULT> submitBatchRequests(
   val batchSemaphore = Semaphore(3)
   return flow {
     coroutineScope {
-      val deferred: List<Deferred<List<RESULT>>> =
-        buildList {
-          items.chunked(limit).collect { batch: List<ITEM> ->
-            // The batch reference is reused for every collect call. To ensure async works, a copy
-            // of the contents needs to be saved in a new reference.
-            val tempBatch = batch.toList()
-            add(async { batchSemaphore.withPermit { parseResponse(callRpc(tempBatch)) } })
-          }
+      val deferred: List<Deferred<List<RESULT>>> = buildList {
+        items.chunked(limit).collect { batch: List<ITEM> ->
+          // The batch reference is reused for every collect call. To ensure async works, a copy
+          // of the contents needs to be saved in a new reference.
+          val tempBatch = batch.toList()
+          add(async { batchSemaphore.withPermit { parseResponse(callRpc(tempBatch)) } })
         }
+      }
 
       deferred.forEach { emit(it.await()) }
     }

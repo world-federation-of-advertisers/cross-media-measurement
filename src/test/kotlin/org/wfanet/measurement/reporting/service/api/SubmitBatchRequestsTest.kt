@@ -156,10 +156,10 @@ class SubmitBatchRequestsTest {
 
     val result: List<InternalReportingSet> =
       submitBatchRequests(
-        emptyFlow(),
-        BATCH_GET_REPORTING_SETS_LIMIT,
-        ::batchGetReportingSets,
-        parseResponse,
+          emptyFlow(),
+          BATCH_GET_REPORTING_SETS_LIMIT,
+          ::batchGetReportingSets,
+          parseResponse,
         )
         .toList()
         .flatten()

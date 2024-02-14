@@ -50,6 +50,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.count
 import kotlinx.coroutines.flow.flatMapMerge
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -158,7 +159,6 @@ import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchMetho
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
-import kotlinx.coroutines.flow.count
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
@@ -214,98 +214,100 @@ private const val BATCH_SET_MEASUREMENT_RESULTS_LIMIT = 1000
 private const val BATCH_SET_MEASUREMENT_FAILURES_LIMIT = 1000
 
 class MetricsService(
-    private val metricSpecConfig: MetricSpecConfig,
-    private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
-    private val internalMetricsStub: InternalMetricsCoroutineStub,
-    private val variances: Variances,
-    internalMeasurementsStub: InternalMeasurementsCoroutineStub,
-    dataProvidersStub: DataProvidersCoroutineStub,
-    measurementsStub: MeasurementsCoroutineStub,
-    certificatesStub: CertificatesCoroutineStub,
-    measurementConsumersStub: MeasurementConsumersCoroutineStub,
-    encryptionKeyPairStore: EncryptionKeyPairStore,
-    secureRandom: SecureRandom,
-    signingPrivateKeyDir: File,
-    trustedCertificates: Map<ByteString, X509Certificate>,
-    certificateCacheExpirationDuration: Duration = Duration.ofMinutes(60),
-    dataProviderCacheExpirationDuration: Duration = Duration.ofMinutes(60),
-    keyReaderContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
-    cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
+  private val metricSpecConfig: MetricSpecConfig,
+  private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
+  private val internalMetricsStub: InternalMetricsCoroutineStub,
+  private val variances: Variances,
+  internalMeasurementsStub: InternalMeasurementsCoroutineStub,
+  dataProvidersStub: DataProvidersCoroutineStub,
+  measurementsStub: MeasurementsCoroutineStub,
+  certificatesStub: CertificatesCoroutineStub,
+  measurementConsumersStub: MeasurementConsumersCoroutineStub,
+  encryptionKeyPairStore: EncryptionKeyPairStore,
+  secureRandom: SecureRandom,
+  signingPrivateKeyDir: File,
+  trustedCertificates: Map<ByteString, X509Certificate>,
+  certificateCacheExpirationDuration: Duration = Duration.ofMinutes(60),
+  dataProviderCacheExpirationDuration: Duration = Duration.ofMinutes(60),
+  keyReaderContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
+  cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
 ) : MetricsCoroutineImplBase() {
 
   private data class DataProviderInfo(
-      val dataProviderName: String,
-      val publicKey: SignedMessage,
-      val certificateName: String,
+    val dataProviderName: String,
+    val publicKey: SignedMessage,
+    val certificateName: String,
   )
 
   private val measurementSupplier =
-      MeasurementSupplier(
-          internalReportingSetsStub,
-          internalMeasurementsStub,
-          measurementsStub,
-          dataProvidersStub,
-          certificatesStub,
-          measurementConsumersStub,
-          encryptionKeyPairStore,
-          secureRandom,
-          signingPrivateKeyDir,
-          trustedCertificates,
-          certificateCacheExpirationDuration = certificateCacheExpirationDuration,
-          dataProviderCacheExpirationDuration = dataProviderCacheExpirationDuration,
-          keyReaderContext,
-          cacheLoaderContext,
-      )
+    MeasurementSupplier(
+      internalReportingSetsStub,
+      internalMeasurementsStub,
+      measurementsStub,
+      dataProvidersStub,
+      certificatesStub,
+      measurementConsumersStub,
+      encryptionKeyPairStore,
+      secureRandom,
+      signingPrivateKeyDir,
+      trustedCertificates,
+      certificateCacheExpirationDuration = certificateCacheExpirationDuration,
+      dataProviderCacheExpirationDuration = dataProviderCacheExpirationDuration,
+      keyReaderContext,
+      cacheLoaderContext,
+    )
 
   private class MeasurementSupplier(
-      private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
-      private val internalMeasurementsStub: InternalMeasurementsCoroutineStub,
-      private val measurementsStub: MeasurementsCoroutineStub,
-      private val dataProvidersStub: DataProvidersCoroutineStub,
-      private val certificatesStub: CertificatesCoroutineStub,
-      private val measurementConsumersStub: MeasurementConsumersCoroutineStub,
-      private val encryptionKeyPairStore: EncryptionKeyPairStore,
-      private val secureRandom: SecureRandom,
-      private val signingPrivateKeyDir: File,
-      private val trustedCertificates: Map<ByteString, X509Certificate>,
-      certificateCacheExpirationDuration: Duration,
-      dataProviderCacheExpirationDuration: Duration,
-      private val keyReaderContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
-      cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
+    private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
+    private val internalMeasurementsStub: InternalMeasurementsCoroutineStub,
+    private val measurementsStub: MeasurementsCoroutineStub,
+    private val dataProvidersStub: DataProvidersCoroutineStub,
+    private val certificatesStub: CertificatesCoroutineStub,
+    private val measurementConsumersStub: MeasurementConsumersCoroutineStub,
+    private val encryptionKeyPairStore: EncryptionKeyPairStore,
+    private val secureRandom: SecureRandom,
+    private val signingPrivateKeyDir: File,
+    private val trustedCertificates: Map<ByteString, X509Certificate>,
+    certificateCacheExpirationDuration: Duration,
+    dataProviderCacheExpirationDuration: Duration,
+    private val keyReaderContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
+    cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
   ) {
     private data class ResourceNameApiAuthenticationKey(
-        val name: String,
-        val apiAuthenticationKey: String,
+      val name: String,
+      val apiAuthenticationKey: String,
     )
 
     private val certificateCache: LoadingCache<ResourceNameApiAuthenticationKey, Certificate> =
-        LoadingCache(
-            Caffeine.newBuilder()
-                .expireAfterWrite(certificateCacheExpirationDuration)
-                .executor(
-                    (cacheLoaderContext[ContinuationInterceptor] as CoroutineDispatcher)
-                        .asExecutor())
-                .buildAsync()) { key ->
-              getCertificate(name = key.name, apiAuthenticationKey = key.apiAuthenticationKey)
-            }
+      LoadingCache(
+        Caffeine.newBuilder()
+          .expireAfterWrite(certificateCacheExpirationDuration)
+          .executor(
+            (cacheLoaderContext[ContinuationInterceptor] as CoroutineDispatcher).asExecutor()
+          )
+          .buildAsync()
+      ) { key ->
+        getCertificate(name = key.name, apiAuthenticationKey = key.apiAuthenticationKey)
+      }
 
     private val dataProviderCache: LoadingCache<ResourceNameApiAuthenticationKey, DataProvider> =
-        LoadingCache(
-            Caffeine.newBuilder()
-                .expireAfterWrite(dataProviderCacheExpirationDuration)
-                .executor(
-                    (cacheLoaderContext[ContinuationInterceptor] as CoroutineDispatcher)
-                        .asExecutor())
-                .buildAsync()) { key ->
-              getDataProvider(name = key.name, apiAuthenticationKey = key.apiAuthenticationKey)
-            }
+      LoadingCache(
+        Caffeine.newBuilder()
+          .expireAfterWrite(dataProviderCacheExpirationDuration)
+          .executor(
+            (cacheLoaderContext[ContinuationInterceptor] as CoroutineDispatcher).asExecutor()
+          )
+          .buildAsync()
+      ) { key ->
+        getDataProvider(name = key.name, apiAuthenticationKey = key.apiAuthenticationKey)
+      }
 
     /**
      * Creates CMM public [Measurement]s and [InternalMeasurement]s from a list of [InternalMetric].
      */
     suspend fun createCmmsMeasurements(
-        internalMetricsList: List<InternalMetric>,
-        principal: MeasurementConsumerPrincipal,
+      internalMetricsList: List<InternalMetric>,
+      principal: MeasurementConsumerPrincipal,
     ) {
       val measurementConsumer: MeasurementConsumer = getMeasurementConsumer(principal)
 
@@ -315,7 +317,7 @@ class MetricsService(
           for (internalMetric in internalMetricsList) {
             for (weightedMeasurement in internalMetric.weightedMeasurementsList) {
               for (primitiveReportingSetBasis in
-                  weightedMeasurement.measurement.primitiveReportingSetBasesList) {
+                weightedMeasurement.measurement.primitiveReportingSetBasesList) {
                 if (!contains(primitiveReportingSetBasis.externalReportingSetId)) {
                   emit(primitiveReportingSetBasis.externalReportingSetId)
                   add(primitiveReportingSetBasis.externalReportingSetId)
@@ -327,24 +329,24 @@ class MetricsService(
       }
 
       val callBatchGetInternalReportingSetsRpc:
-          suspend (List<String>) -> BatchGetReportingSetsResponse =
-          { items ->
-            batchGetInternalReportingSets(principal.resourceKey.measurementConsumerId, items)
-          }
+        suspend (List<String>) -> BatchGetReportingSetsResponse =
+        { items ->
+          batchGetInternalReportingSets(principal.resourceKey.measurementConsumerId, items)
+        }
 
       val internalPrimitiveReportingSetMap: Map<String, InternalReportingSet> = buildMap {
         submitBatchRequests(
-                externalPrimitiveReportingSetIds,
-                BATCH_GET_REPORTING_SETS_LIMIT,
-                callBatchGetInternalReportingSetsRpc,
-            ) { response: BatchGetReportingSetsResponse ->
-              response.reportingSetsList
+            externalPrimitiveReportingSetIds,
+            BATCH_GET_REPORTING_SETS_LIMIT,
+            callBatchGetInternalReportingSetsRpc,
+          ) { response: BatchGetReportingSetsResponse ->
+            response.reportingSetsList
+          }
+          .collect { reportingSets: List<InternalReportingSet> ->
+            for (reportingSet in reportingSets) {
+              computeIfAbsent(reportingSet.externalReportingSetId) { reportingSet }
             }
-            .collect { reportingSets: List<InternalReportingSet> ->
-              for (reportingSet in reportingSets) {
-                computeIfAbsent(reportingSet.externalReportingSetId) { reportingSet }
-              }
-            }
+          }
       }
 
       val dataProviderNames = mutableSetOf<String>()
@@ -354,7 +356,7 @@ class MetricsService(
         }
       }
       val dataProviderInfoMap: Map<String, DataProviderInfo> =
-          buildDataProviderInfoMap(principal.config.apiKey, dataProviderNames)
+        buildDataProviderInfoMap(principal.config.apiKey, dataProviderNames)
 
       val measurementConsumerSigningKey = getMeasurementConsumerSigningKey(principal)
 
@@ -363,15 +365,16 @@ class MetricsService(
           for (weightedMeasurement in internalMetric.weightedMeasurementsList) {
             if (weightedMeasurement.measurement.cmmsMeasurementId.isBlank()) {
               emit(
-                  buildCreateMeasurementRequest(
-                      weightedMeasurement.measurement,
-                      internalMetric.metricSpec,
-                      internalPrimitiveReportingSetMap,
-                      measurementConsumer,
-                      principal,
-                      dataProviderInfoMap,
-                      measurementConsumerSigningKey,
-                  ))
+                buildCreateMeasurementRequest(
+                  weightedMeasurement.measurement,
+                  internalMetric.metricSpec,
+                  internalPrimitiveReportingSetMap,
+                  measurementConsumer,
+                  principal,
+                  dataProviderInfoMap,
+                  measurementConsumerSigningKey,
+                )
+              )
             }
           }
         }
@@ -379,55 +382,56 @@ class MetricsService(
 
       // Create CMMS measurements.
       val callBatchCreateMeasurementsRpc:
-          suspend (List<CreateMeasurementRequest>) -> BatchCreateMeasurementsResponse =
-          { items ->
-            batchCreateCmmsMeasurements(principal, items)
-          }
+        suspend (List<CreateMeasurementRequest>) -> BatchCreateMeasurementsResponse =
+        { items ->
+          batchCreateCmmsMeasurements(principal, items)
+        }
 
       @OptIn(ExperimentalCoroutinesApi::class)
       val cmmsMeasurements: Flow<Measurement> =
-          submitBatchRequests(
-                  cmmsCreateMeasurementRequests,
-                  BATCH_KINGDOM_MEASUREMENTS_LIMIT,
-                  callBatchCreateMeasurementsRpc,
-              ) { response: BatchCreateMeasurementsResponse ->
-                response.measurementsList
-              }
-              .flatMapMerge { it.asFlow() }
+        submitBatchRequests(
+            cmmsCreateMeasurementRequests,
+            BATCH_KINGDOM_MEASUREMENTS_LIMIT,
+            callBatchCreateMeasurementsRpc,
+          ) { response: BatchCreateMeasurementsResponse ->
+            response.measurementsList
+          }
+          .flatMapMerge { it.asFlow() }
 
       // Set CMMS measurement IDs.
       val callBatchSetCmmsMeasurementIdsRpc:
-          suspend (List<MeasurementIds>) -> BatchSetCmmsMeasurementIdsResponse =
-          { items ->
-            batchSetCmmsMeasurementIds(principal.resourceKey.measurementConsumerId, items)
-          }
+        suspend (List<MeasurementIds>) -> BatchSetCmmsMeasurementIdsResponse =
+        { items ->
+          batchSetCmmsMeasurementIds(principal.resourceKey.measurementConsumerId, items)
+        }
 
       submitBatchRequests(
-              cmmsMeasurements.map {
-                measurementIds {
-                  cmmsCreateMeasurementRequestId = it.measurementReferenceId
-                  cmmsMeasurementId = MeasurementKey.fromName(it.name)!!.measurementId
-                }
-              },
-              BATCH_SET_CMMS_MEASUREMENT_IDS_LIMIT,
-              callBatchSetCmmsMeasurementIdsRpc,
-          ) { response: BatchSetCmmsMeasurementIdsResponse ->
-            response.measurementsList
-          }
-          .collect {}
+          cmmsMeasurements.map {
+            measurementIds {
+              cmmsCreateMeasurementRequestId = it.measurementReferenceId
+              cmmsMeasurementId = MeasurementKey.fromName(it.name)!!.measurementId
+            }
+          },
+          BATCH_SET_CMMS_MEASUREMENT_IDS_LIMIT,
+          callBatchSetCmmsMeasurementIdsRpc,
+        ) { response: BatchSetCmmsMeasurementIdsResponse ->
+          response.measurementsList
+        }
+        .collect {}
     }
 
     /** Sets a batch of CMMS [MeasurementIds] to the [InternalMeasurement] table. */
     private suspend fun batchSetCmmsMeasurementIds(
-        cmmsMeasurementConsumerId: String,
-        measurementIds: List<MeasurementIds>,
+      cmmsMeasurementConsumerId: String,
+      measurementIds: List<MeasurementIds>,
     ): BatchSetCmmsMeasurementIdsResponse {
       return try {
         internalMeasurementsStub.batchSetCmmsMeasurementIds(
-            batchSetCmmsMeasurementIdsRequest {
-              this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-              this.measurementIds += measurementIds
-            })
+          batchSetCmmsMeasurementIdsRequest {
+            this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+            this.measurementIds += measurementIds
+          }
+        )
       } catch (e: StatusException) {
         throw Exception("Unable to set the CMMS measurement IDs for the measurements.", e)
       }
@@ -435,49 +439,49 @@ class MetricsService(
 
     /** Batch create CMMS measurements. */
     private suspend fun batchCreateCmmsMeasurements(
-        principal: MeasurementConsumerPrincipal,
-        createMeasurementRequests: List<CreateMeasurementRequest>,
+      principal: MeasurementConsumerPrincipal,
+      createMeasurementRequests: List<CreateMeasurementRequest>,
     ): BatchCreateMeasurementsResponse {
       try {
         return measurementsStub
-            .withAuthenticationKey(principal.config.apiKey)
-            .batchCreateMeasurements(
-                batchCreateMeasurementsRequest {
-                  parent = principal.resourceKey.toName()
-                  requests += createMeasurementRequests
-                })
+          .withAuthenticationKey(principal.config.apiKey)
+          .batchCreateMeasurements(
+            batchCreateMeasurementsRequest {
+              parent = principal.resourceKey.toName()
+              requests += createMeasurementRequests
+            }
+          )
       } catch (e: StatusException) {
         throw when (e.status.code) {
-              Status.Code.INVALID_ARGUMENT ->
-                  Status.INVALID_ARGUMENT.withDescription("Required field unspecified or invalid.")
-              Status.Code.PERMISSION_DENIED ->
-                  Status.PERMISSION_DENIED.withDescription(
-                      "Cannot create CMMS Measurements for another MeasurementConsumer.")
-              Status.Code.FAILED_PRECONDITION ->
-                  Status.FAILED_PRECONDITION.withDescription("Failed precondition.")
-              Status.Code.NOT_FOUND ->
-                  Status.NOT_FOUND.withDescription(
-                      "${principal.resourceKey.toName()} is not found.")
-              else -> Status.UNKNOWN.withDescription("Unable to create CMMS Measurements.")
-            }
-            .withCause(e)
-            .asRuntimeException()
+            Status.Code.INVALID_ARGUMENT ->
+              Status.INVALID_ARGUMENT.withDescription("Required field unspecified or invalid.")
+            Status.Code.PERMISSION_DENIED ->
+              Status.PERMISSION_DENIED.withDescription(
+                "Cannot create CMMS Measurements for another MeasurementConsumer."
+              )
+            Status.Code.FAILED_PRECONDITION ->
+              Status.FAILED_PRECONDITION.withDescription("Failed precondition.")
+            Status.Code.NOT_FOUND ->
+              Status.NOT_FOUND.withDescription("${principal.resourceKey.toName()} is not found.")
+            else -> Status.UNKNOWN.withDescription("Unable to create CMMS Measurements.")
+          }
+          .withCause(e)
+          .asRuntimeException()
       }
     }
 
     /** Builds a CMMS [CreateMeasurementRequest]. */
     private fun buildCreateMeasurementRequest(
-        internalMeasurement: InternalMeasurement,
-        metricSpec: InternalMetricSpec,
-        internalPrimitiveReportingSetMap: Map<String, InternalReportingSet>,
-        measurementConsumer: MeasurementConsumer,
-        principal: MeasurementConsumerPrincipal,
-        dataProviderInfoMap: Map<String, DataProviderInfo>,
-        measurementConsumerSigningKey: SigningKeyHandle,
+      internalMeasurement: InternalMeasurement,
+      metricSpec: InternalMetricSpec,
+      internalPrimitiveReportingSetMap: Map<String, InternalReportingSet>,
+      measurementConsumer: MeasurementConsumer,
+      principal: MeasurementConsumerPrincipal,
+      dataProviderInfoMap: Map<String, DataProviderInfo>,
+      measurementConsumerSigningKey: SigningKeyHandle,
     ): CreateMeasurementRequest {
       val eventGroupEntriesByDataProvider =
-          groupEventGroupEntriesByDataProvider(
-              internalMeasurement, internalPrimitiveReportingSetMap)
+        groupEventGroupEntriesByDataProvider(internalMeasurement, internalPrimitiveReportingSetMap)
       val packedMeasurementEncryptionPublicKey = measurementConsumer.publicKey.message
 
       return createMeasurementRequest {
@@ -486,22 +490,22 @@ class MetricsService(
           measurementConsumerCertificate = principal.config.signingCertificateName
 
           dataProviders +=
-              buildDataProviderEntries(
-                  eventGroupEntriesByDataProvider,
-                  packedMeasurementEncryptionPublicKey,
-                  measurementConsumerSigningKey,
-                  dataProviderInfoMap,
-              )
+            buildDataProviderEntries(
+              eventGroupEntriesByDataProvider,
+              packedMeasurementEncryptionPublicKey,
+              measurementConsumerSigningKey,
+              dataProviderInfoMap,
+            )
 
           val unsignedMeasurementSpec: MeasurementSpec =
-              buildUnsignedMeasurementSpec(
-                  packedMeasurementEncryptionPublicKey,
-                  dataProviders.map { it.value.nonceHash },
-                  metricSpec,
-              )
+            buildUnsignedMeasurementSpec(
+              packedMeasurementEncryptionPublicKey,
+              dataProviders.map { it.value.nonceHash },
+              metricSpec,
+            )
 
           measurementSpec =
-              signMeasurementSpec(unsignedMeasurementSpec, measurementConsumerSigningKey)
+            signMeasurementSpec(unsignedMeasurementSpec, measurementConsumerSigningKey)
           // To help map reporting measurements to cmms measurements.
           measurementReferenceId = internalMeasurement.cmmsCreateMeasurementRequestId
         }
@@ -511,26 +515,26 @@ class MetricsService(
 
     /** Gets a [SigningKeyHandle] for a [MeasurementConsumerPrincipal]. */
     private suspend fun getMeasurementConsumerSigningKey(
-        principal: MeasurementConsumerPrincipal
+      principal: MeasurementConsumerPrincipal
     ): SigningKeyHandle {
       // TODO: Factor this out to a separate class similar to EncryptionKeyPairStore.
       val signingPrivateKeyDer: ByteString =
-          withContext(keyReaderContext) {
-            signingPrivateKeyDir.resolve(principal.config.signingPrivateKeyPath).readByteString()
-          }
+        withContext(keyReaderContext) {
+          signingPrivateKeyDir.resolve(principal.config.signingPrivateKeyPath).readByteString()
+        }
       val measurementConsumerCertificate: X509Certificate =
-          readCertificate(getSigningCertificateDer(principal))
+        readCertificate(getSigningCertificateDer(principal))
       val signingPrivateKey: PrivateKey =
-          readPrivateKey(signingPrivateKeyDer, measurementConsumerCertificate.publicKey.algorithm)
+        readPrivateKey(signingPrivateKeyDer, measurementConsumerCertificate.publicKey.algorithm)
 
       return SigningKeyHandle(measurementConsumerCertificate, signingPrivateKey)
     }
 
     /** Builds an unsigned [MeasurementSpec]. */
     private fun buildUnsignedMeasurementSpec(
-        packedMeasurementEncryptionPublicKey: ProtoAny,
-        nonceHashes: List<ByteString>,
-        metricSpec: InternalMetricSpec,
+      packedMeasurementEncryptionPublicKey: ProtoAny,
+      nonceHashes: List<ByteString>,
+      metricSpec: InternalMetricSpec,
     ): MeasurementSpec {
       return measurementSpec {
         measurementPublicKey = packedMeasurementEncryptionPublicKey
@@ -554,9 +558,9 @@ class MetricsService(
             population = MeasurementSpec.Population.getDefaultInstance()
           }
           InternalMetricSpec.TypeCase.TYPE_NOT_SET ->
-              failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
-                "Unset metric type should've already raised error."
-              }
+            failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
+              "Unset metric type should've already raised error."
+            }
         }
         vidSamplingInterval = metricSpec.vidSamplingInterval.toCmmsVidSamplingInterval()
         // TODO(@jojijac0b): Add modelLine
@@ -565,8 +569,8 @@ class MetricsService(
 
     /** Builds a [Map] of [DataProvider] name to [DataProviderInfo]. */
     private suspend fun buildDataProviderInfoMap(
-        apiAuthenticationKey: String,
-        dataProviderNames: Collection<String>,
+      apiAuthenticationKey: String,
+      dataProviderNames: Collection<String>,
     ): Map<String, DataProviderInfo> {
       val dataProviderInfoMap = mutableMapOf<String, DataProviderInfo>()
 
@@ -578,48 +582,55 @@ class MetricsService(
       coroutineScope {
         for (dataProviderName in dataProviderNames) {
           deferredDataProviderInfoList.add(
-              async {
-                val dataProvider: DataProvider =
-                    dataProviderCache.getValue(
-                        ResourceNameApiAuthenticationKey(
-                            name = dataProviderName,
-                            apiAuthenticationKey = apiAuthenticationKey,
-                        ))
+            async {
+              val dataProvider: DataProvider =
+                dataProviderCache.getValue(
+                  ResourceNameApiAuthenticationKey(
+                    name = dataProviderName,
+                    apiAuthenticationKey = apiAuthenticationKey,
+                  )
+                )
 
-                val certificate =
-                    certificateCache.getValue(
-                        ResourceNameApiAuthenticationKey(
-                            name = dataProvider.certificate,
-                            apiAuthenticationKey = apiAuthenticationKey,
-                        ))
+              val certificate =
+                certificateCache.getValue(
+                  ResourceNameApiAuthenticationKey(
+                    name = dataProvider.certificate,
+                    apiAuthenticationKey = apiAuthenticationKey,
+                  )
+                )
 
-                if (certificate.revocationState !=
-                    Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED) {
-                  throw Status.FAILED_PRECONDITION.withDescription(
-                          "${certificate.name} revocation state is ${certificate.revocationState}")
-                      .asRuntimeException()
-                }
+              if (
+                certificate.revocationState !=
+                  Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED
+              ) {
+                throw Status.FAILED_PRECONDITION.withDescription(
+                    "${certificate.name} revocation state is ${certificate.revocationState}"
+                  )
+                  .asRuntimeException()
+              }
 
-                val x509Certificate: X509Certificate = readCertificate(certificate.x509Der)
-                val trustedIssuer: X509Certificate =
-                    trustedCertificates[checkNotNull(x509Certificate.authorityKeyIdentifier)]
-                        ?: throw Status.FAILED_PRECONDITION.withDescription(
-                                "${certificate.name} not issued by trusted CA")
-                            .asRuntimeException()
-                try {
-                  verifyEncryptionPublicKey(dataProvider.publicKey, x509Certificate, trustedIssuer)
-                } catch (e: CertPathValidatorException) {
-                  throw Status.FAILED_PRECONDITION.withCause(e)
-                      .withDescription("Certificate path for ${certificate.name} is invalid")
-                      .asRuntimeException()
-                } catch (e: SignatureException) {
-                  throw Status.FAILED_PRECONDITION.withCause(e)
-                      .withDescription("DataProvider public key signature is invalid")
-                      .asRuntimeException()
-                }
+              val x509Certificate: X509Certificate = readCertificate(certificate.x509Der)
+              val trustedIssuer: X509Certificate =
+                trustedCertificates[checkNotNull(x509Certificate.authorityKeyIdentifier)]
+                  ?: throw Status.FAILED_PRECONDITION.withDescription(
+                      "${certificate.name} not issued by trusted CA"
+                    )
+                    .asRuntimeException()
+              try {
+                verifyEncryptionPublicKey(dataProvider.publicKey, x509Certificate, trustedIssuer)
+              } catch (e: CertPathValidatorException) {
+                throw Status.FAILED_PRECONDITION.withCause(e)
+                  .withDescription("Certificate path for ${certificate.name} is invalid")
+                  .asRuntimeException()
+              } catch (e: SignatureException) {
+                throw Status.FAILED_PRECONDITION.withCause(e)
+                  .withDescription("DataProvider public key signature is invalid")
+                  .asRuntimeException()
+              }
 
-                DataProviderInfo(dataProvider.name, dataProvider.publicKey, certificate.name)
-              })
+              DataProviderInfo(dataProvider.name, dataProvider.publicKey, certificate.name)
+            }
+          )
         }
 
         for (deferredDataProviderInfo in deferredDataProviderInfoList.awaitAll()) {
@@ -635,10 +646,10 @@ class MetricsService(
      * [eventGroupEntriesByDataProvider].
      */
     private fun buildDataProviderEntries(
-        eventGroupEntriesByDataProvider: Map<DataProviderKey, List<EventGroupEntry>>,
-        packedMeasurementEncryptionPublicKey: ProtoAny,
-        measurementConsumerSigningKey: SigningKeyHandle,
-        dataProviderInfoMap: Map<String, DataProviderInfo>,
+      eventGroupEntriesByDataProvider: Map<DataProviderKey, List<EventGroupEntry>>,
+      packedMeasurementEncryptionPublicKey: ProtoAny,
+      measurementConsumerSigningKey: SigningKeyHandle,
+      dataProviderInfoMap: Map<String, DataProviderInfo>,
     ): List<Measurement.DataProviderEntry> {
       return eventGroupEntriesByDataProvider.map { (dataProviderKey, eventGroupEntriesList) ->
         val dataProviderName: String = dataProviderKey.toName()
@@ -650,20 +661,20 @@ class MetricsService(
           nonce = secureRandom.nextLong()
         }
         val encryptRequisitionSpec =
-            encryptRequisitionSpec(
-                signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
-                dataProviderInfo.publicKey.unpack(),
-            )
+          encryptRequisitionSpec(
+            signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
+            dataProviderInfo.publicKey.unpack(),
+          )
 
         dataProviderEntry {
           key = dataProviderName
           value =
-              MeasurementKt.DataProviderEntryKt.value {
-                dataProviderCertificate = dataProviderInfo.certificateName
-                dataProviderPublicKey = dataProviderInfo.publicKey.message
-                this.encryptedRequisitionSpec = encryptRequisitionSpec
-                nonceHash = Hashing.hashSha256(requisitionSpec.nonce)
-              }
+            MeasurementKt.DataProviderEntryKt.value {
+              dataProviderCertificate = dataProviderInfo.certificateName
+              dataProviderPublicKey = dataProviderInfo.publicKey.message
+              this.encryptedRequisitionSpec = encryptRequisitionSpec
+              nonceHash = Hashing.hashSha256(requisitionSpec.nonce)
+            }
         }
       }
     }
@@ -673,44 +684,42 @@ class MetricsService(
      * grouping them by DataProvider.
      */
     private fun groupEventGroupEntriesByDataProvider(
-        measurement: InternalMeasurement,
-        internalPrimitiveReportingSetMap: Map<String, InternalReportingSet>,
+      measurement: InternalMeasurement,
+      internalPrimitiveReportingSetMap: Map<String, InternalReportingSet>,
     ): Map<DataProviderKey, List<EventGroupEntry>> {
       return measurement.primitiveReportingSetBasesList
-          .flatMap { primitiveReportingSetBasis ->
-            val internalPrimitiveReportingSet =
-                internalPrimitiveReportingSetMap.getValue(
-                    primitiveReportingSetBasis.externalReportingSetId)
+        .flatMap { primitiveReportingSetBasis ->
+          val internalPrimitiveReportingSet =
+            internalPrimitiveReportingSetMap.getValue(
+              primitiveReportingSetBasis.externalReportingSetId
+            )
 
-            internalPrimitiveReportingSet.primitive.eventGroupKeysList.map { internalEventGroupKey
-              ->
-              val cmmsEventGroupKey =
-                  CmmsEventGroupKey(
-                      internalEventGroupKey.cmmsDataProviderId,
-                      internalEventGroupKey.cmmsEventGroupId,
-                  )
-              val filtersList =
-                  primitiveReportingSetBasis.filtersList.filter { !it.isNullOrBlank() }
-              val filter: String? =
-                  if (filtersList.isEmpty()) null else buildConjunction(filtersList)
+          internalPrimitiveReportingSet.primitive.eventGroupKeysList.map { internalEventGroupKey ->
+            val cmmsEventGroupKey =
+              CmmsEventGroupKey(
+                internalEventGroupKey.cmmsDataProviderId,
+                internalEventGroupKey.cmmsEventGroupId,
+              )
+            val filtersList = primitiveReportingSetBasis.filtersList.filter { !it.isNullOrBlank() }
+            val filter: String? = if (filtersList.isEmpty()) null else buildConjunction(filtersList)
 
-              cmmsEventGroupKey to
-                  RequisitionSpecKt.eventGroupEntry {
-                    key = cmmsEventGroupKey.toName()
-                    value =
-                        RequisitionSpecKt.EventGroupEntryKt.value {
-                          collectionInterval = measurement.timeInterval
-                          if (filter != null) {
-                            this.filter = RequisitionSpecKt.eventFilter { expression = filter }
-                          }
-                        }
+            cmmsEventGroupKey to
+              RequisitionSpecKt.eventGroupEntry {
+                key = cmmsEventGroupKey.toName()
+                value =
+                  RequisitionSpecKt.EventGroupEntryKt.value {
+                    collectionInterval = measurement.timeInterval
+                    if (filter != null) {
+                      this.filter = RequisitionSpecKt.eventFilter { expression = filter }
+                    }
                   }
-            }
+              }
           }
-          .groupBy(
-              { (cmmsEventGroupKey, _) -> DataProviderKey(cmmsEventGroupKey.dataProviderId) },
-              { (_, eventGroupEntry) -> eventGroupEntry },
-          )
+        }
+        .groupBy(
+          { (cmmsEventGroupKey, _) -> DataProviderKey(cmmsEventGroupKey.dataProviderId) },
+          { (_, eventGroupEntry) -> eventGroupEntry },
+        )
     }
 
     /** Combines event group filters. */
@@ -720,59 +729,64 @@ class MetricsService(
 
     /** Gets a [MeasurementConsumer] based on a CMMS ID. */
     private suspend fun getMeasurementConsumer(
-        principal: MeasurementConsumerPrincipal
+      principal: MeasurementConsumerPrincipal
     ): MeasurementConsumer {
       return try {
         measurementConsumersStub
-            .withAuthenticationKey(principal.config.apiKey)
-            .getMeasurementConsumer(
-                getMeasurementConsumerRequest { name = principal.resourceKey.toName() })
+          .withAuthenticationKey(principal.config.apiKey)
+          .getMeasurementConsumer(
+            getMeasurementConsumerRequest { name = principal.resourceKey.toName() }
+          )
       } catch (e: StatusException) {
         throw when (e.status.code) {
-              Status.Code.NOT_FOUND ->
-                  Status.NOT_FOUND.withDescription("${principal.resourceKey.toName()} not found.")
-              else ->
-                  Status.UNKNOWN.withDescription(
-                      "Unable to retrieve the measurement consumer [${principal.resourceKey.toName()}].")
-            }
-            .withCause(e)
-            .asRuntimeException()
+            Status.Code.NOT_FOUND ->
+              Status.NOT_FOUND.withDescription("${principal.resourceKey.toName()} not found.")
+            else ->
+              Status.UNKNOWN.withDescription(
+                "Unable to retrieve the measurement consumer [${principal.resourceKey.toName()}]."
+              )
+          }
+          .withCause(e)
+          .asRuntimeException()
       }
     }
 
     /** Gets a batch of [InternalReportingSet]s. */
     private suspend fun batchGetInternalReportingSets(
-        cmmsMeasurementConsumerId: String,
-        externalReportingSetIds: List<String>,
+      cmmsMeasurementConsumerId: String,
+      externalReportingSetIds: List<String>,
     ): BatchGetReportingSetsResponse {
       return try {
         internalReportingSetsStub.batchGetReportingSets(
-            batchGetReportingSetsRequest {
-              this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-              this.externalReportingSetIds += externalReportingSetIds
-            })
+          batchGetReportingSetsRequest {
+            this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+            this.externalReportingSetIds += externalReportingSetIds
+          }
+        )
       } catch (e: StatusException) {
         throw when (e.status.code) {
-              Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription("Reporting Set not found.")
-              else ->
-                  Status.UNKNOWN.withDescription(
-                      "Unable to retrieve ReportingSets used in the requesting metric.")
-            }
-            .withCause(e)
-            .asRuntimeException()
+            Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription("Reporting Set not found.")
+            else ->
+              Status.UNKNOWN.withDescription(
+                "Unable to retrieve ReportingSets used in the requesting metric."
+              )
+          }
+          .withCause(e)
+          .asRuntimeException()
       }
     }
 
     /** Gets a signing certificate x509Der in ByteString. */
     private suspend fun getSigningCertificateDer(
-        principal: MeasurementConsumerPrincipal
+      principal: MeasurementConsumerPrincipal
     ): ByteString {
       val certificate =
-          certificateCache.getValue(
-              ResourceNameApiAuthenticationKey(
-                  name = principal.config.signingCertificateName,
-                  apiAuthenticationKey = principal.config.apiKey,
-              ))
+        certificateCache.getValue(
+          ResourceNameApiAuthenticationKey(
+            name = principal.config.signingCertificateName,
+            apiAuthenticationKey = principal.config.apiKey,
+          )
+        )
 
       return certificate.x509Der
     }
@@ -783,9 +797,9 @@ class MetricsService(
      * @return a boolean to indicate whether any [InternalMeasurement] was updated.
      */
     suspend fun syncInternalMeasurements(
-        internalMeasurements: List<InternalMeasurement>,
-        apiAuthenticationKey: String,
-        principal: MeasurementConsumerPrincipal,
+      internalMeasurements: List<InternalMeasurement>,
+      apiAuthenticationKey: String,
+      principal: MeasurementConsumerPrincipal,
     ): Boolean {
       val failedMeasurements: MutableList<Measurement> = mutableListOf()
 
@@ -802,9 +816,9 @@ class MetricsService(
               Measurement.State.COMPUTING,
               Measurement.State.AWAITING_REQUISITION_FULFILLMENT -> {}
               Measurement.State.STATE_UNSPECIFIED ->
-                  failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
-                    "The CMMS measurement state should've been set."
-                  }
+                failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
+                  "The CMMS measurement state should've been set."
+                }
               Measurement.State.UNRECOGNIZED -> {
                 failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
                   "Unrecognized CMMS measurement state."
@@ -818,14 +832,15 @@ class MetricsService(
       var anyUpdate = false
 
       val callBatchSetInternalMeasurementResultsRpc:
-          suspend (List<Measurement>) -> BatchSetCmmsMeasurementResultsResponse =
-          { items ->
-            batchSetInternalMeasurementResults(items, apiAuthenticationKey, principal)
-          }
-      val count = submitBatchRequests(
-              succeededMeasurements,
-              BATCH_SET_MEASUREMENT_RESULTS_LIMIT,
-              callBatchSetInternalMeasurementResultsRpc,
+        suspend (List<Measurement>) -> BatchSetCmmsMeasurementResultsResponse =
+        { items ->
+          batchSetInternalMeasurementResults(items, apiAuthenticationKey, principal)
+        }
+      val count =
+        submitBatchRequests(
+            succeededMeasurements,
+            BATCH_SET_MEASUREMENT_RESULTS_LIMIT,
+            callBatchSetInternalMeasurementResultsRpc,
           ) { response: BatchSetCmmsMeasurementResultsResponse ->
             response.measurementsList
           }
@@ -839,18 +854,15 @@ class MetricsService(
         val callBatchSetInternalMeasurementFailuresRpc:
           suspend (List<Measurement>) -> BatchSetCmmsMeasurementFailuresResponse =
           { items ->
-            batchSetInternalMeasurementFailures(
-              items,
-              principal.resourceKey.measurementConsumerId,
-            )
+            batchSetInternalMeasurementFailures(items, principal.resourceKey.measurementConsumerId)
           }
         submitBatchRequests(
-          failedMeasurements.asFlow(),
-          BATCH_SET_MEASUREMENT_FAILURES_LIMIT,
-          callBatchSetInternalMeasurementFailuresRpc,
-        ) { response: BatchSetCmmsMeasurementFailuresResponse ->
-          response.measurementsList
-        }
+            failedMeasurements.asFlow(),
+            BATCH_SET_MEASUREMENT_FAILURES_LIMIT,
+            callBatchSetInternalMeasurementFailuresRpc,
+          ) { response: BatchSetCmmsMeasurementFailuresResponse ->
+            response.measurementsList
+          }
           .collect {}
 
         anyUpdate = true
@@ -864,23 +876,24 @@ class MetricsService(
      * failed or canceled CMMS [Measurement]s.
      */
     private suspend fun batchSetInternalMeasurementFailures(
-        failedMeasurementsList: List<Measurement>,
-        cmmsMeasurementConsumerId: String,
+      failedMeasurementsList: List<Measurement>,
+      cmmsMeasurementConsumerId: String,
     ): BatchSetCmmsMeasurementFailuresResponse {
       val batchSetInternalMeasurementFailuresRequest = batchSetMeasurementFailuresRequest {
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
         measurementFailures +=
-            failedMeasurementsList.map { measurement ->
-              measurementFailure {
-                cmmsMeasurementId = MeasurementKey.fromName(measurement.name)!!.measurementId
-                failure = measurement.failure.toInternal()
-              }
+          failedMeasurementsList.map { measurement ->
+            measurementFailure {
+              cmmsMeasurementId = MeasurementKey.fromName(measurement.name)!!.measurementId
+              failure = measurement.failure.toInternal()
             }
+          }
       }
 
       return try {
         internalMeasurementsStub.batchSetMeasurementFailures(
-            batchSetInternalMeasurementFailuresRequest)
+          batchSetInternalMeasurementFailuresRequest
+        )
       } catch (e: StatusException) {
         throw Exception("Unable to set measurement failures for Measurements.", e)
       }
@@ -891,20 +904,20 @@ class MetricsService(
      * given succeeded CMMS [Measurement]s.
      */
     private suspend fun batchSetInternalMeasurementResults(
-        succeededMeasurementsList: List<Measurement>,
-        apiAuthenticationKey: String,
-        principal: MeasurementConsumerPrincipal,
+      succeededMeasurementsList: List<Measurement>,
+      apiAuthenticationKey: String,
+      principal: MeasurementConsumerPrincipal,
     ): BatchSetCmmsMeasurementResultsResponse {
       val batchSetMeasurementResultsRequest = batchSetMeasurementResultsRequest {
         cmmsMeasurementConsumerId = principal.resourceKey.measurementConsumerId
         measurementResults +=
-            succeededMeasurementsList.map { measurement ->
-              buildInternalMeasurementResult(
-                  measurement,
-                  apiAuthenticationKey,
-                  principal.resourceKey.toName(),
-              )
-            }
+          succeededMeasurementsList.map { measurement ->
+            buildInternalMeasurementResult(
+              measurement,
+              apiAuthenticationKey,
+              principal.resourceKey.toName(),
+            )
+          }
       }
 
       return try {
@@ -916,18 +929,18 @@ class MetricsService(
 
     /** Retrieves [Measurement]s from the CMMS. */
     private suspend fun getCmmsMeasurements(
-        internalMeasurements: List<InternalMeasurement>,
-        principal: MeasurementConsumerPrincipal,
+      internalMeasurements: List<InternalMeasurement>,
+      principal: MeasurementConsumerPrincipal,
     ): Flow<List<Measurement>> {
       val measurementNames: Flow<String> = flow {
         buildSet {
           for (internalMeasurement in internalMeasurements) {
             val name =
-                MeasurementKey(
-                        principal.resourceKey.measurementConsumerId,
-                        internalMeasurement.cmmsMeasurementId,
-                    )
-                    .toName()
+              MeasurementKey(
+                  principal.resourceKey.measurementConsumerId,
+                  internalMeasurement.cmmsMeasurementId,
+                )
+                .toName()
 
             if (!contains(name)) {
               emit(name)
@@ -938,14 +951,14 @@ class MetricsService(
       }
 
       val callBatchGetMeasurementsRpc: suspend (List<String>) -> BatchGetMeasurementsResponse =
-          { items ->
-            batchGetCmmsMeasurements(principal, items)
-          }
+        { items ->
+          batchGetCmmsMeasurements(principal, items)
+        }
 
       return submitBatchRequests(
-          measurementNames,
-          BATCH_KINGDOM_MEASUREMENTS_LIMIT,
-          callBatchGetMeasurementsRpc,
+        measurementNames,
+        BATCH_KINGDOM_MEASUREMENTS_LIMIT,
+        callBatchGetMeasurementsRpc,
       ) { response: BatchGetMeasurementsResponse ->
         response.measurementsList
       }
@@ -953,99 +966,103 @@ class MetricsService(
 
     /** Batch get CMMS measurements. */
     private suspend fun batchGetCmmsMeasurements(
-        principal: MeasurementConsumerPrincipal,
-        measurementNames: List<String>,
+      principal: MeasurementConsumerPrincipal,
+      measurementNames: List<String>,
     ): BatchGetMeasurementsResponse {
       try {
         return measurementsStub
-            .withAuthenticationKey(principal.config.apiKey)
-            .batchGetMeasurements(
-                batchGetMeasurementsRequest {
-                  parent = principal.resourceKey.toName()
-                  names += measurementNames
-                })
+          .withAuthenticationKey(principal.config.apiKey)
+          .batchGetMeasurements(
+            batchGetMeasurementsRequest {
+              parent = principal.resourceKey.toName()
+              names += measurementNames
+            }
+          )
       } catch (e: StatusException) {
         throw when (e.status.code) {
-              Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription("Measurements not found.")
-              Status.Code.PERMISSION_DENIED ->
-                  Status.PERMISSION_DENIED.withDescription(
-                      "Doesn't have permission to get measurements.")
-              else -> Status.UNKNOWN.withDescription("Unable to retrieve Measurements.")
-            }
-            .withCause(e)
-            .asRuntimeException()
+            Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription("Measurements not found.")
+            Status.Code.PERMISSION_DENIED ->
+              Status.PERMISSION_DENIED.withDescription(
+                "Doesn't have permission to get measurements."
+              )
+            else -> Status.UNKNOWN.withDescription("Unable to retrieve Measurements.")
+          }
+          .withCause(e)
+          .asRuntimeException()
       }
     }
 
     /** Builds an [InternalMeasurement.Result]. */
     private suspend fun buildInternalMeasurementResult(
-        measurement: Measurement,
-        apiAuthenticationKey: String,
-        principalName: String,
+      measurement: Measurement,
+      apiAuthenticationKey: String,
+      principalName: String,
     ): BatchSetMeasurementResultsRequest.MeasurementResult {
       val measurementSpec: MeasurementSpec = measurement.measurementSpec.unpack()
       val encryptionPrivateKeyHandle =
-          encryptionKeyPairStore.getPrivateKeyHandle(
-              principalName,
-              measurementSpec.measurementPublicKey.unpack<EncryptionPublicKey>().data,
-          )
-              ?: failGrpc(Status.FAILED_PRECONDITION) {
-                "Encryption private key not found for the measurement ${measurement.name}."
-              }
+        encryptionKeyPairStore.getPrivateKeyHandle(
+          principalName,
+          measurementSpec.measurementPublicKey.unpack<EncryptionPublicKey>().data,
+        )
+          ?: failGrpc(Status.FAILED_PRECONDITION) {
+            "Encryption private key not found for the measurement ${measurement.name}."
+          }
 
       val decryptedMeasurementResults: List<Measurement.Result> =
-          measurement.resultsList.map {
-            decryptMeasurementResultOutput(it, encryptionPrivateKeyHandle, apiAuthenticationKey)
-          }
+        measurement.resultsList.map {
+          decryptMeasurementResultOutput(it, encryptionPrivateKeyHandle, apiAuthenticationKey)
+        }
 
       return measurementResult {
         cmmsMeasurementId = MeasurementKey.fromName(measurement.name)!!.measurementId
         results +=
-            decryptedMeasurementResults.map {
-              try {
-                it.toInternal(measurement.protocolConfig)
-              } catch (e: NoiseMechanismUnrecognizedException) {
-                failGrpc(Status.UNKNOWN) {
-                  listOfNotNull("Unrecognized noise mechanism.", e.message, e.cause?.message)
-                      .joinToString(separator = "\n")
-                }
-              } catch (e: Throwable) {
-                failGrpc(Status.UNKNOWN) {
-                  listOfNotNull("Unable to read measurement result.", e.message, e.cause?.message)
-                      .joinToString(separator = "\n")
-                }
+          decryptedMeasurementResults.map {
+            try {
+              it.toInternal(measurement.protocolConfig)
+            } catch (e: NoiseMechanismUnrecognizedException) {
+              failGrpc(Status.UNKNOWN) {
+                listOfNotNull("Unrecognized noise mechanism.", e.message, e.cause?.message)
+                  .joinToString(separator = "\n")
+              }
+            } catch (e: Throwable) {
+              failGrpc(Status.UNKNOWN) {
+                listOfNotNull("Unable to read measurement result.", e.message, e.cause?.message)
+                  .joinToString(separator = "\n")
               }
             }
+          }
       }
     }
 
     /** Decrypts a [Measurement.ResultOutput] to [Measurement.Result] */
     private suspend fun decryptMeasurementResultOutput(
-        measurementResultOutput: Measurement.ResultOutput,
-        encryptionPrivateKeyHandle: PrivateKeyHandle,
-        apiAuthenticationKey: String,
+      measurementResultOutput: Measurement.ResultOutput,
+      encryptionPrivateKeyHandle: PrivateKeyHandle,
+      apiAuthenticationKey: String,
     ): Measurement.Result {
       val certificate =
-          certificateCache.getValue(
-              ResourceNameApiAuthenticationKey(
-                  name = measurementResultOutput.certificate,
-                  apiAuthenticationKey = apiAuthenticationKey,
-              ))
+        certificateCache.getValue(
+          ResourceNameApiAuthenticationKey(
+            name = measurementResultOutput.certificate,
+            apiAuthenticationKey = apiAuthenticationKey,
+          )
+        )
 
       val signedResult =
-          decryptResult(measurementResultOutput.encryptedResult, encryptionPrivateKeyHandle)
+        decryptResult(measurementResultOutput.encryptedResult, encryptionPrivateKeyHandle)
 
       if (certificate.revocationState != Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED) {
         throw Status.FAILED_PRECONDITION.withDescription(
-                "${certificate.name} revocation state is ${certificate.revocationState}")
-            .asRuntimeException()
+            "${certificate.name} revocation state is ${certificate.revocationState}"
+          )
+          .asRuntimeException()
       }
 
       val x509Certificate: X509Certificate = readCertificate(certificate.x509Der)
       val trustedIssuer: X509Certificate =
-          checkNotNull(trustedCertificates[checkNotNull(x509Certificate.authorityKeyIdentifier)]) {
-            "${certificate.name} not issued by trusted CA"
-          }
+        checkNotNull(trustedCertificates[checkNotNull(x509Certificate.authorityKeyIdentifier)]) {
+          "${certificate.name} not issued by trusted CA"
+        }
 
       // TODO: Record verification failure in internal Measurement rather than having the RPC fail.
       try {
@@ -1069,16 +1086,16 @@ class MetricsService(
     private suspend fun getCertificate(name: String, apiAuthenticationKey: String): Certificate {
       return try {
         certificatesStub
-            .withAuthenticationKey(apiAuthenticationKey)
-            .getCertificate(getCertificateRequest { this.name = name })
+          .withAuthenticationKey(apiAuthenticationKey)
+          .getCertificate(getCertificateRequest { this.name = name })
       } catch (e: StatusException) {
         throw when (e.status.code) {
-              Status.Code.NOT_FOUND ->
-                  Status.FAILED_PRECONDITION.withDescription("Certificate $name not found.")
-              else -> Status.UNKNOWN.withDescription("Unable to retrieve Certificate $name.")
-            }
-            .withCause(e)
-            .asRuntimeException()
+            Status.Code.NOT_FOUND ->
+              Status.FAILED_PRECONDITION.withDescription("Certificate $name not found.")
+            else -> Status.UNKNOWN.withDescription("Unable to retrieve Certificate $name.")
+          }
+          .withCause(e)
+          .asRuntimeException()
       }
     }
 
@@ -1093,24 +1110,24 @@ class MetricsService(
     private suspend fun getDataProvider(name: String, apiAuthenticationKey: String): DataProvider {
       return try {
         dataProvidersStub
-            .withAuthenticationKey(apiAuthenticationKey)
-            .getDataProvider(getDataProviderRequest { this.name = name })
+          .withAuthenticationKey(apiAuthenticationKey)
+          .getDataProvider(getDataProviderRequest { this.name = name })
       } catch (e: StatusException) {
         throw when (e.status.code) {
-              Status.Code.NOT_FOUND -> Status.FAILED_PRECONDITION.withDescription("$name not found")
-              else -> Status.UNKNOWN.withDescription("Unable to retrieve $name")
-            }
-            .withCause(e)
-            .asRuntimeException()
+            Status.Code.NOT_FOUND -> Status.FAILED_PRECONDITION.withDescription("$name not found")
+            else -> Status.UNKNOWN.withDescription("Unable to retrieve $name")
+          }
+          .withCause(e)
+          .asRuntimeException()
       }
     }
   }
 
   override suspend fun getMetric(request: GetMetricRequest): Metric {
     val metricKey =
-        grpcRequireNotNull(MetricKey.fromName(request.name)) {
-          "Metric name is either unspecified or invalid."
-        }
+      grpcRequireNotNull(MetricKey.fromName(request.name)) {
+        "Metric name is either unspecified or invalid."
+      }
 
     val principal: ReportingPrincipal = principalFromCurrentContext
     when (principal) {
@@ -1124,7 +1141,7 @@ class MetricsService(
     }
 
     val internalMetric: InternalMetric =
-        getInternalMetric(metricKey.cmmsMeasurementConsumerId, metricKey.metricId)
+      getInternalMetric(metricKey.cmmsMeasurementConsumerId, metricKey.metricId)
 
     // Early exit when the metric is at a terminal state.
     if (internalMetric.state != Metric.State.RUNNING) {
@@ -1133,18 +1150,18 @@ class MetricsService(
 
     // Only syncs pending measurements which can only be in metrics that are still running.
     val toBeSyncedInternalMeasurements: List<InternalMeasurement> =
-        internalMetric.weightedMeasurementsList
-            .map { weightedMeasurement -> weightedMeasurement.measurement }
-            .filter { internalMeasurement ->
-              internalMeasurement.state == InternalMeasurement.State.PENDING
-            }
+      internalMetric.weightedMeasurementsList
+        .map { weightedMeasurement -> weightedMeasurement.measurement }
+        .filter { internalMeasurement ->
+          internalMeasurement.state == InternalMeasurement.State.PENDING
+        }
 
     val anyMeasurementUpdated: Boolean =
-        measurementSupplier.syncInternalMeasurements(
-            toBeSyncedInternalMeasurements,
-            principal.config.apiKey,
-            principal,
-        )
+      measurementSupplier.syncInternalMeasurements(
+        toBeSyncedInternalMeasurements,
+        principal.config.apiKey,
+        principal,
+      )
 
     return if (anyMeasurementUpdated) {
       getInternalMetric(metricKey.cmmsMeasurementConsumerId, metricKey.metricId).toMetric(variances)
@@ -1155,9 +1172,9 @@ class MetricsService(
 
   override suspend fun batchGetMetrics(request: BatchGetMetricsRequest): BatchGetMetricsResponse {
     val parentKey =
-        grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
-          "Parent is either unspecified or invalid."
-        }
+      grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
+        "Parent is either unspecified or invalid."
+      }
 
     val principal: ReportingPrincipal = principalFromCurrentContext
 
@@ -1177,55 +1194,55 @@ class MetricsService(
     }
 
     val metricIds: List<String> =
-        request.namesList.map { metricName ->
-          val metricKey =
-              grpcRequireNotNull(MetricKey.fromName(metricName)) {
-                "Metric name is either unspecified or invalid."
-              }
-          metricKey.metricId
-        }
+      request.namesList.map { metricName ->
+        val metricKey =
+          grpcRequireNotNull(MetricKey.fromName(metricName)) {
+            "Metric name is either unspecified or invalid."
+          }
+        metricKey.metricId
+      }
 
     val internalMetrics: List<InternalMetric> =
-        batchGetInternalMetrics(principal.resourceKey.measurementConsumerId, metricIds)
+      batchGetInternalMetrics(principal.resourceKey.measurementConsumerId, metricIds)
 
     // Only syncs pending measurements which can only be in metrics that are still running.
     val toBeSyncedInternalMeasurements: List<InternalMeasurement> =
-        internalMetrics
-            .filter { internalMetric -> internalMetric.state == Metric.State.RUNNING }
-            .flatMap { internalMetric -> internalMetric.weightedMeasurementsList }
-            .map { weightedMeasurement -> weightedMeasurement.measurement }
-            .filter { internalMeasurement ->
-              internalMeasurement.state == InternalMeasurement.State.PENDING
-            }
+      internalMetrics
+        .filter { internalMetric -> internalMetric.state == Metric.State.RUNNING }
+        .flatMap { internalMetric -> internalMetric.weightedMeasurementsList }
+        .map { weightedMeasurement -> weightedMeasurement.measurement }
+        .filter { internalMeasurement ->
+          internalMeasurement.state == InternalMeasurement.State.PENDING
+        }
 
     val anyMeasurementUpdated: Boolean =
-        measurementSupplier.syncInternalMeasurements(
-            toBeSyncedInternalMeasurements,
-            principal.config.apiKey,
-            principal,
-        )
+      measurementSupplier.syncInternalMeasurements(
+        toBeSyncedInternalMeasurements,
+        principal.config.apiKey,
+        principal,
+      )
 
     return batchGetMetricsResponse {
       metrics +=
-          /**
-           * TODO(@riemanli): a potential improvement can be done by only getting the metrics whose
-           *   measurements are updated. Re-evaluate when a load-test is ready after deployment.
-           */
-          if (anyMeasurementUpdated) {
-            batchGetInternalMetrics(principal.resourceKey.measurementConsumerId, metricIds).map {
-              it.toMetric(variances)
-            }
-          } else {
-            internalMetrics.map { it.toMetric(variances) }
+        /**
+         * TODO(@riemanli): a potential improvement can be done by only getting the metrics whose
+         *   measurements are updated. Re-evaluate when a load-test is ready after deployment.
+         */
+        if (anyMeasurementUpdated) {
+          batchGetInternalMetrics(principal.resourceKey.measurementConsumerId, metricIds).map {
+            it.toMetric(variances)
           }
+        } else {
+          internalMetrics.map { it.toMetric(variances) }
+        }
     }
   }
 
   override suspend fun listMetrics(request: ListMetricsRequest): ListMetricsResponse {
     val parentKey =
-        grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
-          "Parent is either unspecified or invalid."
-        }
+      grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
+        "Parent is either unspecified or invalid."
+      }
 
     val principal: ReportingPrincipal = principalFromCurrentContext
     when (principal) {
@@ -1242,50 +1259,50 @@ class MetricsService(
     val apiAuthenticationKey: String = principal.config.apiKey
 
     val streamInternalMetricRequest: StreamMetricsRequest =
-        listMetricsPageToken.toStreamMetricsRequest()
+      listMetricsPageToken.toStreamMetricsRequest()
 
     val results: List<InternalMetric> =
-        try {
-          internalMetricsStub.streamMetrics(streamInternalMetricRequest).toList()
-        } catch (e: StatusException) {
-          throw Exception("Unable to list Metrics.", e)
-        }
+      try {
+        internalMetricsStub.streamMetrics(streamInternalMetricRequest).toList()
+      } catch (e: StatusException) {
+        throw Exception("Unable to list Metrics.", e)
+      }
 
     if (results.isEmpty()) {
       return ListMetricsResponse.getDefaultInstance()
     }
 
     val nextPageToken: ListMetricsPageToken? =
-        if (results.size > listMetricsPageToken.pageSize) {
-          listMetricsPageToken.copy {
-            lastMetric = previousPageEnd {
-              cmmsMeasurementConsumerId = results[results.lastIndex - 1].cmmsMeasurementConsumerId
-              externalMetricId = results[results.lastIndex - 1].externalMetricId
-            }
+      if (results.size > listMetricsPageToken.pageSize) {
+        listMetricsPageToken.copy {
+          lastMetric = previousPageEnd {
+            cmmsMeasurementConsumerId = results[results.lastIndex - 1].cmmsMeasurementConsumerId
+            externalMetricId = results[results.lastIndex - 1].externalMetricId
           }
-        } else {
-          null
         }
+      } else {
+        null
+      }
 
     val subResults: List<InternalMetric> =
-        results.subList(0, min(results.size, listMetricsPageToken.pageSize))
+      results.subList(0, min(results.size, listMetricsPageToken.pageSize))
 
     // Only syncs pending measurements which can only be in metrics that are still running.
     val toBeSyncedInternalMeasurements: List<InternalMeasurement> =
-        subResults
-            .filter { internalMetric -> internalMetric.state == Metric.State.RUNNING }
-            .flatMap { internalMetric -> internalMetric.weightedMeasurementsList }
-            .map { weightedMeasurement -> weightedMeasurement.measurement }
-            .filter { internalMeasurement ->
-              internalMeasurement.state == InternalMeasurement.State.PENDING
-            }
+      subResults
+        .filter { internalMetric -> internalMetric.state == Metric.State.RUNNING }
+        .flatMap { internalMetric -> internalMetric.weightedMeasurementsList }
+        .map { weightedMeasurement -> weightedMeasurement.measurement }
+        .filter { internalMeasurement ->
+          internalMeasurement.state == InternalMeasurement.State.PENDING
+        }
 
     val anyMeasurementUpdated: Boolean =
-        measurementSupplier.syncInternalMeasurements(
-            toBeSyncedInternalMeasurements,
-            apiAuthenticationKey,
-            principal,
-        )
+      measurementSupplier.syncInternalMeasurements(
+        toBeSyncedInternalMeasurements,
+        apiAuthenticationKey,
+        principal,
+      )
 
     /**
      * If any measurement got updated, pull the list of the up-to-date internal metrics. Otherwise,
@@ -1295,14 +1312,14 @@ class MetricsService(
      *   measurements are updated. Re-evaluate when a load-test is ready after deployment.
      */
     val internalMetrics: List<InternalMetric> =
-        if (anyMeasurementUpdated) {
-          batchGetInternalMetrics(
-              principal.resourceKey.measurementConsumerId,
-              subResults.map { internalMetric -> internalMetric.externalMetricId },
-          )
-        } else {
-          subResults
-        }
+      if (anyMeasurementUpdated) {
+        batchGetInternalMetrics(
+          principal.resourceKey.measurementConsumerId,
+          subResults.map { internalMetric -> internalMetric.externalMetricId },
+        )
+      } else {
+        subResults
+      }
 
     return listMetricsResponse {
       metrics += internalMetrics.map { it.toMetric(variances) }
@@ -1315,8 +1332,8 @@ class MetricsService(
 
   /** Gets a batch of [InternalMetric]s. */
   private suspend fun batchGetInternalMetrics(
-      cmmsMeasurementConsumerId: String,
-      metricIds: List<String>,
+    cmmsMeasurementConsumerId: String,
+    metricIds: List<String>,
   ): List<InternalMetric> {
     val batchGetMetricsRequest = batchGetMetricsRequest {
       this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
@@ -1332,8 +1349,8 @@ class MetricsService(
 
   /** Gets an [InternalMetric]. */
   private suspend fun getInternalMetric(
-      cmmsMeasurementConsumerId: String,
-      metricId: String,
+    cmmsMeasurementConsumerId: String,
+    metricId: String,
   ): InternalMetric {
     return try {
       batchGetInternalMetrics(cmmsMeasurementConsumerId, listOf(metricId)).first()
@@ -1345,9 +1362,9 @@ class MetricsService(
 
   override suspend fun createMetric(request: CreateMetricRequest): Metric {
     val parentKey =
-        grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
-          "Parent is either unspecified or invalid."
-        }
+      grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
+        "Parent is either unspecified or invalid."
+      }
 
     val principal: ReportingPrincipal = principalFromCurrentContext
 
@@ -1362,26 +1379,28 @@ class MetricsService(
     }
 
     val internalCreateMetricRequest: InternalCreateMetricRequest =
-        buildInternalCreateMetricRequest(principal.resourceKey.measurementConsumerId, request)
+      buildInternalCreateMetricRequest(principal.resourceKey.measurementConsumerId, request)
 
     val internalMetric =
-        try {
-          internalMetricsStub.createMetric(internalCreateMetricRequest)
-        } catch (e: StatusException) {
-          throw when (e.status.code) {
-                Status.Code.ALREADY_EXISTS ->
-                    Status.ALREADY_EXISTS.withDescription(
-                        "Metric with ID ${request.metricId} already exists under ${request.parent}")
-                Status.Code.NOT_FOUND ->
-                    Status.NOT_FOUND.withDescription("Reporting set used in the metric not found.")
-                Status.Code.FAILED_PRECONDITION ->
-                    Status.FAILED_PRECONDITION.withDescription(
-                        "Unable to create the metric. The measurement consumer not found.")
-                else -> Status.UNKNOWN.withDescription("Unable to create Metric.")
-              }
-              .withCause(e)
-              .asRuntimeException()
-        }
+      try {
+        internalMetricsStub.createMetric(internalCreateMetricRequest)
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+            Status.Code.ALREADY_EXISTS ->
+              Status.ALREADY_EXISTS.withDescription(
+                "Metric with ID ${request.metricId} already exists under ${request.parent}"
+              )
+            Status.Code.NOT_FOUND ->
+              Status.NOT_FOUND.withDescription("Reporting set used in the metric not found.")
+            Status.Code.FAILED_PRECONDITION ->
+              Status.FAILED_PRECONDITION.withDescription(
+                "Unable to create the metric. The measurement consumer not found."
+              )
+            else -> Status.UNKNOWN.withDescription("Unable to create Metric.")
+          }
+          .withCause(e)
+          .asRuntimeException()
+      }
 
     if (internalMetric.state == Metric.State.RUNNING) {
       measurementSupplier.createCmmsMeasurements(listOf(internalMetric), principal)
@@ -1392,12 +1411,12 @@ class MetricsService(
   }
 
   override suspend fun batchCreateMetrics(
-      request: BatchCreateMetricsRequest
+    request: BatchCreateMetricsRequest
   ): BatchCreateMetricsResponse {
     val parentKey =
-        grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
-          "Parent is either unspecified or invalid."
-        }
+      grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
+        "Parent is either unspecified or invalid."
+      }
 
     val principal: ReportingPrincipal = principalFromCurrentContext
 
@@ -1422,34 +1441,36 @@ class MetricsService(
     }
 
     val internalCreateMetricRequestsList: List<InternalCreateMetricRequest> =
-        request.requestsList.map { createMetricRequest ->
-          buildInternalCreateMetricRequest(parentKey.measurementConsumerId, createMetricRequest)
-        }
+      request.requestsList.map { createMetricRequest ->
+        buildInternalCreateMetricRequest(parentKey.measurementConsumerId, createMetricRequest)
+      }
 
     val internalMetrics =
-        try {
-          internalMetricsStub
-              .batchCreateMetrics(
-                  internalBatchCreateMetricsRequest {
-                    cmmsMeasurementConsumerId = parentKey.measurementConsumerId
-                    requests += internalCreateMetricRequestsList
-                  })
-              .metricsList
-        } catch (e: StatusException) {
-          throw when (e.status.code) {
-                Status.Code.NOT_FOUND ->
-                    Status.NOT_FOUND.withDescription("Reporting set used in metrics not found.")
-                Status.Code.FAILED_PRECONDITION ->
-                    Status.FAILED_PRECONDITION.withDescription(
-                        "Unable to create the metrics. The measurement consumer not found.")
-                else -> Status.UNKNOWN.withDescription("Unable to create Metrics.")
-              }
-              .withCause(e)
-              .asRuntimeException()
-        }
+      try {
+        internalMetricsStub
+          .batchCreateMetrics(
+            internalBatchCreateMetricsRequest {
+              cmmsMeasurementConsumerId = parentKey.measurementConsumerId
+              requests += internalCreateMetricRequestsList
+            }
+          )
+          .metricsList
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+            Status.Code.NOT_FOUND ->
+              Status.NOT_FOUND.withDescription("Reporting set used in metrics not found.")
+            Status.Code.FAILED_PRECONDITION ->
+              Status.FAILED_PRECONDITION.withDescription(
+                "Unable to create the metrics. The measurement consumer not found."
+              )
+            else -> Status.UNKNOWN.withDescription("Unable to create Metrics.")
+          }
+          .withCause(e)
+          .asRuntimeException()
+      }
 
     val internalRunningMetrics =
-        internalMetrics.filter { internalMetric -> internalMetric.state == Metric.State.RUNNING }
+      internalMetrics.filter { internalMetric -> internalMetric.state == Metric.State.RUNNING }
     if (internalRunningMetrics.isNotEmpty()) {
       measurementSupplier.createCmmsMeasurements(internalRunningMetrics, principal)
     }
@@ -1460,8 +1481,8 @@ class MetricsService(
 
   /** Builds an [InternalCreateMetricRequest]. */
   private suspend fun buildInternalCreateMetricRequest(
-      cmmsMeasurementConsumerId: String,
-      request: CreateMetricRequest,
+    cmmsMeasurementConsumerId: String,
+    request: CreateMetricRequest,
   ): InternalCreateMetricRequest {
     grpcRequire(request.hasMetric()) { "Metric is not specified." }
 
@@ -1471,31 +1492,34 @@ class MetricsService(
     }
     grpcRequire(request.metric.hasTimeInterval()) { "Time interval in metric is not specified." }
     grpcRequire(
-        request.metric.timeInterval.startTime.seconds > 0 ||
-            request.metric.timeInterval.startTime.nanos > 0) {
-          "TimeInterval startTime is unspecified."
-        }
+      request.metric.timeInterval.startTime.seconds > 0 ||
+        request.metric.timeInterval.startTime.nanos > 0
+    ) {
+      "TimeInterval startTime is unspecified."
+    }
     grpcRequire(
-        request.metric.timeInterval.endTime.seconds > 0 ||
-            request.metric.timeInterval.endTime.nanos > 0) {
-          "TimeInterval endTime is unspecified."
-        }
+      request.metric.timeInterval.endTime.seconds > 0 ||
+        request.metric.timeInterval.endTime.nanos > 0
+    ) {
+      "TimeInterval endTime is unspecified."
+    }
     grpcRequire(
-        request.metric.timeInterval.endTime.seconds >
-            request.metric.timeInterval.startTime.seconds ||
-            request.metric.timeInterval.endTime.nanos >
-                request.metric.timeInterval.startTime.nanos) {
-          "TimeInterval endTime is not later than startTime."
-        }
+      request.metric.timeInterval.endTime.seconds > request.metric.timeInterval.startTime.seconds ||
+        request.metric.timeInterval.endTime.nanos > request.metric.timeInterval.startTime.nanos
+    ) {
+      "TimeInterval endTime is not later than startTime."
+    }
     grpcRequire(request.metric.hasMetricSpec()) { "Metric spec in metric is not specified." }
 
     val internalReportingSet: InternalReportingSet =
-        getInternalReportingSet(cmmsMeasurementConsumerId, request.metric.reportingSet)
+      getInternalReportingSet(cmmsMeasurementConsumerId, request.metric.reportingSet)
 
     // Utilizes the property of the set expression compilation result -- If the set expression
     // contains only union operators, the compilation result has to be a single component.
-    if (request.metric.metricSpec.hasReachAndFrequency() &&
-        internalReportingSet.weightedSubsetUnionsList.size != 1) {
+    if (
+      request.metric.metricSpec.hasReachAndFrequency() &&
+        internalReportingSet.weightedSubsetUnionsList.size != 1
+    ) {
       failGrpc(Status.INVALID_ARGUMENT) {
         "Reach-and-frequency metrics can only be computed on union-only set expressions."
       }
@@ -1509,22 +1533,22 @@ class MetricsService(
         externalReportingSetId = internalReportingSet.externalReportingSetId
         timeInterval = request.metric.timeInterval
         metricSpec =
-            try {
-              request.metric.metricSpec.withDefaults(metricSpecConfig).toInternal()
-            } catch (e: MetricSpecDefaultsException) {
-              failGrpc(Status.INVALID_ARGUMENT) {
-                listOfNotNull("Invalid metric spec.", e.message, e.cause?.message)
-                    .joinToString(separator = "\n")
-              }
-            } catch (e: Exception) {
-              failGrpc(Status.UNKNOWN) { "Failed to read the metric spec." }
+          try {
+            request.metric.metricSpec.withDefaults(metricSpecConfig).toInternal()
+          } catch (e: MetricSpecDefaultsException) {
+            failGrpc(Status.INVALID_ARGUMENT) {
+              listOfNotNull("Invalid metric spec.", e.message, e.cause?.message)
+                .joinToString(separator = "\n")
             }
+          } catch (e: Exception) {
+            failGrpc(Status.UNKNOWN) { "Failed to read the metric spec." }
+          }
         weightedMeasurements +=
-            buildInitialInternalMeasurements(
-                cmmsMeasurementConsumerId,
-                request.metric,
-                internalReportingSet,
-            )
+          buildInitialInternalMeasurements(
+            cmmsMeasurementConsumerId,
+            request.metric,
+            internalReportingSet,
+          )
         details = InternalMetricKt.details { filters += request.metric.filtersList }
       }
     }
@@ -1532,9 +1556,9 @@ class MetricsService(
 
   /** Builds [InternalMeasurement]s for a [Metric] over an [InternalReportingSet]. */
   private fun buildInitialInternalMeasurements(
-      cmmsMeasurementConsumerId: String,
-      metric: Metric,
-      internalReportingSet: InternalReportingSet,
+    cmmsMeasurementConsumerId: String,
+    metric: Metric,
+    internalReportingSet: InternalReportingSet,
   ): List<WeightedMeasurement> {
     return internalReportingSet.weightedSubsetUnionsList.map { weightedSubsetUnion ->
       weightedMeasurement {
@@ -1544,9 +1568,9 @@ class MetricsService(
           this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
           timeInterval = metric.timeInterval
           this.primitiveReportingSetBases +=
-              weightedSubsetUnion.primitiveReportingSetBasesList.map { primitiveReportingSetBasis ->
-                primitiveReportingSetBasis.copy { filters += metric.filtersList }
-              }
+            weightedSubsetUnion.primitiveReportingSetBasesList.map { primitiveReportingSetBasis ->
+              primitiveReportingSetBasis.copy { filters += metric.filtersList }
+            }
         }
       }
     }
@@ -1554,13 +1578,13 @@ class MetricsService(
 
   /** Gets an [InternalReportingSet] based on a reporting set name. */
   private suspend fun getInternalReportingSet(
-      cmmsMeasurementConsumerId: String,
-      reportingSetName: String,
+    cmmsMeasurementConsumerId: String,
+    reportingSetName: String,
   ): InternalReportingSet {
     val reportingSetKey =
-        grpcRequireNotNull(ReportingSetKey.fromName(reportingSetName)) {
-          "Invalid reporting set name $reportingSetName."
-        }
+      grpcRequireNotNull(ReportingSetKey.fromName(reportingSetName)) {
+        "Invalid reporting set name $reportingSetName."
+      }
 
     if (reportingSetKey.cmmsMeasurementConsumerId != cmmsMeasurementConsumerId) {
       failGrpc(Status.PERMISSION_DENIED) { "No access to the reporting set [$reportingSetName]." }
@@ -1568,17 +1592,18 @@ class MetricsService(
 
     return try {
       internalReportingSetsStub
-          .batchGetReportingSets(
-              batchGetReportingSetsRequest {
-                this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-                this.externalReportingSetIds += reportingSetKey.reportingSetId
-              })
-          .reportingSetsList
-          .first()
+        .batchGetReportingSets(
+          batchGetReportingSetsRequest {
+            this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+            this.externalReportingSetIds += reportingSetKey.reportingSetId
+          }
+        )
+        .reportingSetsList
+        .first()
     } catch (e: StatusException) {
       throw Exception(
-          "Unable to retrieve ReportingSet using the provided name [$reportingSetName].",
-          e,
+        "Unable to retrieve ReportingSet using the provided name [$reportingSetName].",
+        e,
       )
     }
   }
@@ -1595,9 +1620,9 @@ fun ListMetricsRequest.toListMetricsPageToken(): ListMetricsPageToken {
   grpcRequire(source.pageSize >= 0) { "Page size cannot be less than 0." }
 
   val parentKey: MeasurementConsumerKey =
-      grpcRequireNotNull(MeasurementConsumerKey.fromName(source.parent)) {
-        "Parent is either unspecified or invalid."
-      }
+    grpcRequireNotNull(MeasurementConsumerKey.fromName(source.parent)) {
+      "Parent is either unspecified or invalid."
+    }
   val cmmsMeasurementConsumerId = parentKey.measurementConsumerId
 
   return if (pageToken.isNotBlank()) {
@@ -1613,11 +1638,11 @@ fun ListMetricsRequest.toListMetricsPageToken(): ListMetricsPageToken {
   } else {
     listMetricsPageToken {
       pageSize =
-          when {
-            source.pageSize < MIN_PAGE_SIZE -> DEFAULT_PAGE_SIZE
-            source.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
-            else -> source.pageSize
-          }
+        when {
+          source.pageSize < MIN_PAGE_SIZE -> DEFAULT_PAGE_SIZE
+          source.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
+          else -> source.pageSize
+        }
       this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
     }
   }
@@ -1628,13 +1653,13 @@ private fun InternalMetric.toMetric(variances: Variances): Metric {
   val source = this
   return metric {
     name =
-        MetricKey(
-                cmmsMeasurementConsumerId = source.cmmsMeasurementConsumerId,
-                metricId = source.externalMetricId,
-            )
-            .toName()
+      MetricKey(
+          cmmsMeasurementConsumerId = source.cmmsMeasurementConsumerId,
+          metricId = source.externalMetricId,
+        )
+        .toName()
     reportingSet =
-        ReportingSetKey(source.cmmsMeasurementConsumerId, source.externalReportingSetId).toName()
+      ReportingSetKey(source.cmmsMeasurementConsumerId, source.externalReportingSetId).toName()
     timeInterval = source.timeInterval
     metricSpec = source.metricSpec.toMetricSpec()
     filters += source.details.filtersList
@@ -1650,50 +1675,49 @@ private fun InternalMetric.toMetric(variances: Variances): Metric {
 private fun buildMetricResult(metric: InternalMetric, variances: Variances): MetricResult {
   return metricResult {
     cmmsMeasurements +=
-        metric.weightedMeasurementsList.map {
-          MeasurementKey(metric.cmmsMeasurementConsumerId, it.measurement.cmmsMeasurementId)
-              .toName()
-        }
+      metric.weightedMeasurementsList.map {
+        MeasurementKey(metric.cmmsMeasurementConsumerId, it.measurement.cmmsMeasurementId).toName()
+      }
 
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     when (metric.metricSpec.typeCase) {
       InternalMetricSpec.TypeCase.REACH -> {
         reach =
-            calculateReachResult(
-                metric.weightedMeasurementsList,
-                metric.metricSpec.vidSamplingInterval,
-                metric.metricSpec.reach.privacyParams,
-                variances,
-            )
+          calculateReachResult(
+            metric.weightedMeasurementsList,
+            metric.metricSpec.vidSamplingInterval,
+            metric.metricSpec.reach.privacyParams,
+            variances,
+          )
       }
       InternalMetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
         reachAndFrequency = reachAndFrequencyResult {
           reach =
-              calculateReachResult(
-                  metric.weightedMeasurementsList,
-                  metric.metricSpec.vidSamplingInterval,
-                  metric.metricSpec.reachAndFrequency.reachPrivacyParams,
-                  variances,
-              )
+            calculateReachResult(
+              metric.weightedMeasurementsList,
+              metric.metricSpec.vidSamplingInterval,
+              metric.metricSpec.reachAndFrequency.reachPrivacyParams,
+              variances,
+            )
           frequencyHistogram =
-              calculateFrequencyHistogramResults(
-                  metric.weightedMeasurementsList,
-                  metric.metricSpec,
-                  variances,
-              )
+            calculateFrequencyHistogramResults(
+              metric.weightedMeasurementsList,
+              metric.metricSpec,
+              variances,
+            )
         }
       }
       InternalMetricSpec.TypeCase.IMPRESSION_COUNT -> {
         impressionCount =
-            calculateImpressionResult(metric.weightedMeasurementsList, metric.metricSpec, variances)
+          calculateImpressionResult(metric.weightedMeasurementsList, metric.metricSpec, variances)
       }
       InternalMetricSpec.TypeCase.WATCH_DURATION -> {
         watchDuration =
-            calculateWatchDurationResult(
-                metric.weightedMeasurementsList,
-                metric.metricSpec,
-                variances,
-            )
+          calculateWatchDurationResult(
+            metric.weightedMeasurementsList,
+            metric.metricSpec,
+            variances,
+          )
       }
       InternalMetricSpec.TypeCase.POPULATION_COUNT -> {
         populationCount = calculatePopulationResult(metric.weightedMeasurementsList)
@@ -1709,7 +1733,7 @@ private fun buildMetricResult(metric: InternalMetric, variances: Variances): Met
 
 /** Aggregates a list of [InternalMeasurement.Result]s to a [InternalMeasurement.Result] */
 private fun aggregateResults(
-    internalMeasurementResults: List<InternalMeasurement.Result>
+  internalMeasurementResults: List<InternalMeasurement.Result>
 ): InternalMeasurement.Result {
   if (internalMeasurementResults.isEmpty()) {
     failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
@@ -1735,10 +1759,10 @@ private fun aggregateResults(
       }
       for ((frequency, percentage) in result.frequency.relativeFrequencyDistributionMap) {
         val previousTotalReachCount =
-            frequencyDistribution.getOrDefault(frequency, 0.0) * reachValue
+          frequencyDistribution.getOrDefault(frequency, 0.0) * reachValue
         val currentReachCount = percentage * result.reach.value
         frequencyDistribution[frequency] =
-            (previousTotalReachCount + currentReachCount) / (reachValue + result.reach.value)
+          (previousTotalReachCount + currentReachCount) / (reachValue + result.reach.value)
       }
     }
     if (result.hasReach()) {
@@ -1761,16 +1785,16 @@ private fun aggregateResults(
     }
     if (internalMeasurementResults.first().hasFrequency()) {
       this.frequency =
-          InternalMeasurementKt.ResultKt.frequency {
-            relativeFrequencyDistribution.putAll(frequencyDistribution)
-          }
+        InternalMeasurementKt.ResultKt.frequency {
+          relativeFrequencyDistribution.putAll(frequencyDistribution)
+        }
     }
     if (internalMeasurementResults.first().hasImpression()) {
       this.impression = InternalMeasurementKt.ResultKt.impression { value = impressionValue }
     }
     if (internalMeasurementResults.first().hasWatchDuration()) {
       this.watchDuration =
-          InternalMeasurementKt.ResultKt.watchDuration { value = watchDurationValue }
+        InternalMeasurementKt.ResultKt.watchDuration { value = watchDurationValue }
     }
     if (internalMeasurementResults.first().hasPopulation()) {
       this.population = InternalMeasurementKt.ResultKt.population { value = populationValue }
@@ -1780,9 +1804,9 @@ private fun aggregateResults(
 
 /** Calculates the watch duration result from [WeightedMeasurement]s. */
 private fun calculateWatchDurationResult(
-    weightedMeasurements: List<WeightedMeasurement>,
-    metricSpec: InternalMetricSpec,
-    variances: Variances,
+  weightedMeasurements: List<WeightedMeasurement>,
+  metricSpec: InternalMetricSpec,
+  variances: Variances,
 ): MetricResult.WatchDurationResult {
   for (weightedMeasurement in weightedMeasurements) {
     if (weightedMeasurement.measurement.details.resultsList.any { !it.hasWatchDuration() }) {
@@ -1793,24 +1817,24 @@ private fun calculateWatchDurationResult(
   }
   return watchDurationResult {
     val watchDuration: ProtoDuration =
-        weightedMeasurements
-            .map { weightedMeasurement ->
-              aggregateResults(weightedMeasurement.measurement.details.resultsList)
-                  .watchDuration
-                  .value * weightedMeasurement.weight
-            }
-            .reduce { sum, element -> sum + element }
+      weightedMeasurements
+        .map { weightedMeasurement ->
+          aggregateResults(weightedMeasurement.measurement.details.resultsList)
+            .watchDuration
+            .value * weightedMeasurement.weight
+        }
+        .reduce { sum, element -> sum + element }
     value = watchDuration.toDoubleSecond()
 
     // Only compute univariate statistics for union-only operations, i.e. single source measurement.
     if (weightedMeasurements.size == 1) {
       val weightedMeasurement = weightedMeasurements.first()
       val weightedMeasurementVarianceParamsList:
-          List<WeightedWatchDurationMeasurementVarianceParams?> =
-          buildWeightedWatchDurationMeasurementVarianceParamsPerResult(
-              weightedMeasurement,
-              metricSpec,
-          )
+        List<WeightedWatchDurationMeasurementVarianceParams?> =
+        buildWeightedWatchDurationMeasurementVarianceParamsPerResult(
+          weightedMeasurement,
+          metricSpec,
+        )
 
       // If any measurement result contains insufficient data for variance calculation, univariate
       // statistics won't be computed.
@@ -1819,23 +1843,26 @@ private fun calculateWatchDurationResult(
           // Watch duration results in a measurement are independent to each other. The variance is
           // the sum of the variances of each result.
           standardDeviation =
-              sqrt(
-                  weightedMeasurementVarianceParamsList.sumOf { weightedMeasurementVarianceParams ->
-                    try {
-                      variances.computeMetricVariance(
-                          WatchDurationMetricVarianceParams(
-                              listOf(requireNotNull(weightedMeasurementVarianceParams))))
-                    } catch (e: Throwable) {
-                      failGrpc(Status.UNKNOWN) {
-                        listOfNotNull(
-                                "Unable to compute variance of watch duration metric.",
-                                e.message,
-                                e.cause?.message,
-                            )
-                            .joinToString(separator = "\n")
-                      }
-                    }
-                  })
+            sqrt(
+              weightedMeasurementVarianceParamsList.sumOf { weightedMeasurementVarianceParams ->
+                try {
+                  variances.computeMetricVariance(
+                    WatchDurationMetricVarianceParams(
+                      listOf(requireNotNull(weightedMeasurementVarianceParams))
+                    )
+                  )
+                } catch (e: Throwable) {
+                  failGrpc(Status.UNKNOWN) {
+                    listOfNotNull(
+                        "Unable to compute variance of watch duration metric.",
+                        e.message,
+                        e.cause?.message,
+                      )
+                      .joinToString(separator = "\n")
+                  }
+                }
+              }
+            )
         }
       }
     }
@@ -1844,11 +1871,11 @@ private fun calculateWatchDurationResult(
 
 /** Calculates the population result from [WeightedMeasurement]s. */
 private fun calculatePopulationResult(
-    weightedMeasurements: List<WeightedMeasurement>
+  weightedMeasurements: List<WeightedMeasurement>
 ): MetricResult.PopulationCountResult {
   // Only take the first measurement because Population measurements will only have one element.
   val populationResult =
-      aggregateResults(weightedMeasurements.single().measurement.details.resultsList)
+    aggregateResults(weightedMeasurements.single().measurement.details.resultsList)
   return populationCountResult { value = populationResult.population.value }
 }
 
@@ -1864,11 +1891,11 @@ private fun ProtoDuration.toDoubleSecond(): Double {
  * @throws io.grpc.StatusRuntimeException when measurement noise mechanism is unrecognized.
  */
 fun buildWeightedWatchDurationMeasurementVarianceParamsPerResult(
-    weightedMeasurement: WeightedMeasurement,
-    metricSpec: MetricSpec,
+  weightedMeasurement: WeightedMeasurement,
+  metricSpec: MetricSpec,
 ): List<WeightedWatchDurationMeasurementVarianceParams?> {
   val watchDurationResults: List<InternalMeasurement.Result.WatchDuration> =
-      weightedMeasurement.measurement.details.resultsList.map { it.watchDuration }
+    weightedMeasurement.measurement.details.resultsList.map { it.watchDuration }
 
   if (watchDurationResults.isEmpty()) {
     failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
@@ -1878,52 +1905,51 @@ fun buildWeightedWatchDurationMeasurementVarianceParamsPerResult(
 
   return watchDurationResults.map { watchDurationResult ->
     val statsNoiseMechanism: StatsNoiseMechanism =
-        try {
-          watchDurationResult.noiseMechanism.toStatsNoiseMechanism()
-        } catch (e: NoiseMechanismUnspecifiedException) {
-          return@map null
-        } catch (e: NoiseMechanismUnrecognizedException) {
-          failGrpc(Status.UNKNOWN) {
-            listOfNotNull(
-                    "Unrecognized noise mechanism should've been caught earlier.",
-                    e.message,
-                    e.cause?.message,
-                )
-                .joinToString(separator = "\n")
-          }
+      try {
+        watchDurationResult.noiseMechanism.toStatsNoiseMechanism()
+      } catch (e: NoiseMechanismUnspecifiedException) {
+        return@map null
+      } catch (e: NoiseMechanismUnrecognizedException) {
+        failGrpc(Status.UNKNOWN) {
+          listOfNotNull(
+              "Unrecognized noise mechanism should've been caught earlier.",
+              e.message,
+              e.cause?.message,
+            )
+            .joinToString(separator = "\n")
         }
+      }
 
     val methodology: Methodology =
-        try {
-          buildStatsMethodology(watchDurationResult)
-        } catch (e: MeasurementVarianceNotComputableException) {
-          return@map null
-        }
+      try {
+        buildStatsMethodology(watchDurationResult)
+      } catch (e: MeasurementVarianceNotComputableException) {
+        return@map null
+      }
 
     WeightedWatchDurationMeasurementVarianceParams(
-        binaryRepresentation = weightedMeasurement.binaryRepresentation,
-        weight = weightedMeasurement.weight,
-        measurementVarianceParams =
-            WatchDurationMeasurementVarianceParams(
-                duration = max(0.0, watchDurationResult.value.toDoubleSecond()),
-                measurementParams =
-                    WatchDurationMeasurementParams(
-                        vidSamplingInterval =
-                            metricSpec.vidSamplingInterval.toStatsVidSamplingInterval(),
-                        dpParams = metricSpec.watchDuration.privacyParams.toNoiserDpParams(),
-                        maximumDurationPerUser =
-                            metricSpec.watchDuration.maximumWatchDurationPerUser.toDoubleSecond(),
-                        noiseMechanism = statsNoiseMechanism,
-                    ),
+      binaryRepresentation = weightedMeasurement.binaryRepresentation,
+      weight = weightedMeasurement.weight,
+      measurementVarianceParams =
+        WatchDurationMeasurementVarianceParams(
+          duration = max(0.0, watchDurationResult.value.toDoubleSecond()),
+          measurementParams =
+            WatchDurationMeasurementParams(
+              vidSamplingInterval = metricSpec.vidSamplingInterval.toStatsVidSamplingInterval(),
+              dpParams = metricSpec.watchDuration.privacyParams.toNoiserDpParams(),
+              maximumDurationPerUser =
+                metricSpec.watchDuration.maximumWatchDurationPerUser.toDoubleSecond(),
+              noiseMechanism = statsNoiseMechanism,
             ),
-        methodology = methodology,
+        ),
+      methodology = methodology,
     )
   }
 }
 
 /** Builds a [Methodology] from an [InternalMeasurement.Result.WatchDuration]. */
 fun buildStatsMethodology(
-    watchDurationResult: InternalMeasurement.Result.WatchDuration
+  watchDurationResult: InternalMeasurement.Result.WatchDuration
 ): Methodology {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
   return when (watchDurationResult.methodologyCase) {
@@ -1940,7 +1966,8 @@ fun buildStatsMethodology(
         }
         CustomDirectMethodology.Variance.TypeCase.UNAVAILABLE -> {
           throw MeasurementVarianceNotComputableException(
-              "Watch duration computed from a custom methodology doesn't have variance.")
+            "Watch duration computed from a custom methodology doesn't have variance."
+          )
         }
         CustomDirectMethodology.Variance.TypeCase.TYPE_NOT_SET -> {
           failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
@@ -1960,9 +1987,9 @@ fun buildStatsMethodology(
 
 /** Calculates the impression result from [WeightedMeasurement]s. */
 private fun calculateImpressionResult(
-    weightedMeasurements: List<WeightedMeasurement>,
-    metricSpec: InternalMetricSpec,
-    variances: Variances,
+  weightedMeasurements: List<WeightedMeasurement>,
+  metricSpec: InternalMetricSpec,
+  variances: Variances,
 ): MetricResult.ImpressionCountResult {
   for (weightedMeasurement in weightedMeasurements) {
     if (weightedMeasurement.measurement.details.resultsList.any { !it.hasImpression() }) {
@@ -1974,17 +2001,17 @@ private fun calculateImpressionResult(
 
   return impressionCountResult {
     value =
-        weightedMeasurements.sumOf { weightedMeasurement ->
-          aggregateResults(weightedMeasurement.measurement.details.resultsList).impression.value *
-              weightedMeasurement.weight
-        }
+      weightedMeasurements.sumOf { weightedMeasurement ->
+        aggregateResults(weightedMeasurement.measurement.details.resultsList).impression.value *
+          weightedMeasurement.weight
+      }
 
     // Only compute univariate statistics for union-only operations, i.e. single source measurement.
     if (weightedMeasurements.size == 1) {
       val weightedMeasurement = weightedMeasurements.first()
       val weightedMeasurementVarianceParamsList:
-          List<WeightedImpressionMeasurementVarianceParams?> =
-          buildWeightedImpressionMeasurementVarianceParamsPerResult(weightedMeasurement, metricSpec)
+        List<WeightedImpressionMeasurementVarianceParams?> =
+        buildWeightedImpressionMeasurementVarianceParamsPerResult(weightedMeasurement, metricSpec)
 
       // If any measurement result contains insufficient data for variance calculation, univariate
       // statistics won't be computed.
@@ -1993,23 +2020,26 @@ private fun calculateImpressionResult(
           // Impression results in a measurement are independent to each other. The variance is the
           // sum of the variances of each result.
           standardDeviation =
-              sqrt(
-                  weightedMeasurementVarianceParamsList.sumOf { weightedMeasurementVarianceParams ->
-                    try {
-                      variances.computeMetricVariance(
-                          ImpressionMetricVarianceParams(
-                              listOf(requireNotNull(weightedMeasurementVarianceParams))))
-                    } catch (e: Throwable) {
-                      failGrpc(Status.UNKNOWN) {
-                        listOfNotNull(
-                                "Unable to compute variance of impression metric.",
-                                e.message,
-                                e.cause?.message,
-                            )
-                            .joinToString(separator = "\n")
-                      }
-                    }
-                  })
+            sqrt(
+              weightedMeasurementVarianceParamsList.sumOf { weightedMeasurementVarianceParams ->
+                try {
+                  variances.computeMetricVariance(
+                    ImpressionMetricVarianceParams(
+                      listOf(requireNotNull(weightedMeasurementVarianceParams))
+                    )
+                  )
+                } catch (e: Throwable) {
+                  failGrpc(Status.UNKNOWN) {
+                    listOfNotNull(
+                        "Unable to compute variance of impression metric.",
+                        e.message,
+                        e.cause?.message,
+                      )
+                      .joinToString(separator = "\n")
+                  }
+                }
+              }
+            )
         }
       }
     }
@@ -2022,11 +2052,11 @@ private fun calculateImpressionResult(
  * @throws io.grpc.StatusRuntimeException when measurement noise mechanism is unrecognized.
  */
 fun buildWeightedImpressionMeasurementVarianceParamsPerResult(
-    weightedMeasurement: WeightedMeasurement,
-    metricSpec: MetricSpec,
+  weightedMeasurement: WeightedMeasurement,
+  metricSpec: MetricSpec,
 ): List<WeightedImpressionMeasurementVarianceParams?> {
   val impressionResults: List<InternalMeasurement.Result.Impression> =
-      weightedMeasurement.measurement.details.resultsList.map { it.impression }
+    weightedMeasurement.measurement.details.resultsList.map { it.impression }
 
   if (impressionResults.isEmpty()) {
     failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
@@ -2036,45 +2066,43 @@ fun buildWeightedImpressionMeasurementVarianceParamsPerResult(
 
   return impressionResults.map { impressionResult ->
     val statsNoiseMechanism: StatsNoiseMechanism =
-        try {
-          impressionResult.noiseMechanism.toStatsNoiseMechanism()
-        } catch (e: NoiseMechanismUnspecifiedException) {
-          return@map null
-        } catch (e: NoiseMechanismUnrecognizedException) {
-          failGrpc(Status.UNKNOWN) {
-            listOfNotNull(
-                    "Unrecognized noise mechanism should've been caught earlier.",
-                    e.message,
-                    e.cause?.message,
-                )
-                .joinToString(separator = "\n")
-          }
+      try {
+        impressionResult.noiseMechanism.toStatsNoiseMechanism()
+      } catch (e: NoiseMechanismUnspecifiedException) {
+        return@map null
+      } catch (e: NoiseMechanismUnrecognizedException) {
+        failGrpc(Status.UNKNOWN) {
+          listOfNotNull(
+              "Unrecognized noise mechanism should've been caught earlier.",
+              e.message,
+              e.cause?.message,
+            )
+            .joinToString(separator = "\n")
         }
+      }
 
     val methodology: Methodology =
-        try {
-          buildStatsMethodology(impressionResult)
-        } catch (e: MeasurementVarianceNotComputableException) {
-          return@map null
-        }
+      try {
+        buildStatsMethodology(impressionResult)
+      } catch (e: MeasurementVarianceNotComputableException) {
+        return@map null
+      }
 
     WeightedImpressionMeasurementVarianceParams(
-        binaryRepresentation = weightedMeasurement.binaryRepresentation,
-        weight = weightedMeasurement.weight,
-        measurementVarianceParams =
-            ImpressionMeasurementVarianceParams(
-                impression = max(0L, impressionResult.value),
-                measurementParams =
-                    ImpressionMeasurementParams(
-                        vidSamplingInterval =
-                            metricSpec.vidSamplingInterval.toStatsVidSamplingInterval(),
-                        dpParams = metricSpec.impressionCount.privacyParams.toNoiserDpParams(),
-                        maximumFrequencyPerUser =
-                            metricSpec.impressionCount.maximumFrequencyPerUser,
-                        noiseMechanism = statsNoiseMechanism,
-                    ),
+      binaryRepresentation = weightedMeasurement.binaryRepresentation,
+      weight = weightedMeasurement.weight,
+      measurementVarianceParams =
+        ImpressionMeasurementVarianceParams(
+          impression = max(0L, impressionResult.value),
+          measurementParams =
+            ImpressionMeasurementParams(
+              vidSamplingInterval = metricSpec.vidSamplingInterval.toStatsVidSamplingInterval(),
+              dpParams = metricSpec.impressionCount.privacyParams.toNoiserDpParams(),
+              maximumFrequencyPerUser = metricSpec.impressionCount.maximumFrequencyPerUser,
+              noiseMechanism = statsNoiseMechanism,
             ),
-        methodology = methodology,
+        ),
+      methodology = methodology,
     )
   }
 }
@@ -2096,7 +2124,8 @@ fun buildStatsMethodology(impressionResult: InternalMeasurement.Result.Impressio
         }
         CustomDirectMethodology.Variance.TypeCase.UNAVAILABLE -> {
           throw MeasurementVarianceNotComputableException(
-              "Impression computed from a custom methodology doesn't have variance.")
+            "Impression computed from a custom methodology doesn't have variance."
+          )
         }
         CustomDirectMethodology.Variance.TypeCase.TYPE_NOT_SET -> {
           failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
@@ -2116,35 +2145,37 @@ fun buildStatsMethodology(impressionResult: InternalMeasurement.Result.Impressio
 
 /** Calculates the frequency histogram result from [WeightedMeasurement]s. */
 private fun calculateFrequencyHistogramResults(
-    weightedMeasurements: List<WeightedMeasurement>,
-    metricSpec: InternalMetricSpec,
-    variances: Variances,
+  weightedMeasurements: List<WeightedMeasurement>,
+  metricSpec: InternalMetricSpec,
+  variances: Variances,
 ): MetricResult.HistogramResult {
   val aggregatedFrequencyHistogramMap: MutableMap<Long, Double> =
-      weightedMeasurements
-          .map { weightedMeasurement ->
-            if (weightedMeasurement.measurement.details.resultsList.any {
-              !it.hasReach() || !it.hasFrequency()
-            }) {
-              failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
-                "Reach-Frequency measurement is missing."
-              }
-            }
-            val result = aggregateResults(weightedMeasurement.measurement.details.resultsList)
-            val reach = result.reach.value
-            result.frequency.relativeFrequencyDistributionMap.mapValues { (_, rate) ->
-              rate * weightedMeasurement.weight * reach
-            }
+    weightedMeasurements
+      .map { weightedMeasurement ->
+        if (
+          weightedMeasurement.measurement.details.resultsList.any {
+            !it.hasReach() || !it.hasFrequency()
           }
-          .fold(mutableMapOf<Long, Double>().withDefault { 0.0 }) {
-              aggregatedFrequencyHistogramMap: MutableMap<Long, Double>,
-              weightedFrequencyHistogramMap ->
-            for ((frequency, count) in weightedFrequencyHistogramMap) {
-              aggregatedFrequencyHistogramMap[frequency] =
-                  aggregatedFrequencyHistogramMap.getValue(frequency) + count
-            }
-            aggregatedFrequencyHistogramMap
+        ) {
+          failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
+            "Reach-Frequency measurement is missing."
           }
+        }
+        val result = aggregateResults(weightedMeasurement.measurement.details.resultsList)
+        val reach = result.reach.value
+        result.frequency.relativeFrequencyDistributionMap.mapValues { (_, rate) ->
+          rate * weightedMeasurement.weight * reach
+        }
+      }
+      .fold(mutableMapOf<Long, Double>().withDefault { 0.0 }) {
+        aggregatedFrequencyHistogramMap: MutableMap<Long, Double>,
+        weightedFrequencyHistogramMap ->
+        for ((frequency, count) in weightedFrequencyHistogramMap) {
+          aggregatedFrequencyHistogramMap[frequency] =
+            aggregatedFrequencyHistogramMap.getValue(frequency) + count
+        }
+        aggregatedFrequencyHistogramMap
+      }
 
   // Fill the buckets that don't have any count with zeros.
   for (frequency in (1L..metricSpec.reachAndFrequency.maximumFrequency)) {
@@ -2154,55 +2185,56 @@ private fun calculateFrequencyHistogramResults(
   }
 
   val weightedMeasurementVarianceParamsList: List<WeightedFrequencyMeasurementVarianceParams> =
-      weightedMeasurements.mapNotNull { weightedMeasurement ->
-        buildWeightedFrequencyMeasurementVarianceParams(weightedMeasurement, metricSpec, variances)
-      }
+    weightedMeasurements.mapNotNull { weightedMeasurement ->
+      buildWeightedFrequencyMeasurementVarianceParams(weightedMeasurement, metricSpec, variances)
+    }
 
   val frequencyVariances: FrequencyVariances? =
-      if (weightedMeasurementVarianceParamsList.size == weightedMeasurements.size) {
-        try {
-          variances.computeMetricVariance(
-              FrequencyMetricVarianceParams(weightedMeasurementVarianceParamsList))
-        } catch (e: Throwable) {
-          failGrpc(Status.UNKNOWN) {
-            listOfNotNull(
-                    "Unable to compute variance of reach-frequency metric.",
-                    e.message,
-                    e.cause?.message,
-                )
-                .joinToString(separator = "\n")
-          }
+    if (weightedMeasurementVarianceParamsList.size == weightedMeasurements.size) {
+      try {
+        variances.computeMetricVariance(
+          FrequencyMetricVarianceParams(weightedMeasurementVarianceParamsList)
+        )
+      } catch (e: Throwable) {
+        failGrpc(Status.UNKNOWN) {
+          listOfNotNull(
+              "Unable to compute variance of reach-frequency metric.",
+              e.message,
+              e.cause?.message,
+            )
+            .joinToString(separator = "\n")
         }
-      } else {
-        null
       }
+    } else {
+      null
+    }
 
   return histogramResult {
     bins +=
-        aggregatedFrequencyHistogramMap.map { (frequency, count) ->
-          bin {
-            label = frequency.toString()
-            binResult = binResult { value = count }
-            if (frequencyVariances != null) {
-              resultUnivariateStatistics = univariateStatistics {
-                standardDeviation =
-                    sqrt(frequencyVariances.countVariances.getValue(frequency.toInt()))
-              }
-              relativeUnivariateStatistics = univariateStatistics {
-                standardDeviation =
-                    sqrt(frequencyVariances.relativeVariances.getValue(frequency.toInt()))
-              }
-              kPlusUnivariateStatistics = univariateStatistics {
-                standardDeviation =
-                    sqrt(frequencyVariances.kPlusCountVariances.getValue(frequency.toInt()))
-              }
-              relativeKPlusUnivariateStatistics = univariateStatistics {
-                standardDeviation =
-                    sqrt(frequencyVariances.kPlusRelativeVariances.getValue(frequency.toInt()))
-              }
+      aggregatedFrequencyHistogramMap.map { (frequency, count) ->
+        bin {
+          label = frequency.toString()
+          binResult = binResult { value = count }
+          if (frequencyVariances != null) {
+            resultUnivariateStatistics = univariateStatistics {
+              standardDeviation =
+                sqrt(frequencyVariances.countVariances.getValue(frequency.toInt()))
+            }
+            relativeUnivariateStatistics = univariateStatistics {
+              standardDeviation =
+                sqrt(frequencyVariances.relativeVariances.getValue(frequency.toInt()))
+            }
+            kPlusUnivariateStatistics = univariateStatistics {
+              standardDeviation =
+                sqrt(frequencyVariances.kPlusCountVariances.getValue(frequency.toInt()))
+            }
+            relativeKPlusUnivariateStatistics = univariateStatistics {
+              standardDeviation =
+                sqrt(frequencyVariances.kPlusRelativeVariances.getValue(frequency.toInt()))
             }
           }
         }
+      }
   }
 }
 
@@ -2214,83 +2246,81 @@ private fun calculateFrequencyHistogramResults(
  * @throws io.grpc.StatusRuntimeException when measurement noise mechanism is unrecognized.
  */
 fun buildWeightedFrequencyMeasurementVarianceParams(
-    weightedMeasurement: WeightedMeasurement,
-    metricSpec: MetricSpec,
-    variances: Variances,
+  weightedMeasurement: WeightedMeasurement,
+  metricSpec: MetricSpec,
+  variances: Variances,
 ): WeightedFrequencyMeasurementVarianceParams? {
   // Get reach measurement variance params
   val weightedReachMeasurementVarianceParams: WeightedReachMeasurementVarianceParams =
-      buildWeightedReachMeasurementVarianceParams(
-          weightedMeasurement,
-          metricSpec.vidSamplingInterval,
-          metricSpec.reachAndFrequency.reachPrivacyParams,
-      ) ?: return null
+    buildWeightedReachMeasurementVarianceParams(
+      weightedMeasurement,
+      metricSpec.vidSamplingInterval,
+      metricSpec.reachAndFrequency.reachPrivacyParams,
+    ) ?: return null
 
   val reachMeasurementVariance: Double =
-      variances.computeMeasurementVariance(
-          weightedReachMeasurementVarianceParams.methodology,
-          ReachMeasurementVarianceParams(
-              weightedReachMeasurementVarianceParams.measurementVarianceParams.reach,
-              weightedReachMeasurementVarianceParams.measurementVarianceParams.measurementParams,
-          ),
-      )
+    variances.computeMeasurementVariance(
+      weightedReachMeasurementVarianceParams.methodology,
+      ReachMeasurementVarianceParams(
+        weightedReachMeasurementVarianceParams.measurementVarianceParams.reach,
+        weightedReachMeasurementVarianceParams.measurementVarianceParams.measurementParams,
+      ),
+    )
 
   val frequencyResult: InternalMeasurement.Result.Frequency =
-      if (weightedMeasurement.measurement.details.resultsList.size == 1) {
-        weightedMeasurement.measurement.details.resultsList.first().frequency
-      } else if (weightedMeasurement.measurement.details.resultsList.size > 1) {
-        failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
-          "No supported methodology generates more than one frequency result."
-        }
-      } else {
-        failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
-          "Frequency measurement should've had frequency results."
-        }
+    if (weightedMeasurement.measurement.details.resultsList.size == 1) {
+      weightedMeasurement.measurement.details.resultsList.first().frequency
+    } else if (weightedMeasurement.measurement.details.resultsList.size > 1) {
+      failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
+        "No supported methodology generates more than one frequency result."
       }
+    } else {
+      failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
+        "Frequency measurement should've had frequency results."
+      }
+    }
 
   val frequencyStatsNoiseMechanism: StatsNoiseMechanism =
-      try {
-        frequencyResult.noiseMechanism.toStatsNoiseMechanism()
-      } catch (e: NoiseMechanismUnspecifiedException) {
-        return null
-      } catch (e: NoiseMechanismUnrecognizedException) {
-        failGrpc(Status.UNKNOWN) {
-          listOfNotNull(
-                  "Unrecognized noise mechanism should've been caught earlier.",
-                  e.message,
-                  e.cause?.message,
-              )
-              .joinToString(separator = "\n")
-        }
+    try {
+      frequencyResult.noiseMechanism.toStatsNoiseMechanism()
+    } catch (e: NoiseMechanismUnspecifiedException) {
+      return null
+    } catch (e: NoiseMechanismUnrecognizedException) {
+      failGrpc(Status.UNKNOWN) {
+        listOfNotNull(
+            "Unrecognized noise mechanism should've been caught earlier.",
+            e.message,
+            e.cause?.message,
+          )
+          .joinToString(separator = "\n")
       }
+    }
 
   val frequencyMethodology: Methodology =
-      try {
-        buildStatsMethodology(frequencyResult)
-      } catch (e: MeasurementVarianceNotComputableException) {
-        return null
-      }
+    try {
+      buildStatsMethodology(frequencyResult)
+    } catch (e: MeasurementVarianceNotComputableException) {
+      return null
+    }
 
   return WeightedFrequencyMeasurementVarianceParams(
-      binaryRepresentation = weightedMeasurement.binaryRepresentation,
-      weight = weightedMeasurement.weight,
-      measurementVarianceParams =
-          FrequencyMeasurementVarianceParams(
-              totalReach = weightedReachMeasurementVarianceParams.measurementVarianceParams.reach,
-              reachMeasurementVariance = reachMeasurementVariance,
-              relativeFrequencyDistribution =
-                  frequencyResult.relativeFrequencyDistributionMap.mapKeys { it.key.toInt() },
-              measurementParams =
-                  FrequencyMeasurementParams(
-                      vidSamplingInterval =
-                          metricSpec.vidSamplingInterval.toStatsVidSamplingInterval(),
-                      dpParams =
-                          metricSpec.reachAndFrequency.frequencyPrivacyParams.toNoiserDpParams(),
-                      noiseMechanism = frequencyStatsNoiseMechanism,
-                      maximumFrequency = metricSpec.reachAndFrequency.maximumFrequency,
-                  ),
+    binaryRepresentation = weightedMeasurement.binaryRepresentation,
+    weight = weightedMeasurement.weight,
+    measurementVarianceParams =
+      FrequencyMeasurementVarianceParams(
+        totalReach = weightedReachMeasurementVarianceParams.measurementVarianceParams.reach,
+        reachMeasurementVariance = reachMeasurementVariance,
+        relativeFrequencyDistribution =
+          frequencyResult.relativeFrequencyDistributionMap.mapKeys { it.key.toInt() },
+        measurementParams =
+          FrequencyMeasurementParams(
+            vidSamplingInterval = metricSpec.vidSamplingInterval.toStatsVidSamplingInterval(),
+            dpParams = metricSpec.reachAndFrequency.frequencyPrivacyParams.toNoiserDpParams(),
+            noiseMechanism = frequencyStatsNoiseMechanism,
+            maximumFrequency = metricSpec.reachAndFrequency.maximumFrequency,
           ),
-      methodology = frequencyMethodology,
+      ),
+    methodology = frequencyMethodology,
   )
 }
 
@@ -2308,17 +2338,18 @@ fun buildStatsMethodology(frequencyResult: InternalMeasurement.Result.Frequency)
         }
         CustomDirectMethodology.Variance.TypeCase.FREQUENCY -> {
           CustomDirectFrequencyMethodology(
-              frequencyResult.customDirectMethodology.variance.frequency.variancesMap.mapKeys {
-                it.key.toInt()
-              },
-              frequencyResult.customDirectMethodology.variance.frequency.kPlusVariancesMap.mapKeys {
-                it.key.toInt()
-              },
+            frequencyResult.customDirectMethodology.variance.frequency.variancesMap.mapKeys {
+              it.key.toInt()
+            },
+            frequencyResult.customDirectMethodology.variance.frequency.kPlusVariancesMap.mapKeys {
+              it.key.toInt()
+            },
           )
         }
         CustomDirectMethodology.Variance.TypeCase.UNAVAILABLE -> {
           throw MeasurementVarianceNotComputableException(
-              "Frequency computed from a custom methodology doesn't have variance.")
+            "Frequency computed from a custom methodology doesn't have variance."
+          )
         }
         CustomDirectMethodology.Variance.TypeCase.TYPE_NOT_SET -> {
           failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
@@ -2332,16 +2363,15 @@ fun buildStatsMethodology(frequencyResult: InternalMeasurement.Result.Frequency)
     }
     InternalMeasurement.Result.Frequency.MethodologyCase.LIQUID_LEGIONS_DISTRIBUTION -> {
       LiquidLegionsSketchMethodology(
-          decayRate = frequencyResult.liquidLegionsDistribution.decayRate,
-          sketchSize = frequencyResult.liquidLegionsDistribution.maxSize,
+        decayRate = frequencyResult.liquidLegionsDistribution.decayRate,
+        sketchSize = frequencyResult.liquidLegionsDistribution.maxSize,
       )
     }
     InternalMeasurement.Result.Frequency.MethodologyCase.LIQUID_LEGIONS_V2 -> {
       LiquidLegionsV2Methodology(
-          decayRate = frequencyResult.liquidLegionsV2.sketchParams.decayRate,
-          sketchSize = frequencyResult.liquidLegionsV2.sketchParams.maxSize,
-          samplingIndicatorSize =
-              frequencyResult.liquidLegionsV2.sketchParams.samplingIndicatorSize,
+        decayRate = frequencyResult.liquidLegionsV2.sketchParams.decayRate,
+        sketchSize = frequencyResult.liquidLegionsV2.sketchParams.maxSize,
+        samplingIndicatorSize = frequencyResult.liquidLegionsV2.sketchParams.samplingIndicatorSize,
       )
     }
     InternalMeasurement.Result.Frequency.MethodologyCase.METHODOLOGY_NOT_SET -> {
@@ -2352,10 +2382,10 @@ fun buildStatsMethodology(frequencyResult: InternalMeasurement.Result.Frequency)
 
 /** Calculates the reach result from [WeightedMeasurement]s. */
 private fun calculateReachResult(
-    weightedMeasurements: List<WeightedMeasurement>,
-    vidSamplingInterval: InternalMetricSpec.VidSamplingInterval,
-    privacyParams: InternalMetricSpec.DifferentialPrivacyParams,
-    variances: Variances,
+  weightedMeasurements: List<WeightedMeasurement>,
+  vidSamplingInterval: InternalMetricSpec.VidSamplingInterval,
+  privacyParams: InternalMetricSpec.DifferentialPrivacyParams,
+  variances: Variances,
 ): MetricResult.ReachResult {
   for (weightedMeasurement in weightedMeasurements) {
     if (weightedMeasurement.measurement.details.resultsList.any { !it.hasReach() }) {
@@ -2367,39 +2397,41 @@ private fun calculateReachResult(
 
   return reachResult {
     value =
-        weightedMeasurements.sumOf { weightedMeasurement ->
-          aggregateResults(weightedMeasurement.measurement.details.resultsList).reach.value *
-              weightedMeasurement.weight
-        }
+      weightedMeasurements.sumOf { weightedMeasurement ->
+        aggregateResults(weightedMeasurement.measurement.details.resultsList).reach.value *
+          weightedMeasurement.weight
+      }
 
     val weightedMeasurementVarianceParamsList: List<WeightedReachMeasurementVarianceParams> =
-        weightedMeasurements.mapNotNull { weightedMeasurement ->
-          buildWeightedReachMeasurementVarianceParams(
-              weightedMeasurement,
-              vidSamplingInterval,
-              privacyParams,
-          )
-        }
+      weightedMeasurements.mapNotNull { weightedMeasurement ->
+        buildWeightedReachMeasurementVarianceParams(
+          weightedMeasurement,
+          vidSamplingInterval,
+          privacyParams,
+        )
+      }
 
     // If any measurement contains insufficient data for variance calculation, univariate statistics
     // won't be computed.
     if (weightedMeasurementVarianceParamsList.size == weightedMeasurements.size) {
       univariateStatistics = univariateStatistics {
         standardDeviation =
-            sqrt(
-                try {
-                  variances.computeMetricVariance(
-                      ReachMetricVarianceParams(weightedMeasurementVarianceParamsList))
-                } catch (e: Throwable) {
-                  failGrpc(Status.UNKNOWN) {
-                    listOfNotNull(
-                            "Unable to compute variance of reach metric.",
-                            e.message,
-                            e.cause?.message,
-                        )
-                        .joinToString(separator = "\n")
-                  }
-                })
+          sqrt(
+            try {
+              variances.computeMetricVariance(
+                ReachMetricVarianceParams(weightedMeasurementVarianceParamsList)
+              )
+            } catch (e: Throwable) {
+              failGrpc(Status.UNKNOWN) {
+                listOfNotNull(
+                    "Unable to compute variance of reach metric.",
+                    e.message,
+                    e.cause?.message,
+                  )
+                  .joinToString(separator = "\n")
+              }
+            }
+          )
       }
     }
   }
@@ -2413,60 +2445,60 @@ private fun calculateReachResult(
  * @throws io.grpc.StatusRuntimeException when measurement noise mechanism is unrecognized.
  */
 private fun buildWeightedReachMeasurementVarianceParams(
-    weightedMeasurement: WeightedMeasurement,
-    vidSamplingInterval: InternalMetricSpec.VidSamplingInterval,
-    privacyParams: InternalMetricSpec.DifferentialPrivacyParams,
+  weightedMeasurement: WeightedMeasurement,
+  vidSamplingInterval: InternalMetricSpec.VidSamplingInterval,
+  privacyParams: InternalMetricSpec.DifferentialPrivacyParams,
 ): WeightedReachMeasurementVarianceParams? {
   val reachResult =
-      if (weightedMeasurement.measurement.details.resultsList.size == 1) {
-        weightedMeasurement.measurement.details.resultsList.first().reach
-      } else if (weightedMeasurement.measurement.details.resultsList.size > 1) {
-        failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
-          "No supported methodology generates more than one reach result."
-        }
-      } else {
-        failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
-          "Reach measurement should've had reach results."
-        }
+    if (weightedMeasurement.measurement.details.resultsList.size == 1) {
+      weightedMeasurement.measurement.details.resultsList.first().reach
+    } else if (weightedMeasurement.measurement.details.resultsList.size > 1) {
+      failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
+        "No supported methodology generates more than one reach result."
       }
+    } else {
+      failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
+        "Reach measurement should've had reach results."
+      }
+    }
 
   val statsNoiseMechanism: StatsNoiseMechanism =
-      try {
-        reachResult.noiseMechanism.toStatsNoiseMechanism()
-      } catch (e: NoiseMechanismUnspecifiedException) {
-        return null
-      } catch (e: NoiseMechanismUnrecognizedException) {
-        failGrpc(Status.UNKNOWN) {
-          listOfNotNull(
-                  "Unrecognized noise mechanism should've been caught earlier.",
-                  e.message,
-                  e.cause?.message,
-              )
-              .joinToString(separator = "\n")
-        }
+    try {
+      reachResult.noiseMechanism.toStatsNoiseMechanism()
+    } catch (e: NoiseMechanismUnspecifiedException) {
+      return null
+    } catch (e: NoiseMechanismUnrecognizedException) {
+      failGrpc(Status.UNKNOWN) {
+        listOfNotNull(
+            "Unrecognized noise mechanism should've been caught earlier.",
+            e.message,
+            e.cause?.message,
+          )
+          .joinToString(separator = "\n")
       }
+    }
 
   val methodology: Methodology =
-      try {
-        buildStatsMethodology(reachResult)
-      } catch (e: MeasurementVarianceNotComputableException) {
-        return null
-      }
+    try {
+      buildStatsMethodology(reachResult)
+    } catch (e: MeasurementVarianceNotComputableException) {
+      return null
+    }
 
   return WeightedReachMeasurementVarianceParams(
-      binaryRepresentation = weightedMeasurement.binaryRepresentation,
-      weight = weightedMeasurement.weight,
-      measurementVarianceParams =
-          ReachMeasurementVarianceParams(
-              reach = max(0L, reachResult.value),
-              measurementParams =
-                  ReachMeasurementParams(
-                      vidSamplingInterval = vidSamplingInterval.toStatsVidSamplingInterval(),
-                      dpParams = privacyParams.toNoiserDpParams(),
-                      noiseMechanism = statsNoiseMechanism,
-                  ),
+    binaryRepresentation = weightedMeasurement.binaryRepresentation,
+    weight = weightedMeasurement.weight,
+    measurementVarianceParams =
+      ReachMeasurementVarianceParams(
+        reach = max(0L, reachResult.value),
+        measurementParams =
+          ReachMeasurementParams(
+            vidSamplingInterval = vidSamplingInterval.toStatsVidSamplingInterval(),
+            dpParams = privacyParams.toNoiserDpParams(),
+            noiseMechanism = statsNoiseMechanism,
           ),
-      methodology = methodology,
+      ),
+    methodology = methodology,
   )
 }
 
@@ -2487,7 +2519,8 @@ fun buildStatsMethodology(reachResult: InternalMeasurement.Result.Reach): Method
         }
         CustomDirectMethodology.Variance.TypeCase.UNAVAILABLE -> {
           throw MeasurementVarianceNotComputableException(
-              "Reach computed from a custom methodology doesn't have variance.")
+            "Reach computed from a custom methodology doesn't have variance."
+          )
         }
         CustomDirectMethodology.Variance.TypeCase.TYPE_NOT_SET -> {
           failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
@@ -2501,22 +2534,22 @@ fun buildStatsMethodology(reachResult: InternalMeasurement.Result.Reach): Method
     }
     InternalMeasurement.Result.Reach.MethodologyCase.LIQUID_LEGIONS_COUNT_DISTINCT -> {
       LiquidLegionsSketchMethodology(
-          decayRate = reachResult.liquidLegionsCountDistinct.decayRate,
-          sketchSize = reachResult.liquidLegionsCountDistinct.maxSize,
+        decayRate = reachResult.liquidLegionsCountDistinct.decayRate,
+        sketchSize = reachResult.liquidLegionsCountDistinct.maxSize,
       )
     }
     InternalMeasurement.Result.Reach.MethodologyCase.LIQUID_LEGIONS_V2 -> {
       LiquidLegionsV2Methodology(
-          decayRate = reachResult.liquidLegionsV2.sketchParams.decayRate,
-          sketchSize = reachResult.liquidLegionsV2.sketchParams.maxSize,
-          samplingIndicatorSize = reachResult.liquidLegionsV2.sketchParams.samplingIndicatorSize,
+        decayRate = reachResult.liquidLegionsV2.sketchParams.decayRate,
+        sketchSize = reachResult.liquidLegionsV2.sketchParams.maxSize,
+        samplingIndicatorSize = reachResult.liquidLegionsV2.sketchParams.samplingIndicatorSize,
       )
     }
     InternalMeasurement.Result.Reach.MethodologyCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
       LiquidLegionsV2Methodology(
-          decayRate = reachResult.reachOnlyLiquidLegionsV2.sketchParams.decayRate,
-          sketchSize = reachResult.reachOnlyLiquidLegionsV2.sketchParams.maxSize,
-          samplingIndicatorSize = 0L,
+        decayRate = reachResult.reachOnlyLiquidLegionsV2.sketchParams.decayRate,
+        sketchSize = reachResult.reachOnlyLiquidLegionsV2.sketchParams.maxSize,
+        samplingIndicatorSize = 0L,
       )
     }
     InternalMeasurement.Result.Reach.MethodologyCase.METHODOLOGY_NOT_SET -> {
@@ -2529,7 +2562,7 @@ private operator fun ProtoDuration.times(weight: Int): ProtoDuration {
   val source = this
   return duration {
     val weightedTotalNanos: Long =
-        (TimeUnit.SECONDS.toNanos(source.seconds) + source.nanos) * weight
+      (TimeUnit.SECONDS.toNanos(source.seconds) + source.nanos) * weight
     seconds = TimeUnit.NANOSECONDS.toSeconds(weightedTotalNanos)
     nanos = (weightedTotalNanos % NANOS_PER_SECOND).toInt()
   }

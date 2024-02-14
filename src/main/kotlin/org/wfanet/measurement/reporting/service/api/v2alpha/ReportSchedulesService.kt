@@ -33,6 +33,7 @@ import java.time.ZonedDateTime
 import java.time.temporal.TemporalAdjusters
 import java.time.zone.ZoneRulesException
 import kotlin.math.min
+import kotlinx.coroutines.flow.asFlow
 import org.projectnessie.cel.Env
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -67,7 +68,6 @@ import org.wfanet.measurement.internal.reporting.v2.getReportScheduleRequest
 import org.wfanet.measurement.internal.reporting.v2.listReportSchedulesRequest
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.internal.reporting.v2.reportSchedule as internalReportSchedule
-import kotlinx.coroutines.flow.asFlow
 import org.wfanet.measurement.internal.reporting.v2.stopReportScheduleRequest
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.v2alpha.CreateReportScheduleRequest
@@ -673,8 +673,11 @@ class ReportSchedulesService(
       while (externalReportingSetIdSet.isNotEmpty()) {
         retrievedExternalReportingSetIdSet.addAll(externalReportingSetIdSet)
 
-        submitBatchRequests(externalReportingSetIdSet.asFlow(), BATCH_GET_REPORTING_SETS_LIMIT, callRpc) {
-            response ->
+        submitBatchRequests(
+            externalReportingSetIdSet.asFlow(),
+            BATCH_GET_REPORTING_SETS_LIMIT,
+            callRpc,
+          ) { response ->
             externalReportingSetIdSet.clear()
             response.reportingSetsList
           }
