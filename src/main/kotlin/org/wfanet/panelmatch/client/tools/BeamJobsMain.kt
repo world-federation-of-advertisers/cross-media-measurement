@@ -68,10 +68,10 @@ import software.amazon.awssdk.services.s3.S3AsyncClient
 private const val BUFFER_SIZE_BYTES = 32 * 1024 * 1024 // 32MiB
 
 @Command(
-  name = "parse-decrypted-event-data",
-  description = ["Parses the decrypted event data produced by an exchange."],
+  name = "beam-jobs-main",
+  description = ["Runs a singleton Beam task produced by an exchange."],
 )
-class DecryptPrivateMembershipQueryResults : Runnable {
+class BeamJobsMain : Runnable {
 
   @Spec lateinit var spec: CommandSpec
 
@@ -97,22 +97,21 @@ class DecryptPrivateMembershipQueryResults : Runnable {
     names = ["--exchange-step-file"],
     description =
       [
-        "The decrypt exchange step to run. Can be made manually, or serialized from " +
+        "The exchange step to run. Can be made manually, or serialized from " +
         "an existing workflow."
       ],
     required = true,
   )
   private lateinit var exchangeStepFile: File
 
-  private val decryptStep by lazy { ExchangeStep.parseFrom(exchangeStepFile.readBytes()) }
+  private val beamStep by lazy { ExchangeStep.parseFrom(exchangeStepFile.readBytes()) }
 
   @Option(
     names = ["--exchange-step-attempt-id"],
     description =
       [
-        "Resource ID for the decrypt exchange step attempt. If not tied to an " +
-        "existing exchange, the only reason to set this is to keep track of your own " +
-        "attempt counts."
+        "Resource ID for the exchange step attempt. If not tied to an existing exchange, the " +
+        "only reason to set this is to keep track of your own attempt counts."
       ],
     required = true,
     defaultValue = "A",
@@ -120,10 +119,10 @@ class DecryptPrivateMembershipQueryResults : Runnable {
   private lateinit var exchangeStepAttemptId: String
 
   private val attemptKey by lazy {
-    logger.log(Level.INFO, decryptStep.name)
+    logger.log(Level.INFO, beamStep.name)
     requireNotNull(
       CanonicalExchangeStepAttemptKey.fromName(
-        "${decryptStep.name}/attempts/$exchangeStepAttemptId"
+        "${beamStep.name}/attempts/$exchangeStepAttemptId"
       )
     )
   }
@@ -206,17 +205,17 @@ class DecryptPrivateMembershipQueryResults : Runnable {
 
   override fun run() = runBlocking {
     val workflow: ExchangeWorkflow =
-      decryptStep.exchangeWorkflow.unpack(ExchangeWorkflow::class.java)
-    val step = workflow.getSteps(decryptStep.stepIndex)
+      beamStep.exchangeWorkflow.unpack(ExchangeWorkflow::class.java)
+    val step = workflow.getSteps(beamStep.stepIndex)
 
     require(
       step.stepCase == ExchangeWorkflow.Step.StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP
     ) {
-      "The only step type supported is DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP"
+      "The only step type currently supported is DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP"
     }
 
     val exchangeContext =
-      ExchangeContext(attemptKey, decryptStep.exchangeDate.toLocalDate(), workflow, step)
+      ExchangeContext(attemptKey, beamStep.exchangeDate.toLocalDate(), workflow, step)
 
     val privateStorageClient: StorageClient =
       privateStorageSelector.getStorageClient(exchangeContext.exchangeDateKey)
@@ -268,4 +267,4 @@ class DecryptPrivateMembershipQueryResults : Runnable {
   }
 }
 
-fun main(args: Array<String>) = commandLineMain(DecryptPrivateMembershipQueryResults(), args)
+fun main(args: Array<String>) = commandLineMain(BeamJobsMain(), args)
