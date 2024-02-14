@@ -28,6 +28,7 @@ import org.apache.beam.sdk.options.SdkHarnessOptions
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
+import org.wfanet.measurement.aws.s3.S3Flags
 import org.wfanet.measurement.aws.s3.S3StorageClient
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -55,6 +56,7 @@ import org.wfanet.panelmatch.common.certificates.testing.TestCertificateManager
 import org.wfanet.panelmatch.common.loggerFor
 import org.wfanet.panelmatch.common.secrets.StorageClientSecretMap
 import org.wfanet.panelmatch.common.storage.StorageFactory
+import org.wfanet.panelmatch.common.storage.toByteString
 import org.wfanet.panelmatch.common.storage.withPrefix
 import picocli.CommandLine
 import picocli.CommandLine.Command
@@ -68,10 +70,10 @@ import software.amazon.awssdk.services.s3.S3AsyncClient
 private const val BUFFER_SIZE_BYTES = 32 * 1024 * 1024 // 32MiB
 
 @Command(
-  name = "parse-decrypted-event-data",
-  description = ["Parses the decrypted event data produced by an exchange."],
+  name = "beam-jobs-main",
+  description = ["Runs a singleton Beam task produced by an exchange."],
 )
-class DecryptPrivateMembershipQueryResults : Runnable {
+class BeamJobsMain : Runnable {
 
   @Spec lateinit var spec: CommandSpec
 
@@ -79,6 +81,7 @@ class DecryptPrivateMembershipQueryResults : Runnable {
     get() = spec.commandLine()
 
   @CommandLine.Mixin private lateinit var gcsFlags: GcsFromFlags.Flags
+  @CommandLine.Mixin private lateinit var s3Flags: S3Flags
 
   val clock: Clock = Clock.systemUTC()
 
@@ -87,46 +90,38 @@ class DecryptPrivateMembershipQueryResults : Runnable {
     description =
       [
         "Root filesystem path to read from. If using a filesystem storage client, " +
-        "will also be the root private storage directory."
+          "will also be the root private storage directory."
       ],
     required = false,
   )
   private lateinit var rootDirectory: File
 
   @Option(
-    names = ["--exchange-step-file"],
+    names = ["--exchange-step-blob-key"],
     description =
       [
-        "The decrypt exchange step to run. Can be made manually, or serialized from " +
-        "an existing workflow."
+        "The blob key of the exchange step to run. Can be made manually, or serialized from " +
+          "an existing workflow. This will be pulled from root starage."
       ],
     required = true,
   )
-  private lateinit var exchangeStepFile: File
+  private lateinit var exchangeStepBlobKey: String
 
-  private val decryptStep by lazy { ExchangeStep.parseFrom(exchangeStepFile.readBytes()) }
+  // private val beamStep by lazy {
+  //   ExchangeStep.parseFrom(rootStorageClient.getBlob(exchangeStepBlobKey).toByteString())
+  // }
 
   @Option(
     names = ["--exchange-step-attempt-id"],
     description =
       [
-        "Resource ID for the decrypt exchange step attempt. If not tied to an " +
-        "existing exchange, the only reason to set this is to keep track of your own " +
-        "attempt counts."
+        "Resource ID for the exchange step attempt. If not tied to an existing exchange, the " +
+          "only reason to set this is to keep track of your own attempt counts."
       ],
     required = true,
     defaultValue = "A",
   )
   private lateinit var exchangeStepAttemptId: String
-
-  private val attemptKey by lazy {
-    logger.log(Level.INFO, decryptStep.name)
-    requireNotNull(
-      CanonicalExchangeStepAttemptKey.fromName(
-        "${decryptStep.name}/attempts/$exchangeStepAttemptId"
-      )
-    )
-  }
 
   @Option(
     names = ["--storage-type"],
@@ -135,35 +130,17 @@ class DecryptPrivateMembershipQueryResults : Runnable {
   )
   private lateinit var storageType: StorageDetails.PlatformCase
 
-  @Option(
-    names = ["--s3-region"],
-    description = ["The region the s3 bucket is located in."],
-    required = false,
-  )
-  private lateinit var s3Region: String
-
-  @Option(
-    names = ["--s3-storage-bucket"],
-    description = ["The name of the s3 bucket used for default private storage."],
-    required = false,
-  )
-  private lateinit var s3Bucket: String
-
   private val rootStorageClient: StorageClient by lazy {
-    logger.log(Level.INFO, "$s3Region -- $s3Bucket")
 
     when (storageType) {
-      StorageDetails.PlatformCase.AWS ->
-        S3StorageClient(S3AsyncClient.builder().region(Region.of(s3Region)).build(), s3Bucket)
-
+      StorageDetails.PlatformCase.AWS -> S3StorageClient.fromFlags(s3Flags)
       StorageDetails.PlatformCase.GCS -> GcsStorageClient.fromFlags(GcsFromFlags(gcsFlags))
       StorageDetails.PlatformCase.FILE -> FileSystemStorageClient(rootDirectory)
       else ->
         throw ParameterException(
           commandLine,
-          "Unsupported storage type. Must be one of: AWS, GCS, FILE"
+          "Unsupported storage type. Must be one of: AWS, GCS, FILE",
         )
-
     }
   }
 
@@ -197,26 +174,33 @@ class DecryptPrivateMembershipQueryResults : Runnable {
       certificateManager = TestCertificateManager, // Not used here.
       makePipelineOptions = ::makePipelineOptions,
       taskContext =
-      TaskParameters( // Not used. Set to defaults for consistency.
-        setOf(PreprocessingParameters(maxByteSize = 1000000, fileCount = 1000))
-      ),
+        TaskParameters( // Not used. Set to defaults for consistency.
+          setOf(PreprocessingParameters(maxByteSize = 1000000, fileCount = 1000))
+        ),
     )
   }
 
-
   override fun run() = runBlocking {
-    val workflow: ExchangeWorkflow =
-      decryptStep.exchangeWorkflow.unpack(ExchangeWorkflow::class.java)
-    val step = workflow.getSteps(decryptStep.stepIndex)
+
+    val beamStep =
+      ExchangeStep.parseFrom(
+        requireNotNull(rootStorageClient.getBlob(exchangeStepBlobKey)).toByteString())
+    val workflow: ExchangeWorkflow = beamStep.exchangeWorkflow.unpack(ExchangeWorkflow::class.java)
+    val step = workflow.getSteps(beamStep.stepIndex)
 
     require(
       step.stepCase == ExchangeWorkflow.Step.StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP
     ) {
-      "The only step type supported is DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP"
+      "The only step type currently supported is DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP"
     }
 
+    logger.log(Level.INFO, beamStep.name)
+    val attemptKey = requireNotNull(
+      CanonicalExchangeStepAttemptKey.fromName("${beamStep.name}/attempts/$exchangeStepAttemptId")
+    )
+
     val exchangeContext =
-      ExchangeContext(attemptKey, decryptStep.exchangeDate.toLocalDate(), workflow, step)
+      ExchangeContext(attemptKey, beamStep.exchangeDate.toLocalDate(), workflow, step)
 
     val privateStorageClient: StorageClient =
       privateStorageSelector.getStorageClient(exchangeContext.exchangeDateKey)
@@ -268,4 +252,4 @@ class DecryptPrivateMembershipQueryResults : Runnable {
   }
 }
 
-fun main(args: Array<String>) = commandLineMain(DecryptPrivateMembershipQueryResults(), args)
+fun main(args: Array<String>) = commandLineMain(BeamJobsMain(), args)
