@@ -20,6 +20,8 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.math.ceil
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -87,7 +89,7 @@ class SubmitBatchRequestsTest {
         ceil(INTERNAL_PRIMITIVE_REPORTING_SETS.size / BATCH_GET_REPORTING_SETS_LIMIT.toFloat())
           .toInt()
 
-      val items = INTERNAL_PRIMITIVE_REPORTING_SETS.map { it.externalReportingSetId }
+      val items = INTERNAL_PRIMITIVE_REPORTING_SETS.map { it.externalReportingSetId }.asFlow()
 
       val parseResponse: (BatchGetReportingSetsResponse) -> List<InternalReportingSet> =
         { response ->
@@ -120,7 +122,7 @@ class SubmitBatchRequestsTest {
       val expectedReportingSets =
         INTERNAL_PRIMITIVE_REPORTING_SETS.subList(0, numberTargetReportingSet)
       val expectedNumberBatches = 1
-      val items = expectedReportingSets.map { it.externalReportingSetId }
+      val items = expectedReportingSets.map { it.externalReportingSetId }.asFlow()
 
       val parseResponse: (BatchGetReportingSetsResponse) -> List<InternalReportingSet> =
         { response ->
@@ -154,10 +156,10 @@ class SubmitBatchRequestsTest {
 
     val result: List<InternalReportingSet> =
       submitBatchRequests(
-          emptyList(),
-          BATCH_GET_REPORTING_SETS_LIMIT,
-          ::batchGetReportingSets,
-          parseResponse,
+        emptyFlow(),
+        BATCH_GET_REPORTING_SETS_LIMIT,
+        ::batchGetReportingSets,
+        parseResponse,
         )
         .toList()
         .flatten()

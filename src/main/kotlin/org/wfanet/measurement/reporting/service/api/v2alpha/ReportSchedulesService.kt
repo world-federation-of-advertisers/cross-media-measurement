@@ -67,6 +67,7 @@ import org.wfanet.measurement.internal.reporting.v2.getReportScheduleRequest
 import org.wfanet.measurement.internal.reporting.v2.listReportSchedulesRequest
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.internal.reporting.v2.reportSchedule as internalReportSchedule
+import kotlinx.coroutines.flow.asFlow
 import org.wfanet.measurement.internal.reporting.v2.stopReportScheduleRequest
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.v2alpha.CreateReportScheduleRequest
@@ -672,7 +673,7 @@ class ReportSchedulesService(
       while (externalReportingSetIdSet.isNotEmpty()) {
         retrievedExternalReportingSetIdSet.addAll(externalReportingSetIdSet)
 
-        submitBatchRequests(externalReportingSetIdSet, BATCH_GET_REPORTING_SETS_LIMIT, callRpc) {
+        submitBatchRequests(externalReportingSetIdSet.asFlow(), BATCH_GET_REPORTING_SETS_LIMIT, callRpc) {
             response ->
             externalReportingSetIdSet.clear()
             response.reportingSetsList

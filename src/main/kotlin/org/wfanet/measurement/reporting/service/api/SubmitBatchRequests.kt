@@ -55,7 +55,7 @@ fun <T> Flow<T>.chunked(chunkSize: Int): Flow<List<T>> {
  * @return [Flow] that emits [List]s containing the results of the multiple RPCs.
  */
 suspend fun <ITEM, RESP, RESULT> submitBatchRequests(
-  items: Collection<ITEM>,
+  items: Flow<ITEM>,
   limit: Int,
   callRpc: suspend (List<ITEM>) -> RESP,
   parseResponse: (RESP) -> List<RESULT>,
@@ -73,8 +73,13 @@ suspend fun <ITEM, RESP, RESULT> submitBatchRequests(
   return flow {
     coroutineScope {
       val deferred: List<Deferred<List<RESULT>>> =
-        items.chunked(limit).map { batch: List<ITEM> ->
-          async { batchSemaphore.withPermit { parseResponse(callRpc(batch)) } }
+        buildList {
+          items.chunked(limit).collect { batch: List<ITEM> ->
+            // The batch reference is reused for every collect call. To ensure async works, a copy
+            // of the contents needs to be saved in a new reference.
+            val tempBatch = batch.toList()
+            add(async { batchSemaphore.withPermit { parseResponse(callRpc(tempBatch)) } })
+          }
         }
 
       deferred.forEach { emit(it.await()) }

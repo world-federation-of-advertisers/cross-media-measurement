@@ -30,6 +30,7 @@ import io.grpc.StatusRuntimeException
 import java.time.Clock
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -666,7 +667,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         }
       )
     }
-    submitBatchRequests(createMetricsRequests, MAX_BATCH_SIZE, callRpc) { response ->
+    submitBatchRequests(createMetricsRequests.asFlow(), MAX_BATCH_SIZE, callRpc) { response ->
         response.metricsList
       }
       .collect {}
