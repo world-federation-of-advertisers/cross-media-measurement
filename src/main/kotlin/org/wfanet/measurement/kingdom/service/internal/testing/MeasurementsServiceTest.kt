@@ -14,11 +14,12 @@
 
 package org.wfanet.measurement.kingdom.service.internal.testing
 
-import com.google.cloud.spanner.ErrorCode
+import com.google.cloud.spanner.ErrorCode as SpannerErrorCode
 import com.google.cloud.spanner.SpannerException
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.rpc.ErrorInfo
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
@@ -26,6 +27,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -46,6 +48,7 @@ import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DeleteMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
@@ -223,7 +226,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    assertThat(exception).hasMessageThat().contains("DataProvider not found")
+    val errorInfo: ErrorInfo = assertNotNull(exception.errorInfo)
+    assertThat(errorInfo.domain).isEqualTo(ErrorCode.getDescriptor().fullName)
+    assertThat(errorInfo.reason).isEqualTo(ErrorCode.DATA_PROVIDER_NOT_FOUND.name)
   }
 
   @Test
@@ -508,7 +513,13 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   fun `createMeasurement for duchy HMSS measurement succeeds`(): Unit = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
-    val dataProvider = population.createDataProvider(dataProvidersService)
+    val dataProvider =
+      population.createDataProvider(dataProvidersService) {
+        details =
+          details.copy {
+            capabilities = capabilities.copy { honestMajorityShareShuffleSupported = true }
+          }
+      }
 
     val measurement =
       HMSS_MEASUREMENT.copy {
@@ -554,6 +565,39 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     // check the externalFulfillingDuchyId of either "worker1" or "worker2"
     assertThat(requisitions[0].externalFulfillingDuchyId)
       .isEqualTo("worker${fulfillingDuchyIndex + 1}")
+  }
+
+  @Test
+  fun `createMeasurement throws FAILED_PRECONDITION when HMSS not supported`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider =
+      population.createDataProvider(dataProvidersService) {
+        details =
+          details.copy {
+            capabilities = capabilities.copy { honestMajorityShareShuffleSupported = false }
+          }
+      }
+
+    val measurement =
+      HMSS_MEASUREMENT.copy {
+        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+        externalMeasurementConsumerCertificateId =
+          measurementConsumer.certificate.externalCertificateId
+        dataProviders[dataProvider.externalDataProviderId] = dataProvider.toDataProviderValue()
+      }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        measurementsService.createMeasurement(
+          createMeasurementRequest { this.measurement = measurement }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    val errorInfo: ErrorInfo = assertNotNull(exception.errorInfo)
+    assertThat(errorInfo.domain).isEqualTo(ErrorCode.getDescriptor().fullName)
+    assertThat(errorInfo.reason).isEqualTo(ErrorCode.DATA_PROVIDER_NOT_CAPABLE.name)
   }
 
   @Test
@@ -2402,7 +2446,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       val exception =
         assertFailsWith<SpannerException> { measurementsService.batchCreateMeasurements(request) }
 
-      assertThat(exception.errorCode).isEqualTo(ErrorCode.ALREADY_EXISTS)
+      assertThat(exception.errorCode).isEqualTo(SpannerErrorCode.ALREADY_EXISTS)
 
       val measurements =
         measurementsService

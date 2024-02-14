@@ -150,7 +150,7 @@ class MeasurementReader(private val view: Measurement.View) :
           listOf(column),
         )
         ?.getProtoEnum(column, Measurement.State::forNumber)
-        ?: throw MeasurementNotFoundException() { "Measurement not found $measurementId" }
+        ?: throw MeasurementNotFoundException { "Measurement not found $measurementId" }
     }
 
     /**
@@ -207,7 +207,7 @@ class MeasurementReader(private val view: Measurement.View) :
       val column = "UpdateTime"
       val updateTime =
         readContext.readRow("Measurements", measurementKey, listOf(column))?.getTimestamp(column)
-          ?: throw MeasurementNotFoundException() { "Measurement not found for $measurementKey" }
+          ?: throw MeasurementNotFoundException { "Measurement not found for $measurementKey" }
       return getEtag(updateTime)
     }
 

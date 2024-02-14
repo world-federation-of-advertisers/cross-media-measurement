@@ -27,7 +27,7 @@ import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 
 class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
-  data class Result(val dataProvider: DataProvider, val dataProviderId: Long)
+  data class Result(val dataProvider: DataProvider, val dataProviderId: InternalId)
 
   override val baseSql: String =
     """
@@ -59,7 +59,7 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
       .trimIndent()
 
   override suspend fun translate(struct: Struct): Result =
-    Result(buildDataProvider(struct), struct.getLong("DataProviderId"))
+    Result(buildDataProvider(struct), struct.getInternalId("DataProviderId"))
 
   suspend fun readByExternalDataProviderId(
     readContext: AsyncDatabaseClient.ReadContext,

@@ -94,7 +94,7 @@ class UpdatePublicKey(private val request: UpdatePublicKeyRequest) : SimpleSpann
         CertificateReader(CertificateReader.ParentType.DATA_PROVIDER)
           .readDataProviderCertificateIdByExternalId(
             transactionContext,
-            InternalId(dataProviderResult.dataProviderId),
+            dataProviderResult.dataProviderId,
             ExternalId(request.externalCertificateId),
           )
           ?: throw DataProviderCertificateNotFoundException(

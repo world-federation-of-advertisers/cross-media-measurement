@@ -108,4 +108,6 @@ enum ErrorCode {
   MODEL_SHARD_INVALID_ARGS = 41;
   /** Population could not be found. */
   POPULATION_NOT_FOUND = 42;
+  // The DataProvider is not capable of the specified operation.
+  DATA_PROVIDER_NOT_CAPABLE = 43;
 }

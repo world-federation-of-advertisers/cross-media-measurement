@@ -32,7 +32,7 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
  * This provides some conveniences, like running in the right dispatcher for Spanner.
  */
 abstract class SpannerWriter<T, R> {
-  class TransactionScope(
+  open class TransactionScope(
     val txn: AsyncDatabaseClient.TransactionContext,
     val idGenerator: IdGenerator,
   ) {

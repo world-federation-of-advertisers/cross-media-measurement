@@ -726,3 +726,11 @@ class PopulationNotFoundException(
         "external_population_id" to externalPopulationId.toString(),
       )
 }
+
+class DataProviderNotCapableException(
+  val externalDataProviderId: ExternalId,
+  message: String = "DataProvider not capable",
+) : KingdomInternalException(ErrorCode.DATA_PROVIDER_NOT_CAPABLE, message) {
+  override val context
+    get() = mapOf("external_data_provider_id" to externalDataProviderId.value.toString())
+}

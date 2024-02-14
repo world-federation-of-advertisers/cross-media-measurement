@@ -18,6 +18,7 @@ import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Mutation
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.internal.kingdom.ModelShard
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
@@ -41,8 +42,8 @@ class DeleteModelShard(
 ) : SimpleSpannerWriter<ModelShard>() {
 
   override suspend fun TransactionScope.runTransaction(): ModelShard {
-    val dataProviderId = readInternalDataProviderId()
-    val modelShardResult = readModelShard()
+    val dataProviderId: InternalId = readDataProviderId()
+    val modelShardResult: ModelShardReader.Result = readModelShard()
 
     if (
       externalModelProviderId != null &&
@@ -58,14 +59,14 @@ class DeleteModelShard(
     transactionContext.buffer(
       Mutation.delete(
         "ModelShards",
-        KeySet.singleKey(Key.of(dataProviderId, modelShardResult.modelShardId.value)),
+        KeySet.singleKey(Key.of(dataProviderId.value, modelShardResult.modelShardId.value)),
       )
     )
 
     return modelShardResult.modelShard
   }
 
-  private suspend fun TransactionScope.readInternalDataProviderId(): Long =
+  private suspend fun TransactionScope.readDataProviderId(): InternalId =
     DataProviderReader()
       .readByExternalDataProviderId(transactionContext, externalDataProviderId)
       ?.dataProviderId ?: throw DataProviderNotFoundException(externalDataProviderId)
