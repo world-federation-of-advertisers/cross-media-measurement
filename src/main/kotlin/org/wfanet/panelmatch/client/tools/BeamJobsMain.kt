@@ -107,10 +107,6 @@ class BeamJobsMain : Runnable {
   )
   private lateinit var exchangeStepBlobKey: String
 
-  // private val beamStep by lazy {
-  //   ExchangeStep.parseFrom(rootStorageClient.getBlob(exchangeStepBlobKey).toByteString())
-  // }
-
   @Option(
     names = ["--exchange-step-attempt-id"],
     description =
