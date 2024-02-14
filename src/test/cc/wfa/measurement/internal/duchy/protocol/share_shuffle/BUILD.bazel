@@ -1,0 +1,47 @@
+load("@rules_cc//cc:defs.bzl", "cc_test")
+
+cc_test(
+    name = "honest_majority_share_shuffle_utility_test",
+    size = "small",
+    timeout = "moderate",
+    srcs = [
+        "honest_majority_share_shuffle_utility_test.cc",
+    ],
+    deps = [
+        "//src/main/cc/wfa/measurement/internal/duchy/protocol/share_shuffle:honest_majority_share_shuffle_utility",
+        "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_cc_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:honest_majority_share_shuffle_methods_cc_proto",
+        "@any_sketch//src/main/cc/any_sketch/crypto:secret_share_generator",
+        "@any_sketch//src/main/cc/math:distributed_discrete_gaussian_noiser",
+        "@any_sketch//src/main/cc/math:open_ssl_uniform_random_generator",
+        "@any_sketch//src/main/cc/math:uniform_pseudorandom_generator",
+        "@any_sketch//src/main/proto/wfa/any_sketch:secret_share_cc_proto",
+        "@com_github_google_glog//:glog",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+    ],
+)
+
+cc_test(
+    name = "honest_majority_share_shuffle_utility_helper_test",
+    size = "small",
+    timeout = "moderate",
+    srcs = [
+        "honest_majority_share_shuffle_utility_helper_test.cc",
+    ],
+    deps = [
+        "//src/main/cc/wfa/measurement/internal/duchy/protocol/share_shuffle:honest_majority_share_shuffle_utility_helper",
+        "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_cc_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:honest_majority_share_shuffle_methods_cc_proto",
+        "@any_sketch//src/main/cc/any_sketch/crypto:secret_share_generator",
+        "@any_sketch//src/main/cc/math:distributed_discrete_gaussian_noiser",
+        "@any_sketch//src/main/cc/math:open_ssl_uniform_random_generator",
+        "@any_sketch//src/main/cc/math:uniform_pseudorandom_generator",
+        "@any_sketch//src/main/proto/wfa/any_sketch:secret_share_cc_proto",
+        "@com_github_google_glog//:glog",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+    ],
+)

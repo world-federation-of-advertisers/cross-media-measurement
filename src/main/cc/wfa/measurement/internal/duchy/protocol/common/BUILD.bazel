@@ -1,0 +1,30 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@wfa_common_jvm//build:defs.bzl", "test_target")
+
+package(default_visibility = [
+    ":__pkg__",
+    test_target(":__pkg__"),
+    "//src/main/cc/wfa/measurement:__subpackages__",
+    "//src/main/swig/protocol:__subpackages__",
+])
+
+_INCLUDE_PREFIX = "/src/main/cc"
+
+cc_library(
+    name = "noise_parameters_computation",
+    srcs = [
+        "noise_parameters_computation.cc",
+    ],
+    hdrs = [
+        "noise_parameters_computation.h",
+    ],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_cc_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_cc_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_noise_config_cc_proto",
+        "@any_sketch//src/main/cc/math:distributed_discrete_gaussian_noiser",
+        "@any_sketch//src/main/cc/math:distributed_geometric_noiser",
+        "@any_sketch//src/main/cc/math:noise_parameters_computation",
+    ],
+)
