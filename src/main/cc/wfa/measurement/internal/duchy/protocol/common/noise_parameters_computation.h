@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_LIQUID_LEGIONS_V2_NOISE_PARAMETERS_COMPUTATION_H_
-#define SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_LIQUID_LEGIONS_V2_NOISE_PARAMETERS_COMPUTATION_H_
+#ifndef SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_COMMON_NOISE_PARAMETERS_COMPUTATION_H_
+#define SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_COMMON_NOISE_PARAMETERS_COMPUTATION_H_
 
 #include <memory>
 
@@ -21,7 +21,7 @@
 #include "wfa/measurement/internal/duchy/differential_privacy.pb.h"
 #include "wfa/measurement/internal/duchy/noise_mechanism.pb.h"
 
-namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
+namespace wfa::measurement::internal::duchy::protocol::common {
 
 using ::wfa::measurement::internal::duchy::NoiseMechanism;
 
@@ -42,6 +42,6 @@ std::unique_ptr<math::DistributedNoiser> GetFrequencyNoiser(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
     int uncorrupted_party_count, NoiseMechanism noise_mechanism);
 
-}  // namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2
+}  // namespace wfa::measurement::internal::duchy::protocol::common
 
-#endif  // SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_LIQUID_LEGIONS_V2_NOISE_PARAMETERS_COMPUTATION_H_
+#endif  // SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_COMMON_NOISE_PARAMETERS_COMPUTATION_H_
