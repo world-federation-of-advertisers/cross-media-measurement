@@ -44,7 +44,6 @@ import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.GetComputationIdsRequest
 import org.wfanet.measurement.internal.duchy.GetComputationIdsResponse
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
-import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathRequest
 import org.wfanet.measurement.internal.duchy.RequisitionDetails
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.computationStage
@@ -54,8 +53,10 @@ import org.wfanet.measurement.internal.duchy.copy
 import org.wfanet.measurement.internal.duchy.deleteComputationRequest
 import org.wfanet.measurement.internal.duchy.externalRequisitionKey
 import org.wfanet.measurement.internal.duchy.getComputationTokenRequest
+import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
-import org.wfanet.measurement.internal.duchy.recordRequisitionSeedRequest
+import org.wfanet.measurement.internal.duchy.recordRequisitionFulfillmentRequest
+import org.wfanet.measurement.internal.duchy.requisitionDetails
 import org.wfanet.measurement.internal.duchy.requisitionEntry
 import org.wfanet.measurement.internal.duchy.requisitionMetadata
 import org.wfanet.measurement.internal.duchy.updateComputationDetailsRequest
@@ -489,34 +490,30 @@ class ComputationsServiceTest {
 
     val tokenAtStart = service.getComputationToken(id.toGetTokenRequest()).token
 
-    val request =
-      RecordRequisitionBlobPathRequest.newBuilder()
-        .apply {
-          token = tokenAtStart
-          key = requisitionKey
-          blobPath = "this is a new path"
-        }
-        .build()
+    val request = recordRequisitionFulfillmentRequest {
+      token = tokenAtStart
+      key = requisitionKey
+      blobPath = "this is a new path"
+      publicApiVersion = "v2alpha"
+    }
 
-    assertThat(service.recordRequisitionBlobPath(request))
+    assertThat(service.recordRequisitionFulfillment(request).token)
       .isEqualTo(
-        tokenAtStart
-          .toBuilder()
-          .clearRequisitions()
-          .apply {
-            version = 1
-            addRequisitionsBuilder().apply {
-              externalKey = requisitionKey
-              path = "this is a new path"
-            }
+        tokenAtStart.copy {
+          version = 1
+
+          requisitions.clear()
+          requisitions += requisitionMetadata {
+            externalKey = requisitionKey
+            path = "this is a new path"
+            details = requisitionDetails { this.publicApiVersion = "v2alpha" }
           }
-          .build()
-          .toRecordRequisitionBlobPathResponse()
+        }
       )
   }
 
   @Test
-  fun `recordRequisitionSeed records seed`() = runBlocking {
+  fun `recordRequisitionFulfillment records blob path and seed`() = runBlocking {
     val id = "1234"
     val requisitionKey = externalRequisitionKey {
       externalRequisitionId = "1234"
@@ -524,28 +521,32 @@ class ComputationsServiceTest {
     }
     fakeDatabase.addComputation(
       globalId = id,
-      stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
+      stage = HonestMajorityShareShuffle.Stage.INITIALIZED.toProtocolStage(),
       computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
       requisitions = listOf(requisitionMetadata { externalKey = requisitionKey }),
     )
 
     val tokenAtStart = service.getComputationToken(id.toGetTokenRequest()).token
 
-    val seed = "a seed in bytes.".toByteStringUtf8()
-    val request = recordRequisitionSeedRequest {
+    val secretSeed = "signed secret seed".toByteStringUtf8()
+    val request = recordRequisitionFulfillmentRequest {
       token = tokenAtStart
       key = requisitionKey
-      this.seed = seed
+      blobPath = "this is a new path"
+      this.secretSeedCiphertext = secretSeed
+      publicApiVersion = "v2alpha"
     }
 
-    assertThat(service.recordRequisitionSeed(request).token)
+    assertThat(service.recordRequisitionFulfillment(request).token)
       .isEqualTo(
         tokenAtStart.copy {
           version = 1
           requisitions.clear()
           requisitions += requisitionMetadata {
             externalKey = requisitionKey
-            this.seed = seed
+            path = "this is a new path"
+            this.secretSeedCiphertext = secretSeed
+            details = requisitionDetails { this.publicApiVersion = "v2alpha" }
           }
         }
       )

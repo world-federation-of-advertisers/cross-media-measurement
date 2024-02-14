@@ -28,12 +28,17 @@ import org.wfanet.measurement.internal.duchy.requisitionMetadata
 
 /** Performs read operations on Requisitions tables */
 class RequisitionReader {
-  data class RequisitionResult(val computationId: Long, val requisitionId: Long) {
+  data class RequisitionResult(
+    val computationId: Long,
+    val requisitionId: Long,
+    val requisitionDetails: RequisitionDetails,
+  ) {
     constructor(
       row: ResultRow
     ) : this(
       computationId = row.get<Long>("ComputationId"),
       requisitionId = row.get<Long>("RequisitionId"),
+      requisitionDetails = row.getProtoMessage("RequisitionDetails", RequisitionDetails.parser()),
     )
   }
 
@@ -51,7 +56,7 @@ class RequisitionReader {
     val sql =
       boundStatement(
         """
-        SELECT ComputationId, RequisitionId
+        SELECT ComputationId, RequisitionId, RequisitionDetails
         FROM Requisitions
         WHERE
           ExternalRequisitionId = $1
@@ -110,7 +115,11 @@ class RequisitionReader {
       boundStatement(
         """
       SELECT
-        ExternalRequisitionId, RequisitionFingerprint, PathToBlob, RandomSeed, RequisitionDetails
+        ExternalRequisitionId,
+        RequisitionFingerprint,
+        PathToBlob,
+        RandomSeed,
+        RequisitionDetails
       FROM Requisitions
         WHERE ComputationId = $1
       """
@@ -129,7 +138,7 @@ class RequisitionReader {
         requisitionFingerprint = row["RequisitionFingerprint"]
       }
       row.get<String?>("PathToBlob")?.let { path = it }
-      row.get<ByteString?>("RandomSeed")?.let { seed = it }
+      row.get<ByteString?>("RandomSeed")?.let { secretSeedCiphertext = it }
       details = row.getProtoMessage("RequisitionDetails", RequisitionDetails.parser())
     }
   }
