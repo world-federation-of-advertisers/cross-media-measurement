@@ -181,10 +181,10 @@ class BeamJobsMain : Runnable {
   }
 
   override fun run() = runBlocking {
-
     val beamStep =
       ExchangeStep.parseFrom(
-        requireNotNull(rootStorageClient.getBlob(exchangeStepBlobKey)).toByteString())
+        requireNotNull(rootStorageClient.getBlob(exchangeStepBlobKey)).toByteString()
+      )
     val workflow: ExchangeWorkflow = beamStep.exchangeWorkflow.unpack(ExchangeWorkflow::class.java)
     val step = workflow.getSteps(beamStep.stepIndex)
 
@@ -195,9 +195,10 @@ class BeamJobsMain : Runnable {
     }
 
     logger.log(Level.INFO, beamStep.name)
-    val attemptKey = requireNotNull(
-      CanonicalExchangeStepAttemptKey.fromName("${beamStep.name}/attempts/$exchangeStepAttemptId")
-    )
+    val attemptKey =
+      requireNotNull(
+        CanonicalExchangeStepAttemptKey.fromName("${beamStep.name}/attempts/$exchangeStepAttemptId")
+      )
 
     val exchangeContext =
       ExchangeContext(attemptKey, beamStep.exchangeDate.toLocalDate(), workflow, step)
