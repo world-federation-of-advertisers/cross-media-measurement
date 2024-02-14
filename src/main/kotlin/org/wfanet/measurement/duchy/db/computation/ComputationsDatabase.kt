@@ -196,18 +196,17 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
     blobRef: BlobRef,
   )
 
-  /** Writes the path to a blob needed for an output blob from a stage. */
+  /**
+   * Writes the blob path of requisition from a fulfillment.
+   *
+   * If secretSeedCiphertext is specified, also writes the secretSeedCiphertext.
+   */
   suspend fun writeRequisitionBlobPath(
     token: ComputationEditToken<ProtocolT, StageT>,
     externalRequisitionKey: ExternalRequisitionKey,
     pathToBlob: String,
-  )
-
-  /** Writes the seed of a requisition fulfillment. */
-  suspend fun writeRequisitionSeed(
-    token: ComputationEditToken<ProtocolT, StageT>,
-    externalRequisitionKey: ExternalRequisitionKey,
-    seed: ByteString,
+    secretSeedCiphertext: ByteString? = null,
+    publicApiVersion: String,
   )
 
   /** Inserts the specified [ComputationStatMetric] into the database. */

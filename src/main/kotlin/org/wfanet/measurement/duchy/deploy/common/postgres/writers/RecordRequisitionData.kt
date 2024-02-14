@@ -21,6 +21,7 @@ import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationRe
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.RequisitionReader
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
+import org.wfanet.measurement.internal.duchy.copy
 
 /**
  * [PostgresWriter] to record the data for a requisition by a path to the blob or a seed.
@@ -28,7 +29,7 @@ import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
  * @param localId local identifier of the computation.
  * @param externalRequisitionKey [ExternalRequisitionKey] of the computation.
  * @param pathToBlob requisition blob path.
- * @param seed requisition random seed.
+ * @param secretSeedCiphertext requisition random seed.
  * @param clock See [Clock].
  *
  * Throws following exceptions on [execute]:
@@ -37,21 +38,19 @@ import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
 class RecordRequisitionData(
   private val localId: Long,
   private val externalRequisitionKey: ExternalRequisitionKey,
-  private val pathToBlob: String? = null,
-  private val seed: ByteString? = null,
+  private val pathToBlob: String,
+  private val secretSeedCiphertext: ByteString?,
+  private val publicApiVersion: String,
   private val clock: Clock,
   private val computationReader: ComputationReader,
 ) : PostgresWriter<ComputationToken>() {
   override suspend fun TransactionScope.runTransaction(): ComputationToken {
-    require((pathToBlob != null && seed == null) || (pathToBlob == null && seed != null)) {
-      "There must be only one of seed or pathToBlob non-null."
+    require(pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $externalRequisitionKey" }
+    if (secretSeedCiphertext != null) {
+      require(!secretSeedCiphertext.isEmpty) { "Cannot insert empty seed. $externalRequisitionKey" }
     }
-    if (pathToBlob != null) {
-      require(pathToBlob.isNotBlank()) {
-        "Cannot insert blank path to blob. $externalRequisitionKey"
-      }
-    } else if (seed != null) {
-      require(!seed.isEmpty) { "Cannot insert empty seed. $externalRequisitionKey" }
+    require(publicApiVersion.isNotBlank()) {
+      "Cannot insert public api version $externalRequisitionKey"
     }
 
     val requisition: RequisitionReader.RequisitionResult =
@@ -60,6 +59,11 @@ class RecordRequisitionData(
     require(localId == requisition.computationId) {
       "The token doesn't match the computation owns the requisition."
     }
+    val requisitionDetails =
+      requisition.requisitionDetails.copy {
+        publicApiVersion = this@RecordRequisitionData.publicApiVersion
+      }
+
     val writeTime = clock.instant()
     updateComputation(localId = localId, updateTime = writeTime)
     updateRequisition(
@@ -68,7 +72,8 @@ class RecordRequisitionData(
       externalRequisitionId = externalRequisitionKey.externalRequisitionId,
       requisitionFingerprint = externalRequisitionKey.requisitionFingerprint,
       pathToBlob = pathToBlob,
-      randomSeed = seed,
+      secretSeedCiphertext = secretSeedCiphertext,
+      requisitionDetails = requisitionDetails,
       updateTime = writeTime,
     )
 

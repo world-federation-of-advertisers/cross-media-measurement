@@ -25,6 +25,7 @@ object HmssProtocolConfig {
   lateinit var protocolConfig: ProtocolConfig.HonestMajorityShareShuffle
     private set
 
+  /** A set of external duchy ids that the first one must be corresponding to the aggregator. */
   lateinit var requiredExternalDuchyIds: Set<String>
     private set
 
