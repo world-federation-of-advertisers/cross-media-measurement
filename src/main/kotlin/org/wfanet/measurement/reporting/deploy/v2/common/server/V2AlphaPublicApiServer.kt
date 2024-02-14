@@ -186,7 +186,10 @@ private fun run(
       SecureRandom(),
       v2AlphaFlags.signingPrivateKeyStoreDir,
       commonServerFlags.tlsFlags.signingCerts.trustedCertificates,
-      v2AlphaPublicServerFlags.certificateCacheExpirationDuration,
+      certificateCacheExpirationDuration =
+        v2AlphaPublicServerFlags.certificateCacheExpirationDuration,
+      dataProviderCacheExpirationDuration =
+        v2AlphaPublicServerFlags.dataProviderCacheExpirationDuration,
       Dispatchers.IO,
       Dispatchers.Default,
     )
@@ -278,5 +281,13 @@ private class V2AlphaPublicServerFlags {
     required = true,
   )
   lateinit var certificateCacheExpirationDuration: Duration
+    private set
+
+  @CommandLine.Option(
+    names = ["--data-provider-cache-expiration-duration"],
+    description = ["Duration to mark cache entries as expired in format 1d1h1m1s1ms1ns"],
+    required = true,
+  )
+  lateinit var dataProviderCacheExpirationDuration: Duration
     private set
 }

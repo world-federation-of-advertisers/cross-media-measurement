@@ -38,5 +38,7 @@ message HmssProtocolConfigConfig {
   // The HonestMajorityShareShuffle protocol Config.
   ProtocolConfig.HonestMajorityShareShuffle protocol_config = 1;
   // List of required duchies for this protocol.
+  //
+  // The first one must correspond to the aggregator.
   repeated string required_external_duchy_ids = 2;
 }

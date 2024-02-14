@@ -42,7 +42,7 @@ fun ApacheBeamContext.buildPrivateMembershipQueries(
       .mapWithSideInput(publicKeyView, "Make Private Membership Keys") { privateKey, publicKey ->
         AsymmetricKeyPair(serializedPublicKey = publicKey, serializedPrivateKey = privateKey)
       }
-      .toSingletonView()
+      .toSingletonView("rlwe-private-key-singleton-view")
 
   val outputs =
     createQueries(lookupKeyAndIds, privateKeysView, parameters, privateMembershipCryptor)

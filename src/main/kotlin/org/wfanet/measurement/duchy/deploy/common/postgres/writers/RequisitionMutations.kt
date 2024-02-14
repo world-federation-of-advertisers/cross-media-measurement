@@ -76,7 +76,7 @@ suspend fun PostgresWriter.TransactionScope.updateRequisition(
   requisitionFingerprint: ByteString,
   updateTime: Instant,
   pathToBlob: String? = null,
-  randomSeed: ByteString? = null,
+  secretSeedCiphertext: ByteString? = null,
   requisitionDetails: RequisitionDetails? = null,
 ) {
   val sql =
@@ -100,7 +100,7 @@ suspend fun PostgresWriter.TransactionScope.updateRequisition(
         .trimIndent()
     ) {
       bind("$1", pathToBlob)
-      bind("$2", randomSeed?.toByteArray())
+      bind("$2", secretSeedCiphertext?.toByteArray())
       bind("$3", requisitionDetails?.toByteArray())
       bind("$4", requisitionDetails?.toJson())
       bind("$5", updateTime)
