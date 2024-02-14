@@ -75,8 +75,8 @@ java_binary(
 
 kt_jvm_library(
     testonly = True,
-    name = "decrypt_private_membership_query_results",
-    srcs = ["DecryptPrivateMembershipQueryResults.kt"],
+    name = "beam_jobs_main",
+    srcs = ["BeamJobsMain.kt"],
     deps = [
         "//imports/java/org/apache/beam/runners/direct",
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy",
@@ -105,11 +105,11 @@ kt_jvm_library(
 
 java_binary(
     testonly = True,
-    name = "DecryptPrivateMembershipQueryResults",
-    main_class = "org.wfanet.panelmatch.client.tools.DecryptPrivateMembershipQueryResultsKt",
+    name = "BeamJobsMain",
+    main_class = "org.wfanet.panelmatch.client.tools.BeamJobsMainKt",
     tags = ["manual"],
     runtime_deps = [
-        ":decrypt_private_membership_query_results",
+        ":beam_jobs_main",
     ],
 )
 
