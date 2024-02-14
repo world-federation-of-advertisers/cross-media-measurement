@@ -64,8 +64,6 @@ import picocli.CommandLine.Model.CommandSpec
 import picocli.CommandLine.Option
 import picocli.CommandLine.ParameterException
 import picocli.CommandLine.Spec
-import software.amazon.awssdk.regions.Region
-import software.amazon.awssdk.services.s3.S3AsyncClient
 
 private const val BUFFER_SIZE_BYTES = 32 * 1024 * 1024 // 32MiB
 
@@ -107,10 +105,6 @@ class BeamJobsMain : Runnable {
   )
   private lateinit var exchangeStepBlobKey: String
 
-  // private val beamStep by lazy {
-  //   ExchangeStep.parseFrom(rootStorageClient.getBlob(exchangeStepBlobKey).toByteString())
-  // }
-
   @Option(
     names = ["--exchange-step-attempt-id"],
     description =
@@ -131,7 +125,6 @@ class BeamJobsMain : Runnable {
   private lateinit var storageType: StorageDetails.PlatformCase
 
   private val rootStorageClient: StorageClient by lazy {
-
     when (storageType) {
       StorageDetails.PlatformCase.AWS -> S3StorageClient.fromFlags(s3Flags)
       StorageDetails.PlatformCase.GCS -> GcsStorageClient.fromFlags(GcsFromFlags(gcsFlags))
@@ -181,10 +174,10 @@ class BeamJobsMain : Runnable {
   }
 
   override fun run() = runBlocking {
-
     val beamStep =
       ExchangeStep.parseFrom(
-        requireNotNull(rootStorageClient.getBlob(exchangeStepBlobKey)).toByteString())
+        requireNotNull(rootStorageClient.getBlob(exchangeStepBlobKey)).toByteString()
+      )
     val workflow: ExchangeWorkflow = beamStep.exchangeWorkflow.unpack(ExchangeWorkflow::class.java)
     val step = workflow.getSteps(beamStep.stepIndex)
 
@@ -195,9 +188,10 @@ class BeamJobsMain : Runnable {
     }
 
     logger.log(Level.INFO, beamStep.name)
-    val attemptKey = requireNotNull(
-      CanonicalExchangeStepAttemptKey.fromName("${beamStep.name}/attempts/$exchangeStepAttemptId")
-    )
+    val attemptKey =
+      requireNotNull(
+        CanonicalExchangeStepAttemptKey.fromName("${beamStep.name}/attempts/$exchangeStepAttemptId")
+      )
 
     val exchangeContext =
       ExchangeContext(attemptKey, beamStep.exchangeDate.toLocalDate(), workflow, step)
