@@ -87,7 +87,7 @@ class BeamJobsMain : Runnable {
     description =
       [
         "Root filesystem path to read from. If using a filesystem storage client, " +
-        "will also be the root private storage directory."
+          "will also be the root private storage directory."
       ],
     required = false,
   )
@@ -98,7 +98,7 @@ class BeamJobsMain : Runnable {
     description =
       [
         "The exchange step to run. Can be made manually, or serialized from " +
-        "an existing workflow."
+          "an existing workflow."
       ],
     required = true,
   )
@@ -111,7 +111,7 @@ class BeamJobsMain : Runnable {
     description =
       [
         "Resource ID for the exchange step attempt. If not tied to an existing exchange, the " +
-        "only reason to set this is to keep track of your own attempt counts."
+          "only reason to set this is to keep track of your own attempt counts."
       ],
     required = true,
     defaultValue = "A",
@@ -121,9 +121,7 @@ class BeamJobsMain : Runnable {
   private val attemptKey by lazy {
     logger.log(Level.INFO, beamStep.name)
     requireNotNull(
-      CanonicalExchangeStepAttemptKey.fromName(
-        "${beamStep.name}/attempts/$exchangeStepAttemptId"
-      )
+      CanonicalExchangeStepAttemptKey.fromName("${beamStep.name}/attempts/$exchangeStepAttemptId")
     )
   }
 
@@ -154,13 +152,12 @@ class BeamJobsMain : Runnable {
     when (storageType) {
       StorageDetails.PlatformCase.AWS ->
         S3StorageClient(S3AsyncClient.builder().region(Region.of(s3Region)).build(), s3Bucket)
-
       StorageDetails.PlatformCase.GCS -> GcsStorageClient.fromFlags(GcsFromFlags(gcsFlags))
       StorageDetails.PlatformCase.FILE -> FileSystemStorageClient(rootDirectory)
       else ->
         throw ParameterException(
           commandLine,
-          "Unsupported storage type. Must be one of: AWS, GCS, FILE"
+          "Unsupported storage type. Must be one of: AWS, GCS, FILE",
         )
 
     }
@@ -196,16 +193,15 @@ class BeamJobsMain : Runnable {
       certificateManager = TestCertificateManager, // Not used here.
       makePipelineOptions = ::makePipelineOptions,
       taskContext =
-      TaskParameters( // Not used. Set to defaults for consistency.
-        setOf(PreprocessingParameters(maxByteSize = 1000000, fileCount = 1000))
-      ),
+        TaskParameters( // Not used. Set to defaults for consistency.
+          setOf(PreprocessingParameters(maxByteSize = 1000000, fileCount = 1000))
+        ),
     )
   }
 
 
   override fun run() = runBlocking {
-    val workflow: ExchangeWorkflow =
-      beamStep.exchangeWorkflow.unpack(ExchangeWorkflow::class.java)
+    val workflow: ExchangeWorkflow = beamStep.exchangeWorkflow.unpack(ExchangeWorkflow::class.java)
     val step = workflow.getSteps(beamStep.stepIndex)
 
     require(
