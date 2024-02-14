@@ -369,13 +369,14 @@ class ReportSchedulesService(
       grpcRequire(
         try {
           date {
-            year = eventStart.year
-            month = eventStart.month
-            day = eventStart.day
-          }
+              year = eventStart.year
+              month = eventStart.month
+              day = eventStart.day
+            }
             .isBefore(eventEnd)
         } catch (e: DateTimeException) {
-          throw Status.INVALID_ARGUMENT.withDescription("event_end is invalid.").asRuntimeException()
+          throw Status.INVALID_ARGUMENT.withDescription("event_end is invalid.")
+            .asRuntimeException()
         }
       ) {
         "event_end must be after event_start."
