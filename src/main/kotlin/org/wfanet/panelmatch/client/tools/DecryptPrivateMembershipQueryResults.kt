@@ -21,13 +21,12 @@ import java.time.Duration
 import java.util.logging.Level
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
-import org.apache.beam.runners.dataflow.options.DataflowWorkerLoggingOptions
 import org.apache.beam.runners.direct.DirectRunner
 import org.apache.beam.sdk.options.PipelineOptions
 import org.apache.beam.sdk.options.PipelineOptionsFactory
 import org.apache.beam.sdk.options.SdkHarnessOptions
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
-import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.aws.s3.S3StorageClient
 import org.wfanet.measurement.common.commandLineMain
@@ -113,7 +112,7 @@ class DecryptPrivateMembershipQueryResults : Runnable {
 
   private val attemptKey by lazy {
     logger.log(Level.INFO, decryptStep.name)
-    requireNotNull(ExchangeStepAttemptKey.fromName(
+    requireNotNull(CanonicalExchangeStepAttemptKey.fromName(
       "${decryptStep.name}/attempts/$exchangeStepAttemptId"))
   }
 
@@ -195,7 +194,8 @@ class DecryptPrivateMembershipQueryResults : Runnable {
 
 
   override fun run() = runBlocking {
-    val workflow = ExchangeWorkflow.parseFrom(decryptStep.serializedExchangeWorkflow)
+    val workflow: ExchangeWorkflow =
+      decryptStep.exchangeWorkflow.unpack(ExchangeWorkflow::class.java)
     val step = workflow.getSteps(decryptStep.stepIndex)
 
     require( step.stepCase == ExchangeWorkflow.Step.StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP) {
