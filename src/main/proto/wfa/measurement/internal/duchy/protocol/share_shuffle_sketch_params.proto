@@ -30,4 +30,13 @@ message ShareShuffleSketchParams {
   // The product of `maximum_frequency` and the `nonce_hashes` count from the
   // `MeasurementSpec` should be no more than 2 ^ (`bytes_per_register` * 8).
   int32 bytes_per_register = 2;
+
+  // The maximum frequency of the combined sketch. Let N be the max frequency
+  // of a sketch, and p the number of EDPs, the maximum frequency of the
+  // combined sketch is (1 + pN).
+  int32 maximum_combined_frequency = 3;
+
+  // The modulus used in the MPC protocol. It is required to be greater than
+  // (1 + maximum_frequency).
+  int32 ring_modulus = 4;
 }

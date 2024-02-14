@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/noise_parameters_computation.h"
+#include "wfa/measurement/internal/duchy/protocol/common/noise_parameters_computation.h"
 
 #include "gtest/gtest.h"
 #include "math/distributed_discrete_gaussian_noiser.h"
@@ -20,7 +20,7 @@
 #include "wfa/measurement/internal/duchy/noise_mechanism.pb.h"
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2_noise_config.pb.h"
 
-namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
+namespace wfa::measurement::internal::duchy::protocol::common {
 namespace {
 
 using ::wfa::measurement::internal::duchy::DifferentialPrivacyParams;
@@ -152,4 +152,4 @@ TEST(GetFrequencyNoiser, GaussianOptionsExampleResultShouldBeCorrect) {
 }
 
 }  // namespace
-}  // namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2
+}  // namespace wfa::measurement::internal::duchy::protocol::common
