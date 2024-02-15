@@ -106,7 +106,8 @@ class ExchangeWorkflowDaemonForTest(
 
   override val throttler: Throttler = MinimumIntervalThrottler(clock, pollingInterval)
 
-  private val preprocessingParameters = PreprocessingParameters(maxByteSize = 1024 * 1024, fileCount = 1)
+  private val preprocessingParameters =
+    PreprocessingParameters(maxByteSize = 1024 * 1024, fileCount = 1)
 
   private val taskContext: TaskParameters = TaskParameters(setOf(preprocessingParameters))
 

@@ -22,7 +22,7 @@ import picocli.CommandLine
 import picocli.CommandLine.Option
 
 class ExchangeWorkflowFlags {
-  @Option(names = ["--id"], description = ["Id of the provider"], required = true,)
+  @Option(names = ["--id"], description = ["Id of the provider"], required = true)
   lateinit var id: String
     private set
 
