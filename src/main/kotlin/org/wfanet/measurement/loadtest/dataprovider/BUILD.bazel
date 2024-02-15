@@ -296,6 +296,7 @@ java_binary(
     main_class = "org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEdpSimulatorRunnerKt",
     runtime_deps = [
         ":synthetic_generator_edp_simulator_runner",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/logging",
     ],
 )

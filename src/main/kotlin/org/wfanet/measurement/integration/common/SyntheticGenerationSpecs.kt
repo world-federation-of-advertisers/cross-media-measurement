@@ -18,10 +18,12 @@ package org.wfanet.measurement.integration.common
 
 import com.google.protobuf.Message
 import java.nio.file.Paths
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.CartesianSyntheticEventGroupSpecRecipe
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.loadtest.dataprovider.toSyntheticEventGroupSpec
 
 /** Specifications for synthetic generation. */
 object SyntheticGenerationSpecs {
@@ -39,16 +41,13 @@ object SyntheticGenerationSpecs {
 
   /** EventGroup specs for synthetic generation based on [POPULATION_SPEC]. */
   val SYNTHETIC_DATA_SPECS: List<SyntheticEventGroupSpec> by lazy {
-    listOf(
+    (1..6).map {
       loadTestData(
-        "synthetic_event_group_spec_1.textproto",
-        SyntheticEventGroupSpec.getDefaultInstance(),
-      ),
-      loadTestData(
-        "synthetic_event_group_spec_2.textproto",
-        SyntheticEventGroupSpec.getDefaultInstance(),
-      ),
-    )
+          "cartesian_synthetic_event_group_spec_$it.textproto",
+          CartesianSyntheticEventGroupSpecRecipe.getDefaultInstance(),
+        )
+        .toSyntheticEventGroupSpec(POPULATION_SPEC)
+    }
   }
 
   /**

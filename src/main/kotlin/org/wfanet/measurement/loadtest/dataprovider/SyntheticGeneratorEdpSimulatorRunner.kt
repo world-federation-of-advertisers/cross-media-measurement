@@ -18,6 +18,7 @@ import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.TypeRegistry
 import java.io.File
 import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.CartesianSyntheticEventGroupSpecRecipe
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
@@ -54,22 +55,24 @@ class SyntheticGeneratorEdpSimulatorRunner : EdpSimulatorRunner() {
   private lateinit var populationSpecFile: File
 
   @CommandLine.Option(
-    names = ["--event-group-spec"],
+    names = ["--event-group-spec-recipe"],
     description =
       [
         "Key-value pair of EventGroup reference ID suffix and file path of " +
-          "SyntheticEventGroupSpec message in text format. This can be specified multiple times."
+          "CartesianSyntheticEventGroupSpecRecipe message in text format.",
+        "This can be specified multiple times.",
       ],
     required = true,
   )
-  private lateinit var eventGroupSpecFileByReferenceIdSuffix: Map<String, File>
+  private lateinit var eventGroupSpecRecipeFileByReferenceIdSuffix: Map<String, File>
 
   override fun run() {
     val populationSpec =
       parseTextProto(populationSpecFile, SyntheticPopulationSpec.getDefaultInstance())
     val eventGroupSpecByReferenceIdSuffix =
-      eventGroupSpecFileByReferenceIdSuffix.mapValues {
-        parseTextProto(it.value, SyntheticEventGroupSpec.getDefaultInstance())
+      eventGroupSpecRecipeFileByReferenceIdSuffix.mapValues {
+        parseTextProto(it.value, CartesianSyntheticEventGroupSpecRecipe.getDefaultInstance())
+          .toSyntheticEventGroupSpec(populationSpec)
       }
     val eventMessageRegistry: TypeRegistry = buildEventMessageRegistry()
 

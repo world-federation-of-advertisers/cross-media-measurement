@@ -5,5 +5,5 @@ package(
 
 filegroup(
     name = "synthetic_generation_specs",
-    srcs = ["synthetic_population_spec.textproto"] + glob(["synthetic_event_group_spec*.textproto"]),
+    srcs = ["synthetic_population_spec.textproto"] + glob(["synthetic_event_group_spec*.textproto"]) + glob(["cartesian_synthetic_event_group_spec*.textproto"]),
 )

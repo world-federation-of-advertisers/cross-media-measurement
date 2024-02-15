@@ -38,25 +38,20 @@ objectSets: [ for simulator in edpSimulators {[simulator.deployment]}] +
 	[ for simulator in edpSimulators {simulator.networkPolicies}]
 
 _populationSpec: "/etc/\(#AppName)/config-files/synthetic_population_spec.textproto"
-_eventGroupSpecs: [
-	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_1.textproto",
-	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_2.textproto",
-]
 
 #EdpConfig: {
-	eventGroupSpec: string
+	eventGroupSpecRecipe: string
 }
 
 _edpConfigs: [...#EdpConfig]
 _edpConfigs: [
 	for i, name in _edpResourceNames {
-		let SpecIndex = mod(i, len(_eventGroupSpecs))
 		let Number = i + 1
 
-		resourceName:     name
-		certResourceName: _edpCertResourceNames[i]
-		displayName:      "edp\(Number)"
-		eventGroupSpec:   _eventGroupSpecs[SpecIndex]
+		resourceName:         name
+		certResourceName:     _edpCertResourceNames[i]
+		displayName:          "edp\(Number)"
+		eventGroupSpecRecipe: "/etc/\(#AppName)/config-files/cartesian_synthetic_event_group_spec_\(Number).textproto"
 	},
 ]
 
@@ -71,7 +66,7 @@ edpSimulators: {
 			_kingdom_public_api_target: #KingdomPublicApiTarget
 			_additional_args: [
 				"--population-spec=\(_populationSpec)",
-				"--event-group-spec==\(edpConfig.eventGroupSpec)",
+				"--event-group-spec-recipe==\(edpConfig.eventGroupSpec)",
 			]
 
 			deployment: spec: template: spec: {
