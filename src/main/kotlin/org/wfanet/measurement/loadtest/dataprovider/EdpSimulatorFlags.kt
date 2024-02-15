@@ -109,7 +109,7 @@ class EdpSimulatorFlags {
     private set
 
   @CommandLine.Option(
-    names = ["--log-sketch"],
+    names = ["--log-sketch-details"],
     description =
       [
         "Whether to log Sketch content.",
@@ -117,6 +117,6 @@ class EdpSimulatorFlags {
       ],
     required = false,
   )
-  var logSketch: Boolean = false
+  var logSketchDetails: Boolean = false
     private set
 }

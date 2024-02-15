@@ -177,7 +177,7 @@ class EdpSimulator(
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   private val sketchEncrypter: SketchEncrypter = SketchEncrypter.Default,
   private val random: Random = Random,
-  private val logSketch: Boolean = false,
+  private val logSketchDetails: Boolean = false,
 ) {
   val eventGroupReferenceIdPrefix = getEventGroupReferenceIdPrefix(edpData.displayName)
 
@@ -931,10 +931,7 @@ class EdpSimulator(
     }
   }
 
-  private fun logSketch(sketch: Sketch) {
-    logger.log(Level.INFO) { "SketchConfig:\n${sketch.config}" }
-    logger.log(Level.INFO) { "Registers Size:\n${sketch.registersList.size}" }
-
+  private fun logSketchDetails(sketch: Sketch) {
     val sortedRegisters = sketch.registersList.sortedBy { it.index }
     for (register in sortedRegisters) {
       logger.log(Level.INFO) { "${register.index}${register.valuesList.joinToString()}" }
@@ -951,8 +948,10 @@ class EdpSimulator(
       SketchGenerator(eventQuery, sketchConfig, measurementSpec.vidSamplingInterval)
         .generate(eventGroupSpecs)
 
-    if (logSketch) {
-      logSketch(sketch)
+    logger.log(Level.INFO) { "SketchConfig:\n${sketch.config}" }
+    logger.log(Level.INFO) { "Registers Size:\n${sketch.registersList.size}" }
+    if (logSketchDetails) {
+      logSketchDetails(sketch)
     }
 
     return sketch
