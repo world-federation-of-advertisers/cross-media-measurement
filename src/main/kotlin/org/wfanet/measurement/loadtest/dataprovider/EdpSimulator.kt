@@ -177,7 +177,7 @@ class EdpSimulator(
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   private val sketchEncrypter: SketchEncrypter = SketchEncrypter.Default,
   private val random: Random = Random,
-  private val verbose: Boolean = false,
+  private val logSketch: Boolean = false,
 ) {
   val eventGroupReferenceIdPrefix = getEventGroupReferenceIdPrefix(edpData.displayName)
 
@@ -587,10 +587,8 @@ class EdpSimulator(
             )
           }
 
-        if (verbose) {
-          logger.log(Level.INFO, "MeasurementSpec:\n$measurementSpec")
-          logger.log(Level.INFO, "RequisitionSpec:\n$requisitionSpec")
-        }
+        logger.log(Level.INFO, "MeasurementSpec:\n$measurementSpec")
+        logger.log(Level.INFO, "RequisitionSpec:\n$requisitionSpec")
 
         for (eventGroupEntry in requisitionSpec.events.eventGroupsList) {
           val eventGroupId = EventGroupKey.fromName(eventGroupEntry.key)!!.eventGroupId
@@ -934,12 +932,12 @@ class EdpSimulator(
   }
 
   private fun logSketch(sketch: Sketch) {
-    logger.log(Level.INFO, "SketchConfig:\n${sketch.config}")
-    logger.log(Level.INFO, "Registers Size:\n${sketch.registersList.size}")
+    logger.log(Level.INFO) { "SketchConfig:\n${sketch.config}" }
+    logger.log(Level.INFO) { "Registers Size:\n${sketch.registersList.size}" }
 
     val sortedRegisters = sketch.registersList.sortedBy { it.index }
     for (register in sortedRegisters) {
-      logger.log(Level.INFO, "${register.index}${register.valuesList.joinToString()}")
+      logger.log(Level.INFO) { "${register.index}${register.valuesList.joinToString()}" }
     }
   }
 
@@ -953,7 +951,7 @@ class EdpSimulator(
       SketchGenerator(eventQuery, sketchConfig, measurementSpec.vidSamplingInterval)
         .generate(eventGroupSpecs)
 
-    if (verbose) {
+    if (logSketch) {
       logSketch(sketch)
     }
 
@@ -1559,10 +1557,8 @@ class EdpSimulator(
     nonce: Long,
     measurementResult: Measurement.Result,
   ) {
-    if (verbose) {
-      logger.log(Level.INFO, "MeasurementSpec:\n$measurementSpec")
-      logger.log(Level.INFO, "MeasurementResult:\n$measurementResult")
-    }
+    logger.log(Level.INFO, "Direct MeasurementSpec:\n$measurementSpec")
+    logger.log(Level.INFO, "Direct MeasurementResult:\n$measurementResult")
 
     DataProviderCertificateKey.fromName(requisition.dataProviderCertificate)
       ?: throw RequisitionRefusalException(

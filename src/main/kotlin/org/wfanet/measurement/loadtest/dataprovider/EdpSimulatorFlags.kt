@@ -109,10 +109,14 @@ class EdpSimulatorFlags {
     private set
 
   @CommandLine.Option(
-    names = ["--verbose"],
-    description = ["Whether to log extra information, e.g., RequisitionSpec, SketchParam."],
+    names = ["--log-sketch"],
+    description =
+      [
+        "Whether to log Sketch content.",
+        "WARNING: Sketch contains sensitive information if it is generated from real data.",
+      ],
     required = false,
   )
-  var verbose: Boolean = false
+  var logSketch: Boolean = false
     private set
 }

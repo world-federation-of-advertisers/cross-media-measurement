@@ -55,7 +55,7 @@ package k8s
 				"--kingdom-public-api-cert-host=localhost",
 				"--requisition-fulfillment-service-target=\(_duchy_public_api_target)",
 				"--requisition-fulfillment-service-cert-host=localhost",
-				"--verbose=\(_verboseSketchLogging)",
+				"--log-sketch=\(_verboseSketchLogging)",
 			] + _additional_args
 		}
 	}
