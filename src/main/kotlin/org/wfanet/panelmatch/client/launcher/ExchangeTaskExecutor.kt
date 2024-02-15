@@ -18,12 +18,10 @@ import com.google.protobuf.ByteString
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.supervisorScope
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
@@ -58,47 +56,30 @@ class ExchangeTaskExecutor(
   private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : ExchangeStepExecutor {
 
-  private fun taskExceptionHandler(
-    attemptKey: CanonicalExchangeStepAttemptKey
-  ): CoroutineExceptionHandler {
-    return CoroutineExceptionHandler { _, e ->
-      logger.log(Level.SEVERE, "Uncaught Exception in child coroutine:", e)
-
-      runBlocking {
-        apiClient.finishExchangeStepAttempt(attemptKey, ExchangeStepAttempt.State.FAILED_STEP)
-      }
-    }
-  }
-
   override suspend fun execute(
     exchangeStep: ExchangeStep,
     attemptKey: CanonicalExchangeStepAttemptKey,
   ) {
     supervisorScope {
       launch(
-        dispatcher +
-          CoroutineName(attemptKey.toName()) +
-          TaskLog(attemptKey.toName()) +
-          taskExceptionHandler(attemptKey)
+        dispatcher + CoroutineName(attemptKey.toName()) + TaskLog(attemptKey.toName())
       ) {
         try {
           val validatedStep = validator.validate(exchangeStep)
-          val context =
-            ExchangeContext(
-              attemptKey,
-              validatedStep.date,
-              validatedStep.workflow,
-              validatedStep.step,
-            )
+          val context = ExchangeContext(
+            attemptKey,
+            validatedStep.date,
+            validatedStep.workflow,
+            validatedStep.step,
+          )
           context.tryExecute()
         } catch (e: Exception) {
           logger.addToTaskLog("Caught Exception in task execution:", Level.SEVERE)
           logger.addToTaskLog(e, Level.SEVERE)
-          val attemptState =
-            when (e) {
-              is ExchangeTaskFailedException -> e.attemptState
-              else -> ExchangeStepAttempt.State.FAILED
-            }
+          val attemptState = when (e) {
+            is ExchangeTaskFailedException -> e.attemptState
+            else -> ExchangeStepAttempt.State.FAILED
+          }
           markAsFinished(attemptKey, attemptState)
         }
       }
@@ -119,10 +100,9 @@ class ExchangeTaskExecutor(
     privateStorage: StorageClient,
   ) {
     for ((genericLabel, flow) in taskOutput) {
-      val blobKey =
-        requireNotNull(step.outputLabelsMap[genericLabel]) {
-          "Missing $genericLabel in outputLabels for step: $step"
-        }
+      val blobKey = requireNotNull(step.outputLabelsMap[genericLabel]) {
+        "Missing $genericLabel in outputLabels for step: $step"
+      }
       privateStorage.writeBlob(blobKey, flow)
     }
   }
