@@ -123,13 +123,14 @@ class ExchangeWorkflowFlags {
     private set
 
   var maxParallelClaimedExchangeSteps: Int? = null
+    private set
 
   @Option(
     names = ["--max-concurrent-tasks"],
     description = ["Maximum number of concurrent tasks to allow the daemon to run."],
     required = false,
   )
-  private fun maxClaimedStepsIsPositive(value: Int?) {
+  private fun setMaxParallelClaimedSteps(value: Int?) {
     if ((value ?: 1) < 1) {
       throw ParameterException(
         spec.commandLine(),
