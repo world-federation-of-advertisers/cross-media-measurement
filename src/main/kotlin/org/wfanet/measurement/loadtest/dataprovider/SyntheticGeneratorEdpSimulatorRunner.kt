@@ -18,6 +18,7 @@ import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.TypeRegistry
 import java.io.File
 import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.CartesianSyntheticEventGroupSpecRecipe
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
@@ -58,19 +59,49 @@ class SyntheticGeneratorEdpSimulatorRunner : EdpSimulatorRunner() {
     description =
       [
         "Key-value pair of EventGroup reference ID suffix and file path of " +
-          "SyntheticEventGroupSpec message in text format. This can be specified multiple times."
+          "SyntheticEventGroupSpec message in text format. This can be specified multiple times. " +
+          "Either this or cartesian-event-group-spec flag has to be specified."
       ],
-    required = true,
+    required = false,
   )
   private lateinit var eventGroupSpecFileByReferenceIdSuffix: Map<String, File>
 
+  @CommandLine.Option(
+    names = ["--cartesian-event-group-spec"],
+    description =
+      [
+        "Key-value pair of EventGroup reference ID suffix and file path of " +
+          "CartesianSyntheticEventGroupSpecRecipe message in text format. " +
+          "This can be specified multiple times. " +
+          "Either this or event-group-spec flag has to be specified."
+      ],
+    required = false,
+  )
+  private lateinit var cartesianEventGroupSpecFileByReferenceIdSuffix: Map<String, File>
+
   override fun run() {
+    check(
+      ::eventGroupSpecFileByReferenceIdSuffix
+        .isInitialized
+        .xor(::cartesianEventGroupSpecFileByReferenceIdSuffix.isInitialized)
+    ) {
+      "Either event-group-spec or cartesian-event-group-spec should be specified."
+    }
+
     val populationSpec =
       parseTextProto(populationSpecFile, SyntheticPopulationSpec.getDefaultInstance())
     val eventGroupSpecByReferenceIdSuffix =
-      eventGroupSpecFileByReferenceIdSuffix.mapValues {
-        parseTextProto(it.value, SyntheticEventGroupSpec.getDefaultInstance())
+      if (::eventGroupSpecFileByReferenceIdSuffix.isInitialized) {
+        eventGroupSpecFileByReferenceIdSuffix.mapValues {
+          parseTextProto(it.value, SyntheticEventGroupSpec.getDefaultInstance())
+        }
+      } else {
+        eventGroupSpecFileByReferenceIdSuffix.mapValues {
+          parseTextProto(it.value, CartesianSyntheticEventGroupSpecRecipe.getDefaultInstance())
+            .toSyntheticEventGroupSpec(populationSpec)
+        }
       }
+
     val eventMessageRegistry: TypeRegistry = buildEventMessageRegistry()
 
     val eventQuery =
