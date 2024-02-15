@@ -75,7 +75,6 @@ java_binary(
 
 kt_jvm_library(
     name = "beam_jobs_main",
-    testonly = True,
     srcs = ["BeamJobsMain.kt"],
     deps = [
         "//imports/java/org/apache/beam/runners/spark",
@@ -105,7 +104,6 @@ kt_jvm_library(
 
 java_binary(
     name = "BeamJobsMain",
-    testonly = True,
     main_class = "org.wfanet.panelmatch.client.tools.BeamJobsMainKt",
     tags = ["manual"],
     runtime_deps = [
