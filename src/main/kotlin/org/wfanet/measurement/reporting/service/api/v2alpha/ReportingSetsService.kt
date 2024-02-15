@@ -121,7 +121,11 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
       }
     }
 
-    return getInternalReportingSet(reportingSetKey.toName(), reportingSetKey.cmmsMeasurementConsumerId).toReportingSet()
+    return getInternalReportingSet(
+        reportingSetKey.toName(),
+        reportingSetKey.cmmsMeasurementConsumerId,
+      )
+      .toReportingSet()
   }
 
   /**

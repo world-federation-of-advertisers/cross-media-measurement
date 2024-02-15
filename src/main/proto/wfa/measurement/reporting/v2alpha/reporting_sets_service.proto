@@ -38,8 +38,7 @@ service ReportingSets {
   }
 
   // Returns the `ReportingSet` with the specified resource key.
-  rpc GetReportingSet(GetReportingSetRequest)
-      returns (ReportingSet) {
+  rpc GetReportingSet(GetReportingSetRequest) returns (ReportingSet) {
     option (google.api.http) = {
       get: "/v2alpha/{name=measurementConsumers/*/reportingSets/*}"
     };

@@ -670,11 +670,10 @@ class ReportingSetsServiceTest {
   @Test
   fun `getReportingSet returns reporting set`() {
     val request = getReportingSetRequest { name = PRIMITIVE_REPORTING_SETS.first().name }
-    val reportingSet = withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
-      runBlocking {
-        service.getReportingSet(request)
+    val reportingSet =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        runBlocking { service.getReportingSet(request) }
       }
-    }
     assertThat(reportingSet).isEqualTo(PRIMITIVE_REPORTING_SETS.first())
   }
 

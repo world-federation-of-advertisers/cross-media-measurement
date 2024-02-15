@@ -236,9 +236,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val primitiveReportingSet = reportingSet {
       displayName = "composite"
-      primitive = ReportingSetKt.primitive {
-        cmmsEventGroups.add(eventGroups[0].cmmsEventGroup)
-      }
+      primitive = ReportingSetKt.primitive { cmmsEventGroups.add(eventGroups[0].cmmsEventGroup) }
     }
 
     val createdPrimitiveReportingSet =
@@ -255,11 +253,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val retrievedPrimitiveReportingSet =
       publicReportingSetsClient
         .withPrincipalName(measurementConsumerData.name)
-        .getReportingSet(
-          getReportingSetRequest {
-            name = createdPrimitiveReportingSet.name
-          }
-        )
+        .getReportingSet(getReportingSetRequest { name = createdPrimitiveReportingSet.name })
 
     assertThat(createdPrimitiveReportingSet).isEqualTo(retrievedPrimitiveReportingSet)
   }
