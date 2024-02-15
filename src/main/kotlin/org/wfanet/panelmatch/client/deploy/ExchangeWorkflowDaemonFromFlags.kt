@@ -62,7 +62,7 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
     SigningCerts.fromPemFiles(
       certificateFile = flags.tlsFlags.certFile,
       privateKeyFile = flags.tlsFlags.privateKeyFile,
-      trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
+      trustedCertCollectionFile = flags.tlsFlags.certCollectionFile,
     )
   }
 
@@ -82,7 +82,7 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
       privateKeys = privateKeys,
       algorithm = flags.certAlgorithm,
       certificateAuthority = certificateAuthority,
-      localName = identity.toName()
+      localName = identity.toName(),
     )
   }
 
@@ -121,7 +121,7 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
       exchangeStepsClient,
       exchangeStepAttemptsClient,
       Clock.systemUTC(),
-      maxParallelClaimedExchangeSteps
+      maxParallelClaimedExchangeSteps,
     )
   }
 

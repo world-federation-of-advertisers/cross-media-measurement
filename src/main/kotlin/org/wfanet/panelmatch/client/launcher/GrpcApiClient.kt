@@ -16,10 +16,10 @@ package org.wfanet.panelmatch.client.launcher
 
 import java.time.Clock
 import kotlinx.coroutines.sync.Semaphore
-import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepResponse
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
+import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKt.debugLogEntry
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub
@@ -70,10 +70,7 @@ class GrpcApiClient(
     return null
   }
 
-  override suspend fun appendLogEntry(
-    key: ExchangeStepAttemptKey,
-    messages: Iterable<String>,
-  ) {
+  override suspend fun appendLogEntry(key: ExchangeStepAttemptKey, messages: Iterable<String>) {
     val request = appendExchangeStepAttemptLogEntryRequest {
       name = key.toName()
       for (message in messages) {
