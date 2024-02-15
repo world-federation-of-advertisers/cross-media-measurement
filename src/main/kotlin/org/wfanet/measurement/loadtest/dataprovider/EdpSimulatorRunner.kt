@@ -111,7 +111,7 @@ abstract class EdpSimulatorRunner : Runnable {
         createNoOpPrivacyBudgetManager(),
         clientCerts.trustedCertificates,
         random = random,
-        logSketch = flags.logSketch,
+        logSketchDetails = flags.logSketchDetails,
       )
     runBlocking {
       edpSimulator.ensureEventGroups(metadataByReferenceIdSuffix)
