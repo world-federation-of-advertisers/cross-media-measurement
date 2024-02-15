@@ -119,7 +119,6 @@ jar_jar(
         "rule com.google.protobuf.** shaded.com.google.protobuf.@1",
         "rule com.google.common.** shaded.google.common.@1",
         "rule com.fasterxml.jackson.** shaded.com.fasterxml.jackson.@1",
-        "rule kotlin.** shaded.kotlin.@1",
         "rule org.bouncycastle.** shaded.org.bouncycastle.@1",
         "rule org.apache.log4j.** shaded.org.apache.log4j.@1",
         "rule org.slf4j.** shaded.org.slf4j.@1",
