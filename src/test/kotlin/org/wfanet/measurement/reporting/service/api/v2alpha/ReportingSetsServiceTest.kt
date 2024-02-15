@@ -51,12 +51,14 @@ import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest as internalCreateReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
+import org.wfanet.measurement.reporting.v2alpha.GetReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsRequest
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
+import org.wfanet.measurement.reporting.v2alpha.getReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportingSetsPageToken
 import org.wfanet.measurement.reporting.v2alpha.listReportingSetsRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportingSetsResponse
@@ -663,6 +665,74 @@ class ReportingSetsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description).contains(invalidEventGroupName)
+  }
+
+  @Test
+  fun `getReportingSet returns reporting set`() {
+    val request = getReportingSetRequest { name = PRIMITIVE_REPORTING_SETS.first().name }
+    val reportingSet = withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+      runBlocking {
+        service.getReportingSet(request)
+      }
+    }
+    assertThat(reportingSet).isEqualTo(PRIMITIVE_REPORTING_SETS.first())
+  }
+
+  @Test
+  fun `getReportingSet throws NOT_FOUND when reporting set not found`() = runBlocking {
+    whenever(internalReportingSetsMock.batchGetReportingSets(any()))
+      .thenThrow(Status.NOT_FOUND.asRuntimeException())
+    val request = getReportingSetRequest { name = PRIMITIVE_REPORTING_SETS.first().name }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.getReportingSet(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `getReportingSet throws UNAUTHENTICATED when no principal is found`() {
+    val request = getReportingSetRequest { name = PRIMITIVE_REPORTING_SETS.first().name }
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.getReportingSet(request) } }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `getReportingSet throws PERMISSION_DENIED when MeasurementConsumer caller doesn't match`() {
+    val request = getReportingSetRequest { name = PRIMITIVE_REPORTING_SETS.first().name }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.last().toName(), CONFIG) {
+          runBlocking { service.getReportingSet(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `getReportingSet throws UNAUTHENTICATED when the caller is not MeasurementConsumer`() {
+    val request = getReportingSetRequest { name = PRIMITIVE_REPORTING_SETS.first().name }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_KEYS.first().toName()) {
+          runBlocking { service.getReportingSet(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `getReportingSet throws INVALID_ARGUMENT when name is unspecified`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.getReportingSet(GetReportingSetRequest.getDefaultInstance()) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test

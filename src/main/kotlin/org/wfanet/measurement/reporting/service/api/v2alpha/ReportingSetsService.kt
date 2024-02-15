@@ -35,6 +35,7 @@ import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest as internalCreateReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
 import org.wfanet.measurement.reporting.v2alpha.CreateReportingSetRequest
+import org.wfanet.measurement.reporting.v2alpha.GetReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsPageToken
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsRequest
@@ -102,6 +103,25 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
         .withCause(e)
         .asRuntimeException()
     }
+  }
+
+  override suspend fun getReportingSet(request: GetReportingSetRequest): ReportingSet {
+    val reportingSetKey: ReportingSetKey =
+      grpcRequireNotNull(ReportingSetKey.fromName(request.name)) {
+        "ReportingSet name is either unspecified or invalid."
+      }
+
+    when (val principal: ReportingPrincipal = principalFromCurrentContext) {
+      is MeasurementConsumerPrincipal -> {
+        if (reportingSetKey.parentKey != principal.resourceKey) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot get a ReportingSet belonging to another MeasurementConsumer."
+          }
+        }
+      }
+    }
+
+    return getInternalReportingSet(reportingSetKey.toName(), reportingSetKey.cmmsMeasurementConsumerId).toReportingSet()
   }
 
   /**

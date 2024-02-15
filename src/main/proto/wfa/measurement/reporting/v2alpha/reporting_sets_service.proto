@@ -37,6 +37,15 @@ service ReportingSets {
     option (google.api.method_signature) = "parent";
   }
 
+  // Returns the `ReportingSet` with the specified resource key.
+  rpc GetReportingSet(GetReportingSetRequest)
+      returns (ReportingSet) {
+    option (google.api.http) = {
+      get: "/v2alpha/{name=measurementConsumers/*/reportingSets/*}"
+    };
+    option (google.api.method_signature) = "name";
+  }
+
   // Creates a `ReportingSet`.
   rpc CreateReportingSet(CreateReportingSetRequest) returns (ReportingSet) {
     option (google.api.http) = {
@@ -101,4 +110,16 @@ message CreateReportingSetRequest {
 
   // The ReportingSet to create.
   ReportingSet reporting_set = 3 [(google.api.field_behavior) = REQUIRED];
+}
+
+message GetReportingSetRequest {
+  // The name of the `ReportingSet` to retrieve.
+  // Format:
+  // measurementConsumers/{measurement_consumer}/reportingSets/{reporting_set}
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "reporting.halo-cmm.org/ReportingSet"
+    }
+  ];
 }
