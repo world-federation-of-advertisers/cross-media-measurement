@@ -20,9 +20,10 @@ import java.util.logging.Logger
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.supervisorScope
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
@@ -60,27 +61,28 @@ class ExchangeTaskExecutor(
     exchangeStep: ExchangeStep,
     attemptKey: CanonicalExchangeStepAttemptKey,
   ) {
-    supervisorScope {
-      launch(
-        dispatcher + CoroutineName(attemptKey.toName()) + TaskLog(attemptKey.toName())
-      ) {
+    coroutineScope {
+      launch(dispatcher + CoroutineName(attemptKey.toName()) + TaskLog(attemptKey.toName())) {
         try {
           val validatedStep = validator.validate(exchangeStep)
-          val context = ExchangeContext(
-            attemptKey,
-            validatedStep.date,
-            validatedStep.workflow,
-            validatedStep.step,
-          )
+          val context =
+            ExchangeContext(
+              attemptKey,
+              validatedStep.date,
+              validatedStep.workflow,
+              validatedStep.step,
+            )
           context.tryExecute()
         } catch (e: Exception) {
           logger.addToTaskLog("Caught Exception in task execution:", Level.SEVERE)
           logger.addToTaskLog(e, Level.SEVERE)
-          val attemptState = when (e) {
-            is ExchangeTaskFailedException -> e.attemptState
-            else -> ExchangeStepAttempt.State.FAILED
-          }
+          val attemptState =
+            when (e) {
+              is ExchangeTaskFailedException -> e.attemptState
+              else -> ExchangeStepAttempt.State.FAILED
+            }
           markAsFinished(attemptKey, attemptState)
+          cancel("Task failed and reported back to Kingdom. Cancelling task scope.", e)
         }
       }
     }
@@ -100,9 +102,10 @@ class ExchangeTaskExecutor(
     privateStorage: StorageClient,
   ) {
     for ((genericLabel, flow) in taskOutput) {
-      val blobKey = requireNotNull(step.outputLabelsMap[genericLabel]) {
-        "Missing $genericLabel in outputLabels for step: $step"
-      }
+      val blobKey =
+        requireNotNull(step.outputLabelsMap[genericLabel]) {
+          "Missing $genericLabel in outputLabels for step: $step"
+        }
       privateStorage.writeBlob(blobKey, flow)
     }
   }
