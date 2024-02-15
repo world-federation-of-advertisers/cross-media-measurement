@@ -100,7 +100,7 @@ class BeamJobsMain : Runnable {
         "The decrypt exchange step to run. Can be made manually, or serialized from " +
           "an existing workflow."
       ],
-    required = true
+    required = true,
   )
   private lateinit var exchangeWorkflowBlobKey: String
 
@@ -121,7 +121,7 @@ class BeamJobsMain : Runnable {
           "attempt counts."
       ],
     required = true,
-    defaultValue = "A"
+    defaultValue = "A",
   )
   private lateinit var exchangeStepAttemptResourceKey: String
 
