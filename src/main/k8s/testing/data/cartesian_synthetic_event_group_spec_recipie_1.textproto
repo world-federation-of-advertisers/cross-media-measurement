@@ -21,8 +21,8 @@ date_specs {
   frequency_ratios: { key: 1 value: 0.7 }
   frequency_ratios: { key: 2 value: 0.3 }
 
-  non_population_dimension_specs: { 
-    key: "video_ad.viewed_fraction" 
+  non_population_dimension_specs: {
+    key: "video_ad.viewed_fraction"
     field_value_ratios : {
       value {
         double_value: 0.25
