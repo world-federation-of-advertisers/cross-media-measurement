@@ -35,7 +35,6 @@ import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoro
 import org.wfanet.measurement.internal.duchy.GetOutputBlobMetadataRequest
 import org.wfanet.measurement.internal.duchy.getComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.recordOutputBlobPathRequest
-import org.wfanet.measurement.internal.duchy.updateComputationDetailsRequest
 
 /** Implementation of the internal Async Computation Control Service. */
 class AsyncComputationControlService(
@@ -90,7 +89,7 @@ class AsyncComputationControlService(
           .asRuntimeException()
 
     val computationStage = token.computationStage
-    if (!stages.isValidStage(computationStage, request.computationStage)) {
+    if (computationStage != request.computationStage) {
       if (computationStage == stages.nextStage(request.computationStage)) {
         // This is technically an error, but it should be safe to treat as a no-op.
         logger.warning { "[id=$globalComputationId]: Computation stage has already been advanced" }
@@ -103,57 +102,43 @@ class AsyncComputationControlService(
         .asRuntimeException()
     }
 
-    if (stages.expectBlob(computationStage)) {
-      val outputBlob =
-        token.blobsList.firstOrNull {
-          it.blobId == request.blobId && it.dependencyType == ComputationBlobDependency.OUTPUT
-        } ?: failGrpc(Status.FAILED_PRECONDITION) { "No output blob with ID ${request.blobId}" }
-      if (outputBlob.path.isNotEmpty()) {
-        if (outputBlob.path != request.blobPath) {
-          throw Status.FAILED_PRECONDITION.withDescription(
-              "Output blob ${outputBlob.blobId} already has a different path recorded"
-            )
-            .asRuntimeException()
-        }
-        logger.info {
-          "[id=$globalComputationId]: Path already recorded for output blob ${outputBlob.blobId}"
-        }
-      } else {
-        val response =
-          try {
-            computationsClient.recordOutputBlobPath(
-              recordOutputBlobPathRequest {
-                this.token = token
-                outputBlobId = outputBlob.blobId
-                blobPath = request.blobPath
-              }
-            )
-          } catch (e: StatusException) {
-            throw when (e.status.code) {
-              Status.Code.ABORTED -> RetryableException(e)
-              else -> Status.UNKNOWN.withCause(e).asRuntimeException()
-            }
-          }
-
-        // Computation has changed, so use the new token.
-        token = response.token
+    val outputBlob =
+      token.blobsList.firstOrNull {
+        it.blobId == request.blobId && it.dependencyType == ComputationBlobDependency.OUTPUT
+      } ?: failGrpc(Status.FAILED_PRECONDITION) { "No output blob with ID ${request.blobId}" }
+    if (outputBlob.path.isNotEmpty()) {
+      if (outputBlob.path != request.blobPath) {
+        throw Status.FAILED_PRECONDITION.withDescription(
+            "Output blob ${outputBlob.blobId} already has a different path recorded"
+          )
+          .asRuntimeException()
       }
-    }
-
-    if (stages.expectStageInput(token)) {
-      val computationDetails =
-        stages.updateComputationDetails(token.computationDetails, request.computationStageInput)
+      logger.info {
+        "[id=$globalComputationId]: Path already recorded for output blob ${outputBlob.blobId}"
+      }
+    } else {
       val response =
-        computationsClient.updateComputationDetails(
-          updateComputationDetailsRequest {
-            this.token = token
-            details = computationDetails
+        try {
+          computationsClient.recordOutputBlobPath(
+            recordOutputBlobPathRequest {
+              this.token = token
+              outputBlobId = outputBlob.blobId
+              blobPath = request.blobPath
+            }
+          )
+        } catch (e: StatusException) {
+          throw when (e.status.code) {
+            Status.Code.ABORTED -> RetryableException(e)
+            else -> Status.UNKNOWN.withCause(e).asRuntimeException()
           }
-        )
+        }
+
+      // Computation has changed, so use the new token.
       token = response.token
     }
 
-    if (stages.readyForNextStage(token)) {
+    // Advance the computation to next stage if all blob paths are present.
+    if (!token.outputPathList().any(String::isEmpty)) {
       try {
         computationsClient.advanceComputationStage(
           computationToken = token,
