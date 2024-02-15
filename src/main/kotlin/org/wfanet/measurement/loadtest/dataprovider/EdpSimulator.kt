@@ -416,6 +416,7 @@ class EdpSimulator(
         throw InvalidConsentSignalException("RequisitionSpec decryption failed", e)
       }
     val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
+
     try {
       verifyRequisitionSpec(
         signedRequisitionSpec,
@@ -584,6 +585,9 @@ class EdpSimulator(
               e.message.orEmpty(),
             )
           }
+
+        logger.info("RequisitionSpec:\n${requisitionSpec}")
+        logger.info("MeasurementSpec:\n${measurementSpec}")
 
         for (eventGroupEntry in requisitionSpec.events.eventGroupsList) {
           val eventGroupId = EventGroupKey.fromName(eventGroupEntry.key)!!.eventGroupId
@@ -932,8 +936,9 @@ class EdpSimulator(
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
   ): Sketch {
     logger.info("Generating Sketch...")
-    return SketchGenerator(eventQuery, sketchConfig, measurementSpec.vidSamplingInterval)
+    val sketch = SketchGenerator(eventQuery, sketchConfig, measurementSpec.vidSamplingInterval)
       .generate(eventGroupSpecs)
+    // TODO: log the sketch
   }
 
   private fun encryptLiquidLegionsV2Sketch(
@@ -1540,6 +1545,8 @@ class EdpSimulator(
         Requisition.Refusal.Justification.UNFULFILLABLE,
         "Invalid data provider certificate",
       )
+
+    logger.info("Measurement.Result for direct measurement:\n${measurementSpec}")
     val measurementEncryptionPublicKey: EncryptionPublicKey =
       if (measurementSpec.hasMeasurementPublicKey()) {
         measurementSpec.measurementPublicKey.unpack()
