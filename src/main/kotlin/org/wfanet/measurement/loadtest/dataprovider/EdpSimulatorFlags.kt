@@ -107,4 +107,12 @@ class EdpSimulatorFlags {
   )
   var randomSeed: Long? = null
     private set
+
+  @CommandLine.Option(
+    names = ["--verbose"],
+    description = ["Whether to log extra information, e.g., RequisitionSpec, SketchParam."],
+    required = false,
+  )
+  var verbose: Boolean = false
+    private set
 }
