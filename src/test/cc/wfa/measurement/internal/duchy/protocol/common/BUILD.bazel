@@ -1,0 +1,17 @@
+load("@rules_cc//cc:defs.bzl", "cc_test")
+
+cc_test(
+    name = "noise_parameters_computation_test",
+    size = "small",
+    srcs = [
+        "noise_parameters_computation_test.cc",
+    ],
+    deps = [
+        "//src/main/cc/wfa/measurement/internal/duchy/protocol/common:noise_parameters_computation",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_noise_config_cc_proto",
+        "@any_sketch//src/main/cc/math:distributed_discrete_gaussian_noiser",
+        "@any_sketch//src/main/cc/math:distributed_geometric_noiser",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)

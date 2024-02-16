@@ -48,7 +48,7 @@ suspend fun ApacheBeamContext.preprocessEvents(
   val compressionParameters =
     readBlobAsPCollection("compression-parameters")
       .map("Parse as CompressionParameters") { CompressionParameters.parseFrom(it) }
-      .toSingletonView()
+      .toSingletonView("compression-parameters-singleton-view")
 
   val preprocessedEvents: PCollection<DatabaseEntry> =
     preprocessEvents(
