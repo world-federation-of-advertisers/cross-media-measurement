@@ -18,10 +18,12 @@ import com.google.protobuf.ByteString
 import java.io.File
 import java.time.Clock
 import java.time.Duration
+import java.time.LocalDate
 import java.util.logging.Level
+import kotlin.properties.Delegates
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
-import org.apache.beam.runners.direct.DirectRunner
+import org.apache.beam.runners.spark.SparkRunner
 import org.apache.beam.sdk.options.PipelineOptions
 import org.apache.beam.sdk.options.PipelineOptionsFactory
 import org.apache.beam.sdk.options.SdkHarnessOptions
@@ -32,7 +34,6 @@ import org.wfanet.measurement.aws.s3.S3Flags
 import org.wfanet.measurement.aws.s3.S3StorageClient
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.StorageClient
@@ -51,7 +52,6 @@ import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
 import org.wfanet.panelmatch.client.storage.aws.s3.S3StorageFactory
 import org.wfanet.panelmatch.client.storage.gcloud.gcs.GcsStorageFactory
 import org.wfanet.panelmatch.common.ExchangeDateKey
-import org.wfanet.panelmatch.common.beam.BeamOptions
 import org.wfanet.panelmatch.common.certificates.testing.TestCertificateManager
 import org.wfanet.panelmatch.common.loggerFor
 import org.wfanet.panelmatch.common.secrets.StorageClientSecretMap
@@ -95,27 +95,42 @@ class BeamJobsMain : Runnable {
   private lateinit var rootDirectory: File
 
   @Option(
-    names = ["--exchange-step-blob-key"],
+    names = ["--exchange-workflow-blob-key"],
     description =
       [
-        "The blob key of the exchange step to run. Can be made manually, or serialized from " +
-          "an existing workflow. This will be pulled from root starage."
+        "The decrypt exchange step to run. Can be made manually, or serialized from " +
+          "an existing workflow."
       ],
     required = true,
   )
-  private lateinit var exchangeStepBlobKey: String
+  private lateinit var exchangeWorkflowBlobKey: String
+
+  @set:Option(names = ["--step-index"], description = ["Index of step."], required = true)
+  var stepIndex by Delegates.notNull<Int>()
+    private set
+
+  private val serializedExchangeWorkflow by lazy {
+    runBlocking { rootStorageClient.getBlob(exchangeWorkflowBlobKey)!!.toByteString() }
+  }
 
   @Option(
-    names = ["--exchange-step-attempt-id"],
+    names = ["--exchange-step-attempt-resource-id"],
     description =
       [
-        "Resource ID for the exchange step attempt. If not tied to an existing exchange, the " +
-          "only reason to set this is to keep track of your own attempt counts."
+        "Resource ID for the decrypt exchange step attempt. If not tied to an " +
+          "existing exchange, the only reason to set this is to keep track of your own " +
+          "attempt counts."
       ],
     required = true,
-    defaultValue = "A",
   )
-  private lateinit var exchangeStepAttemptId: String
+  private lateinit var exchangeStepAttemptResourceId: String
+
+  @Option(
+    names = ["--exchange-date"],
+    description = ["Date in format of YYYY-MM-DD"],
+    required = true,
+  )
+  private lateinit var exchangeDate: String
 
   @Option(
     names = ["--storage-type"],
@@ -143,8 +158,8 @@ class BeamJobsMain : Runnable {
   }
 
   private fun makePipelineOptions(): PipelineOptions {
-    return PipelineOptionsFactory.`as`(BeamOptions::class.java).apply {
-      runner = DirectRunner::class.java
+    return PipelineOptionsFactory.`as`(SdkHarnessOptions::class.java).apply {
+      runner = SparkRunner::class.java
       defaultSdkHarnessLogLevel = SdkHarnessOptions.LogLevel.TRACE
     }
   }
@@ -174,12 +189,8 @@ class BeamJobsMain : Runnable {
   }
 
   override fun run() = runBlocking {
-    val beamStep =
-      ExchangeStep.parseFrom(
-        requireNotNull(rootStorageClient.getBlob(exchangeStepBlobKey)).toByteString()
-      )!!
-    val workflow: ExchangeWorkflow = ExchangeWorkflow.parseFrom(beamStep.serializedExchangeWorkflow)
-    val step = workflow.getSteps(beamStep.stepIndex)
+    val exchangeWorkflow = ExchangeWorkflow.parseFrom(serializedExchangeWorkflow)
+    val step = exchangeWorkflow.getSteps(stepIndex)!!
 
     require(
       step.stepCase == ExchangeWorkflow.Step.StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP
@@ -187,14 +198,11 @@ class BeamJobsMain : Runnable {
       "The only step type currently supported is DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP"
     }
 
-    logger.log(Level.INFO, beamStep.name)
     val attemptKey =
-      requireNotNull(
-        ExchangeStepAttemptKey.fromName("${beamStep.name}/attempts/$exchangeStepAttemptId")
-      )
+      requireNotNull(ExchangeStepAttemptKey.fromName(exchangeStepAttemptResourceId))
 
     val exchangeContext =
-      ExchangeContext(attemptKey, beamStep.exchangeDate.toLocalDate(), workflow, step)
+      ExchangeContext(attemptKey, LocalDate.parse(exchangeDate), exchangeWorkflow, step)
 
     val privateStorageClient: StorageClient =
       privateStorageSelector.getStorageClient(exchangeContext.exchangeDateKey)
