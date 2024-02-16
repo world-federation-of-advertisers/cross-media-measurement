@@ -51,6 +51,7 @@ import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.measurementLogEntry
 import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest as internalSetParticipantRequisitionParamsRequest
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt.RequisitionParamsKt.honestMajorityShareShuffle
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt.RequisitionParamsKt.liquidLegionsV2
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt.requisitionParams
 import org.wfanet.measurement.system.v1alpha.ConfirmComputationParticipantRequest
@@ -79,6 +80,9 @@ private val SYSTEM_COMPUTATION_PARTICIPANT_NAME =
 private val DUCHY_CERTIFICATE_DER = ByteString.copyFromUtf8("an X.509 certificate")
 private val DUCHY_ELGAMAL_KEY = ByteString.copyFromUtf8("an elgamal key.")
 private val DUCHY_ELGAMAL_KEY_SIGNATURE = ByteString.copyFromUtf8("an elgamal key signature.")
+private val DUCHY_TINK_KEY = ByteString.copyFromUtf8("a tink public key.")
+private val DUCHY_TINK_KEY_SIGNATURE = ByteString.copyFromUtf8("a tink public key signature.")
+private val DUCHY_TINK_KEY_SIGNATURE_ALGORITHEM_OID = "2.9999"
 
 private val INTERNAL_COMPUTATION_PARTICIPANT =
   InternalComputationParticipant.newBuilder()
@@ -285,6 +289,69 @@ class ComputationParticipantsServiceTest {
           externalDuchyCertificateId = EXTERNAL_DUCHY_CERTIFICATE_ID
           reachOnlyLiquidLegionsV2 =
             internalComputationParticipantWithRoLlv2Params.details.reachOnlyLiquidLegionsV2
+        }
+      )
+  }
+
+  @Test
+  fun `SetParticipantRequisitionParams for hmss successfully`() = runBlocking {
+    val internalComputationParticipantWithHmssParams =
+      INTERNAL_COMPUTATION_PARTICIPANT_WITH_PARAMS.copy {
+        details =
+          InternalComputationParticipantKt.details {
+            honestMajorityShareShuffle =
+              InternalComputationParticipantKt.honestMajorityShareShuffleDetails {
+                tinkPublicKey = DUCHY_TINK_KEY
+                tinkPublicKeySignature = DUCHY_TINK_KEY_SIGNATURE
+                tinkPublicKeySignatureAlgorithmOid = DUCHY_TINK_KEY_SIGNATURE_ALGORITHEM_OID
+              }
+          }
+      }
+
+    whenever(internalComputationParticipantsServiceMock.setParticipantRequisitionParams(any()))
+      .thenReturn(internalComputationParticipantWithHmssParams)
+
+    val request = setParticipantRequisitionParamsRequest {
+      name = SYSTEM_COMPUTATION_PARTICIPANT_NAME
+      requisitionParams = requisitionParams {
+        duchyCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
+        honestMajorityShareShuffle = honestMajorityShareShuffle {
+          tinkPublicKey = DUCHY_TINK_KEY
+          tinkPublicKeySignature = DUCHY_TINK_KEY_SIGNATURE
+          tinkPublicKeySignatureAlgorithmOid = DUCHY_TINK_KEY_SIGNATURE_ALGORITHEM_OID
+        }
+      }
+    }
+    val response: ComputationParticipant = service.setParticipantRequisitionParams(request)
+
+    assertThat(response)
+      .isEqualTo(
+        computationParticipant {
+          name = SYSTEM_COMPUTATION_PARTICIPANT_NAME
+          state = ComputationParticipant.State.REQUISITION_PARAMS_SET
+          updateTime = INTERNAL_COMPUTATION_PARTICIPANT.updateTime
+          requisitionParams = requisitionParams {
+            duchyCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
+            duchyCertificateDer = DUCHY_CERTIFICATE_DER
+            honestMajorityShareShuffle = honestMajorityShareShuffle {
+              tinkPublicKey = DUCHY_TINK_KEY
+              tinkPublicKeySignature = DUCHY_TINK_KEY_SIGNATURE
+              tinkPublicKeySignatureAlgorithmOid = DUCHY_TINK_KEY_SIGNATURE_ALGORITHEM_OID
+            }
+          }
+        }
+      )
+    verifyProtoArgument(
+        internalComputationParticipantsServiceMock,
+        InternalComputationParticipantsCoroutineService::setParticipantRequisitionParams,
+      )
+      .isEqualTo(
+        internalSetParticipantRequisitionParamsRequest {
+          externalComputationId = EXTERNAL_COMPUTATION_ID
+          externalDuchyId = DUCHY_ID
+          externalDuchyCertificateId = EXTERNAL_DUCHY_CERTIFICATE_ID
+          honestMajorityShareShuffle =
+            internalComputationParticipantWithHmssParams.details.honestMajorityShareShuffle
         }
       )
   }
