@@ -25,8 +25,8 @@ import org.apache.beam.runners.direct.DirectRunner
 import org.apache.beam.sdk.options.PipelineOptions
 import org.apache.beam.sdk.options.PipelineOptionsFactory
 import org.apache.beam.sdk.options.SdkHarnessOptions
-import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
+import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.aws.s3.S3Flags
 import org.wfanet.measurement.aws.s3.S3StorageClient
@@ -178,7 +178,7 @@ class BeamJobsMain : Runnable {
       ExchangeStep.parseFrom(
         requireNotNull(rootStorageClient.getBlob(exchangeStepBlobKey)).toByteString()
       )
-    val workflow: ExchangeWorkflow = beamStep.exchangeWorkflow.unpack(ExchangeWorkflow::class.java)
+    val workflow: ExchangeWorkflow = ExchangeWorkflow.parseFrom(beamStep.serializedExchangeWorkflow)
     val step = workflow.getSteps(beamStep.stepIndex)
 
     require(
@@ -190,7 +190,7 @@ class BeamJobsMain : Runnable {
     logger.log(Level.INFO, beamStep.name)
     val attemptKey =
       requireNotNull(
-        CanonicalExchangeStepAttemptKey.fromName("${beamStep.name}/attempts/$exchangeStepAttemptId")
+        ExchangeStepAttemptKey.fromName("${beamStep.name}/attempts/$exchangeStepAttemptId")
       )
 
     val exchangeContext =
