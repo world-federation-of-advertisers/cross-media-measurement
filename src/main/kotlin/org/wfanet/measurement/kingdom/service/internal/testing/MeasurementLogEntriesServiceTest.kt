@@ -127,7 +127,7 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
-      population.createComputedMeasurement(
+      population.createLlv2Measurement(
         measurementsService,
         measurementConsumer,
         "measurement 1",
@@ -184,7 +184,7 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
-      population.createComputedMeasurement(
+      population.createLlv2Measurement(
         measurementsService,
         measurementConsumer,
         "measurement 1",
@@ -240,7 +240,7 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
-      population.createComputedMeasurement(
+      population.createLlv2Measurement(
         measurementsService,
         measurementConsumer,
         "measurement 1",
@@ -288,7 +288,7 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider = population.createDataProvider(dataProvidersService)
     val measurement =
-      population.createComputedMeasurement(
+      population.createLlv2Measurement(
         measurementsService,
         measurementConsumer,
         "measurement 1",
@@ -339,7 +339,7 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
       val dataProvider = population.createDataProvider(dataProvidersService)
 
       measurement =
-        population.createComputedMeasurement(
+        population.createLlv2Measurement(
           measurementsService,
           measurementConsumer,
           "measurement 1",

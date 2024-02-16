@@ -126,10 +126,20 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
 
     val participantDetails =
       computationParticipant.details.copy {
-        if (request.hasLiquidLegionsV2()) {
-          liquidLegionsV2 = request.liquidLegionsV2
-        } else if (request.hasReachOnlyLiquidLegionsV2()) {
-          reachOnlyLiquidLegionsV2 = request.reachOnlyLiquidLegionsV2
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
+        when (request.protocolCase) {
+          SetParticipantRequisitionParamsRequest.ProtocolCase.LIQUID_LEGIONS_V2 -> {
+            liquidLegionsV2 = request.liquidLegionsV2
+          }
+          SetParticipantRequisitionParamsRequest.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
+            reachOnlyLiquidLegionsV2 = request.reachOnlyLiquidLegionsV2
+          }
+          SetParticipantRequisitionParamsRequest.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+            honestMajorityShareShuffle = request.honestMajorityShareShuffle
+          }
+          SetParticipantRequisitionParamsRequest.ProtocolCase.PROTOCOL_NOT_SET -> {
+            error("Unspecified protocol case in SetParticipantRequisitionParamsRequest.")
+          }
         }
       }
 

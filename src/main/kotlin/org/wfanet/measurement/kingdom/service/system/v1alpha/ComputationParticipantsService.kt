@@ -23,6 +23,7 @@ import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.duchyIdentityFromContext
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant as InternalComputationParticipant
+import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.honestMajorityShareShuffleDetails
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.liquidLegionsV2Details
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as InternalComputationParticipantsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ConfirmComputationParticipantRequest as InternalConfirmComputationParticipantRequest
@@ -89,6 +90,9 @@ class ComputationParticipantsService(
         ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
           reachOnlyLiquidLegionsV2 = requisitionParams.reachOnlyLiquidLegionsV2.toLlV2Details()
         }
+        ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+          honestMajorityShareShuffle = requisitionParams.honestMajorityShareShuffle.toHmssDetails()
+        }
         ProtocolCase.PROTOCOL_NOT_SET -> failGrpc { "protocol not set in the requisition_params." }
       }
     }
@@ -101,6 +105,16 @@ class ComputationParticipantsService(
       elGamalPublicKey = source.elGamalPublicKey
       elGamalPublicKeySignature = source.elGamalPublicKeySignature
       elGamalPublicKeySignatureAlgorithmOid = source.elGamalPublicKeySignatureAlgorithmOid
+    }
+  }
+
+  private fun ComputationParticipant.RequisitionParams.HonestMajorityShareShuffle.toHmssDetails():
+    InternalComputationParticipant.HonestMajorityShareShuffleDetails {
+    val source = this
+    return honestMajorityShareShuffleDetails {
+      tinkPublicKey = source.tinkPublicKey
+      tinkPublicKeySignature = source.tinkPublicKeySignature
+      tinkPublicKeySignatureAlgorithmOid = source.tinkPublicKeySignatureAlgorithmOid
     }
   }
 

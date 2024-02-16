@@ -61,11 +61,20 @@ message ComputationParticipant {
     string el_gamal_public_key_signature_algorithm_oid = 3;
   }
 
+  message HonestMajorityShareShuffleDetails {
+    // Serialized Keyset of TinkPublicKeyHandle.
+    bytes tink_public_key = 1;
+    bytes tink_public_key_signature = 2;
+    string tink_public_key_signature_algorithm_oid = 3;
+  }
+
   message Details {
     oneof protocol {
       LiquidLegionsV2Details liquid_legions_v2 = 1;
 
       LiquidLegionsV2Details reach_only_liquid_legions_v2 = 2;
+
+      HonestMajorityShareShuffleDetails honest_majority_share_shuffle = 3;
     }
   }
   Details details = 7;

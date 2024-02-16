@@ -39,6 +39,7 @@ import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.details
+import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.honestMajorityShareShuffleDetails
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.liquidLegionsV2Details
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
@@ -62,6 +63,7 @@ import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
 import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
+import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.DUCHIES
@@ -72,6 +74,10 @@ private const val PROVIDED_MEASUREMENT_ID = "measurement"
 private val EL_GAMAL_PUBLIC_KEY = ByteString.copyFromUtf8("This is an ElGamal Public Key.")
 private val EL_GAMAL_PUBLIC_KEY_SIGNATURE =
   ByteString.copyFromUtf8("This is an ElGamal Public Key signature.")
+private val TINK_PUBLIC_KEY = ByteString.copyFromUtf8("This is an Tink Public Key.")
+private val TINK_PUBLIC_KEY_SIGNATURE =
+  ByteString.copyFromUtf8("This is an Tink Public Key signature.")
+private val TINK_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID = "2.9999"
 
 @RunWith(JUnit4::class)
 abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCoroutineImplBase> {
@@ -147,7 +153,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
-      population.createComputedMeasurement(
+      population.createLlv2Measurement(
         measurementsService,
         measurementConsumer,
         PROVIDED_MEASUREMENT_ID,
@@ -181,7 +187,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     measurementConsumer.certificate.externalCertificateId
     val dataProvider = population.createDataProvider(dataProvidersService)
 
-    population.createComputedMeasurement(
+    population.createLlv2Measurement(
       measurementsService,
       measurementConsumer,
       PROVIDED_MEASUREMENT_ID,
@@ -216,7 +222,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       val dataProvider = population.createDataProvider(dataProvidersService)
 
       val measurement =
-        population.createComputedMeasurement(
+        population.createLlv2Measurement(
           measurementsService,
           measurementConsumer,
           PROVIDED_MEASUREMENT_ID,
@@ -249,7 +255,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
-      population.createComputedMeasurement(
+      population.createLlv2Measurement(
         measurementsService,
         measurementConsumer,
         PROVIDED_MEASUREMENT_ID,
@@ -290,7 +296,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
-      population.createComputedMeasurement(
+      population.createLlv2Measurement(
         measurementsService,
         measurementConsumer,
         PROVIDED_MEASUREMENT_ID,
@@ -330,7 +336,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
-      population.createComputedMeasurement(
+      population.createLlv2Measurement(
         measurementsService,
         measurementConsumer,
         PROVIDED_MEASUREMENT_ID,
@@ -371,7 +377,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
-      population.createComputedMeasurement(
+      population.createLlv2Measurement(
         measurementsService,
         measurementConsumer,
         PROVIDED_MEASUREMENT_ID,
@@ -415,7 +421,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
-      population.createComputedMeasurement(
+      population.createLlv2Measurement(
         measurementsService,
         measurementConsumer,
         PROVIDED_MEASUREMENT_ID,
@@ -460,6 +466,60 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   }
 
   @Test
+  fun `setParticipantRequisitionParams succeeds for non-final HMSS Duchy`() = runBlocking {
+    createDuchyCertificates()
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+    val dataProvider = population.createDataProvider(dataProvidersService)
+
+    val measurement =
+      population.createHmssMeasurement(
+        measurementsService,
+        measurementConsumer,
+        PROVIDED_MEASUREMENT_ID,
+        dataProvider,
+      )
+
+    val request = setParticipantRequisitionParamsRequest {
+      externalComputationId = measurement.externalComputationId
+      externalDuchyId = DUCHIES[0].externalDuchyId
+      externalDuchyCertificateId =
+        duchyCertificates[DUCHIES[0].externalDuchyId]!!.externalCertificateId
+      honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
+        tinkPublicKey = TINK_PUBLIC_KEY
+        tinkPublicKeySignature = TINK_PUBLIC_KEY_SIGNATURE
+        tinkPublicKeySignatureAlgorithmOid = TINK_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
+      }
+    }
+
+    val expectedComputationParticipant = computationParticipant {
+      state = ComputationParticipant.State.REQUISITION_PARAMS_SET
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      externalMeasurementId = measurement.externalMeasurementId
+      externalComputationId = measurement.externalComputationId
+      externalDuchyId = DUCHIES[0].externalDuchyId
+      details = details { honestMajorityShareShuffle = request.honestMajorityShareShuffle }
+      apiVersion = measurement.details.apiVersion
+      duchyCertificate = duchyCertificates[DUCHIES[0].externalDuchyId]!!
+    }
+
+    val computationParticipant =
+      computationParticipantsService.setParticipantRequisitionParams(request)
+    assertThat(computationParticipant)
+      .ignoringFields(ComputationParticipant.UPDATE_TIME_FIELD_NUMBER)
+      .isEqualTo(expectedComputationParticipant)
+
+    val nonUpdatedMeasurement =
+      measurementsService.getMeasurementByComputationId(
+        getMeasurementByComputationIdRequest {
+          externalComputationId = measurement.externalComputationId
+        }
+      )
+    assertThat(nonUpdatedMeasurement.state).isEqualTo(Measurement.State.PENDING_REQUISITION_PARAMS)
+  }
+
+  @Test
   fun `setParticipantRequisitionParams for final Duchy updates Measurement and Requisition state`() {
     runBlocking {
       createDuchyCertificates()
@@ -468,7 +528,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       val dataProvider = population.createDataProvider(dataProvidersService)
       val externalComputationId =
         population
-          .createComputedMeasurement(
+          .createLlv2Measurement(
             measurementsService,
             measurementConsumer,
             PROVIDED_MEASUREMENT_ID,
@@ -543,7 +603,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   fun `confirmComputationParticipant succeeds for non-last duchy`(): Unit = runBlocking {
     createDuchyCertificates()
     val measurement =
-      population.createComputedMeasurement(
+      population.createLlv2Measurement(
         measurementsService,
         population.createMeasurementConsumer(measurementConsumersService, accountsService),
         "measurement",
@@ -630,7 +690,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   fun `confirmComputationParticipant succeeds for last duchy`() = runBlocking {
     createDuchyCertificates()
     val measurement =
-      population.createComputedMeasurement(
+      population.createLlv2Measurement(
         measurementsService,
         population.createMeasurementConsumer(measurementConsumersService, accountsService),
         "measurement",
@@ -706,7 +766,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val duchies = DUCHIES.dropLast(1)
     createDuchyCertificates(duchies.map { it.externalDuchyId })
     val measurement =
-      population.createComputedMeasurement(
+      population.createLlv2Measurement(
         measurementsService,
         population.createMeasurementConsumer(measurementConsumersService, accountsService),
         "measurement",
@@ -790,7 +850,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
-      population.createComputedMeasurement(
+      population.createLlv2Measurement(
         measurementsService,
         measurementConsumer,
         "measurement 1",
@@ -842,7 +902,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
-      population.createComputedMeasurement(
+      population.createLlv2Measurement(
         measurementsService,
         measurementConsumer,
         "measurement 1",
@@ -903,6 +963,14 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
         setOf(Population.AGGREGATOR_DUCHY.externalDuchyId),
         2,
+      )
+      HmssProtocolConfig.setForTest(
+        ProtocolConfig.HonestMajorityShareShuffle.getDefaultInstance(),
+        setOf(
+          Population.AGGREGATOR_DUCHY.externalDuchyId,
+          Population.WORKER1_DUCHY.externalDuchyId,
+          Population.WORKER2_DUCHY.externalDuchyId,
+        ),
       )
     }
   }
