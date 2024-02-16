@@ -42,7 +42,7 @@ class ExchangeWorkflowFlags {
     names = ["--channel-shutdown-timeout"],
     defaultValue = "3s",
     description = ["How long to allow for the gRPC channel to shutdown."],
-    required = true
+    required = true,
   )
   lateinit var channelShutdownTimeout: Duration
     private set
@@ -51,7 +51,7 @@ class ExchangeWorkflowFlags {
     names = ["--storage-signing-algorithm"],
     defaultValue = "EC",
     description = ["The algorithm used in signing data written to shared storage."],
-    required = true
+    required = true,
   )
   lateinit var certAlgorithm: String
     private set
@@ -60,7 +60,7 @@ class ExchangeWorkflowFlags {
     names = ["--polling-interval"],
     defaultValue = "1m",
     description = ["How long to sleep between finding and running an ExchangeStep."],
-    required = true
+    required = true,
   )
   lateinit var pollingInterval: Duration
     private set
@@ -69,7 +69,7 @@ class ExchangeWorkflowFlags {
     names = ["--task-timeout"],
     defaultValue = "24h",
     description = ["How long to sleep between finding and running an ExchangeStep."],
-    required = true
+    required = true,
   )
   lateinit var taskTimeout: Duration
     private set
@@ -78,7 +78,7 @@ class ExchangeWorkflowFlags {
     names = ["--exchange-api-target"],
     description =
       ["Address and port for servers hosting /ExchangeSteps and /ExchangeStepAttempts services"],
-    required = true
+    required = true,
   )
   lateinit var exchangeApiTarget: String
     private set
@@ -86,7 +86,7 @@ class ExchangeWorkflowFlags {
   @Option(
     names = ["--exchange-api-cert-host"],
     description = ["Expected hostname in the TLS certificate for --exchange-api-target"],
-    required = true
+    required = true,
   )
   lateinit var exchangeApiCertHost: String
     private set
@@ -102,7 +102,7 @@ class ExchangeWorkflowFlags {
     names = ["--preprocessing-max-byte-size"],
     defaultValue = "1000000",
     description = ["Max batch size for processing"],
-    required = true
+    required = true,
   )
   var preProcessingMaxByteSize by Delegates.notNull<Long>()
     private set
@@ -111,7 +111,7 @@ class ExchangeWorkflowFlags {
     names = ["--preprocessing-file-count"],
     defaultValue = "1000",
     description = ["Number of output files from event preprocessing step"],
-    required = true
+    required = true,
   )
   var preProcessingFileCount by Delegates.notNull<Int>()
     private set
@@ -120,7 +120,7 @@ class ExchangeWorkflowFlags {
     names = ["--max-parallel-claimed-exchange-steps"],
     defaultValue = "-1",
     description = ["Maximum number of exchange steps to claim in parallel"],
-    required = true
+    required = true,
   )
   var maxParallelClaimedExchangeSteps by Delegates.notNull<Int>()
     private set

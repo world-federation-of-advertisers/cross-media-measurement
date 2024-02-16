@@ -97,7 +97,7 @@ abstract class ExchangeWorkflowDaemon : Runnable {
         apiClient = apiClient,
         timeout = taskTimeout,
         privateStorageSelector = privateStorageSelector,
-        exchangeTaskMapper = exchangeTaskMapper
+        exchangeTaskMapper = exchangeTaskMapper,
       )
     CoroutineLauncher(stepExecutor = stepExecutor)
   }
@@ -110,7 +110,7 @@ abstract class ExchangeWorkflowDaemon : Runnable {
       ExchangeStepLauncher(
         apiClient = apiClient,
         validator = ExchangeStepValidatorImpl(identity.party, validExchangeWorkflows, clock),
-        jobLauncher = launcher
+        jobLauncher = launcher,
       )
 
     runDaemon(exchangeStepLauncher)
