@@ -51,6 +51,9 @@ message SetParticipantRequisitionParamsRequest {
 
     ComputationParticipant.LiquidLegionsV2Details reach_only_liquid_legions_v2 =
         5;
+
+    ComputationParticipant.HonestMajorityShareShuffleDetails
+        honest_majority_share_shuffle = 6;
   }
 }
 
