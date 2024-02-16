@@ -114,7 +114,7 @@ class GrpcApiClientTest {
   private val clock = Clock.fixed(Instant.ofEpochSecond(123456789), ZoneOffset.UTC)
 
   private fun makeClient(identity: Identity = DATA_PROVIDER_IDENTITY): GrpcApiClient {
-    return GrpcApiClient(identity, exchangeStepsStub, exchangeStepAttemptsStub, clock, -1)
+    return GrpcApiClient(identity, exchangeStepsStub, exchangeStepAttemptsStub, clock)
   }
 
   private fun makeLimitedClient(identity: Identity = DATA_PROVIDER_IDENTITY): GrpcApiClient {

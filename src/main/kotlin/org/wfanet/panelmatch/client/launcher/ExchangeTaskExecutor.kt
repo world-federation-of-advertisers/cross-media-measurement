@@ -16,9 +16,16 @@ package org.wfanet.panelmatch.client.launcher
 
 import com.google.protobuf.ByteString
 import java.util.logging.Level
+import java.util.logging.Logger
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
+import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step
 import org.wfanet.measurement.storage.StorageClient
@@ -27,18 +34,16 @@ import org.wfanet.panelmatch.client.common.ExchangeContext
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskFailedException
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
-import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidatedExchangeStep
 import org.wfanet.panelmatch.client.logger.TaskLog
 import org.wfanet.panelmatch.client.logger.addToTaskLog
 import org.wfanet.panelmatch.client.logger.getAndClearTaskLog
 import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
 import org.wfanet.panelmatch.common.Timeout
-import org.wfanet.panelmatch.common.loggerFor
 
 private const val DONE_TASKS_PATH: String = "done-tasks"
 
 /**
- * Executes the work required for [ValidatedExchangeStep]s.
+ * Validates and Executes the work required for [ExchangeStep]s.
  *
  * This involves finding the appropriate [ExchangeTask], reading the inputs, executing the
  * [ExchangeTask], and saving the outputs.
@@ -48,27 +53,37 @@ class ExchangeTaskExecutor(
   private val timeout: Timeout,
   private val privateStorageSelector: PrivateStorageSelector,
   private val exchangeTaskMapper: ExchangeTaskMapper,
+  private val validator: ExchangeStepValidator,
+  private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : ExchangeStepExecutor {
 
   override suspend fun execute(
-    validatedStep: ValidatedExchangeStep,
+    exchangeStep: ExchangeStep,
     attemptKey: CanonicalExchangeStepAttemptKey,
   ) {
-    val name = "${validatedStep.step.stepId}@${attemptKey.toName()}"
-    withContext(TaskLog(name)) {
-      val context =
-        ExchangeContext(attemptKey, validatedStep.date, validatedStep.workflow, validatedStep.step)
-      try {
-        context.tryExecute()
-      } catch (e: Exception) {
-        logger.addToTaskLog(e, Level.SEVERE)
-        val attemptState =
-          when (e) {
-            is ExchangeTaskFailedException -> e.attemptState
-            else -> ExchangeStepAttempt.State.FAILED
-          }
-        markAsFinished(attemptKey, attemptState)
-        throw e
+    coroutineScope {
+      launch(dispatcher + CoroutineName(attemptKey.toName()) + TaskLog(attemptKey.toName())) {
+        try {
+          val validatedStep = validator.validate(exchangeStep)
+          val context =
+            ExchangeContext(
+              attemptKey,
+              validatedStep.date,
+              validatedStep.workflow,
+              validatedStep.step,
+            )
+          context.tryExecute()
+        } catch (e: Exception) {
+          logger.addToTaskLog("Caught Exception in task execution:", Level.SEVERE)
+          logger.addToTaskLog(e, Level.SEVERE)
+          val attemptState =
+            when (e) {
+              is ExchangeTaskFailedException -> e.attemptState
+              else -> ExchangeStepAttempt.State.FAILED
+            }
+          markAsFinished(attemptKey, attemptState)
+          cancel("Task failed and reported back to Kingdom. Cancelling task scope.", e)
+        }
       }
     }
   }
@@ -108,9 +123,9 @@ class ExchangeTaskExecutor(
     val privateStorageClient: StorageClient =
       privateStorageSelector.getStorageClient(exchangeDateKey)
     if (!isAlreadyComplete(step, privateStorageClient)) {
-      logger.fine { "Running Step" }
+      logger.log(Level.FINE, "Running Step")
       runStep(privateStorageClient)
-      logger.fine { "Writing Done Blob" }
+      logger.log(Level.FINE, "Writing Done Blob")
       writeDoneBlob(step, privateStorageClient)
     }
     // The Kingdom will be able to detect if it's handing out duplicate tasks because it will
@@ -121,12 +136,12 @@ class ExchangeTaskExecutor(
   private suspend fun ExchangeContext.runStep(privateStorage: StorageClient) {
     timeout.runWithTimeout {
       val exchangeTask: ExchangeTask = exchangeTaskMapper.getExchangeTaskForStep(this@runStep)
-      logger.fine { "Reading Inputs" }
+      logger.addToTaskLog("Reading Inputs", Level.FINE)
       val taskInput: Map<String, Blob> =
         if (exchangeTask.skipReadInput()) emptyMap() else readInputs(step, privateStorage)
-      logger.fine { "Executing Exchange Task" }
+      logger.addToTaskLog("Executing", Level.FINE)
       val taskOutput: Map<String, Flow<ByteString>> = exchangeTask.execute(taskInput)
-      logger.fine { "Writing Outputs" }
+      logger.addToTaskLog("Writing Outputs", Level.FINE)
       writeOutputs(step, taskOutput, privateStorage)
     }
   }
@@ -142,6 +157,6 @@ class ExchangeTaskExecutor(
   }
 
   companion object {
-    private val logger by loggerFor()
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

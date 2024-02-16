@@ -21,7 +21,6 @@ import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.panelmatch.client.common.Identity
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 import org.wfanet.panelmatch.client.launcher.ApiClient
-import org.wfanet.panelmatch.client.launcher.CoroutineLauncher
 import org.wfanet.panelmatch.client.launcher.ExchangeStepLauncher
 import org.wfanet.panelmatch.client.launcher.ExchangeStepValidatorImpl
 import org.wfanet.panelmatch.client.launcher.ExchangeTaskExecutor
@@ -81,6 +80,9 @@ abstract class ExchangeWorkflowDaemon : Runnable {
   /** [CertificateManager] for [sharedStorageSelector]. */
   protected abstract val certificateManager: CertificateManager
 
+  /** Maximum allowable number of tasks claimed concurrently. */
+  protected abstract val maxParallelClaimedExchangeSteps: Int?
+
   /** [PrivateStorageSelector] for writing to local (non-shared) storage. */
   protected val privateStorageSelector: PrivateStorageSelector by lazy {
     PrivateStorageSelector(privateStorageFactories, privateStorageInfo)
@@ -90,28 +92,21 @@ abstract class ExchangeWorkflowDaemon : Runnable {
   protected val sharedStorageSelector: SharedStorageSelector by lazy {
     SharedStorageSelector(certificateManager, sharedStorageFactories, sharedStorageInfo)
   }
-
-  private val launcher by lazy {
-    val stepExecutor =
-      ExchangeTaskExecutor(
-        apiClient = apiClient,
-        timeout = taskTimeout,
-        privateStorageSelector = privateStorageSelector,
-        exchangeTaskMapper = exchangeTaskMapper,
-      )
-    CoroutineLauncher(stepExecutor = stepExecutor)
+  protected open val stepExecutor by lazy {
+    ExchangeTaskExecutor(
+      apiClient = apiClient,
+      timeout = taskTimeout,
+      privateStorageSelector = privateStorageSelector,
+      exchangeTaskMapper = exchangeTaskMapper,
+      validator = ExchangeStepValidatorImpl(identity.party, validExchangeWorkflows, clock),
+    )
   }
 
   override fun run() = runBlocking { runSuspending() }
 
   suspend fun runSuspending() {
-
     val exchangeStepLauncher =
-      ExchangeStepLauncher(
-        apiClient = apiClient,
-        validator = ExchangeStepValidatorImpl(identity.party, validExchangeWorkflows, clock),
-        jobLauncher = launcher,
-      )
+      ExchangeStepLauncher(apiClient = apiClient, taskLauncher = stepExecutor)
     runDaemon(exchangeStepLauncher)
   }
 

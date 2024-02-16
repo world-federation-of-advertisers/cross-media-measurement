@@ -14,50 +14,29 @@
 
 package org.wfanet.panelmatch.client.launcher
 
-import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
-import org.wfanet.measurement.api.v2alpha.ExchangeStep
-import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
-import org.wfanet.panelmatch.client.launcher.InvalidExchangeStepException.FailureType.PERMANENT
-import org.wfanet.panelmatch.client.launcher.InvalidExchangeStepException.FailureType.TRANSIENT
+import java.util.logging.Level
+import org.wfanet.panelmatch.common.loggerFor
 
 /** Finds an [ExchangeStep], validates it, and starts executing the work. */
 class ExchangeStepLauncher(
   private val apiClient: ApiClient,
-  private val validator: ExchangeStepValidator,
-  private val jobLauncher: JobLauncher,
+  private val taskLauncher: ExchangeStepExecutor,
 ) {
-
   /**
-   * Finds a single ready Exchange Step and starts executing. If an Exchange Step is found,
-   * validates it, and starts executing. If not found simply returns.
+   * Finds a single ready Exchange Step and starts executing. If an Exchange Step is found, this
+   * passes it to the executor for validation and execution. If not found simply returns.
    */
   suspend fun findAndRunExchangeStep() {
-    val (exchangeStep, attemptKey) = apiClient.claimExchangeStep() ?: return
-
     try {
-      val validatedExchangeStep = validator.validate(exchangeStep)
-      jobLauncher.execute(validatedExchangeStep, attemptKey)
+      apiClient.claimExchangeStep()?.let {
+        taskLauncher.execute(it.exchangeStep, it.exchangeStepAttempt)
+      }
     } catch (e: Exception) {
-      invalidateAttempt(attemptKey, e)
+      logger.log(Level.SEVERE, "Exchange Launcher Error:", e)
     }
   }
 
-  private suspend fun invalidateAttempt(
-    attemptKey: CanonicalExchangeStepAttemptKey,
-    exception: Exception,
-  ) {
-    val state =
-      when (exception) {
-        is InvalidExchangeStepException ->
-          when (exception.type) {
-            PERMANENT -> ExchangeStepAttempt.State.FAILED_STEP
-            TRANSIENT -> ExchangeStepAttempt.State.FAILED
-          }
-        else -> ExchangeStepAttempt.State.FAILED
-      }
-
-    // TODO: log an error or retry a few times if this fails.
-    // TODO: add API-level support for some type of justification about what went wrong.
-    apiClient.finishExchangeStepAttempt(attemptKey, state, listOfNotNull(exception.message))
+  companion object {
+    private val logger by loggerFor()
   }
 }

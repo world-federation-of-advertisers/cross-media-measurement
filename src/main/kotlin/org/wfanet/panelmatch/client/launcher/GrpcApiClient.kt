@@ -39,10 +39,9 @@ class GrpcApiClient(
   private val exchangeStepsClient: ExchangeStepsCoroutineStub,
   private val exchangeStepAttemptsClient: ExchangeStepAttemptsCoroutineStub,
   private val clock: Clock = Clock.systemUTC(),
-  val maxClaimedExchangeSteps: Int,
+  maxClaimedExchangeSteps: Int? = null,
 ) : ApiClient {
-  private val semaphore =
-    if (maxClaimedExchangeSteps != -1) Semaphore(maxClaimedExchangeSteps) else null
+  private val semaphore = maxClaimedExchangeSteps?.let { maxSteps -> Semaphore(maxSteps) }
 
   private val recurringExchangeParentKey: RecurringExchangeParentKey =
     when (identity.party) {
