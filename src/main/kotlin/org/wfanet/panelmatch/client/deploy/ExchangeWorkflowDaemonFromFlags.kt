@@ -62,7 +62,7 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
     SigningCerts.fromPemFiles(
       certificateFile = flags.tlsFlags.certFile,
       privateKeyFile = flags.tlsFlags.privateKeyFile,
-      trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
+      trustedCertCollectionFile = flags.tlsFlags.certCollectionFile,
     )
   }
 
@@ -82,7 +82,7 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
       privateKeys = privateKeys,
       algorithm = flags.certAlgorithm,
       certificateAuthority = certificateAuthority,
-      localName = identity.toName()
+      localName = identity.toName(),
     )
   }
 
@@ -111,10 +111,18 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
     )
   }
 
+  private val maxParallelClaimedExchangeSteps: Int by lazy { flags.maxParallelClaimedExchangeSteps }
+
   override val apiClient: ApiClient by lazy {
     val exchangeStepsClient = ExchangeStepsCoroutineStub(channel)
     val exchangeStepAttemptsClient = ExchangeStepAttemptsCoroutineStub(channel)
-    GrpcApiClient(identity, exchangeStepsClient, exchangeStepAttemptsClient, Clock.systemUTC())
+    GrpcApiClient(
+      identity,
+      exchangeStepsClient,
+      exchangeStepAttemptsClient,
+      Clock.systemUTC(),
+      maxParallelClaimedExchangeSteps,
+    )
   }
 
   override val taskTimeout: Timeout by lazy { flags.taskTimeout.asTimeout() }

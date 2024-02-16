@@ -60,7 +60,7 @@ class ExchangeWorkflowDaemonForTest(
   privateDirectory: Path,
   override val clock: Clock = Clock.systemUTC(),
   pollingInterval: Duration = Duration.ofMillis(100),
-  taskTimeoutDuration: Duration = Duration.ofMinutes(2)
+  taskTimeoutDuration: Duration = Duration.ofMinutes(2),
 ) : ExchangeWorkflowDaemon() {
 
   private val rootStorageClient: StorageClient by lazy {
@@ -101,16 +101,13 @@ class ExchangeWorkflowDaemonForTest(
     val exchangeStepAttemptsClient =
       ExchangeStepAttemptsCoroutineStub(v2alphaChannel).withPrincipalName(providerName)
 
-    GrpcApiClient(identity, exchangeStepsClient, exchangeStepAttemptsClient, clock)
+    GrpcApiClient(identity, exchangeStepsClient, exchangeStepAttemptsClient, clock, -1)
   }
 
   override val throttler: Throttler = MinimumIntervalThrottler(clock, pollingInterval)
 
   private val preprocessingParameters =
-    PreprocessingParameters(
-      maxByteSize = 1024 * 1024,
-      fileCount = 1,
-    )
+    PreprocessingParameters(maxByteSize = 1024 * 1024, fileCount = 1)
 
   private val taskContext: TaskParameters = TaskParameters(setOf(preprocessingParameters))
 

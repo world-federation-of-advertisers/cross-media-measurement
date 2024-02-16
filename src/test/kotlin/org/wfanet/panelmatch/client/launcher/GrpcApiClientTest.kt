@@ -70,7 +70,7 @@ private val EXCHANGE_STEP_KEY =
   ExchangeStepKey(
     recurringExchangeId = RECURRING_EXCHANGE_ID,
     exchangeId = EXCHANGE_ID,
-    exchangeStepId = EXCHANGE_STEP_ID
+    exchangeStepId = EXCHANGE_STEP_ID,
   )
 
 private val EXCHANGE_STEP: ExchangeStep = exchangeStep {
@@ -83,7 +83,7 @@ private val EXCHANGE_STEP_ATTEMPT_KEY: ExchangeStepAttemptKey =
     recurringExchangeId = RECURRING_EXCHANGE_ID,
     exchangeId = EXCHANGE_ID,
     exchangeStepId = EXCHANGE_STEP_ID,
-    exchangeStepAttemptId = EXCHANGE_STEP_ATTEMPT_ID
+    exchangeStepAttemptId = EXCHANGE_STEP_ATTEMPT_ID,
   )
 
 private val FULL_CLAIM_READY_EXCHANGE_STEP_RESPONSE = claimReadyExchangeStepResponse {
@@ -113,7 +113,11 @@ class GrpcApiClientTest {
   private val clock = Clock.fixed(Instant.ofEpochSecond(123456789), ZoneOffset.UTC)
 
   private fun makeClient(identity: Identity = DATA_PROVIDER_IDENTITY): GrpcApiClient {
-    return GrpcApiClient(identity, exchangeStepsStub, exchangeStepAttemptsStub, clock)
+    return GrpcApiClient(identity, exchangeStepsStub, exchangeStepAttemptsStub, clock, -1)
+  }
+
+  private fun makeLimitedClient(identity: Identity = DATA_PROVIDER_IDENTITY): GrpcApiClient {
+    return GrpcApiClient(identity, exchangeStepsStub, exchangeStepAttemptsStub, clock, 1)
   }
 
   private fun makeLogEntry(message: String): ExchangeStepAttempt.DebugLogEntry {
@@ -227,7 +231,7 @@ class GrpcApiClientTest {
         .finishExchangeStepAttempt(
           EXCHANGE_STEP_ATTEMPT_KEY,
           ExchangeStepAttempt.State.SUCCEEDED,
-          listOf("message-1", "message-2")
+          listOf("message-1", "message-2"),
         )
       makeClient()
         .finishExchangeStepAttempt(EXCHANGE_STEP_ATTEMPT_KEY, ExchangeStepAttempt.State.FAILED_STEP)
@@ -253,6 +257,71 @@ class GrpcApiClientTest {
             finalState = ExchangeStepAttempt.State.FAILED_STEP
           }
         )
+    }
+  }
+
+  @Test
+  fun `claimExchangeStep skips for multiple requests to limited client`() {
+    exchangeStepsServiceMock.stub {
+      onBlocking { claimReadyExchangeStep(any()) }
+        .thenReturn(FULL_CLAIM_READY_EXCHANGE_STEP_RESPONSE)
+    }
+
+    val client = makeLimitedClient(DATA_PROVIDER_IDENTITY)
+
+    runBlocking {
+      client.claimExchangeStep()
+      client.claimExchangeStep()
+    }
+
+    val stepCaptor = argumentCaptor<ClaimReadyExchangeStepRequest>()
+    verifyBlocking(exchangeStepsServiceMock, times(1)) {
+      claimReadyExchangeStep(stepCaptor.capture())
+    }
+  }
+
+  @Test
+  fun `claimExchangeStep succeeds out for multiple requests to unlimited client`() {
+    exchangeStepsServiceMock.stub {
+      onBlocking { claimReadyExchangeStep(any()) }
+        .thenReturn(FULL_CLAIM_READY_EXCHANGE_STEP_RESPONSE)
+    }
+
+    val client = makeClient(DATA_PROVIDER_IDENTITY)
+
+    runBlocking {
+      client.claimExchangeStep()
+      client.claimExchangeStep()
+    }
+
+    val stepCaptor = argumentCaptor<ClaimReadyExchangeStepRequest>()
+    verifyBlocking(exchangeStepsServiceMock, times(2)) {
+      claimReadyExchangeStep(stepCaptor.capture())
+    }
+  }
+
+  @Test
+  fun `claimExchangeStep succeeds for multiple claims and finishes to limited client`() {
+    exchangeStepsServiceMock.stub {
+      onBlocking { claimReadyExchangeStep(any()) }
+        .thenReturn(FULL_CLAIM_READY_EXCHANGE_STEP_RESPONSE)
+    }
+
+    val client = makeLimitedClient(DATA_PROVIDER_IDENTITY)
+
+    runBlocking {
+      client.claimExchangeStep()
+      client.finishExchangeStepAttempt(
+        EXCHANGE_STEP_ATTEMPT_KEY,
+        ExchangeStepAttempt.State.SUCCEEDED,
+        listOf("message-1", "message-2"),
+      )
+      client.claimExchangeStep()
+    }
+
+    val stepCaptor = argumentCaptor<ClaimReadyExchangeStepRequest>()
+    verifyBlocking(exchangeStepsServiceMock, times(2)) {
+      claimReadyExchangeStep(stepCaptor.capture())
     }
   }
 }
