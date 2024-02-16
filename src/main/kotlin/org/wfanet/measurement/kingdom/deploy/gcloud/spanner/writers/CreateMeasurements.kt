@@ -182,6 +182,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         )
       }
       ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+        // For each EDP, insert a Requisition for each non-aggregator Duchy.
         insertRequisitions(
           measurementConsumerId,
           measurementId,
