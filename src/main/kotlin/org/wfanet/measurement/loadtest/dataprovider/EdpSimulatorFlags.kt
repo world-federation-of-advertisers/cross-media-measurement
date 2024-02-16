@@ -107,4 +107,16 @@ class EdpSimulatorFlags {
   )
   var randomSeed: Long? = null
     private set
+
+  @CommandLine.Option(
+    names = ["--log-sketch-details"],
+    description =
+      [
+        "Whether to log Sketch content.",
+        "WARNING: Sketch contains sensitive information if it is generated from real data.",
+      ],
+    required = false,
+  )
+  var logSketchDetails: Boolean = false
+    private set
 }
