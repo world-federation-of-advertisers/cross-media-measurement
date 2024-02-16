@@ -177,6 +177,7 @@ class EdpSimulator(
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   private val sketchEncrypter: SketchEncrypter = SketchEncrypter.Default,
   private val random: Random = Random,
+  private val logSketchDetails: Boolean = false,
 ) {
   val eventGroupReferenceIdPrefix = getEventGroupReferenceIdPrefix(edpData.displayName)
 
@@ -416,6 +417,7 @@ class EdpSimulator(
         throw InvalidConsentSignalException("RequisitionSpec decryption failed", e)
       }
     val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
+
     try {
       verifyRequisitionSpec(
         signedRequisitionSpec,
@@ -584,6 +586,9 @@ class EdpSimulator(
               e.message.orEmpty(),
             )
           }
+
+        logger.log(Level.INFO, "MeasurementSpec:\n$measurementSpec")
+        logger.log(Level.INFO, "RequisitionSpec:\n$requisitionSpec")
 
         for (eventGroupEntry in requisitionSpec.events.eventGroupsList) {
           val eventGroupId = EventGroupKey.fromName(eventGroupEntry.key)!!.eventGroupId
@@ -926,14 +931,30 @@ class EdpSimulator(
     }
   }
 
+  private fun logSketchDetails(sketch: Sketch) {
+    val sortedRegisters = sketch.registersList.sortedBy { it.index }
+    for (register in sortedRegisters) {
+      logger.log(Level.INFO) { "${register.index}, ${register.valuesList.joinToString()}" }
+    }
+  }
+
   private fun generateSketch(
     sketchConfig: SketchConfig,
     measurementSpec: MeasurementSpec,
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
   ): Sketch {
     logger.info("Generating Sketch...")
-    return SketchGenerator(eventQuery, sketchConfig, measurementSpec.vidSamplingInterval)
-      .generate(eventGroupSpecs)
+    val sketch =
+      SketchGenerator(eventQuery, sketchConfig, measurementSpec.vidSamplingInterval)
+        .generate(eventGroupSpecs)
+
+    logger.log(Level.INFO) { "SketchConfig:\n${sketch.config}" }
+    logger.log(Level.INFO) { "Registers Size:\n${sketch.registersList.size}" }
+    if (logSketchDetails) {
+      logSketchDetails(sketch)
+    }
+
+    return sketch
   }
 
   private fun encryptLiquidLegionsV2Sketch(
@@ -1535,6 +1556,9 @@ class EdpSimulator(
     nonce: Long,
     measurementResult: Measurement.Result,
   ) {
+    logger.log(Level.INFO, "Direct MeasurementSpec:\n$measurementSpec")
+    logger.log(Level.INFO, "Direct MeasurementResult:\n$measurementResult")
+
     DataProviderCertificateKey.fromName(requisition.dataProviderCertificate)
       ?: throw RequisitionRefusalException(
         Requisition.Refusal.Justification.UNFULFILLABLE,
