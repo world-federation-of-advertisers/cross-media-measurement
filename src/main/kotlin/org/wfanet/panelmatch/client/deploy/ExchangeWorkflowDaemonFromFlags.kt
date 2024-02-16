@@ -83,6 +83,7 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
       algorithm = flags.certAlgorithm,
       certificateAuthority = certificateAuthority,
       localName = identity.toName(),
+      fallbackPrivateKeyBlobKey = flags.fallbackPrivateKeyBlobKey,
     )
   }
 

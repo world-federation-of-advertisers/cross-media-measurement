@@ -47,12 +47,12 @@ class ExchangeTaskExecutor(
   private val apiClient: ApiClient,
   private val timeout: Timeout,
   private val privateStorageSelector: PrivateStorageSelector,
-  private val exchangeTaskMapper: ExchangeTaskMapper
+  private val exchangeTaskMapper: ExchangeTaskMapper,
 ) : ExchangeStepExecutor {
 
   override suspend fun execute(
     validatedStep: ValidatedExchangeStep,
-    attemptKey: ExchangeStepAttemptKey
+    attemptKey: ExchangeStepAttemptKey,
   ) {
     val name = "${validatedStep.step.stepId}@${attemptKey.toName()}"
     withContext(TaskLog(name)) {
@@ -84,7 +84,7 @@ class ExchangeTaskExecutor(
   private suspend fun writeOutputs(
     step: Step,
     taskOutput: Map<String, Flow<ByteString>>,
-    privateStorage: StorageClient
+    privateStorage: StorageClient,
   ) {
     for ((genericLabel, flow) in taskOutput) {
       val blobKey =
@@ -97,7 +97,7 @@ class ExchangeTaskExecutor(
 
   private suspend fun markAsFinished(
     attemptKey: ExchangeStepAttemptKey,
-    state: ExchangeStepAttempt.State
+    state: ExchangeStepAttempt.State,
   ) {
     logger.addToTaskLog("Marking attempt state: $state")
     apiClient.finishExchangeStepAttempt(attemptKey, state, getAndClearTaskLog())
@@ -108,7 +108,9 @@ class ExchangeTaskExecutor(
     val privateStorageClient: StorageClient =
       privateStorageSelector.getStorageClient(exchangeDateKey)
     if (!isAlreadyComplete(step, privateStorageClient)) {
+      logger.fine { "Running Step" }
       runStep(privateStorageClient)
+      logger.fine { "Writing Done Blob" }
       writeDoneBlob(step, privateStorageClient)
     }
     // The Kingdom will be able to detect if it's handing out duplicate tasks because it will
@@ -119,9 +121,12 @@ class ExchangeTaskExecutor(
   private suspend fun ExchangeContext.runStep(privateStorage: StorageClient) {
     timeout.runWithTimeout {
       val exchangeTask: ExchangeTask = exchangeTaskMapper.getExchangeTaskForStep(this@runStep)
+      logger.fine { "Reading Inputs" }
       val taskInput: Map<String, Blob> =
         if (exchangeTask.skipReadInput()) emptyMap() else readInputs(step, privateStorage)
+      logger.fine { "Executing Exchange Task" }
       val taskOutput: Map<String, Flow<ByteString>> = exchangeTask.execute(taskInput)
+      logger.fine { "Writing Outputs" }
       writeOutputs(step, taskOutput, privateStorage)
     }
   }
