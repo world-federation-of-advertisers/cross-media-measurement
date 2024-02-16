@@ -16,7 +16,6 @@ package org.wfanet.panelmatch.client.launcher
 
 import java.time.Clock
 import kotlinx.coroutines.sync.Semaphore
-import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepResponse
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
@@ -79,7 +78,7 @@ class GrpcApiClient(
   override suspend fun finishExchangeStepAttempt(
     key: ExchangeStepAttemptKey,
     finalState: ExchangeStepAttempt.State,
-    logEntryMessages: Iterable<String>
+    logEntryMessages: Iterable<String>,
   ) {
     semaphore?.release()
     val request = finishExchangeStepAttemptRequest {

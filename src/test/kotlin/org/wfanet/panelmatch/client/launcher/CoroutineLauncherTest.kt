@@ -88,5 +88,4 @@ class CoroutineLauncherTest {
     val attemptKeyCaptor = argumentCaptor<ExchangeStepAttemptKey>()
     verify(stepExecutor, times(2)).execute(stepCaptor.capture(), attemptKeyCaptor.capture())
   }
-
 }
