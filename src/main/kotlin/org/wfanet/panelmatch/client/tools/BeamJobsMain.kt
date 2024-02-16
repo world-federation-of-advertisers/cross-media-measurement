@@ -113,7 +113,7 @@ class BeamJobsMain : Runnable {
   }
 
   @Option(
-    names = ["--exchange-step-attempt-resource-key"],
+    names = ["--exchange-step-attempt-resource-id"],
     description =
       [
         "Resource ID for the decrypt exchange step attempt. If not tied to an " +
@@ -121,9 +121,8 @@ class BeamJobsMain : Runnable {
           "attempt counts."
       ],
     required = true,
-    defaultValue = "A",
   )
-  private lateinit var exchangeStepAttemptResourceKey: String
+  private lateinit var exchangeStepAttemptResourceId: String
 
   @Option(
     names = ["--exchange-date"],
@@ -199,7 +198,7 @@ class BeamJobsMain : Runnable {
     }
 
     val attemptKey =
-      requireNotNull(CanonicalExchangeStepAttemptKey.fromName(exchangeStepAttemptResourceKey))
+      requireNotNull(CanonicalExchangeStepAttemptKey.fromName(exchangeStepAttemptResourceId))
 
     val exchangeContext =
       ExchangeContext(attemptKey, LocalDate.parse(exchangeDate), exchangeWorkflow, step)

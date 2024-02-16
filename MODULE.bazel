@@ -103,6 +103,10 @@ bazel_dep(
     name = "boringssl",  # For shell-encryption.
     version = BORINGSSL_VERSION,
 )
+bazel_dep(
+    name = "bazel_jar_jar",
+    version = "0.1.0",
+)
 
 # WFA registry modules.
 bazel_dep(
@@ -179,10 +183,6 @@ bazel_dep(
     name = "riegeli",
     version = "0.0.0-20240122-ac83dce",
     repo_name = "com_google_riegeli",
-)
-bazel_dep(
-    name = "bazel_jar_jar",
-    version = "0.1.0",
 )
 
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
