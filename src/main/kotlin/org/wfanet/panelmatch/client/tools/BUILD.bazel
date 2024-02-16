@@ -1,5 +1,6 @@
 load("@rules_java//java:defs.bzl", "java_binary")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+load("@bazel_jar_jar//:jar_jar.bzl", "jar_jar")
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/panelmatch:__subpackages__",
@@ -72,13 +73,12 @@ java_binary(
     runtime_deps = [":serialize_exchange_workflow"],
 )
 
-
 kt_jvm_library(
-    testonly = True,
     name = "beam_jobs_main",
+    testonly = True,
     srcs = ["BeamJobsMain.kt"],
     deps = [
-        "//imports/java/org/apache/beam/runners/direct",
+        "//imports/java/org/apache/beam/runners/spark",
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy",
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy/example",
         "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
@@ -104,13 +104,28 @@ kt_jvm_library(
 )
 
 java_binary(
-    testonly = True,
     name = "BeamJobsMain",
+    testonly = True,
     main_class = "org.wfanet.panelmatch.client.tools.BeamJobsMainKt",
     tags = ["manual"],
     runtime_deps = [
         ":beam_jobs_main",
     ],
+)
+
+jar_jar(
+    name = "shaded_BeamJobsMain",
+    inline_rules = [
+        "rule com.google.protobuf.** shaded.com.google.protobuf.@1",
+        "rule com.google.common.** shaded.google.common.@1",
+        "rule com.fasterxml.jackson.** shaded.com.fasterxml.jackson.@1",
+        "rule org.bouncycastle.** shaded.org.bouncycastle.@1",
+        "rule org.apache.log4j.** shaded.org.apache.log4j.@1",
+        "rule org.slf4j.** shaded.org.slf4j.@1",
+        "rule org.apache.logging.log4j.** shaded.apache.logging.log4j.@1",
+        "rule org.apache.logging.slf4j.** shaded.apache.looging.slf4j.@1",
+    ],
+    input_jar = ":BeamJobsMain_deploy.jar",
 )
 
 kt_jvm_library(
