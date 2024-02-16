@@ -27,7 +27,7 @@ package k8s
 	_edp_secret_name:           string
 	_duchy_public_api_target:   string
 	_kingdom_public_api_target: string
-	_logSketchDetails:          bool | *false
+	_logSketchDetails:          bool | *true
 
 	let DisplayName = _edpConfig.displayName
 
