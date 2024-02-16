@@ -1544,6 +1544,34 @@ class ReportSchedulesServiceTest {
   }
 
   @Test
+  fun `createReportSchedule throws INVALID_ARGUMENT when event_start date is invalid`() {
+    val request = createReportScheduleRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      reportScheduleId = "a123"
+      reportSchedule =
+        REPORT_SCHEDULE.copy {
+          eventStart = dateTime {
+            year = 3000
+            month = 1
+            day = 40
+            timeZone = timeZone { id = "America/New_York" }
+          }
+        }
+      requestId = "a123"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking { service.createReportSchedule(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("event_start date")
+  }
+
+  @Test
   fun `createReportSchedule throws INVALID_ARGUMENT when event_start has invalid time zone`() {
     val request = createReportScheduleRequest {
       parent = MEASUREMENT_CONSUMER_NAME
@@ -1647,6 +1675,33 @@ class ReportSchedulesServiceTest {
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.message).contains("not a full date")
+  }
+
+  @Test
+  fun `createReportSchedule throws INVALID_ARGUMENT when event_end date invalid`() {
+    val request = createReportScheduleRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      reportScheduleId = "a123"
+      reportSchedule =
+        REPORT_SCHEDULE.copy {
+          eventEnd = date {
+            year = 4000
+            month = 1
+            day = 35
+          }
+        }
+      requestId = "a123"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking { service.createReportSchedule(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("event_end")
   }
 
   @Test

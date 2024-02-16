@@ -330,24 +330,8 @@ class ReportSchedulesService(
       "event_start missing either year, month, day, or time_offset."
     }
 
-    if (source.hasEventEnd()) {
-      val eventEnd = source.eventEnd
-      grpcRequire(eventEnd.year > 0 && eventEnd.month > 0 && eventEnd.day > 0) {
-        "event_end not a full date."
-      }
-
-      grpcRequire(
-        date {
-            year = eventStart.year
-            month = eventStart.month
-            day = eventStart.day
-          }
-          .isBefore(eventEnd)
-      ) {
-        "event_end must be after event_start."
-      }
-    }
-
+    // In the process of converting the frequency, it verifies it is valid, which it needs to be
+    // before being used to calculate the nextReportCreationTime.
     val internalFrequency = source.frequency.toInternal()
 
     val nextReportCreationTime: Timestamp =
@@ -357,7 +341,7 @@ class ReportSchedulesService(
             source.eventStart.toOffsetDateTime()
           } catch (e: DateTimeException) {
             throw Status.INVALID_ARGUMENT.withDescription(
-                "event_start.utc_offset is not in valid range."
+                "event_start date portion is invalid or event_start.utc_offset is not in valid range."
               )
               .asRuntimeException()
           }
@@ -369,9 +353,35 @@ class ReportSchedulesService(
           } catch (e: ZoneRulesException) {
             throw Status.INVALID_ARGUMENT.withDescription("event_start.time_zone.id is invalid")
               .asRuntimeException()
+          } catch (e: DateTimeException) {
+            throw Status.INVALID_ARGUMENT.withDescription("event_start date portion is invalid.")
+              .asRuntimeException()
           }
         getNextReportCreationTime(zonedDateTime, source.frequency)
       }
+
+    if (source.hasEventEnd()) {
+      val eventEnd = source.eventEnd
+      grpcRequire(eventEnd.year > 0 && eventEnd.month > 0 && eventEnd.day > 0) {
+        "event_end not a full date."
+      }
+
+      grpcRequire(
+        try {
+          date {
+              year = eventStart.year
+              month = eventStart.month
+              day = eventStart.day
+            }
+            .isBefore(eventEnd)
+        } catch (e: DateTimeException) {
+          throw Status.INVALID_ARGUMENT.withDescription("event_end is invalid.")
+            .asRuntimeException()
+        }
+      ) {
+        "event_end must be after event_start."
+      }
+    }
 
     return internalReportSchedule {
       cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
@@ -878,6 +888,11 @@ class ReportSchedulesService(
       }
     }
 
+    /**
+     * Checks if a [Date] is earlier than a given [Date].
+     *
+     * @throws [DateTimeException] if either [Date] is invalid.
+     */
     private fun Date.isBefore(other: Date): Boolean {
       return LocalDate.of(this.year, this.month, this.day)
         .isBefore(LocalDate.of(other.year, other.month, other.day))
