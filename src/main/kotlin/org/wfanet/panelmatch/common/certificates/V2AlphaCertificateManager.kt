@@ -58,7 +58,7 @@ class V2AlphaCertificateManager(
   override suspend fun getCertificate(
     exchange: ExchangeDateKey,
     certOwnerName: String,
-    certResourceName: String
+    certResourceName: String,
   ): X509Certificate {
     check(certResourceName.startsWith("$certOwnerName/certificates/")) {
       "Invalid resource names: $certOwnerName and $certResourceName"
@@ -143,7 +143,7 @@ class V2AlphaCertificateManager(
 
   private suspend fun verifyCertificate(
     certificate: X509Certificate,
-    ownerName: String
+    ownerName: String,
   ): X509Certificate {
     val rootCert = getRootCertificate(ownerName)
     certificate.verify(rootCert.publicKey, jceProvider)

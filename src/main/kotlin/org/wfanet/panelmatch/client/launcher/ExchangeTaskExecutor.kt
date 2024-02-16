@@ -47,12 +47,12 @@ class ExchangeTaskExecutor(
   private val apiClient: ApiClient,
   private val timeout: Timeout,
   private val privateStorageSelector: PrivateStorageSelector,
-  private val exchangeTaskMapper: ExchangeTaskMapper
+  private val exchangeTaskMapper: ExchangeTaskMapper,
 ) : ExchangeStepExecutor {
 
   override suspend fun execute(
     validatedStep: ValidatedExchangeStep,
-    attemptKey: ExchangeStepAttemptKey
+    attemptKey: ExchangeStepAttemptKey,
   ) {
     val name = "${validatedStep.step.stepId}@${attemptKey.toName()}"
     withContext(TaskLog(name)) {
@@ -84,7 +84,7 @@ class ExchangeTaskExecutor(
   private suspend fun writeOutputs(
     step: Step,
     taskOutput: Map<String, Flow<ByteString>>,
-    privateStorage: StorageClient
+    privateStorage: StorageClient,
   ) {
     for ((genericLabel, flow) in taskOutput) {
       val blobKey =
@@ -97,7 +97,7 @@ class ExchangeTaskExecutor(
 
   private suspend fun markAsFinished(
     attemptKey: ExchangeStepAttemptKey,
-    state: ExchangeStepAttempt.State
+    state: ExchangeStepAttempt.State,
   ) {
     logger.addToTaskLog("Marking attempt state: $state")
     apiClient.finishExchangeStepAttempt(attemptKey, state, getAndClearTaskLog())
