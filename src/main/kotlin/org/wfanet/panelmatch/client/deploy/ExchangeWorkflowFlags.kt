@@ -29,7 +29,7 @@ class ExchangeWorkflowFlags {
   @Option(
     names = ["--party-type"],
     description = ["Type of the party: \${COMPLETION-CANDIDATES}"],
-    required = true
+    required = true,
   )
   lateinit var partyType: Party
     private set
