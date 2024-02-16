@@ -101,6 +101,7 @@ import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.getMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
+import org.wfanet.measurement.reporting.v2alpha.getReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.listMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportingSetsRequest
@@ -226,6 +227,35 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   @After
   fun stopDuchyDaemons() {
     inProcessCmmsComponents.stopDuchyDaemons()
+  }
+
+  @Test
+  fun `reporting set is created and then retrieved`() = runBlocking {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val eventGroups = listEventGroups()
+
+    val primitiveReportingSet = reportingSet {
+      displayName = "composite"
+      primitive = ReportingSetKt.primitive { cmmsEventGroups.add(eventGroups[0].cmmsEventGroup) }
+    }
+
+    val createdPrimitiveReportingSet =
+      publicReportingSetsClient
+        .withPrincipalName(measurementConsumerData.name)
+        .createReportingSet(
+          createReportingSetRequest {
+            parent = measurementConsumerData.name
+            reportingSet = primitiveReportingSet
+            reportingSetId = "def"
+          }
+        )
+
+    val retrievedPrimitiveReportingSet =
+      publicReportingSetsClient
+        .withPrincipalName(measurementConsumerData.name)
+        .getReportingSet(getReportingSetRequest { name = createdPrimitiveReportingSet.name })
+
+    assertThat(createdPrimitiveReportingSet).isEqualTo(retrievedPrimitiveReportingSet)
   }
 
   @Test
