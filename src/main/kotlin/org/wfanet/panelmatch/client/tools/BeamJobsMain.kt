@@ -27,7 +27,6 @@ import org.apache.beam.runners.spark.SparkRunner
 import org.apache.beam.sdk.options.PipelineOptions
 import org.apache.beam.sdk.options.PipelineOptionsFactory
 import org.apache.beam.sdk.options.SdkHarnessOptions
-import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.aws.s3.S3Flags
@@ -198,8 +197,7 @@ class BeamJobsMain : Runnable {
       "The only step type currently supported is DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP"
     }
 
-    val attemptKey =
-      requireNotNull(ExchangeStepAttemptKey.fromName(exchangeStepAttemptResourceId))
+    val attemptKey = requireNotNull(ExchangeStepAttemptKey.fromName(exchangeStepAttemptResourceId))
 
     val exchangeContext =
       ExchangeContext(attemptKey, LocalDate.parse(exchangeDate), exchangeWorkflow, step)
