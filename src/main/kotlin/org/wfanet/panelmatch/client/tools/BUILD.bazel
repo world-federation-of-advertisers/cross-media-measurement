@@ -1,5 +1,9 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 load("@rules_java//java:defs.bzl", "java_binary")
+load(
+    "@com_github_johnynek_bazel_jar_jar//:jar_jar.bzl",
+    "jar_jar",
+)
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/panelmatch:__subpackages__",
@@ -70,6 +74,61 @@ java_binary(
     name = "SerializeExchangeWorkflow",
     main_class = "org.wfanet.panelmatch.client.tools.SerializeExchangeWorkflowKt",
     runtime_deps = [":serialize_exchange_workflow"],
+)
+
+kt_jvm_library(
+    name = "beam_jobs_main",
+    testonly = True,
+    srcs = ["BeamJobsMain.kt"],
+    deps = [
+        "//imports/java/org/apache/beam/runners/spark",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/deploy",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/deploy/example",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/storage/aws/s3",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/storage/gcloud/gcs",
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/certificates/aws",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/certificates/gcloud",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/certificates/testing",
+        "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:combined_events_kt_jvm_proto",
+        "//src/main/proto/wfa/panelmatch/client/exchangetasks:join_key_exchange_kt_jvm_proto",
+        "//src/main/proto/wfa/panelmatch/client/privatemembership:decrypt_event_data_kt_jvm_proto",
+        "//src/main/proto/wfa/panelmatch/client/tools:data_provider_event_set_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:event_kt_jvm_proto",
+    ],
+)
+
+java_binary(
+    name = "BeamJobsMain",
+    testonly = True,
+    main_class = "org.wfanet.panelmatch.client.tools.BeamJobsMainKt",
+    tags = ["manual"],
+    runtime_deps = [
+        ":beam_jobs_main",
+    ],
+)
+
+jar_jar(
+    name = "shaded_BeamJobsMain",
+    inline_rules = [
+        "rule com.google.protobuf.** shaded.com.google.protobuf.@1",
+        "rule com.google.common.** shaded.google.common.@1",
+        "rule com.fasterxml.jackson.** shaded.com.fasterxml.jackson.@1",
+        "rule org.bouncycastle.** shaded.org.bouncycastle.@1",
+        "rule org.apache.log4j.** shaded.org.apache.log4j.@1",
+        "rule org.slf4j.** shaded.org.slf4j.@1",
+        "rule org.apache.logging.log4j.** shaded.apache.logging.log4j.@1",
+        "rule org.apache.logging.slf4j.** shaded.apache.looging.slf4j.@1",
+    ],
+    input_jar = ":BeamJobsMain_deploy.jar",
 )
 
 kt_jvm_library(
