@@ -27,6 +27,9 @@ message ProtocolsSetupConfig {
 
   // ReachOnlyLiquidLegionsV2 specific configuration
   LiquidLegionsV2SetupConfig reach_only_liquid_legions_v2 = 2;
+
+  // HonestMajorityShareShuffle specific configuration
+  HonestMajorityShareShuffleSetupConfig honest_majority_share_shuffle = 3;
 }
 
 // Role in Computations assigned to Duchies.
@@ -35,17 +38,29 @@ enum RoleInComputation {
   ROLE_IN_COMPUTATION_UNSPECIFIED = 0;
 
   // The aggregator duchy for the computation.
+  //
+  // Both LiquidLegionsV2 protocols and HonestMajorityShareShuffle protocol have
+  // the aggregator to compute the result.
   AGGREGATOR = 1;
 
   // A non-aggregator duchy for the computation.
   //
-  // For LiquidLegionsV2, this duchy has to do many crypto operations, but is
-  // not responsible for joining sketch positions together, nor computing the
-  // final results.
-  //
-  // For HonestMajorityShareShuffle, this duchy needs to exchange seeds,
-  // add noise, and shuffle.
+  // For LiquidLegionsV2 protocols only. This duchy has to do many crypto
+  // operations, but is not responsible for joining sketch positions together,
+  // nor computing the final results.
   NON_AGGREGATOR = 2;
+
+  // The first non-aggregator duchy.
+  //
+  // For HonestMajorityShareShuffle only. This duchy needs to exchange seeds,
+  // add noise, and shuffle. It sends data to the peer non-aggregator firstly.
+  FIRST_NON_AGGREGATOR = 3;
+
+  // The second non-aggregator duchy.
+  //
+  // For HonestMajorityShareShuffle only. This duchy needs to exchange seeds,
+  // add noise, and shuffle. It sends data to the peer non-aggregator secondly.
+  SECOND_NON_AGGREGATOR = 4;
 }
 
 // LiquidLegionsV2 protocols specific configuration. Also used for reach-only
@@ -56,4 +71,15 @@ message LiquidLegionsV2SetupConfig {
 
   // The external id of the aggregator duchy.
   string external_aggregator_duchy_id = 2;
+}
+
+message HonestMajorityShareShuffleSetupConfig {
+  // Role of duchy in Computations.
+  RoleInComputation role = 1;
+
+  // The external id of the aggregator duchy.
+  string external_aggregator_duchy_id = 2;
+
+  // The external id of the peer non-aggregator duchy.
+  string external_peer_non_aggregator_duchy_id = 3;
 }
