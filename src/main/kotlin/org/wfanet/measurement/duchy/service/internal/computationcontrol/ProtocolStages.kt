@@ -203,8 +203,7 @@ class HonestMajorityShareShuffleStages() :
         token.singleOutputBlobMetadata()
       }
       HonestMajorityShareShuffle.Stage.INITIALIZED,
-      HonestMajorityShareShuffle.Stage.SET_PARTICIPANT_PARAMS_PHASE,
-      HonestMajorityShareShuffle.Stage.WAIT_ON_REQUISITION_FULFILLMENT,
+      HonestMajorityShareShuffle.Stage.WAIT_TO_START,
       HonestMajorityShareShuffle.Stage.SETUP_PHASE,
       HonestMajorityShareShuffle.Stage.SHUFFLE_PHASE,
       HonestMajorityShareShuffle.Stage.AGGREGATION_PHASE,
@@ -230,8 +229,7 @@ class HonestMajorityShareShuffleStages() :
       HonestMajorityShareShuffle.Stage.WAIT_ON_AGGREGATION_INPUT ->
         HonestMajorityShareShuffle.Stage.AGGREGATION_PHASE.toProtocolStage()
       HonestMajorityShareShuffle.Stage.INITIALIZED,
-      HonestMajorityShareShuffle.Stage.SET_PARTICIPANT_PARAMS_PHASE,
-      HonestMajorityShareShuffle.Stage.WAIT_ON_REQUISITION_FULFILLMENT,
+      HonestMajorityShareShuffle.Stage.WAIT_TO_START,
       HonestMajorityShareShuffle.Stage.SETUP_PHASE,
       HonestMajorityShareShuffle.Stage.SHUFFLE_PHASE,
       HonestMajorityShareShuffle.Stage.AGGREGATION_PHASE,

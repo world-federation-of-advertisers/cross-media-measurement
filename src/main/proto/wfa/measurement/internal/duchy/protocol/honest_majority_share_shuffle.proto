@@ -28,16 +28,13 @@ message HonestMajorityShareShuffle {
   // Stages of the HonestMajorityShareShuffle computation.
   //
   // For the first non-aggregator, the normal stage transition is:
-  // INITIALIZED -> SET_PARTICIPANT_PARAMS_PHASE ->
-  // WAIT_ON_REQUISITION_FULFILLMENT -> SETUP_PHASE ->
+  // INITIALIZED -> WAIT_TO_START -> SETUP_PHASE ->
   // WAIT_ON_SHUFFLE_INPUT_PHASE_TWO -> SHUFFLE_PHASE
   // -> COMPLETE
   //
   // For the second non-aggregator, the normal stage transition is:
-  // INITIALIZED -> SET_PARTICIPANT_PARAMS_PHASE ->
-  // WAIT_ON_REQUISITION_FULFILLMENT -> WAIT_ON_SHUFFLE_INPUT_PHASE_ONE ->
-  // SETUP_PHASE -> SHUFFLE_PHASE
-  // -> COMPLETE
+  // INITIALIZED -> WAIT_ON_SHUFFLE_INPUT_PHASE_ONE -> SETUP_PHASE
+  // -> SHUFFLE_PHASE -> COMPLETE
   //
   // For the aggregator, the normal stage transition is:
   // WAIT_ON_AGGREGATION_INPUT -> AGGREGATION_PHASE -> COMPLETE
@@ -45,32 +42,37 @@ message HonestMajorityShareShuffle {
     // The computation stage is unknown. This is never set intentionally.
     STAGE_UNSPECIFIED = 0;
 
-    // The computation is created by the non-aggregator.
-    // Non-aggregators are ready to accept requisition fulfillments. The
-    // randomness seed is sampled and stored. Peer's random seed can be accepted
-    // at this stage.
+    // The computation is created by the non-aggregator populated with sampled
+    // randomness seed and encryption key pair.
+    //
+    // In this stage, non-aggregators send the participant params to the kingdom
+    // by the mill.
     INITIALIZED = 1;
 
-    // The non-aggregator sends the participant params to the kingdom.
-    SET_PARTICIPANT_PARAMS_PHASE = 2;
+    // The first non-aggregator waits on requisition fulfillment and the signal
+    // from the kingdom to proceed.
+    //
+    // In this stage, requisition fulfillment are received from EDPs and
+    // reported to the kingdom.
+    WAIT_TO_START = 2;
 
-    // The non-aggregator waits on requisition fulfillment.
-    WAIT_ON_REQUISITION_FULFILLMENT = 3;
-
-    // The second non-aggregator waits for the input from the peer
-    // non-aggregator.
-    WAIT_ON_SHUFFLE_INPUT_PHASE_ONE = 4;
+    // The second non-aggregator waits on requisition fulfillment and the data
+    // from the peer non-aggregator to proceed.
+    //
+    // In this stage, requisition fulfillment are received from EDPs and
+    // reported to the kingdom.
+    WAIT_ON_SHUFFLE_INPUT_PHASE_ONE = 3;
 
     // Non-aggregator sends random seed and secret seed from DataProviders to
     // the peer. Seeds are used for generating noise and permutation.
-    SETUP_PHASE = 5;
+    SETUP_PHASE = 4;
 
     // The first non-aggregator waits for input from the peer non-aggregator.
-    WAIT_ON_SHUFFLE_INPUT_PHASE_TWO = 6;
+    WAIT_ON_SHUFFLE_INPUT_PHASE_TWO = 5;
 
     // A aggregator only stage waiting for input of combined shares from
     // non-aggregators. It is the initial stage for the aggregator.
-    WAIT_ON_AGGREGATION_INPUT = 7;
+    WAIT_ON_AGGREGATION_INPUT = 6;
 
     // Non-aggregators execute following steps:
     //
@@ -86,16 +88,16 @@ message HonestMajorityShareShuffle {
     // permutation based on the combined seed. Shuffle the shares.
     //
     // 4. Send the result of the share to the aggregator.
-    SHUFFLE_PHASE = 8;
+    SHUFFLE_PHASE = 7;
 
     // The aggregator adds up shares from non-aggregators, subtracts noise
     // offset, and calculates the reach and the frequency histogram, then
     // reports the encrypted result to the kingdom.
-    AGGREGATION_PHASE = 9;
+    AGGREGATION_PHASE = 8;
 
     // The computation is completed or failed. The worker can remove BLOBs that
     // are no longer needed.
-    COMPLETE = 10;
+    COMPLETE = 9;
   }
 
   message ComputationDetails {
