@@ -1,5 +1,6 @@
 workspace(name = "wfa_measurement_system")
 
+load("//build:repositories.bzl", "wfa_measurement_system_repositories")
 load(
     "//build:versions.bzl",
     "APACHE_BEAM_VERSION",
@@ -7,7 +8,6 @@ load(
     "K8S_CLIENT_VERSION",
     "OPEN_TELEMETRY_SDK_VERSION",
 )
-load("//build:repositories.bzl", "wfa_measurement_system_repositories")
 
 wfa_measurement_system_repositories()
 
@@ -89,15 +89,19 @@ load("//build/grpc_health_probe:repo.bzl", "grpc_health_probe")
 
 grpc_health_probe()
 
+load("@rules_jvm_external//:defs.bzl", "maven_install")
+
 # Maven
 load(
     "@wfa_common_jvm//build:common_jvm_maven.bzl",
-    "COMMON_JVM_EXCLUDED_ARTIFACTS",
     "COMMON_JVM_MAVEN_OVERRIDE_TARGETS",
     "common_jvm_maven_artifacts_dict",
 )
-load("@rules_jvm_external//:defs.bzl", "maven_install")
 load("@wfa_common_jvm//build/maven:artifacts.bzl", "artifacts")
+load(
+    "@wfa_common_jvm//build/rules_proto:repo.bzl",
+    RULES_PROTO_EXCLUDED_ARTIFACTS = "EXCLUDED_ARTIFACTS",
+)
 
 MAVEN_ARTIFACTS_DICT = dict(common_jvm_maven_artifacts_dict().items() + {
     "software.aws.rds:aws-postgresql-jdbc": "0.1.0",
@@ -119,7 +123,7 @@ MAVEN_ARTIFACTS_DICT = dict(common_jvm_maven_artifacts_dict().items() + {
     "software.amazon.awssdk:acmpca": AWS_SDK_VERSION,
 }.items())
 
-EXCLUDED_MAVEN_ARTIFACTS = ["org.apache.beam:beam-sdks-java-io-kafka"]
+EXCLUDED_MAVEN_ARTIFACTS = RULES_PROTO_EXCLUDED_ARTIFACTS + ["org.apache.beam:beam-sdks-java-io-kafka"]
 
 maven_install(
     artifacts = artifacts.dict_to_list(MAVEN_ARTIFACTS_DICT),
@@ -161,14 +165,6 @@ go_repository(
 load("@wfa_common_jvm//build:common_jvm_extra_deps.bzl", "common_jvm_extra_deps")
 
 common_jvm_extra_deps()
-
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
-
-git_repository(
-    name = "com_github_johnynek_bazel_jar_jar",
-    commit = "4e7bf26da8bc8c955578fd8c8a2c763757d344df",  # Latest commit SHA as of 2023/10/31
-    remote = "https://github.com/johnynek/bazel_jar_jar.git",
-)
 
 load(
     "@com_github_johnynek_bazel_jar_jar//:jar_jar.bzl",

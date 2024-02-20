@@ -154,3 +154,10 @@ def wfa_measurement_system_repositories():
         strip_prefix = "rules_webpack-0.12.0",
         url = "https://github.com/aspect-build/rules_webpack/releases/download/v0.12.0/rules_webpack-v0.12.0.tar.gz",
     )
+
+    http_archive(
+        name = "com_github_johnynek_bazel_jar_jar",
+        sha256 = "f766a2143bf11f70a7de67798db6cd3851fedc77b7037162e052fee6207fa5ca",
+        strip_prefix = "bazel_jar_jar-0.1.0",
+        url = "https://github.com/bazeltools/bazel_jar_jar/releases/download/v0.1.0/bazel_jar_jar-v0.1.0.tar.gz",
+    )
