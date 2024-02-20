@@ -174,12 +174,8 @@ message Computation {
         // Length of each register in bytes.
         int32 bytes_per_register = 2 [(google.api.field_behavior) = REQUIRED];
 
-        // The maximum frequency of the combined sketch.
-        int32 maximum_combined_frequency = 3
-            [(google.api.field_behavior) = REQUIRED];
-
         // The modulus used in the MPC protocol.
-        int32 ring_modulus = 4 [(google.api.field_behavior) = REQUIRED];
+        int32 ring_modulus = 3 [(google.api.field_behavior) = REQUIRED];
       }
       // Parameters for HonestMajorityShareShuffle sketch.
       ShareShuffleSketchParams sketch_params = 1
