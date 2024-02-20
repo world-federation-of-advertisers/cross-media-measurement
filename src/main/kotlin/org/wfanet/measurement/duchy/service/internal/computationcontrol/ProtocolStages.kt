@@ -185,7 +185,10 @@ class HonestMajorityShareShuffleStages() :
     token: ComputationToken,
     dataOrigin: String,
   ): ComputationStageBlobMetadata {
-    return when (val protocolStage = token.computationStage.honestMajorityShareShuffle) {
+    val protocolStage = token.computationStage.honestMajorityShareShuffle
+
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enums fields cannot be null.
+    return when (protocolStage) {
       HonestMajorityShareShuffle.Stage.WAIT_ON_AGGREGATION_INPUT -> {
         // Get the blob id by looking up the sender in the stage specific details.
         val stageDetails =
