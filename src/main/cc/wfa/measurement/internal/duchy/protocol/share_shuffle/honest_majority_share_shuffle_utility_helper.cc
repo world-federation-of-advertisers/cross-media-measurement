@@ -202,7 +202,7 @@ absl::StatusOr<std::vector<uint32_t>> VectorSubMod(
 
 int64_t EstimateReach(int64_t non_empty_register_count,
                       double vid_sampling_interval_width) {
-  return static_cast<int64_t>((double)non_empty_register_count /
+  return static_cast<int64_t>(non_empty_register_count /
                               vid_sampling_interval_width);
 }
 

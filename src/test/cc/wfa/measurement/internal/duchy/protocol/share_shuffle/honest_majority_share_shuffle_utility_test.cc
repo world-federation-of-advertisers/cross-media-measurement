@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -876,13 +877,13 @@ class EndToEndHmssTest {
       if (frequency_histogram.count(i)) {
         double upper_bound =
             (frequency_histogram[i] + 2 * shift_offset) /
-                (double)(register_count - frequency_histogram[0] -
-                         2 * shift_offset) +
+                static_cast<double>(register_count - frequency_histogram[0] -
+                                    2 * shift_offset) +
             0.00001;
         double lower_bound =
             (frequency_histogram[i] - 2 * shift_offset) /
-                (double)(register_count - frequency_histogram[0] +
-                         2 * shift_offset) -
+                static_cast<double>(register_count - frequency_histogram[0] +
+                                    2 * shift_offset) -
             0.00001;
         EXPECT_LE(result.frequency_distribution[i], upper_bound);
         EXPECT_GE(result.frequency_distribution[i], lower_bound);
