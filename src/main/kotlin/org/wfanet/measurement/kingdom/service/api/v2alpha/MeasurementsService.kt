@@ -63,6 +63,7 @@ import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.common.grpc.toExternalRuntimeException
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.internal.kingdom.CreateMeasurementRequest as InternalCreateMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
@@ -115,8 +116,9 @@ class MeasurementsService(
         internalMeasurementsStub.getMeasurement(internalGetMeasurementRequest)
       } catch (ex: StatusException) {
         when (ex.status.code) {
-          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Measurement not found" }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+          Status.Code.NOT_FOUND ->
+            throw ex.toExternalRuntimeException(Status.NOT_FOUND, "Measurement not found.")
+          else -> throw ex.toExternalRuntimeException(Status.UNKNOWN, "Unknown exception.")
         }
       }
 
@@ -145,12 +147,15 @@ class MeasurementsService(
       } catch (ex: StatusException) {
         when (ex.status.code) {
           Status.Code.INVALID_ARGUMENT ->
-            failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid" }
+            throw ex.toExternalRuntimeException(
+              Status.INVALID_ARGUMENT,
+              "Required field unspecified or invalid",
+            )
           Status.Code.FAILED_PRECONDITION ->
-            failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition" }
+            throw ex.toExternalRuntimeException(Status.FAILED_PRECONDITION, "Failed precondition")
           Status.Code.NOT_FOUND ->
-            failGrpc(Status.NOT_FOUND, ex) { "MeasurementConsumer not found." }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+            throw ex.toExternalRuntimeException(Status.NOT_FOUND, "MeasurementConsumer not found.")
+          else -> throw ex.toExternalRuntimeException(Status.UNKNOWN, "Unknown exception.")
         }
       }
 
@@ -223,11 +228,18 @@ class MeasurementsService(
       } catch (ex: StatusException) {
         when (ex.status.code) {
           Status.Code.INVALID_ARGUMENT ->
-            failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid" }
-          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Measurement not found." }
+            throw ex.toExternalRuntimeException(
+              Status.INVALID_ARGUMENT,
+              "Required field unspecified or invalid.",
+            )
+          Status.Code.NOT_FOUND ->
+            throw ex.toExternalRuntimeException(Status.NOT_FOUND, "Measurement not found.")
           Status.Code.FAILED_PRECONDITION ->
-            failGrpc(Status.FAILED_PRECONDITION, ex) { "Measurement state illegal." }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+            throw ex.toExternalRuntimeException(
+              Status.FAILED_PRECONDITION,
+              "Measurement state illegal.",
+            )
+          else -> throw ex.toExternalRuntimeException(Status.UNKNOWN, "Unknown exception.")
         }
       }
 
@@ -307,12 +319,15 @@ class MeasurementsService(
       } catch (ex: StatusException) {
         when (ex.status.code) {
           Status.Code.INVALID_ARGUMENT ->
-            failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid" }
+            throw ex.toExternalRuntimeException(
+              Status.INVALID_ARGUMENT,
+              "Required field unspecified or invalid",
+            )
           Status.Code.FAILED_PRECONDITION ->
-            failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition" }
+            throw ex.toExternalRuntimeException(Status.FAILED_PRECONDITION, "Failed precondition")
           Status.Code.NOT_FOUND ->
-            failGrpc(Status.NOT_FOUND, ex) { "MeasurementConsumer not found." }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+            throw ex.toExternalRuntimeException(Status.FAILED_PRECONDITION, "Failed precondition")
+          else -> throw ex.toExternalRuntimeException(Status.UNKNOWN, "Unknown exception.")
         }
       }
 
@@ -371,8 +386,9 @@ class MeasurementsService(
           .measurementsList
       } catch (ex: StatusException) {
         when (ex.status.code) {
-          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Measurement not found" }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+          Status.Code.NOT_FOUND ->
+            throw ex.toExternalRuntimeException(Status.NOT_FOUND, "Measurement not found")
+          else -> throw ex.toExternalRuntimeException(Status.UNKNOWN, "Unknown exception.")
         }
       }
 
