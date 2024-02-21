@@ -875,16 +875,16 @@ class EndToEndHmssTest {
 
     for (int i = 1; i < kMaxFrequencyPerEdp; i++) {
       if (frequency_histogram.count(i)) {
+        int min_reach = std::max(
+            1L, register_count - frequency_histogram[0] - 2 * shift_offset);
+        int max_reach =
+            register_count - frequency_histogram[0] + 2 * shift_offset;
         double upper_bound =
-            (frequency_histogram[i] + 2 * shift_offset) /
-                static_cast<double>(register_count - frequency_histogram[0] -
-                                    2 * shift_offset) +
-            0.00001;
+            0.00001 + (frequency_histogram[i] + 2 * shift_offset) /
+                          static_cast<double>(min_reach);
         double lower_bound =
-            (frequency_histogram[i] - 2 * shift_offset) /
-                static_cast<double>(register_count - frequency_histogram[0] +
-                                    2 * shift_offset) -
-            0.00001;
+            -0.00001 + (frequency_histogram[i] - 2 * shift_offset) /
+                           static_cast<double>(max_reach);
         EXPECT_LE(result.frequency_distribution[i], upper_bound);
         EXPECT_GE(result.frequency_distribution[i], lower_bound);
       }
