@@ -14,6 +14,9 @@
 
 package org.wfanet.measurement.duchy.daemon.herald
 
+import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteString
+import java.security.SecureRandom
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.duchy.daemon.utils.getComputationParticipantKey
@@ -26,10 +29,13 @@ import org.wfanet.measurement.internal.duchy.NoiseMechanism
 import org.wfanet.measurement.internal.duchy.computationDetails
 import org.wfanet.measurement.internal.duchy.config.HonestMajorityShareShuffleSetupConfig
 import org.wfanet.measurement.internal.duchy.createComputationRequest
+import org.wfanet.measurement.internal.duchy.encryptionKeyPair
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt
 import org.wfanet.measurement.internal.duchy.protocol.shareShuffleSketchParams
 import org.wfanet.measurement.system.v1alpha.Computation
+
+private const val RANDOM_SEED_LENGTH_IN_BYTES = 48
 
 object HonestMajorityShareShuffleStarter {
   /**
@@ -45,6 +51,9 @@ object HonestMajorityShareShuffleStarter {
   ) {
     require(systemComputation.name.isNotEmpty()) { "Resource name not specified" }
     val globalId: String = systemComputation.key.computationId
+
+    val randomSeed = generateRandomSeed()
+
     val initialComputationDetails = computationDetails {
       blobsStoragePrefix = "$blobStorageBucket/$globalId"
       kingdomComputation = systemComputation.toKingdomComputationDetails()
@@ -53,6 +62,11 @@ object HonestMajorityShareShuffleStarter {
           role = honestMajorityShareShuffleSetupConfig.role
           parameters = systemComputation.toHonestMajorityShareShuffleParameters()
           participants += systemComputation.computationParticipantsList.map { it.key.duchyId }
+          commonRandomSeed = randomSeed
+          encryptionKeyPair =
+            encryptionKeyPair {
+              // TODO(@renjiez): Create tink key pair and add into ComputationDetails.
+            }
         }
     }
 
@@ -65,8 +79,6 @@ object HonestMajorityShareShuffleStarter {
           getComputationParticipantKey(it.fulfillingComputationParticipant).duchyId == duchyId
         }
         .toRequisitionEntries(systemComputation.measurementSpec)
-
-    // TODO(@renjiez): Sample random seed and tink key pair.
 
     computationStorageClient.createComputation(
       createComputationRequest {
@@ -118,5 +130,10 @@ object HonestMajorityShareShuffleStarter {
       Computation.MpcProtocolConfig.NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED ->
         error("Invalid system NoiseMechanism")
     }
+  }
+
+  private fun generateRandomSeed(): ByteString {
+    val secureRandom = SecureRandom()
+    return secureRandom.generateSeed(RANDOM_SEED_LENGTH_IN_BYTES).toByteString()
   }
 }
