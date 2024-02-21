@@ -16,8 +16,8 @@
 Adds external repos necessary for wfa_measurement_system.
 """
 
-load("//build/wfa:repositories.bzl", "wfa_repo_archive")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
+load("//build/wfa:repositories.bzl", "wfa_repo_archive")
 
 MEASUREMENT_SYSTEM_REPO = "https://github.com/world-federation-of-advertisers/cross-media-measurement"
 
@@ -34,8 +34,8 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_common_cpp",
         repo = "common-cpp",
-        sha256 = "fd4475b587741fa8af65c580b783054d09bf3890197830290a22b3823c778eeb",
-        version = "0.10.0",
+        sha256 = "43398c7b44f692ef4a189afb674f27fa22e407797074a91d6db79908e6775162",
+        version = "0.10.3",
     )
 
     wfa_repo_archive(
@@ -55,15 +55,15 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "any_sketch",
         repo = "any-sketch",
-        sha256 = "dfa9eece9965b8c043e7562d0f7c6e06cd649c62d88d9be99c0295f9f5980d7b",
-        version = "0.4.3",
+        sha256 = "6abb78badf089502261cdb7cc2bc9e3397781e1f35287ace099da59f972bb014",
+        version = "0.4.5",
     )
 
     wfa_repo_archive(
         name = "any_sketch_java",
         repo = "any-sketch-java",
-        sha256 = "0d463c7eb9cce9e94a4af2575f8c9e1c79f1d5ebbe6fa8db168be167bd80cf5a",
-        version = "0.4.1",
+        sha256 = "282195c2df2a53999c99ba86ead543865c8fff77cca24820870f44cff4531d9b",
+        version = "0.4.2",
     )
 
     wfa_repo_archive(
@@ -153,4 +153,11 @@ def wfa_measurement_system_repositories():
         sha256 = "78d05d9e87ee804accca80a4fec98a66f146b6058e915eae3d97190397ad12df",
         strip_prefix = "rules_webpack-0.12.0",
         url = "https://github.com/aspect-build/rules_webpack/releases/download/v0.12.0/rules_webpack-v0.12.0.tar.gz",
+    )
+
+    http_archive(
+        name = "com_github_johnynek_bazel_jar_jar",
+        sha256 = "f766a2143bf11f70a7de67798db6cd3851fedc77b7037162e052fee6207fa5ca",
+        strip_prefix = "bazel_jar_jar-0.1.0",
+        url = "https://github.com/bazeltools/bazel_jar_jar/releases/download/v0.1.0/bazel_jar_jar-v0.1.0.tar.gz",
     )
