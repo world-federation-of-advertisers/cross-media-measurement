@@ -85,33 +85,14 @@ There are two data sources that can be used for
 
 ### Populate BigQuery table
 
-We can upload pre-generated synthetic test data from the
-[synthetic-labelled-events.csv](../../src/main/k8s/testing/data/synthetic-labelled-events.csv)
-file.
+The BigQuery table can be populated with synthetic event data generated using
+the
+[`uk-pilot-synthetic-data-gen` script](https://github.com/world-federation-of-advertisers/uk-pilot-synthetic-data-gen).
 
-1.  Visit the GCloud console
-    [Bigquery](https://console.cloud.google.com/bigquery) page. Enable the
-    BiqQuery API in the project if you haven't done it yet.
-2.  Create a dataset
-    -   Click the three-dot button to the right of the project
-    -   Click `Create dataset`
-    -   Set the "Dataset ID" to `demo`
-    -   Set the "data location" to (e.g. `us-central1`)
-    -   Click `CREATE DATASET`
-3.  Create a table
-    -   Click the three-dot button to the right of the `demo` data set.
-    -   Click `create table`
-    -   Set "create table from" to `upload`
-    -   Select the local file `halo-cmm-test-labelled-events.csv` in your local
-        branch
-    -   Set Destination Table to `labelled_events`
-    -   Check the Schema -> Auto detect box
-    -   Click `CREATE TABLE`
-    -   You should see a table named `labelled_events` being created. But the
-        `create table` window might still be open, just click `CANCEL` to quit
-        it.
-4.  Check the table is valid
-    -   Click on the `labelled_events` table. You should see something like this
+The `dev` configuration expects a table named `labelled_events` in a dataset
+named `demo` in the `us-central1` region. The table can be created in the
+[Google Cloud Console](https://console.cloud.google.com/bigquery), specifying
+the generated CSV file with automatic schema detection.
 
 ![image-step-4-1](step-4-1.png)![image-step-4-1](step-4-2.png)
 

@@ -16,6 +16,7 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import java.io.File
 import kotlin.properties.Delegates
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.loadtest.config.EventGroupMetadata
 import picocli.CommandLine
@@ -47,7 +48,11 @@ class CsvEdpSimulatorRunner : EdpSimulatorRunner() {
 
   override fun run() {
     val eventQuery = CsvEventQuery(publisherId, eventsCsv)
-    run(eventQuery, mapOf("" to EventGroupMetadata.testMetadata(publisherId)))
+    run(
+      eventQuery,
+      EdpSimulator.buildEventTemplates(TestEvent.getDescriptor()),
+      mapOf("" to EventGroupMetadata.testMetadata(publisherId)),
+    )
   }
 }
 

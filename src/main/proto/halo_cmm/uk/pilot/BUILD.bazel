@@ -1,0 +1,36 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:__pkg__",
+    "//src/test/kotlin/org/wfanet/measurement/loadtest/dataprovider:__pkg__",
+])
+
+alias(
+    name = "display_template_proto",
+    actual = "@uk_pilot_event_templates//src/main/proto/halo_cmm/uk/pilot:display_template_proto",
+)
+
+kt_jvm_proto_library(
+    name = "display_template_kt_jvm_proto",
+    deps = [":display_template_proto"],
+)
+
+alias(
+    name = "video_template_proto",
+    actual = "@uk_pilot_event_templates//src/main/proto/halo_cmm/uk/pilot:video_template_proto",
+)
+
+kt_jvm_proto_library(
+    name = "video_template_kt_jvm_proto",
+    deps = [":video_template_proto"],
+)
+
+alias(
+    name = "event_proto",
+    actual = "@uk_pilot_event_templates//src/main/proto/halo_cmm/uk/pilot:event_proto",
+)
+
+kt_jvm_proto_library(
+    name = "event_kt_jvm_proto",
+    deps = [":event_proto"],
+)

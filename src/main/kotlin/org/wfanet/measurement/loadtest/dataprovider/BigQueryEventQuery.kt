@@ -27,12 +27,11 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 import java.util.logging.Logger
+import org.halo_cmm.uk.pilot.Event
+import org.halo_cmm.uk.pilot.display
+import org.halo_cmm.uk.pilot.event
+import org.halo_cmm.uk.pilot.video
 import org.wfanet.measurement.api.v2alpha.EventGroup
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.video
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.toRange
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
@@ -43,12 +42,12 @@ abstract class BigQueryEventQuery(
   private val bigQuery: BigQuery,
   private val datasetName: String,
   private val tableName: String,
-) : EventQuery<TestEvent> {
+) : EventQuery<Event> {
   protected abstract fun getPublisherId(eventGroup: EventGroup): Int
 
   override fun getLabeledEvents(
     eventGroupSpec: EventQuery.EventGroupSpec
-  ): Sequence<LabeledEvent<TestEvent>> {
+  ): Sequence<LabeledEvent<Event>> {
     val timeRange: OpenEndTimeRange = eventGroupSpec.spec.collectionInterval.toRange()
     val queryConfig: QueryJobConfiguration =
       buildQueryConfig(getPublisherId(eventGroupSpec.eventGroup), timeRange)
@@ -66,7 +65,7 @@ abstract class BigQueryEventQuery(
     }
     logger.info("Running query on BigQuery table.")
 
-    val program = EventQuery.compileProgram(eventGroupSpec.spec.filter, TestEvent.getDescriptor())
+    val program = EventQuery.compileProgram(eventGroupSpec.spec.filter, Event.getDescriptor())
 
     return resultJob
       .getQueryResults()
@@ -102,52 +101,68 @@ abstract class BigQueryEventQuery(
       .build()
   }
 
-  private fun FieldValueList.toLabeledEvent(): LabeledEvent<TestEvent> {
-    val gender: Person.Gender? =
-      when (get("sex").stringValue) {
-        "M" -> Person.Gender.MALE
-        "F" -> Person.Gender.FEMALE
-        else -> null
-      }
-    val ageGroup: Person.AgeGroup? =
-      when (get("age_group").stringValue) {
-        "18_34" -> Person.AgeGroup.YEARS_18_TO_34
-        "35_54" -> Person.AgeGroup.YEARS_35_TO_54
-        "55+" -> Person.AgeGroup.YEARS_55_PLUS
-        else -> null
-      }
-    val socialGradeGroup: Person.SocialGradeGroup? =
-      when (get("social_grade").stringValue) {
-        "ABC1" -> Person.SocialGradeGroup.A_B_C1
-        "C2DE" -> Person.SocialGradeGroup.C2_D_E
-        else -> null
-      }
-    val complete: Boolean =
-      when (get("complete").longValue) {
-        0L -> false
-        else -> true
-      }
-    val message = testEvent {
-      person = person {
-        if (gender != null) {
-          this.gender = gender
-        }
-        if (ageGroup != null) {
-          this.ageGroup = ageGroup
-        }
-        if (socialGradeGroup != null) {
-          this.socialGradeGroup = socialGradeGroup
-        }
-      }
-      videoAd = video {
-        viewedFraction =
-          if (complete) {
-            1.0
-          } else {
-            0.0
+  private fun FieldValueList.toLabeledEvent(): LabeledEvent<Event> {
+    val viewability = get("viewability").stringValue
+    val completionStatus = get("digital_video_completion_status").stringValue
+    val message = event {
+      video = video {
+        when (completionStatus) {
+          "0% - 25%" -> completed0PercentPlus = true
+          "25% - 50%" -> {
+            completed0PercentPlus = true
+            completed25PercentPlus = true
           }
+          "50% - 75%" -> {
+            completed0PercentPlus = true
+            completed25PercentPlus = true
+            completed50PercentPlus = true
+          }
+          "75% - 100%" -> {
+            completed0PercentPlus = true
+            completed25PercentPlus = true
+            completed50PercentPlus = true
+            completed75PercentPlus = true
+          }
+          "100%" -> {
+            completed0PercentPlus = true
+            completed25PercentPlus = true
+            completed50PercentPlus = true
+            completed75PercentPlus = true
+            completed100Percent = true
+          }
+          else -> error("Unknown video completion status :  $completionStatus")
+        }
+        when (viewability) {
+          "viewable_0_percent_to_50_percent" -> viewable0PercentPlus = true
+          "viewable_50_percent_to_100_percent" -> {
+            viewable0PercentPlus = true
+            viewable50PercentPlus = true
+          }
+          "viewable_100_percent" -> {
+            viewable0PercentPlus = true
+            viewable50PercentPlus = true
+            viewable100Percent = true
+          }
+          else -> error("Unknown video viewability :  $viewability")
+        }
+      }
+      display = display {
+        when (viewability) {
+          "viewable_0_percent_to_50_percent" -> viewable0PercentPlus = true
+          "viewable_50_percent_to_100_percent" -> {
+            viewable0PercentPlus = true
+            viewable50PercentPlus = true
+          }
+          "viewable_100_percent" -> {
+            viewable0PercentPlus = true
+            viewable50PercentPlus = true
+            viewable100Percent = true
+          }
+          else -> throw Exception("Unknown display viewability :  $viewability")
+        }
       }
     }
+
     return LabeledEvent(
       Timestamp.ofTimeMicroseconds(get("time").timestampValue).toInstant(),
       get("vid").longValue,

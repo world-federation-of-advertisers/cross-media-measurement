@@ -306,6 +306,13 @@ http_archive(
     url = "https://github.com/google/tink/archive/refs/tags/v1.7.0.tar.gz",
 )
 
+http_archive(
+    name = "uk_pilot_event_templates",
+    sha256 = "e5d9cb0f6087b6286f5bfeb053a968870c88c27fa7a5dc40055ae7681dad9b2c",
+    strip_prefix = "uk-pilot-event-templates-0.2.0",
+    url = "https://github.com/world-federation-of-advertisers/uk-pilot-event-templates/archive/refs/tags/v0.2.0.tar.gz",
+)
+
 # Force use of newer version of boringssl.
 single_version_override(
     module_name = "boringssl",

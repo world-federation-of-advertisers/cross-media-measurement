@@ -123,7 +123,7 @@ class InProcessEdpSimulator(
     edpJob.cancelAndJoin()
   }
 
-  suspend fun ensureEventGroup() = delegate.ensureEventGroup(syntheticDataSpec)
+  suspend fun ensureEventGroup() = delegate.ensureEventGroup(EVENT_TEMPLATES, syntheticDataSpec)
 
   /** Builds a [EdpData] object for the Edp with a certain [displayName] and [resourceName]. */
   @Blocking
@@ -139,7 +139,10 @@ class InProcessEdpSimulator(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
     private const val RANDOM_SEED: Long = 1
     private val random = Random(RANDOM_SEED)
+
+    private val EVENT_TEMPLATES = EdpSimulator.buildEventTemplates(TestEvent.getDescriptor())
   }
 }

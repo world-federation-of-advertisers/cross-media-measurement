@@ -15,6 +15,7 @@
 package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.protobuf.DescriptorProtos
+import com.google.protobuf.Descriptors
 import com.google.protobuf.TypeRegistry
 import java.io.File
 import org.wfanet.measurement.api.v2alpha.EventGroup
@@ -72,6 +73,8 @@ class SyntheticGeneratorEdpSimulatorRunner : EdpSimulatorRunner() {
         parseTextProto(it.value, SyntheticEventGroupSpec.getDefaultInstance())
       }
     val eventMessageRegistry: TypeRegistry = buildEventMessageRegistry()
+    val eventMessageDescriptor: Descriptors.Descriptor =
+      eventMessageRegistry.getDescriptorForTypeUrl(populationSpec.eventMessageTypeUrl)
 
     val eventQuery =
       object : SyntheticGeneratorEventQuery(populationSpec, eventMessageRegistry) {
@@ -82,7 +85,11 @@ class SyntheticGeneratorEdpSimulatorRunner : EdpSimulatorRunner() {
         }
       }
 
-    run(eventQuery, eventGroupSpecByReferenceIdSuffix)
+    run(
+      eventQuery,
+      EdpSimulator.buildEventTemplates(eventMessageDescriptor),
+      eventGroupSpecByReferenceIdSuffix,
+    )
   }
 
   private fun buildEventMessageRegistry(): TypeRegistry {
