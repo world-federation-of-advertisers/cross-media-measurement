@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.measurementconsumer.stats
 
+import kotlin.math.sqrt
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 
 /** Noise mechanism enums. */
@@ -71,6 +72,43 @@ data class FrequencyMeasurementVarianceParams(
   val relativeFrequencyDistribution: Map<Int, Double>,
   val measurementParams: FrequencyMeasurementParams,
 )
+
+/**
+ * The parameters used to compute the variance of a reach ratio at a certain frequency in a relative
+ * frequency measurement.
+ */
+data class RelativeFrequencyMeasurementVarianceParams(
+  val totalReach: Long,
+  val reachMeasurementVariance: Double,
+  val reachRatio: Double,
+  val measurementParams: FrequencyMeasurementParams,
+  val multiplier: Int,
+)
+
+/**
+ * A reach result is considered too small when computing variances of relative frequency if the 95%
+ * confidence interval of the reach covers 0 or negative values. The 95% confidence interval =
+ * reach_result +/- 1.96 * reach_std.
+ */
+const val REACH_THRESHOLD_CONSTANT_FOR_RELATIVE_FREQUENCY_VARIANCE = 1.96
+
+/**
+ * A uniformly random number from [0, 1] has a variance equal to 1 / 12
+ * (en.wikipedia.org/wiki/Continuous_uniform_distribution).
+ */
+const val VARIANCE_OF_UNIFORMLY_RANDOM_PROBABILITY = 1.0 / 12.0
+
+/** Determines if a reach is too small for computing relative frequency variance. */
+fun isReachTooSmallForComputingRelativeFrequencyVariance(
+  reach: Long,
+  reachVariance: Double,
+): Boolean {
+  // A reach result is considered too small for computing variances of relative frequency if the
+  // confidence interval lower bound of the reach <= 0.
+  val reachConfidenceIntervalLowerBound =
+    reach - REACH_THRESHOLD_CONSTANT_FOR_RELATIVE_FREQUENCY_VARIANCE * sqrt(reachVariance)
+  return reachConfidenceIntervalLowerBound <= 0
+}
 
 /** The parameters used to compute the variance of an impression measurement. */
 data class ImpressionMeasurementVarianceParams(

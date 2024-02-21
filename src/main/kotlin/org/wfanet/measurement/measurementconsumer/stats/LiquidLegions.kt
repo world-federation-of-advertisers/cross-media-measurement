@@ -253,11 +253,16 @@ object LiquidLegions {
     sketchParams: LiquidLegionsSketchParams,
     collisionResolution: Boolean,
     frequencyNoiseVariance: Double,
-    totalReach: Long,
-    reachRatio: Double,
-    frequencyMeasurementParams: FrequencyMeasurementParams,
-    multiplier: Int,
+    relativeFrequencyMeasurementVarianceParams: RelativeFrequencyMeasurementVarianceParams,
   ): Double {
+    val (
+      totalReach: Long,
+      reachMeasurementVariance: Double,
+      reachRatio: Double,
+      frequencyMeasurementParams: FrequencyMeasurementParams,
+      multiplier: Int) =
+      relativeFrequencyMeasurementVarianceParams
+
     val expectedRegisterNum =
       expectedNumberOfNonDestroyedRegisters(
         sketchParams,
@@ -265,8 +270,15 @@ object LiquidLegions {
         totalReach,
         frequencyMeasurementParams.vidSamplingInterval.width,
       )
-    if (expectedRegisterNum < 1.0) {
-      return 0.0
+
+    // When reach is too small, we have little info to estimate frequency, and thus the estimate of
+    // relative frequency is equivalent to a uniformly random guess at probability.
+    if (
+      isReachTooSmallForComputingRelativeFrequencyVariance(totalReach, reachMeasurementVariance) ||
+        expectedRegisterNum < 1.0
+    ) {
+      return if (frequencyMeasurementParams.maximumFrequency == multiplier) 0.0
+      else VARIANCE_OF_UNIFORMLY_RANDOM_PROBABILITY
     }
 
     val registerNumVariance =
