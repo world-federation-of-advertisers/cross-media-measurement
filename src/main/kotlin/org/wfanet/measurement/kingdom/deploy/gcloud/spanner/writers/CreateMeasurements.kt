@@ -161,20 +161,38 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       initialMeasurementState,
     )
 
-    // Insert into Requisitions for each EDP
-    insertRequisitions(
-      measurementConsumerId,
-      measurementId,
-      createMeasurementRequest.measurement.dataProvidersMap,
-      Requisition.State.PENDING_PARAMS,
-    )
-
     includedDuchyEntries.forEach { entry ->
       insertComputationParticipant(
         measurementConsumerId,
         measurementId,
         InternalId(entry.internalDuchyId),
       )
+    }
+
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields are never null.
+    when (createMeasurementRequest.measurement.details.protocolConfig.protocolCase) {
+      ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2,
+      ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
+        // For each EDP, insert a Requisition.
+        insertRequisitions(
+          measurementConsumerId,
+          measurementId,
+          createMeasurementRequest.measurement.dataProvidersMap,
+          Requisition.State.PENDING_PARAMS,
+        )
+      }
+      ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+        // For each EDP, insert a Requisition for each non-aggregator Duchy.
+        insertRequisitions(
+          measurementConsumerId,
+          measurementId,
+          createMeasurementRequest.measurement.dataProvidersMap,
+          Requisition.State.PENDING_PARAMS,
+          includedDuchyEntries.drop(1),
+        )
+      }
+      ProtocolConfig.ProtocolCase.DIRECT,
+      ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid protocol,")
     }
 
     return createMeasurementRequest.measurement.copy {
@@ -279,6 +297,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
     measurementId: InternalId,
     dataProvidersMap: Map<Long, Measurement.DataProviderValue>,
     initialRequisitionState: Requisition.State,
+    fulfillingDuchies: List<DuchyIds.Entry> = emptyList(),
   ) {
     for ((externalDataProviderId, dataProviderValue) in dataProvidersMap) {
       insertRequisition(
@@ -287,6 +306,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         ExternalId(externalDataProviderId),
         dataProviderValue,
         initialRequisitionState,
+        fulfillingDuchies,
       )
     }
   }
@@ -297,6 +317,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
     externalDataProviderId: ExternalId,
     dataProviderValue: Measurement.DataProviderValue,
     initialRequisitionState: Requisition.State,
+    fulfillingDuchies: List<DuchyIds.Entry> = emptyList(),
   ) {
     val dataProviderId =
       DataProviderReader.readDataProviderId(transactionContext, externalDataProviderId)
@@ -329,6 +350,14 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         dataProviderPublicKeySignatureAlgorithmOid =
           dataProviderValue.dataProviderPublicKeySignatureAlgorithmOid
       }
+    val fulfillingDuchyId =
+      if (fulfillingDuchies.isNotEmpty()) {
+        // Requisitions for the same measurement might go to different duchies.
+        val index = (externalRequisitionId.value % fulfillingDuchies.size).toInt()
+        fulfillingDuchies[index].internalDuchyId
+      } else {
+        null
+      }
 
     transactionContext.bufferInsertMutation("Requisitions") {
       set("MeasurementConsumerId" to measurementConsumerId)
@@ -339,6 +368,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       set("ExternalRequisitionId" to externalRequisitionId)
       set("DataProviderCertificateId" to dataProviderCertificateId)
       set("State" to initialRequisitionState)
+      fulfillingDuchyId?.let { set("FulfillingDuchyId" to it) }
       set("RequisitionDetails" to details)
       setJson("RequisitionDetailsJson" to details)
     }

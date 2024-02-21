@@ -64,6 +64,7 @@ import org.wfanet.measurement.internal.db.gcp.FakeProtocolStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 import org.wfanet.measurement.internal.duchy.RequisitionDetails
+import org.wfanet.measurement.internal.duchy.copy
 import org.wfanet.measurement.internal.duchy.externalRequisitionKey
 import org.wfanet.measurement.internal.duchy.requisitionEntry
 
@@ -1440,7 +1441,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
       },
     )
 
-    database.writeRequisitionBlobPath(token, requisitionKey1, "this is a new path")
+    database.writeRequisitionBlobPath(token, requisitionKey1, "this is a new path", null, "v2alpha")
 
     assertQueryReturns(
       databaseClient,
@@ -1458,7 +1459,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
         set("ExternalRequisitionId").to(requisitionKey1.externalRequisitionId)
         set("RequisitionFingerprint").to(requisitionKey1.requisitionFingerprint.toGcloudByteArray())
         set("PathToBlob").to("this is a new path")
-        set("RequisitionDetails").toProtoBytes(requisitionDetails1)
+        set("RequisitionDetails")
+          .toProtoBytes(requisitionDetails1.copy { publicApiVersion = "v2alpha" })
         set("UpdateTime").to(testClock.last().toGcloudTimestamp())
       },
       struct {

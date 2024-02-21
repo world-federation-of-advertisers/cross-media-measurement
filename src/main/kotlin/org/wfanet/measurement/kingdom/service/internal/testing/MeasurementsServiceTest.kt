@@ -505,7 +505,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-  fun `createMeasurement for duchy HMSS measurement succeeds`() = runBlocking {
+  fun `createMeasurement for duchy HMSS measurement succeeds`(): Unit = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider = population.createDataProvider(dataProvidersService)
@@ -535,6 +535,25 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         Measurement.ETAG_FIELD_NUMBER,
       )
       .isEqualTo(measurement.copy { state = Measurement.State.PENDING_REQUISITION_PARAMS })
+
+    val requisitions: List<Requisition> =
+      requisitionsService
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter =
+              StreamRequisitionsRequestKt.filter {
+                externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
+                externalMeasurementId = createdMeasurement.externalMeasurementId
+              }
+          }
+        )
+        .toList()
+
+    assertThat(requisitions.size).isEqualTo(createdMeasurement.dataProvidersCount)
+    val fulfillingDuchyIndex = requisitions[0].externalRequisitionId % 2
+    // check the externalFulfillingDuchyId of either "worker1" or "worker2"
+    assertThat(requisitions[0].externalFulfillingDuchyId)
+      .isEqualTo("worker${fulfillingDuchyIndex + 1}")
   }
 
   @Test
@@ -667,6 +686,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           )
           .toList()
 
+      assertThat(requisitions.size).isEqualTo(createdMeasurement.dataProvidersCount)
       requisitions.forEach { assertThat(it.state).isEqualTo(Requisition.State.PENDING_PARAMS) }
     }
 

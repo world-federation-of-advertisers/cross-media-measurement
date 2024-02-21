@@ -86,6 +86,13 @@ kt_jvm_proto_library(
 )
 
 kt_jvm_proto_library(
+    name = "random_seed_kt_jvm_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:random_seed_proto",
+    ],
+)
+
+kt_jvm_proto_library(
     name = "duchy_kt_jvm_proto",
     deps = [
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:duchy_proto",

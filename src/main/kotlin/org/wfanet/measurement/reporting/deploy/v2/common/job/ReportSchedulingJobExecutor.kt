@@ -123,6 +123,7 @@ private fun run(
       v2AlphaFlags.signingPrivateKeyStoreDir,
       commonServerFlags.tlsFlags.signingCerts.trustedCertificates,
       Duration.ofMinutes(60),
+      Duration.ofMinutes(60),
       Dispatchers.IO,
       Dispatchers.Default,
     )
