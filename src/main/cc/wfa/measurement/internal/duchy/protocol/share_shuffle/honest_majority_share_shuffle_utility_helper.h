@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "math/distributed_noiser.h"
 #include "wfa/any_sketch/secret_share.pb.h"
 #include "wfa/measurement/internal/duchy/protocol/honest_majority_share_shuffle_methods.pb.h"
@@ -42,10 +43,25 @@ absl::StatusOr<std::vector<uint32_t>> GetShareVectorFromSketchShare(
     const ShareShuffleSketchParams& sketch_params,
     const CompleteShufflePhaseRequest::SketchShare& sketch_share);
 
+absl::StatusOr<std::vector<uint32_t>> CombineSketchShares(
+    const ShareShuffleSketchParams& sketch_params,
+    const google::protobuf::RepeatedPtrField<
+        CompleteAggregationPhaseRequest::ShareData>& sketch_shares);
+
 // Returns a vector result where result[i] = X[i] - Y[i] mod modulus.
 absl::StatusOr<std::vector<uint32_t>> VectorSubMod(
     const std::vector<uint32_t>& X, const std::vector<uint32_t>& Y,
     const uint32_t modulus);
+
+// Returns a vector result where result[i] = X[i] + Y[i] mod modulus.
+absl::StatusOr<std::vector<uint32_t>> VectorAddMod(absl::Span<const uint32_t> X,
+                                                   absl::Span<const uint32_t> Y,
+                                                   const uint32_t modulus);
+
+// Estimates reach from the number of non empty registers and the vid sampling
+// width.
+int64_t EstimateReach(int64_t non_empty_register_count,
+                      double vid_sampling_interval_width);
 
 }  // namespace wfa::measurement::internal::duchy::protocol::share_shuffle
 

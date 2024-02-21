@@ -29,6 +29,8 @@
 #include "any_sketch/crypto/shuffle.h"
 #include "common_cpp/macros/macros.h"
 #include "common_cpp/time/started_thread_cpu_timer.h"
+#include "google/protobuf/duration.pb.h"
+#include "google/protobuf/util/time_util.h"
 #include "math/distributed_noiser.h"
 #include "math/open_ssl_uniform_random_generator.h"
 #include "wfa/any_sketch/secret_share.pb.h"
@@ -48,6 +50,8 @@ using ::wfa::math::UniformPseudorandomGenerator;
 using ::wfa::measurement::common::crypto::SecureShuffleWithSeed;
 using ::wfa::measurement::internal::duchy::protocol::common::
     GetBlindHistogramNoiser;
+
+constexpr int kNonAggregatorCount = 2;
 
 absl::Status VerifySketchParameters(const ShareShuffleSketchParams& params) {
   if (params.register_count() < 1) {
@@ -180,7 +184,124 @@ absl::StatusOr<CompleteShufflePhaseResponse> CompleteShufflePhase(
 
   response.mutable_combined_sketch()->Add(combined_sketch.begin(),
                                           combined_sketch.end());
-  response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());
+  *response.mutable_elapsed_cpu_duration() =
+      google::protobuf::util::TimeUtil::MillisecondsToDuration(
+          timer.ElapsedMillis());
+  return response;
+}
+
+absl::StatusOr<CompleteAggregationPhaseResponse> CompleteAggregationPhase(
+    const CompleteAggregationPhaseRequest& request) {
+  StartedThreadCpuTimer timer;
+  CompleteAggregationPhaseResponse response;
+
+  if (request.sketch_shares().size() != kNonAggregatorCount) {
+    return absl::InvalidArgumentError(
+        "The number of share vectors must be equal to the number of "
+        "non-aggregators.");
+  }
+  ASSIGN_OR_RETURN(
+      std::vector<uint32_t> combined_sketch,
+      CombineSketchShares(request.sketch_params(), request.sketch_shares()));
+
+  int maximum_frequency = request.maximum_frequency();
+  if (maximum_frequency < 1) {
+    return absl::InvalidArgumentError(
+        "The maximum frequency should be greater than 0.");
+  }
+
+  // Validates the combined sketch and generates the frequency histogram.
+  // frequency_histogram[i] = the number of times value i occurs where
+  // i in {0, ..., maximum_frequency-1}.
+  std::unordered_map<int, int64_t> frequency_histogram;
+  for (auto x : combined_sketch) {
+    if (x > request.sketch_params().maximum_combined_frequency() &&
+        x != (request.sketch_params().ring_modulus() - 1)) {
+      return absl::InternalError(absl::Substitute(
+          "The combined register value $0 is not valid. It must be either the "
+          "sentinel value $1 or less that or equal to the combined maximum "
+          "frequency $2.",
+          x, request.sketch_params().ring_modulus() - 1,
+          request.sketch_params().maximum_combined_frequency()));
+    }
+    if (x < maximum_frequency) {
+      frequency_histogram[x]++;
+    }
+  }
+
+  int64_t register_count = request.sketch_params().register_count();
+
+  // Computes the non empty register count by subtracting frequency zero from
+  // the input sketch size. Another way to compute it is to add up all
+  // frequencies from 1 to the maximum combined frequency. However, the latter
+  // approach will have a lot more noise.
+  int64_t non_empty_register_count = register_count - frequency_histogram[0];
+
+  // Adjusts the frequency histogram and non empty register count according the
+  // noise baseline for the frequencies from 0 to {maximum_frequency - 1}.
+  if (request.has_dp_params()) {
+    auto noiser = GetBlindHistogramNoiser(
+        request.dp_params(), kNonAggregatorCount, request.noise_mechanism());
+    int64_t noise_baseline_per_bucket =
+        noiser->options().shift_offset * kNonAggregatorCount;
+    // Removes the noise baseline from the frequency histogram.
+    for (int i = 0; i < maximum_frequency; ++i) {
+      frequency_histogram[i] =
+          std::max(0L, frequency_histogram[i] - noise_baseline_per_bucket);
+    }
+    // Adjusts the non empty register count.
+    non_empty_register_count += noise_baseline_per_bucket;
+
+    // Ensures that non_empty_register_count is at least 0.
+    non_empty_register_count = std::max(0L, non_empty_register_count);
+
+    // Ensures that non_empty_register_count is at most the input sketch size.
+    non_empty_register_count =
+        std::min(register_count, non_empty_register_count);
+  }
+
+  // Sum of all frequencies from 0 to {maximum_frequency - 1}.
+  int accumulated_count = 0;
+  for (int i = 0; i < maximum_frequency; i++) {
+    accumulated_count += frequency_histogram[i];
+  }
+
+  // Computes the value frequency_histogram[maximum_frequency+] from the current
+  // frequency histogram, stores the sum of all frequencies from 1 to
+  // {maximum_frequency+} in adjusted_total, and uses the adjusted total in the
+  // calculation of the frequency distribution. If the accumulated count does
+  // not exceed the register count, frequency_histogram[maximum_frequency+] will
+  // be equal to {register count - accumulated count}. Otherwise, it will be
+  // assigned zero value (which is very unlikely in practice).
+  int64_t adjusted_total = 0;
+  if (accumulated_count >= register_count) {
+    frequency_histogram[maximum_frequency] = 0;
+    adjusted_total = accumulated_count - frequency_histogram[0];
+  } else {
+    frequency_histogram[maximum_frequency] = register_count - accumulated_count;
+    adjusted_total = register_count - frequency_histogram[0];
+  }
+
+  if (adjusted_total == 0) {
+    return absl::InvalidArgumentError(
+        "There is neither actual data nor effective noise in the request.");
+  }
+
+  // reach is the number of non-empty buckets.
+  response.set_reach(EstimateReach(non_empty_register_count,
+                                   request.vid_sampling_interval_width()));
+
+  google::protobuf::Map<int64_t, double>& distribution =
+      *response.mutable_frequency_distribution();
+  for (int i = 1; i <= maximum_frequency; ++i) {
+    if (frequency_histogram[i] != 0) {
+      distribution[i] =
+          static_cast<double>(frequency_histogram[i]) / adjusted_total;
+    }
+  }
+  *response.mutable_elapsed_cpu_duration() =
+      google::protobuf::util::TimeUtil::MillisecondsToDuration(
+          timer.ElapsedMillis());
   return response;
 }
 

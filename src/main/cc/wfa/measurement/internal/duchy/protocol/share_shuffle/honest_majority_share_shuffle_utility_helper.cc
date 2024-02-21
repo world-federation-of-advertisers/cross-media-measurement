@@ -134,6 +134,52 @@ absl::StatusOr<std::vector<uint32_t>> GetShareVectorFromSketchShare(
   return share_vector;
 }
 
+absl::StatusOr<std::vector<uint32_t>> CombineSketchShares(
+    const ShareShuffleSketchParams& sketch_params,
+    const google::protobuf::RepeatedPtrField<
+        CompleteAggregationPhaseRequest::ShareData>& sketch_shares) {
+  if (sketch_shares.empty()) {
+    return absl::InvalidArgumentError(
+        "There must be at least one share vector.");
+  }
+
+  std::vector<uint32_t> combined_share =
+      std::vector(sketch_shares.Get(0).share_vector().begin(),
+                  sketch_shares.Get(0).share_vector().end());
+
+  for (int i = 1; i < sketch_shares.size(); i++) {
+    std::vector<uint32_t> temp =
+        std::vector(sketch_shares.Get(i).share_vector().begin(),
+                    sketch_shares.Get(i).share_vector().end());
+
+    ASSIGN_OR_RETURN(
+        combined_share,
+        VectorAddMod(combined_share, temp, sketch_params.ring_modulus()));
+  }
+
+  return combined_share;
+}
+
+absl::StatusOr<std::vector<uint32_t>> VectorAddMod(absl::Span<const uint32_t> X,
+                                                   absl::Span<const uint32_t> Y,
+                                                   const uint32_t modulus) {
+  if (X.size() != Y.size()) {
+    return absl::InvalidArgumentError(
+        "Input vectors must have the same length.");
+  }
+  for (int i = 0; i < X.size(); i++) {
+    if (X[i] >= modulus || Y[i] >= modulus) {
+      return absl::InvalidArgumentError(
+          "Input vectors' elements must be less than modulus.");
+    }
+  }
+  std::vector<uint32_t> result(X.size());
+  for (int i = 0; i < X.size(); i++) {
+    result[i] = X[i] + Y[i] - (X[i] >= (modulus - Y[i])) * modulus;
+  }
+  return result;
+}
+
 absl::StatusOr<std::vector<uint32_t>> VectorSubMod(
     const std::vector<uint32_t>& X, const std::vector<uint32_t>& Y,
     const uint32_t modulus) {
@@ -152,6 +198,12 @@ absl::StatusOr<std::vector<uint32_t>> VectorSubMod(
     result[i] = X[i] - Y[i] + (X[i] < Y[i]) * modulus;
   }
   return result;
+}
+
+int64_t EstimateReach(int64_t non_empty_register_count,
+                      double vid_sampling_interval_width) {
+  return static_cast<int64_t>((double)non_empty_register_count /
+                              vid_sampling_interval_width);
 }
 
 }  // namespace wfa::measurement::internal::duchy::protocol::share_shuffle
