@@ -50,18 +50,18 @@ absl::StatusOr<std::vector<uint32_t>> CombineSketchShares(
 
 // Returns a vector result where result[i] = X[i] - Y[i] mod modulus.
 absl::StatusOr<std::vector<uint32_t>> VectorSubMod(
-    const std::vector<uint32_t>& X, const std::vector<uint32_t>& Y,
-    const uint32_t modulus);
+    const std::vector<uint32_t>& vector_x,
+    const std::vector<uint32_t>& vector_y, const uint32_t modulus);
 
 // Returns a vector result where result[i] = X[i] + Y[i] mod modulus.
-absl::StatusOr<std::vector<uint32_t>> VectorAddMod(absl::Span<const uint32_t> X,
-                                                   absl::Span<const uint32_t> Y,
-                                                   const uint32_t modulus);
+absl::StatusOr<std::vector<uint32_t>> VectorAddMod(
+    absl::Span<const uint32_t> vector_x, absl::Span<const uint32_t> vector_y,
+    const uint32_t modulus);
 
 // Estimates reach from the number of non empty registers and the vid sampling
 // width.
-int64_t EstimateReach(int64_t non_empty_register_count,
-                      double vid_sampling_interval_width);
+absl::StatusOr<int64_t> EstimateReach(int64_t non_empty_register_count,
+                                      double vid_sampling_interval_width);
 
 }  // namespace wfa::measurement::internal::duchy::protocol::share_shuffle
 

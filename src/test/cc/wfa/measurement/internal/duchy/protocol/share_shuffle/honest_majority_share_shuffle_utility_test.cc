@@ -17,7 +17,6 @@
 #include <algorithm>
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -535,11 +534,11 @@ TEST(ShufflePhaseAtNonAggregator,
 
   EXPECT_THAT(combined_sketch, testing::IsSupersetOf(combined_input));
 
-  std::unordered_map<int, int> combined_input_frequency;
+  absl::flat_hash_map<int, int> combined_input_frequency;
   for (auto x : combined_input) {
     combined_input_frequency[x]++;
   }
-  std::unordered_map<int, int> noisy_frequency;
+  absl::flat_hash_map<int, int> noisy_frequency;
   for (auto x : combined_sketch) {
     noisy_frequency[x]++;
   }
@@ -697,7 +696,8 @@ TEST(AggregationPhase, AggregationPhaseWithoutDPNoiseSucceeds) {
   test_data.AddShareToSketchShares(share_vector_2);
 
   ASSERT_OK_AND_ASSIGN(MpcResult result, test_data.RunAggregationPhase());
-  int64_t expected_reach = EstimateReach(4.0, kVidSamplingIntervalWidth);
+  ASSERT_OK_AND_ASSIGN(int64_t expected_reach,
+                       EstimateReach(4.0, kVidSamplingIntervalWidth));
   EXPECT_EQ(result.reach, expected_reach);
   ASSERT_THAT(result.frequency_distribution, SizeIs(2));
   EXPECT_EQ(result.frequency_distribution[1], 0.25);
@@ -725,7 +725,8 @@ TEST(AggregationPhase, AggregationPhaseWithDPNoiseSucceeds) {
   test_data.AddShareToSketchShares(share_vector_2);
 
   ASSERT_OK_AND_ASSIGN(MpcResult result, test_data.RunAggregationPhase());
-  int64_t expected_reach = EstimateReach(4.0, kVidSamplingIntervalWidth);
+  ASSERT_OK_AND_ASSIGN(int64_t expected_reach,
+                       EstimateReach(4.0, kVidSamplingIntervalWidth));
   EXPECT_EQ(result.reach, expected_reach);
   ASSERT_THAT(result.frequency_distribution, SizeIs(2));
   EXPECT_EQ(result.frequency_distribution[1], 0.25);
@@ -863,8 +864,9 @@ class EndToEndHmssTest {
       frequency_histogram[x]++;
     }
 
-    int64_t expected_reach = EstimateReach(
-        register_count - frequency_histogram[0], kVidSamplingIntervalWidth);
+    ASSIGN_OR_RETURN(int64_t expected_reach,
+                     EstimateReach(register_count - frequency_histogram[0],
+                                   kVidSamplingIntervalWidth));
 
     // When there is no differential noise, the shift offset is 0.
     int64_t max_reach_error = 2 * shift_offset / kVidSamplingIntervalWidth;
