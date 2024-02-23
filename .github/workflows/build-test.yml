@@ -89,18 +89,12 @@ jobs:
           repo_cache_path="$(bazelisk info repository_cache)"
           echo "repo-cache-path=${repo_cache_path}" >> $GITHUB_OUTPUT
 
-      # This is a hack to utilize the undocumented relatively large empty
-      # scratch disk mounted at /mnt. It's currently needed to work around
-      # bazel-contrib/rules_oci#439 as that's what is pushing our usage over the
-      # limit. The alternative is to use a runner with more disk space. 
+      # Hack to work around disk space consumed by bazel-contrib/rules_oci#439.
+      # The alternative is to use a runner with more disk space.
       - name: Mount scratch disk
-        env:
-          BAZEL_CACHE_PATH: ${{ steps.get-cache-params.outputs.cache-path }}
-        run: |
-          mkdir -p "$BAZEL_CACHE_PATH"
-          sudo mkdir -p /mnt/bazel-cache
-          sudo chown 'runner:runner' /mnt/bazel-cache
-          sudo mount --bind /mnt/bazel-cache "$BAZEL_CACHE_PATH"
+        uses: ./.github/actions/mount-scratch-disk
+        with:
+          mount-path: ${{ steps.get-cache-params.outputs.cache-path }}
 
       - name: Restore repository cache
         uses: actions/cache/restore@v4

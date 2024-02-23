@@ -1,0 +1,37 @@
+# Copyright 2024 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Mount scratch disk
+description: >
+  Create a bind mount for scratch disk space.
+  
+  Note that this is a hack to utilize the currently largely unused space at
+  /mnt. This is relying on undocumented behavior that may change.
+inputs: 
+  mount-path:
+    description: Path to mount scratch disk
+    required: true
+runs: 
+  using: composite
+  steps:
+  - shell: bash
+    env:
+      MOUNT_PATH: ${{ inputs.mount-path }}
+    run: |
+      dir_name="$(printf '%s' "$MOUNT_PATH" | sha256sum | cut -d ' ' -f 1)"
+      source_path="/mnt/${dir_name}"
+      mkdir -p "$MOUNT_PATH"
+      sudo mkdir -p "${source_path}"
+      sudo chown 'runner:runner' "${source_path}"
+      sudo mount --bind "${source_path}" "$MOUNT_PATH"

@@ -29,10 +29,11 @@ jobs:
       image-tag: ${{ steps.get-image-tag.outputs.image-tag }}
     permissions:
       id-token: write
+      packages: write
     env:
       CONTAINER_REGISTRY: ghcr.io
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - uses: ./.github/actions/free-disk-space
       
@@ -71,6 +72,16 @@ jobs:
         run: |
           repo_cache_path="$(bazelisk info repository_cache)"
           echo "repo-cache-path=${repo_cache_path}" >> $GITHUB_OUTPUT
+
+          cache_path="$(bazelisk info output_base)"
+          echo "cache-path=${cache_path}" >> $GITHUB_OUTPUT
+          
+      # Hack to work around disk space consumed by bazel-contrib/rules_oci#439.
+      # The alternative is to use a runner with more disk space.
+      - name: Mount scratch disk
+        uses: ./.github/actions/mount-scratch-disk
+        with:
+          mount-path: ${{ steps.get-cache-params.outputs.cache-path }}
 
       - name: Restore repository cache
         uses: actions/cache/restore@v4
