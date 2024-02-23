@@ -50,6 +50,8 @@ kt_jvm_test(
     ],
     test_class = "org.wfanet.measurement.reporting.service.api.v1alpha.EventGroupsServiceTest",
     deps = [
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:cel_env_provider",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:event_groups_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:principal_server_interceptor",

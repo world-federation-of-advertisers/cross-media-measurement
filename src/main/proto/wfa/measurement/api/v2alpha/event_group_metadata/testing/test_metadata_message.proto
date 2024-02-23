@@ -12,13 +12,50 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// syntax = "proto3";
+
+// package wfa.measurement.api.v2alpha.event_group_metadata.testing;
+
+// option java_package =
+// "org.wfanet.measurement.api.v2alpha.event_group_metadata.testing"; option
+// java_multiple_files = true;
+
+// message TestMetadataMessage {
+//   int32 publisher_id = 1;
+// }
+
 syntax = "proto3";
 
-package wfa.measurement.api.v2alpha.event_group_metadata.testing;
+package wfa.measurement.api.v2alpha;
 
-option java_package = "org.wfanet.measurement.api.v2alpha.event_group_metadata.testing";
 option java_multiple_files = true;
+option java_package = "org.wfanet.measurement.api.v2alpha";
 
 message TestMetadataMessage {
-  int32 publisher_id = 1;
+  message Date {
+    int32 year = 1;
+    int32 month = 2;
+    int32 day = 3;
+  }
+
+  message CampaignStartDate {
+    Date value = 1;
+  }
+
+  message Brand {
+    string value = 1;
+  }
+
+  message DisplayName {
+    string value = 1;
+  }
+
+  message CampaignEndDate {
+    Date value = 1;
+  }
+
+  CampaignStartDate campaign_start_date = 1;
+  Brand brand = 2;
+  DisplayName display_name = 3;
+  CampaignEndDate campaign_end_date = 4;
 }

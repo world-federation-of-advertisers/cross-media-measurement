@@ -164,16 +164,19 @@ class EventGroupsService(
           // TODO(projectnessie/cel-java#295): Remove when fixed.
           if (eventGroup.hasMetadata()) {
             val metadata: com.google.protobuf.Any = eventGroup.metadata.metadata
-            put(
-              METADATA_FIELD,
+            println("metadatametadatametadata $metadata")
+            println("typeRegistrytypeRegistrytypeRegistry $typeRegistry")
+            val dyn =
               DynamicMessage.parseFrom(
                 typeRegistry.getDescriptorForTypeUrl(metadata.typeUrl),
                 metadata.value,
-              ),
-            )
+              )
+            println("dyndyndyn : $dyn")
+            put(METADATA_FIELD, dyn)
           }
         }
       val result: Val = program.eval(variables).`val`
+      println("resultresultresult : $result")
       if (result is Err) {
         // For when the field in the filter doesn't exist in the event group.
         if (result.toString().contains("undeclared reference to")) {
