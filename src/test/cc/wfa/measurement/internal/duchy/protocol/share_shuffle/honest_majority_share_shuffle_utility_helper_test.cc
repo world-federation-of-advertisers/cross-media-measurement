@@ -303,6 +303,13 @@ TEST(EstimateReach, VidSamplingIntervalWidthGreaterThanOneFails) {
               StatusIs(absl::StatusCode::kInvalidArgument, "interval width"));
 }
 
+TEST(EstimateReach, ValidInputSucceeds) {
+  ASSERT_OK_AND_ASSIGN(int64_t reach_1, EstimateReach(10, 0.5));
+  EXPECT_EQ(reach_1, 20);
+  ASSERT_OK_AND_ASSIGN(int64_t reach_2, EstimateReach(10, 1.0));
+  EXPECT_EQ(reach_2, 10);
+}
+
 TEST(CombineSketchShares, EmptySketchSharesFails) {
   ShareShuffleSketchParams sketch_params;
   sketch_params.set_ring_modulus(kRingModulus);
