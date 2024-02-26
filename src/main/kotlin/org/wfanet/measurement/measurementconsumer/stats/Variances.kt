@@ -146,11 +146,26 @@ object VariancesImpl : Variances {
    * Different types of frequency histograms have different values of [multiplier].
    */
   private fun deterministicFrequencyRelativeVariance(
-    totalReach: Long,
-    reachRatio: Double,
-    measurementParams: FrequencyMeasurementParams,
-    multiplier: Int,
+    relativeFrequencyMeasurementVarianceParams: RelativeFrequencyMeasurementVarianceParams
   ): Double {
+
+    val (
+      totalReach: Long,
+      reachMeasurementVariance: Double,
+      reachRatio: Double,
+      measurementParams: FrequencyMeasurementParams,
+      multiplier: Int) =
+      relativeFrequencyMeasurementVarianceParams
+
+    // When reach is too small, we have little info to estimate frequency, and thus the estimate of
+    // relative frequency is equivalent to a uniformly random guess at probability.
+    if (
+      isReachTooSmallForComputingRelativeFrequencyVariance(totalReach, reachMeasurementVariance)
+    ) {
+      return if (measurementParams.maximumFrequency == multiplier) 0.0
+      else VARIANCE_OF_UNIFORMLY_RANDOM_PROBABILITY
+    }
+
     val frequencyNoiseVariance: Double =
       computeNoiseVariance(measurementParams.dpParams, measurementParams.noiseMechanism)
     val varPart1 =
@@ -257,22 +272,16 @@ object VariancesImpl : Variances {
     sketchParams: LiquidLegionsSketchParams,
     measurementParams: FrequencyMeasurementParams,
   ): (
-    totalReach: Long,
-    reachRatio: Double,
-    measurementParams: FrequencyMeasurementParams,
-    multiplier: Int,
+    relativeFrequencyMeasurementVarianceParams: RelativeFrequencyMeasurementVarianceParams
   ) -> Double {
     val frequencyNoiseVariance: Double =
       computeNoiseVariance(measurementParams.dpParams, measurementParams.noiseMechanism)
-    return { totalReach, reachRatio, freqParams, multiplier ->
+    return { relativeFrequencyMeasurementVarianceParams ->
       LiquidLegions.liquidLegionsFrequencyRelativeVariance(
         sketchParams = sketchParams,
         collisionResolution = true,
         frequencyNoiseVariance = frequencyNoiseVariance,
-        totalReach = totalReach,
-        reachRatio = reachRatio,
-        frequencyMeasurementParams = freqParams,
-        multiplier = multiplier,
+        relativeFrequencyMeasurementVarianceParams = relativeFrequencyMeasurementVarianceParams,
       )
     }
   }
@@ -326,23 +335,17 @@ object VariancesImpl : Variances {
     sketchParams: LiquidLegionsSketchParams,
     measurementParams: FrequencyMeasurementParams,
   ): (
-    totalReach: Long,
-    reachRatio: Double,
-    measurementParams: FrequencyMeasurementParams,
-    multiplier: Int,
+    relativeFrequencyMeasurementVarianceParams: RelativeFrequencyMeasurementVarianceParams
   ) -> Double {
     val frequencyNoiseVariance: Double =
       computeDistributedNoiseVariance(measurementParams.dpParams, measurementParams.noiseMechanism)
 
-    return { totalReach, reachRatio, freqParams, multiplier ->
+    return { relativeFrequencyMeasurementVarianceParams ->
       LiquidLegions.liquidLegionsFrequencyRelativeVariance(
         sketchParams = sketchParams,
         collisionResolution = false,
         frequencyNoiseVariance = frequencyNoiseVariance,
-        totalReach = totalReach,
-        reachRatio = reachRatio,
-        frequencyMeasurementParams = freqParams,
-        multiplier = multiplier,
+        relativeFrequencyMeasurementVarianceParams = relativeFrequencyMeasurementVarianceParams,
       )
     }
   }
@@ -387,10 +390,7 @@ object VariancesImpl : Variances {
     params: FrequencyMeasurementVarianceParams,
     frequencyRelativeVarianceFun:
       (
-        totalReach: Long,
-        reachRatio: Double,
-        measurementParams: FrequencyMeasurementParams,
-        multiplier: Int,
+        relativeFrequencyMeasurementVarianceParams: RelativeFrequencyMeasurementVarianceParams
       ) -> Double,
     frequencyCountVarianceFun:
       (
@@ -415,20 +415,26 @@ object VariancesImpl : Variances {
     val relativeVariances: Map<Int, Double> =
       (1..maximumFrequency).associateWith { frequency ->
         frequencyRelativeVarianceFun(
-          params.totalReach,
-          params.relativeFrequencyDistribution.getOrDefault(frequency, 0.0),
-          params.measurementParams,
-          1,
+          RelativeFrequencyMeasurementVarianceParams(
+            params.totalReach,
+            params.reachMeasurementVariance,
+            params.relativeFrequencyDistribution.getOrDefault(frequency, 0.0),
+            params.measurementParams,
+            1,
+          )
         )
       }
 
     val kPlusRelativeVariances: Map<Int, Double> =
       (1..maximumFrequency).associateWith { frequency ->
         frequencyRelativeVarianceFun(
-          params.totalReach,
-          kPlusRelativeFrequencyDistribution.getValue(frequency),
-          params.measurementParams,
-          maximumFrequency - frequency + 1,
+          RelativeFrequencyMeasurementVarianceParams(
+            params.totalReach,
+            params.reachMeasurementVariance,
+            kPlusRelativeFrequencyDistribution.getValue(frequency),
+            params.measurementParams,
+            maximumFrequency - frequency + 1,
+          )
         )
       }
 
