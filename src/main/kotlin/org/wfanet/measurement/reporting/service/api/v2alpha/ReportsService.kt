@@ -35,8 +35,12 @@ import java.time.temporal.Temporal
 import java.time.temporal.TemporalAdjusters
 import java.time.zone.ZoneRulesException
 import kotlin.math.min
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.flatMapMerge
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import org.projectnessie.cel.Env
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
@@ -60,10 +64,6 @@ import org.wfanet.measurement.internal.reporting.v2.batchGetMetricCalculationSpe
 import org.wfanet.measurement.internal.reporting.v2.createReportRequest as internalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internalGetReportRequest
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.flatMapMerge
-import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withPrincipalName
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.reportScheduleInfoFromCurrentContext
@@ -419,7 +419,8 @@ class ReportsService(
     val createMetricRequests: Flow<CreateMetricRequest> =
       @OptIn(ExperimentalCoroutinesApi::class)
       internalReport.reportingMetricEntriesMap.entries.asFlow().flatMapMerge { entry ->
-        entry.value.metricCalculationSpecReportingMetricsList.asFlow().flatMapMerge { metricCalculationSpecReportingMetrics ->
+        entry.value.metricCalculationSpecReportingMetricsList.asFlow().flatMapMerge {
+          metricCalculationSpecReportingMetrics ->
           metricCalculationSpecReportingMetrics.reportingMetricsList.asFlow().map {
             it.toCreateMetricRequest(
               principal.resourceKey,
