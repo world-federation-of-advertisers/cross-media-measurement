@@ -159,6 +159,7 @@ import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchMetho
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
+import kotlinx.coroutines.flow.transform
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
@@ -805,20 +806,26 @@ class MetricsService(
 
       // Most Measurements are expected to be SUCCEEDED so SUCCEEDED Measurements will be collected
       // via a Flow.
-      val succeededMeasurements: Flow<Measurement> = flow {
-        getCmmsMeasurements(internalMeasurements, principal).collect { measurements ->
+      val succeededMeasurements: Flow<Measurement> =
+        getCmmsMeasurements(internalMeasurements, principal).transform { measurements ->
           for (measurement in measurements) {
             @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
             when (measurement.state) {
               Measurement.State.SUCCEEDED -> emit(measurement)
               Measurement.State.CANCELLED,
-              Measurement.State.FAILED -> failedMeasurements.add(measurement)
+              Measurement.State.FAILED
+              -> failedMeasurements.add(measurement)
+
               Measurement.State.COMPUTING,
-              Measurement.State.AWAITING_REQUISITION_FULFILLMENT -> {}
+              Measurement.State.AWAITING_REQUISITION_FULFILLMENT
+              -> {
+              }
+
               Measurement.State.STATE_UNSPECIFIED ->
                 failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
                   "The CMMS measurement state should've been set."
                 }
+
               Measurement.State.UNRECOGNIZED -> {
                 failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
                   "Unrecognized CMMS measurement state."
@@ -827,7 +834,6 @@ class MetricsService(
             }
           }
         }
-      }
 
       var anyUpdate = false
 
