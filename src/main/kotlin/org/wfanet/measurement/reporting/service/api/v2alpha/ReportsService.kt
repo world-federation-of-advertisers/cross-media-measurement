@@ -60,6 +60,10 @@ import org.wfanet.measurement.internal.reporting.v2.batchGetMetricCalculationSpe
 import org.wfanet.measurement.internal.reporting.v2.createReportRequest as internalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internalGetReportRequest
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.flatMapMerge
+import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withPrincipalName
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.reportScheduleInfoFromCurrentContext
@@ -412,26 +416,22 @@ class ReportsService(
       }
 
     // Create metrics.
-    val createMetricRequests: Flow<CreateMetricRequest> = flow {
-      internalReport.reportingMetricEntriesMap.flatMap {
-        (reportingSetId, reportingMetricCalculationSpec) ->
-        reportingMetricCalculationSpec.metricCalculationSpecReportingMetricsList.flatMap {
-          metricCalculationSpecReportingMetrics ->
-          metricCalculationSpecReportingMetrics.reportingMetricsList.map {
-            emit(
-              it.toCreateMetricRequest(
-                principal.resourceKey,
-                reportingSetId,
-                externalIdToMetricCalculationSpecMap
-                  .getValue(metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId)
-                  .details
-                  .filter,
-              )
+    val createMetricRequests: Flow<CreateMetricRequest> =
+      @OptIn(ExperimentalCoroutinesApi::class)
+      internalReport.reportingMetricEntriesMap.entries.asFlow().flatMapMerge { entry ->
+        entry.value.metricCalculationSpecReportingMetricsList.asFlow().flatMapMerge { metricCalculationSpecReportingMetrics ->
+          metricCalculationSpecReportingMetrics.reportingMetricsList.asFlow().map {
+            it.toCreateMetricRequest(
+              principal.resourceKey,
+              entry.key,
+              externalIdToMetricCalculationSpecMap
+                .getValue(metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId)
+                .details
+                .filter,
             )
           }
         }
       }
-    }
 
     val callRpc: suspend (List<CreateMetricRequest>) -> BatchCreateMetricsResponse = { items ->
       batchCreateMetrics(request.parent, items)

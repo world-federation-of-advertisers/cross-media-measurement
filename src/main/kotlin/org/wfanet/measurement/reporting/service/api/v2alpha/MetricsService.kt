@@ -51,7 +51,6 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.count
-import kotlinx.coroutines.flow.flatMapMerge
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
@@ -160,6 +159,7 @@ import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchMetho
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
+import kotlinx.coroutines.flow.flattenMerge
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
@@ -314,12 +314,15 @@ class MetricsService(
 
       // Gets all external IDs of primitive reporting sets from the metric list.
       val externalPrimitiveReportingSetIds: Flow<String> = flow {
-        buildSet<String> {
+        buildSet {
           for (internalMetric in internalMetricsList) {
             for (weightedMeasurement in internalMetric.weightedMeasurementsList) {
               for (primitiveReportingSetBasis in
                 weightedMeasurement.measurement.primitiveReportingSetBasesList) {
+                // Checks if the set already contains the ID
                 if (!contains(primitiveReportingSetBasis.externalReportingSetId)) {
+                  // If the set doesn't contain the ID, emit it and add it to the set so it won't
+                  // get emitted again.
                   emit(primitiveReportingSetBasis.externalReportingSetId)
                   add(primitiveReportingSetBasis.externalReportingSetId)
                 }
@@ -397,7 +400,8 @@ class MetricsService(
           ) { response: BatchCreateMeasurementsResponse ->
             response.measurementsList
           }
-          .flatMapMerge { it.asFlow() }
+          .map { it.asFlow() }
+          .flattenMerge()
 
       // Set CMMS measurement IDs.
       val callBatchSetCmmsMeasurementIdsRpc:
@@ -941,8 +945,10 @@ class MetricsService(
                   internalMeasurement.cmmsMeasurementId,
                 )
                 .toName()
-
+            // Checks if the set already contains the name
             if (!contains(name)) {
+              // If the set doesn't contain the name, emit it and add it to the set so it won't
+              // get emitted again.
               emit(name)
               add(name)
             }
