@@ -15,6 +15,9 @@
 package org.wfanet.panelmatch.common
 
 import java.lang.RuntimeException
+import java.util.logging.Logger
+
+private val logger: Logger = Logger.getLogger(JniException::class.java.name)
 
 /** Indicates something went wrong in C++. */
 class JniException(cause: Throwable) : RuntimeException(cause)
@@ -26,6 +29,8 @@ fun <T> wrapJniException(block: () -> T): T {
   return try {
     block()
   } catch (e: RuntimeException) {
+    logger.fine { e.message }
+    logger.fine { e.stackTrace.joinToString { "\n" } }
     throw JniException(e)
   }
 }
