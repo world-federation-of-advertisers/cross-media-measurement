@@ -29,7 +29,7 @@ fun <T> wrapJniException(block: () -> T): T {
   return try {
     block()
   } catch (e: RuntimeException) {
-    logger.fine { e.message }
+    logger.fine { "JNIException: ${e.message}" }
     logger.fine { e.stackTrace.joinToString { "\n" } }
     throw JniException(e)
   }
