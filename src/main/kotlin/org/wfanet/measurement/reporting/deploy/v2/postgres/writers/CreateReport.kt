@@ -54,7 +54,8 @@ import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundExc
  * * [ReportAlreadyExistsException] Report already exists
  */
 class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Report>() {
-  private data class ReportingMetricEntriesAndBinders(
+  private data class ReportingMetricEntriesAndStatementComponents(
+    val metricCalculationSpecReportingMetricsSql: String,
     val metricCalculationSpecReportingMetricsBinders: List<BoundStatement.Binder.() -> Unit>,
     val updatedReportingMetricEntries: Map<String, Report.ReportingMetricCalculationSpec>,
   )
@@ -207,35 +208,20 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
         bind("$7", report.details.toJson())
       }
 
-    val reportingMetricEntriesAndBinders =
-      createMetricCalculationSpecBindings(
+    val reportingMetricEntriesAndStatementComponents =
+      createMetricCalculationSpecStatementComponents(
         measurementConsumerId,
         reportId,
         report,
         reportingSetIdsByExternalId,
         metricCalculationSpecsByExternalId,
-        reportingMetricMap,
+        reportingMetricMap
       )
 
     val metricCalculationSpecReportingMetricsStatement =
-      boundStatement(
-        """
-      INSERT INTO MetricCalculationSpecReportingMetrics
-        (
-          MeasurementConsumerId,
-          ReportId,
-          ReportingSetId,
-          MetricCalculationSpecId,
-          CreateMetricRequestId,
-          MetricId,
-          ReportingMetricDetails,
-          ReportingMetricDetailsJson
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      """
-      ) {
-        reportingMetricEntriesAndBinders.metricCalculationSpecReportingMetricsBinders.forEach {
-          addBinding(it)
+      boundStatement(reportingMetricEntriesAndStatementComponents.metricCalculationSpecReportingMetricsSql) {
+        for (binder in reportingMetricEntriesAndStatementComponents.metricCalculationSpecReportingMetricsBinders) {
+          binder()
         }
       }
 
@@ -300,21 +286,23 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
       this.externalReportId = externalReportId
       externalReportScheduleId = request.reportScheduleInfo.externalReportScheduleId
       reportingMetricEntries.clear()
-      reportingMetricEntries.putAll(reportingMetricEntriesAndBinders.updatedReportingMetricEntries)
+      reportingMetricEntries.putAll(reportingMetricEntriesAndStatementComponents.updatedReportingMetricEntries)
     }
   }
 
-  private fun TransactionScope.createMetricCalculationSpecBindings(
+  private fun createMetricCalculationSpecStatementComponents(
     measurementConsumerId: InternalId,
     reportId: InternalId,
     report: Report,
     reportingSetIdsByExternalId: Map<String, InternalId>,
     metricCalculationSpecsByExternalId: Map<String, MetricCalculationSpecReader.Result>,
     reportingMetricMap:
-      Map<MetricCalculationSpecReportingMetricKey, List<MetricReader.ReportingMetric>>,
-  ): ReportingMetricEntriesAndBinders {
-    val metricCalculationSpecReportingMetricsBinders =
-      mutableListOf<BoundStatement.Binder.() -> Unit>()
+    Map<MetricCalculationSpecReportingMetricKey, List<MetricReader.ReportingMetric>>,
+  ): ReportingMetricEntriesAndStatementComponents {
+    val binders = mutableListOf<BoundStatement.Binder.() -> Unit>()
+    val rowsSqlList = mutableListOf<String>()
+    var curIndex = 1
+    val offset = 8
     val updatedReportingMetricEntries =
       mutableMapOf<String, Report.ReportingMetricCalculationSpec>()
 
@@ -356,31 +344,37 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
                     groupingPredicates += filters
                   }
               }
-            metricCalculationSpecReportingMetricsBinders.add {
-              bind("$1", measurementConsumerId)
-              bind("$2", reportId)
-              bind("$3", reportingSetIdsByExternalId[entry.key])
-              bind("$4", metricCalculationSpecResult.metricCalculationSpecId)
-              bind("$5", UUID.fromString(reportingMetric.createMetricRequestId))
-              bind("$6", it.metricId)
-              bind("$7", reportingMetric.details)
-              bind("$8", reportingMetric.details.toJson())
+            val tempIndex = curIndex
+            binders.add {
+              bind("$${tempIndex}", measurementConsumerId)
+              bind("$${tempIndex + 1}", reportId)
+              bind("$${tempIndex + 2}", reportingSetIdsByExternalId[entry.key])
+              bind("$${tempIndex + 3}", metricCalculationSpecResult.metricCalculationSpecId)
+              bind("$${tempIndex + 4}", UUID.fromString(reportingMetric.createMetricRequestId))
+              bind("$${tempIndex + 5}", it.metricId)
+              bind("$${tempIndex + 6}", reportingMetric.details)
+              bind("$${tempIndex + 7}", reportingMetric.details.toJson())
             }
+            rowsSqlList.add(generateParameterizedInsertValues(curIndex, curIndex + offset))
+            curIndex += offset
             updatedReportingMetricsList.add(reportingMetric)
           }
         } else {
           metricCalSpecReportingMetrics.reportingMetricsList.forEach {
             val createMetricRequestId = UUID.randomUUID()
-            metricCalculationSpecReportingMetricsBinders.add {
-              bind("$1", measurementConsumerId)
-              bind("$2", reportId)
-              bind("$3", reportingSetIdsByExternalId[entry.key])
-              bind("$4", metricCalculationSpecResult.metricCalculationSpecId)
-              bind("$5", createMetricRequestId)
-              bind<Long?>("$6", null)
-              bind("$7", it.details)
-              bind("$8", it.details.toJson())
+            val tempIndex = curIndex
+            binders.add {
+              bind("$${tempIndex}", measurementConsumerId)
+              bind("$${tempIndex + 1}", reportId)
+              bind("$${tempIndex + 2}", reportingSetIdsByExternalId[entry.key])
+              bind("$${tempIndex + 3}", metricCalculationSpecResult.metricCalculationSpecId)
+              bind("$${tempIndex + 4}", createMetricRequestId)
+              bind<Long?>("$${tempIndex + 5}", null)
+              bind("$${tempIndex + 6}", it.details)
+              bind("$${tempIndex + 7}", it.details.toJson())
             }
+            rowsSqlList.add(generateParameterizedInsertValues(curIndex, curIndex + offset))
+            curIndex += offset
             updatedReportingMetricsList.add(
               it.copy { this.createMetricRequestId = createMetricRequestId.toString() }
             )
@@ -404,8 +398,26 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
         }
     }
 
-    return ReportingMetricEntriesAndBinders(
-      metricCalculationSpecReportingMetricsBinders = metricCalculationSpecReportingMetricsBinders,
+    val sql =
+      """
+      INSERT INTO MetricCalculationSpecReportingMetrics
+        (
+          MeasurementConsumerId,
+          ReportId,
+          ReportingSetId,
+          MetricCalculationSpecId,
+          CreateMetricRequestId,
+          MetricId,
+          ReportingMetricDetails,
+          ReportingMetricDetailsJson
+        )
+      VALUES
+      ${rowsSqlList.joinToString(",")}
+      """
+
+    return ReportingMetricEntriesAndStatementComponents(
+      metricCalculationSpecReportingMetricsSql = sql,
+      metricCalculationSpecReportingMetricsBinders = binders,
       updatedReportingMetricEntries = updatedReportingMetricEntries,
     )
   }

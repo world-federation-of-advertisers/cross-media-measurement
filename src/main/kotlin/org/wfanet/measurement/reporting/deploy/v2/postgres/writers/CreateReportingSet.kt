@@ -49,10 +49,11 @@ const val INTEGRITY_CONSTRAINT_VIOLATION = "23505"
  */
 class CreateReportingSet(private val request: CreateReportingSetRequest) :
   PostgresWriter<ReportingSet>() {
-  private data class PrimitiveReportingSetBasesBinders(
-    val primitiveReportingSetBasesBinders: List<BoundStatement.Binder.() -> Unit>,
-    val weightedSubsetUnionPrimitiveReportingSetBasesBinders:
-      List<BoundStatement.Binder.() -> Unit>,
+  private data class PrimitiveReportingSetBasesStatementComponents(
+    val primitiveReportingSetBasesBinder: BoundStatement.Binder.() -> Unit,
+    val weightedSubsetUnionPrimitiveReportingSetBasesBinder: BoundStatement.Binder.() -> Unit,
+    val primitiveReportingSetBasisFiltersCurIndex: Int,
+    val primitiveReportingSetBasisFiltersRowsSqlList: List<String>,
     val primitiveReportingSetBasisFiltersBinders: List<BoundStatement.Binder.() -> Unit>,
   )
 
@@ -210,6 +211,9 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
         }] = it.eventGroupId
     }
 
+    val eventGroupsRowsSqlList = mutableListOf<String>()
+    var eventGroupsCurIndex = 1
+    val eventGroupsOffset = 4
     val eventGroupBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
 
     cmmsEventGroupKeys.forEach {
@@ -220,12 +224,15 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
         }
       ) {
         val id = idGenerator.generateInternalId()
+        val tempEventGroupsCurIndex = eventGroupsCurIndex
         eventGroupBinders.add {
-          bind("$1", measurementConsumerId)
-          bind("$2", id)
-          bind("$3", it.cmmsDataProviderId)
-          bind("$4", it.cmmsEventGroupId)
+          bind("$${tempEventGroupsCurIndex}", measurementConsumerId)
+          bind("$${tempEventGroupsCurIndex + 1}", id)
+          bind("$${tempEventGroupsCurIndex + 2}", it.cmmsDataProviderId)
+          bind("$${tempEventGroupsCurIndex + 3}", it.cmmsEventGroupId)
         }
+        eventGroupsRowsSqlList.add(generateParameterizedInsertValues(eventGroupsCurIndex, eventGroupsCurIndex + eventGroupsOffset))
+        eventGroupsCurIndex += eventGroupsOffset
         id
       }
     }
@@ -234,29 +241,46 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
       if (eventGroupBinders.size > 0) {
         boundStatement(
           """
-              INSERT INTO EventGroups (MeasurementConsumerId, EventGroupId, CmmsDataProviderId, CmmsEventGroupId)
-              VALUES ($1, $2, $3, $4)
-              """
+          INSERT INTO EventGroups (MeasurementConsumerId, EventGroupId, CmmsDataProviderId, CmmsEventGroupId)
+          VALUES
+          ${eventGroupsRowsSqlList.joinToString(",")}
+          """
         ) {
-          eventGroupBinders.forEach { addBinding(it) }
+          for (binder in eventGroupBinders) {
+            binder()
+          }
         }
       } else {
         null
       }
 
+    val reportingSetEventGroupsRowsSqlList = mutableListOf<String>()
+    var reportingSetEventGroupsCurIndex = 1
+    val reportingSetEventGroupsOffset = 3
+    val reportingSetEventGroupBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
+
+    eventGroupMap.values.forEach {
+      val tempReportingSetEventGroupsCurIndex = reportingSetEventGroupsCurIndex
+      reportingSetEventGroupBinders.add {
+        bind("$${tempReportingSetEventGroupsCurIndex}", measurementConsumerId)
+        bind("$${tempReportingSetEventGroupsCurIndex + 1}", reportingSetId)
+        bind("$${tempReportingSetEventGroupsCurIndex + 2}", it)
+      }
+      reportingSetEventGroupsRowsSqlList.add(generateParameterizedInsertValues(reportingSetEventGroupsCurIndex, reportingSetEventGroupsCurIndex + reportingSetEventGroupsOffset))
+      reportingSetEventGroupsCurIndex += reportingSetEventGroupsOffset
+    }
+
+
     val reportingSetEventGroupsStatement =
       boundStatement(
         """
-            INSERT INTO ReportingSetEventGroups (MeasurementConsumerId, ReportingSetId, EventGroupId)
-            VALUES ($1, $2, $3)
-            """
+        INSERT INTO ReportingSetEventGroups (MeasurementConsumerId, ReportingSetId, EventGroupId)
+        VALUES
+        ${reportingSetEventGroupsRowsSqlList.joinToString(",")}
+        """
       ) {
-        eventGroupMap.values.forEach {
-          addBinding {
-            bind("$1", measurementConsumerId)
-            bind("$2", reportingSetId)
-            bind("$3", it)
-          }
+        for (binder in reportingSetEventGroupBinders) {
+          binder()
         }
       }
 
@@ -392,37 +416,70 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
     weightedSubsetUnions: List<WeightedSubsetUnion>,
     reportingSetMap: Map<String, InternalId> = mapOf(),
   ) {
+    var weightedSubsetUnionsCurIndex = 1
+    val weightedSubsetUnionsOffset = 5
+    val weightedSubsetUnionsRowsSqlList = mutableListOf<String>()
     val weightedSubsetUnionsBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
+
+    var primitiveReportingSetBasesCurIndex = 1
+    val primitiveReportingSetBasesOffset = 3
+    val primitiveReportingSetBasesRowsSqlList = mutableListOf<String>()
     val primitiveReportingSetBasesBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
+
+    var weightedSubsetUnionPrimitiveReportingSetBasesCurIndex = 1
+    val weightedSubsetUnionPrimitiveReportingSetBasesOffset = 4
+    val weightedSubsetUnionPrimitiveReportingSetBasesRowsSqlList = mutableListOf<String>()
     val weightedSubsetUnionPrimitiveReportingSetBasesBinders =
       mutableListOf<BoundStatement.Binder.() -> Unit>()
+
+    var primitiveReportingSetBasisFiltersCurIndex = 1
+    val primitiveReportingSetBasisFiltersOffset = 4
+    val primitiveReportingSetBasisFiltersRowsSqlList = mutableListOf<String>()
     val primitiveReportingSetBasisFiltersBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
 
     weightedSubsetUnions.forEach { weightedSubsetUnion ->
       val weightedSubsetUnionId = idGenerator.generateInternalId()
+      val tempWeightedSubsetUnionsCurIndex = weightedSubsetUnionsCurIndex
       weightedSubsetUnionsBinders.add {
-        bind("$1", measurementConsumerId)
-        bind("$2", reportingSetId)
-        bind("$3", weightedSubsetUnionId)
-        bind("$4", weightedSubsetUnion.weight)
-        bind("$5", weightedSubsetUnion.binaryRepresentation)
+        bind("$${tempWeightedSubsetUnionsCurIndex}", measurementConsumerId)
+        bind("$${tempWeightedSubsetUnionsCurIndex + 1}", reportingSetId)
+        bind("$${tempWeightedSubsetUnionsCurIndex + 2}", weightedSubsetUnionId)
+        bind("$${tempWeightedSubsetUnionsCurIndex + 3}", weightedSubsetUnion.weight)
+        bind("$${tempWeightedSubsetUnionsCurIndex + 4}", weightedSubsetUnion.binaryRepresentation)
       }
+      weightedSubsetUnionsRowsSqlList.add(generateParameterizedInsertValues(weightedSubsetUnionsCurIndex, weightedSubsetUnionsCurIndex + weightedSubsetUnionsOffset))
+      weightedSubsetUnionsCurIndex += weightedSubsetUnionsOffset
 
       weightedSubsetUnion.primitiveReportingSetBasesList.forEach {
-        val binders =
-          createPrimitiveReportingSetBasisBindings(
-            measurementConsumerId,
-            reportingSetId,
-            weightedSubsetUnionId,
-            it,
-            reportingSetMap,
+        val statementComponents =
+          createPrimitiveReportingSetBasisStatementComponents(
+            measurementConsumerId = measurementConsumerId,
+            reportingSetId = reportingSetId,
+            weightedSubsetUnionId = weightedSubsetUnionId,
+            primitiveReportingSetBasis = it,
+            reportingSetMap = reportingSetMap,
+            primitiveReportingSetBasesStartingIndex = primitiveReportingSetBasesCurIndex,
+            weightedSubsetUnionPrimitiveReportingSetBasesStartingIndex = weightedSubsetUnionPrimitiveReportingSetBasesCurIndex,
+            primitiveReportingSetBasisFiltersStartingIndex = primitiveReportingSetBasisFiltersCurIndex,
+            primitiveReportingSetBasisFiltersOffset = primitiveReportingSetBasisFiltersOffset,
           )
-        primitiveReportingSetBasesBinders.addAll(binders.primitiveReportingSetBasesBinders)
-        weightedSubsetUnionPrimitiveReportingSetBasesBinders.addAll(
-          binders.weightedSubsetUnionPrimitiveReportingSetBasesBinders
+
+        primitiveReportingSetBasesBinders.add(statementComponents.primitiveReportingSetBasesBinder)
+        primitiveReportingSetBasesRowsSqlList.add(generateParameterizedInsertValues(primitiveReportingSetBasesCurIndex, primitiveReportingSetBasesCurIndex + primitiveReportingSetBasesOffset))
+        primitiveReportingSetBasesCurIndex += primitiveReportingSetBasesOffset
+
+        weightedSubsetUnionPrimitiveReportingSetBasesBinders.add(
+          statementComponents.weightedSubsetUnionPrimitiveReportingSetBasesBinder
         )
+        weightedSubsetUnionPrimitiveReportingSetBasesRowsSqlList.add(
+          generateParameterizedInsertValues(weightedSubsetUnionPrimitiveReportingSetBasesCurIndex, weightedSubsetUnionPrimitiveReportingSetBasesCurIndex + weightedSubsetUnionPrimitiveReportingSetBasesOffset)
+        )
+        weightedSubsetUnionPrimitiveReportingSetBasesCurIndex += weightedSubsetUnionPrimitiveReportingSetBasesOffset
+
+        primitiveReportingSetBasisFiltersCurIndex = statementComponents.primitiveReportingSetBasisFiltersCurIndex
+        primitiveReportingSetBasisFiltersRowsSqlList.addAll(statementComponents.primitiveReportingSetBasisFiltersRowsSqlList)
         primitiveReportingSetBasisFiltersBinders.addAll(
-          binders.primitiveReportingSetBasisFiltersBinders
+          statementComponents.primitiveReportingSetBasisFiltersBinders
         )
       }
     }
@@ -431,40 +488,52 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
       boundStatement(
         """
         INSERT INTO WeightedSubsetUnions (MeasurementConsumerId, ReportingSetId, WeightedSubsetUnionId, Weight, BinaryRepresentation)
-        VALUES ($1, $2, $3, $4, $5)
+        VALUES
+        ${weightedSubsetUnionsRowsSqlList.joinToString(",")}
         """
       ) {
-        weightedSubsetUnionsBinders.forEach { addBinding(it) }
+        for (binder in weightedSubsetUnionsBinders) {
+          binder()
+        }
       }
 
     val primitiveReportingSetBasesStatement =
       boundStatement(
         """
         INSERT INTO PrimitiveReportingSetBases (MeasurementConsumerId, PrimitiveReportingSetBasisId, PrimitiveReportingSetId)
-        VALUES ($1, $2, $3)
+        VALUES
+        ${primitiveReportingSetBasesRowsSqlList.joinToString(",")}
         """
       ) {
-        primitiveReportingSetBasesBinders.forEach { addBinding(it) }
+        for (binder in primitiveReportingSetBasesBinders) {
+          binder()
+        }
       }
 
     val weightedSubsetUnionPrimitiveReportingSetBasesStatement =
       boundStatement(
         """
         INSERT INTO WeightedSubsetUnionPrimitiveReportingSetBases (MeasurementConsumerId, ReportingSetId, WeightedSubsetUnionId, PrimitiveReportingSetBasisId)
-        VALUES ($1, $2, $3, $4)
+        VALUES
+        ${weightedSubsetUnionPrimitiveReportingSetBasesRowsSqlList.joinToString(",")}
         """
       ) {
-        weightedSubsetUnionPrimitiveReportingSetBasesBinders.forEach { addBinding(it) }
+        for (binder in weightedSubsetUnionPrimitiveReportingSetBasesBinders) {
+          binder()
+        }
       }
 
     val primitiveReportingSetBasisFiltersStatement =
       boundStatement(
         """
         INSERT INTO PrimitiveReportingSetBasisFilters (MeasurementConsumerId, PrimitiveReportingSetBasisId, PrimitiveReportingSetBasisFilterId, Filter)
-        VALUES ($1, $2, $3, $4)
+        VALUES
+        ${primitiveReportingSetBasisFiltersRowsSqlList.joinToString(",")}
         """
       ) {
-        primitiveReportingSetBasisFiltersBinders.forEach { addBinding(it) }
+        for (binder in primitiveReportingSetBasisFiltersBinders) {
+          binder()
+        }
       }
 
     transactionContext.run {
@@ -477,13 +546,17 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
     }
   }
 
-  private fun TransactionScope.createPrimitiveReportingSetBasisBindings(
+  private fun TransactionScope.createPrimitiveReportingSetBasisStatementComponents(
     measurementConsumerId: InternalId,
     reportingSetId: InternalId,
     weightedSubsetUnionId: InternalId,
     primitiveReportingSetBasis: PrimitiveReportingSetBasis,
     reportingSetMap: Map<String, InternalId> = mapOf(),
-  ): PrimitiveReportingSetBasesBinders {
+    primitiveReportingSetBasesStartingIndex: Int,
+    weightedSubsetUnionPrimitiveReportingSetBasesStartingIndex: Int,
+    primitiveReportingSetBasisFiltersStartingIndex: Int,
+    primitiveReportingSetBasisFiltersOffset: Int,
+  ): PrimitiveReportingSetBasesStatementComponents {
     val primitiveReportingSetBasisId = idGenerator.generateInternalId()
 
     val primitiveReportingSetId =
@@ -491,49 +564,40 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
         ?: throw ReportingSetNotFoundException()
 
     val primitiveReportingSetBasesBinder: BoundStatement.Binder.() -> Unit = {
-      bind("$1", measurementConsumerId)
-      bind("$2", primitiveReportingSetBasisId)
-      bind("$3", primitiveReportingSetId)
+      bind("$${primitiveReportingSetBasesStartingIndex}", measurementConsumerId)
+      bind("$${primitiveReportingSetBasesStartingIndex + 1}", primitiveReportingSetBasisId)
+      bind("$${primitiveReportingSetBasesStartingIndex + 2}", primitiveReportingSetId)
     }
 
     val weightedSubsetUnionPrimitiveReportingSetBasesBinder: BoundStatement.Binder.() -> Unit = {
-      bind("$1", measurementConsumerId)
-      bind("$2", reportingSetId)
-      bind("$3", weightedSubsetUnionId)
-      bind("$4", primitiveReportingSetBasisId)
+      bind("$${weightedSubsetUnionPrimitiveReportingSetBasesStartingIndex}", measurementConsumerId)
+      bind("$${weightedSubsetUnionPrimitiveReportingSetBasesStartingIndex + 1}", reportingSetId)
+      bind("$${weightedSubsetUnionPrimitiveReportingSetBasesStartingIndex + 2}", weightedSubsetUnionId)
+      bind("$${weightedSubsetUnionPrimitiveReportingSetBasesStartingIndex + 3}", primitiveReportingSetBasisId)
     }
 
+    val primitiveReportingSetBasisFiltersRowsSqlList = mutableListOf<String>()
+    var primitiveReportingSetBasisFiltersCurIndex = primitiveReportingSetBasisFiltersStartingIndex
     val primitiveReportingSetBasisFiltersBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
     primitiveReportingSetBasis.filtersList.forEach {
-      primitiveReportingSetBasisFiltersBinders.add(
-        insertPrimitiveReportingSetBasisFilter(
-          measurementConsumerId,
-          primitiveReportingSetBasisId,
-          it,
-        )
-      )
+      val primitiveReportingSetBasisFilterId = idGenerator.generateInternalId()
+      val tempPrimitiveReportingSetBasisFiltersCurIndex = primitiveReportingSetBasisFiltersCurIndex
+      primitiveReportingSetBasisFiltersBinders.add {
+        bind("$${tempPrimitiveReportingSetBasisFiltersCurIndex}", measurementConsumerId)
+        bind("$${tempPrimitiveReportingSetBasisFiltersCurIndex + 1}", primitiveReportingSetBasisId)
+        bind("$${tempPrimitiveReportingSetBasisFiltersCurIndex + 2}", primitiveReportingSetBasisFilterId)
+        bind("$${tempPrimitiveReportingSetBasisFiltersCurIndex + 3}", it)
+      }
+      primitiveReportingSetBasisFiltersRowsSqlList.add(generateParameterizedInsertValues(primitiveReportingSetBasisFiltersCurIndex, primitiveReportingSetBasisFiltersCurIndex + primitiveReportingSetBasisFiltersOffset))
+      primitiveReportingSetBasisFiltersCurIndex += primitiveReportingSetBasisFiltersOffset
     }
 
-    return PrimitiveReportingSetBasesBinders(
-      primitiveReportingSetBasesBinders = listOf(primitiveReportingSetBasesBinder),
-      weightedSubsetUnionPrimitiveReportingSetBasesBinders =
-        listOf(weightedSubsetUnionPrimitiveReportingSetBasesBinder),
-      primitiveReportingSetBasisFiltersBinders,
+    return PrimitiveReportingSetBasesStatementComponents(
+      primitiveReportingSetBasesBinder = primitiveReportingSetBasesBinder,
+      weightedSubsetUnionPrimitiveReportingSetBasesBinder = weightedSubsetUnionPrimitiveReportingSetBasesBinder,
+      primitiveReportingSetBasisFiltersBinders = primitiveReportingSetBasisFiltersBinders,
+      primitiveReportingSetBasisFiltersRowsSqlList = primitiveReportingSetBasisFiltersRowsSqlList,
+      primitiveReportingSetBasisFiltersCurIndex = primitiveReportingSetBasisFiltersCurIndex,
     )
-  }
-
-  private fun TransactionScope.insertPrimitiveReportingSetBasisFilter(
-    measurementConsumerId: InternalId,
-    primitiveReportingSetBasisId: InternalId,
-    filter: String,
-  ): BoundStatement.Binder.() -> Unit {
-    val primitiveReportingSetBasisFilterId = idGenerator.generateInternalId()
-
-    return {
-      bind("$1", measurementConsumerId)
-      bind("$2", primitiveReportingSetBasisId)
-      bind("$3", primitiveReportingSetBasisFilterId)
-      bind("$4", filter)
-    }
   }
 }
