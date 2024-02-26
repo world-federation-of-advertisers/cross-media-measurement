@@ -14,8 +14,6 @@
 
 package k8s
 
-#SimulatorServiceAccount: "simulator"
-
 _bigQueryConfig: #BigQueryConfig & {
 	dataset: string @tag("bigquery_dataset")
 	table:   string @tag("bigquery_table")
@@ -41,16 +39,7 @@ edp_simulators: {
 				_container: {
 					resources: _resourceRequirements
 				}
-				spec: template: spec: #ServiceAccountPodSpec & {
-					serviceAccountName: #SimulatorServiceAccount
-				}
 			}
 		}
-	}
-}
-
-serviceAccounts: {
-	"\(#SimulatorServiceAccount)": #WorkloadIdentityServiceAccount & {
-		_iamServiceAccountName: "simulator"
 	}
 }
