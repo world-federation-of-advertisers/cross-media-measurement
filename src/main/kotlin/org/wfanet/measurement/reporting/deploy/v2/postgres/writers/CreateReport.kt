@@ -215,12 +215,16 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
         report,
         reportingSetIdsByExternalId,
         metricCalculationSpecsByExternalId,
-        reportingMetricMap
+        reportingMetricMap,
       )
 
     val metricCalculationSpecReportingMetricsStatement =
-      boundStatement(reportingMetricEntriesAndStatementComponents.metricCalculationSpecReportingMetricsSql) {
-        for (binder in reportingMetricEntriesAndStatementComponents.metricCalculationSpecReportingMetricsBinders) {
+      boundStatement(
+        reportingMetricEntriesAndStatementComponents.metricCalculationSpecReportingMetricsSql
+      ) {
+        for (binder in
+          reportingMetricEntriesAndStatementComponents
+            .metricCalculationSpecReportingMetricsBinders) {
           binder()
         }
       }
@@ -286,7 +290,9 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
       this.externalReportId = externalReportId
       externalReportScheduleId = request.reportScheduleInfo.externalReportScheduleId
       reportingMetricEntries.clear()
-      reportingMetricEntries.putAll(reportingMetricEntriesAndStatementComponents.updatedReportingMetricEntries)
+      reportingMetricEntries.putAll(
+        reportingMetricEntriesAndStatementComponents.updatedReportingMetricEntries
+      )
     }
   }
 
@@ -297,7 +303,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
     reportingSetIdsByExternalId: Map<String, InternalId>,
     metricCalculationSpecsByExternalId: Map<String, MetricCalculationSpecReader.Result>,
     reportingMetricMap:
-    Map<MetricCalculationSpecReportingMetricKey, List<MetricReader.ReportingMetric>>,
+      Map<MetricCalculationSpecReportingMetricKey, List<MetricReader.ReportingMetric>>,
   ): ReportingMetricEntriesAndStatementComponents {
     val binders = mutableListOf<BoundStatement.Binder.() -> Unit>()
     val rowsSqlList = mutableListOf<String>()

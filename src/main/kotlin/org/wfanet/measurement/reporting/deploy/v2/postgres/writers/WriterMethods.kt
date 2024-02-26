@@ -17,7 +17,8 @@
 package org.wfanet.measurement.reporting.deploy.v2.postgres.writers
 
 /**
- * Generates a [String] in the format (${startIndex}, ${startIndex+1}, ${startIndex+2}, ..., ${endIndex - 1})
+ * Generates a [String] in the format (${startIndex}, ${startIndex+1}, ${startIndex+2}, ...,
+ * ${endIndex - 1})
  */
 fun generateParameterizedInsertValues(startIndex: Int, endIndex: Int): String {
   return buildString(4 * (endIndex - startIndex)) {

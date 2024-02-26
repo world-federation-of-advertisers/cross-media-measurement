@@ -231,7 +231,12 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
           bind("$${tempEventGroupsCurIndex + 2}", it.cmmsDataProviderId)
           bind("$${tempEventGroupsCurIndex + 3}", it.cmmsEventGroupId)
         }
-        eventGroupsRowsSqlList.add(generateParameterizedInsertValues(eventGroupsCurIndex, eventGroupsCurIndex + eventGroupsOffset))
+        eventGroupsRowsSqlList.add(
+          generateParameterizedInsertValues(
+            eventGroupsCurIndex,
+            eventGroupsCurIndex + eventGroupsOffset,
+          )
+        )
         eventGroupsCurIndex += eventGroupsOffset
         id
       }
@@ -266,10 +271,14 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
         bind("$${tempReportingSetEventGroupsCurIndex + 1}", reportingSetId)
         bind("$${tempReportingSetEventGroupsCurIndex + 2}", it)
       }
-      reportingSetEventGroupsRowsSqlList.add(generateParameterizedInsertValues(reportingSetEventGroupsCurIndex, reportingSetEventGroupsCurIndex + reportingSetEventGroupsOffset))
+      reportingSetEventGroupsRowsSqlList.add(
+        generateParameterizedInsertValues(
+          reportingSetEventGroupsCurIndex,
+          reportingSetEventGroupsCurIndex + reportingSetEventGroupsOffset,
+        )
+      )
       reportingSetEventGroupsCurIndex += reportingSetEventGroupsOffset
     }
-
 
     val reportingSetEventGroupsStatement =
       boundStatement(
@@ -447,7 +456,12 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
         bind("$${tempWeightedSubsetUnionsCurIndex + 3}", weightedSubsetUnion.weight)
         bind("$${tempWeightedSubsetUnionsCurIndex + 4}", weightedSubsetUnion.binaryRepresentation)
       }
-      weightedSubsetUnionsRowsSqlList.add(generateParameterizedInsertValues(weightedSubsetUnionsCurIndex, weightedSubsetUnionsCurIndex + weightedSubsetUnionsOffset))
+      weightedSubsetUnionsRowsSqlList.add(
+        generateParameterizedInsertValues(
+          weightedSubsetUnionsCurIndex,
+          weightedSubsetUnionsCurIndex + weightedSubsetUnionsOffset,
+        )
+      )
       weightedSubsetUnionsCurIndex += weightedSubsetUnionsOffset
 
       weightedSubsetUnion.primitiveReportingSetBasesList.forEach {
@@ -459,25 +473,40 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
             primitiveReportingSetBasis = it,
             reportingSetMap = reportingSetMap,
             primitiveReportingSetBasesStartingIndex = primitiveReportingSetBasesCurIndex,
-            weightedSubsetUnionPrimitiveReportingSetBasesStartingIndex = weightedSubsetUnionPrimitiveReportingSetBasesCurIndex,
-            primitiveReportingSetBasisFiltersStartingIndex = primitiveReportingSetBasisFiltersCurIndex,
+            weightedSubsetUnionPrimitiveReportingSetBasesStartingIndex =
+              weightedSubsetUnionPrimitiveReportingSetBasesCurIndex,
+            primitiveReportingSetBasisFiltersStartingIndex =
+              primitiveReportingSetBasisFiltersCurIndex,
             primitiveReportingSetBasisFiltersOffset = primitiveReportingSetBasisFiltersOffset,
           )
 
         primitiveReportingSetBasesBinders.add(statementComponents.primitiveReportingSetBasesBinder)
-        primitiveReportingSetBasesRowsSqlList.add(generateParameterizedInsertValues(primitiveReportingSetBasesCurIndex, primitiveReportingSetBasesCurIndex + primitiveReportingSetBasesOffset))
+        primitiveReportingSetBasesRowsSqlList.add(
+          generateParameterizedInsertValues(
+            primitiveReportingSetBasesCurIndex,
+            primitiveReportingSetBasesCurIndex + primitiveReportingSetBasesOffset,
+          )
+        )
         primitiveReportingSetBasesCurIndex += primitiveReportingSetBasesOffset
 
         weightedSubsetUnionPrimitiveReportingSetBasesBinders.add(
           statementComponents.weightedSubsetUnionPrimitiveReportingSetBasesBinder
         )
         weightedSubsetUnionPrimitiveReportingSetBasesRowsSqlList.add(
-          generateParameterizedInsertValues(weightedSubsetUnionPrimitiveReportingSetBasesCurIndex, weightedSubsetUnionPrimitiveReportingSetBasesCurIndex + weightedSubsetUnionPrimitiveReportingSetBasesOffset)
+          generateParameterizedInsertValues(
+            weightedSubsetUnionPrimitiveReportingSetBasesCurIndex,
+            weightedSubsetUnionPrimitiveReportingSetBasesCurIndex +
+              weightedSubsetUnionPrimitiveReportingSetBasesOffset,
+          )
         )
-        weightedSubsetUnionPrimitiveReportingSetBasesCurIndex += weightedSubsetUnionPrimitiveReportingSetBasesOffset
+        weightedSubsetUnionPrimitiveReportingSetBasesCurIndex +=
+          weightedSubsetUnionPrimitiveReportingSetBasesOffset
 
-        primitiveReportingSetBasisFiltersCurIndex = statementComponents.primitiveReportingSetBasisFiltersCurIndex
-        primitiveReportingSetBasisFiltersRowsSqlList.addAll(statementComponents.primitiveReportingSetBasisFiltersRowsSqlList)
+        primitiveReportingSetBasisFiltersCurIndex =
+          statementComponents.primitiveReportingSetBasisFiltersCurIndex
+        primitiveReportingSetBasisFiltersRowsSqlList.addAll(
+          statementComponents.primitiveReportingSetBasisFiltersRowsSqlList
+        )
         primitiveReportingSetBasisFiltersBinders.addAll(
           statementComponents.primitiveReportingSetBasisFiltersBinders
         )
@@ -572,8 +601,14 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
     val weightedSubsetUnionPrimitiveReportingSetBasesBinder: BoundStatement.Binder.() -> Unit = {
       bind("$${weightedSubsetUnionPrimitiveReportingSetBasesStartingIndex}", measurementConsumerId)
       bind("$${weightedSubsetUnionPrimitiveReportingSetBasesStartingIndex + 1}", reportingSetId)
-      bind("$${weightedSubsetUnionPrimitiveReportingSetBasesStartingIndex + 2}", weightedSubsetUnionId)
-      bind("$${weightedSubsetUnionPrimitiveReportingSetBasesStartingIndex + 3}", primitiveReportingSetBasisId)
+      bind(
+        "$${weightedSubsetUnionPrimitiveReportingSetBasesStartingIndex + 2}",
+        weightedSubsetUnionId,
+      )
+      bind(
+        "$${weightedSubsetUnionPrimitiveReportingSetBasesStartingIndex + 3}",
+        primitiveReportingSetBasisId,
+      )
     }
 
     val primitiveReportingSetBasisFiltersRowsSqlList = mutableListOf<String>()
@@ -585,16 +620,25 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
       primitiveReportingSetBasisFiltersBinders.add {
         bind("$${tempPrimitiveReportingSetBasisFiltersCurIndex}", measurementConsumerId)
         bind("$${tempPrimitiveReportingSetBasisFiltersCurIndex + 1}", primitiveReportingSetBasisId)
-        bind("$${tempPrimitiveReportingSetBasisFiltersCurIndex + 2}", primitiveReportingSetBasisFilterId)
+        bind(
+          "$${tempPrimitiveReportingSetBasisFiltersCurIndex + 2}",
+          primitiveReportingSetBasisFilterId,
+        )
         bind("$${tempPrimitiveReportingSetBasisFiltersCurIndex + 3}", it)
       }
-      primitiveReportingSetBasisFiltersRowsSqlList.add(generateParameterizedInsertValues(primitiveReportingSetBasisFiltersCurIndex, primitiveReportingSetBasisFiltersCurIndex + primitiveReportingSetBasisFiltersOffset))
+      primitiveReportingSetBasisFiltersRowsSqlList.add(
+        generateParameterizedInsertValues(
+          primitiveReportingSetBasisFiltersCurIndex,
+          primitiveReportingSetBasisFiltersCurIndex + primitiveReportingSetBasisFiltersOffset,
+        )
+      )
       primitiveReportingSetBasisFiltersCurIndex += primitiveReportingSetBasisFiltersOffset
     }
 
     return PrimitiveReportingSetBasesStatementComponents(
       primitiveReportingSetBasesBinder = primitiveReportingSetBasesBinder,
-      weightedSubsetUnionPrimitiveReportingSetBasesBinder = weightedSubsetUnionPrimitiveReportingSetBasesBinder,
+      weightedSubsetUnionPrimitiveReportingSetBasesBinder =
+        weightedSubsetUnionPrimitiveReportingSetBasesBinder,
       primitiveReportingSetBasisFiltersBinders = primitiveReportingSetBasisFiltersBinders,
       primitiveReportingSetBasisFiltersRowsSqlList = primitiveReportingSetBasisFiltersRowsSqlList,
       primitiveReportingSetBasisFiltersCurIndex = primitiveReportingSetBasisFiltersCurIndex,

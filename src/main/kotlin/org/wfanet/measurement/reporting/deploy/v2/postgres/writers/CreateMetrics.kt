@@ -132,19 +132,18 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
       }
     }
 
-    val externalReportingSetIds =
-      buildSet {
-        for (request in requests) {
-          if (!existingMetricsMap.containsKey(request.requestId)) {
-            add(request.metric.externalReportingSetId)
-            for (weightedMeasurement in request.metric.weightedMeasurementsList) {
-              for (bases in weightedMeasurement.measurement.primitiveReportingSetBasesList) {
-                add(bases.externalReportingSetId)
-              }
+    val externalReportingSetIds = buildSet {
+      for (request in requests) {
+        if (!existingMetricsMap.containsKey(request.requestId)) {
+          add(request.metric.externalReportingSetId)
+          for (weightedMeasurement in request.metric.weightedMeasurementsList) {
+            for (bases in weightedMeasurement.measurement.primitiveReportingSetBasesList) {
+              add(bases.externalReportingSetId)
             }
           }
         }
       }
+    }
 
     val reportingSetMap: Map<String, InternalId> =
       ReportingSetReader(transactionContext)
@@ -158,8 +157,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
 
     val metrics = mutableListOf<Metric>()
     val metricsRowsSqlList = mutableListOf<String>()
-    val metricsBinders =
-      mutableListOf<BoundStatement.Binder.() -> Unit>()
+    val metricsBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
     var metricsCurIndex = 1
     val metricsOffset = 20
 
@@ -195,7 +193,6 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
     val measurementPrimitiveReportingSetBasesBinders =
       mutableListOf<BoundStatement.Binder.() -> Unit>()
 
-
     requests.forEach {
       val existingMetric: Metric? = existingMetricsMap[it.requestId]
       if (existingMetric != null) {
@@ -212,7 +209,9 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
           if (it.metric.metricSpec.typeCase == MetricSpec.TypeCase.POPULATION_COUNT) 0
           else it.metric.metricSpec.vidSamplingInterval.width
 
-        metricsRowsSqlList.add(generateParameterizedInsertValues(metricsCurIndex, metricsCurIndex + metricsOffset))
+        metricsRowsSqlList.add(
+          generateParameterizedInsertValues(metricsCurIndex, metricsCurIndex + metricsOffset)
+        )
 
         val tempMetricsCurIndex = metricsCurIndex
         metricsBinders.add {
@@ -225,8 +224,14 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
           }
           bind("$${tempMetricsCurIndex + 3}", reportingSetId)
           bind("$${tempMetricsCurIndex + 4}", externalMetricId)
-          bind("$${tempMetricsCurIndex + 5}", it.metric.timeInterval.startTime.toInstant().atOffset(ZoneOffset.UTC))
-          bind("$${tempMetricsCurIndex + 6}", it.metric.timeInterval.endTime.toInstant().atOffset(ZoneOffset.UTC))
+          bind(
+            "$${tempMetricsCurIndex + 5}",
+            it.metric.timeInterval.startTime.toInstant().atOffset(ZoneOffset.UTC),
+          )
+          bind(
+            "$${tempMetricsCurIndex + 6}",
+            it.metric.timeInterval.endTime.toInstant().atOffset(ZoneOffset.UTC),
+          )
           bind("$${tempMetricsCurIndex + 7}", it.metric.metricSpec.typeCase.number)
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
           when (it.metric.metricSpec.typeCase) {
@@ -302,15 +307,26 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
             }
 
           if (createMetricRequestUuid != null) {
-            metricCalculationSpecReportingMetricsRowsSqlList.add(generateParameterizedInsertValues(metricCalculationSpecReportingMetricsCurIndex, metricCalculationSpecReportingMetricsCurIndex + metricCalculationSpecReportingMetricsOffset))
+            metricCalculationSpecReportingMetricsRowsSqlList.add(
+              generateParameterizedInsertValues(
+                metricCalculationSpecReportingMetricsCurIndex,
+                metricCalculationSpecReportingMetricsCurIndex +
+                  metricCalculationSpecReportingMetricsOffset,
+              )
+            )
 
-            val tempMetricCalculationSpecReportingMetricsCurIndex = metricCalculationSpecReportingMetricsCurIndex
+            val tempMetricCalculationSpecReportingMetricsCurIndex =
+              metricCalculationSpecReportingMetricsCurIndex
             metricCalculationSpecReportingMetricsBinders.add {
               bind("$${tempMetricCalculationSpecReportingMetricsCurIndex}", metricId)
-              bind("$${tempMetricCalculationSpecReportingMetricsCurIndex + 1}", createMetricRequestUuid)
+              bind(
+                "$${tempMetricCalculationSpecReportingMetricsCurIndex + 1}",
+                createMetricRequestUuid,
+              )
             }
 
-            metricCalculationSpecReportingMetricsCurIndex += metricCalculationSpecReportingMetricsOffset
+            metricCalculationSpecReportingMetricsCurIndex +=
+              metricCalculationSpecReportingMetricsOffset
           }
         }
 
@@ -326,47 +342,65 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
             metricMeasurementsOffset = metricMeasurementsOffset,
             primitiveReportingSetBasesStartingIndex = primitiveReportingSetBasesCurIndex,
             primitiveReportingSetBasesOffset = primitiveReportingSetBasesOffset,
-            primitiveReportingSetBasisFiltersStartingIndex = primitiveReportingSetBasisFiltersCurIndex,
+            primitiveReportingSetBasisFiltersStartingIndex =
+              primitiveReportingSetBasisFiltersCurIndex,
             primitiveReportingSetBasisFiltersOffset = primitiveReportingSetBasisFiltersOffset,
-            measurementPrimitiveReportingSetBasesStartingIndex = measurementPrimitiveReportingSetBasesCurIndex,
-            measurementPrimitiveReportingSetBasesOffset = measurementPrimitiveReportingSetBasesOffset,
+            measurementPrimitiveReportingSetBasesStartingIndex =
+              measurementPrimitiveReportingSetBasesCurIndex,
+            measurementPrimitiveReportingSetBasesOffset =
+              measurementPrimitiveReportingSetBasesOffset,
           )
 
         metrics.add(
           it.metric.copy {
             this.externalMetricId = externalMetricId
             weightedMeasurements.clear()
-            weightedMeasurements.addAll(weightedMeasurementsAndStatementComponents.weightedMeasurements)
+            weightedMeasurements.addAll(
+              weightedMeasurementsAndStatementComponents.weightedMeasurements
+            )
             this.createTime = createTime.toInstant().toProtoTime()
           }
         )
 
         measurementsCurIndex = weightedMeasurementsAndStatementComponents.measurementsCurIndex
-        measurementsRowsSqlList.addAll(weightedMeasurementsAndStatementComponents.measurementsRowsSqlList)
-        measurementsBinders.addAll(
-          weightedMeasurementsAndStatementComponents.measurementsBinders
+        measurementsRowsSqlList.addAll(
+          weightedMeasurementsAndStatementComponents.measurementsRowsSqlList
         )
+        measurementsBinders.addAll(weightedMeasurementsAndStatementComponents.measurementsBinders)
 
-        metricMeasurementsCurIndex = weightedMeasurementsAndStatementComponents.metricMeasurementsCurIndex
-        metricMeasurementsRowsSqlList.addAll(weightedMeasurementsAndStatementComponents.metricMeasurementsRowsSqlList)
+        metricMeasurementsCurIndex =
+          weightedMeasurementsAndStatementComponents.metricMeasurementsCurIndex
+        metricMeasurementsRowsSqlList.addAll(
+          weightedMeasurementsAndStatementComponents.metricMeasurementsRowsSqlList
+        )
         metricMeasurementsBinders.addAll(
           weightedMeasurementsAndStatementComponents.metricMeasurementsBinders
         )
 
-        primitiveReportingSetBasesCurIndex = weightedMeasurementsAndStatementComponents.primitiveReportingSetBasesCurIndex
-        primitiveReportingSetBasesRowsSqlList.addAll(weightedMeasurementsAndStatementComponents.primitiveReportingSetBasesRowsSqlList)
+        primitiveReportingSetBasesCurIndex =
+          weightedMeasurementsAndStatementComponents.primitiveReportingSetBasesCurIndex
+        primitiveReportingSetBasesRowsSqlList.addAll(
+          weightedMeasurementsAndStatementComponents.primitiveReportingSetBasesRowsSqlList
+        )
         primitiveReportingSetBasesBinders.addAll(
           weightedMeasurementsAndStatementComponents.primitiveReportingSetBasesBinders
         )
 
-        primitiveReportingSetBasisFiltersCurIndex = weightedMeasurementsAndStatementComponents.primitiveReportingSetBasisFiltersCurIndex
-        primitiveReportingSetBasisFiltersRowsSqlList.addAll(weightedMeasurementsAndStatementComponents.primitiveReportingSetBasisFiltersRowsSqlList)
+        primitiveReportingSetBasisFiltersCurIndex =
+          weightedMeasurementsAndStatementComponents.primitiveReportingSetBasisFiltersCurIndex
+        primitiveReportingSetBasisFiltersRowsSqlList.addAll(
+          weightedMeasurementsAndStatementComponents.primitiveReportingSetBasisFiltersRowsSqlList
+        )
         primitiveReportingSetBasisFiltersBinders.addAll(
           weightedMeasurementsAndStatementComponents.primitiveReportingSetBasisFiltersBinders
         )
 
-        measurementPrimitiveReportingSetBasesCurIndex = weightedMeasurementsAndStatementComponents.measurementPrimitiveReportingSetBasesCurIndex
-        measurementPrimitiveReportingSetBasesRowsSqlList.addAll(weightedMeasurementsAndStatementComponents.measurementPrimitiveReportingSetBasesRowsSqlList)
+        measurementPrimitiveReportingSetBasesCurIndex =
+          weightedMeasurementsAndStatementComponents.measurementPrimitiveReportingSetBasesCurIndex
+        measurementPrimitiveReportingSetBasesRowsSqlList.addAll(
+          weightedMeasurementsAndStatementComponents
+            .measurementPrimitiveReportingSetBasesRowsSqlList
+        )
         measurementPrimitiveReportingSetBasesBinders.addAll(
           weightedMeasurementsAndStatementComponents.measurementPrimitiveReportingSetBasesBinders
         )
@@ -576,7 +610,8 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
     val primitiveReportingSetBasisFiltersBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
 
     val measurementPrimitiveReportingSetBasesRowsSqlList = mutableListOf<String>()
-    var measurementPrimitiveReportingSetBasesCurIndex = measurementPrimitiveReportingSetBasesStartingIndex
+    var measurementPrimitiveReportingSetBasesCurIndex =
+      measurementPrimitiveReportingSetBasesStartingIndex
     val measurementPrimitiveReportingSetBasesBinders =
       mutableListOf<BoundStatement.Binder.() -> Unit>()
 
@@ -594,13 +629,24 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
         bind("$${tempMeasurementsCurIndex + 1}", measurementId)
         bind("$${tempMeasurementsCurIndex + 2}", uuid)
         bind<String?>("$${tempMeasurementsCurIndex + 3}", null)
-        bind("$${tempMeasurementsCurIndex + 4}", it.measurement.timeInterval.startTime.toInstant().atOffset(ZoneOffset.UTC))
-        bind("$${tempMeasurementsCurIndex + 5}", it.measurement.timeInterval.endTime.toInstant().atOffset(ZoneOffset.UTC))
+        bind(
+          "$${tempMeasurementsCurIndex + 4}",
+          it.measurement.timeInterval.startTime.toInstant().atOffset(ZoneOffset.UTC),
+        )
+        bind(
+          "$${tempMeasurementsCurIndex + 5}",
+          it.measurement.timeInterval.endTime.toInstant().atOffset(ZoneOffset.UTC),
+        )
         bind("$${tempMeasurementsCurIndex + 6}", Measurement.State.STATE_UNSPECIFIED)
         bind("$${tempMeasurementsCurIndex + 7}", Measurement.Details.getDefaultInstance())
         bind("$${tempMeasurementsCurIndex + 8}", Measurement.Details.getDefaultInstance().toJson())
       }
-      measurementsRowsSqlList.add(generateParameterizedInsertValues(measurementsCurIndex, measurementsCurIndex + measurementsOffset))
+      measurementsRowsSqlList.add(
+        generateParameterizedInsertValues(
+          measurementsCurIndex,
+          measurementsCurIndex + measurementsOffset,
+        )
+      )
       measurementsCurIndex += measurementsOffset
 
       val tempMetricsMeasurementsCurIndex = metricMeasurementsCurIndex
@@ -611,7 +657,12 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
         bind("$${tempMetricsMeasurementsCurIndex + 3}", it.weight)
         bind("$${tempMetricsMeasurementsCurIndex + 4}", it.binaryRepresentation)
       }
-      metricMeasurementsRowsSqlList.add(generateParameterizedInsertValues(metricMeasurementsCurIndex, metricMeasurementsCurIndex + metricMeasurementsOffset))
+      metricMeasurementsRowsSqlList.add(
+        generateParameterizedInsertValues(
+          metricMeasurementsCurIndex,
+          metricMeasurementsCurIndex + metricMeasurementsOffset,
+        )
+      )
       metricMeasurementsCurIndex += metricMeasurementsOffset
 
       val primitiveReportingSetBasesStatementComponents =
@@ -622,26 +673,38 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
           reportingSetMap = reportingSetMap,
           primitiveReportingSetBasesStartingIndex = primitiveReportingSetBasesCurIndex,
           primitiveReportingSetBasesOffset = primitiveReportingSetBasesOffset,
-          primitiveReportingSetBasisFiltersStartingIndex = primitiveReportingSetBasisFiltersCurIndex,
+          primitiveReportingSetBasisFiltersStartingIndex =
+            primitiveReportingSetBasisFiltersCurIndex,
           primitiveReportingSetBasisFiltersOffset = primitiveReportingSetBasisFiltersOffset,
-          measurementPrimitiveReportingSetBasesStartingIndex = measurementPrimitiveReportingSetBasesCurIndex,
-          measurementPrimitiveReportingSetBasesOffset = measurementPrimitiveReportingSetBasesOffset
+          measurementPrimitiveReportingSetBasesStartingIndex =
+            measurementPrimitiveReportingSetBasesCurIndex,
+          measurementPrimitiveReportingSetBasesOffset = measurementPrimitiveReportingSetBasesOffset,
         )
 
-      primitiveReportingSetBasesCurIndex = primitiveReportingSetBasesStatementComponents.primitiveReportingSetBasesCurIndex
-      primitiveReportingSetBasesRowsSqlList.addAll(primitiveReportingSetBasesStatementComponents.primitiveReportingSetBasesRowsSqlList)
+      primitiveReportingSetBasesCurIndex =
+        primitiveReportingSetBasesStatementComponents.primitiveReportingSetBasesCurIndex
+      primitiveReportingSetBasesRowsSqlList.addAll(
+        primitiveReportingSetBasesStatementComponents.primitiveReportingSetBasesRowsSqlList
+      )
       primitiveReportingSetBasesBinders.addAll(
         primitiveReportingSetBasesStatementComponents.primitiveReportingSetBasesBinders
       )
 
-      primitiveReportingSetBasisFiltersCurIndex = primitiveReportingSetBasesStatementComponents.primitiveReportingSetBasisFiltersCurIndex
-      primitiveReportingSetBasisFiltersRowsSqlList.addAll(primitiveReportingSetBasesStatementComponents.primitiveReportingSetBasisFiltersRowsSqlList)
+      primitiveReportingSetBasisFiltersCurIndex =
+        primitiveReportingSetBasesStatementComponents.primitiveReportingSetBasisFiltersCurIndex
+      primitiveReportingSetBasisFiltersRowsSqlList.addAll(
+        primitiveReportingSetBasesStatementComponents.primitiveReportingSetBasisFiltersRowsSqlList
+      )
       primitiveReportingSetBasisFiltersBinders.addAll(
         primitiveReportingSetBasesStatementComponents.primitiveReportingSetBasisFiltersBinders
       )
 
-      measurementPrimitiveReportingSetBasesCurIndex = primitiveReportingSetBasesStatementComponents.measurementPrimitiveReportingSetBasesCurIndex
-      measurementPrimitiveReportingSetBasesRowsSqlList.addAll(primitiveReportingSetBasesStatementComponents.measurementPrimitiveReportingSetBasesRowsSqlList)
+      measurementPrimitiveReportingSetBasesCurIndex =
+        primitiveReportingSetBasesStatementComponents.measurementPrimitiveReportingSetBasesCurIndex
+      measurementPrimitiveReportingSetBasesRowsSqlList.addAll(
+        primitiveReportingSetBasesStatementComponents
+          .measurementPrimitiveReportingSetBasesRowsSqlList
+      )
       measurementPrimitiveReportingSetBasesBinders.addAll(
         primitiveReportingSetBasesStatementComponents.measurementPrimitiveReportingSetBasesBinders
       )
@@ -662,7 +725,8 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
       primitiveReportingSetBasisFiltersRowsSqlList = primitiveReportingSetBasisFiltersRowsSqlList,
       primitiveReportingSetBasisFiltersBinders = primitiveReportingSetBasisFiltersBinders,
       measurementPrimitiveReportingSetBasesCurIndex = measurementPrimitiveReportingSetBasesCurIndex,
-      measurementPrimitiveReportingSetBasesRowsSqlList = measurementPrimitiveReportingSetBasesRowsSqlList,
+      measurementPrimitiveReportingSetBasesRowsSqlList =
+        measurementPrimitiveReportingSetBasesRowsSqlList,
       measurementPrimitiveReportingSetBasesBinders = measurementPrimitiveReportingSetBasesBinders,
     )
   }
@@ -688,7 +752,8 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
     val primitiveReportingSetBasisFiltersBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
 
     val measurementPrimitiveReportingSetBasesRowsSqlList = mutableListOf<String>()
-    var measurementPrimitiveReportingSetBasesCurIndex = measurementPrimitiveReportingSetBasesStartingIndex
+    var measurementPrimitiveReportingSetBasesCurIndex =
+      measurementPrimitiveReportingSetBasesStartingIndex
     val measurementPrimitiveReportingSetBasesBinders =
       mutableListOf<BoundStatement.Binder.() -> Unit>()
 
@@ -698,9 +763,17 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
       primitiveReportingSetBasesBinders.add {
         bind("$${tempPrimitiveReportingSetBasesCurIndex}", measurementConsumerId)
         bind("$${tempPrimitiveReportingSetBasesCurIndex + 1}", primitiveReportingSetBasisId)
-        bind("$${tempPrimitiveReportingSetBasesCurIndex + 2}", reportingSetMap[it.externalReportingSetId])
+        bind(
+          "$${tempPrimitiveReportingSetBasesCurIndex + 2}",
+          reportingSetMap[it.externalReportingSetId],
+        )
       }
-      primitiveReportingSetBasesRowsSqlList.add(generateParameterizedInsertValues(primitiveReportingSetBasesCurIndex, primitiveReportingSetBasesCurIndex + primitiveReportingSetBasesOffset))
+      primitiveReportingSetBasesRowsSqlList.add(
+        generateParameterizedInsertValues(
+          primitiveReportingSetBasesCurIndex,
+          primitiveReportingSetBasesCurIndex + primitiveReportingSetBasesOffset,
+        )
+      )
       primitiveReportingSetBasesCurIndex += primitiveReportingSetBasesOffset
 
       it.filtersList.forEach { filter ->
@@ -709,20 +782,38 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
         primitiveReportingSetBasisFiltersBinders.add {
           bind("$${tempPrimitiveReportingSetBasisFilterCurIndex}", measurementConsumerId)
           bind("$${tempPrimitiveReportingSetBasisFilterCurIndex + 1}", primitiveReportingSetBasisId)
-          bind("$${tempPrimitiveReportingSetBasisFilterCurIndex + 2}", primitiveReportingSetBasisFilterId)
+          bind(
+            "$${tempPrimitiveReportingSetBasisFilterCurIndex + 2}",
+            primitiveReportingSetBasisFilterId,
+          )
           bind("$${tempPrimitiveReportingSetBasisFilterCurIndex + 3}", filter)
         }
-        primitiveReportingSetBasisFiltersRowsSqlList.add(generateParameterizedInsertValues(primitiveReportingSetBasisFiltersCurIndex, primitiveReportingSetBasisFiltersCurIndex + primitiveReportingSetBasisFiltersOffset))
+        primitiveReportingSetBasisFiltersRowsSqlList.add(
+          generateParameterizedInsertValues(
+            primitiveReportingSetBasisFiltersCurIndex,
+            primitiveReportingSetBasisFiltersCurIndex + primitiveReportingSetBasisFiltersOffset,
+          )
+        )
         primitiveReportingSetBasisFiltersCurIndex += primitiveReportingSetBasisFiltersOffset
       }
 
-      val tempMeasurementPrimitiveReportingSetBasesCurIndex = measurementPrimitiveReportingSetBasesCurIndex
+      val tempMeasurementPrimitiveReportingSetBasesCurIndex =
+        measurementPrimitiveReportingSetBasesCurIndex
       measurementPrimitiveReportingSetBasesBinders.add {
         bind("$${tempMeasurementPrimitiveReportingSetBasesCurIndex}", measurementConsumerId)
         bind("$${tempMeasurementPrimitiveReportingSetBasesCurIndex + 1}", measurementId)
-        bind("$${tempMeasurementPrimitiveReportingSetBasesCurIndex + 2}", primitiveReportingSetBasisId)
+        bind(
+          "$${tempMeasurementPrimitiveReportingSetBasesCurIndex + 2}",
+          primitiveReportingSetBasisId,
+        )
       }
-      measurementPrimitiveReportingSetBasesRowsSqlList.add(generateParameterizedInsertValues(measurementPrimitiveReportingSetBasesCurIndex, measurementPrimitiveReportingSetBasesCurIndex + measurementPrimitiveReportingSetBasesOffset))
+      measurementPrimitiveReportingSetBasesRowsSqlList.add(
+        generateParameterizedInsertValues(
+          measurementPrimitiveReportingSetBasesCurIndex,
+          measurementPrimitiveReportingSetBasesCurIndex +
+            measurementPrimitiveReportingSetBasesOffset,
+        )
+      )
       measurementPrimitiveReportingSetBasesCurIndex += measurementPrimitiveReportingSetBasesOffset
     }
 
@@ -734,7 +825,8 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
       primitiveReportingSetBasisFiltersRowsSqlList = primitiveReportingSetBasisFiltersRowsSqlList,
       primitiveReportingSetBasisFiltersBinders = primitiveReportingSetBasisFiltersBinders,
       measurementPrimitiveReportingSetBasesCurIndex = measurementPrimitiveReportingSetBasesCurIndex,
-      measurementPrimitiveReportingSetBasesRowsSqlList = measurementPrimitiveReportingSetBasesRowsSqlList,
+      measurementPrimitiveReportingSetBasesRowsSqlList =
+        measurementPrimitiveReportingSetBasesRowsSqlList,
       measurementPrimitiveReportingSetBasesBinders = measurementPrimitiveReportingSetBasesBinders,
     )
   }
