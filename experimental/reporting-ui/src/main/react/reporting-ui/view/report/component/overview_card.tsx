@@ -19,11 +19,17 @@ import { formatNumberWithMagnitude } from '../../../util/formatting';
 export type ReportOverviewProps = {
   id: string,
   title: string,
-  value: number,
+  value: number|string,
 }
 
 export function ReportOverviewCard({id, title, value}: ReportOverviewProps) {
-  return (
-    <Card cardId={id} title={title} content={formatNumberWithMagnitude(value, 1)} />
-  )
+  if (typeof value === "number")  {
+    return (
+      <Card cardId={id} title={title} content={formatNumberWithMagnitude(value, 1)} />
+    )
+  } else {
+    return (
+      <Card cardId={id} title={title} content={value} />
+    )
+  }
 }

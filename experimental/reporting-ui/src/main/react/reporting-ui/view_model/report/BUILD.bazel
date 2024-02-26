@@ -12,6 +12,7 @@ js_library(
         "report_view_model.ts",
     ],
     deps = [
+        "//experimental/reporting-ui/src/main/react/reporting-ui/model:chart_group",
         "//experimental/reporting-ui/src/main/react/reporting-ui/model/report",
         "//experimental/reporting-ui/src/main/react/reporting-ui/model/reporting",
     ],

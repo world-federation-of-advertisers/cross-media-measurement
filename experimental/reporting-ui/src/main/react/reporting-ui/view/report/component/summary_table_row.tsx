@@ -36,7 +36,6 @@ export function SummaryTableRow({
       </td>
       <td>{formatNumberWithMagnitude(pubData.impressions, 1)}</td>
       <td>{formatNumberWithMagnitude(pubData.reach, 1)}</td>
-      <td>{formatNumberWithMagnitude(pubData.onTargetReach, 1)}</td>
       <td>{formatNumberWithMagnitude(pubData.uniqueReach, 1)}</td>
       <td>{formatNumberWithMagnitude(pubData.averageFrequency, 1)}</td>
     </tr>

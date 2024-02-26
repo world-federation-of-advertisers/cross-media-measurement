@@ -13,6 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License. */
 
 import React, {useEffect} from 'react';
+import Alert from 'react-bootstrap/Alert';
 import { ListReportViewModel } from '../../view_model/report_list/report_list_view_model';
 import { ReportListTable } from './component/table';
 import { Loader } from '../../component/loader/loader';
@@ -37,7 +38,12 @@ export const ReportListView = ({baseLink}) => {
 
   return(
     <React.Fragment>
-      <Header />
+      <div className='sticky'>
+        <Header />
+        <Alert variant='warning' dismissible>
+          This is a prototype UI meant to demonstrate some basic Halo features. Local Market Solution UIs will differ.
+        </Alert>
+      </div>
       <Card className="SummaryCard">
         <Card.Body>
           <ReportListTable reports={reports} baseLink={baseLink}/>

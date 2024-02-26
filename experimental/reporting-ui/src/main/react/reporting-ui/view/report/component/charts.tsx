@@ -14,6 +14,7 @@
 
 import React from 'react';
 import Col from 'react-bootstrap/Col';
+import Container from 'react-bootstrap/Container';
 import Row from 'react-bootstrap/Row';
 import { TotalReach } from '../../../component/chart/total_reach/total_reach';
 import { UniqueReqchByPlat } from '../../../component/chart/unique_reach_by_plat/unique_reach_by_plat';
@@ -54,7 +55,7 @@ export function Charts({
             <TotalReach id={'total-reach'} reach={totalReach} pubColors={pubColors} />
           </Col>
           <Col className="report-chart mb-3" sm={smSize}>
-            <TotalReach id={'total-reach-cumulative'} reach={totalCumulativeReach} pubColors={pubColors} />
+            <TotalReach id={'total-reach-cumulative'} title={'Total Cumulative Reach'} reach={totalCumulativeReach} pubColors={pubColors} />
           </Col>
           <Col className="report-chart mb-3" sm={12}>
             <UniqueReqchByPlat

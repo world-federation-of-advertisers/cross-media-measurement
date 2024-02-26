@@ -58,7 +58,12 @@ export const TerminalReport = ({
 
   return (
     <React.Fragment>
-      <Header reportName={name} />
+      <div className='sticky'>
+        <Header reportName={name} />
+        <Alert variant='warning' dismissible>
+          This prototype illustrates basic outputs available by using the Halo framework. Local market level outputs and interfaces will vary.
+        </Alert>
+      </div>
       <ReportOverviewStats reportOverview={overview} />
       <SummaryTable reportSummaries={summaries} publisherColors={pubColors} />
       <Charts
