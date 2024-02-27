@@ -1065,7 +1065,7 @@ class MeasurementConsumerSimulator(
 
     /** Default time range for events. */
     private val DEFAULT_EVENT_RANGE =
-      OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 15)..LocalDate.of(2021, 3, 17))
+      OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2023, 9, 1)..LocalDate.of(2023, 9, 3))
 
     // For a 99.9% Confidence Interval.
     private const val CONFIDENCE_INTERVAL_MULTIPLIER = 3.291

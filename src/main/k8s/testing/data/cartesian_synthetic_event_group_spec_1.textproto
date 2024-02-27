@@ -1,0 +1,75 @@
+# proto-file: wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto
+# proto-message: CartesianSyntheticEventGroupSpecRecipe
+
+description: "Small video campaign"
+sampling_nonce: 5142507441149505581
+date_specs {
+  date_range {
+    start {
+      year: 2023
+      month: 8
+      day: 19
+    }
+    end_exclusive {
+      year: 2023
+      month: 9
+      day: 30
+    }
+  }
+  total_reach: 345000
+  frequency_ratios {
+    key: 1
+    value: 0.3
+  }
+  frequency_ratios {
+    key: 2
+    value: 0.2
+  }
+  frequency_ratios {
+    key: 3
+    value: 0.12
+  }
+  frequency_ratios {
+    key: 4
+    value: 0.08
+  }
+  frequency_ratios {
+    key: 5
+    value: 0.3
+  }
+  non_population_dimension_specs {
+    key: "video_ad.viewed_fraction"
+    value {
+      field_value_ratios {
+        field_value {
+          double_value: 0
+        }
+        ratio: 0.2
+      }
+      field_value_ratios {
+        field_value {
+          double_value: 0.25
+        }
+        ratio: 0.2
+      }
+      field_value_ratios {
+        field_value {
+          double_value: 0.5
+        }
+        ratio: 0.2
+      }
+      field_value_ratios {
+        field_value {
+          double_value: 0.75
+        }
+        ratio: 0.2
+      }
+      field_value_ratios {
+        field_value {
+          double_value: 1
+        }
+        ratio: 0.2
+      }
+    }
+  }
+}

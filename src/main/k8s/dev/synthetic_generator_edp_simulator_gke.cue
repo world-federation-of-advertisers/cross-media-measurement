@@ -25,16 +25,11 @@ _resourceRequirements: ResourceRequirements=#ResourceRequirements & {
 }
 
 _populationSpec: "/etc/\(#AppName)/config-files/synthetic_population_spec.textproto"
-_eventGroupSpecs: [
-	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_1.textproto",
-	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_2.textproto",
-	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_3.textproto",
-]
 
 edp_simulators: {
 	for i, edp in _edpConfigs {
-		let SpecIndex = mod(i, len(_eventGroupSpecs))
-		let EventGroupSpec = _eventGroupSpecs[SpecIndex]
+		let Number = i + 1
+		let EventGroupSpec = "/etc/\(#AppName)/config-files/cartesian_synthetic_event_group_spec_\(Number).textproto"
 
 		"\(edp.displayName)": {
 			_imageConfig: repoSuffix: "simulator/synthetic-generator-edp"
