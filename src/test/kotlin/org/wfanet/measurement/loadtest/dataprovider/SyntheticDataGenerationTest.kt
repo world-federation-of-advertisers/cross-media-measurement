@@ -40,6 +40,7 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.banner
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.video
+import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.toProtoDuration
 
 @RunWith(JUnit4::class)
@@ -250,6 +251,165 @@ class SyntheticDataGenerationTest {
     }
 
     assertThat(labeledEvents).containsExactlyElementsIn(expectedTestEvents)
+  }
+
+  @Test
+  fun `generateEvents returns sequence of events filtered by time range`() {
+    val population = syntheticPopulationSpec {
+      vidRange = vidRange {
+        start = 0L
+        endExclusive = 100L
+      }
+
+      populationFields += "person.gender"
+      populationFields += "person.age_group"
+
+      nonPopulationFields += "banner_ad.viewable"
+      nonPopulationFields += "video_ad.viewed_fraction"
+
+      subPopulations +=
+        SyntheticPopulationSpecKt.subPopulation {
+          vidSubRange = vidRange {
+            start = 0L
+            endExclusive = 50L
+          }
+
+          populationFieldsValues["person.gender"] = fieldValue {
+            enumValue = Person.Gender.MALE_VALUE
+          }
+          populationFieldsValues["person.age_group"] = fieldValue {
+            enumValue = Person.AgeGroup.YEARS_18_TO_34_VALUE
+          }
+        }
+      subPopulations +=
+        SyntheticPopulationSpecKt.subPopulation {
+          vidSubRange = vidRange {
+            start = 50L
+            endExclusive = 100L
+          }
+
+          populationFieldsValues["person.gender"] = fieldValue {
+            enumValue = Person.Gender.FEMALE_VALUE
+          }
+          populationFieldsValues["person.age_group"] = fieldValue {
+            enumValue = Person.AgeGroup.YEARS_18_TO_34_VALUE
+          }
+        }
+    }
+    val eventGroupSpec = syntheticEventGroupSpec {
+      description = "event group 1"
+
+      dateSpecs +=
+        SyntheticEventGroupSpecKt.dateSpec {
+          dateRange =
+            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+              start = date {
+                year = 2023
+                month = 6
+                day = 27
+              }
+              endExclusive = date {
+                year = 2023
+                month = 6
+                day = 28
+              }
+            }
+
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 2
+
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 0L
+                    endExclusive = 25L
+                  }
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.5
+                  }
+                }
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 25L
+                    endExclusive = 50L
+                  }
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = false }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.7
+                  }
+                }
+            }
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 1
+
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 50L
+                    endExclusive = 75L
+                  }
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.8
+                  }
+                }
+            }
+        }
+      dateSpecs +=
+        SyntheticEventGroupSpecKt.dateSpec {
+          dateRange =
+            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+              start = date {
+                year = 2023
+                month = 6
+                day = 28
+              }
+              endExclusive = date {
+                year = 2023
+                month = 6
+                day = 29
+              }
+            }
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 1
+
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 75L
+                    endExclusive = 100L
+                  }
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.9
+                  }
+                }
+            }
+        }
+    }
+    val timeRange =
+      OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2023, 6, 27)..LocalDate.of(2023, 6, 27))
+
+    val events =
+      SyntheticDataGeneration.generateEvents(
+          TestEvent.getDefaultInstance(),
+          population,
+          eventGroupSpec,
+          timeRange,
+        )
+        .toList()
+
+    val eventOutsideRange = events.firstOrNull { it.timestamp !in timeRange }
+    assertThat(eventOutsideRange).isNull()
   }
 
   @Test
@@ -1481,7 +1641,7 @@ class SyntheticDataGenerationTest {
     // There should be 16 frequencySpecs since there are 2 non population fields (viewable and
     // viewed_fraction) each with 2 possible values and there are 2 frequencies (1,2). so 2*2*2 = 8.
     // These are then crossed with the population spec which defines 2 subPopulations. So 8*2*2 = 16
-    assertThat(convertedSyntheticEventGroupSpec.dateSpecsList.get(0).frequencySpecsList.size)
+    assertThat(convertedSyntheticEventGroupSpec.dateSpecsList[0].frequencySpecsList.size)
       .isEqualTo(16)
     assertThat(convertedSyntheticEventGroupSpec).isEqualTo(expectedSyntheticEventGroupSpec)
   }

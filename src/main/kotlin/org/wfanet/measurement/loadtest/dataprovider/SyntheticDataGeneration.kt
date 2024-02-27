@@ -22,6 +22,7 @@ import com.google.protobuf.Message
 import com.google.protobuf.kotlin.toByteStringUtf8
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.time.Instant
 import java.time.ZoneOffset
 import kotlin.math.max
 import kotlin.math.min
@@ -35,8 +36,8 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec.SubPopulation
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.VidRange
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.syntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.vidRange
 import org.wfanet.measurement.common.LocalDateProgression
+import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.rangeTo
 import org.wfanet.measurement.common.toLocalDate
 
@@ -54,17 +55,26 @@ object SyntheticDataGeneration {
    * @param messageInstance an instance of the event message type [T]
    * @param populationSpec specification of the synthetic population
    * @param syntheticEventGroupSpec specification of the synthetic event group
+   * @param timeRange range in which to generate events
    */
   fun <T : Message> generateEvents(
     messageInstance: T,
     populationSpec: SyntheticPopulationSpec,
     syntheticEventGroupSpec: SyntheticEventGroupSpec,
+    timeRange: OpenEndTimeRange = OpenEndTimeRange(Instant.MIN, Instant.MAX),
   ): Sequence<LabeledEvent<T>> {
     val subPopulations = populationSpec.subPopulationsList
 
     return sequence {
       for (dateSpec: SyntheticEventGroupSpec.DateSpec in syntheticEventGroupSpec.dateSpecsList) {
-        val dateProgression = dateSpec.dateRange.toProgression()
+        val dateProgression: LocalDateProgression = dateSpec.dateRange.toProgression()
+
+        // Optimization: Skip the entire DateSpec if it does not overlap the specified time range.
+        val dateSpecTimeRange = OpenEndTimeRange.fromClosedDateRange(dateProgression)
+        if (!dateSpecTimeRange.overlaps(timeRange)) {
+          continue
+        }
+
         for (frequencySpec: SyntheticEventGroupSpec.FrequencySpec in dateSpec.frequencySpecsList) {
 
           check(!frequencySpec.hasOverlaps()) { "The VID ranges should be non-overlapping." }
@@ -108,9 +118,13 @@ object SyntheticDataGeneration {
             val message = builder.build() as T
 
             for (date in dateProgression) {
+              val timestamp = date.atStartOfDay().toInstant(ZoneOffset.UTC)
+              if (timestamp !in timeRange) {
+                continue
+              }
               for (i in 1..frequencySpec.frequency) {
                 for (vid in vidRangeSpec.sampledVids(syntheticEventGroupSpec.samplingNonce)) {
-                  yield(LabeledEvent(date.atStartOfDay().toInstant(ZoneOffset.UTC), vid, message))
+                  yield(LabeledEvent(timestamp, vid, message))
                 }
               }
             }
