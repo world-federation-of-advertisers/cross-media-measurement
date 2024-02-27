@@ -30,7 +30,9 @@ import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage.STAGE_UNSPECIFIED
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage.UNRECOGNIZED
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage.WAIT_ON_AGGREGATION_INPUT
-import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage.WAIT_ON_SHUFFLE_INPUT
+import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_ONE
+import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_TWO
+import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage.WAIT_TO_START
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt.stageDetails
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt.waitOnAggregationInputDetails
 
@@ -57,11 +59,11 @@ object HonestMajorityShareShuffleProtocol {
 
     override val validSuccessors =
       mapOf(
-          INITIALIZED to setOf(SETUP_PHASE),
-          // A Non-aggregator will skip WAIT_ON_SHUFFLE_INPUT into SHUFFLE_PHASE if the requisition
-          // data from EDPs and seed from the peer worker have been received.
-          SETUP_PHASE to setOf(WAIT_ON_SHUFFLE_INPUT, SHUFFLE_PHASE),
-          WAIT_ON_SHUFFLE_INPUT to setOf(SHUFFLE_PHASE),
+          INITIALIZED to setOf(WAIT_TO_START, WAIT_ON_SHUFFLE_INPUT_PHASE_ONE),
+          WAIT_TO_START to setOf(SETUP_PHASE),
+          WAIT_ON_SHUFFLE_INPUT_PHASE_ONE to setOf(SETUP_PHASE),
+          SETUP_PHASE to setOf(WAIT_ON_SHUFFLE_INPUT_PHASE_TWO, SHUFFLE_PHASE),
+          WAIT_ON_SHUFFLE_INPUT_PHASE_TWO to setOf(SHUFFLE_PHASE),
           WAIT_ON_AGGREGATION_INPUT to setOf(AGGREGATION_PHASE),
           SHUFFLE_PHASE to setOf(COMPLETE),
           AGGREGATION_PHASE to setOf(COMPLETE),
@@ -91,10 +93,16 @@ object HonestMajorityShareShuffleProtocol {
       ): Boolean {
         return when (stage) {
           INITIALIZED,
+          WAIT_TO_START,
+          WAIT_ON_SHUFFLE_INPUT_PHASE_ONE,
+          WAIT_ON_SHUFFLE_INPUT_PHASE_TWO,
           SETUP_PHASE,
           SHUFFLE_PHASE -> details.role == RoleInComputation.NON_AGGREGATOR
+          WAIT_ON_AGGREGATION_INPUT,
           AGGREGATION_PHASE -> details.role == RoleInComputation.AGGREGATOR
-          else -> true /* Stage can be executed at either primary or non-primary */
+          COMPLETE -> true /* Stage can be executed at either AGGREGATOR or NON_AGGREGATOR */
+          STAGE_UNSPECIFIED,
+          UNRECOGNIZED -> error("Invalid Stage. $stage")
         }
       }
 
@@ -106,7 +114,9 @@ object HonestMajorityShareShuffleProtocol {
           SETUP_PHASE,
           SHUFFLE_PHASE,
           AGGREGATION_PHASE -> AfterTransition.ADD_UNCLAIMED_TO_QUEUE
-          WAIT_ON_SHUFFLE_INPUT,
+          WAIT_TO_START,
+          WAIT_ON_SHUFFLE_INPUT_PHASE_ONE,
+          WAIT_ON_SHUFFLE_INPUT_PHASE_TWO,
           WAIT_ON_AGGREGATION_INPUT -> AfterTransition.DO_NOT_ADD_TO_QUEUE
           COMPLETE -> error("Computation should be ended with call to endComputation(...)")
           // Stages that we can't transition to ever.
@@ -122,19 +132,18 @@ object HonestMajorityShareShuffleProtocol {
       ): Int {
         return when (stage) {
           SETUP_PHASE,
-          WAIT_ON_SHUFFLE_INPUT,
-          SHUFFLE_PHASE -> 0
+          WAIT_TO_START -> 0
+          // The output of these stages are the data received from the peer non-aggregator duchy:
+          WAIT_ON_SHUFFLE_INPUT_PHASE_ONE,
+          WAIT_ON_SHUFFLE_INPUT_PHASE_TWO,
+          // The output of these stages are the computed intermediate data:
+          SHUFFLE_PHASE,
+          AGGREGATION_PHASE -> 1
           WAIT_ON_AGGREGATION_INPUT -> 2
-          AGGREGATION_PHASE ->
-            // The output is the intermediate computation result either received from another duchy
-            // or computed locally.
-            1
-          // Mill have nothing to do for this stage.
           COMPLETE -> error("Computation should be ended with call to endComputation(...)")
-          // Stages that we can't transition to ever.
+          INITIALIZED,
           UNRECOGNIZED,
-          STAGE_UNSPECIFIED,
-          INITIALIZED -> error("Cannot make transition function to stage $stage")
+          STAGE_UNSPECIFIED -> error("Cannot make transition function to stage $stage")
         }
       }
 
