@@ -33,6 +33,8 @@ _secret_name:            string @tag("secret_name")
 _kingdomPublicApiTarget: string @tag("kingdom_public_api_target")
 _duchyPublicApiTarget:   string @tag("duchy_public_api_target")
 
+#SimulatorServiceAccount: "simulator"
+
 objectSets: [
 	serviceAccounts,
 	configMaps,
@@ -62,7 +64,9 @@ edp_simulators: {
 			_mc_resource_name:          _mc_name
 
 			deployment: {
-				spec: template: spec: #SpotVmPodSpec
+				spec: template: spec: #SpotVmPodSpec & #ServiceAccountPodSpec & {
+					serviceAccountName: #SimulatorServiceAccount
+				}
 			}
 		}
 	}
@@ -70,6 +74,11 @@ edp_simulators: {
 
 serviceAccounts: [Name=string]: #ServiceAccount & {
 	metadata: name: Name
+}
+serviceAccounts: {
+	"\(#SimulatorServiceAccount)": #WorkloadIdentityServiceAccount & {
+		_iamServiceAccountName: "simulator"
+	}
 }
 
 configMaps: [Name=string]: #ConfigMap & {
