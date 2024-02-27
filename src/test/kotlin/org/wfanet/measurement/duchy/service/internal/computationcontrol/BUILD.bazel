@@ -53,7 +53,7 @@ kt_jvm_test(
 
 kt_jvm_test(
     name = "HonestMajorityShareShuffleStagesTest",
-    srcs = ["HonestMajorityShareShuffleStagesTest.kt"],
+    srcs = ["HonestMajorityShareShuffleCryptorStagesTest.kt"],
     test_class = "org.wfanet.measurement.duchy.service.internal.computationcontrol.HonestMajorityShareShuffleStagesTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",

@@ -30,7 +30,7 @@ import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt.waitOnAggregationInputDetails
 
 @RunWith(JUnit4::class)
-class HonestMajorityShareShuffleStagesTest {
+class HonestMajorityShareShuffleCryptorStagesTest {
   private val stages = HonestMajorityShareShuffleStages()
 
   private fun assertContextThrowsErrorWhenCallingNextStage(stage: Stage) {
