@@ -39,9 +39,10 @@ module "db" {
   identifier = var.name
 
   # All available versions: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_PostgreSQL.html#PostgreSQL.Concepts
-  engine         = "postgres"
-  engine_version = "15.4"
-  instance_class = var.instance_class
+  engine                     = "postgres"
+  engine_version             = "15.5"
+  auto_minor_version_upgrade = false
+  instance_class             = var.instance_class
 
   allocated_storage = 20
 
