@@ -26,17 +26,17 @@ type ReportTotalsProps = {
 export function ReportOverviewStats({reportOverview}: ReportTotalsProps) {
   return (
     <Row id="report-overview">
-      <Col>
-        <ReportOverviewCard id='report-overview-impressions-card' title='Impressions' value={reportOverview.totalImpressions}/>
+      <Col className='mb-3' sm={4}>
+        <ReportOverviewCard id='report-overview-impressions-card' title='Cross-Media Impressions' value={reportOverview.totalImpressions}/>
       </Col>
-      <Col>
-        <ReportOverviewCard id='report-overview-total-reach-card' title='Reach' value={reportOverview.totalReach}/>
+      <Col className='mb-3' sm={4}>
+        <ReportOverviewCard id='report-overview-total-reach-card' title='Cross-Media Reach' value={reportOverview.totalReach}/>
       </Col>
-      <Col>
-        <ReportOverviewCard id='report-overview-target-reach-card' title='On Target Reach' value={reportOverview.totalOnTargetReach}/>
-      </Col>
-      <Col>
+      <Col className='mb-3' sm={4}>
         <ReportOverviewCard id='report-overview-frequency-card' title='Average Frequency' value={reportOverview.totalAverageFrequency}/>
+      </Col>
+      <Col className='mb-3' sm={6}>
+        <ReportOverviewCard id='report-overview-frequency-card' title='Date Range' value={`${reportOverview.startDate} - ${reportOverview.endDate}`}/>
       </Col>
     </Row>
   );

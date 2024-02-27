@@ -47,6 +47,17 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
 
   override val clock: Clock = Clock.systemUTC()
 
+  /**
+   * Limits the maximum number of workflow tasks (across all recurring exchanges) that the daemon
+   * will be allowed to run concurrently. If not set, there is no limit. If set, must be >= 1.
+   */
+  override val maxParallelClaimedExchangeSteps: Int?
+    get() = flags.maxParallelClaimedExchangeSteps
+
+  /**
+   * Maps Exchange paths (i.e. recurring_exchanges/{recurring_exchange_id}/exchanges/{date}) to
+   * serialized SigningKeys protos.
+   */
   protected abstract val privateKeys: MutableSecretMap
 
   /** Apache Beam options. */
@@ -108,8 +119,6 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
       taskContext = taskContext,
     )
   }
-
-  private val maxParallelClaimedExchangeSteps: Int by lazy { flags.maxParallelClaimedExchangeSteps }
 
   override val apiClient: ApiClient by lazy {
     val exchangeStepsClient = ExchangeStepsCoroutineStub(channel)

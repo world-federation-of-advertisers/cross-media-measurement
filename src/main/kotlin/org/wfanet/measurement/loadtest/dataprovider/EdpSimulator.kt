@@ -60,7 +60,7 @@ import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
-import org.wfanet.measurement.api.v2alpha.EventGroupKt.eventTemplate
+import org.wfanet.measurement.api.v2alpha.EventGroupKt
 import org.wfanet.measurement.api.v2alpha.EventGroupKt.metadata
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
@@ -96,7 +96,6 @@ import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.customDirectMethodology
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
@@ -201,8 +200,11 @@ class EdpSimulator(
    * Ensures that an appropriate [EventGroup] with appropriate [EventGroupMetadataDescriptor] exists
    * for the [MeasurementConsumer].
    */
-  suspend fun ensureEventGroup(eventGroupMetadata: Message): EventGroup {
-    return ensureEventGroups(mapOf("" to eventGroupMetadata)).single()
+  suspend fun ensureEventGroup(
+    eventTemplates: Iterable<EventGroup.EventTemplate>,
+    eventGroupMetadata: Message,
+  ): EventGroup {
+    return ensureEventGroups(eventTemplates, mapOf("" to eventGroupMetadata)).single()
   }
 
   /**
@@ -210,7 +212,8 @@ class EdpSimulator(
    * for the [MeasurementConsumer].
    */
   suspend fun ensureEventGroups(
-    metadataByReferenceIdSuffix: Map<String, Message>
+    eventTemplates: Iterable<EventGroup.EventTemplate>,
+    metadataByReferenceIdSuffix: Map<String, Message>,
   ): List<EventGroup> {
     require(metadataByReferenceIdSuffix.isNotEmpty())
 
@@ -238,7 +241,13 @@ class EdpSimulator(
       ensureMetadataDescriptor(metadataDescriptor)
     return metadataByReferenceIdSuffix.map { (suffix, metadata) ->
       val eventGroupReferenceId = eventGroupReferenceIdPrefix + suffix
-      ensureEventGroup(measurementConsumer, eventGroupReferenceId, metadata, descriptorResource)
+      ensureEventGroup(
+        measurementConsumer,
+        eventGroupReferenceId,
+        eventTemplates,
+        metadata,
+        descriptorResource,
+      )
     }
   }
 
@@ -249,6 +258,7 @@ class EdpSimulator(
   private suspend fun ensureEventGroup(
     measurementConsumer: MeasurementConsumer,
     eventGroupReferenceId: String,
+    eventTemplates: Iterable<EventGroup.EventTemplate>,
     eventGroupMetadata: Message,
     descriptorResource: EventGroupMetadataDescriptor,
   ): EventGroup {
@@ -268,7 +278,7 @@ class EdpSimulator(
         eventGroup = eventGroup {
           this.measurementConsumer = measurementConsumerName
           this.eventGroupReferenceId = eventGroupReferenceId
-          eventTemplates += EVENT_TEMPLATES
+          this.eventTemplates += eventTemplates
           measurementConsumerPublicKey = measurementConsumer.publicKey.message
           this.encryptedMetadata = encryptedMetadata
         }
@@ -286,8 +296,8 @@ class EdpSimulator(
     val request = updateEventGroupRequest {
       eventGroup =
         existingEventGroup.copy {
-          eventTemplates.clear()
-          eventTemplates += EVENT_TEMPLATES
+          this.eventTemplates.clear()
+          this.eventTemplates += eventTemplates
           measurementConsumerPublicKey = measurementConsumer.publicKey.message
           this.encryptedMetadata = encryptedMetadata
         }
@@ -1592,15 +1602,6 @@ class EdpSimulator(
   companion object {
     private const val RPC_CHUNK_SIZE_BYTES = 32 * 1024 // 32 KiB
 
-    private val EVENT_TEMPLATE_TYPES: List<Descriptors.Descriptor> =
-      TestEvent.getDescriptor()
-        .fields
-        .filter { it.type == Descriptors.FieldDescriptor.Type.MESSAGE }
-        .map { it.messageType }
-        .filter { it.options.hasExtension(EventAnnotationsProto.eventTemplate) }
-    private val EVENT_TEMPLATES: List<EventGroup.EventTemplate> =
-      EVENT_TEMPLATE_TYPES.map { eventTemplate { type = it.fullName } }
-
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
     // The direct noise mechanisms for ACDP composition in PBM for direct measurements in order
@@ -1627,6 +1628,17 @@ class EdpSimulator(
     fun getEventGroupReferenceIdSuffix(eventGroup: EventGroup, edpDisplayName: String): String {
       val prefix = getEventGroupReferenceIdPrefix(edpDisplayName)
       return eventGroup.eventGroupReferenceId.removePrefix(prefix)
+    }
+
+    fun buildEventTemplates(
+      eventMessageDescriptor: Descriptors.Descriptor
+    ): List<EventGroup.EventTemplate> {
+      val eventTemplateTypes: List<Descriptors.Descriptor> =
+        eventMessageDescriptor.fields
+          .filter { it.type == Descriptors.FieldDescriptor.Type.MESSAGE }
+          .map { it.messageType }
+          .filter { it.options.hasExtension(EventAnnotationsProto.eventTemplate) }
+      return eventTemplateTypes.map { EventGroupKt.eventTemplate { type = it.fullName } }
     }
   }
 }

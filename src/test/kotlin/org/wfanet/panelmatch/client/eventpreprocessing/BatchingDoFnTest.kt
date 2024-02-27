@@ -85,8 +85,8 @@ class BatchingDoFnTest : BeamTestBase() {
       )
   }
 
-  private fun makeParDo(maxByteSize: Long): ParDo.SingleOutput<String, MutableList<String>>? {
-    return ParDo.of(BatchingDoFn(maxByteSize, StringLengthSize))
+  private fun makeParDo(maxByteSize: Long): ParDo.SingleOutput<String, MutableList<String>> {
+    return ParDo.of(BatchingDoFn(maxByteSize, StringLengthSize))!!
   }
 
   private fun makeTestStream(): TestStream.Builder<String> {
