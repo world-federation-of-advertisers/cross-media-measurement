@@ -139,6 +139,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":share_shuffle_sketch_params_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:crypto_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_proto",
         "//src/main/proto/wfa/measurement/internal/duchy/config:protocols_setup_config_proto",
     ],

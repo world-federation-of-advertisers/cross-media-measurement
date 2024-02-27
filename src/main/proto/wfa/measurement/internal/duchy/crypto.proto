@@ -59,3 +59,11 @@ message EncryptionPublicKey {
   // decrypt messages given a private key.
   bytes data = 2;
 }
+
+// Keys of the encryption cipher.
+message EncryptionKeyPair {
+  // Secret key of the cipher.
+  bytes secret_key = 1;
+  // Public key of the cipher.
+  EncryptionPublicKey public_key = 2;
+}

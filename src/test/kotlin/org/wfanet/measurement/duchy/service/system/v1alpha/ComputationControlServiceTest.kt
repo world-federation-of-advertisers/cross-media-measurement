@@ -20,7 +20,6 @@ import com.google.protobuf.kotlin.toByteStringUtf8
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
-import kotlin.test.assertNull
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flowOf
@@ -33,9 +32,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
-import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
-import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.DuchyIdentity
@@ -52,10 +49,8 @@ import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.Async
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.advanceComputationRequest as asyncAdvanceComputationRequest
 import org.wfanet.measurement.internal.duchy.computationStageBlobMetadata
-import org.wfanet.measurement.internal.duchy.computationStageInput
 import org.wfanet.measurement.internal.duchy.getOutputBlobMetadataRequest
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle as HonestMajorityShareShuffleProtocol
-import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt.shufflePhaseInput
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -64,7 +59,6 @@ import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
 import org.wfanet.measurement.system.v1alpha.HonestMajorityShareShuffle
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
 import org.wfanet.measurement.system.v1alpha.ReachOnlyLiquidLegionsV2
-import org.wfanet.measurement.system.v1alpha.advanceComputationRequest
 
 private const val RUNNING_DUCHY_NAME = "Alsace"
 private const val BAVARIA = "Bavaria"
@@ -397,7 +391,42 @@ class ComputationControlServiceTest {
   }
 
   @Test
-  fun `honest majority share shuffle sends blob as input`() = runBlocking {
+  fun `honest majority share shuffle sends input for WAIT_ON_SHUFFLE_INPUT_PHASE_ONE`() =
+    runBlocking {
+      val id = "444444"
+      val blobKey = "$id/WAIT_ON_SHUFFLE_INPUT_PHASE_ONE/$BLOB_ID"
+      val carinthiaHeader =
+        advanceComputationHeader(HonestMajorityShareShuffle.Description.SHUFFLE_PHASE_INPUT_ONE, id)
+
+      withSender(carinthia) { advanceComputation(carinthiaHeader.withContent(BLOB_CONTENT)) }
+
+      verifyProtoArgument(
+          mockAsyncControlService,
+          AsyncComputationControlCoroutineImplBase::getOutputBlobMetadata,
+        )
+        .isEqualTo(
+          getOutputBlobMetadataRequest {
+            globalComputationId = id
+            dataOrigin = CARINTHIA
+          }
+        )
+      assertThat(advanceAsyncComputationRequests)
+        .containsExactly(
+          asyncAdvanceComputationRequest {
+            globalComputationId = id
+            computationStage =
+              HonestMajorityShareShuffleProtocol.Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_ONE
+                .toProtocolStage()
+            blobId = BLOB_ID
+            blobPath = blobKey
+          }
+        )
+      val data = assertNotNull(computationStore.get(blobKey))
+      assertThat(data).contentEqualTo(BLOB_CONTENT)
+    }
+
+  @Test
+  fun `honest majority share shuffle sends aggregation phase input`() = runBlocking {
     val id = "444444"
     val blobKey = "$id/WAIT_ON_AGGREGATION_INPUT/$BLOB_ID"
     val carinthiaHeader =
@@ -428,32 +457,6 @@ class ComputationControlServiceTest {
     val data = assertNotNull(computationStore.get(blobKey))
     assertThat(data).contentEqualTo(BLOB_CONTENT)
   }
-
-  @Test
-  fun `honest majority share shuffle sends seed as input`() = runBlocking {
-    val id = "444444"
-    val blobKey = "$id/WAIT_ON_SHUFFLE_INPUT/$BLOB_ID"
-    val carinthiaHeader =
-      advanceComputationHeader(HonestMajorityShareShuffle.Description.SHUFFLE_PHASE_INPUT, id, SEED)
-
-    withSender(carinthia) { advanceComputation(carinthiaHeader.withSeed()) }
-
-    verifyBlocking(mockAsyncControlService, never()) { getOutputBlobMetadata(any()) }
-    assertThat(advanceAsyncComputationRequests)
-      .containsExactly(
-        asyncAdvanceComputationRequest {
-          globalComputationId = id
-          computationStage =
-            HonestMajorityShareShuffleProtocol.Stage.WAIT_ON_SHUFFLE_INPUT.toProtocolStage()
-          computationStageInput = computationStageInput {
-            honestMajorityShareShuffleShufflePhaseInput = shufflePhaseInput {
-              peerRandomSeed = SEED
-            }
-          }
-        }
-      )
-    val data = assertNull(computationStore.get(blobKey))
-  }
 }
 
 private fun AdvanceComputationRequest.Header.withContent(
@@ -468,8 +471,4 @@ private fun AdvanceComputationRequest.Header.withContent(
     }
     .asFlow()
     .onStart { emit(AdvanceComputationRequest.newBuilder().setHeader(this@withContent).build()) }
-}
-
-private fun AdvanceComputationRequest.Header.withSeed(): Flow<AdvanceComputationRequest> {
-  return flowOf(advanceComputationRequest { header = this@withSeed })
 }

@@ -120,23 +120,15 @@ message HonestMajorityShareShuffle {
   enum Description {
     // The data type is unknown. This is never set intentionally.
     DESCRIPTION_UNSPECIFIED = 0;
-    // THe input for the shuffle phase.
-    SHUFFLE_PHASE_INPUT = 1;
+    // The input for the WAIT_ON_SHUFFLE_INPUT_PHASE_ONE.
+    SHUFFLE_PHASE_INPUT_ONE = 1;
+    // The input for the WAIT_ON_SHUFFLE_INPUT_PHASE_TWO.
+    SHUFFLE_PHASE_INPUT_TWO = 2;
     // The input for the aggregation phase.
-    AGGREGATION_PHASE_INPUT = 2;
+    AGGREGATION_PHASE_INPUT = 3;
   }
   // Payload data description
   Description description = 1;
-
-  // The input for shuffle phase.
-  // Only set for description with SHUFFLE_PHASE_INPUT.
-  message ShufflePhaseInput {
-    // The random seed from the peer worker to generate noise share and
-    // permutation.
-    bytes peer_random_seed = 1;
-  }
-  // The input for shuffle phase.
-  ShufflePhaseInput shuffle_phase_input = 2;
 }
 
 // Response message for the `AdvanceComputation` method.

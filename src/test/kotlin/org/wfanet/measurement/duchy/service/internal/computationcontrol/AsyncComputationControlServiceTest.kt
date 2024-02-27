@@ -16,7 +16,6 @@ package org.wfanet.measurement.duchy.service.internal.computationcontrol
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.kotlin.toByteStringUtf8
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
@@ -26,14 +25,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
-import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
-import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
-import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.duchy.service.internal.computations.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computations.newInputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computations.newOutputBlobMetadata
@@ -41,12 +36,10 @@ import org.wfanet.measurement.duchy.service.internal.computations.newPassThrough
 import org.wfanet.measurement.duchy.service.internal.computations.toAdvanceComputationStageResponse
 import org.wfanet.measurement.duchy.service.internal.computations.toGetComputationTokenResponse
 import org.wfanet.measurement.duchy.service.internal.computations.toRecordOutputBlobPathResponse
-import org.wfanet.measurement.duchy.service.internal.computations.toUpdateComputationDetailsResponse
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.AdvanceComputationRequest
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest.AfterTransition
-import org.wfanet.measurement.internal.duchy.AdvanceComputationStageResponse
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
@@ -59,26 +52,19 @@ import org.wfanet.measurement.internal.duchy.advanceComputationStageRequest
 import org.wfanet.measurement.internal.duchy.computationDetails
 import org.wfanet.measurement.internal.duchy.computationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.computationStageDetails
-import org.wfanet.measurement.internal.duchy.computationStageInput
 import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 import org.wfanet.measurement.internal.duchy.copy
-import org.wfanet.measurement.internal.duchy.getComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.getOutputBlobMetadataRequest
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage as HmssStage
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage as Llv2Stage
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt
+import org.wfanet.measurement.internal.duchy.protocol.honestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.recordOutputBlobPathRequest
-import org.wfanet.measurement.internal.duchy.requisitionMetadata
-import org.wfanet.measurement.internal.duchy.updateComputationDetailsRequest
 
-private val COMMON_SEED = "seed_1".toByteStringUtf8()
-private val PEER_COMMON_SEED = "seed_2".toByteStringUtf8()
-private val REQUISITION_PATH_1 = "path 1"
-private val REQUISITION_PATH_2 = "path 2"
-private val REQUISITION_SEED_1 = "encrypted seed 1".toByteStringUtf8()
-private val REQUISITION_SEED_2 = "encrypted seed 2".toByteStringUtf8()
+private const val SHUFFLE_BLOB_ID = 1L
+private val SHUFFLE_BLOB_PATH = "path"
 private const val AGGREGATION_BLOB_ID_1 = 1L
 private const val AGGREGATION_BLOB_ID_2 = 2L
 private val AGGREGATION_BLOB_PATH_1 = "path_1"
@@ -409,145 +395,108 @@ class AsyncComputationControlServiceTest {
     assertThat(advanceComputationRequests).isEmpty()
   }
 
-  private suspend fun verifyHmssAdvanceComputationToShuffleStage(
-    initStage: HmssStage,
-    requisitionFulfilled: Boolean,
-    supposedToAdvance: Boolean,
-  ) {
+  @Test
+  fun `advanceComputation records blob and advance for HMSS WAIT_ON_SHUFFLE_INPUT_PHASE_ONE`():
+    Unit = runBlocking {
     val token = computationToken {
-      computationStage = initStage.toProtocolStage()
+      computationStage = HmssStage.WAIT_ON_SHUFFLE_INPUT_PHASE_ONE.toProtocolStage()
+      blobs += newEmptyOutputBlobMetadata(1L)
       computationDetails = computationDetails {
         honestMajorityShareShuffle =
           HonestMajorityShareShuffleKt.computationDetails {
             role = RoleInComputation.NON_AGGREGATOR
-            seeds =
-              HonestMajorityShareShuffleKt.ComputationDetailsKt.randomSeeds {
-                this.commonRandomSeed = COMMON_SEED
-              }
           }
       }
-      if (requisitionFulfilled) {
-        requisitions += requisitionMetadata {
-          secretSeedCiphertext = REQUISITION_SEED_1
-          path = REQUISITION_PATH_1
-          publicApiVersion = Version.V2_ALPHA.string
-        }
-        requisitions += requisitionMetadata {
-          secretSeedCiphertext = REQUISITION_SEED_2
-          path = REQUISITION_PATH_2
-          publicApiVersion = Version.V2_ALPHA.string
-        }
-      } else {
-        requisitions += requisitionMetadata {}
-        requisitions += requisitionMetadata {}
-      }
     }
-
+    val request = advanceComputationRequest {
+      globalComputationId = COMPUTATION_ID
+      computationStage = HmssStage.WAIT_ON_SHUFFLE_INPUT_PHASE_ONE.toProtocolStage()
+      blobId = 1L
+      blobPath = BLOB_KEY
+    }
     val updatedToken =
       token.copy {
-        computationDetails = computationDetails {
-          honestMajorityShareShuffle =
-            HonestMajorityShareShuffleKt.computationDetails {
-              role = RoleInComputation.NON_AGGREGATOR
-              seeds =
-                HonestMajorityShareShuffleKt.ComputationDetailsKt.randomSeeds {
-                  this.commonRandomSeed = COMMON_SEED
-                  this.commonRandomSeedFromPeer = PEER_COMMON_SEED
-                }
-            }
-        }
+        blobs.clear()
+        blobs += newOutputBlobMetadata(1L, BLOB_KEY)
       }
+    val (recordBlobRequests, advanceComputationRequests) =
+      mockComputationsServiceCalls(token, updatedToken)
 
-    mockComputationsService.stub {
-      onBlocking { getComputationToken(any()) }.thenReturn(token.toGetComputationTokenResponse())
-      onBlocking { updateComputationDetails(any()) }
-        .thenReturn(updatedToken.toUpdateComputationDetailsResponse())
-      onBlocking { advanceComputationStage(any()) }
-        .thenReturn(AdvanceComputationStageResponse.getDefaultInstance())
-    }
+    service.advanceComputation(request)
 
-    service.advanceComputation(
-      advanceComputationRequest {
-        globalComputationId = COMPUTATION_ID
-        computationStage = HmssStage.WAIT_ON_SHUFFLE_INPUT.toProtocolStage()
-        computationStageInput = computationStageInput {
-          honestMajorityShareShuffleShufflePhaseInput =
-            HonestMajorityShareShuffleKt.shufflePhaseInput { peerRandomSeed = PEER_COMMON_SEED }
-        }
-      }
-    )
-
-    verifyProtoArgument(mockComputationsService, ComputationsCoroutineImplBase::getComputationToken)
-      .isEqualTo(getComputationTokenRequest { globalComputationId = COMPUTATION_ID })
-    verifyProtoArgument(
-        mockComputationsService,
-        ComputationsCoroutineImplBase::updateComputationDetails,
-      )
-      .isEqualTo(
-        updateComputationDetailsRequest {
+    assertThat(recordBlobRequests)
+      .containsExactly(
+        recordOutputBlobPathRequest {
           this.token = token
-          details = updatedToken.computationDetails
+          outputBlobId = 1
+          blobPath = BLOB_KEY
         }
       )
-    if (supposedToAdvance) {
-      verifyProtoArgument(
-          mockComputationsService,
-          ComputationsCoroutineImplBase::advanceComputationStage,
-        )
-        .isEqualTo(
-          advanceComputationStageRequest {
-            this.token = updatedToken
-            nextComputationStage = HmssStage.SHUFFLE_PHASE.toProtocolStage()
-            afterTransition = AfterTransition.ADD_UNCLAIMED_TO_QUEUE
-            outputBlobs = 0
-            stageDetails = ComputationStageDetails.getDefaultInstance()
+    assertThat(advanceComputationRequests)
+      .containsExactly(
+        advanceComputationStageRequest {
+          this.token = updatedToken
+          nextComputationStage = HmssStage.SETUP_PHASE.toProtocolStage()
+          inputBlobs += BLOB_KEY
+          outputBlobs = 0
+          stageDetails = ComputationStageDetails.getDefaultInstance()
+          afterTransition = AfterTransition.ADD_UNCLAIMED_TO_QUEUE
+        }
+      )
+  }
+
+  @Test
+  fun `advanceComputation records blob and advance for HMSS WAIT_ON_SHUFFLE_INPUT_PHASE_TWO`():
+    Unit = runBlocking {
+    val token = computationToken {
+      computationStage = HmssStage.WAIT_ON_SHUFFLE_INPUT_PHASE_TWO.toProtocolStage()
+      blobs += newEmptyOutputBlobMetadata(1L)
+      computationDetails = computationDetails {
+        honestMajorityShareShuffle =
+          HonestMajorityShareShuffleKt.computationDetails {
+            role = RoleInComputation.NON_AGGREGATOR
           }
-        )
-    } else {
-      verifyBlocking(mockComputationsService, never()) { advanceComputationStage(any()) }
+      }
     }
-  }
+    val request = advanceComputationRequest {
+      globalComputationId = COMPUTATION_ID
+      computationStage = HmssStage.WAIT_ON_SHUFFLE_INPUT_PHASE_TWO.toProtocolStage()
+      blobId = 1L
+      blobPath = BLOB_KEY
+    }
+    val updatedToken =
+      token.copy {
+        blobs.clear()
+        blobs += newOutputBlobMetadata(1L, BLOB_KEY)
+      }
+    val (recordBlobRequests, advanceComputationRequests) =
+      mockComputationsServiceCalls(token, updatedToken)
 
-  @Test
-  fun `advanceComputation records seed and advance for HMSS WAIT_ON_SHUFFLE_INPUT`(): Unit =
-    runBlocking {
-      verifyHmssAdvanceComputationToShuffleStage(
-        initStage = HmssStage.WAIT_ON_SHUFFLE_INPUT,
-        requisitionFulfilled = true,
-        supposedToAdvance = true,
+    service.advanceComputation(request)
+
+    assertThat(recordBlobRequests)
+      .containsExactly(
+        recordOutputBlobPathRequest {
+          this.token = token
+          outputBlobId = 1
+          blobPath = BLOB_KEY
+        }
       )
-    }
-
-  @Test
-  fun `advanceComputation records seed but doee not advance for HMSS INITIALIZED`() = runBlocking {
-    verifyHmssAdvanceComputationToShuffleStage(
-      initStage = HmssStage.INITIALIZED,
-      requisitionFulfilled = false,
-      supposedToAdvance = false,
-    )
-  }
-
-  @Test
-  fun `advanceComputation records seed but doee not advance for HMSS SETUP_PHASE`() = runBlocking {
-    verifyHmssAdvanceComputationToShuffleStage(
-      initStage = HmssStage.SETUP_PHASE,
-      requisitionFulfilled = true,
-      supposedToAdvance = false,
-    )
-  }
-
-  @Test
-  fun `advanceComputation records seed but doee not advance for HMSS WAIT_ON_SHUFFLE_INPUT`() =
-    runBlocking {
-      verifyHmssAdvanceComputationToShuffleStage(
-        initStage = HmssStage.WAIT_ON_SHUFFLE_INPUT,
-        requisitionFulfilled = false,
-        supposedToAdvance = false,
+    assertThat(advanceComputationRequests)
+      .containsExactly(
+        advanceComputationStageRequest {
+          this.token = updatedToken
+          nextComputationStage = HmssStage.SHUFFLE_PHASE.toProtocolStage()
+          inputBlobs += BLOB_KEY
+          outputBlobs = 1
+          stageDetails = ComputationStageDetails.getDefaultInstance()
+          afterTransition = AfterTransition.ADD_UNCLAIMED_TO_QUEUE
+        }
       )
-    }
+  }
 
   @Test
-  fun `advanceComputation records the last blob and advance for HMSS WAIT_ON_AGGREGATION`() =
+  fun `advanceComputation records the last blob and advance for HMSS WAIT_ON_AGGREGATION`(): Unit =
     runBlocking {
       val token = computationToken {
         computationStage = HmssStage.WAIT_ON_AGGREGATION_INPUT.toProtocolStage()
@@ -558,61 +507,41 @@ class AsyncComputationControlServiceTest {
         blobs += newOutputBlobMetadata(AGGREGATION_BLOB_ID_1, AGGREGATION_BLOB_PATH_1)
         blobs += newEmptyOutputBlobMetadata(AGGREGATION_BLOB_ID_2)
       }
-
+      val request = advanceComputationRequest {
+        globalComputationId = COMPUTATION_ID
+        computationStage = HmssStage.WAIT_ON_AGGREGATION_INPUT.toProtocolStage()
+        blobId = AGGREGATION_BLOB_ID_2
+        blobPath = AGGREGATION_BLOB_PATH_2
+      }
       val updatedToken =
         token.copy {
           blobs.clear()
           blobs += newOutputBlobMetadata(AGGREGATION_BLOB_ID_1, AGGREGATION_BLOB_PATH_1)
           blobs += newOutputBlobMetadata(AGGREGATION_BLOB_ID_2, AGGREGATION_BLOB_PATH_2)
         }
+      val (recordBlobRequests, advanceComputationRequests) =
+        mockComputationsServiceCalls(token, updatedToken)
 
-      mockComputationsService.stub {
-        onBlocking { getComputationToken(any()) }.thenReturn(token.toGetComputationTokenResponse())
-        onBlocking { recordOutputBlobPath(any()) }
-          .thenReturn(updatedToken.toRecordOutputBlobPathResponse())
-        onBlocking { advanceComputationStage(any()) }
-          .thenReturn(AdvanceComputationStageResponse.getDefaultInstance())
-      }
+      service.advanceComputation(request)
 
-      service.advanceComputation(
-        advanceComputationRequest {
-          globalComputationId = COMPUTATION_ID
-          computationStage = HmssStage.WAIT_ON_AGGREGATION_INPUT.toProtocolStage()
-          blobId = AGGREGATION_BLOB_ID_2
-          blobPath = AGGREGATION_BLOB_PATH_2
-        }
-      )
-
-      verifyProtoArgument(
-          mockComputationsService,
-          ComputationsCoroutineImplBase::getComputationToken,
-        )
-        .isEqualTo(getComputationTokenRequest { globalComputationId = COMPUTATION_ID })
-      verifyBlocking(mockComputationsService, never()) { updateComputationDetails(any()) }
-      verifyProtoArgument(
-          mockComputationsService,
-          ComputationsCoroutineImplBase::recordOutputBlobPath,
-        )
-        .isEqualTo(
+      assertThat(recordBlobRequests)
+        .containsExactly(
           recordOutputBlobPathRequest {
             this.token = token
             outputBlobId = AGGREGATION_BLOB_ID_2
             blobPath = AGGREGATION_BLOB_PATH_2
           }
         )
-      verifyProtoArgument(
-          mockComputationsService,
-          ComputationsCoroutineImplBase::advanceComputationStage,
-        )
-        .isEqualTo(
+      assertThat(advanceComputationRequests)
+        .containsExactly(
           advanceComputationStageRequest {
             this.token = updatedToken
             nextComputationStage = HmssStage.AGGREGATION_PHASE.toProtocolStage()
-            afterTransition = AfterTransition.ADD_UNCLAIMED_TO_QUEUE
-            outputBlobs = 1
-            stageDetails = ComputationStageDetails.getDefaultInstance()
             inputBlobs += AGGREGATION_BLOB_PATH_1
             inputBlobs += AGGREGATION_BLOB_PATH_2
+            outputBlobs = 1
+            stageDetails = ComputationStageDetails.getDefaultInstance()
+            afterTransition = AfterTransition.ADD_UNCLAIMED_TO_QUEUE
           }
         )
     }
@@ -629,49 +558,32 @@ class AsyncComputationControlServiceTest {
         blobs += newEmptyOutputBlobMetadata(AGGREGATION_BLOB_ID_1)
         blobs += newEmptyOutputBlobMetadata(AGGREGATION_BLOB_ID_2)
       }
-
+      val request = advanceComputationRequest {
+        globalComputationId = COMPUTATION_ID
+        computationStage = HmssStage.WAIT_ON_AGGREGATION_INPUT.toProtocolStage()
+        blobId = AGGREGATION_BLOB_ID_2
+        blobPath = AGGREGATION_BLOB_PATH_2
+      }
       val updatedToken =
         token.copy {
           blobs.clear()
-          blobs += newOutputBlobMetadata(AGGREGATION_BLOB_ID_1, AGGREGATION_BLOB_PATH_1)
-          blobs += newEmptyOutputBlobMetadata(AGGREGATION_BLOB_ID_2)
+          blobs += newEmptyOutputBlobMetadata(AGGREGATION_BLOB_ID_1)
+          blobs += newOutputBlobMetadata(AGGREGATION_BLOB_ID_2, AGGREGATION_BLOB_PATH_2)
         }
+      val (recordBlobRequests, advanceComputationRequests) =
+        mockComputationsServiceCalls(token, updatedToken)
 
-      mockComputationsService.stub {
-        onBlocking { getComputationToken(any()) }.thenReturn(token.toGetComputationTokenResponse())
-        onBlocking { recordOutputBlobPath(any()) }
-          .thenReturn(updatedToken.toRecordOutputBlobPathResponse())
-        onBlocking { advanceComputationStage(any()) }
-          .thenReturn(AdvanceComputationStageResponse.getDefaultInstance())
-      }
+      service.advanceComputation(request)
 
-      service.advanceComputation(
-        advanceComputationRequest {
-          globalComputationId = COMPUTATION_ID
-          computationStage = HmssStage.WAIT_ON_AGGREGATION_INPUT.toProtocolStage()
-          blobId = AGGREGATION_BLOB_ID_1
-          blobPath = AGGREGATION_BLOB_PATH_1
-        }
-      )
-
-      verifyProtoArgument(
-          mockComputationsService,
-          ComputationsCoroutineImplBase::getComputationToken,
-        )
-        .isEqualTo(getComputationTokenRequest { globalComputationId = COMPUTATION_ID })
-      verifyBlocking(mockComputationsService, never()) { updateComputationDetails(any()) }
-      verifyProtoArgument(
-          mockComputationsService,
-          ComputationsCoroutineImplBase::recordOutputBlobPath,
-        )
-        .isEqualTo(
+      assertThat(recordBlobRequests)
+        .containsExactly(
           recordOutputBlobPathRequest {
             this.token = token
-            outputBlobId = AGGREGATION_BLOB_ID_1
-            blobPath = AGGREGATION_BLOB_PATH_1
+            outputBlobId = AGGREGATION_BLOB_ID_2
+            blobPath = AGGREGATION_BLOB_PATH_2
           }
         )
-      verifyBlocking(mockComputationsService, never()) { advanceComputationStage(any()) }
+      assertThat(advanceComputationRequests).isEmpty()
     }
 
   @Test
