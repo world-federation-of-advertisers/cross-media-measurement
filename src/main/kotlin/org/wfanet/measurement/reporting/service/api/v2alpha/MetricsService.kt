@@ -832,7 +832,6 @@ class MetricsService(
             }
           }
         }
-      }
 
       var anyUpdate = false
 
