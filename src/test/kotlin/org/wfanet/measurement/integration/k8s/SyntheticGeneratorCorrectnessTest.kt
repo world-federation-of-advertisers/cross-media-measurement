@@ -104,7 +104,6 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
         MeasurementsGrpcKt.MeasurementsCoroutineStub(publicApiChannel),
         MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(publicApiChannel),
         CertificatesGrpcKt.CertificatesCoroutineStub(publicApiChannel),
-        RESULT_POLLING_DELAY,
         MEASUREMENT_CONSUMER_SIGNING_CERTS.trustedCertificates,
         eventQuery,
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
@@ -119,7 +118,6 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
   }
 
   companion object {
-    private val RESULT_POLLING_DELAY = Duration.ofSeconds(10)
     private val RPC_DEADLINE_DURATION = Duration.ofSeconds(30)
     private val CONFIG_PATH =
       Paths.get("src", "test", "kotlin", "org", "wfanet", "measurement", "integration", "k8s")

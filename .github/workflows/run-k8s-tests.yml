@@ -36,33 +36,35 @@ jobs:
     runs-on: ubuntu-20.04
     environment: ${{ inputs.environment }}
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
-    # Authenticate to Google Cloud. This will export some environment
-    # variables, including GCLOUD_PROJECT.
-    - name: Authenticate to Google Cloud
+    # Authenticate to Google Cloud for access to remote cache.
+    - name: Authenticate to Google Cloud for remote cache
       uses: google-github-actions/auth@v2
       with:
-        workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
-        service_account: ${{ vars.SIMULATOR_SERVICE_ACCOUNT }}
+        workload_identity_provider: ${{ vars.BAZEL_BUILD_WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ vars.BAZEL_BUILD_SERVICE_ACCOUNT }}
 
     - name: Write ~/.bazelrc
       env:
         KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
         MC_NAME: ${{ vars.MC_NAME }}
         MC_API_KEY: ${{ secrets.MC_API_KEY }}
+        GCLOUD_PROJECT: ${{ vars.GCLOUD_PROJECT }}
         BIGQUERY_DATASET: ${{ vars.BIGQUERY_DATASET }}
         BIGQUERY_TABLE: ${{ vars.BIGQUERY_TABLE }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
+        common --config=remote-cache
         build --define kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET
         build --define mc_name=$MC_NAME
         build --define mc_api_key=$MC_API_KEY
         build --define google_cloud_project=$GCLOUD_PROJECT
         build --define bigquery_dataset=$BIGQUERY_DATASET
         build --define bigquery_table=$BIGQUERY_TABLE
-        build --test_env=GOOGLE_APPLICATION_CREDENTIALS
+        test --test_output=streamed
+        test --test_timeout=3600
         EOF
 
     - name: Get Bazel cache params
@@ -82,8 +84,7 @@ jobs:
       run: >
         bazelisk test
         //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGeneratorCorrectnessTest
-        --test_output=streamed
-
+        
     - name: Upload Bazel testlogs
       continue-on-error: true
       uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@v2

@@ -78,3 +78,7 @@ data class ExponentialBackoff(
     }
   }
 }
+
+fun Duration.coerceAtMost(maximumValue: Duration): Duration {
+  return if (this <= maximumValue) this else maximumValue
+}
