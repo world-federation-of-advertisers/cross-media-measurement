@@ -140,7 +140,7 @@ jobs:
 
     - name: Write measurement consumer config
       env:
-        MEASUREMENT_CONSUMER_CONFIG: ${{ vars.MEASUREMENT_CONSUMER_CONFIG }}
+        MEASUREMENT_CONSUMER_CONFIG: ${{ secrets.MEASUREMENT_CONSUMER_CONFIG }}
       run: >
         echo "$MEASUREMENT_CONSUMER_CONFIG" | sed $'s/\r$//'  >
         "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_secrets/measurement_consumer_config.textproto"

@@ -51,10 +51,4 @@ module "simulators_spot_node_pool" {
 
 module "simulators" {
   source = "../modules/simulators"
-
-  # TODO(hashicorp/terraform-provider-google#5693): Use data source once available.
-  bigquery_table = {
-    dataset_id = var.bigquery_dataset_id
-    id         = var.bigquery_table_id
-  }
 }

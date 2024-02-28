@@ -82,15 +82,3 @@ variable "postgres_password" {
   sensitive   = true
   nullable    = false
 }
-
-variable "bigquery_dataset_id" {
-  description = "ID of the existing BigQuery dataset."
-  type        = string
-  nullable    = false
-}
-
-variable "bigquery_table_id" {
-  description = "ID of the existing BigQuery table."
-  type        = string
-  nullable    = false
-}
