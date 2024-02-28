@@ -35,8 +35,12 @@ import java.time.temporal.Temporal
 import java.time.temporal.TemporalAdjusters
 import java.time.zone.ZoneRulesException
 import kotlin.math.min
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.flatMapMerge
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import org.projectnessie.cel.Env
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
@@ -412,26 +416,23 @@ class ReportsService(
       }
 
     // Create metrics.
-    val createMetricRequests: Flow<CreateMetricRequest> = flow {
-      internalReport.reportingMetricEntriesMap.flatMap {
-        (reportingSetId, reportingMetricCalculationSpec) ->
-        reportingMetricCalculationSpec.metricCalculationSpecReportingMetricsList.flatMap {
+    val createMetricRequests: Flow<CreateMetricRequest> =
+      @OptIn(ExperimentalCoroutinesApi::class)
+      internalReport.reportingMetricEntriesMap.entries.asFlow().flatMapMerge { entry ->
+        entry.value.metricCalculationSpecReportingMetricsList.asFlow().flatMapMerge {
           metricCalculationSpecReportingMetrics ->
-          metricCalculationSpecReportingMetrics.reportingMetricsList.map {
-            emit(
-              it.toCreateMetricRequest(
-                principal.resourceKey,
-                reportingSetId,
-                externalIdToMetricCalculationSpecMap
-                  .getValue(metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId)
-                  .details
-                  .filter,
-              )
+          metricCalculationSpecReportingMetrics.reportingMetricsList.asFlow().map {
+            it.toCreateMetricRequest(
+              principal.resourceKey,
+              entry.key,
+              externalIdToMetricCalculationSpecMap
+                .getValue(metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId)
+                .details
+                .filter,
             )
           }
         }
       }
-    }
 
     val callRpc: suspend (List<CreateMetricRequest>) -> BatchCreateMetricsResponse = { items ->
       batchCreateMetrics(request.parent, items)

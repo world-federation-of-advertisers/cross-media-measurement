@@ -45,6 +45,7 @@ import org.wfanet.measurement.system.v1alpha.Requisition
 import org.wfanet.measurement.system.v1alpha.RequisitionKey
 import org.wfanet.measurement.system.v1alpha.StageAttempt
 import org.wfanet.measurement.system.v1alpha.computation
+import org.wfanet.measurement.system.v1alpha.computationParticipant
 
 /** Converts a kingdom internal Requisition to system Api Requisition. */
 fun InternalRequisition.toSystemRequisition(): Requisition {
@@ -86,52 +87,74 @@ fun InternalRequisition.State.toSystemRequisitionState(): Requisition.State {
 
 /** Converts a kingdom internal ComputationParticipant to system Api ComputationParticipant. */
 fun InternalComputationParticipant.toSystemComputationParticipant(): ComputationParticipant {
-  return ComputationParticipant.newBuilder()
-    .also {
-      it.name =
-        ComputationParticipantKey(externalIdToApiId(externalComputationId), externalDuchyId)
-          .toName()
-      it.state = state.toSystemRequisitionState()
-      it.updateTime = updateTime
-      it.requisitionParamsBuilder.apply {
+  val source = this
+  return computationParticipant {
+    name =
+      ComputationParticipantKey(
+          externalIdToApiId(source.externalComputationId),
+          source.externalDuchyId,
+        )
+        .toName()
+    state = source.state.toSystemRequisitionState()
+    updateTime = source.updateTime
+    requisitionParams =
+      ComputationParticipantKt.requisitionParams {
         if (hasDuchyCertificate()) {
-          val duchyCertificate = this@toSystemComputationParticipant.duchyCertificate
-
-          this.duchyCertificate =
+          duchyCertificate =
             when (Version.fromString(apiVersion)) {
               Version.V2_ALPHA ->
                 DuchyCertificateKey(
-                    externalDuchyId,
-                    externalIdToApiId(duchyCertificate.externalCertificateId),
+                    source.externalDuchyId,
+                    externalIdToApiId(source.duchyCertificate.externalCertificateId),
                   )
                   .toName()
             }
-          duchyCertificateDer = duchyCertificate.details.x509Der
+          duchyCertificateDer = source.duchyCertificate.details.x509Der
         }
-        if (details.hasLiquidLegionsV2()) {
-          liquidLegionsV2 =
-            ComputationParticipantKt.RequisitionParamsKt.liquidLegionsV2 {
-              elGamalPublicKey = details.liquidLegionsV2.elGamalPublicKey
-              elGamalPublicKeySignature = details.liquidLegionsV2.elGamalPublicKeySignature
-            }
-        } else if (details.hasReachOnlyLiquidLegionsV2()) {
-          reachOnlyLiquidLegionsV2 =
-            ComputationParticipantKt.RequisitionParamsKt.liquidLegionsV2 {
-              elGamalPublicKey = details.reachOnlyLiquidLegionsV2.elGamalPublicKey
-              elGamalPublicKeySignature = details.reachOnlyLiquidLegionsV2.elGamalPublicKeySignature
-            }
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+        when (source.details.protocolCase) {
+          InternalComputationParticipant.Details.ProtocolCase.LIQUID_LEGIONS_V2 -> {
+            liquidLegionsV2 =
+              ComputationParticipantKt.RequisitionParamsKt.liquidLegionsV2 {
+                elGamalPublicKey = source.details.liquidLegionsV2.elGamalPublicKey
+                elGamalPublicKeySignature = source.details.liquidLegionsV2.elGamalPublicKeySignature
+                elGamalPublicKeySignatureAlgorithmOid =
+                  source.details.liquidLegionsV2.elGamalPublicKeySignatureAlgorithmOid
+              }
+          }
+          InternalComputationParticipant.Details.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
+            reachOnlyLiquidLegionsV2 =
+              ComputationParticipantKt.RequisitionParamsKt.liquidLegionsV2 {
+                elGamalPublicKey = source.details.reachOnlyLiquidLegionsV2.elGamalPublicKey
+                elGamalPublicKeySignature =
+                  source.details.reachOnlyLiquidLegionsV2.elGamalPublicKeySignature
+                elGamalPublicKeySignatureAlgorithmOid =
+                  source.details.reachOnlyLiquidLegionsV2.elGamalPublicKeySignatureAlgorithmOid
+              }
+          }
+          InternalComputationParticipant.Details.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+            honestMajorityShareShuffle =
+              ComputationParticipantKt.RequisitionParamsKt.honestMajorityShareShuffle {
+                tinkPublicKey = source.details.honestMajorityShareShuffle.tinkPublicKey
+                tinkPublicKeySignature =
+                  source.details.honestMajorityShareShuffle.tinkPublicKeySignature
+                tinkPublicKeySignatureAlgorithmOid =
+                  source.details.honestMajorityShareShuffle.tinkPublicKeySignatureAlgorithmOid
+              }
+          }
+          InternalComputationParticipant.Details.ProtocolCase.PROTOCOL_NOT_SET -> Unit
         }
       }
-      if (hasFailureLogEntry()) {
-        it.failureBuilder.apply {
-          participantChildReferenceId = failureLogEntry.details.duchyChildReferenceId
-          errorMessage = failureLogEntry.logEntry.details.logMessage
-          errorTime = failureLogEntry.logEntry.details.error.errorTime
-          stageAttempt = failureLogEntry.details.stageAttempt.toSystemStageAttempt()
+    if (hasFailureLogEntry()) {
+      failure =
+        ComputationParticipantKt.failure {
+          participantChildReferenceId = source.failureLogEntry.details.duchyChildReferenceId
+          errorMessage = source.failureLogEntry.logEntry.details.logMessage
+          errorTime = source.failureLogEntry.logEntry.details.error.errorTime
+          stageAttempt = source.failureLogEntry.details.stageAttempt.toSystemStageAttempt()
         }
-      }
     }
-    .build()
+  }
 }
 
 /** Converts a kingdom internal StageAttempt to system Api StageAttempt. */

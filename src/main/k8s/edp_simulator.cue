@@ -27,6 +27,7 @@ package k8s
 	_edp_secret_name:           string
 	_duchy_public_api_target:   string
 	_kingdom_public_api_target: string
+	_logSketchDetails:          bool | *false
 
 	let DisplayName = _edpConfig.displayName
 
@@ -54,6 +55,7 @@ package k8s
 				"--kingdom-public-api-cert-host=localhost",
 				"--requisition-fulfillment-service-target=\(_duchy_public_api_target)",
 				"--requisition-fulfillment-service-cert-host=localhost",
+				"--log-sketch-details=\(_logSketchDetails)",
 			] + _additional_args
 		}
 	}

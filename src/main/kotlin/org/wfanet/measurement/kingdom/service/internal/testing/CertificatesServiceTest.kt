@@ -39,6 +39,7 @@ import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.CertificateKt.details
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
@@ -543,14 +544,14 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurementOne =
-      population.createComputedMeasurement(
+      population.createLlv2Measurement(
         measurementsService,
         measurementConsumer,
         "measurement one",
         dataProvider,
       )
     val measurementTwo =
-      population.createComputedMeasurement(
+      population.createLlv2Measurement(
         measurementsService,
         measurementConsumer,
         "measurement two",
@@ -674,17 +675,9 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
 
     val measurementOne =
-      population.createComputedMeasurement(
-        measurementsService,
-        measurementConsumer,
-        "measurement one",
-      )
+      population.createLlv2Measurement(measurementsService, measurementConsumer, "measurement one")
     val measurementTwo =
-      population.createComputedMeasurement(
-        measurementsService,
-        measurementConsumer,
-        "measurement two",
-      )
+      population.createLlv2Measurement(measurementsService, measurementConsumer, "measurement two")
     measurementsService.cancelMeasurement(
       cancelMeasurementRequest {
         externalMeasurementConsumerId = measurementTwo.externalMeasurementConsumerId
@@ -796,17 +789,9 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val measurementOne =
-      population.createComputedMeasurement(
-        measurementsService,
-        measurementConsumer,
-        "measurement one",
-      )
+      population.createLlv2Measurement(measurementsService, measurementConsumer, "measurement one")
     val measurementTwo =
-      population.createComputedMeasurement(
-        measurementsService,
-        measurementConsumer,
-        "measurement two",
-      )
+      population.createLlv2Measurement(measurementsService, measurementConsumer, "measurement two")
     measurementsService.cancelMeasurement(
       cancelMeasurementRequest {
         externalMeasurementConsumerId = measurementTwo.externalMeasurementConsumerId
@@ -828,6 +813,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         this.externalDuchyId = externalDuchyId
         externalDuchyCertificateId = certificate.externalCertificateId
         externalComputationId = measurementOne.externalComputationId
+        liquidLegionsV2 = ComputationParticipant.LiquidLegionsV2Details.getDefaultInstance()
       }
     )
     val request = revokeCertificateRequest {

@@ -51,10 +51,11 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.count
-import kotlinx.coroutines.flow.flatMapMerge
+import kotlinx.coroutines.flow.flattenMerge
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.withContext
 import org.jetbrains.annotations.BlockingExecutor
 import org.jetbrains.annotations.NonBlockingExecutor
@@ -313,12 +314,15 @@ class MetricsService(
 
       // Gets all external IDs of primitive reporting sets from the metric list.
       val externalPrimitiveReportingSetIds: Flow<String> = flow {
-        buildSet<String> {
+        buildSet {
           for (internalMetric in internalMetricsList) {
             for (weightedMeasurement in internalMetric.weightedMeasurementsList) {
               for (primitiveReportingSetBasis in
                 weightedMeasurement.measurement.primitiveReportingSetBasesList) {
+                // Checks if the set already contains the ID
                 if (!contains(primitiveReportingSetBasis.externalReportingSetId)) {
+                  // If the set doesn't contain the ID, emit it and add it to the set so it won't
+                  // get emitted again.
                   emit(primitiveReportingSetBasis.externalReportingSetId)
                   add(primitiveReportingSetBasis.externalReportingSetId)
                 }
@@ -396,7 +400,8 @@ class MetricsService(
           ) { response: BatchCreateMeasurementsResponse ->
             response.measurementsList
           }
-          .flatMapMerge { it.asFlow() }
+          .map { it.asFlow() }
+          .flattenMerge()
 
       // Set CMMS measurement IDs.
       val callBatchSetCmmsMeasurementIdsRpc:
@@ -805,8 +810,8 @@ class MetricsService(
 
       // Most Measurements are expected to be SUCCEEDED so SUCCEEDED Measurements will be collected
       // via a Flow.
-      val succeededMeasurements: Flow<Measurement> = flow {
-        getCmmsMeasurements(internalMeasurements, principal).collect { measurements ->
+      val succeededMeasurements: Flow<Measurement> =
+        getCmmsMeasurements(internalMeasurements, principal).transform { measurements ->
           for (measurement in measurements) {
             @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
             when (measurement.state) {
@@ -941,8 +946,10 @@ class MetricsService(
                   internalMeasurement.cmmsMeasurementId,
                 )
                 .toName()
-
+            // Checks if the set already contains the name
             if (!contains(name)) {
+              // If the set doesn't contain the name, emit it and add it to the set so it won't
+              // get emitted again.
               emit(name)
               add(name)
             }
