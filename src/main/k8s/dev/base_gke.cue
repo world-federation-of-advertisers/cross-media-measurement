@@ -85,7 +85,7 @@ package k8s
 }
 
 #JavaOptions: {
-	initialHeapSize:   _ | *"64M"
+	initialHeapSize:   _ | *maxHeapSize
 	maxHeapSize:       _ | *"64M"
 	loggingConfigFile: "/etc/java/logging.properties"
 }
