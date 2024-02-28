@@ -128,6 +128,7 @@ import ("strings")
 			]
 		}
 		"liquid-legions-v2-mill-daemon-deployment": Deployment={
+			_workLockDuration?: string
 			_container: args: [
 						_duchyInternalApiTargetFlag,
 						_duchyInternalApiCertHostFlag,
@@ -143,6 +144,7 @@ import ("strings")
 						_kingdom_system_api_target_flag,
 						_kingdom_system_api_cert_host_flag,
 						if (_millPollingInterval != _|_) {"--polling-interval=\(_millPollingInterval)"},
+						if (_workLockDuration != _|_) {"--work-lock-duration=\(_workLockDuration)"},
 						_otlpEndpoint,
 						"--otel-service-name=\(Deployment.metadata.name)",
 			] + _blob_storage_flags + _computation_control_target_flags
