@@ -71,6 +71,16 @@ service Metrics {
       body: "*"
     };
   }
+
+  // Cancel a batch of `Metric`s. Any `Metric` with a `state` that is
+  // `SUCCEEDED` or `FAILED` will not have their `state` changed.
+  rpc BatchCancelMetrics(BatchCancelMetricsRequest)
+      returns (BatchCancelMetricsResponse) {
+    option (google.api.http) = {
+      post: "/v2alpha/{parent=measurementConsumers/*}/metrics:batchCancel"
+      body: "*"
+    };
+  }
 }
 
 // Request message for `GetMetric` method.
@@ -185,5 +195,30 @@ message BatchCreateMetricsRequest {
 // Response message for `BatchCreateMetric` method.
 message BatchCreateMetricsResponse {
   // Metrics created.
+  repeated Metric metrics = 1;
+}
+
+// Request message for `BatchCancelMetrics` method.
+message BatchCancelMetricsRequest {
+  // Resource name of the parent `MeasurementConsumer`.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "reporting.halo-cmm.org/Metric"
+    }
+  ];
+
+  // List of resource names. A maximum of 1000 `Metric`s can be cancelled in a
+  // single batch.
+  // Format: measurementConsumers/{measurement_consumer}/metrics/{metric}
+  repeated string names = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = { type: "reporting.halo-cmm.org/Metric" }
+  ];
+}
+
+// Response message for `BatchCancelMetrics` method.
+message BatchCancelMetricsResponse {
+  // Metrics cancelled.
   repeated Metric metrics = 1;
 }

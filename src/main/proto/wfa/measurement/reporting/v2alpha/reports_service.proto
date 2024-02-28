@@ -52,6 +52,16 @@ service Reports {
     };
     option (google.api.method_signature) = "parent,report";
   }
+
+  // Cancels a `Report`. If the `Report` is already completed, then no change
+  // will occur.
+  rpc CancelReport(CancelReportRequest) returns (Report) {
+    option (google.api.http) = {
+      post: "/v2alpha/{name=measurementConsumers/*/reports/*}:cancel"
+      body: "*"
+    };
+    option (google.api.method_signature) = "name";
+  }
 }
 
 // Request message for `GetReport` method.
@@ -127,4 +137,14 @@ message CreateReportRequest {
   // A random UUID is recommended.
   // This request is only idempotent if a `request_id` is provided.
   string request_id = 4;
+}
+
+// Request message for `CancelReport` method.
+message CancelReportRequest {
+  // The name of the report to cancel.
+  // Format: measurementConsumers/{measurement_consumer}/reports/{report}
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = { type: "reporting.halo-cmm.org/Report" }
+  ];
 }
