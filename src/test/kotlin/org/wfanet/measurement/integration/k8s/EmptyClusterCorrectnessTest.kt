@@ -260,7 +260,6 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           MeasurementsGrpcKt.MeasurementsCoroutineStub(publicApiChannel),
           MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(publicApiChannel),
           CertificatesGrpcKt.CertificatesCoroutineStub(publicApiChannel),
-          Duration.ofSeconds(10L),
           MEASUREMENT_CONSUMER_SIGNING_CERTS.trustedCertificates,
           MetadataSyntheticGeneratorEventQuery(
             SyntheticGenerationSpecs.POPULATION_SPEC,
