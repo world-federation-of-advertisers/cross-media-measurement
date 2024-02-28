@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.duchy.protocol;
 
 import "wfa/measurement/internal/duchy/config/protocols_setup_config.proto";
+import "wfa/measurement/internal/duchy/crypto.proto";
 import "wfa/measurement/internal/duchy/noise_mechanism.proto";
 import "wfa/measurement/internal/duchy/protocol/share_shuffle_sketch_params.proto";
 
@@ -26,11 +27,14 @@ option java_multiple_files = true;
 message HonestMajorityShareShuffle {
   // Stages of the HonestMajorityShareShuffle computation.
   //
-  // For non-aggregators, the normal stage transition is:
-  // INITIALIZED -> SETUP_PHASE -> (WAIT_ON_SHUFFLE_INPUT) -> SHUFFLE_PHASE
+  // For the first non-aggregator, the normal stage transition is:
+  // INITIALIZED -> WAIT_TO_START -> SETUP_PHASE ->
+  // WAIT_ON_SHUFFLE_INPUT_PHASE_TWO -> SHUFFLE_PHASE
   // -> COMPLETE
-  // The WAIT_ON_INPUT stage will be skipped if all the input (requisition data
-  // and peer worker input) has been received before the end of SETUP_PHASE.
+  //
+  // For the second non-aggregator, the normal stage transition is:
+  // INITIALIZED -> WAIT_ON_SHUFFLE_INPUT_PHASE_ONE -> SETUP_PHASE
+  // -> SHUFFLE_PHASE -> COMPLETE
   //
   // For the aggregator, the normal stage transition is:
   // WAIT_ON_AGGREGATION_INPUT -> AGGREGATION_PHASE -> COMPLETE
@@ -38,25 +42,37 @@ message HonestMajorityShareShuffle {
     // The computation stage is unknown. This is never set intentionally.
     STAGE_UNSPECIFIED = 0;
 
-    // Computation is created by the non-aggregator.
+    // The computation is created by the non-aggregator populated with sampled
+    // randomness seed and encryption key pair.
     //
-    // Non-aggregators are ready to accept requisition fulfillments. The
-    // randomness seed is sampled and stored. Peer's random seed can be accepted
-    // at this stage.
+    // In this stage, non-aggregators send the participant params to the kingdom
+    // by the mill.
     INITIALIZED = 1;
 
-    // Non-aggregator reads the randomness seed, then sends it to the peer.
-    // Seeds are used for generating either noise or permutation. Peer's random
-    // seed can be accepted at this stage.
-    SETUP_PHASE = 2;
+    // The first non-aggregator waits on requisition fulfillment and the signal
+    // from the kingdom to proceed.
+    //
+    // In this stage, requisition fulfillment are received from EDPs and
+    // reported to the kingdom.
+    WAIT_TO_START = 2;
 
-    // The non-aggregators only stage waiting for input of seeds from the peer
-    // as well as requisition data from EDPs.
-    WAIT_ON_SHUFFLE_INPUT = 3;
+    // The second non-aggregator waits on requisition fulfillment and the data
+    // from the peer non-aggregator to proceed.
+    //
+    // In this stage, requisition fulfillment are received from EDPs and
+    // reported to the kingdom.
+    WAIT_ON_SHUFFLE_INPUT_PHASE_ONE = 3;
 
-    // The aggregator only stage waiting for input of combined shares from
+    // Non-aggregator sends random seed and secret seed from DataProviders to
+    // the peer. Seeds are used for generating noise and permutation.
+    SETUP_PHASE = 4;
+
+    // The first non-aggregator waits for input from the peer non-aggregator.
+    WAIT_ON_SHUFFLE_INPUT_PHASE_TWO = 5;
+
+    // A aggregator only stage waiting for input of combined shares from
     // non-aggregators. It is the initial stage for the aggregator.
-    WAIT_ON_AGGREGATION_INPUT = 4;
+    WAIT_ON_AGGREGATION_INPUT = 6;
 
     // Non-aggregators execute following steps:
     //
@@ -72,16 +88,16 @@ message HonestMajorityShareShuffle {
     // permutation based on the combined seed. Shuffle the shares.
     //
     // 4. Send the result of the share to the aggregator.
-    SHUFFLE_PHASE = 5;
+    SHUFFLE_PHASE = 7;
 
     // The aggregator adds up shares from non-aggregators, subtracts noise
     // offset, and calculates the reach and the frequency histogram, then
     // reports the encrypted result to the kingdom.
-    AGGREGATION_PHASE = 6;
+    AGGREGATION_PHASE = 8;
 
     // The computation is completed or failed. The worker can remove BLOBs that
     // are no longer needed.
-    COMPLETE = 7;
+    COMPLETE = 9;
   }
 
   message ComputationDetails {
@@ -99,26 +115,34 @@ message HonestMajorityShareShuffle {
     }
     Parameters parameters = 2;
 
-    // Seeds used by non-aggregators to generate noise and permutation.
-    message RandomSeeds {
-      // Seed to generates noise and permutation.
-      bytes common_random_seed = 1;
-      // Seed from the peer worker to generates noise and permutation.
-      bytes common_random_seed_from_peer = 2;
-    }
-    RandomSeeds seeds = 3;
-
     // The list of ids of duchies participating in this computation.
     // The list is sorted by the duchy order by names, with the first element
     // being the first non-aggregator following by other non-aggregators,
     // and the last element being the aggregator.
-    repeated string participants = 4;
+    repeated string participants = 3;
+
+    // Seeds used by non-aggregators to generate noise and permutation.
+    bytes common_random_seed = 4;
+
+    // Encryption key pair for participant params.
+    EncryptionKeyPair encryption_key_pair = 5;
   }
 
   // The input message containing the random seed from the peer worker.
   message ShufflePhaseInput {
     // Random seed in bytes.
     bytes peer_random_seed = 1;
+
+    // The requisition data in format of a secret seed. It is ciphertext
+    // containing a serialized `SignedMessage` message from the CMMS public API.
+    message SecretSeed {
+      string external_data_provider_id = 1;
+
+      // Ciphertext containing a serialized `SignedMessage` message from the
+      // CMMS public API.
+      bytes secret_seed_ciphertext = 2;
+    }
+    repeated SecretSeed secret_seeds = 2;
   }
 
   // Details about a particular attempt of running a stage of the

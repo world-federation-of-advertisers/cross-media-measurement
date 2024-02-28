@@ -44,8 +44,9 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#MillMaxHeapSize: "1G"
-#MillReplicas:    1
+#MillMaxHeapSize:        "1G"
+#MillReplicas:           1
+#FulfillmentMaxHeapSize: "96M"
 
 objectSets: [
 	default_deny_ingress_and_egress,
@@ -106,6 +107,7 @@ duchy: #SpannerDuchy & {
 			spec: template: spec: #SpotVmPodSpec
 		}
 		"liquid-legions-v2-mill-daemon-deployment": {
+			_workLockDuration: "10m"
 			_container: {
 				_javaOptions: maxHeapSize: #MillMaxHeapSize
 				resources: #MillResourceRequirements
@@ -123,6 +125,9 @@ duchy: #SpannerDuchy & {
 			}
 		}
 		"requisition-fulfillment-server-deployment": {
+			_container: {
+				_javaOptions: maxHeapSize: #FulfillmentMaxHeapSize
+			}
 			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #StorageServiceAccount
 			}

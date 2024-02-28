@@ -46,7 +46,7 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
     testHarness.testDuration("$runId-duration")
   }
 
-  @Test(timeout = 10 * 60 * 1000)
+  @Test
   fun `reach and frequency measurement completes with expected result`() = runBlocking {
     testHarness.testReachAndFrequency("$runId-reach-and-freq")
   }

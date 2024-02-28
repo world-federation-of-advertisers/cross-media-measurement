@@ -33,7 +33,7 @@ export function Header({}: HeaderProps) {
         <div id="get-report-header-menu">
           <MenuIcon />
         </div>
-        <Navbar.Brand id="header-title">Demo Reporting UI</Navbar.Brand>
+        <Navbar.Brand id="header-title">Reporting UI Demo - Halo</Navbar.Brand>
       </Navbar>
     </React.Fragment>
   );
