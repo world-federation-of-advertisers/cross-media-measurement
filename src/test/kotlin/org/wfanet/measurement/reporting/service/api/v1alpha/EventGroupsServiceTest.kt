@@ -18,6 +18,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.DescriptorProtos.FileDescriptorSet
+import org.wfanet.measurement.common.ProtoReflection
 import com.google.protobuf.Descriptors
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -51,6 +52,7 @@ import org.wfanet.measurement.api.v2alpha.TestMetadataMessageKt.brand
 import org.wfanet.measurement.api.v2alpha.TestMetadataMessageKt.campaignStartDate
 import org.wfanet.measurement.api.v2alpha.TestMetadataMessageKt.date
 import org.wfanet.measurement.api.v2alpha.testMetadataMessage
+import org.wfanet.measurement.api.v2alpha.TestMetadataMessage
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testParentMetadataMessage
 import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
@@ -161,12 +163,13 @@ private const val EVENT_GROUP_REFERENCE_ID = "edpRefId1"
 private const val EVENT_GROUP_PARENT =
   "measurementConsumers/$MEASUREMENT_CONSUMER_REFERENCE_ID/dataProviders/$DATA_PROVIDER_REFERENCE_ID"
 private const val METADATA_NAME = "$DATA_PROVIDER_NAME/eventGroupMetadataDescriptors/abc"
-// TEST_MESSAGE.descriptorForType.getFileDescriptorSet()
+// descriptorSet = TestMetadataMessage.getDescriptor().getFileDescriptorSet()
 // descriptorSet = ProtoReflection.buildFileDescriptorSet(TEST_MESSAGE.descriptorForType)
 private val EVENT_GROUP_METADATA_DESCRIPTOR = eventGroupMetadataDescriptor {
   name = METADATA_NAME
-  descriptorSet = TEST_MESSAGE.descriptorForType.getFileDescriptorSet()
+  descriptorSet = TestMetadataMessage.getDescriptor().getFileDescriptorSet()
 }
+private val something = ProtoReflection.buildFileDescriptorSet(TEST_MESSAGE.descriptorForType)
 
 @RunWith(JUnit4::class)
 class EventGroupsServiceTest {
@@ -186,6 +189,7 @@ class EventGroupsServiceTest {
         .thenReturn(
           listEventGroupMetadataDescriptorsResponse {
             eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
+            eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
           }
         )
     }
@@ -200,6 +204,7 @@ class EventGroupsServiceTest {
 
   @Before
   fun initService() {
+    println("somethingsomethingsomething $something")
     val celEnvCacheProvider =
       CelEnvCacheProvider(
         EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),

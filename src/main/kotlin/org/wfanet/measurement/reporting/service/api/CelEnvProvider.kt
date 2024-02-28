@@ -127,6 +127,9 @@ class CelEnvCacheProvider(
       eventGroupMetadataDescriptors.map { it.descriptorSet }
     val fileDescriptors: List<Descriptors.Descriptor> =
       ProtoReflection.buildDescriptors(fileDescriptorSets)
+    println("fileDescriptorsfileDescriptorss $fileDescriptors")
+
+    fileDescriptors.forEach { println("toProto : ${it.toProto()}") }
 
     val env = buildCelEnvironment(fileDescriptors)
     val typeRegistry: TypeRegistry = buildTypeRegistry(fileDescriptors)
