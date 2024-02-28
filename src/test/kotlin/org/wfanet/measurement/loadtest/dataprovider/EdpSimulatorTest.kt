@@ -42,6 +42,7 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
@@ -214,12 +215,16 @@ private const val RANDOM_SEED: Long = 0
 
 // Resource ID for EventGroup that fails Requisitions with CONSENT_SIGNAL_INVALID if used.
 private const val CONSENT_SIGNAL_INVALID_EVENT_GROUP_ID = "consent-signal-invalid"
+
 // Resource ID for EventGroup that fails Requisitions with SPEC_INVALID if used.
 private const val SPEC_INVALID_EVENT_GROUP_ID = "spec-invalid"
+
 // Resource ID for EventGroup that fails Requisitions with INSUFFICIENT_PRIVACY_BUDGET if used.
 private const val INSUFFICIENT_PRIVACY_BUDGET_EVENT_GROUP_ID = "insufficient-privacy-budget"
+
 // Resource ID for EventGroup that fails Requisitions with UNFULFILLABLE if used.
 private const val UNFULFILLABLE_EVENT_GROUP_ID = "unfulfillable"
+
 // Resource ID for EventGroup that fails Requisitions with DECLINED if used.
 private const val DECLINED_EVENT_GROUP_ID = "declined"
 
@@ -227,18 +232,18 @@ private const val DECLINED_EVENT_GROUP_ID = "declined"
 class EdpSimulatorTest {
   private val certificatesServiceMock: CertificatesCoroutineImplBase = mockService {
     onBlocking {
-        getCertificate(eq(getCertificateRequest { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME }))
-      }
+      getCertificate(eq(getCertificateRequest { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME }))
+    }
       .thenReturn(MEASUREMENT_CONSUMER_CERTIFICATE)
     onBlocking { getCertificate(eq(getCertificateRequest { name = DUCHY_CERTIFICATE.name })) }
       .thenReturn(DUCHY_CERTIFICATE)
     onBlocking {
-        getCertificate(eq(getCertificateRequest { name = DATA_PROVIDER_CERTIFICATE.name }))
-      }
+      getCertificate(eq(getCertificateRequest { name = DATA_PROVIDER_CERTIFICATE.name }))
+    }
       .thenReturn(DATA_PROVIDER_CERTIFICATE)
     onBlocking {
-        getCertificate(eq(getCertificateRequest { name = DATA_PROVIDER_RESULT_CERTIFICATE.name }))
-      }
+      getCertificate(eq(getCertificateRequest { name = DATA_PROVIDER_RESULT_CERTIFICATE.name }))
+    }
       .thenReturn(DATA_PROVIDER_RESULT_CERTIFICATE)
   }
   private val dataProvidersServiceMock: DataProvidersCoroutineImplBase = mockService {
@@ -994,10 +999,10 @@ class EdpSimulatorTest {
     val encryptedSketch: ByteString = requests.drop(1).map { it.bodyChunk.data }.flatten()
     val expectedSketch =
       SketchGenerator(
-          eventQuery,
-          LIQUID_LEGIONS_SKETCH_PARAMS.toSketchConfig(),
-          MEASUREMENT_SPEC.vidSamplingInterval,
-        )
+        eventQuery,
+        LIQUID_LEGIONS_SKETCH_PARAMS.toSketchConfig(),
+        MEASUREMENT_SPEC.vidSamplingInterval,
+      )
         .generate(
           REQUISITION_SPEC.events.eventGroupsList.map {
             EventQuery.EventGroupSpec(eventGroup { name = it.key }, it.value)
@@ -2500,11 +2505,193 @@ class EdpSimulatorTest {
       get() = _fullfillRequisitionInvocations
 
     override suspend fun fulfillRequisition(
-      requests: Flow<FulfillRequisitionRequest>
+      requests: Flow<FulfillRequisitionRequest>,
     ): FulfillRequisitionResponse {
       // Consume flow before returning.
       _fullfillRequisitionInvocations.add(FulfillRequisitionInvocation(requests.toList()))
       return FulfillRequisitionResponse.getDefaultInstance()
+    }
+  }
+
+  @Test
+  fun `the function generateHash works properly`() {
+    val simulator =
+      EdpSimulator(
+        EDP_DATA,
+        MC_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        dataProvidersStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        syntheticGeneratorEventQuery,
+        dummyThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        random = Random(RANDOM_SEED),
+      )
+    val salt = ByteString.copyFromUtf8("salt")
+    // Compare to value obtained using `echo -n 1salt | sha256sum`.
+    assertThat(simulator.generateHash(1, salt))
+      .isEqualTo("D333CAA8477E0AD6C22C1D594B05FA668EEE01652F9297C71B3BFDF9CB98C197")
+    // Compare to value obtained using `echo -n 10salt | sha256sum`.
+    assertThat(simulator.generateHash(10, salt))
+      .isEqualTo("79FB447A12176672FABA916A9644631F0D8ECE47177F4A225A684CB5A40DD7A3")
+  }
+
+  @Test
+  fun `the vid map is generated correctly`() {
+    val simulator =
+      EdpSimulator(
+        EDP_DATA,
+        MC_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        dataProvidersStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        syntheticGeneratorEventQuery,
+        dummyThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        random = Random(RANDOM_SEED),
+      )
+    val salt = ByteString.copyFromUtf8("salt")
+    val vidMap = simulator.generateVidMap(salt, 1, 100)
+    val hashes = mutableListOf<String>()
+    for ((vid, _) in vidMap) {
+      hashes.add(simulator.generateHash(vid, salt))
+    }
+    assert(hashes.zipWithNext { a, b -> a < b }.all { it })
+  }
+
+  @Test
+  fun `all zero share shuffle sketch with empty EventQuery`() {
+    val eventGroupSpecs =
+      REQUISITION_SPEC.events.eventGroupsList.map {
+        EventQuery.EventGroupSpec(eventGroup { name = it.key }, it.value)
+      }
+
+    val simulator =
+      EdpSimulator(
+        EDP_DATA,
+        MC_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        dataProvidersStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        InMemoryEventQuery(emptyList()),
+        dummyThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        random = Random(RANDOM_SEED),
+      )
+    runBlocking {
+      simulator.ensureEventGroup(TEST_EVENT_TEMPLATES, SYNTHETIC_DATA_SPEC)
+      val hmssSketch = simulator.generateHmssSketch(
+        100,
+        ByteString.copyFromUtf8("salt"),
+        MEASUREMENT_SPEC,
+        eventGroupSpecs
+      )
+      assertThat(hmssSketch.size).isEqualTo(100)
+      for (x in hmssSketch) {
+        assertThat(x).isEqualTo(0)
+      }
+    }
+  }
+
+  @Test
+  fun `generateHmssSketch outputs correct share shuffle sketch`() {
+    // EventGroupSpecs for female 18_TO_34
+    val eventGroupSpecs =
+      REQUISITION_SPEC.events.eventGroupsList.map {
+        EventQuery.EventGroupSpec(eventGroup { name = it.key }, it.value)
+      }
+
+    // All events, where the frequency count for vids for the above group spec is 2.
+    val allEvents =
+      generateEvents(
+        1L..10L,
+        FIRST_EVENT_DATE,
+        Person.AgeGroup.YEARS_18_TO_34,
+        Person.Gender.FEMALE,
+      ) +
+        generateEvents(
+          1L..10L,
+          FIRST_EVENT_DATE,
+          Person.AgeGroup.YEARS_18_TO_34,
+          Person.Gender.FEMALE,
+        ) +
+        generateEvents(
+          11L..15L,
+          FIRST_EVENT_DATE,
+          Person.AgeGroup.YEARS_35_TO_54,
+          Person.Gender.FEMALE,
+        ) +
+        generateEvents(
+          16L..20L,
+          FIRST_EVENT_DATE,
+          Person.AgeGroup.YEARS_55_PLUS,
+          Person.Gender.FEMALE,
+        ) +
+        generateEvents(
+          21L..25L,
+          FIRST_EVENT_DATE,
+          Person.AgeGroup.YEARS_18_TO_34,
+          Person.Gender.MALE,
+        ) +
+        generateEvents(
+          26L..30L,
+          FIRST_EVENT_DATE,
+          Person.AgeGroup.YEARS_35_TO_54,
+          Person.Gender.MALE,
+        )
+
+    val simulator =
+      EdpSimulator(
+        EDP_DATA,
+        "measurementConsumers/differentMcId",
+        measurementConsumersStub,
+        certificatesStub,
+        dataProvidersStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        InMemoryEventQuery(allEvents),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+      )
+
+    runBlocking {
+      simulator.ensureEventGroup(TEST_EVENT_TEMPLATES, SYNTHETIC_DATA_SPEC)
+      val hmssSketch = simulator.generateHmssSketch(
+        31,
+        ByteString.copyFromUtf8("salt"),
+        MEASUREMENT_SPEC,
+        eventGroupSpecs
+      )
+      assertThat(hmssSketch.size).isEqualTo(31)
+      var oneCount: Int = 0
+      var zeroCount: Int = 0
+      for (x in hmssSketch) {
+        if (x == 2) {
+          oneCount++
+        } else {
+          zeroCount++
+        }
+      }
+      assertThat(oneCount).isEqualTo(10)
+      assertThat(zeroCount).isEqualTo(21)
     }
   }
 
