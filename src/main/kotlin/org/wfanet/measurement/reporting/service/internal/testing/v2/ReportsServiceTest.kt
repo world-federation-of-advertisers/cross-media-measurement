@@ -30,7 +30,6 @@ import io.grpc.StatusRuntimeException
 import java.time.Clock
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -635,32 +634,31 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       )
 
     var metricIndex = 0
-    val createMetricsRequests: Flow<CreateMetricRequest> =
-      createdReport.reportingMetricEntriesMap.entries
-        .flatMap { entry ->
-          val reportingSet = createdReportingSetsByExternalId.getValue(entry.key)
+    val createMetricsRequests: List<CreateMetricRequest> =
+      createdReport.reportingMetricEntriesMap.entries.flatMap { entry ->
+        val reportingSet = createdReportingSetsByExternalId.getValue(entry.key)
 
-          entry.value.metricCalculationSpecReportingMetricsList.flatMap {
-            metricCalculationSpecReportingMetrics ->
-            val metricCalculationSpecFilter =
-              createdMetricCalculationSpecsByExternalId
-                .getValue(metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId)
-                .details
-                .filter
-            metricCalculationSpecReportingMetrics.reportingMetricsList.map { reportingMetric ->
-              val externalMetricId = "externalMetricId$metricIndex"
-              metricIndex++
-              buildCreateMetricRequest(
-                createdReport.cmmsMeasurementConsumerId,
-                externalMetricId,
-                reportingSet,
-                reportingMetric,
-                metricCalculationSpecFilter,
-              )
-            }
+        entry.value.metricCalculationSpecReportingMetricsList.flatMap {
+          metricCalculationSpecReportingMetrics ->
+          val metricCalculationSpecFilter =
+            createdMetricCalculationSpecsByExternalId
+              .getValue(metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId)
+              .details
+              .filter
+          metricCalculationSpecReportingMetrics.reportingMetricsList.map { reportingMetric ->
+            val externalMetricId = "externalMetricId$metricIndex"
+            metricIndex++
+            buildCreateMetricRequest(
+              createdReport.cmmsMeasurementConsumerId,
+              externalMetricId,
+              reportingSet,
+              reportingMetric,
+              metricCalculationSpecFilter,
+            )
           }
         }
-        .asFlow()
+      }
+
     val callRpc: suspend (List<CreateMetricRequest>) -> BatchCreateMetricsResponse = { items ->
       metricsService.batchCreateMetrics(
         batchCreateMetricsRequest {
@@ -669,10 +667,10 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         }
       )
     }
-    submitBatchRequests(createMetricsRequests, MAX_BATCH_SIZE, callRpc) { response ->
+    submitBatchRequests(createMetricsRequests.asFlow(), MAX_BATCH_SIZE, callRpc) { response ->
         response.metricsList
       }
-      .toList()
+      .collect {}
 
     val retrievedReport =
       service.getReport(
