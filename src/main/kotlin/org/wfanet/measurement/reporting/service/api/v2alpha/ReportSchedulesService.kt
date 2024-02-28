@@ -691,23 +691,27 @@ class ReportSchedulesService(
             externalReportingSetIdSet.clear()
             response.reportingSetsList
           }
-          .collect {
-            if (it.hasComposite()) {
-              val lhsExternalReportingSetId = it.composite.lhs.externalReportingSetId
-              if (lhsExternalReportingSetId.isNotEmpty()) {
-                if (!retrievedExternalReportingSetIdSet.contains(lhsExternalReportingSetId)) {
-                  externalReportingSetIdSet.add(lhsExternalReportingSetId)
+          .collect { internalReportingSets: List<InternalReportingSet> ->
+            for (internalReportingSet in internalReportingSets) {
+              if (internalReportingSet.hasComposite()) {
+                val lhsExternalReportingSetId =
+                  internalReportingSet.composite.lhs.externalReportingSetId
+                if (lhsExternalReportingSetId.isNotEmpty()) {
+                  if (!retrievedExternalReportingSetIdSet.contains(lhsExternalReportingSetId)) {
+                    externalReportingSetIdSet.add(lhsExternalReportingSetId)
+                  }
                 }
-              }
 
-              val rhsExternalReportingSetId = it.composite.rhs.externalReportingSetId
-              if (rhsExternalReportingSetId.isNotEmpty()) {
-                if (!retrievedExternalReportingSetIdSet.contains(rhsExternalReportingSetId)) {
-                  externalReportingSetIdSet.add(rhsExternalReportingSetId)
+                val rhsExternalReportingSetId =
+                  internalReportingSet.composite.rhs.externalReportingSetId
+                if (rhsExternalReportingSetId.isNotEmpty()) {
+                  if (!retrievedExternalReportingSetIdSet.contains(rhsExternalReportingSetId)) {
+                    externalReportingSetIdSet.add(rhsExternalReportingSetId)
+                  }
                 }
               }
+              reportingSets.add(internalReportingSet)
             }
-            reportingSets.add(it)
           }
       }
 

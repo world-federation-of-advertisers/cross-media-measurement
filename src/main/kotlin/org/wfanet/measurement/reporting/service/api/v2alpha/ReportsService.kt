@@ -35,8 +35,12 @@ import java.time.temporal.Temporal
 import java.time.temporal.TemporalAdjusters
 import java.time.zone.ZoneRulesException
 import kotlin.math.min
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.flatMapMerge
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import org.projectnessie.cel.Env
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
@@ -164,18 +168,44 @@ class ReportsService(
       results.subList(0, min(results.size, listReportsPageToken.pageSize))
 
     // Get metrics.
-    val metricNames: Flow<String> =
-      subResults.flatMap { internalReport -> internalReport.metricNames }.distinct().asFlow()
+    val metricNames: Flow<String> = flow {
+      buildSet {
+        for (internalReport in subResults) {
+          for (reportingMetricEntry in internalReport.reportingMetricEntriesMap) {
+            for (metricCalculationSpecReportingMetrics in
+              reportingMetricEntry.value.metricCalculationSpecReportingMetricsList) {
+              for (reportingMetric in metricCalculationSpecReportingMetrics.reportingMetricsList) {
+                val name =
+                  MetricKey(
+                      internalReport.cmmsMeasurementConsumerId,
+                      reportingMetric.externalMetricId,
+                    )
+                    .toName()
+
+                if (!contains(name)) {
+                  emit(name)
+                  add(name)
+                }
+              }
+            }
+          }
+        }
+      }
+    }
 
     val callRpc: suspend (List<String>) -> BatchGetMetricsResponse = { items ->
       batchGetMetrics(principal.resourceKey.toName(), items)
     }
-    val externalIdToMetricMap: Map<String, Metric> =
+    val externalIdToMetricMap: Map<String, Metric> = buildMap {
       submitBatchRequests(metricNames, BATCH_GET_METRICS_LIMIT, callRpc) { response ->
           response.metricsList
         }
-        .toList()
-        .associateBy { checkNotNull(MetricKey.fromName(it.name)).metricId }
+        .collect { metrics: List<Metric> ->
+          for (metric in metrics) {
+            computeIfAbsent(checkNotNull(MetricKey.fromName(metric.name)).metricId) { metric }
+          }
+        }
+    }
 
     return listReportsResponse {
       reports +=
@@ -230,17 +260,42 @@ class ReportsService(
       }
 
     // Get metrics.
-    val metricNames: Flow<String> = internalReport.metricNames.distinct().asFlow()
+    val metricNames: Flow<String> = flow {
+      buildSet {
+        for (reportingMetricEntry in internalReport.reportingMetricEntriesMap) {
+          for (metricCalculationSpecReportingMetrics in
+            reportingMetricEntry.value.metricCalculationSpecReportingMetricsList) {
+            for (reportingMetric in metricCalculationSpecReportingMetrics.reportingMetricsList) {
+              val name =
+                MetricKey(
+                    internalReport.cmmsMeasurementConsumerId,
+                    reportingMetric.externalMetricId,
+                  )
+                  .toName()
+
+              if (!contains(name)) {
+                emit(name)
+                add(name)
+              }
+            }
+          }
+        }
+      }
+    }
 
     val callRpc: suspend (List<String>) -> BatchGetMetricsResponse = { items ->
       batchGetMetrics(principal.resourceKey.toName(), items)
     }
-    val externalIdToMetricMap: Map<String, Metric> =
+    val externalIdToMetricMap: Map<String, Metric> = buildMap {
       submitBatchRequests(metricNames, BATCH_GET_METRICS_LIMIT, callRpc) { response ->
           response.metricsList
         }
-        .toList()
-        .associateBy { checkNotNull(MetricKey.fromName(it.name)).metricId }
+        .collect { metrics: List<Metric> ->
+          for (metric in metrics) {
+            computeIfAbsent(checkNotNull(MetricKey.fromName(metric.name)).metricId) { metric }
+          }
+        }
+    }
 
     // Convert the internal report to public and return.
     return convertInternalReportToPublic(internalReport, externalIdToMetricMap)
@@ -309,6 +364,7 @@ class ReportsService(
           key.metricCalculationSpecId
         }
       }
+
     val externalIdToMetricCalculationSpecMap: Map<String, InternalMetricCalculationSpec> =
       createExternalIdToMetricCalculationSpecMap(
         parentKey.measurementConsumerId,
@@ -361,34 +417,36 @@ class ReportsService(
 
     // Create metrics.
     val createMetricRequests: Flow<CreateMetricRequest> =
-      internalReport.reportingMetricEntriesMap
-        .flatMap { (reportingSetId, reportingMetricCalculationSpec) ->
-          reportingMetricCalculationSpec.metricCalculationSpecReportingMetricsList.flatMap {
-            metricCalculationSpecReportingMetrics ->
-            metricCalculationSpecReportingMetrics.reportingMetricsList.map {
-              it.toCreateMetricRequest(
-                principal.resourceKey,
-                reportingSetId,
-                externalIdToMetricCalculationSpecMap
-                  .getValue(metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId)
-                  .details
-                  .filter,
-              )
-            }
+      @OptIn(ExperimentalCoroutinesApi::class)
+      internalReport.reportingMetricEntriesMap.entries.asFlow().flatMapMerge { entry ->
+        entry.value.metricCalculationSpecReportingMetricsList.asFlow().flatMapMerge {
+          metricCalculationSpecReportingMetrics ->
+          metricCalculationSpecReportingMetrics.reportingMetricsList.asFlow().map {
+            it.toCreateMetricRequest(
+              principal.resourceKey,
+              entry.key,
+              externalIdToMetricCalculationSpecMap
+                .getValue(metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId)
+                .details
+                .filter,
+            )
           }
         }
-        .asFlow()
+      }
 
     val callRpc: suspend (List<CreateMetricRequest>) -> BatchCreateMetricsResponse = { items ->
       batchCreateMetrics(request.parent, items)
     }
-    val externalIdToMetricMap: Map<String, Metric> =
-      submitBatchRequests(createMetricRequests, BATCH_CREATE_METRICS_LIMIT, callRpc) {
-          response: BatchCreateMetricsResponse ->
+    val externalIdToMetricMap: Map<String, Metric> = buildMap {
+      submitBatchRequests(createMetricRequests, BATCH_CREATE_METRICS_LIMIT, callRpc) { response ->
           response.metricsList
         }
-        .toList()
-        .associateBy { checkNotNull(MetricKey.fromName(it.name)).metricId }
+        .collect { metrics: List<Metric> ->
+          for (metric in metrics) {
+            computeIfAbsent(checkNotNull(MetricKey.fromName(metric.name)).metricId) { metric }
+          }
+        }
+    }
 
     // Once all metrics are created, get the updated internal report with the metric IDs filled.
     val updatedInternalReport =
@@ -482,6 +540,7 @@ class ReportsService(
               it.externalMetricCalculationSpecId
             }
           }
+
         val externalIdToMetricCalculationMap: Map<String, InternalMetricCalculationSpec> =
           createExternalIdToMetricCalculationSpecMap(
             internalReport.cmmsMeasurementConsumerId,
@@ -832,12 +891,6 @@ private val InternalReport.externalMetricIds: List<String>
       reportingMetricCalculationSpec.metricCalculationSpecReportingMetricsList.flatMap {
         it.reportingMetricsList.map { reportingMetric -> reportingMetric.externalMetricId }
       }
-    }
-
-private val InternalReport.metricNames: List<String>
-  get() =
-    externalMetricIds.map { externalMetricId ->
-      MetricKey(cmmsMeasurementConsumerId, externalMetricId).toName()
     }
 
 /** Converts a public [ListReportsRequest] to a [ListReportsPageToken]. */
