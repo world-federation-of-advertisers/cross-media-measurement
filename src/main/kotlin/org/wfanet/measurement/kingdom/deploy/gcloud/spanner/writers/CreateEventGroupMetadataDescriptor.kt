@@ -14,6 +14,9 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.ErrorCode
+import com.google.cloud.spanner.SpannerException
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
@@ -21,6 +24,7 @@ import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptor
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupMetadataDescriptorAlreadyExistsWithTypeException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupMetadataDescriptorReader
@@ -28,9 +32,9 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupMe
 /**
  * Creates a EventGroupMetadataDescriptor in the database.
  *
- * Throws a subclass of [KingdomInternalException] on [execute].
- *
- * @throws [DataProviderNotFoundException] DataProvider not found
+ * Throws one of the following subclasses of [KingdomInternalException] on [execute]:
+ * * [DataProviderNotFoundException]
+ * * [EventGroupMetadataDescriptorAlreadyExistsWithTypeException]
  */
 class CreateEventGroupMetadataDescriptor(
   private val eventGroupMetadataDescriptor: EventGroupMetadataDescriptor
@@ -58,6 +62,14 @@ class CreateEventGroupMetadataDescriptor(
     return createNewEventGroupMetadataDescriptor(dataProviderId)
   }
 
+  override suspend fun handleSpannerException(e: SpannerException): EventGroupMetadataDescriptor? {
+    if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
+      throw EventGroupMetadataDescriptorAlreadyExistsWithTypeException(cause = e)
+    } else {
+      throw e
+    }
+  }
+
   private fun TransactionScope.createNewEventGroupMetadataDescriptor(
     dataProviderId: InternalId
   ): EventGroupMetadataDescriptor {
@@ -76,6 +88,18 @@ class CreateEventGroupMetadataDescriptor(
       setJson("DescriptorDetailsJson" to eventGroupMetadataDescriptor.details)
     }
 
+    val protobufTypeNames: List<String> =
+      ProtoReflection.buildDescriptors(listOf(eventGroupMetadataDescriptor.details.descriptorSet))
+        .map { it.fullName }
+        .filter { it !in WELL_KNOWN_TYPE_NAMES }
+    for (protobufTypeName in protobufTypeNames) {
+      transactionContext.bufferInsertMutation("EventGroupMetadataDescriptorTypes") {
+        set("DataProviderId" to dataProviderId)
+        set("EventGroupMetadataDescriptorId" to internalDescriptorId)
+        set("ProtobufTypeName" to protobufTypeName)
+      }
+    }
+
     return eventGroupMetadataDescriptor
       .toBuilder()
       .setExternalEventGroupMetadataDescriptorId(externalDescriptorId.value)
@@ -85,5 +109,10 @@ class CreateEventGroupMetadataDescriptor(
   override fun ResultScope<EventGroupMetadataDescriptor>.buildResult():
     EventGroupMetadataDescriptor {
     return checkNotNull(this.transactionResult)
+  }
+
+  companion object {
+    private val WELL_KNOWN_TYPE_NAMES: Set<String> =
+      ProtoReflection.WELL_KNOWN_TYPES.flatMap { it.messageTypes }.map { it.fullName }.toSet()
   }
 }

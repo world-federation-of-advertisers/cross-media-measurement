@@ -27,6 +27,7 @@ import org.wfanet.measurement.internal.kingdom.GetEventGroupMetadataDescriptorRe
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.internal.kingdom.UpdateEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupMetadataDescriptorAlreadyExistsWithTypeException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupMetadataDescriptorNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamEventGroupMetadataDescriptors
@@ -45,6 +46,8 @@ class SpannerEventGroupMetadataDescriptorsService(
       return CreateEventGroupMetadataDescriptor(request).execute(client, idGenerator)
     } catch (e: DataProviderNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
+    } catch (e: EventGroupMetadataDescriptorAlreadyExistsWithTypeException) {
+      throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error")
     }
