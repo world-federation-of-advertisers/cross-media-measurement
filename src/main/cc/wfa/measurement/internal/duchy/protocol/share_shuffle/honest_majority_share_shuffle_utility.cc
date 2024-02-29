@@ -295,6 +295,9 @@ absl::StatusOr<CompleteAggregationPhaseResponse> CompleteAggregationPhase(
     adjusted_total = register_count - frequency_histogram[0];
   }
 
+  // Returns error message when the adjusted_total equals to zero. This happens
+  // when frequency_histogram[0] = max(register_count, accumulated_count) which
+  // suggests that the sketchs are empty.
   if (adjusted_total == 0) {
     return absl::InvalidArgumentError(
         "There is neither actual data nor effective noise in the request.");
