@@ -26,9 +26,12 @@ import java.time.Instant
 import java.time.ZoneOffset
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.random.Random
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.CartesianSyntheticEventGroupSpecRecipe
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.DateRange
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SimulatorSyntheticDataSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticCampaignSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpecKt
@@ -36,6 +39,7 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec.SubPopulation
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.VidRange
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.syntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.vidRange
 import org.wfanet.measurement.common.LocalDateProgression
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.rangeTo
@@ -76,7 +80,6 @@ object SyntheticDataGeneration {
         }
 
         for (frequencySpec: SyntheticEventGroupSpec.FrequencySpec in dateSpec.frequencySpecsList) {
-
           check(!frequencySpec.hasOverlaps()) { "The VID ranges should be non-overlapping." }
 
           for (vidRangeSpec: VidRangeSpec in frequencySpec.vidRangeSpecsList) {
@@ -224,7 +227,7 @@ object SyntheticDataGeneration {
   }
 }
 
-private fun SyntheticEventGroupSpec.DateSpec.DateRange.toProgression(): LocalDateProgression {
+private fun DateRange.toProgression(): LocalDateProgression {
   return start.toLocalDate()..endExclusive.toLocalDate().minusDays(1)
 }
 
@@ -293,8 +296,7 @@ fun CartesianSyntheticEventGroupSpecRecipe.toSyntheticEventGroupSpec(
   }
 
   val subPopulations = syntheticPopulationSpec.subPopulationsList
-  val numAvaliableVids =
-    subPopulations.map { it.vidSubRange.endExclusive - it.vidSubRange.start }.sum()
+  val numAvaliableVids = subPopulations.map { it.vidSubRange.size }.sum()
 
   val mappedDateSpecs =
     this.dateSpecsList.map { dateSpec ->
@@ -391,3 +393,169 @@ data class NonPopulationDimension(
   val fieldValue: FieldValue,
   val ratio: Float,
 )
+
+fun SyntheticCampaignSpec.toSyntheticEventGroupSpecs(
+  populationSpec: SyntheticPopulationSpec
+): List<SyntheticEventGroupSpec> {
+  val random = Random(randomSeed)
+
+  check(eventGroupContributionsList.sumOf { it.uniqueReach } >= totalReach) {
+    "total_reach cannot be less than sum of unique_reach across EventGroups"
+  }
+  check(eventGroupContributionsList.sumOf { it.reach } <= totalReach) {
+    "total_reach cannot be more than sum of reach across EventGroups"
+  }
+
+  val allocatedVidsBySubPopulation = SubPopulationAllocations(populationSpec)
+
+  val eventGroupAllocations: List<EventGroupAllocation> =
+    eventGroupContributionsList.map { contributionSpec ->
+      check(contributionSpec.reach >= contributionSpec.uniqueReach) {
+        "reach cannot be less than unique_reach"
+      }
+      val coveredReachRatio = contributionSpec.relativeFrequencyDistributionMap.values.sum()
+      check(coveredReachRatio == 1.0f) {
+        "relative_frequency_distribution only covers ${coveredReachRatio * 100}%"
+      }
+      val coveredSubPopulationRatio =
+        contributionSpec.subPopulationContributionSpecsList.map { it.value.reachRatio }.sum()
+      check(coveredSubPopulationRatio == 1.0f) {
+        "sub_population_contribution_specs only covers ${coveredSubPopulationRatio * 100}%"
+      }
+
+      val subPopulationAllocations:
+        Map<SubPopulation, EventGroupAllocation.SubPopulationAllocation> =
+        populationSpec.subPopulationsList.associateWith { subPopulation ->
+          val allocatedRange = allocatedVidsBySubPopulation[subPopulation]
+          val subPopulationSpec = contributionSpec.findSubPopulationSpec(subPopulation)
+          if (subPopulationSpec == null) {
+            EventGroupAllocation.SubPopulationAllocation(0L, allocatedRange)
+          } else {
+            val minVidCount: Long =
+              (subPopulationSpec.value.reachRatio * contributionSpec.reach).toLong()
+            check(minVidCount <= subPopulation.vidSubRange.size) {
+              "SubPopulation only has ${subPopulation.vidSubRange.size} VIDs; need at least $minVidCount"
+            }
+
+            // Allocate unique VIDs.
+            val uniqueVidCount =
+              (subPopulationSpec.value.reachRatio * contributionSpec.uniqueReach).toLong()
+            val uniqueVidRange =
+              allocatedVidsBySubPopulation.allocate(subPopulation, uniqueVidCount)
+            EventGroupAllocation.SubPopulationAllocation(
+              minVidCount - uniqueVidCount,
+              uniqueVidRange,
+            )
+          }
+        }
+      EventGroupAllocation(contributionSpec, subPopulationAllocations)
+    }
+
+  // Allocate overlapping VIDs.
+  while (!eventGroupAllocations.all { it.fullyAllocated }) {
+    for (subPopulation in populationSpec.subPopulationsList) {
+      val sortedAllocations: List<EventGroupAllocation.SubPopulationAllocation> =
+        buildList {
+            for (eventGroupAllocation in eventGroupAllocations) {
+              add(eventGroupAllocation.subPopulationAllocations.getValue(subPopulation))
+            }
+          }
+          .sortedBy { it.unallocatedOverlappingCount }
+
+      // Allocate in first EventGroup sub-population.
+      val subPopulationAllocation = sortedAllocations.first()
+      val overlappingRange =
+        allocatedVidsBySubPopulation.allocate(
+          subPopulation,
+          subPopulationAllocation.unallocatedOverlappingCount,
+        )
+      subPopulationAllocation.overlappingVidRanges.add(overlappingRange)
+
+      // Overlap with a random number of additional EventGroups.
+      val additionalEventGroupCount = random.nextInt(1, sortedAllocations.size - 1)
+      for (i in 1..additionalEventGroupCount) {
+        sortedAllocations[i].overlappingVidRanges.add(overlappingRange)
+      }
+    }
+  }
+
+  // TODO: Distribute impressions across non-population fields.
+  // TODO: Distribute impressions across dates.
+  // TODO: Generate SyntheticEventGroupSpecs.
+
+  TODO()
+}
+
+private data class EventGroupAllocation(
+  val contributionSpec: SyntheticCampaignSpec.EventGroupContributionSpec,
+  val subPopulationAllocations: Map<SubPopulation, SubPopulationAllocation>,
+) {
+  val fullyAllocated: Boolean
+    get() = subPopulationAllocations.values.all { it.fullyAllocated }
+
+  /** Sub-population VID allocation for a single EventGroup. */
+  data class SubPopulationAllocation(
+    val overlappingCount: Long,
+    val uniqueVidRange: VidRange,
+    val overlappingVidRanges: MutableList<VidRange> = mutableListOf(),
+  ) {
+    val allocatedOverlappingCount: Long
+      get() = overlappingVidRanges.sumOf { it.size }
+
+    val unallocatedOverlappingCount: Long
+      get() = overlappingCount - allocatedOverlappingCount
+
+    val fullyAllocated: Boolean
+      get() = unallocatedOverlappingCount == 0L
+  }
+}
+
+/** Sub-population VID allocations across all EventGroups. */
+private class SubPopulationAllocations(populationSpec: SyntheticPopulationSpec) {
+  private val allocatedVids = mutableMapOf<SubPopulation, VidRange>()
+
+  init {
+    for (subPopulation in populationSpec.subPopulationsList) {
+      allocatedVids[subPopulation] = vidRange {
+        start = subPopulation.vidSubRange.start
+        endExclusive = subPopulation.vidSubRange.start
+      }
+    }
+  }
+
+  fun allocate(subPopulation: SubPopulation, count: Long): VidRange {
+    val existingRange = allocatedVids.getValue(subPopulation)
+    allocatedVids[subPopulation] = existingRange.extended(count)
+    return existingRange.nextRange(count)
+  }
+
+  operator fun get(subPopulation: SubPopulation): VidRange = allocatedVids.getValue(subPopulation)
+}
+
+private val VidRange.size
+  get() = endExclusive - start
+
+/** Returns a range of size [count] starting at the end of this one. */
+private fun VidRange.nextRange(count: Long): VidRange {
+  val source = this
+  return vidRange {
+    start = source.endExclusive
+    endExclusive = source.endExclusive + count
+  }
+}
+
+/** Returns a range that has its end extended by [count]. */
+private fun VidRange.extended(count: Long): VidRange {
+  val source = this
+  return vidRange {
+    start = source.start
+    endExclusive = source.endExclusive + count
+  }
+}
+
+private fun SyntheticCampaignSpec.EventGroupContributionSpec.findSubPopulationSpec(
+  subPopulation: SubPopulation
+) =
+  subPopulationContributionSpecsList.find {
+    it.key.fieldValuesMap == subPopulation.populationFieldsValuesMap
+  }

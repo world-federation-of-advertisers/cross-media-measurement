@@ -29,6 +29,12 @@ message VidRange {
   int64 end_exclusive = 2;
 }
 
+// A range of `Date`s represented with a beginning and exclusive end.
+message DateRange {
+  google.type.Date start = 1;
+  google.type.Date end_exclusive = 2;
+}
+
 // Value of an event field.
 message FieldValue {
   oneof value {
@@ -138,11 +144,6 @@ message SyntheticEventGroupSpec {
 
   // The specification for all frequencies reached for a specific date range.
   message DateSpec {
-    // A range of `Date`s represented with a beginning and exclusive end.
-    message DateRange {
-      google.type.Date start = 1;
-      google.type.Date end_exclusive = 2;
-    }
     // Dates the VIDs were reached.
     DateRange date_range = 1;
 
@@ -195,13 +196,8 @@ message CartesianSyntheticEventGroupSpecRecipe {
 
   // The specification for all frequencies reached for a specific date range.
   message DateSpec {
-    // A range of `Date`s represented with a beginning and exclusive end.
-    message DateRange {
-      google.type.Date start = 1;
-      google.type.Date end_exclusive = 2;
-    }
     // Dates the VIDs were reached.
-    SyntheticEventGroupSpec.DateSpec.DateRange date_range = 1;
+    DateRange date_range = 1;
 
     // This value together with FrequencyDimensionSpecs implies total
     // impressions.
@@ -214,4 +210,60 @@ message CartesianSyntheticEventGroupSpecRecipe {
   }
   // `DateSpec`s should describe non-overlapping date ranges.
   repeated DateSpec date_specs = 3;
+}
+
+// Synthetic generation spec for a logical campaign across multiple EventGroups.
+//
+// Unlike `SyntheticEventGroupSpec`, this is only guaranteed to be deterministic
+// for a given seed and implementation.
+message SyntheticCampaignSpec {
+  DateRange date_range = 1;
+
+  // Total reach across the union of events from all EventGroups.
+  int64 total_reach = 2;
+
+  message SubPopulationContributionSpec {
+    message Key {
+      map<string, FieldValue> field_values = 1;
+    }
+    Key key = 1;
+
+    message Value {
+      float reach_ratio = 1;
+    }
+    Value value = 2;
+  }
+  message NonPopulationContributionSpecValue {
+    FieldValue field_value = 1;
+    float event_ratio = 2;
+  }
+  message NonPopulationContributionSpecValues {
+    // Values for a non-population field, where the sum of all `event_ratio`s
+    // must be 1.
+    repeated NonPopulationContributionSpecValue values = 1;
+  }
+  message EventGroupContributionSpec {
+    // Reach for this EventGroup.
+    int64 reach = 1;
+
+    // Unique reach for this EventGroup.
+    int64 unique_reach = 2;
+
+    // Map of frequency bucket to fraction of `reach` for this EventGroup.
+    map<int32, float> relative_frequency_distribution = 3;
+
+    // Effectively a map of SubPopulationContributionSpec.Key to
+    // SubPopulationContributionSpec.Value. The sum of all `reach_ratio`s must
+    // be 1.
+    repeated SubPopulationContributionSpec sub_population_contribution_specs =
+        4;
+
+    // Map of non-population field name to `NonPopulationContributionSpecValue`.
+    map<string, NonPopulationContributionSpecValues>
+        non_population_contributions = 5;
+  }
+  repeated EventGroupContributionSpec event_group_contributions = 3;
+
+  // Seed for implementation-specific pseudorandom number generator.
+  int64 random_seed = 4;
 }
