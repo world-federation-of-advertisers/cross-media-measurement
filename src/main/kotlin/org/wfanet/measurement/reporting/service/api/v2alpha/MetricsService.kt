@@ -1541,7 +1541,9 @@ class MetricsService(
     internalReportingSet: InternalReportingSet,
   ): InternalCreateMetricRequest {
     return buildInternalCreateMetricRequest(
-      cmmsMeasurementConsumerId, request, mapOf(Pair(request.metric.reportingSet, internalReportingSet))
+      cmmsMeasurementConsumerId,
+      request,
+      mapOf(Pair(request.metric.reportingSet, internalReportingSet)),
     )
   }
 
