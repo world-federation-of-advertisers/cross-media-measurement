@@ -25,7 +25,8 @@ import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.duchy.storage.TinkKeyStore
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
-private val KEY_URI = "kms-tink-key"
+private const val KEY_URI_SCHEME = "fake-kms"
+private const val KEY_URI_PREFIX = "$KEY_URI_SCHEME://"
 private val AEAD_KEY_TEMPLATE = KeyTemplates.get("AES128_GCM")
 
 /**
@@ -38,8 +39,8 @@ object PrivateKeyClientPlaceholder {
     val storageClient = InMemoryStorageClient()
     val encryptionKey = KeysetHandle.generateNew(AEAD_KEY_TEMPLATE)
     val aead = encryptionKey.getPrimitive(Aead::class.java)
-    val kmsClient = FakeKmsClient().also { it.setAead(KEY_URI, aead) }
+    val kmsClient = FakeKmsClient().also { it.setAead(KEY_URI_PREFIX, aead) }
     val tinkKeyStore = TinkKeyStore(storageClient)
-    return TinkKeyStorageProvider(kmsClient).makeKmsPrivateKeyStore(tinkKeyStore, KEY_URI)
+    return TinkKeyStorageProvider(kmsClient).makeKmsPrivateKeyStore(tinkKeyStore, KEY_URI_PREFIX)
   }
 }
