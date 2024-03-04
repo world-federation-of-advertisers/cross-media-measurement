@@ -128,6 +128,7 @@ kt_jvm_library(
 
 kt_jvm_library(
     name = "in_process_duchy",
+    testonly = True,  #TODO(@renjiez): delete testonly after removing PrivateKeyClientPlaceholder.
     srcs = [
         "InProcessDuchy.kt",
     ],
@@ -143,6 +144,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/identity:principal_identity",
         "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/herald",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/herald/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/liquidlegionsv2:reach_frequency_liquid_legions_v2_mill",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/liquidlegionsv2:reach_only_liquid_legions_v2_mill",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:duchy_data_server",

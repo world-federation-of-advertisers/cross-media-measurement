@@ -31,6 +31,7 @@ import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.duchy.daemon.herald.ContinuationTokenManager
 import org.wfanet.measurement.duchy.daemon.herald.Herald
+import org.wfanet.measurement.duchy.daemon.herald.testing.PrivateKeyClientPlaceholder
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.deploy.common.ComputationsServiceFlags
 import org.wfanet.measurement.duchy.deploy.common.SystemApiFlags
@@ -142,6 +143,7 @@ private fun run(@CommandLine.Mixin flags: Flags) {
       internalComputationsClient = internalComputationsClient,
       systemComputationsClient = systemComputationsClient,
       systemComputationParticipantClient = systemComputationParticipantsClient,
+      privateKetStorageClient = PrivateKeyClientPlaceholder.createInstance(),
       continuationTokenManager = continuationTokenManager,
       protocolsSetupConfig =
         flags.protocolsSetupConfig.reader().use {

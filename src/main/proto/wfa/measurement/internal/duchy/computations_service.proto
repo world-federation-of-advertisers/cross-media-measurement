@@ -94,13 +94,15 @@ message CreateComputationRequest {
   ComputationTypeEnum.ComputationType computation_type = 1;
   // The global identifier of the computation,
   string global_computation_id = 2;
+  // The initial stage of the computation.
+  ComputationStage computation_stage = 3;
   // Details specific to the computation stage.
-  ComputationStageDetails stage_details = 3;
+  ComputationStageDetails stage_details = 4;
   // Initial computation details.
   // If set, the protocol should match computation_type.
-  ComputationDetails computation_details = 4;
+  ComputationDetails computation_details = 5;
   // Map of Requisitions to create for this Computation.
-  repeated RequisitionEntry requisitions = 5;
+  repeated RequisitionEntry requisitions = 6;
 }
 
 message CreateComputationResponse {

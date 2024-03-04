@@ -16,6 +16,10 @@ package org.wfanet.measurement.duchy.daemon.herald
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.crypto.tink.Aead
+import com.google.crypto.tink.KeyTemplates
+import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.aead.AeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.Empty
 import com.google.protobuf.kotlin.toByteStringUtf8
@@ -51,6 +55,11 @@ import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams as cmmsDiffe
 import org.wfanet.measurement.api.v2alpha.elGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.common.crypto.PrivateKeyStore
+import org.wfanet.measurement.common.crypto.tink.TinkKeyId
+import org.wfanet.measurement.common.crypto.tink.TinkKeyStorageProvider
+import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
+import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.pack
@@ -67,7 +76,9 @@ import org.wfanet.measurement.duchy.service.internal.computations.newInputBlobMe
 import org.wfanet.measurement.duchy.service.internal.computations.newPassThroughBlobMetadata
 import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.storage.RequisitionStore
+import org.wfanet.measurement.duchy.storage.TinkKeyStore
 import org.wfanet.measurement.duchy.toProtocolStage
+import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationDetailsKt.kingdomComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase as InternalComputationsCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub as InternalComputationsCoroutineStub
@@ -80,13 +91,17 @@ import org.wfanet.measurement.internal.duchy.NoiseMechanism
 import org.wfanet.measurement.internal.duchy.computationDetails
 import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation
+import org.wfanet.measurement.internal.duchy.config.honestMajorityShareShuffleSetupConfig
 import org.wfanet.measurement.internal.duchy.config.liquidLegionsV2SetupConfig
 import org.wfanet.measurement.internal.duchy.config.protocolsSetupConfig
 import org.wfanet.measurement.internal.duchy.deleteComputationRequest
 import org.wfanet.measurement.internal.duchy.differentialPrivacyParams as duchyDifferentialPrivacyParams
+import org.wfanet.measurement.internal.duchy.differentialPrivacyParams
 import org.wfanet.measurement.internal.duchy.elGamalPublicKey as internalElgamalPublicKey
 import org.wfanet.measurement.internal.duchy.getComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.getContinuationTokenResponse
+import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
+import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfigKt.reachNoiseConfig
@@ -94,6 +109,7 @@ import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSket
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2Kt
 import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsSketchParameters
 import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsV2NoiseConfig
+import org.wfanet.measurement.internal.duchy.protocol.shareShuffleSketchParams as protocolShareShuffleSketchParams
 import org.wfanet.measurement.internal.duchy.setContinuationTokenRequest
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
@@ -101,8 +117,10 @@ import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.Computation.MpcProtocolConfig
 import org.wfanet.measurement.system.v1alpha.Computation.MpcProtocolConfig.NoiseMechanism as SystemNoiseMechanism
 import org.wfanet.measurement.system.v1alpha.ComputationKey
+import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.HonestMajorityShareShuffleKt.shareShuffleSketchParams
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.liquidLegionsSketchParams
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.mpcNoise
+import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.honestMajorityShareShuffle
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.system.v1alpha.ComputationKt.mpcProtocolConfig
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineImplBase
@@ -221,6 +239,17 @@ private val RO_LLV2_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
   }
 }
 
+private val HMSS_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
+  honestMajorityShareShuffle = honestMajorityShareShuffle {
+    sketchParams = shareShuffleSketchParams {
+      registerCount = 1000000
+      bytesPerRegister = 2
+      ringModulus = 65535
+    }
+    noiseMechanism = SystemNoiseMechanism.DISCRETE_GAUSSIAN
+  }
+}
+
 private const val AGGREGATOR_DUCHY_ID = "aggregator_duchy"
 private const val AGGREGATOR_HERALD_ID = "aggregator_herald"
 private const val NON_AGGREGATOR_DUCHY_ID = "worker_duchy"
@@ -235,6 +264,10 @@ private val AGGREGATOR_PROTOCOLS_SETUP_CONFIG = protocolsSetupConfig {
     role = RoleInComputation.AGGREGATOR
     externalAggregatorDuchyId = DUCHY_ONE
   }
+  honestMajorityShareShuffle = honestMajorityShareShuffleSetupConfig {
+    role = RoleInComputation.AGGREGATOR
+    externalAggregatorDuchyId = DUCHY_ONE
+  }
 }
 
 private val NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG = protocolsSetupConfig {
@@ -245,6 +278,11 @@ private val NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG = protocolsSetupConfig {
   reachOnlyLiquidLegionsV2 = liquidLegionsV2SetupConfig {
     role = RoleInComputation.NON_AGGREGATOR
     externalAggregatorDuchyId = DUCHY_ONE
+  }
+  honestMajorityShareShuffle = honestMajorityShareShuffleSetupConfig {
+    role = RoleInComputation.FIRST_NON_AGGREGATOR
+    externalAggregatorDuchyId = DUCHY_ONE
+    externalPeerNonAggregatorDuchyId = DUCHY_THREE
   }
 }
 
@@ -271,6 +309,18 @@ private val RO_LLV2_NON_AGGREGATOR_COMPUTATION_DETAILS = computationDetails {
   reachOnlyLiquidLegionsV2 =
     ReachOnlyLiquidLegionsSketchAggregationV2Kt.computationDetails {
       role = RoleInComputation.NON_AGGREGATOR
+    }
+}
+
+private val HMSS_AGGREGATOR_COMPUTATION_DETAILS = computationDetails {
+  honestMajorityShareShuffle =
+    HonestMajorityShareShuffleKt.computationDetails { role = RoleInComputation.AGGREGATOR }
+}
+
+private val HMSS_FIRST_NON_AGGREGATOR_COMPUTATION_DETAILS = computationDetails {
+  honestMajorityShareShuffle =
+    HonestMajorityShareShuffleKt.computationDetails {
+      role = RoleInComputation.FIRST_NON_AGGREGATOR
     }
 }
 
@@ -363,25 +413,27 @@ class HeraldTest {
   fun initHerald() {
     aggregatorHerald =
       Herald(
-        AGGREGATOR_HERALD_ID,
-        AGGREGATOR_DUCHY_ID,
-        internalComputationsStub,
-        systemComputationsStub,
-        systemComputationParticipantsStub,
-        ContinuationTokenManager(continuationTokensStub),
-        AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
-        Clock.systemUTC(),
+        heraldId = AGGREGATOR_HERALD_ID,
+        duchyId = AGGREGATOR_DUCHY_ID,
+        internalComputationsClient = internalComputationsStub,
+        systemComputationsClient = systemComputationsStub,
+        systemComputationParticipantClient = systemComputationParticipantsStub,
+        privateKetStorageClient = getPrivateKeyStorageClient(storageClient),
+        continuationTokenManager = ContinuationTokenManager(continuationTokensStub),
+        protocolsSetupConfig = AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
+        clock = Clock.systemUTC(),
       )
     nonAggregatorHerald =
       Herald(
-        NON_AGGREGATOR_HERALD_ID,
-        NON_AGGREGATOR_DUCHY_ID,
-        internalComputationsStub,
-        systemComputationsStub,
-        systemComputationParticipantsStub,
-        ContinuationTokenManager(continuationTokensStub),
-        NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
-        Clock.systemUTC(),
+        heraldId = NON_AGGREGATOR_HERALD_ID,
+        duchyId = NON_AGGREGATOR_DUCHY_ID,
+        internalComputationsClient = internalComputationsStub,
+        systemComputationsClient = systemComputationsStub,
+        systemComputationParticipantClient = systemComputationParticipantsStub,
+        privateKetStorageClient = getPrivateKeyStorageClient(storageClient),
+        continuationTokenManager = ContinuationTokenManager(continuationTokensStub),
+        protocolsSetupConfig = NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
+        clock = Clock.systemUTC(),
       )
   }
 
@@ -691,6 +743,189 @@ class HeraldTest {
                   ellipticCurveId = 415
                 }
             }
+        }
+      )
+  }
+
+  @Test
+  fun `syncStatuses creates new hmss computation for non aggregator`() = runTest {
+    val confirmingKnown =
+      buildComputationAtKingdom("1", Computation.State.PENDING_REQUISITION_PARAMS)
+
+    val systemApiRequisitions1 =
+      REQUISITION_1.toSystemRequisition("2", Requisition.State.UNFULFILLED, DUCHY_ONE)
+    val systemApiRequisitions2 =
+      REQUISITION_2.toSystemRequisition("2", Requisition.State.UNFULFILLED, DUCHY_TWO)
+    val confirmingUnknown =
+      buildComputationAtKingdom(
+        "2",
+        Computation.State.PENDING_REQUISITION_PARAMS,
+        systemApiRequisitions = listOf(systemApiRequisitions1, systemApiRequisitions2),
+        mpcProtocolConfig = HMSS_MPC_PROTOCOL_CONFIG,
+      )
+    mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
+
+    fakeComputationDatabase.addComputation(
+      globalId = confirmingKnown.key.computationId,
+      stage = HonestMajorityShareShuffle.Stage.INITIALIZED.toProtocolStage(),
+      computationDetails = HMSS_FIRST_NON_AGGREGATOR_COMPUTATION_DETAILS,
+    )
+
+    nonAggregatorHerald.syncStatuses()
+
+    verifyBlocking(continuationTokensService, atLeastOnce()) {
+      setContinuationToken(eq(setContinuationTokenRequest { this.token = "2" }))
+    }
+    assertThat(
+        fakeComputationDatabase.mapValues { (_, fakeComputation) ->
+          fakeComputation.computationStage
+        }
+      )
+      .containsExactly(
+        confirmingKnown.key.computationId.toLong(),
+        HonestMajorityShareShuffle.Stage.INITIALIZED.toProtocolStage(),
+        confirmingUnknown.key.computationId.toLong(),
+        HonestMajorityShareShuffle.Stage.INITIALIZED.toProtocolStage(),
+      )
+
+    assertThat(
+        fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.requisitionsList
+      )
+      .containsExactly(
+        REQUISITION_1.toRequisitionMetadata(Requisition.State.UNFULFILLED),
+        REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED),
+      )
+    val computationDetails =
+      fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.computationDetails
+    assertThat(computationDetails)
+      .ignoringFields(ComputationDetails.HONEST_MAJORITY_SHARE_SHUFFLE_FIELD_NUMBER)
+      .isEqualTo(
+        computationDetails {
+          blobsStoragePrefix = "computation-blob-storage/2"
+          kingdomComputation = kingdomComputationDetails {
+            publicApiVersion = PUBLIC_API_VERSION
+            measurementSpec = SERIALIZED_MEASUREMENT_SPEC
+            measurementPublicKey = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
+            participantCount = 3
+          }
+        }
+      )
+    val hmssDetails = computationDetails!!.honestMajorityShareShuffle
+    assertThat(hmssDetails)
+      .ignoringFields(
+        HonestMajorityShareShuffle.ComputationDetails.COMMON_RANDOM_SEED_FIELD_NUMBER,
+        HonestMajorityShareShuffle.ComputationDetails.ENCRYPTION_KEY_PAIR_FIELD_NUMBER,
+      )
+      .isEqualTo(
+        HonestMajorityShareShuffleKt.computationDetails {
+          role = RoleInComputation.FIRST_NON_AGGREGATOR
+          parameters =
+            HonestMajorityShareShuffleKt.ComputationDetailsKt.parameters {
+              maximumFrequency = 10
+              sketchParams = protocolShareShuffleSketchParams {
+                registerCount = 1000000
+                bytesPerRegister = 2
+                maximumCombinedFrequency = 20
+                ringModulus = 65535
+              }
+              dpParams = differentialPrivacyParams {
+                epsilon = 2.1
+                delta = 2.2
+              }
+              noiseMechanism = NoiseMechanism.DISCRETE_GAUSSIAN
+            }
+          participants += listOf(DUCHY_ONE, DUCHY_TWO, DUCHY_THREE)
+        }
+      )
+    assertThat(hmssDetails.commonRandomSeed).isNotEmpty()
+    assertThat(hmssDetails.hasEncryptionKeyPair()).isTrue()
+    val privateKeyHandle = privateKeyC
+  }
+
+  @Test
+  fun `syncStatuses creates new hmss computation for aggregator`() = runTest {
+    val confirmingKnown =
+      buildComputationAtKingdom("1", Computation.State.PENDING_REQUISITION_PARAMS)
+
+    val systemApiRequisitions1 =
+      REQUISITION_1.toSystemRequisition("2", Requisition.State.UNFULFILLED, DUCHY_ONE)
+    val systemApiRequisitions2 =
+      REQUISITION_2.toSystemRequisition("2", Requisition.State.UNFULFILLED, DUCHY_TWO)
+    val confirmingUnknown =
+      buildComputationAtKingdom(
+        "2",
+        Computation.State.PENDING_REQUISITION_PARAMS,
+        systemApiRequisitions = listOf(systemApiRequisitions1, systemApiRequisitions2),
+        mpcProtocolConfig = HMSS_MPC_PROTOCOL_CONFIG,
+      )
+    mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
+
+    fakeComputationDatabase.addComputation(
+      globalId = confirmingKnown.key.computationId,
+      stage = HonestMajorityShareShuffle.Stage.WAIT_ON_AGGREGATION_INPUT.toProtocolStage(),
+      computationDetails = HMSS_FIRST_NON_AGGREGATOR_COMPUTATION_DETAILS,
+    )
+
+    aggregatorHerald.syncStatuses()
+
+    verifyBlocking(continuationTokensService, atLeastOnce()) {
+      setContinuationToken(eq(setContinuationTokenRequest { this.token = "2" }))
+    }
+    assertThat(
+        fakeComputationDatabase.mapValues { (_, fakeComputation) ->
+          fakeComputation.computationStage
+        }
+      )
+      .containsExactly(
+        confirmingKnown.key.computationId.toLong(),
+        HonestMajorityShareShuffle.Stage.WAIT_ON_AGGREGATION_INPUT.toProtocolStage(),
+        confirmingUnknown.key.computationId.toLong(),
+        HonestMajorityShareShuffle.Stage.WAIT_ON_AGGREGATION_INPUT.toProtocolStage(),
+      )
+
+    assertThat(
+        fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.requisitionsList
+      )
+      .containsExactly(
+        REQUISITION_1.toRequisitionMetadata(Requisition.State.UNFULFILLED),
+        REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED),
+      )
+    val computationDetails =
+      fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.computationDetails
+    assertThat(computationDetails)
+      .ignoringFields(ComputationDetails.HONEST_MAJORITY_SHARE_SHUFFLE_FIELD_NUMBER)
+      .isEqualTo(
+        computationDetails {
+          blobsStoragePrefix = "computation-blob-storage/2"
+          kingdomComputation = kingdomComputationDetails {
+            publicApiVersion = PUBLIC_API_VERSION
+            measurementSpec = SERIALIZED_MEASUREMENT_SPEC
+            measurementPublicKey = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
+            participantCount = 3
+          }
+        }
+      )
+    val hmssDetails = computationDetails!!.honestMajorityShareShuffle
+    assertThat(hmssDetails)
+      .isEqualTo(
+        HonestMajorityShareShuffleKt.computationDetails {
+          role = RoleInComputation.AGGREGATOR
+          parameters =
+            HonestMajorityShareShuffleKt.ComputationDetailsKt.parameters {
+              maximumFrequency = 10
+              sketchParams = protocolShareShuffleSketchParams {
+                registerCount = 1000000
+                bytesPerRegister = 2
+                maximumCombinedFrequency = 20
+                ringModulus = 65535
+              }
+              dpParams = differentialPrivacyParams {
+                epsilon = 2.1
+                delta = 2.2
+              }
+              noiseMechanism = NoiseMechanism.DISCRETE_GAUSSIAN
+            }
+          participants += listOf(DUCHY_ONE, DUCHY_TWO, DUCHY_THREE)
         }
       )
   }
@@ -1076,9 +1311,38 @@ class HeraldTest {
   }
 
   @Test
+  fun `syncStatuses starts hmss computations`() = runTest {
+    val waitingToStart =
+      buildComputationAtKingdom(COMPUTATION_GLOBAL_ID, Computation.State.PENDING_COMPUTATION)
+    mockStreamActiveComputationsToReturn(waitingToStart)
+
+    fakeComputationDatabase.addComputation(
+      globalId = waitingToStart.key.computationId,
+      stage = HonestMajorityShareShuffle.Stage.WAIT_TO_START.toProtocolStage(),
+      computationDetails = HMSS_FIRST_NON_AGGREGATOR_COMPUTATION_DETAILS,
+    )
+
+    nonAggregatorHerald.syncStatuses()
+
+    assertThat(
+        fakeComputationDatabase.mapValues { (_, fakeComputation) ->
+          fakeComputation.computationStage
+        }
+      )
+      .containsExactly(
+        waitingToStart.key.computationId.toLong(),
+        HonestMajorityShareShuffle.Stage.SETUP_PHASE.toProtocolStage(),
+      )
+  }
+
+  @Test
   fun `syncStatuses starts computations with retries`() = runBlocking {
     val computation =
-      buildComputationAtKingdom(COMPUTATION_GLOBAL_ID, Computation.State.PENDING_COMPUTATION)
+      buildComputationAtKingdom(
+        COMPUTATION_GLOBAL_ID,
+        Computation.State.PENDING_COMPUTATION,
+        mpcProtocolConfig = HMSS_MPC_PROTOCOL_CONFIG,
+      )
     val streamActiveComputationsJob = Job()
     systemComputations.stub {
       onBlocking { streamActiveComputations(any()) }
@@ -1136,13 +1400,14 @@ class HeraldTest {
   fun `syncStatuses gives up on starting computations`() = runTest {
     val heraldWithOneRetry =
       Herald(
-        NON_AGGREGATOR_HERALD_ID,
-        NON_AGGREGATOR_DUCHY_ID,
-        internalComputationsStub,
-        systemComputationsStub,
-        systemComputationParticipantsStub,
-        ContinuationTokenManager(continuationTokensStub),
-        NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
+        heraldId = NON_AGGREGATOR_HERALD_ID,
+        duchyId = NON_AGGREGATOR_DUCHY_ID,
+        internalComputationsClient = internalComputationsStub,
+        systemComputationsClient = systemComputationsStub,
+        systemComputationParticipantClient = systemComputationParticipantsStub,
+        privateKetStorageClient = getPrivateKeyStorageClient(storageClient),
+        continuationTokenManager = ContinuationTokenManager(continuationTokensStub),
+        protocolsSetupConfig = NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
         Clock.systemUTC(),
         maxAttempts = 2,
       )
@@ -1206,14 +1471,15 @@ class HeraldTest {
   fun `syncStatuses fails computation for attempts-exhausted error`() = runTest {
     val herald =
       Herald(
-        AGGREGATOR_HERALD_ID,
-        AGGREGATOR_DUCHY_ID,
-        mockBasedInternalComputationsStub,
-        systemComputationsStub,
-        systemComputationParticipantsStub,
-        ContinuationTokenManager(continuationTokensStub),
-        AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
-        Clock.systemUTC(),
+        heraldId = AGGREGATOR_HERALD_ID,
+        duchyId = AGGREGATOR_DUCHY_ID,
+        internalComputationsClient = mockBasedInternalComputationsStub,
+        systemComputationsClient = systemComputationsStub,
+        systemComputationParticipantClient = systemComputationParticipantsStub,
+        privateKetStorageClient = getPrivateKeyStorageClient(storageClient),
+        continuationTokenManager = ContinuationTokenManager(continuationTokensStub),
+        protocolsSetupConfig = AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
+        clock = Clock.systemUTC(),
         deletableComputationStates = setOf(Computation.State.SUCCEEDED, Computation.State.FAILED),
       )
     // Set up a new herald with mock services to raise certain exception
@@ -1259,14 +1525,15 @@ class HeraldTest {
   fun `syncStatuses calls deleteComputation api for Computations in terminated states`() = runTest {
     val herald =
       Herald(
-        AGGREGATOR_HERALD_ID,
-        AGGREGATOR_DUCHY_ID,
-        mockBasedInternalComputationsStub,
-        systemComputationsStub,
-        systemComputationParticipantsStub,
-        ContinuationTokenManager(continuationTokensStub),
-        AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
-        Clock.systemUTC(),
+        heraldId = AGGREGATOR_HERALD_ID,
+        duchyId = AGGREGATOR_DUCHY_ID,
+        internalComputationsClient = mockBasedInternalComputationsStub,
+        systemComputationsClient = systemComputationsStub,
+        systemComputationParticipantClient = systemComputationParticipantsStub,
+        privateKetStorageClient = getPrivateKeyStorageClient(storageClient),
+        continuationTokenManager = ContinuationTokenManager(continuationTokensStub),
+        protocolsSetupConfig = AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
+        clock = Clock.systemUTC(),
         deletableComputationStates = setOf(Computation.State.SUCCEEDED, Computation.State.FAILED),
       )
 
@@ -1334,6 +1601,23 @@ class HeraldTest {
   private fun Computation.continuationToken(): String = key.computationId
 
   companion object {
+    init {
+      AeadConfig.register()
+    }
+
+    private const val KEK_URI = FakeKmsClient.KEY_URI_PREFIX + "-key"
+    private val AEAD_KEY_TEMPLATE = KeyTemplates.get("AES128_GCM")
+    private val KEY_ENCRYPTION_KEY = KeysetHandle.generateNew(AEAD_KEY_TEMPLATE)
+    private val aead = KEY_ENCRYPTION_KEY.getPrimitive(Aead::class.java)
+    private val kmsClient = FakeKmsClient().also { it.setAead(KEK_URI, aead) }
+
+    private fun getPrivateKeyStorageClient(
+      storageClient: StorageClient
+    ): PrivateKeyStore<TinkKeyId, TinkPrivateKeyHandle> {
+      val tinkKeyStore = TinkKeyStore(storageClient)
+      return TinkKeyStorageProvider(kmsClient).makeKmsPrivateKeyStore(tinkKeyStore, KEK_URI)
+    }
+
     private val ALL_COMPUTATION_PARTICIPANTS =
       listOf(
         computationParticipant {

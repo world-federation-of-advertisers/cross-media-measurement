@@ -126,7 +126,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.75.0",
+    version = "0.75.1",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(

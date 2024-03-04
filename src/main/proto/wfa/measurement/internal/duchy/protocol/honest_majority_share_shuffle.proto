@@ -18,6 +18,7 @@ package wfa.measurement.internal.duchy.protocol;
 
 import "wfa/measurement/internal/duchy/config/protocols_setup_config.proto";
 import "wfa/measurement/internal/duchy/crypto.proto";
+import "wfa/measurement/internal/duchy/differential_privacy.proto";
 import "wfa/measurement/internal/duchy/noise_mechanism.proto";
 import "wfa/measurement/internal/duchy/protocol/share_shuffle_sketch_params.proto";
 
@@ -110,8 +111,10 @@ message HonestMajorityShareShuffle {
       int32 maximum_frequency = 1;
       // Parameters for secret sharing sketches.
       ShareShuffleSketchParams sketch_params = 2;
+      // Differential privacy parameters for noise generation.
+      DifferentialPrivacyParams dp_params = 3;
       // Noise mechanism used for generating noise.
-      NoiseMechanism noise_mechanism = 3;
+      NoiseMechanism noise_mechanism = 4;
     }
     Parameters parameters = 2;
 

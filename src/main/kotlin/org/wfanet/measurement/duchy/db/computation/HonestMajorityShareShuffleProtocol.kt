@@ -26,7 +26,6 @@ import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage.COMPLETE
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage.INITIALIZED
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage.SETUP_PHASE
-import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage.SET_PARTICIPANT_PARAMS_PHASE
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage.SHUFFLE_PHASE
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage.STAGE_UNSPECIFIED
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage.UNRECOGNIZED
@@ -93,12 +92,14 @@ object HonestMajorityShareShuffleProtocol {
         details: HonestMajorityShareShuffle.ComputationDetails,
       ): Boolean {
         return when (stage) {
-          INITIALIZED,
+          WAIT_ON_SHUFFLE_INPUT_PHASE_ONE -> details.role == RoleInComputation.FIRST_NON_AGGREGATOR
           WAIT_TO_START,
-          WAIT_ON_SHUFFLE_INPUT_PHASE_ONE,
-          WAIT_ON_SHUFFLE_INPUT_PHASE_TWO,
+          WAIT_ON_SHUFFLE_INPUT_PHASE_TWO -> details.role == RoleInComputation.SECOND_NON_AGGREGATOR
+          INITIALIZED,
           SETUP_PHASE,
-          SHUFFLE_PHASE -> details.role == RoleInComputation.NON_AGGREGATOR
+          SHUFFLE_PHASE ->
+            details.role == RoleInComputation.FIRST_NON_AGGREGATOR ||
+              details.role == RoleInComputation.SECOND_NON_AGGREGATOR
           WAIT_ON_AGGREGATION_INPUT,
           AGGREGATION_PHASE -> details.role == RoleInComputation.AGGREGATOR
           COMPLETE -> true /* Stage can be executed at either AGGREGATOR or NON_AGGREGATOR */
@@ -112,7 +113,6 @@ object HonestMajorityShareShuffleProtocol {
       ): AfterTransition {
         return when (stage) {
           // Stages of computation mapping some number of inputs to single output.
-          SET_PARTICIPANT_PARAMS_PHASE,
           SETUP_PHASE,
           SHUFFLE_PHASE,
           AGGREGATION_PHASE -> AfterTransition.ADD_UNCLAIMED_TO_QUEUE

@@ -28,6 +28,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.time.delay
 import org.wfanet.measurement.common.ExponentialBackoff
+import org.wfanet.measurement.common.crypto.PrivateKeyStore
+import org.wfanet.measurement.common.crypto.tink.TinkKeyId
+import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.duchy.daemon.utils.key
@@ -72,6 +75,7 @@ class Herald(
   private val internalComputationsClient: ComputationsCoroutineStub,
   private val systemComputationsClient: SystemComputationsCoroutineStub,
   private val systemComputationParticipantClient: SystemComputationParticipantsCoroutineStub,
+  private val privateKetStorageClient: PrivateKeyStore<TinkKeyId, TinkPrivateKeyHandle>,
   private val continuationTokenManager: ContinuationTokenManager,
   private val protocolsSetupConfig: ProtocolsSetupConfig,
   private val clock: Clock,
@@ -199,6 +203,7 @@ class Herald(
     val globalId: String = computation.key.computationId
     logger.fine("[id=$globalId]: Processing updated GlobalComputation")
     val state = computation.state
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     when (state) {
       // Creates a new computation if it is not already present in the database.
       State.PENDING_REQUISITION_PARAMS -> createComputation(computation)
@@ -212,7 +217,9 @@ class Herald(
         failComputationAtDuchy(computation)
       }
       State.SUCCEEDED -> {}
-      else -> logger.warning("Unexpected global computation state '$state'")
+      State.PENDING_REQUISITION_FULFILLMENT,
+      State.STATE_UNSPECIFIED,
+      State.UNRECOGNIZED -> logger.warning("Unexpected global computation state '$state'")
     }
     if (state in deletableComputationStates) {
       deleteComputationAtDuchy(computation)
@@ -225,6 +232,7 @@ class Herald(
     val globalId: String = systemComputation.key.computationId
     logger.info("[id=$globalId] Creating Computation...")
     try {
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (systemComputation.mpcProtocolConfig.protocolCase) {
         Computation.MpcProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2 ->
           LiquidLegionsV2Starter.createComputation(
@@ -240,7 +248,17 @@ class Herald(
             protocolsSetupConfig.reachOnlyLiquidLegionsV2,
             blobStorageBucket,
           )
-        else -> error("Unknown or unsupported protocol for creation.")
+        Computation.MpcProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+          HonestMajorityShareShuffleStarter.createComputation(
+            internalComputationsClient,
+            systemComputation,
+            protocolsSetupConfig.honestMajorityShareShuffle,
+            blobStorageBucket,
+            privateKetStorageClient,
+          )
+        }
+        Computation.MpcProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET ->
+          error("Unknown or unsupported protocol for creation.")
       }
       logger.info("[id=$globalId]: Created Computation")
     } catch (e: StatusException) {
@@ -296,6 +314,7 @@ class Herald(
     runWithRetries(systemComputation) {
       logger.info("[id=$globalId]: Confirming Participant...")
       val token = internalComputationsClient.getComputationToken(globalId.toGetTokenRequest()).token
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (token.computationDetails.protocolCase) {
         ComputationDetails.ProtocolCase.LIQUID_LEGIONS_V2 ->
           LiquidLegionsV2Starter.updateRequisitionsAndKeySets(
@@ -311,7 +330,9 @@ class Herald(
             systemComputation,
             protocolsSetupConfig.reachOnlyLiquidLegionsV2.externalAggregatorDuchyId,
           )
-        else -> error("Unknown or unsupported protocol.")
+        ComputationDetails.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
+        ComputationDetails.ProtocolCase.PROTOCOL_NOT_SET ->
+          error("Unknown or unsupported protocol.")
       }
       logger.info("[id=$globalId]: Confirmed Computation")
     }
@@ -323,12 +344,17 @@ class Herald(
     runWithRetries(systemComputation) {
       logger.info("[id=$globalId]: Starting Computation...")
       val token = internalComputationsClient.getComputationToken(globalId.toGetTokenRequest()).token
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (token.computationDetails.protocolCase) {
         ComputationDetails.ProtocolCase.LIQUID_LEGIONS_V2 ->
           LiquidLegionsV2Starter.startComputation(token, internalComputationsClient)
         ComputationDetails.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
           ReachOnlyLiquidLegionsV2Starter.startComputation(token, internalComputationsClient)
-        else -> error("Unknown or unsupported protocol.")
+        ComputationDetails.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+          HonestMajorityShareShuffleStarter.startComputation(token, internalComputationsClient)
+        }
+        ComputationDetails.ProtocolCase.PROTOCOL_NOT_SET ->
+          error("Unknown or unsupported protocol.")
       }
       logger.info("[id=$globalId]: Started Computation")
     }
@@ -379,19 +405,25 @@ class Herald(
       (token.computationDetails.hasLiquidLegionsV2() &&
         token.computationStage == LiquidLegionsV2Starter.TERMINAL_STAGE) ||
         (token.computationDetails.hasReachOnlyLiquidLegionsV2() &&
-          token.computationStage == ReachOnlyLiquidLegionsV2Starter.TERMINAL_STAGE)
+          token.computationStage == ReachOnlyLiquidLegionsV2Starter.TERMINAL_STAGE) ||
+        (token.computationDetails.hasHonestMajorityShareShuffle() &&
+          token.computationStage == HonestMajorityShareShuffleStarter.TERMINAL_STAGE)
     ) {
       return
     }
 
     val finishRequest = finishComputationRequest {
       this.token = token
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       endingComputationStage =
         when (token.computationDetails.protocolCase) {
           ComputationDetails.ProtocolCase.LIQUID_LEGIONS_V2 -> LiquidLegionsV2Starter.TERMINAL_STAGE
           ComputationDetails.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
             ReachOnlyLiquidLegionsV2Starter.TERMINAL_STAGE
-          else -> error { "Unknown or unsupported protocol." }
+          ComputationDetails.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
+            HonestMajorityShareShuffleStarter.TERMINAL_STAGE
+          ComputationDetails.ProtocolCase.PROTOCOL_NOT_SET ->
+            error { "Unknown or unsupported protocol." }
         }
       reason = ComputationDetails.CompletedReason.FAILED
     }
