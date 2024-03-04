@@ -81,12 +81,3 @@ module "worker1_duchy" {
   spanner_instance = google_spanner_instance.spanner_instance
   storage_bucket   = module.storage.storage_bucket
 }
-
-module "worker2_duchy" {
-  source = "../modules/duchy"
-
-  name             = "worker2"
-  database_name    = "worker2_duchy_computations"
-  spanner_instance = google_spanner_instance.spanner_instance
-  storage_bucket   = module.storage.storage_bucket
-}

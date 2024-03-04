@@ -95,6 +95,7 @@ jobs:
   # This isn't technically part of the CMMS, but we do it here for simplicity.
   update-reporting:
     uses: ./.github/workflows/configure-reporting.yml
+    secrets: inherit
     needs: [publish-images, terraform]
     with:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
@@ -103,6 +104,7 @@ jobs:
 
   update-reporting-v2:
     uses: ./.github/workflows/configure-reporting-v2.yml
+    secrets: inherit
     needs: [ publish-images, terraform ]
     with:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
