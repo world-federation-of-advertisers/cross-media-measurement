@@ -1396,7 +1396,7 @@ class MetricsService(
       buildInternalCreateMetricRequest(
         principal.resourceKey.measurementConsumerId,
         request,
-        batchGetReportingSetsResponse.reportingSetsList.associateBy { request.metric.reportingSet },
+        batchGetReportingSetsResponse.reportingSetsList.first(),
       )
 
     val internalMetric =
@@ -1532,6 +1532,17 @@ class MetricsService(
 
     // Convert the internal metric to public and return it.
     return batchCreateMetricsResponse { metrics += internalMetrics.map { it.toMetric(variances) } }
+  }
+
+  /** Builds an [InternalCreateMetricRequest]. */
+  private fun buildInternalCreateMetricRequest(
+    cmmsMeasurementConsumerId: String,
+    request: CreateMetricRequest,
+    internalReportingSet: InternalReportingSet,
+  ): InternalCreateMetricRequest {
+    return buildInternalCreateMetricRequest(
+      cmmsMeasurementConsumerId, request, mapOf(Pair(request.metric.reportingSet, internalReportingSet))
+    )
   }
 
   /** Builds an [InternalCreateMetricRequest]. */
