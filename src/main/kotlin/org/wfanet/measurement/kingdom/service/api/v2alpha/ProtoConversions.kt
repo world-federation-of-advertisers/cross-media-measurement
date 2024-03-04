@@ -162,9 +162,9 @@ val DEFAULT_DIRECT_REACH_PROTOCOL_CONFIG: ProtocolConfig.Direct = direct {
 }
 
 /**
- * Default direct reach-and-freqeuncy protocol config for backward compatibility.
+ * Default direct reach-and-frequency protocol config for backward compatibility.
  *
- * Used when existing direct protocol configs of reach-and-freqeuncy measurements don't have
+ * Used when existing direct protocol configs of reach-and-frequency measurements don't have
  * methodologies.
  */
 val DEFAULT_DIRECT_REACH_AND_FREQUENCY_PROTOCOL_CONFIG: ProtocolConfig.Direct = direct {
@@ -838,7 +838,7 @@ fun ModelShard.toInternal(
   }
 }
 
-/** Converts an internal [InternaPopulation] to a public [Population]. */
+/** Converts an internal [InternalPopulation] to a public [Population]. */
 fun InternalPopulation.toPopulation(): Population {
   val source = this
 

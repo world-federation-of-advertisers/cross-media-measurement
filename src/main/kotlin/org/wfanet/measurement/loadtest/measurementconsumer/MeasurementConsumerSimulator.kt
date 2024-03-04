@@ -515,6 +515,13 @@ class MeasurementConsumerSimulator(
     val measurementComputationInfo: MeasurementComputationInfo =
       buildMeasurementComputationInfo(protocol, result.impression.noiseMechanism)
 
+    val maxFrequencyPerUser =
+      if (result.impression.deterministicCount.customMaximumFrequencyPerUser != 0) {
+        result.impression.deterministicCount.customMaximumFrequencyPerUser
+      } else {
+        measurementSpec.impression.maximumFrequencyPerUser
+      }
+
     return VariancesImpl.computeMeasurementVariance(
       measurementComputationInfo.methodology,
       ImpressionMeasurementVarianceParams(
@@ -523,7 +530,7 @@ class MeasurementConsumerSimulator(
           ImpressionMeasurementParams(
             vidSamplingInterval = measurementSpec.vidSamplingInterval.toStatsVidSamplingInterval(),
             dpParams = measurementSpec.impression.privacyParams.toNoiserDpParams(),
-            maximumFrequencyPerUser = measurementSpec.impression.maximumFrequencyPerUser,
+            maximumFrequencyPerUser = maxFrequencyPerUser,
             noiseMechanism = measurementComputationInfo.noiseMechanism.toStatsNoiseMechanism(),
           ),
       ),

@@ -2094,6 +2094,13 @@ fun buildWeightedImpressionMeasurementVarianceParamsPerResult(
         return@map null
       }
 
+    val maxFrequencyPerUser =
+      if (impressionResult.deterministicCount.customMaximumFrequencyPerUser != 0) {
+        impressionResult.deterministicCount.customMaximumFrequencyPerUser
+      } else {
+        metricSpec.impressionCount.maximumFrequencyPerUser
+      }
+
     WeightedImpressionMeasurementVarianceParams(
       binaryRepresentation = weightedMeasurement.binaryRepresentation,
       weight = weightedMeasurement.weight,
@@ -2104,7 +2111,7 @@ fun buildWeightedImpressionMeasurementVarianceParamsPerResult(
             ImpressionMeasurementParams(
               vidSamplingInterval = metricSpec.vidSamplingInterval.toStatsVidSamplingInterval(),
               dpParams = metricSpec.impressionCount.privacyParams.toNoiserDpParams(),
-              maximumFrequencyPerUser = metricSpec.impressionCount.maximumFrequencyPerUser,
+              maximumFrequencyPerUser = maxFrequencyPerUser,
               noiseMechanism = statsNoiseMechanism,
             ),
         ),

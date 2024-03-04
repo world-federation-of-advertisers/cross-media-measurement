@@ -2372,7 +2372,7 @@ class EdpSimulatorTest {
   }
 
   @Test
-  fun `fails to fulfill impression Requisition when no direct noise mechanism is picked by EDP`() {
+  fun `fails to fulfill impression Requisition when no direct noise mechanism options are provided by Kingdom`() {
     val noiseMechanismOption = ProtocolConfig.NoiseMechanism.NONE
     val requisition =
       REQUISITION.copy {
@@ -2435,7 +2435,7 @@ class EdpSimulatorTest {
   }
 
   @Test
-  fun `fails to fulfill impression Requisition when no direct methodology is picked by EDP`() {
+  fun `fails to fulfill impression Requisition when no direct methodologies are provided by Kingdom`() {
     val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
     val requisition =
       REQUISITION.copy {
