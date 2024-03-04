@@ -839,7 +839,6 @@ class HeraldTest {
       )
     assertThat(hmssDetails.commonRandomSeed).isNotEmpty()
     assertThat(hmssDetails.hasEncryptionKeyPair()).isTrue()
-    val privateKeyHandle = privateKeyC
   }
 
   @Test
