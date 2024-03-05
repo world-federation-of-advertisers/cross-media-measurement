@@ -43,7 +43,6 @@ import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams as NoiserDpParams
 import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodology as InternalCustomDirectMethodology
 import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodologyKt as InternalCustomDirectMethodologyKt
-import org.wfanet.measurement.internal.reporting.v2.DeterministicCount
 import org.wfanet.measurement.internal.reporting.v2.DeterministicCountDistinct
 import org.wfanet.measurement.internal.reporting.v2.DeterministicDistribution
 import org.wfanet.measurement.internal.reporting.v2.DeterministicSum
@@ -69,6 +68,7 @@ import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.TimeIntervals as InternalTimeIntervals
 import org.wfanet.measurement.internal.reporting.v2.customDirectMethodology
+import org.wfanet.measurement.internal.reporting.v2.deterministicCount
 import org.wfanet.measurement.internal.reporting.v2.liquidLegionsCountDistinct
 import org.wfanet.measurement.internal.reporting.v2.liquidLegionsDistribution
 import org.wfanet.measurement.internal.reporting.v2.liquidLegionsSketchParams
@@ -467,7 +467,9 @@ private fun Measurement.Result.Impression.toInternal(
           customDirectMethodology = source.customDirectMethodology.toInternal()
         }
         Measurement.Result.Impression.MethodologyCase.DETERMINISTIC_COUNT -> {
-          deterministicCount = DeterministicCount.getDefaultInstance()
+          deterministicCount = deterministicCount {
+            customMaximumFrequencyPerUser = source.deterministicCount.customMaximumFrequencyPerUser
+          }
         }
       }
     } else {
