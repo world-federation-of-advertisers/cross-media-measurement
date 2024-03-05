@@ -1494,7 +1494,9 @@ class MetricsService(
             buildInternalCreateMetricRequest(
               parentKey.measurementConsumerId,
               createMetricRequest,
-              reportingSetNameToInternalReportingSetMap.getValue(createMetricRequest.metric.reportingSet),
+              reportingSetNameToInternalReportingSetMap.getValue(
+                createMetricRequest.metric.reportingSet
+              ),
             )
           }
         }
