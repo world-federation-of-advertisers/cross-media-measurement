@@ -1494,7 +1494,7 @@ class MetricsService(
             buildInternalCreateMetricRequest(
               parentKey.measurementConsumerId,
               createMetricRequest,
-              reportingSetNameToInternalReportingSetMap,
+              reportingSetNameToInternalReportingSetMap.getValue(createMetricRequest.metric.reportingSet),
             )
           }
         }
@@ -1540,19 +1540,6 @@ class MetricsService(
     request: CreateMetricRequest,
     internalReportingSet: InternalReportingSet,
   ): InternalCreateMetricRequest {
-    return buildInternalCreateMetricRequest(
-      cmmsMeasurementConsumerId,
-      request,
-      mapOf(Pair(request.metric.reportingSet, internalReportingSet)),
-    )
-  }
-
-  /** Builds an [InternalCreateMetricRequest]. */
-  private fun buildInternalCreateMetricRequest(
-    cmmsMeasurementConsumerId: String,
-    request: CreateMetricRequest,
-    reportingSetNameToInternalReportingSetMap: Map<String, InternalReportingSet>,
-  ): InternalCreateMetricRequest {
     grpcRequire(request.metricId.matches(RESOURCE_ID_REGEX)) { "Metric ID is invalid." }
     grpcRequire(request.metric.reportingSet.isNotEmpty()) {
       "Reporting set in metric is not specified."
@@ -1577,9 +1564,6 @@ class MetricsService(
       "TimeInterval endTime is not later than startTime."
     }
     grpcRequire(request.metric.hasMetricSpec()) { "Metric spec in metric is not specified." }
-
-    val internalReportingSet: InternalReportingSet =
-      reportingSetNameToInternalReportingSetMap.getValue(request.metric.reportingSet)
 
     // Utilizes the property of the set expression compilation result -- If the set expression
     // contains only union operators, the compilation result has to be a single component.
