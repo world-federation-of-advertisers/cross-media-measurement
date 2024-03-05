@@ -16,12 +16,10 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.postgres.writers
 
-import io.r2dbc.spi.Statement
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
 import kotlinx.coroutines.flow.toList
-import org.wfanet.measurement.common.db.r2dbc.BoundStatement
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.common.db.r2dbc.postgres.ValuesListBoundStatement
@@ -222,7 +220,9 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
 
     transactionContext.run {
       executeStatement(statement)
-      executeStatement(reportingMetricEntriesAndStatement.metricCalculationSpecReportingMetricsStatement)
+      executeStatement(
+        reportingMetricEntriesAndStatement.metricCalculationSpecReportingMetricsStatement
+      )
 
       if (request.hasReportScheduleInfo()) {
         val reportScheduleId =
@@ -299,8 +299,11 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
     val updatedReportingMetricEntries =
       mutableMapOf<String, Report.ReportingMetricCalculationSpec>()
 
-    val statement = valuesListBoundStatement(valuesStartIndex = 0, paramCount = 8,
-      """
+    val statement =
+      valuesListBoundStatement(
+        valuesStartIndex = 0,
+        paramCount = 8,
+        """
       INSERT INTO MetricCalculationSpecReportingMetrics
         (
           MeasurementConsumerId,
@@ -314,94 +317,99 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
         )
       VALUES
       ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER}
-      """) {
-      for (entry in report.reportingMetricEntriesMap.entries) {
-        val reportingSetId = reportingSetIdsByExternalId.getValue(entry.key)
-        val updatedMetricCalculationSpecReportingMetricsList =
-          mutableListOf<Report.MetricCalculationSpecReportingMetrics>()
+      """,
+      ) {
+        for (entry in report.reportingMetricEntriesMap.entries) {
+          val reportingSetId = reportingSetIdsByExternalId.getValue(entry.key)
+          val updatedMetricCalculationSpecReportingMetricsList =
+            mutableListOf<Report.MetricCalculationSpecReportingMetrics>()
 
-        for (metricCalSpecReportingMetrics in entry.value.metricCalculationSpecReportingMetricsList) {
-          val externalMetricCalculationSpecId =
-            metricCalSpecReportingMetrics.externalMetricCalculationSpecId
-          val metricCalculationSpecResult =
-            metricCalculationSpecsByExternalId.getValue(externalMetricCalculationSpecId)
-          val metricCalculationSpecReportingMetricKey =
-            MetricCalculationSpecReportingMetricKey(
-              reportingSetId,
-              metricCalculationSpecResult.metricCalculationSpecId,
-            )
-          val updatedReportingMetricsList = mutableListOf<Report.ReportingMetric>()
+          for (metricCalSpecReportingMetrics in
+            entry.value.metricCalculationSpecReportingMetricsList) {
+            val externalMetricCalculationSpecId =
+              metricCalSpecReportingMetrics.externalMetricCalculationSpecId
+            val metricCalculationSpecResult =
+              metricCalculationSpecsByExternalId.getValue(externalMetricCalculationSpecId)
+            val metricCalculationSpecReportingMetricKey =
+              MetricCalculationSpecReportingMetricKey(
+                reportingSetId,
+                metricCalculationSpecResult.metricCalculationSpecId,
+              )
+            val updatedReportingMetricsList = mutableListOf<Report.ReportingMetric>()
 
-          // If we found an existing set of metrics for this `MetricCalculationSpecReportingMetricKey`
-          if (reportingMetricMap.contains(metricCalculationSpecReportingMetricKey)) {
-            // Note that metric reuse mechanism won't produce the same order of `ReportingMetric`
-            // internally, but this won't impact any immutable fields in public resources.
-            reportingMetricMap.getValue(metricCalculationSpecReportingMetricKey).forEach {
-              val reportingMetric =
-                ReportKt.reportingMetric {
-                  createMetricRequestId = it.createMetricRequestId
-                  externalMetricId = it.externalMetricId
-                  details =
-                    ReportKt.ReportingMetricKt.details {
-                      metricSpec = it.metricSpec
-                      timeInterval = it.reportingMetricKey.timeInterval
+            // If we found an existing set of metrics for this
+            // `MetricCalculationSpecReportingMetricKey`
+            if (reportingMetricMap.contains(metricCalculationSpecReportingMetricKey)) {
+              // Note that metric reuse mechanism won't produce the same order of `ReportingMetric`
+              // internally, but this won't impact any immutable fields in public resources.
+              reportingMetricMap.getValue(metricCalculationSpecReportingMetricKey).forEach {
+                val reportingMetric =
+                  ReportKt.reportingMetric {
+                    createMetricRequestId = it.createMetricRequestId
+                    externalMetricId = it.externalMetricId
+                    details =
+                      ReportKt.ReportingMetricKt.details {
+                        metricSpec = it.metricSpec
+                        timeInterval = it.reportingMetricKey.timeInterval
 
-                      val filters: MutableList<String> =
-                        it.metricDetails.filtersList.toMutableList()
-                      // The filters in a Metric is the combination of the grouping predicates and
-                      // the filter in `MetricCalculationSpec`
-                      filters.remove(metricCalculationSpecResult.metricCalculationSpec.details.filter)
-                      groupingPredicates += filters
-                    }
+                        val filters: MutableList<String> =
+                          it.metricDetails.filtersList.toMutableList()
+                        // The filters in a Metric is the combination of the grouping predicates and
+                        // the filter in `MetricCalculationSpec`
+                        filters.remove(
+                          metricCalculationSpecResult.metricCalculationSpec.details.filter
+                        )
+                        groupingPredicates += filters
+                      }
+                  }
+                addValuesBinding {
+                  bindValuesParam(0, measurementConsumerId)
+                  bindValuesParam(1, reportId)
+                  bindValuesParam(2, reportingSetIdsByExternalId[entry.key])
+                  bindValuesParam(3, metricCalculationSpecResult.metricCalculationSpecId)
+                  bindValuesParam(4, UUID.fromString(reportingMetric.createMetricRequestId))
+                  bindValuesParam(5, it.metricId)
+                  bindValuesParam(6, reportingMetric.details)
+                  bindValuesParam(7, reportingMetric.details.toJson())
                 }
-              addValuesBinding {
-                bindValuesParam(0, measurementConsumerId)
-                bindValuesParam(1, reportId)
-                bindValuesParam(2, reportingSetIdsByExternalId[entry.key])
-                bindValuesParam(3, metricCalculationSpecResult.metricCalculationSpecId)
-                bindValuesParam(4, UUID.fromString(reportingMetric.createMetricRequestId))
-                bindValuesParam(5, it.metricId)
-                bindValuesParam(6, reportingMetric.details)
-                bindValuesParam(7, reportingMetric.details.toJson())
+                updatedReportingMetricsList.add(reportingMetric)
               }
-              updatedReportingMetricsList.add(reportingMetric)
+            } else {
+              metricCalSpecReportingMetrics.reportingMetricsList.forEach {
+                val createMetricRequestId = UUID.randomUUID()
+                addValuesBinding {
+                  bindValuesParam(0, measurementConsumerId)
+                  bindValuesParam(1, reportId)
+                  bindValuesParam(2, reportingSetIdsByExternalId[entry.key])
+                  bindValuesParam(3, metricCalculationSpecResult.metricCalculationSpecId)
+                  bindValuesParam(4, createMetricRequestId)
+                  bindValuesParam<Long?>(5, null)
+                  bindValuesParam(6, it.details)
+                  bindValuesParam(7, it.details.toJson())
+                }
+                updatedReportingMetricsList.add(
+                  it.copy { this.createMetricRequestId = createMetricRequestId.toString() }
+                )
+              }
             }
-          } else {
-            metricCalSpecReportingMetrics.reportingMetricsList.forEach {
-              val createMetricRequestId = UUID.randomUUID()
-              addValuesBinding {
-                bindValuesParam(0, measurementConsumerId)
-                bindValuesParam(1, reportId)
-                bindValuesParam(2, reportingSetIdsByExternalId[entry.key])
-                bindValuesParam(3, metricCalculationSpecResult.metricCalculationSpecId)
-                bindValuesParam(4, createMetricRequestId)
-                bindValuesParam<Long?>(5, null)
-                bindValuesParam(6, it.details)
-                bindValuesParam(7, it.details.toJson())
+
+            updatedMetricCalculationSpecReportingMetricsList.add(
+              metricCalSpecReportingMetrics.copy {
+                reportingMetrics.clear()
+                reportingMetrics.addAll(updatedReportingMetricsList)
               }
-              updatedReportingMetricsList.add(
-                it.copy { this.createMetricRequestId = createMetricRequestId.toString() }
+            )
+          }
+
+          updatedReportingMetricEntries[entry.key] =
+            entry.value.copy {
+              metricCalculationSpecReportingMetrics.clear()
+              metricCalculationSpecReportingMetrics.addAll(
+                updatedMetricCalculationSpecReportingMetricsList
               )
             }
-          }
-
-          updatedMetricCalculationSpecReportingMetricsList.add(
-            metricCalSpecReportingMetrics.copy {
-              reportingMetrics.clear()
-              reportingMetrics.addAll(updatedReportingMetricsList)
-            }
-          )
         }
-
-        updatedReportingMetricEntries[entry.key] =
-          entry.value.copy {
-            metricCalculationSpecReportingMetrics.clear()
-            metricCalculationSpecReportingMetrics.addAll(
-              updatedMetricCalculationSpecReportingMetricsList
-            )
-          }
       }
-    }
 
     return ReportingMetricEntriesAndStatement(
       metricCalculationSpecReportingMetricsStatement = statement,
