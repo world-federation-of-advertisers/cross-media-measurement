@@ -18,6 +18,7 @@ package org.wfanet.measurement.reporting.deploy.v2.postgres.writers
 
 import io.r2dbc.postgresql.codec.Interval as PostgresInterval
 import java.time.Instant
+import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
 import kotlinx.coroutines.flow.toList
@@ -56,19 +57,53 @@ import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundExc
  */
 class CreateMetrics(private val requests: List<CreateMetricRequest>) :
   PostgresWriter<List<Metric>>() {
-  private data class WeightedMeasurementsAndBinders(
+  private data class MetricCalculationSpecReportingMetricsValues(
+    val metricId: InternalId,
+    val createMetricRequestId: UUID,
+  )
+  private data class WeightedMeasurementsAndInsertData(
     val weightedMeasurements: Collection<Metric.WeightedMeasurement>,
-    val measurementsBinders: List<ValuesListBoundStatement.Binder.() -> Unit>,
-    val metricMeasurementsBinders: List<ValuesListBoundStatement.Binder.() -> Unit>,
-    val primitiveReportingSetBasesBinders: List<ValuesListBoundStatement.Binder.() -> Unit>,
-    val primitiveReportingSetBasisFiltersBinders: List<ValuesListBoundStatement.Binder.() -> Unit>,
-    val measurementPrimitiveReportingSetBasesBinders: List<ValuesListBoundStatement.Binder.() -> Unit>,
+    val measurementsValuesList: List<MeasurementsValues>,
+    val metricMeasurementsValuesList: List<MetricMeasurementsValues>,
+    val primitiveReportingSetBasesValuesList: List<PrimitiveReportingSetBasesValues>,
+    val primitiveReportingSetBasisFiltersValuesList: List<PrimitiveReportingSetBasisFiltersValues>,
+    val measurementPrimitiveReportingSetBasesValuesList: List<MeasurementPrimitiveReportingSetBasesValues>,
   )
 
-  private data class PrimitiveReportingSetBasesBinders(
-    val primitiveReportingSetBasesBinders: List<ValuesListBoundStatement.Binder.() -> Unit>,
-    val primitiveReportingSetBasisFiltersBinders: List<ValuesListBoundStatement.Binder.() -> Unit>,
-    val measurementPrimitiveReportingSetBasesBinders: List<ValuesListBoundStatement.Binder.() -> Unit>,
+  private data class MeasurementsValues(
+    val measurementId: InternalId,
+    val cmmsCreateMeasurementRequestId: UUID,
+    val timeIntervalStart: OffsetDateTime,
+    val timeIntervalEndExclusive: OffsetDateTime,
+  )
+
+  private data class MetricMeasurementsValues(
+    val metricId: InternalId,
+    val measurementId: InternalId,
+    val coefficient: Int,
+    val binaryRepresentation: Int,
+  )
+
+  private data class PrimitiveReportingSetBasesInsertData(
+    val primitiveReportingSetBasesValuesList: List<PrimitiveReportingSetBasesValues>,
+    val primitiveReportingSetBasisFiltersValuesList: List<PrimitiveReportingSetBasisFiltersValues>,
+    val measurementPrimitiveReportingSetBasesValuesList: List<MeasurementPrimitiveReportingSetBasesValues>,
+  )
+
+  private data class PrimitiveReportingSetBasesValues(
+    val primitiveReportingSetBasisId: InternalId,
+    val primitiveReportingSetId: InternalId,
+  )
+
+  private data class PrimitiveReportingSetBasisFiltersValues(
+    val primitiveReportingSetBasisId: InternalId,
+    val primitiveReportingSetBasisFilterId: InternalId,
+    val filter: String,
+  )
+
+  private data class MeasurementPrimitiveReportingSetBasesValues(
+    val measurementId: InternalId,
+    val primitiveReportingSetBasisId: InternalId,
   )
 
   override suspend fun TransactionScope.runTransaction(): List<Metric> {
@@ -141,14 +176,14 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
 
     val metrics = mutableListOf<Metric>()
 
-    val metricCalculationSpecReportingMetricsBinders =
-      mutableListOf<ValuesListBoundStatement.Binder.() -> Unit>()
-    val measurementsBinders = mutableListOf<ValuesListBoundStatement.Binder.() -> Unit>()
-    val metricMeasurementsBinders = mutableListOf<ValuesListBoundStatement.Binder.() -> Unit>()
-    val primitiveReportingSetBasesBinders = mutableListOf<ValuesListBoundStatement.Binder.() -> Unit>()
-    val primitiveReportingSetBasisFiltersBinders = mutableListOf<ValuesListBoundStatement.Binder.() -> Unit>()
-    val measurementPrimitiveReportingSetBasesBinders =
-      mutableListOf<ValuesListBoundStatement.Binder.() -> Unit>()
+    val metricCalculationSpecReportingMetricsValuesList =
+      mutableListOf<MetricCalculationSpecReportingMetricsValues>()
+    val measurementsValuesList = mutableListOf<MeasurementsValues>()
+    val metricMeasurementsValuesList = mutableListOf<MetricMeasurementsValues>()
+    val primitiveReportingSetBasesValuesList = mutableListOf<PrimitiveReportingSetBasesValues>()
+    val primitiveReportingSetBasisFiltersValuesList = mutableListOf<PrimitiveReportingSetBasisFiltersValues>()
+    val measurementPrimitiveReportingSetBasesValuesList =
+      mutableListOf<MeasurementPrimitiveReportingSetBasesValues>()
 
     val statement =
       valuesListBoundStatement(valuesStartIndex = 0, paramCount = 20,
@@ -281,16 +316,17 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                 }
 
               if (createMetricRequestUuid != null) {
-                metricCalculationSpecReportingMetricsBinders.add {
-                  bindValuesParam(0, metricId)
-                  bindValuesParam(1, createMetricRequestUuid)
-                }
+                metricCalculationSpecReportingMetricsValuesList.add(
+                  MetricCalculationSpecReportingMetricsValues(
+                    metricId = metricId,
+                    createMetricRequestId = createMetricRequestUuid,
+                  )
+                )
               }
             }
 
-            val weightedMeasurementsAndBindings =
-              createWeightedMeasurementsBindings(
-                measurementConsumerId = measurementConsumerId,
+            val weightedMeasurementsAndInsertData =
+              createWeightedMeasurementsInsertData(
                 metricId = metricId,
                 it.metric.weightedMeasurementsList,
                 reportingSetMap,
@@ -300,23 +336,23 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
               it.metric.copy {
                 this.externalMetricId = externalMetricId
                 weightedMeasurements.clear()
-                weightedMeasurements.addAll(weightedMeasurementsAndBindings.weightedMeasurements)
+                weightedMeasurements.addAll(weightedMeasurementsAndInsertData.weightedMeasurements)
                 this.createTime = createTime.toInstant().toProtoTime()
               }
             )
 
-            measurementsBinders.addAll(weightedMeasurementsAndBindings.measurementsBinders)
-            metricMeasurementsBinders.addAll(
-              weightedMeasurementsAndBindings.metricMeasurementsBinders
+            measurementsValuesList.addAll(weightedMeasurementsAndInsertData.measurementsValuesList)
+            metricMeasurementsValuesList.addAll(
+              weightedMeasurementsAndInsertData.metricMeasurementsValuesList
             )
-            primitiveReportingSetBasesBinders.addAll(
-              weightedMeasurementsAndBindings.primitiveReportingSetBasesBinders
+            primitiveReportingSetBasesValuesList.addAll(
+              weightedMeasurementsAndInsertData.primitiveReportingSetBasesValuesList
             )
-            primitiveReportingSetBasisFiltersBinders.addAll(
-              weightedMeasurementsAndBindings.primitiveReportingSetBasisFiltersBinders
+            primitiveReportingSetBasisFiltersValuesList.addAll(
+              weightedMeasurementsAndInsertData.primitiveReportingSetBasisFiltersValuesList
             )
-            measurementPrimitiveReportingSetBasesBinders.addAll(
-              weightedMeasurementsAndBindings.measurementPrimitiveReportingSetBasesBinders
+            measurementPrimitiveReportingSetBasesValuesList.addAll(
+              weightedMeasurementsAndInsertData.measurementPrimitiveReportingSetBasesValuesList
             )
           }
         }
@@ -332,7 +368,10 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
         """
       ) {
         bind("$1", measurementConsumerId)
-        metricCalculationSpecReportingMetricsBinders.forEach { addValuesBinding(it) }
+        metricCalculationSpecReportingMetricsValuesList.forEach { addValuesBinding {
+          bindValuesParam(0, it.metricId)
+          bindValuesParam(1, it.createMetricRequestId)
+        } }
       }
 
     val measurementsStatement =
@@ -354,7 +393,19 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
         ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER}
         """
       ) {
-        measurementsBinders.forEach { addValuesBinding(it) }
+        measurementsValuesList.forEach {
+          addValuesBinding {
+            bindValuesParam(0, measurementConsumerId)
+            bindValuesParam(1, it.measurementId)
+            bindValuesParam(2, it.cmmsCreateMeasurementRequestId)
+            bindValuesParam<String?>(3, null)
+            bindValuesParam(4, it.timeIntervalStart)
+            bindValuesParam(5, it.timeIntervalEndExclusive)
+            bindValuesParam(6, Measurement.State.STATE_UNSPECIFIED)
+            bindValuesParam(7, Measurement.Details.getDefaultInstance())
+            bindValuesParam(8, Measurement.Details.getDefaultInstance().toJson())
+          }
+        }
       }
 
     val metricMeasurementsStatement =
@@ -372,7 +423,13 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
         ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER}
         """
       ) {
-        metricMeasurementsBinders.forEach { addValuesBinding(it) }
+        metricMeasurementsValuesList.forEach { addValuesBinding {
+          bindValuesParam(0, measurementConsumerId)
+          bindValuesParam(1, it.metricId)
+          bindValuesParam(2, it.measurementId)
+          bindValuesParam(3, it.coefficient)
+          bindValuesParam(4, it.binaryRepresentation)
+        } }
       }
 
     val primitiveReportingSetBasesStatement =
@@ -388,7 +445,11 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
         ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER}
         """
       ) {
-        primitiveReportingSetBasesBinders.forEach { addValuesBinding(it) }
+        primitiveReportingSetBasesValuesList.forEach { addValuesBinding {
+          bindValuesParam(0, measurementConsumerId)
+          bindValuesParam(1, it.primitiveReportingSetBasisId)
+          bindValuesParam(2, it.primitiveReportingSetId)
+        } }
       }
 
     val primitiveReportingSetBasisFiltersStatement =
@@ -405,7 +466,12 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
         ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER}
         """
       ) {
-        primitiveReportingSetBasisFiltersBinders.forEach { addValuesBinding(it) }
+        primitiveReportingSetBasisFiltersValuesList.forEach { addValuesBinding {
+          bindValuesParam(0, measurementConsumerId)
+          bindValuesParam(1, it.primitiveReportingSetBasisId)
+          bindValuesParam(2, it.primitiveReportingSetBasisFilterId)
+          bindValuesParam(3, it.filter)
+        } }
       }
 
     val measurementPrimitiveReportingSetBasesStatement =
@@ -421,19 +487,23 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
         ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER}
         """
       ) {
-        measurementPrimitiveReportingSetBasesBinders.forEach { addValuesBinding(it) }
+        measurementPrimitiveReportingSetBasesValuesList.forEach { addValuesBinding {
+          bindValuesParam(0, measurementConsumerId)
+          bindValuesParam(1, it.measurementId)
+          bindValuesParam(2, it.primitiveReportingSetBasisId)
+        } }
       }
 
     if (existingMetricsMap.size < requests.size) {
       transactionContext.run {
         executeStatement(statement)
-        if (metricCalculationSpecReportingMetricsBinders.size > 0) {
+        if (metricCalculationSpecReportingMetricsValuesList.size > 0) {
           executeStatement(metricCalculationSpecReportingMetricsStatement)
         }
         executeStatement(measurementsStatement)
         executeStatement(metricMeasurementsStatement)
         executeStatement(primitiveReportingSetBasesStatement)
-        if (primitiveReportingSetBasisFiltersBinders.size > 0) {
+        if (primitiveReportingSetBasisFiltersValuesList.size > 0) {
           executeStatement(primitiveReportingSetBasisFiltersStatement)
         }
         executeStatement(measurementPrimitiveReportingSetBasesStatement)
@@ -443,19 +513,18 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
     return metrics
   }
 
-  private fun TransactionScope.createWeightedMeasurementsBindings(
-    measurementConsumerId: InternalId,
+  private fun TransactionScope.createWeightedMeasurementsInsertData(
     metricId: InternalId,
     weightedMeasurements: Collection<Metric.WeightedMeasurement>,
     reportingSetMap: Map<String, InternalId>,
-  ): WeightedMeasurementsAndBinders {
+  ): WeightedMeasurementsAndInsertData {
     val updatedWeightedMeasurements = mutableListOf<Metric.WeightedMeasurement>()
-    val measurementsBinders = mutableListOf<ValuesListBoundStatement.Binder.() -> Unit>()
-    val metricMeasurementsBinders = mutableListOf<ValuesListBoundStatement.Binder.() -> Unit>()
-    val primitiveReportingSetBasesBinders = mutableListOf<ValuesListBoundStatement.Binder.() -> Unit>()
-    val primitiveReportingSetBasisFiltersBinders = mutableListOf<ValuesListBoundStatement.Binder.() -> Unit>()
-    val measurementPrimitiveReportingSetBasesBinders =
-      mutableListOf<ValuesListBoundStatement.Binder.() -> Unit>()
+    val measurementsValuesList = mutableListOf<MeasurementsValues>()
+    val metricMeasurementsValuesList = mutableListOf<MetricMeasurementsValues>()
+    val primitiveReportingSetBasesValuesList = mutableListOf<PrimitiveReportingSetBasesValues>()
+    val primitiveReportingSetBasisFiltersValuesList = mutableListOf<PrimitiveReportingSetBasisFiltersValues>()
+    val measurementPrimitiveReportingSetBasesValuesList =
+      mutableListOf<MeasurementPrimitiveReportingSetBasesValues>()
 
     weightedMeasurements.forEach {
       val measurementId = idGenerator.generateInternalId()
@@ -465,95 +534,94 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
           measurement = measurement.copy { cmmsCreateMeasurementRequestId = uuid.toString() }
         }
       )
-      measurementsBinders.add {
-        bindValuesParam(0, measurementConsumerId)
-        bindValuesParam(1, measurementId)
-        bindValuesParam(2, uuid)
-        bindValuesParam<String?>(3, null)
-        bindValuesParam(4, it.measurement.timeInterval.startTime.toInstant().atOffset(ZoneOffset.UTC))
-        bindValuesParam(5, it.measurement.timeInterval.endTime.toInstant().atOffset(ZoneOffset.UTC))
-        bindValuesParam(6, Measurement.State.STATE_UNSPECIFIED)
-        bindValuesParam(7, Measurement.Details.getDefaultInstance())
-        bindValuesParam(8, Measurement.Details.getDefaultInstance().toJson())
-      }
+      measurementsValuesList.add(
+        MeasurementsValues(
+          measurementId = measurementId,
+          cmmsCreateMeasurementRequestId = uuid,
+          timeIntervalStart = it.measurement.timeInterval.startTime.toInstant().atOffset(ZoneOffset.UTC),
+          timeIntervalEndExclusive = it.measurement.timeInterval.endTime.toInstant().atOffset(ZoneOffset.UTC)
+        )
+      )
 
-      metricMeasurementsBinders.add {
-        bindValuesParam(0, measurementConsumerId)
-        bindValuesParam(1, metricId)
-        bindValuesParam(2, measurementId)
-        bindValuesParam(3, it.weight)
-        bindValuesParam(4, it.binaryRepresentation)
-      }
+      metricMeasurementsValuesList.add(
+        MetricMeasurementsValues(
+          metricId = metricId,
+          measurementId = measurementId,
+          coefficient = it.weight,
+          binaryRepresentation = it.binaryRepresentation
+        )
+      )
 
-      val primitiveReportingSetBasesBindings =
-        createPrimitiveReportingSetBasesBindings(
-          measurementConsumerId = measurementConsumerId,
+      val primitiveReportingSetBasesInsertData =
+        createPrimitiveReportingSetBasesInsertData(
           measurementId = measurementId,
           it.measurement.primitiveReportingSetBasesList,
           reportingSetMap,
         )
 
-      primitiveReportingSetBasesBinders.addAll(
-        primitiveReportingSetBasesBindings.primitiveReportingSetBasesBinders
+      primitiveReportingSetBasesValuesList.addAll(
+        primitiveReportingSetBasesInsertData.primitiveReportingSetBasesValuesList
       )
-      primitiveReportingSetBasisFiltersBinders.addAll(
-        primitiveReportingSetBasesBindings.primitiveReportingSetBasisFiltersBinders
+      primitiveReportingSetBasisFiltersValuesList.addAll(
+        primitiveReportingSetBasesInsertData.primitiveReportingSetBasisFiltersValuesList
       )
-      measurementPrimitiveReportingSetBasesBinders.addAll(
-        primitiveReportingSetBasesBindings.measurementPrimitiveReportingSetBasesBinders
+      measurementPrimitiveReportingSetBasesValuesList.addAll(
+        primitiveReportingSetBasesInsertData.measurementPrimitiveReportingSetBasesValuesList
       )
     }
 
-    return WeightedMeasurementsAndBinders(
+    return WeightedMeasurementsAndInsertData(
       weightedMeasurements = updatedWeightedMeasurements,
-      measurementsBinders = measurementsBinders,
-      metricMeasurementsBinders = metricMeasurementsBinders,
-      primitiveReportingSetBasesBinders = primitiveReportingSetBasesBinders,
-      primitiveReportingSetBasisFiltersBinders = primitiveReportingSetBasisFiltersBinders,
-      measurementPrimitiveReportingSetBasesBinders = measurementPrimitiveReportingSetBasesBinders,
+      measurementsValuesList = measurementsValuesList,
+      metricMeasurementsValuesList = metricMeasurementsValuesList,
+      primitiveReportingSetBasesValuesList = primitiveReportingSetBasesValuesList,
+      primitiveReportingSetBasisFiltersValuesList = primitiveReportingSetBasisFiltersValuesList,
+      measurementPrimitiveReportingSetBasesValuesList = measurementPrimitiveReportingSetBasesValuesList,
     )
   }
 
-  private fun TransactionScope.createPrimitiveReportingSetBasesBindings(
-    measurementConsumerId: InternalId,
+  private fun TransactionScope.createPrimitiveReportingSetBasesInsertData(
     measurementId: InternalId,
     primitiveReportingSetBases: Collection<ReportingSet.PrimitiveReportingSetBasis>,
     reportingSetMap: Map<String, InternalId>,
-  ): PrimitiveReportingSetBasesBinders {
-    val primitiveReportingSetBasesBinders = mutableListOf<ValuesListBoundStatement.Binder.() -> Unit>()
-    val primitiveReportingSetBasisFiltersBinders = mutableListOf<ValuesListBoundStatement.Binder.() -> Unit>()
-    val measurementPrimitiveReportingSetBasesBinders =
-      mutableListOf<ValuesListBoundStatement.Binder.() -> Unit>()
+  ): PrimitiveReportingSetBasesInsertData {
+    val primitiveReportingSetBasesValuesList = mutableListOf<PrimitiveReportingSetBasesValues>()
+    val primitiveReportingSetBasisFiltersValuesList = mutableListOf<PrimitiveReportingSetBasisFiltersValues>()
+    val measurementPrimitiveReportingSetBasesValuesList =
+      mutableListOf<MeasurementPrimitiveReportingSetBasesValues>()
 
     primitiveReportingSetBases.forEach {
       val primitiveReportingSetBasisId = idGenerator.generateInternalId()
-      primitiveReportingSetBasesBinders.add {
-        bindValuesParam(0, measurementConsumerId)
-        bindValuesParam(1, primitiveReportingSetBasisId)
-        bindValuesParam(2, reportingSetMap[it.externalReportingSetId])
-      }
+      primitiveReportingSetBasesValuesList.add(
+        PrimitiveReportingSetBasesValues(
+          primitiveReportingSetBasisId = primitiveReportingSetBasisId,
+          primitiveReportingSetId = reportingSetMap.getValue(it.externalReportingSetId),
+        )
+      )
 
       it.filtersList.forEach { filter ->
         val primitiveReportingSetBasisFilterId = idGenerator.generateInternalId()
-        primitiveReportingSetBasisFiltersBinders.add {
-          bindValuesParam(0, measurementConsumerId)
-          bindValuesParam(1, primitiveReportingSetBasisId)
-          bindValuesParam(2, primitiveReportingSetBasisFilterId)
-          bindValuesParam(3, filter)
-        }
+        primitiveReportingSetBasisFiltersValuesList.add(
+          PrimitiveReportingSetBasisFiltersValues(
+            primitiveReportingSetBasisId = primitiveReportingSetBasisId,
+            primitiveReportingSetBasisFilterId = primitiveReportingSetBasisFilterId,
+            filter = filter,
+          )
+        )
       }
 
-      measurementPrimitiveReportingSetBasesBinders.add {
-        bindValuesParam(0, measurementConsumerId)
-        bindValuesParam(1, measurementId)
-        bindValuesParam(2, primitiveReportingSetBasisId)
-      }
+      measurementPrimitiveReportingSetBasesValuesList.add(
+        MeasurementPrimitiveReportingSetBasesValues(
+          measurementId = measurementId,
+          primitiveReportingSetBasisId = primitiveReportingSetBasisId,
+        )
+      )
     }
 
-    return PrimitiveReportingSetBasesBinders(
-      primitiveReportingSetBasesBinders = primitiveReportingSetBasesBinders,
-      primitiveReportingSetBasisFiltersBinders = primitiveReportingSetBasisFiltersBinders,
-      measurementPrimitiveReportingSetBasesBinders = measurementPrimitiveReportingSetBasesBinders,
+    return PrimitiveReportingSetBasesInsertData(
+      primitiveReportingSetBasesValuesList = primitiveReportingSetBasesValuesList,
+      primitiveReportingSetBasisFiltersValuesList = primitiveReportingSetBasisFiltersValuesList,
+      measurementPrimitiveReportingSetBasesValuesList = measurementPrimitiveReportingSetBasesValuesList,
     )
   }
 }
