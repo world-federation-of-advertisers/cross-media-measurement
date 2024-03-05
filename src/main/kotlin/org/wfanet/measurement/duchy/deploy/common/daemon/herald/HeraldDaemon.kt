@@ -14,6 +14,9 @@
 
 package org.wfanet.measurement.duchy.deploy.common.daemon.herald
 
+import com.google.crypto.tink.Aead
+import com.google.crypto.tink.KeyTemplates
+import com.google.crypto.tink.KeysetHandle
 import io.grpc.Channel
 import java.io.File
 import java.time.Clock
@@ -22,6 +25,8 @@ import kotlin.properties.Delegates
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.crypto.tink.TinkKeyStorageProvider
+import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
@@ -31,13 +36,14 @@ import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.duchy.daemon.herald.ContinuationTokenManager
 import org.wfanet.measurement.duchy.daemon.herald.Herald
-import org.wfanet.measurement.duchy.daemon.herald.testing.PrivateKeyClientPlaceholder
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.deploy.common.ComputationsServiceFlags
 import org.wfanet.measurement.duchy.deploy.common.SystemApiFlags
+import org.wfanet.measurement.duchy.storage.TinkKeyStore
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineStub
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
+import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
@@ -136,6 +142,15 @@ private fun run(@CommandLine.Mixin flags: Flags) {
   // This will be the name of the pod when deployed to Kubernetes.
   val heraldId = System.getenv("HOSTNAME")
 
+  // TODO(@renjiez): Use real PrivateKeyStore when enabling HMSS.
+  val keyUri = "fake-kms://kek"
+  val privateKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+  val aead = privateKeyHandle.getPrimitive(Aead::class.java)
+  val fakeKmsClient = FakeKmsClient().also { it.setAead(keyUri, aead) }
+  val privateKeyStore =
+    TinkKeyStorageProvider(fakeKmsClient)
+      .makeKmsPrivateKeyStore(TinkKeyStore(InMemoryStorageClient()), keyUri)
+
   val herald =
     Herald(
       heraldId = heraldId,
@@ -143,7 +158,7 @@ private fun run(@CommandLine.Mixin flags: Flags) {
       internalComputationsClient = internalComputationsClient,
       systemComputationsClient = systemComputationsClient,
       systemComputationParticipantClient = systemComputationParticipantsClient,
-      privateKetStorageClient = PrivateKeyClientPlaceholder.createInstance(),
+      privateKeyStore = privateKeyStore,
       continuationTokenManager = continuationTokenManager,
       protocolsSetupConfig =
         flags.protocolsSetupConfig.reader().use {

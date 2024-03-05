@@ -59,6 +59,7 @@ import org.wfanet.measurement.common.crypto.PrivateKeyStore
 import org.wfanet.measurement.common.crypto.tink.TinkKeyId
 import org.wfanet.measurement.common.crypto.tink.TinkKeyStorageProvider
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
+import org.wfanet.measurement.common.crypto.tink.TinkPublicKeyHandle
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -85,6 +86,7 @@ import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoro
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineStub
 import org.wfanet.measurement.internal.duchy.DeleteComputationRequest
+import org.wfanet.measurement.internal.duchy.EncryptionKeyPair
 import org.wfanet.measurement.internal.duchy.FinishComputationResponse
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.NoiseMechanism
@@ -351,6 +353,7 @@ class HeraldTest {
   private lateinit var storageClient: StorageClient
   private lateinit var computationStore: ComputationStore
   private lateinit var requisitionStore: RequisitionStore
+  private lateinit var privateKeyStore: PrivateKeyStore<TinkKeyId, TinkPrivateKeyHandle>
 
   private var continuationTokensService: ContinuationTokensCoroutineImplBase = mockService()
 
@@ -358,6 +361,8 @@ class HeraldTest {
     storageClient = InMemoryStorageClient()
     computationStore = ComputationStore(storageClient)
     requisitionStore = RequisitionStore(storageClient)
+    privateKeyStore =
+      TinkKeyStorageProvider(kmsClient).makeKmsPrivateKeyStore(TinkKeyStore(storageClient), KEK_URI)
     addService(
       ComputationsService(
         fakeComputationDatabase,
@@ -418,7 +423,7 @@ class HeraldTest {
         internalComputationsClient = internalComputationsStub,
         systemComputationsClient = systemComputationsStub,
         systemComputationParticipantClient = systemComputationParticipantsStub,
-        privateKetStorageClient = getPrivateKeyStorageClient(storageClient),
+        privateKeyStore = privateKeyStore,
         continuationTokenManager = ContinuationTokenManager(continuationTokensStub),
         protocolsSetupConfig = AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
         clock = Clock.systemUTC(),
@@ -430,7 +435,7 @@ class HeraldTest {
         internalComputationsClient = internalComputationsStub,
         systemComputationsClient = systemComputationsStub,
         systemComputationParticipantClient = systemComputationParticipantsStub,
-        privateKetStorageClient = getPrivateKeyStorageClient(storageClient),
+        privateKeyStore = privateKeyStore,
         continuationTokenManager = ContinuationTokenManager(continuationTokensStub),
         protocolsSetupConfig = NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
         clock = Clock.systemUTC(),
@@ -839,6 +844,19 @@ class HeraldTest {
       )
     assertThat(hmssDetails.commonRandomSeed).isNotEmpty()
     assertThat(hmssDetails.hasEncryptionKeyPair()).isTrue()
+    verifyEncryptionKeyPair(hmssDetails.encryptionKeyPair)
+  }
+
+  private suspend fun verifyEncryptionKeyPair(encryptionKeyPair: EncryptionKeyPair) = runBlocking {
+    val publicKeyHandle = TinkPublicKeyHandle(encryptionKeyPair.publicKey.data)
+    val plaintext = "a plaintext.".toByteStringUtf8()
+    val ciphertext = publicKeyHandle.hybridEncrypt(plaintext)
+
+    val keyId = TinkKeyId(encryptionKeyPair.privateKeyId.toInt())
+    val privateKeyHandle = privateKeyStore.read(keyId)
+
+    assertThat(privateKeyStore).isNotNull()
+    assertThat(privateKeyHandle!!.hybridDecrypt(ciphertext)).isEqualTo(plaintext)
   }
 
   @Test
@@ -1404,7 +1422,7 @@ class HeraldTest {
         internalComputationsClient = internalComputationsStub,
         systemComputationsClient = systemComputationsStub,
         systemComputationParticipantClient = systemComputationParticipantsStub,
-        privateKetStorageClient = getPrivateKeyStorageClient(storageClient),
+        privateKeyStore = privateKeyStore,
         continuationTokenManager = ContinuationTokenManager(continuationTokensStub),
         protocolsSetupConfig = NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
         Clock.systemUTC(),
@@ -1475,7 +1493,7 @@ class HeraldTest {
         internalComputationsClient = mockBasedInternalComputationsStub,
         systemComputationsClient = systemComputationsStub,
         systemComputationParticipantClient = systemComputationParticipantsStub,
-        privateKetStorageClient = getPrivateKeyStorageClient(storageClient),
+        privateKeyStore = privateKeyStore,
         continuationTokenManager = ContinuationTokenManager(continuationTokensStub),
         protocolsSetupConfig = AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
         clock = Clock.systemUTC(),
@@ -1529,7 +1547,7 @@ class HeraldTest {
         internalComputationsClient = mockBasedInternalComputationsStub,
         systemComputationsClient = systemComputationsStub,
         systemComputationParticipantClient = systemComputationParticipantsStub,
-        privateKetStorageClient = getPrivateKeyStorageClient(storageClient),
+        privateKeyStore = privateKeyStore,
         continuationTokenManager = ContinuationTokenManager(continuationTokensStub),
         protocolsSetupConfig = AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
         clock = Clock.systemUTC(),
@@ -1604,18 +1622,11 @@ class HeraldTest {
       AeadConfig.register()
     }
 
-    private const val KEK_URI = FakeKmsClient.KEY_URI_PREFIX + "-key"
+    private const val KEK_URI = FakeKmsClient.KEY_URI_PREFIX + "kek"
     private val AEAD_KEY_TEMPLATE = KeyTemplates.get("AES128_GCM")
     private val KEY_ENCRYPTION_KEY = KeysetHandle.generateNew(AEAD_KEY_TEMPLATE)
     private val aead = KEY_ENCRYPTION_KEY.getPrimitive(Aead::class.java)
     private val kmsClient = FakeKmsClient().also { it.setAead(KEK_URI, aead) }
-
-    private fun getPrivateKeyStorageClient(
-      storageClient: StorageClient
-    ): PrivateKeyStore<TinkKeyId, TinkPrivateKeyHandle> {
-      val tinkKeyStore = TinkKeyStore(storageClient)
-      return TinkKeyStorageProvider(kmsClient).makeKmsPrivateKeyStore(tinkKeyStore, KEK_URI)
-    }
 
     private val ALL_COMPUTATION_PARTICIPANTS =
       listOf(

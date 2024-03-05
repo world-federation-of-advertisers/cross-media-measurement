@@ -24,7 +24,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.common.crypto.PrivateKeyStore
 import org.wfanet.measurement.common.crypto.tink.TinkKeyId
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
-import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle.Companion.generateHpke
 import org.wfanet.measurement.duchy.daemon.utils.key
 import org.wfanet.measurement.duchy.daemon.utils.toDuchyDifferentialPrivacyParams
 import org.wfanet.measurement.duchy.daemon.utils.toKingdomComputationDetails
@@ -81,7 +80,7 @@ object HonestMajorityShareShuffleStarter {
           if (role != RoleInComputation.AGGREGATOR) {
             commonRandomSeed = generateRandomSeed()
 
-            val privateKeyHandle = generateHpke()
+            val privateKeyHandle = TinkPrivateKeyHandle.generateHpke()
             val privateKeyId = storePrivateKey(privateKetStorageClient, privateKeyHandle)
             encryptionKeyPair = encryptionKeyPair {
               this.privateKeyId = privateKeyId

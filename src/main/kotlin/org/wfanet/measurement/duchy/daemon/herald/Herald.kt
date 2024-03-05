@@ -75,7 +75,7 @@ class Herald(
   private val internalComputationsClient: ComputationsCoroutineStub,
   private val systemComputationsClient: SystemComputationsCoroutineStub,
   private val systemComputationParticipantClient: SystemComputationParticipantsCoroutineStub,
-  private val privateKetStorageClient: PrivateKeyStore<TinkKeyId, TinkPrivateKeyHandle>,
+  private val privateKeyStore: PrivateKeyStore<TinkKeyId, TinkPrivateKeyHandle>,
   private val continuationTokenManager: ContinuationTokenManager,
   private val protocolsSetupConfig: ProtocolsSetupConfig,
   private val clock: Clock,
@@ -254,7 +254,7 @@ class Herald(
             systemComputation,
             protocolsSetupConfig.honestMajorityShareShuffle,
             blobStorageBucket,
-            privateKetStorageClient,
+            privateKeyStore,
           )
         }
         Computation.MpcProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET ->
