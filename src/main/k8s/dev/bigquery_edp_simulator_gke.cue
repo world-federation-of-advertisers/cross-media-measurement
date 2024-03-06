@@ -22,7 +22,7 @@ _bigQueryConfig: #BigQueryConfig & {
 _resourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "100m"
-		memory: "288Mi"
+		memory: "1Gi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
@@ -37,6 +37,7 @@ edp_simulators: {
 
 			deployment: {
 				_container: {
+					_javaOptions: maxHeapSize: "512M"
 					resources: _resourceRequirements
 				}
 			}
