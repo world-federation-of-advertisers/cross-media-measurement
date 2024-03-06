@@ -25,6 +25,7 @@ import java.time.Duration
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -39,6 +40,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.time.delay
+import org.jetbrains.annotations.NonBlockingExecutor
 import org.jetbrains.annotations.VisibleForTesting
 import org.projectnessie.cel.Env
 import org.projectnessie.cel.EnvOption
@@ -65,7 +67,8 @@ class CelEnvCacheProvider(
   /** Protobuf descriptor of Reporting EventGroup message type. */
   private val reportingEventGroupDescriptor: Descriptors.Descriptor,
   private val cacheRefreshInterval: Duration,
-  coroutineContext: CoroutineContext,
+  private val knownMetadataTypes: Iterable<Descriptors.FileDescriptor>,
+  coroutineContext: @NonBlockingExecutor CoroutineContext = EmptyCoroutineContext,
   private val numRetriesInitialSync: Int = 3,
 ) : CelEnvProvider, AutoCloseable {
   private lateinit var typeRegistryAndEnv: CelEnvProvider.TypeRegistryAndEnv
@@ -125,11 +128,14 @@ class CelEnvCacheProvider(
 
     val fileDescriptorSets: List<DescriptorProtos.FileDescriptorSet> =
       eventGroupMetadataDescriptors.map { it.descriptorSet }
-    val fileDescriptors: List<Descriptors.Descriptor> =
-      ProtoReflection.buildDescriptors(fileDescriptorSets)
+    val descriptors: List<Descriptors.Descriptor> =
+      ProtoReflection.buildDescriptors(
+        fileDescriptorSets,
+        ProtoReflection.WELL_KNOWN_TYPES + knownMetadataTypes,
+      )
 
-    val env = buildCelEnvironment(fileDescriptors)
-    val typeRegistry: TypeRegistry = buildTypeRegistry(fileDescriptors)
+    val env = buildCelEnvironment(descriptors)
+    val typeRegistry: TypeRegistry = buildTypeRegistry(descriptors)
 
     return CelEnvProvider.TypeRegistryAndEnv(typeRegistry, env)
   }
