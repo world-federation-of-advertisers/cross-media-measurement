@@ -17,7 +17,7 @@ package k8s
 _resourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "500m"
-		memory: "768Mi"
+		memory: "1Gi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
