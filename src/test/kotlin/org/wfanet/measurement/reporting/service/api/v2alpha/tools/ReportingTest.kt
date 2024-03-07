@@ -667,10 +667,7 @@ class ReportingTest {
     verifyProtoArgument(reportsServiceMock, ReportsCoroutineImplBase::getReport)
       .isEqualTo(getReportRequest { name = REPORT_NAME })
     verifyProtoArgument(reportsServiceMock, ReportsCoroutineImplBase::createReport)
-      .ignoringFields(
-        CreateReportRequest.REPORT_ID_FIELD_NUMBER,
-        CreateReportRequest.REQUEST_ID_FIELD_NUMBER,
-      )
+      .ignoringFields(CreateReportRequest.REPORT_ID_FIELD_NUMBER)
       .isEqualTo(
         createReportRequest {
           parent = MEASUREMENT_CONSUMER_NAME

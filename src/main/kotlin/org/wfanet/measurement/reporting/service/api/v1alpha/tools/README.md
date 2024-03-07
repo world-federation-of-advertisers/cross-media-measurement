@@ -123,6 +123,17 @@ Reporting \
   reports get measurementConsumers/777/reports/5
 ```
 
+#### create-from-existing
+
+```shell
+Reporting \
+  --tls-cert-file=secretfiles/mc_tls.pem \
+  --tls-key-file=secretfiles/mc_tls.key \
+  --cert-collection-file=secretfiles/reporting_root.pem \
+  --reporting-server-api-target=v1alpha.reporting.dev.halo-cmm.org:8443 \
+  reports create-from-existing measurementConsumers/777/reports/5
+```
+
 ### event-groups
 
 #### list

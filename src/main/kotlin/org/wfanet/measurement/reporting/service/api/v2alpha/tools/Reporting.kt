@@ -26,7 +26,6 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.util.UUID
 import kotlin.random.Random
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -486,7 +485,6 @@ class CreateFromExistingCommand : Runnable {
             parent = reportKey.parentKey.toName()
             report = existingReport
             reportId = reportKey.reportId + "-" + Random.nextInt(1000, 10000)
-            requestId = UUID.randomUUID().toString()
           }
         )
       }
