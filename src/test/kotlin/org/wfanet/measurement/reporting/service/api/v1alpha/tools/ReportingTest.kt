@@ -42,7 +42,6 @@ import org.wfanet.measurement.common.testing.ExitInterceptingSecurityManager
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.reporting.v1alpha.CreateReportRequest
 import org.wfanet.measurement.reporting.v1alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.reporting.v1alpha.ListEventGroupsResponse
 import org.wfanet.measurement.reporting.v1alpha.ListReportingSetsResponse
@@ -171,19 +170,18 @@ private val LIST_EVENT_GROUPS_RESPONSE = listEventGroupsResponse { eventGroups +
 
 @RunWith(JUnit4::class)
 class ReportingTest {
-  private val reportingSetsServiceMock: ReportingSetsCoroutineImplBase =
-    mockService {
-      onBlocking { createReportingSet(any()) }.thenReturn(REPORTING_SET)
-      onBlocking { listReportingSets(any()) }.thenReturn(LIST_REPORTING_SETS_RESPONSE)
-    }
-  private val reportsServiceMock: ReportsCoroutineImplBase =
-    mockService {
-      onBlocking { createReport(any()) }.thenReturn(REPORT)
-      onBlocking { listReports(any()) }.thenReturn(LIST_REPORTS_RESPONSE)
-      onBlocking { getReport(any()) }.thenReturn(REPORT)
-    }
-  private val eventGroupsServiceMock: EventGroupsCoroutineImplBase =
-    mockService { onBlocking { listEventGroups(any()) }.thenReturn(LIST_EVENT_GROUPS_RESPONSE) }
+  private val reportingSetsServiceMock: ReportingSetsCoroutineImplBase = mockService {
+    onBlocking { createReportingSet(any()) }.thenReturn(REPORTING_SET)
+    onBlocking { listReportingSets(any()) }.thenReturn(LIST_REPORTING_SETS_RESPONSE)
+  }
+  private val reportsServiceMock: ReportsCoroutineImplBase = mockService {
+    onBlocking { createReport(any()) }.thenReturn(REPORT)
+    onBlocking { listReports(any()) }.thenReturn(LIST_REPORTS_RESPONSE)
+    onBlocking { getReport(any()) }.thenReturn(REPORT)
+  }
+  private val eventGroupsServiceMock: EventGroupsCoroutineImplBase = mockService {
+    onBlocking { listEventGroups(any()) }.thenReturn(LIST_EVENT_GROUPS_RESPONSE)
+  }
 
   private val serverCerts =
     SigningCerts.fromPemFiles(
@@ -569,9 +567,7 @@ class ReportingTest {
     val output = callCli(args)
 
     verifyProtoArgument(reportsServiceMock, ReportsCoroutineImplBase::getReport)
-      .isEqualTo(getReportRequest {
-        name = REPORT_NAME
-      })
+      .isEqualTo(getReportRequest { name = REPORT_NAME })
     verifyProtoArgument(reportsServiceMock, ReportsCoroutineImplBase::createReport)
       .isEqualTo(
         createReportRequest {

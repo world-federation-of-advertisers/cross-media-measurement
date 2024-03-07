@@ -37,7 +37,6 @@ import org.wfanet.measurement.reporting.v1alpha.ReportKt.EventGroupUniverseKt.ev
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.eventGroupUniverse
 import org.wfanet.measurement.reporting.v1alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import org.wfanet.measurement.reporting.v1alpha.ReportsGrpcKt.ReportsCoroutineStub
-import org.wfanet.measurement.reporting.v1alpha.copy
 import org.wfanet.measurement.reporting.v1alpha.createReportRequest
 import org.wfanet.measurement.reporting.v1alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v1alpha.getReportRequest
@@ -403,9 +402,7 @@ class CreateFromExistingCommand : Runnable {
   override fun run() {
     val existingReport =
       runBlocking(Dispatchers.IO) {
-        parent.reportsStub.getReport(getReportRequest {
-          name = reportName
-        })
+        parent.reportsStub.getReport(getReportRequest { name = reportName })
       }
 
     val reportKey = ReportKey.fromName(reportName)!!
