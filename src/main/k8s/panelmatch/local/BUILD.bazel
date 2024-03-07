@@ -50,7 +50,6 @@ kustomization_dir(
     name = "edp_daemon",
     srcs = [
         ":forwarded_storage_edp_daemon",
-        "//src/main/k8s/local:kingdom",
     ],
     generate_kustomization = True,
     tags = ["manual"],

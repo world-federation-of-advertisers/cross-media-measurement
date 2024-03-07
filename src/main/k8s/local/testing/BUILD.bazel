@@ -6,6 +6,7 @@ package(
     default_testonly = True,
     default_visibility = [
         "//src/test/kotlin/org/wfanet/measurement/integration/k8s:__pkg__",
+        "//src/test/kotlin/org/wfanet/panelmatch/integration/k8s:__pkg__",
     ],
 )
 
@@ -75,7 +76,6 @@ kustomization_dir(
 
 kustomization_dir(
     name = "cmms",
-    testonly = True,
     srcs = [
         ":duchies",
         ":edp_simulators",
@@ -88,6 +88,21 @@ kustomization_dir(
     deps = [
         ":config_files",
         ":db_creds",
+        "//src/main/k8s/testing/secretfiles:kustomization",
+    ],
+)
+
+# Minimal CMMS for panel match.
+kustomization_dir(
+    name = "cmms_for_panelmatch",
+    srcs = [
+        "//src/main/k8s/local:kingdom",
+        "//src/main/k8s/local:panelmatch_emulators",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
+    deps = [
+        ":config_files",
         "//src/main/k8s/testing/secretfiles:kustomization",
     ],
 )
