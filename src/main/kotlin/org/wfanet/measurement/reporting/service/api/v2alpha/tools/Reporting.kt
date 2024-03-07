@@ -461,7 +461,10 @@ class GetReportCommand : Runnable {
   }
 }
 
-@CommandLine.Command(name = "create-from-existing", description = ["Create a new Report from an existing Report"])
+@CommandLine.Command(
+  name = "create-from-existing",
+  description = ["Create a new Report from an existing Report"],
+)
 class CreateFromExistingCommand : Runnable {
   @CommandLine.ParentCommand private lateinit var parent: ReportsCommand
 
@@ -469,21 +472,25 @@ class CreateFromExistingCommand : Runnable {
   private lateinit var reportName: String
 
   override fun run() {
-    val existingReport = runBlocking(Dispatchers.IO) {
-      parent.reportsStub.getReport(getReportRequest {
-        name = reportName
-      })
-    }
+    val existingReport =
+      runBlocking(Dispatchers.IO) {
+        parent.reportsStub.getReport(getReportRequest { name = reportName })
+      }
 
-    val reportCopy = runBlocking(Dispatchers.IO) {
-      parent.reportsStub.createReport(createReportRequest {
-        report = existingReport
-        reportId = reportId + "-" + Random.nextInt(1000, 10000)
-        requestId = UUID.randomUUID().toString()
-      })
-    }
+    val reportCopy =
+      runBlocking(Dispatchers.IO) {
+        parent.reportsStub.createReport(
+          createReportRequest {
+            report = existingReport
+            reportId = reportId + "-" + Random.nextInt(1000, 10000)
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+      }
 
-    println("Report with name ${reportCopy.name} successfully created as a copy of an existing Report with name ${reportName}")
+    println(
+      "Report with name ${reportCopy.name} successfully created as a copy of an existing Report with name ${reportName}"
+    )
   }
 }
 
