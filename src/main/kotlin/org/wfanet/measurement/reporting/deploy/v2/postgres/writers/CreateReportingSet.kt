@@ -268,7 +268,8 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
         }] = it.eventGroupId
     }
 
-    val eventGroupBinders = mutableListOf<ValuesListBoundStatement.ValuesListBoundStatementBuilder.() -> Unit>()
+    val eventGroupBinders =
+      mutableListOf<ValuesListBoundStatement.ValuesListBoundStatementBuilder.() -> Unit>()
 
     cmmsEventGroupKeys.forEach {
       eventGroupMap.computeIfAbsent(
