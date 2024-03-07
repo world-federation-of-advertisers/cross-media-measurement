@@ -478,13 +478,14 @@ class CreateFromExistingCommand : Runnable {
         parent.reportsStub.getReport(getReportRequest { name = reportName })
       }
 
+    val reportKey = ReportKey.fromName(reportName)!!
     val reportCopy =
       runBlocking(Dispatchers.IO) {
         parent.reportsStub.createReport(
           createReportRequest {
-            parent = ReportKey.fromName(reportName)!!.parentKey.toName()
+            parent = reportKey.parentKey.toName()
             report = existingReport
-            reportId = reportId + "-" + Random.nextInt(1000, 10000)
+            reportId = reportKey.reportId + "-" + Random.nextInt(1000, 10000)
             requestId = UUID.randomUUID().toString()
           }
         )
