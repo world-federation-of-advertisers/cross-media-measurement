@@ -147,6 +147,7 @@ abstract class AbstractPanelMatchCorrectnessTest(private val localSystem: PanelM
       )
     }
 
+    @JvmStatic
     protected suspend fun KubernetesClient.waitUntilDeploymentReady(name: String): V1Deployment {
       logger.info { "Waiting for Deployment $name to be ready..." }
       return waitUntilDeploymentReady(name, timeout = READY_TIMEOUT).also {
