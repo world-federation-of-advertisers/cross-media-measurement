@@ -412,9 +412,7 @@ class CreateFromExistingCommand : Runnable {
         parent.reportsStub.createReport(
           createReportRequest {
             parent = MeasurementConsumerKey(reportKey.measurementConsumerId).toName()
-            report = existingReport.copy {
-              clearReportIdempotencyKey()
-            }
+            report = existingReport.copy { clearReportIdempotencyKey() }
           }
         )
       }
