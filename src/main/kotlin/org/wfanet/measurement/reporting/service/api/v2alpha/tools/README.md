@@ -137,6 +137,17 @@ Reporting \
   reports get measurementConsumers/VCTqwV_vFXw/reports/abcd
 ```
 
+#### create-from-existing
+
+```shell
+Reporting \
+  --tls-cert-file=secretfiles/mc_tls.pem \
+  --tls-key-file=secretfiles/mc_tls.key \
+  --cert-collection-file=secretfiles/reporting_root.pem \
+  --reporting-server-api-target=v2alpha.reporting.dev.halo-cmm.org:8443 \
+  reports create-from-existing measurementConsumers/VCTqwV_vFXw/reports/abcd
+```
+
 ### metric-calculation-specs
 
 #### create

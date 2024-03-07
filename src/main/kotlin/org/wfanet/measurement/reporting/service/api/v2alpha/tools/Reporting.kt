@@ -26,6 +26,8 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.util.UUID
+import kotlin.random.Random
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
@@ -459,6 +461,32 @@ class GetReportCommand : Runnable {
   }
 }
 
+@CommandLine.Command(name = "create-from-existing", description = ["Create a new Report from an existing Report"])
+class CreateFromExistingCommand : Runnable {
+  @CommandLine.ParentCommand private lateinit var parent: ReportsCommand
+
+  @CommandLine.Parameters(description = ["API resource name of the Report"])
+  private lateinit var reportName: String
+
+  override fun run() {
+    val existingReport = runBlocking(Dispatchers.IO) {
+      parent.reportsStub.getReport(getReportRequest {
+        name = reportName
+      })
+    }
+
+    val reportCopy = runBlocking(Dispatchers.IO) {
+      parent.reportsStub.createReport(createReportRequest {
+        report = existingReport
+        reportId = reportId + "-" + Random.nextInt(1000, 10000)
+        requestId = UUID.randomUUID().toString()
+      })
+    }
+
+    println("Report with name ${reportCopy.name} successfully created as a copy of an existing Report with name ${reportName}")
+  }
+}
+
 @CommandLine.Command(
   name = "reports",
   sortOptions = false,
@@ -468,6 +496,7 @@ class GetReportCommand : Runnable {
       CreateReportCommand::class,
       ListReportsCommand::class,
       GetReportCommand::class,
+      CreateFromExistingCommand::class,
     ],
 )
 class ReportsCommand : Runnable {

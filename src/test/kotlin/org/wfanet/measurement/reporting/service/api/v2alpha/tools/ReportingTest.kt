@@ -57,6 +57,7 @@ import org.wfanet.measurement.common.testing.CommandLineTesting.assertThat
 import org.wfanet.measurement.common.testing.ExitInterceptingSecurityManager
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.reporting.v2alpha.CreateReportRequest
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsResponse
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsResponse
@@ -647,6 +648,28 @@ class ReportingTest {
       .isEqualTo(getReportRequest { name = REPORT_NAME })
     assertThat(output).status().isEqualTo(0)
     assertThat(parseTextProto(output.out.reader(), Report.getDefaultInstance())).isEqualTo(REPORT)
+  }
+
+  @Test
+  fun `create-from-existing calls api with valid request`() {
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "reports",
+        "create-from-existing",
+        REPORT_NAME,
+      )
+    val output = callCli(args)
+
+    verifyProtoArgument(reportsServiceMock, ReportsCoroutineImplBase::getReport)
+      .isEqualTo(getReportRequest { name = REPORT_NAME })
+    verifyProtoArgument(reportsServiceMock, ReportsCoroutineImplBase::createReport)
+      .ignoringFields(CreateReportRequest.REPORT_ID_FIELD_NUMBER, CreateReportRequest.REQUEST_ID_FIELD_NUMBER)
+      .isEqualTo(createReportRequest { report = REPORT })
+    assertThat(output).status().isEqualTo(0)
   }
 
   @Test
