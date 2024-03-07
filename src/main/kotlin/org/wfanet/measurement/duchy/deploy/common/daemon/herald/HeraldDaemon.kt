@@ -17,6 +17,7 @@ package org.wfanet.measurement.duchy.deploy.common.daemon.herald
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.aead.AeadConfig
 import io.grpc.Channel
 import java.io.File
 import java.time.Clock
@@ -143,6 +144,7 @@ private fun run(@CommandLine.Mixin flags: Flags) {
   val heraldId = System.getenv("HOSTNAME")
 
   // TODO(@renjiez): Use real PrivateKeyStore when enabling HMSS.
+  AeadConfig.register()
   val keyUri = "fake-kms://kek"
   val privateKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
   val aead = privateKeyHandle.getPrimitive(Aead::class.java)
