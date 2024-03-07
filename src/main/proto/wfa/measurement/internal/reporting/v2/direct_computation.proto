@@ -81,7 +81,12 @@ message DeterministicCountDistinct {}
 message DeterministicDistribution {}
 
 // Parameters used when applying the deterministic count methodology.
-message DeterministicCount {}
+message DeterministicCount {
+  // Custom maximum frequency per user value calculated by the
+  // DataProvider. If this is specified, the maximum_frequency_per_user in
+  // measurement_spec will be ignored.
+  int32 custom_maximum_frequency_per_user = 1;
+}
 
 // Parameters used when applying the deterministic sum methodology.
 message DeterministicSum {}

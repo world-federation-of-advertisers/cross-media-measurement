@@ -136,7 +136,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "cross-media-measurement-api",
-    version = "0.58.0",
+    version = "0.60.0",
     repo_name = "wfa_measurement_proto",
 )
 bazel_dep(
