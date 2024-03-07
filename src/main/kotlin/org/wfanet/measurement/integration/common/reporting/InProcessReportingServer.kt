@@ -21,7 +21,6 @@ import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.time.Duration
 import java.util.logging.Logger
-import kotlinx.coroutines.Dispatchers
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
@@ -126,7 +125,7 @@ class InProcessReportingServer(
           ),
           EventGroup.getDescriptor(),
           Duration.ofSeconds(5),
-          Dispatchers.Default,
+          knownMetadataTypes = emptyList(),
         )
 
       listOf(

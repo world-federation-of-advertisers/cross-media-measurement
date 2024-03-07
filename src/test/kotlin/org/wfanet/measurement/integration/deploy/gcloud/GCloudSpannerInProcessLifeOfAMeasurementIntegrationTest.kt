@@ -18,7 +18,6 @@ import org.junit.Rule
 import org.junit.rules.Timeout
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.InProcessLifeOfAMeasurementIntegrationTest
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDataServicesProviderRule
 
 /**
  * Implementation of [InProcessLifeOfAMeasurementIntegrationTest] for GCloud backends with Spanner

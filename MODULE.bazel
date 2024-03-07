@@ -31,7 +31,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_proto",
-    version = "6.0.0-rc1",
+    version = "6.0.0-rc2",
 )
 bazel_dep(
     name = "rules_cc",
@@ -126,7 +126,6 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.75.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -311,6 +310,28 @@ http_archive(
     sha256 = "e5d9cb0f6087b6286f5bfeb053a968870c88c27fa7a5dc40055ae7681dad9b2c",
     strip_prefix = "uk-pilot-event-templates-0.2.0",
     url = "https://github.com/world-federation-of-advertisers/uk-pilot-event-templates/archive/refs/tags/v0.2.0.tar.gz",
+)
+
+# TODO(bazelbuild/rules_proto#203): Remove when fixed.
+archive_override(
+    module_name = "rules_proto",
+    integrity = "sha256-cf2+0AoHCVIa0hIFjGDROZe5IqXQHb/Zl/DVfWiee2c=",
+    patch_strip = 0,
+    patches = ["//build/rules_proto:module_dot_bazel.patch"],
+    strip_prefix = "rules_proto-6.0.0-rc2",
+    urls = [
+        "https://github.com/bazelbuild/rules_proto/releases/download/6.0.0-rc2/rules_proto-6.0.0-rc2.tar.gz",
+    ],
+)
+
+# TODO(world-federation-of-advertisers/common-jvm#235): Use version.
+archive_override(
+    module_name = "common-jvm",
+    integrity = "sha256-XOqc+UyEt5TXnw5o6S+Iv8BYDT0twt1KtL79hWKBJus=",
+    strip_prefix = "common-jvm-d97797078834e0421703b9877a351413767fcb98",
+    urls = [
+        "https://github.com/world-federation-of-advertisers/common-jvm/archive/d97797078834e0421703b9877a351413767fcb98.tar.gz",
+    ],
 )
 
 # Force use of newer version of boringssl.

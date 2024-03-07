@@ -16,6 +16,7 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import java.io.File
 import kotlin.properties.Delegates
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessage
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.loadtest.config.EventGroupMetadata
@@ -52,6 +53,7 @@ class CsvEdpSimulatorRunner : EdpSimulatorRunner() {
       eventQuery,
       EdpSimulator.buildEventTemplates(TestEvent.getDescriptor()),
       mapOf("" to EventGroupMetadata.testMetadata(publisherId)),
+      listOf(TestMetadataMessage.getDescriptor().file),
     )
   }
 }

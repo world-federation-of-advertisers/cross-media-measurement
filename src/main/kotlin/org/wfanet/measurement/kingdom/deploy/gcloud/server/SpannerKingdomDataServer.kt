@@ -40,7 +40,7 @@ class SpannerKingdomDataServer : KingdomDataServer() {
       val idGenerator = RandomIdGenerator(clock)
       val client = spanner.databaseClient
 
-      run(SpannerDataServices(clock, idGenerator, client))
+      run(SpannerDataServices(clock, idGenerator, client, knownEventGroupMetadataTypes))
     }
   }
 }

@@ -294,16 +294,17 @@ secretGenerator:
 ## Customize the K8s ConfigMap
 
 Configuration that may frequently change is stored in a K8s configMap. The `dev`
-configuration uses one named `config-files`, which contains configuration files
-in
-[protobuf text format](https://developers.google.com/protocol-buffers/docs/text-format-spec).
+configuration uses one named `config-files`.
 
-*   `authority_key_identifier_to_principal_map.textproto` -
-    [`AuthorityKeyToPrincipalMap`](../../src/main/proto/wfa/measurement/config/authority_key_to_principal_map.proto)
-*   `encryption_key_pair_config.textproto` -
-    [`EncryptionKeyPairConfig`](../../src/main/proto/wfa/measurement/config/reporting/encryption_key_pair_config.proto)
-*   `measurement_spec_config.textproto` -
-    [`MeasurementSpecConfig`](../../src/main/proto/wfa/measurement/config/reporting/measurement_spec_config.proto)
+*   `authority_key_identifier_to_principal_map.textproto`
+    *   [`AuthorityKeyToPrincipalMap`](../../src/main/proto/wfa/measurement/config/authority_key_to_principal_map.proto)
+*   `encryption_key_pair_config.textproto`
+    *   [`EncryptionKeyPairConfig`](../../src/main/proto/wfa/measurement/config/reporting/encryption_key_pair_config.proto)
+*   `measurement_spec_config.textproto`
+    *   [`MeasurementSpecConfig`](../../src/main/proto/wfa/measurement/config/reporting/measurement_spec_config.proto)
+*   `known_event_group_metadata_type_set.pb`
+    *   Protobuf `FileDescriptorSet` containing known `EventGroup` metadata
+        types.
 
 Place these files into the `src/main/k8s/dev/reporting_config_files/` path
 within the Kustomization directory.

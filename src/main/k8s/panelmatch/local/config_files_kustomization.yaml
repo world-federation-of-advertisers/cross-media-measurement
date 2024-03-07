@@ -16,3 +16,4 @@ configMapGenerator:
   - name: config-files
     files:
       - authority_key_identifier_to_principal_map.textproto
+      - known_event_group_metadata_type_set.pb
