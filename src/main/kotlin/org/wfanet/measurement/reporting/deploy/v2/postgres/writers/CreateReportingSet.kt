@@ -18,6 +18,7 @@ package org.wfanet.measurement.reporting.deploy.v2.postgres.writers
 
 import io.r2dbc.postgresql.api.PostgresqlException
 import io.r2dbc.spi.R2dbcDataIntegrityViolationException
+import org.wfanet.measurement.common.db.r2dbc.BoundStatement
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.common.db.r2dbc.postgres.ValuesListBoundStatement
@@ -267,7 +268,7 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
         }] = it.eventGroupId
     }
 
-    val eventGroupBinders = mutableListOf<ValuesListBoundStatement.Binder.() -> Unit>()
+    val eventGroupBinders = mutableListOf<ValuesListBoundStatement.ValuesListBoundStatementBuilder.() -> Unit>()
 
     cmmsEventGroupKeys.forEach {
       eventGroupMap.computeIfAbsent(
@@ -287,7 +288,7 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
       }
     }
 
-    val eventGroupsStatement: ValuesListBoundStatement? =
+    val eventGroupsStatement: BoundStatement? =
       if (eventGroupBinders.size > 0) {
         valuesListBoundStatement(
           valuesStartIndex = 0,

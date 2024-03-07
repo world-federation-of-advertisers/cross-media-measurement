@@ -20,6 +20,7 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
 import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.common.db.r2dbc.BoundStatement
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.common.db.r2dbc.postgres.ValuesListBoundStatement
@@ -56,7 +57,7 @@ import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundExc
  */
 class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Report>() {
   private data class ReportingMetricEntriesAndStatement(
-    val metricCalculationSpecReportingMetricsStatement: ValuesListBoundStatement,
+    val metricCalculationSpecReportingMetricsStatement: BoundStatement,
     val updatedReportingMetricEntries: Map<String, Report.ReportingMetricCalculationSpec>,
   )
 
@@ -383,7 +384,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
                   bindValuesParam(2, reportingSetIdsByExternalId[entry.key])
                   bindValuesParam(3, metricCalculationSpecResult.metricCalculationSpecId)
                   bindValuesParam(4, createMetricRequestId)
-                  bindValuesParam<Long?>(5, null)
+                  bindValuesParam<Long>(5, null)
                   bindValuesParam(6, it.details)
                   bindValuesParam(7, it.details.toJson())
                 }

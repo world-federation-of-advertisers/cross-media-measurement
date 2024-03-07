@@ -242,7 +242,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
               if (it.requestId.isNotEmpty()) {
                 bindValuesParam(2, it.requestId)
               } else {
-                bindValuesParam<String?>(2, null)
+                bindValuesParam<String>(2, null)
               }
               bindValuesParam(3, reportingSetId)
               bindValuesParam(4, externalMetricId)
@@ -263,51 +263,51 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                   bindValuesParam(9, reachAndFrequency.reachPrivacyParams.delta)
                   bindValuesParam(10, reachAndFrequency.frequencyPrivacyParams.epsilon)
                   bindValuesParam(11, reachAndFrequency.reachPrivacyParams.delta)
-                  bindValuesParam<Long?>(12, null)
-                  bindValuesParam<PostgresInterval?>(13, null)
+                  bindValuesParam<Long>(12, null)
+                  bindValuesParam<PostgresInterval>(13, null)
                   bindValuesParam(14, reachAndFrequency.maximumFrequency)
                 }
                 MetricSpec.TypeCase.REACH -> {
                   val reach = it.metric.metricSpec.reach
                   bindValuesParam(8, reach.privacyParams.epsilon)
                   bindValuesParam(9, reach.privacyParams.delta)
-                  bindValuesParam<Double?>(10, null)
-                  bindValuesParam<Double?>(11, null)
-                  bindValuesParam<Long?>(12, null)
-                  bindValuesParam<PostgresInterval?>(13, null)
-                  bindValuesParam<Long?>(14, null)
+                  bindValuesParam<Double>(10, null)
+                  bindValuesParam<Double>(11, null)
+                  bindValuesParam<Long>(12, null)
+                  bindValuesParam<PostgresInterval>(13, null)
+                  bindValuesParam<Long>(14, null)
                 }
                 MetricSpec.TypeCase.IMPRESSION_COUNT -> {
                   val impressionCount = it.metric.metricSpec.impressionCount
                   bindValuesParam(8, impressionCount.privacyParams.epsilon)
                   bindValuesParam(9, impressionCount.privacyParams.delta)
-                  bindValuesParam<Double?>(10, null)
-                  bindValuesParam<Double?>(11, null)
+                  bindValuesParam<Double>(10, null)
+                  bindValuesParam<Double>(11, null)
                   bindValuesParam(12, impressionCount.maximumFrequencyPerUser)
-                  bindValuesParam<PostgresInterval?>(13, null)
-                  bindValuesParam<Long?>(14, null)
+                  bindValuesParam<PostgresInterval>(13, null)
+                  bindValuesParam<Long>(14, null)
                 }
                 MetricSpec.TypeCase.WATCH_DURATION -> {
                   val watchDuration = it.metric.metricSpec.watchDuration
                   bindValuesParam(8, watchDuration.privacyParams.epsilon)
                   bindValuesParam(9, watchDuration.privacyParams.delta)
-                  bindValuesParam<Double?>(10, null)
-                  bindValuesParam<Double?>(11, null)
-                  bindValuesParam<Long?>(12, null)
+                  bindValuesParam<Double>(10, null)
+                  bindValuesParam<Double>(11, null)
+                  bindValuesParam<Long>(12, null)
                   bindValuesParam(
                     13,
                     PostgresInterval.of(watchDuration.maximumWatchDurationPerUser.toDuration()),
                   )
-                  bindValuesParam<Long?>(14, null)
+                  bindValuesParam<Long>(14, null)
                 }
                 MetricSpec.TypeCase.POPULATION_COUNT -> {
                   bindValuesParam(8, 0)
                   bindValuesParam(9, 0)
-                  bindValuesParam<Double?>(10, null)
-                  bindValuesParam<Double?>(11, null)
-                  bindValuesParam<Long?>(12, null)
-                  bindValuesParam<PostgresInterval?>(13, null)
-                  bindValuesParam<Long?>(14, null)
+                  bindValuesParam<Double>(10, null)
+                  bindValuesParam<Double>(11, null)
+                  bindValuesParam<Long>(12, null)
+                  bindValuesParam<PostgresInterval>(13, null)
+                  bindValuesParam<Long>(14, null)
                 }
                 MetricSpec.TypeCase.TYPE_NOT_SET -> {}
               }
@@ -416,7 +416,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
             bindValuesParam(0, measurementConsumerId)
             bindValuesParam(1, it.measurementId)
             bindValuesParam(2, it.cmmsCreateMeasurementRequestId)
-            bindValuesParam<String?>(3, null)
+            bindValuesParam<String>(3, null)
             bindValuesParam(4, it.timeIntervalStart)
             bindValuesParam(5, it.timeIntervalEndExclusive)
             bindValuesParam(6, Measurement.State.STATE_UNSPECIFIED)
@@ -457,7 +457,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
     val primitiveReportingSetBasesStatement =
       valuesListBoundStatement(
         valuesStartIndex = 0,
-        3,
+        paramCount = 3,
         """
         INSERT INTO PrimitiveReportingSetBases
           (
