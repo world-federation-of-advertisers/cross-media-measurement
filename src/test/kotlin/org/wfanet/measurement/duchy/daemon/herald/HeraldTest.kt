@@ -818,7 +818,7 @@ class HeraldTest {
     val hmssDetails = computationDetails!!.honestMajorityShareShuffle
     assertThat(hmssDetails)
       .ignoringFields(
-        HonestMajorityShareShuffle.ComputationDetails.COMMON_RANDOM_SEED_FIELD_NUMBER,
+        HonestMajorityShareShuffle.ComputationDetails.RANDOM_SEED_FIELD_NUMBER,
         HonestMajorityShareShuffle.ComputationDetails.ENCRYPTION_KEY_PAIR_FIELD_NUMBER,
       )
       .isEqualTo(
@@ -842,7 +842,7 @@ class HeraldTest {
           participants += listOf(DUCHY_ONE, DUCHY_TWO, DUCHY_THREE)
         }
       )
-    assertThat(hmssDetails.commonRandomSeed).isNotEmpty()
+    assertThat(hmssDetails.randomSeed).isNotEmpty()
     assertThat(hmssDetails.hasEncryptionKeyPair()).isTrue()
     verifyEncryptionKeyPair(hmssDetails.encryptionKeyPair)
   }

@@ -78,7 +78,7 @@ object HonestMajorityShareShuffleStarter {
           parameters = systemComputation.toHonestMajorityShareShuffleParameters()
           participants += systemComputation.computationParticipantsList.map { it.key.duchyId }
           if (role != RoleInComputation.AGGREGATOR) {
-            commonRandomSeed = generateRandomSeed()
+            randomSeed = generateRandomSeed()
 
             val privateKeyHandle = TinkPrivateKeyHandle.generateHpke()
             val privateKeyId = storePrivateKey(privateKetStorageClient, privateKeyHandle)
@@ -144,7 +144,7 @@ object HonestMajorityShareShuffleStarter {
       Stage.INITIALIZED -> {
         error("[id=${token.globalComputationId}]: Computation is not ready to start. stage=$stage.")
       }
-      // Log and skip for future Stage
+      // Log and skip for future Stages.
       Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_TWO,
       Stage.SETUP_PHASE,
       Stage.SHUFFLE_PHASE,

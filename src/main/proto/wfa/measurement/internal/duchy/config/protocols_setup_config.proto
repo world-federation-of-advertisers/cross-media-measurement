@@ -52,14 +52,16 @@ enum RoleInComputation {
 
   // The first non-aggregator duchy for the computation of HMSS.
   //
-  // For HonestMajorityShareShuffle only. This duchy needs to exchange seeds,
-  // add noise, and shuffle. It sends data to the peer non-aggregator firstly.
+  // For HonestMajorityShareShuffle only. This duchy exchanges seeds,
+  // adds noise, and shuffles. It receives the signal from the Kingdom to start
+  // computing.
   FIRST_NON_AGGREGATOR = 3;
 
   // The second non-aggregator duchy for the computation of HMSS.
   //
-  // For HonestMajorityShareShuffle only. This duchy needs to exchange seeds,
-  // add noise, and shuffle. It sends data to the peer non-aggregator secondly.
+  // For HonestMajorityShareShuffle only. This duchy exchanges seeds,
+  // adds noise, and shuffles. The computing is triggered by the first
+  // non-aggregator.
   SECOND_NON_AGGREGATOR = 4;
 }
 
