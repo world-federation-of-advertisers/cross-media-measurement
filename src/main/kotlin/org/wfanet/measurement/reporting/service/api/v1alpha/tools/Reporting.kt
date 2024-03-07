@@ -37,6 +37,7 @@ import org.wfanet.measurement.reporting.v1alpha.ReportKt.EventGroupUniverseKt.ev
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.eventGroupUniverse
 import org.wfanet.measurement.reporting.v1alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import org.wfanet.measurement.reporting.v1alpha.ReportsGrpcKt.ReportsCoroutineStub
+import org.wfanet.measurement.reporting.v1alpha.copy
 import org.wfanet.measurement.reporting.v1alpha.createReportRequest
 import org.wfanet.measurement.reporting.v1alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v1alpha.getReportRequest
@@ -411,7 +412,9 @@ class CreateFromExistingCommand : Runnable {
         parent.reportsStub.createReport(
           createReportRequest {
             parent = MeasurementConsumerKey(reportKey.measurementConsumerId).toName()
-            report = existingReport
+            report = existingReport.copy {
+              clearReportIdempotencyKey()
+            }
           }
         )
       }
