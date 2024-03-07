@@ -1,7 +1,7 @@
-load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
 load("@wfa_rules_cue//cue:defs.bzl", "cue_library")
-load("//src/main/k8s:macros.bzl", "cue_dump")
+load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
 load("//build/k8s:defs.bzl", "kustomization_dir")
+load("//src/main/k8s:macros.bzl", "cue_dump")
 
 package(
     default_testonly = True,
@@ -92,6 +92,7 @@ kustomization_dir(
     name = "config_files",
     srcs = [
         "config_files_kustomization.yaml",
+        "//src/main/k8s/testing/secretfiles:known_event_group_metadata_type_set",
     ],
     renames = {
         "config_files_kustomization.yaml": "kustomization.yaml",
