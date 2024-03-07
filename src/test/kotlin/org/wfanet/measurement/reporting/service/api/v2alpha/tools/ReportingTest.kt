@@ -671,10 +671,12 @@ class ReportingTest {
         CreateReportRequest.REPORT_ID_FIELD_NUMBER,
         CreateReportRequest.REQUEST_ID_FIELD_NUMBER,
       )
-      .isEqualTo(createReportRequest {
-        parent = MEASUREMENT_CONSUMER_NAME
-        report = REPORT
-      })
+      .isEqualTo(
+        createReportRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          report = REPORT
+        }
+      )
     assertThat(output).status().isEqualTo(0)
   }
 
