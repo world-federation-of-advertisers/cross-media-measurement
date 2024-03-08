@@ -852,7 +852,7 @@ class HeraldTest {
     val plaintext = "a plaintext.".toByteStringUtf8()
     val ciphertext = publicKeyHandle.hybridEncrypt(plaintext)
 
-    val keyId = TinkKeyId(encryptionKeyPair.privateKeyId.toInt())
+    val keyId = TinkKeyId(encryptionKeyPair.privateKeyId.toLong())
     val privateKeyHandle = privateKeyStore.read(keyId)
 
     assertThat(privateKeyStore).isNotNull()
