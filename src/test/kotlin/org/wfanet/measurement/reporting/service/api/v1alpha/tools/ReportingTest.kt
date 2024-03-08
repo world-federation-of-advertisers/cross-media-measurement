@@ -569,6 +569,7 @@ class ReportingTest {
     verifyProtoArgument(reportsServiceMock, ReportsCoroutineImplBase::getReport)
       .isEqualTo(getReportRequest { name = REPORT_NAME })
     verifyProtoArgument(reportsServiceMock, ReportsCoroutineImplBase::createReport)
+      .ignoringFields(Report.REPORT_IDEMPOTENCY_KEY_FIELD_NUMBER)
       .isEqualTo(
         createReportRequest {
           parent = MEASUREMENT_CONSUMER_NAME

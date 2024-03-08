@@ -18,6 +18,7 @@ import io.grpc.ManagedChannel
 import java.time.Duration
 import java.time.Instant
 import kotlin.properties.Delegates
+import kotlin.random.Random
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
@@ -412,7 +413,9 @@ class CreateFromExistingCommand : Runnable {
         parent.reportsStub.createReport(
           createReportRequest {
             parent = MeasurementConsumerKey(reportKey.measurementConsumerId).toName()
-            report = existingReport.copy { clearReportIdempotencyKey() }
+            report = existingReport.copy {
+              reportIdempotencyKey = existingReport.reportIdempotencyKey + "-" + Random.nextInt(1000, 10000)
+            }
           }
         )
       }
