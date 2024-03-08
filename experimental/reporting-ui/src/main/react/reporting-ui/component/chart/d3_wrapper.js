@@ -16,17 +16,22 @@ import * as d3 from 'd3';
 import { formatNumberWithMagnitude } from '../../util/formatting';
 import './d3_wrapper.css';
 
-const initializeGraph = (cardId, dimensions) => {
+export const removeGraph = (cardId) => {
+    d3.select(`#${cardId}-chart`).selectAll("*").remove();
+    d3.select(`#${cardId}-legend`).selectAll("*").remove();
+}
+
+const initializeGraph = (cardId, dimensions, isLegend = false) => {
     // Specify the chart’s dimensions.
     const width = dimensions.width;
-    const height = dimensions.width * 0.6; // TODO: check with UX on how we want to make this reactive
+    const height = dimensions.height;
 
     // Create the SVG container.
-    const svg = d3.select(`#${cardId}-line`).append('svg')
+    const svg = d3.select(`#${cardId}`).append('svg')
         .attr("width", width)
         .attr("height", height)
         .attr("viewBox", [0, 0, width, height])
-        .attr("class", "chart-card");
+        .attr("class", isLegend ? "legend" : "chart-card");
 
     return svg;
 }
@@ -38,11 +43,13 @@ const setUpUtcScale = (svg, data, dimensions, margins) => {
         .range([margins.left, dimensions.width - margins.right]);
 
     // Add the horizontal axis.
+    const arr = new Set(data.map(item => item.variable.toString())).size
+    const ticks = Math.min(arr - 1, dimensions.width / 80)
     svg.append("g")
         .attr("transform", `translate(0,${dimensions.height - margins.bottom})`)
         .call(
         d3.axisBottom(x)
-            .ticks(dimensions.width / 80)
+            .ticks(ticks)
             .tickSizeOuter(0)
             .tickFormat(d3.timeFormat('%m/%d/%y'))
         );
@@ -70,7 +77,7 @@ const setUpLinearXScale = (svg, data, dimensions, margins) => {
 const setUpScaleBandXScale = (svg, data, dimensions, margins) => {
     // Create the positional scales.
     const x = d3.scaleBand()
-        .domain(data.map(x => x.cat))
+        .domain(new Set(data.map(d => d.variable)))
         .range([margins.left, dimensions.width - margins.right])
         .padding(0.5);
 
@@ -123,7 +130,7 @@ const setUpLinearYScale = (svg, data, dimensions, margins, isPercent = false) =>
 
 const drawMultiLines = (svg, groups, groupColors) => {
     // Draw the lines.
-    const line = d3.line().curve(d3.curveMonotoneX);;
+    const line = d3.line().curve(d3.curveMonotoneX);
     svg.append("g")
         .attr("fill", "none")
         .attr("stroke-width", 1.5)
@@ -132,25 +139,36 @@ const drawMultiLines = (svg, groups, groupColors) => {
       .selectAll("path")
       .data(groups.values())
       .join("path")
-        .attr("stroke", function(d){ return groupColors[d.group] })
+        .style("stroke", function(d){ return groupColors[d.z] })
         .style("mix-blend-mode", "multiply")
         .attr("d", line);
 }
 
-const drawBar = (svg, data, x, y) => {
+const drawBar = (svg, data, x, y, groupColors) => {
+    const subX = d3.scaleBand()
+        .domain(new Set(data.map(d => d.group)))
+        .rangeRound([0, x.bandwidth()])
+        .padding(0.05);
+
+    const groupedData = d3.group(data, d => d.variable);
+
     svg.append("g")
-        .attr("fill", "steelblue")
-    .selectAll()
-    .data(data)
-    .join("rect")
-        .attr("x", (d) => x(d.group))
-        .attr("y", (d) => y(d.val))
-        .attr("height", (d) => y(0) - y(d.val))
-        .attr("width", x.bandwidth());
+        .selectAll()
+        .data(groupedData)
+        .join("g")
+            .attr("transform", ([variable]) => `translate(${x(variable)},0)`)
+        .selectAll()
+        .data(([, d]) => d)
+        .join("rect")
+            .attr("x", d => subX(d.group))
+            .attr("y", d => y(d.value))
+            .attr("width", subX.bandwidth())
+            .attr("height", d => y(0) - y(d.value))
+            .attr("fill", d => groupColors[d.group]);
 }
 
 export const createMultiLineChart = (cardId, data, dimensions, margins, colorMap) => { 
-    const svg = initializeGraph(cardId, dimensions);
+    const svg = initializeGraph(`${cardId}-chart`, dimensions);
     const x = setUpUtcScale(svg, data, dimensions, margins);
     const y = setUpLinearYScale(svg, data, dimensions, margins);
 
@@ -164,7 +182,7 @@ export const createMultiLineChart = (cardId, data, dimensions, margins, colorMap
 }
 
 export const createPercentMultiLineChart = (cardId, data, dimensions, margins, colorMap) => { 
-    const svg = initializeGraph(cardId, dimensions);
+    const svg = initializeGraph(`${cardId}-chart`, dimensions);
     const x = setUpLinearXScale(svg, data, dimensions, margins)
     const y = setUpLinearYScale(svg, data, dimensions, margins, true);
 
@@ -178,9 +196,44 @@ export const createPercentMultiLineChart = (cardId, data, dimensions, margins, c
 }
 
 export const createPercentBarChart = (cardId, data, dimensions, margins) => {
-    const svg = initializeGraph(cardId, dimensions);
+    const svg = initializeGraph(`${cardId}-chart`, dimensions);
     const x = setUpScaleBandXScale(svg, data, dimensions, margins);
     const y = setUpLinearYScale(svg, data, dimensions, margins, true)
 
     drawBar(svg, data, x, y);
+}
+
+export const createBarChart = (cardId, data, dimensions, margins, colorMap) => {
+    const svg = initializeGraph(`${cardId}-chart`, dimensions);
+    const x = setUpScaleBandXScale(svg, data, dimensions, margins);
+    const y = setUpLinearYScale(svg, data, dimensions, margins, false)
+
+    drawBar(svg, data, x, y, colorMap);
+}
+
+export const createLegend = (cardId, dimensions, colorMap) => {
+    const svg = initializeGraph(`${cardId}-legend`, dimensions, true);
+    const keys = Object.keys(colorMap);
+
+    var size = 20
+    svg.selectAll("legendDots")
+        .data(keys)
+        .enter()
+        .append("rect")
+            .attr("x", 0)
+            .attr("y", function(d,i){ return  i*(size+5)}) // 100 is where the first dot appears. 25 is the distance between dots
+            .attr("width", size)
+            .attr("height", size)
+            .style("fill", function(d){ return colorMap[d]})
+        
+    svg.selectAll("legendLabels")
+        .data(keys)
+        .enter()
+        .append("text")
+        .attr("x", size*1.2)
+        .attr("y", function(d,i){ return i*(size+5) + (size/2)}) // 100 is where the first dot appears. 25 is the distance between dots
+        .style("fill", function(d){ return colorMap[d]})
+        .text(function(d){ return d})
+        .attr("text-anchor", "left")
+        .style("alignment-baseline", "middle")
 }

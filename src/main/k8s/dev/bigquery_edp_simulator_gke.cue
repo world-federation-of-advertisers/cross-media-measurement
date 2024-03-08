@@ -14,8 +14,6 @@
 
 package k8s
 
-#SimulatorServiceAccount: "simulator"
-
 _bigQueryConfig: #BigQueryConfig & {
 	dataset: string @tag("bigquery_dataset")
 	table:   string @tag("bigquery_table")
@@ -24,7 +22,7 @@ _bigQueryConfig: #BigQueryConfig & {
 _resourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "100m"
-		memory: "288Mi"
+		memory: "1Gi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
@@ -39,18 +37,10 @@ edp_simulators: {
 
 			deployment: {
 				_container: {
+					_javaOptions: maxHeapSize: "512M"
 					resources: _resourceRequirements
-				}
-				spec: template: spec: #ServiceAccountPodSpec & {
-					serviceAccountName: #SimulatorServiceAccount
 				}
 			}
 		}
-	}
-}
-
-serviceAccounts: {
-	"\(#SimulatorServiceAccount)": #WorkloadIdentityServiceAccount & {
-		_iamServiceAccountName: "simulator"
 	}
 }

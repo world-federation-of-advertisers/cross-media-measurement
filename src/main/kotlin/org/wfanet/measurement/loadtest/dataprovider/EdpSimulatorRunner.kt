@@ -22,6 +22,7 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
@@ -43,6 +44,7 @@ abstract class EdpSimulatorRunner : Runnable {
 
   protected fun run(
     eventQuery: EventQuery<Message>,
+    eventTemplates: Iterable<EventGroup.EventTemplate>,
     metadataByReferenceIdSuffix: Map<String, Message>,
   ) {
     val clientCerts =
@@ -114,7 +116,7 @@ abstract class EdpSimulatorRunner : Runnable {
         logSketchDetails = flags.logSketchDetails,
       )
     runBlocking {
-      edpSimulator.ensureEventGroups(metadataByReferenceIdSuffix)
+      edpSimulator.ensureEventGroups(eventTemplates, metadataByReferenceIdSuffix)
       edpSimulator.run()
     }
   }

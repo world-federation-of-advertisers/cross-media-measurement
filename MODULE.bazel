@@ -136,7 +136,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "cross-media-measurement-api",
-    version = "0.58.0",
+    version = "0.60.0",
     repo_name = "wfa_measurement_proto",
 )
 bazel_dep(
@@ -304,6 +304,13 @@ http_archive(
     sha256 = "c2c252b09969576965fd4610d933682a71890d90f01a96c418fcbcf808edf513",
     strip_prefix = "tink-1.7.0/cc",
     url = "https://github.com/google/tink/archive/refs/tags/v1.7.0.tar.gz",
+)
+
+http_archive(
+    name = "uk_pilot_event_templates",
+    sha256 = "e5d9cb0f6087b6286f5bfeb053a968870c88c27fa7a5dc40055ae7681dad9b2c",
+    strip_prefix = "uk-pilot-event-templates-0.2.0",
+    url = "https://github.com/world-federation-of-advertisers/uk-pilot-event-templates/archive/refs/tags/v0.2.0.tar.gz",
 )
 
 # Force use of newer version of boringssl.
