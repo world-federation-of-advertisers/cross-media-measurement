@@ -235,11 +235,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     private suspend fun createTestHarness(
       measurementConsumerData: MeasurementConsumerData
     ): MeasurementConsumerSimulator {
-      val kingdomPublicPod: V1Pod =
-        k8sClient
-          .listPodsByMatchLabels(k8sClient.waitUntilDeploymentReady(KINGDOM_PUBLIC_DEPLOYMENT_NAME))
-          .items
-          .first()
+      val kingdomPublicPod: V1Pod = getPod(KINGDOM_PUBLIC_DEPLOYMENT_NAME)
 
       val publicApiForwarder = PortForwarder(kingdomPublicPod, SERVER_PORT)
       portForwarders.add(publicApiForwarder)
@@ -260,7 +256,6 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           MeasurementsGrpcKt.MeasurementsCoroutineStub(publicApiChannel),
           MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(publicApiChannel),
           CertificatesGrpcKt.CertificatesCoroutineStub(publicApiChannel),
-          Duration.ofSeconds(10L),
           MEASUREMENT_CONSUMER_SIGNING_CERTS.trustedCertificates,
           MetadataSyntheticGeneratorEventQuery(
             SyntheticGenerationSpecs.POPULATION_SPEC,
@@ -326,23 +321,27 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           kubectlApply(configContent)
         }
 
-      appliedObjects.filterIsInstance(V1Deployment::class.java).forEach {
-        k8sClient.waitUntilDeploymentReady(it)
-      }
+      waitUntilDeploymentsComplete(appliedObjects)
     }
 
     private suspend fun loadKingdom() {
-      withContext(Dispatchers.IO) {
-        val outputDir = tempDir.newFolder("kingdom-setup")
-        extractTar(getRuntimePath(LOCAL_K8S_PATH.resolve("kingdom_setup.tar")).toFile(), outputDir)
-        val config: File = outputDir.resolve("config.yaml")
-        kustomize(
-          outputDir.toPath().resolve(LOCAL_K8S_PATH).resolve("kingdom_setup").toFile(),
-          config,
-        )
+      val appliedObjects: List<KubernetesObject> =
+        withContext(Dispatchers.IO) {
+          val outputDir = tempDir.newFolder("kingdom-setup")
+          extractTar(
+            getRuntimePath(LOCAL_K8S_PATH.resolve("kingdom_setup.tar")).toFile(),
+            outputDir,
+          )
+          val config: File = outputDir.resolve("config.yaml")
+          kustomize(
+            outputDir.toPath().resolve(LOCAL_K8S_PATH).resolve("kingdom_setup").toFile(),
+            config,
+          )
 
-        kubectlApply(config)
-      }
+          kubectlApply(config)
+        }
+
+      waitUntilDeploymentsComplete(appliedObjects)
     }
 
     private suspend fun runResourceSetup(
@@ -352,18 +351,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     ): ResourceSetupOutput {
       val outputDir = withContext(Dispatchers.IO) { tempDir.newFolder("resource-setup") }
 
-      val kingdomInternalPod =
-        k8sClient
-          .listPodsByMatchLabels(
-            k8sClient.waitUntilDeploymentReady(KINGDOM_INTERNAL_DEPLOYMENT_NAME)
-          )
-          .items
-          .first()
-      val kingdomPublicPod =
-        k8sClient
-          .listPodsByMatchLabels(k8sClient.waitUntilDeploymentReady(KINGDOM_PUBLIC_DEPLOYMENT_NAME))
-          .items
-          .first()
+      val kingdomInternalPod: V1Pod = getPod(KINGDOM_INTERNAL_DEPLOYMENT_NAME)
+      val kingdomPublicPod: V1Pod = getPod(KINGDOM_PUBLIC_DEPLOYMENT_NAME)
 
       val resources =
         PortForwarder(kingdomInternalPod, SERVER_PORT).use { internalForward ->
@@ -439,6 +428,30 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         .toList()
     }
 
+    private suspend fun waitUntilDeploymentComplete(name: String): V1Deployment {
+      logger.info { "Waiting for Deployment $name to be complete..." }
+      return k8sClient.waitUntilDeploymentComplete(name, timeout = READY_TIMEOUT).also {
+        logger.info { "Deployment $name complete" }
+      }
+    }
+
+    private suspend fun waitUntilDeploymentsComplete(appliedObjects: Iterable<KubernetesObject>) {
+      appliedObjects.filterIsInstance<V1Deployment>().forEach {
+        waitUntilDeploymentComplete(checkNotNull(it.metadata?.name))
+      }
+    }
+
+    /**
+     * Returns the first Pod from current ReplicaSet of the Deployment with name [deploymentName].
+     *
+     * This assumes that the Deployment is complete.
+     */
+    private suspend fun getPod(deploymentName: String): V1Pod {
+      val deployment = checkNotNull(k8sClient.getDeployment(deploymentName))
+      val replicaSet = checkNotNull(k8sClient.getNewReplicaSet(deployment))
+      return k8sClient.listPods(replicaSet).items.first()
+    }
+
     data class ResourceSetupOutput(
       val resources: List<Resources.Resource>,
       val akidPrincipalMap: File,
@@ -505,23 +518,6 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         }
 
         delay(Duration.ofSeconds(1))
-      }
-    }
-
-    private suspend fun KubernetesClient.waitUntilDeploymentReady(name: String): V1Deployment {
-      logger.info { "Waiting for Deployment $name to be ready..." }
-      return waitUntilDeploymentReady(name, timeout = READY_TIMEOUT).also {
-        logger.info { "Deployment $name ready" }
-      }
-    }
-
-    private suspend fun KubernetesClient.waitUntilDeploymentReady(
-      deployment: V1Deployment
-    ): V1Deployment {
-      val deploymentName = requireNotNull(deployment.metadata?.name)
-      logger.info { "Waiting for Deployment $deploymentName to be ready..." }
-      return waitUntilDeploymentReady(deployment, timeout = READY_TIMEOUT).also {
-        logger.info { "Deployment $deploymentName ready" }
       }
     }
   }

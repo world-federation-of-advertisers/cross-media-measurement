@@ -100,7 +100,4 @@ message RequisitionMetadata {
   // The requisition data in format of a secret seed. It is ciphertext
   // containing a serialized `SignedMessage` message from the CMMS public API.
   bytes secret_seed_ciphertext = 4;
-
-  // The public api version.
-  string public_api_version = 5;
 }

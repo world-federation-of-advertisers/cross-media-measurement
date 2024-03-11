@@ -17,12 +17,20 @@ import Card from 'react-bootstrap/Card';
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 import { FilterChartIcon, OptionsIcon } from '../../public/asset/icon';
-import { createMultiLineChart, createPercentBarChart, createPercentMultiLineChart } from './d3_wrapper';
+import {
+  createLegend,
+  createMultiLineChart,
+  createBarChart,
+  createPercentBarChart,
+  createPercentMultiLineChart,
+  removeGraph
+} from './d3_wrapper';
 
 export enum ChartType {
   percentMultiLine,
   multiLine,
   bar,
+  barPercent,
 }
 
 type props = {
@@ -40,8 +48,10 @@ const componentStyle = {
 
 // TODO: Add Legend
 export function Chart({cardId, title, data, config, type}: props) {
-  const refContainer = useRef<HTMLDivElement>(null);
+  const chartRefContainer = useRef<HTMLDivElement>(null);
+  const legendRefContainer = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const [legendDimensions, setLegendDimensions] = useState({ width: 0, height: 0 });
 
   const createGraph = (cardId: string, data: any, dimensions: {width: number, height: number}) => {
     // Specify the chart’s dimensions.
@@ -54,10 +64,14 @@ export function Chart({cardId, title, data, config, type}: props) {
 
     if (type === ChartType.multiLine) {
       createMultiLineChart(cardId, data, dimensions, margins, config.pubColors)
+      createLegend(cardId, legendDimensions, config.pubColors);
     } else if (type === ChartType.percentMultiLine) {
       createPercentMultiLineChart(cardId, data, dimensions, margins, config.catColors)
+    } else if (type === ChartType.barPercent) {
+      createPercentBarChart(cardId, data, dimensions, margins, config.pubColors)
     } else if (type === ChartType.bar) {
-      createPercentBarChart(cardId, data, dimensions, margins)
+      createBarChart(cardId, data, dimensions, margins, config.pubColors)
+      createLegend(cardId, legendDimensions, config.pubColors);
     }
   }
 
@@ -69,13 +83,43 @@ export function Chart({cardId, title, data, config, type}: props) {
     createGraph(cardId, data, dimensions);
   }, [cardId, data, dimensions]);
 
-  useEffect(() => {
-    if (refContainer.current) {
+  const resize = (container: React.RefObject<HTMLDivElement>, setDimensions: Function) => {
+    if (container.current) {
       setDimensions({
-        width: refContainer.current.offsetWidth,
-        height: refContainer.current.offsetWidth * 0.6,
+        width: container.current.offsetWidth,
+        height: Math.min(container.current.offsetWidth * 0.6, 300),
       });
     }
+  }
+
+  const resizeLegend = (container: React.RefObject<HTMLDivElement>, setDimensions: Function) => {
+    if (container.current) {
+      setDimensions({
+        width: 100,
+        height: 100,
+      });
+    }
+  }
+
+  useEffect(() => {
+    resize(chartRefContainer, setDimensions);
+    resizeLegend(legendRefContainer, setLegendDimensions);
+
+    function handleResize() {
+      // Delete and re-create the whole charts.
+      // Even when using 'responsive svg', the fonts don't change.
+      removeGraph(cardId);
+      resize(chartRefContainer, setDimensions);
+      resizeLegend(legendRefContainer, setLegendDimensions);
+    }
+
+    // Attach the event listener to the window object
+    window.addEventListener('resize', handleResize);
+
+    // Remove the event listener when the component unmounts
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
   }, []);
 
   return (
@@ -94,7 +138,8 @@ export function Chart({cardId, title, data, config, type}: props) {
             </Col>
           </Row>
         </div>
-        <div id={`${cardId}-line`} className="chart-card" ref={refContainer} />
+        <div id={`${cardId}-chart`} className="chart-card" ref={chartRefContainer} />
+        <div id={`${cardId}-legend`} className="legend" ref={legendRefContainer} />
       </Card.Body>
     </Card>
   )

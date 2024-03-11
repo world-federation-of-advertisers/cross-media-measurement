@@ -21,7 +21,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.math.ceil
 import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -104,6 +104,7 @@ class SubmitBatchRequestsTest {
             parseResponse,
           )
           .toList()
+          .flatten()
 
       val batchGetReportingSetsCaptor: KArgumentCaptor<BatchGetReportingSetsRequest> =
         argumentCaptor()
@@ -136,6 +137,7 @@ class SubmitBatchRequestsTest {
             parseResponse,
           )
           .toList()
+          .flatten()
 
       val batchGetReportingSetsCaptor: KArgumentCaptor<BatchGetReportingSetsRequest> =
         argumentCaptor()
@@ -154,12 +156,13 @@ class SubmitBatchRequestsTest {
 
     val result: List<InternalReportingSet> =
       submitBatchRequests(
-          flow {},
+          emptyFlow(),
           BATCH_GET_REPORTING_SETS_LIMIT,
           ::batchGetReportingSets,
           parseResponse,
         )
         .toList()
+        .flatten()
 
     val batchGetReportingSetsCaptor: KArgumentCaptor<BatchGetReportingSetsRequest> =
       argumentCaptor()

@@ -195,6 +195,8 @@ message Computation {
       LiquidLegionsV2 reach_only_liquid_legions_v2 = 2;
 
       // Honest Majority Share Shuffle config.
+      //
+      // Set for both REACH_AND_FREQUENCY and REACH.
       HonestMajorityShareShuffle honest_majority_share_shuffle = 3;
     }
   }

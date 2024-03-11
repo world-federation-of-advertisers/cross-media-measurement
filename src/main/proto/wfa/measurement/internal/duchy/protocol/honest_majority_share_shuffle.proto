@@ -28,52 +28,86 @@ option java_multiple_files = true;
 message HonestMajorityShareShuffle {
   // Stages of the HonestMajorityShareShuffle computation.
   //
-  // For the first non-aggregator, the normal stage transition is:
-  // INITIALIZED -> SET_PARTICIPANT_PARAMS_PHASE ->
-  // WAIT_ON_REQUISITION_FULFILLMENT -> SETUP_PHASE ->
+  // For FIRST_NON_AGGREGATOR, the normal stage transition is:
+  // INITIALIZED -> WAIT_TO_START -> SETUP_PHASE ->
   // WAIT_ON_SHUFFLE_INPUT_PHASE_TWO -> SHUFFLE_PHASE
   // -> COMPLETE
   //
-  // For the second non-aggregator, the normal stage transition is:
-  // INITIALIZED -> SET_PARTICIPANT_PARAMS_PHASE ->
-  // WAIT_ON_REQUISITION_FULFILLMENT -> WAIT_ON_SHUFFLE_INPUT_PHASE_ONE ->
-  // SETUP_PHASE -> SHUFFLE_PHASE
-  // -> COMPLETE
+  // For SECOND_NON_AGGREGATOR, the normal stage transition is:
+  // INITIALIZED -> WAIT_ON_SHUFFLE_INPUT_PHASE_ONE -> SETUP_PHASE
+  // -> SHUFFLE_PHASE -> COMPLETE
   //
-  // For the aggregator, the normal stage transition is:
+  // For AGGREGATOR, the normal stage transition is:
   // WAIT_ON_AGGREGATION_INPUT -> AGGREGATION_PHASE -> COMPLETE
   enum Stage {
     // The computation stage is unknown. This is never set intentionally.
     STAGE_UNSPECIFIED = 0;
 
-    // The computation is created by the non-aggregator.
-    // Non-aggregators are ready to accept requisition fulfillments. The
-    // randomness seed is sampled and stored. Peer's random seed can be accepted
-    // at this stage.
+    // The computation is created by the non-aggregator populated with sampled
+    // randomness seed and encryption key pair.
+    //
+    // Role: FIRST_NON_AGGREGATOR, SECOND_NON_AGGREGATOR.
+    //
+    // Actions: 1. Creating local Computation. 2. Sending requisition params to
+    // the Kingdom.
+    //
+    // Advance Condition: Requisition params sent.
     INITIALIZED = 1;
 
-    // The non-aggregator sends the participant params to the kingdom.
-    SET_PARTICIPANT_PARAMS_PHASE = 2;
+    // The FIRST_NON_AGGREGATOR waits on requisition fulfillment and the signal
+    // from the kingdom to proceed.
+    //
+    // Role: FIRST_NON_AGGREGATOR
+    //
+    // Actions: Receiving requisition fulfillment from EDPs.
+    //
+    // Advance Condition: Measurement stage from the Kingdom changes to
+    // COMPUTING, which means all requisitions are fulfilled.
+    WAIT_TO_START = 2;
 
-    // The non-aggregator waits on requisition fulfillment.
-    WAIT_ON_REQUISITION_FULFILLMENT = 3;
-
-    // The second non-aggregator waits for the input from the peer
-    // non-aggregator.
-    WAIT_ON_SHUFFLE_INPUT_PHASE_ONE = 4;
+    // The SECOND_NON_AGGREGATOR waits on requisition fulfillment and the
+    // shuffle phase input from FIRST_NON_AGGREGATOR to proceed.
+    //
+    // Role: SECOND_NON_AGGREGATOR
+    //
+    // Actions: 1. Receiving requisition fulfillment fom EDPs. 2. Receiving
+    // shuffle phase input from FIRST_NON_AGGREGATOR.
+    //
+    // Advance Condition: shuffle phase input received.
+    WAIT_ON_SHUFFLE_INPUT_PHASE_ONE = 3;
 
     // Non-aggregator sends random seed and secret seed from DataProviders to
-    // the peer. Seeds are used for generating noise and permutation.
-    SETUP_PHASE = 5;
+    // the peer non-aggregator. Seeds are used for generating noise and
+    // permutation.
+    //
+    // Role: FIRST_NON_AGGREGATOR, SECOND_NON_AGGREGATOR
+    //
+    // Actions: Sending shuffle phase input (seeds) to the peer non-aggregator.
+    //
+    // Advance Condition: shuffle phase input sent.
+    SETUP_PHASE = 4;
 
-    // The first non-aggregator waits for input from the peer non-aggregator.
-    WAIT_ON_SHUFFLE_INPUT_PHASE_TWO = 6;
+    // The FIRST_NON_AGGREGATOR waits for shuffle phase input from
+    // SECOND_NON_AGGREGATOR.
+    //
+    // Role: FIRST_NON_AGGREGATOR
+    //
+    // Actions: Receiving shuffle phase input from SECOND_NON_AGGREGATOR.
+    //
+    // Advance condition: Shuffle phase input received.
+    WAIT_ON_SHUFFLE_INPUT_PHASE_TWO = 5;
 
-    // A aggregator only stage waiting for input of combined shares from
+    // The aggregator waits for input of combined shares from
     // non-aggregators. It is the initial stage for the aggregator.
-    WAIT_ON_AGGREGATION_INPUT = 7;
+    //
+    // Role: AGGREGATOR
+    //
+    // Actions: Receiving aggregation input from both non-aggregators.
+    //
+    // Advance condition: Both input received.
+    WAIT_ON_AGGREGATION_INPUT = 6;
 
-    // Non-aggregators execute following steps:
+    // Non-aggregators execute following actions:
     //
     // 1. Combine sketch shares from EDPs: Expand all requisition seeds
     // into shares. Combine all requisition shares.
@@ -87,16 +121,16 @@ message HonestMajorityShareShuffle {
     // permutation based on the combined seed. Shuffle the shares.
     //
     // 4. Send the result of the share to the aggregator.
-    SHUFFLE_PHASE = 8;
+    SHUFFLE_PHASE = 7;
 
     // The aggregator adds up shares from non-aggregators, subtracts noise
     // offset, and calculates the reach and the frequency histogram, then
     // reports the encrypted result to the kingdom.
-    AGGREGATION_PHASE = 9;
+    AGGREGATION_PHASE = 8;
 
     // The computation is completed or failed. The worker can remove BLOBs that
     // are no longer needed.
-    COMPLETE = 10;
+    COMPLETE = 9;
   }
 
   message ComputationDetails {
@@ -122,8 +156,9 @@ message HonestMajorityShareShuffle {
     // and the last element being the aggregator.
     repeated string participants = 3;
 
-    // Seeds used by non-aggregators to generate noise and permutation.
-    bytes common_random_seed = 4;
+    // Seed generated by this worker and will be used to generate noise and
+    // permutation.
+    bytes random_seed = 4;
 
     // Encryption key pair for participant params.
     EncryptionKeyPair encryption_key_pair = 5;
@@ -137,10 +172,7 @@ message HonestMajorityShareShuffle {
     // The requisition data in format of a secret seed. It is ciphertext
     // containing a serialized `SignedMessage` message from the CMMS public API.
     message SecretSeed {
-      // The id of the requisition.
-      //
-      // Non-aggregators use requisition id to match requisition seed and data.
-      string requisition_id = 1;
+      string external_data_provider_id = 1;
 
       // Ciphertext containing a serialized `SignedMessage` message from the
       // CMMS public API.

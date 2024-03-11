@@ -84,7 +84,9 @@ import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Companion.assertThat
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.withAuthenticationKey
+import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.OpenEndTimeRange
+import org.wfanet.measurement.common.coerceAtMost
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -135,12 +137,13 @@ class MeasurementConsumerSimulator(
   private val measurementsClient: MeasurementsCoroutineStub,
   private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
   private val certificatesClient: CertificatesCoroutineStub,
-  private val resultPollingDelay: Duration,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   private val eventQuery: EventQuery<Message>,
   private val expectedDirectNoiseMechanism: NoiseMechanism,
   private val filterExpression: String = DEFAULT_FILTER_EXPRESSION,
   private val eventRange: OpenEndTimeRange = DEFAULT_EVENT_RANGE,
+  private val initialResultPollingDelay: Duration = Duration.ofSeconds(1),
+  private val maximumResultPollingDelay: Duration = Duration.ofMinutes(1),
 ) {
   /** Cache of resource name to [Certificate]. */
   private val certificateCache = mutableMapOf<String, Certificate>()
@@ -512,6 +515,13 @@ class MeasurementConsumerSimulator(
     val measurementComputationInfo: MeasurementComputationInfo =
       buildMeasurementComputationInfo(protocol, result.impression.noiseMechanism)
 
+    val maxFrequencyPerUser =
+      if (result.impression.deterministicCount.customMaximumFrequencyPerUser != 0) {
+        result.impression.deterministicCount.customMaximumFrequencyPerUser
+      } else {
+        measurementSpec.impression.maximumFrequencyPerUser
+      }
+
     return VariancesImpl.computeMeasurementVariance(
       measurementComputationInfo.methodology,
       ImpressionMeasurementVarianceParams(
@@ -520,7 +530,7 @@ class MeasurementConsumerSimulator(
           ImpressionMeasurementParams(
             vidSamplingInterval = measurementSpec.vidSamplingInterval.toStatsVidSamplingInterval(),
             dpParams = measurementSpec.impression.privacyParams.toNoiserDpParams(),
-            maximumFrequencyPerUser = measurementSpec.impression.maximumFrequencyPerUser,
+            maximumFrequencyPerUser = maxFrequencyPerUser,
             noiseMechanism = measurementComputationInfo.noiseMechanism.toStatsNoiseMechanism(),
           ),
       ),
@@ -1035,26 +1045,28 @@ class MeasurementConsumerSimulator(
   }
 
   private suspend inline fun pollForResult(getResult: () -> Result?): Result {
-    while (true) {
-      val result = getResult()
-      if (result != null) {
-        return result
-      }
-
-      logger.info("Result not yet available. Waiting for ${resultPollingDelay.seconds} seconds.")
-      delay(resultPollingDelay)
-    }
+    return pollForResult(getResult) { it != null }!!
   }
 
   private suspend inline fun <T> pollForResults(getResults: () -> List<T>): List<T> {
+    return pollForResult(getResults) { it.isNotEmpty() }
+  }
+
+  private suspend inline fun <T> pollForResult(getResult: () -> T, done: (T) -> Boolean): T {
+    val backoff =
+      ExponentialBackoff(initialDelay = initialResultPollingDelay, randomnessFactor = 0.0)
+    var attempt = 1
     while (true) {
-      val result = getResults()
-      if (result.isNotEmpty()) {
+      val result = getResult()
+      if (done(result)) {
         return result
       }
 
-      logger.info("Result not yet available. Waiting for ${resultPollingDelay.seconds} seconds.")
+      val resultPollingDelay =
+        backoff.durationForAttempt(attempt).coerceAtMost(maximumResultPollingDelay)
+      logger.info { "Result not yet available. Waiting for ${resultPollingDelay.seconds} seconds." }
       delay(resultPollingDelay)
+      attempt++
     }
   }
 

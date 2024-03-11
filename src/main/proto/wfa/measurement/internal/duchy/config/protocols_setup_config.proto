@@ -43,23 +43,25 @@ enum RoleInComputation {
   // the aggregator to compute the result.
   AGGREGATOR = 1;
 
-  // A non-aggregator duchy for the computation.
+  // A non-aggregator duchy for the computation of LLv2.
   //
   // For LiquidLegionsV2 protocols only. This duchy has to do many crypto
   // operations, but is not responsible for joining sketch positions together,
   // nor computing the final results.
   NON_AGGREGATOR = 2;
 
-  // The first non-aggregator duchy.
+  // The first non-aggregator duchy for the computation of HMSS.
   //
-  // For HonestMajorityShareShuffle only. This duchy needs to exchange seeds,
-  // add noise, and shuffle. It sends data to the peer non-aggregator firstly.
+  // For HonestMajorityShareShuffle only. This duchy exchanges seeds,
+  // adds noise, and shuffles. It receives the signal from the Kingdom to start
+  // computing.
   FIRST_NON_AGGREGATOR = 3;
 
-  // The second non-aggregator duchy.
+  // The second non-aggregator duchy for the computation of HMSS.
   //
-  // For HonestMajorityShareShuffle only. This duchy needs to exchange seeds,
-  // add noise, and shuffle. It sends data to the peer non-aggregator secondly.
+  // For HonestMajorityShareShuffle only. This duchy exchanges seeds,
+  // adds noise, and shuffles. The computing is triggered by the first
+  // non-aggregator.
   SECOND_NON_AGGREGATOR = 4;
 }
 

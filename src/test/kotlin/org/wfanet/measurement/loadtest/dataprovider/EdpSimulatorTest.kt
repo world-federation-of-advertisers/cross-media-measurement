@@ -364,7 +364,7 @@ class EdpSimulatorTest {
         TRUSTED_CERTIFICATES,
       )
 
-    runBlocking { edpSimulator.ensureEventGroup(SYNTHETIC_DATA_SPEC) }
+    runBlocking { edpSimulator.ensureEventGroup(TEST_EVENT_TEMPLATES, SYNTHETIC_DATA_SPEC) }
 
     // Verify metadata descriptor set contains synthetic data spec.
     val createDescriptorRequest: CreateEventGroupMetadataDescriptorRequest =
@@ -430,7 +430,7 @@ class EdpSimulatorTest {
         TRUSTED_CERTIFICATES,
       )
 
-    runBlocking { edpSimulator.ensureEventGroup(SYNTHETIC_DATA_SPEC) }
+    runBlocking { edpSimulator.ensureEventGroup(TEST_EVENT_TEMPLATES, SYNTHETIC_DATA_SPEC) }
 
     // Verify EventGroup metadata has correct type.
     val updateRequest: UpdateEventGroupRequest =
@@ -480,7 +480,7 @@ class EdpSimulatorTest {
         TRUSTED_CERTIFICATES,
       )
 
-    runBlocking { edpSimulator.ensureEventGroup(SYNTHETIC_DATA_SPEC) }
+    runBlocking { edpSimulator.ensureEventGroup(TEST_EVENT_TEMPLATES, SYNTHETIC_DATA_SPEC) }
 
     val updateRequest: UpdateEventGroupMetadataDescriptorRequest =
       verifyAndCapture(
@@ -515,7 +515,9 @@ class EdpSimulatorTest {
         "-bar" to SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS[1],
       )
 
-    runBlocking { edpSimulator.ensureEventGroups(metadataByReferenceIdSuffix) }
+    runBlocking {
+      edpSimulator.ensureEventGroups(TEST_EVENT_TEMPLATES, metadataByReferenceIdSuffix)
+    }
 
     // Verify metadata descriptor set contains synthetic data spec.
     val createDescriptorRequest: CreateEventGroupMetadataDescriptorRequest =
@@ -573,7 +575,9 @@ class EdpSimulatorTest {
 
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        runBlocking { edpSimulator.ensureEventGroups(metadataByReferenceIdSuffix) }
+        runBlocking {
+          edpSimulator.ensureEventGroups(TEST_EVENT_TEMPLATES, metadataByReferenceIdSuffix)
+        }
       }
 
     assertThat(exception).hasMessageThat().contains("type")
@@ -631,7 +635,7 @@ class EdpSimulatorTest {
       )
 
     runBlocking {
-      edpSimulator.ensureEventGroup(SYNTHETIC_DATA_SPEC)
+      edpSimulator.ensureEventGroup(TEST_EVENT_TEMPLATES, SYNTHETIC_DATA_SPEC)
       edpSimulator.executeRequisitionFulfillingWorkflow()
     }
 
@@ -711,7 +715,7 @@ class EdpSimulatorTest {
           TRUSTED_CERTIFICATES,
         )
       runBlocking {
-        edpSimulator.ensureEventGroup(TEST_METADATA)
+        edpSimulator.ensureEventGroup(TEST_EVENT_TEMPLATES, TEST_METADATA)
         edpSimulator.executeRequisitionFulfillingWorkflow()
       }
 
@@ -859,7 +863,7 @@ class EdpSimulatorTest {
           TRUSTED_CERTIFICATES,
         )
       runBlocking {
-        edpSimulator.ensureEventGroup(TEST_METADATA)
+        edpSimulator.ensureEventGroup(TEST_EVENT_TEMPLATES, TEST_METADATA)
         edpSimulator.executeRequisitionFulfillingWorkflow()
       }
 
@@ -2368,7 +2372,7 @@ class EdpSimulatorTest {
   }
 
   @Test
-  fun `fails to fulfill impression Requisition when no direct noise mechanism is picked by EDP`() {
+  fun `fails to fulfill impression Requisition when no direct noise mechanism options are provided by Kingdom`() {
     val noiseMechanismOption = ProtocolConfig.NoiseMechanism.NONE
     val requisition =
       REQUISITION.copy {
@@ -2431,7 +2435,7 @@ class EdpSimulatorTest {
   }
 
   @Test
-  fun `fails to fulfill impression Requisition when no direct methodology is picked by EDP`() {
+  fun `fails to fulfill impression Requisition when no direct methodologies are provided by Kingdom`() {
     val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
     val requisition =
       REQUISITION.copy {
@@ -2666,6 +2670,7 @@ class EdpSimulatorTest {
       readCertificateCollection(SECRET_FILES_PATH.resolve("edp_trusted_certs.pem").toFile())
         .associateBy { requireNotNull(it.authorityKeyIdentifier) }
 
+    private val TEST_EVENT_TEMPLATES = EdpSimulator.buildEventTemplates(TestEvent.getDescriptor())
     private val TEST_METADATA = EventGroupMetadata.testMetadata(1)
 
     private val SYNTHETIC_DATA_SPEC =

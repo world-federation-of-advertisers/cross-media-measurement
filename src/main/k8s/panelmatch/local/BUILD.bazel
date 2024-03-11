@@ -1,7 +1,7 @@
-load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
 load("@wfa_rules_cue//cue:defs.bzl", "cue_library")
-load("//src/main/k8s:macros.bzl", "cue_dump")
+load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
 load("//build/k8s:defs.bzl", "kustomization_dir")
+load("//src/main/k8s:macros.bzl", "cue_dump")
 
 package(
     default_testonly = True,
@@ -50,7 +50,6 @@ kustomization_dir(
     name = "edp_daemon",
     srcs = [
         ":forwarded_storage_edp_daemon",
-        "//src/main/k8s/local:kingdom",
     ],
     generate_kustomization = True,
     tags = ["manual"],
