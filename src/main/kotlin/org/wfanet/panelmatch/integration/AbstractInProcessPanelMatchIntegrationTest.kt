@@ -21,7 +21,6 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.TypeRegistry
 import io.grpc.StatusException
 import java.nio.file.Path
-import java.time.Clock
 import java.time.LocalDate
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
@@ -54,8 +53,8 @@ import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.toProtoDate
-import org.wfanet.measurement.integration.deploy.gcloud.buildKingdomSpannerEmulatorDatabaseRule
-import org.wfanet.measurement.integration.deploy.gcloud.buildSpannerInProcessKingdom
+import org.wfanet.measurement.integration.common.InProcessKingdom
+import org.wfanet.measurement.integration.deploy.gcloud.KingdomDataServicesProviderRule
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -113,10 +112,9 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
 
   abstract val workflow: ExchangeWorkflow
 
-  private val databaseRule = buildKingdomSpannerEmulatorDatabaseRule()
-  private val inProcessKingdom by lazy {
-    buildSpannerInProcessKingdom(databaseRule, Clock.systemUTC(), verboseGrpcLogging = false)
-  }
+  private val kingdomDataServicesProvider = KingdomDataServicesProviderRule()
+  private val inProcessKingdom =
+    InProcessKingdom({ kingdomDataServicesProvider.value }, REDIRECT_URI)
   private val resourceSetup by lazy { inProcessKingdom.panelMatchResourceSetup }
 
   private lateinit var exchangesClient: ExchangesCoroutineStub
@@ -127,7 +125,9 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
   private lateinit var recurringExchangeId: String
 
   @get:Rule
-  val ruleChain: TestRule by lazy { chainRulesSequentially(databaseRule, inProcessKingdom) }
+  val ruleChain: TestRule by lazy {
+    chainRulesSequentially(kingdomDataServicesProvider, inProcessKingdom)
+  }
 
   @get:Rule val dataProviderFolder = TemporaryFolder()
   @get:Rule val modelProviderFolder = TemporaryFolder()
@@ -416,6 +416,8 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
     private val logger by loggerFor()
     private val typeRegistry =
       TypeRegistry.newBuilder().add(Shared.Parameters.getDescriptor()).build()
+
+    private const val REDIRECT_URI = "https://localhost:2048"
 
     // TODO(@yunyeng): Think about the tests that start running around midnight.
     val EXCHANGE_DATE: LocalDate = LocalDate.now()

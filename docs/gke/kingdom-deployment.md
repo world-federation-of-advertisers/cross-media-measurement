@@ -214,14 +214,16 @@ within the Kustomization directory.
 ## Customize the K8s configMap
 
 Configuration that may frequently change is stored in a K8s configMap. The `dev`
-configuration uses one named `config-files` containing the file
-`authority_key_identifier_to_principal_map.textproto`.
+configuration uses one named `config-files` containing the following files:
 
-Place this file in the `src/main/k8s/dev/config_files/` path within the
+*   `authority_key_identifier_to_principal_map.textproto`
+    *   See [Creating Resources](../operations/creating-resources.md)
+*   `known_event_group_metadata_type_set.pb`
+    *   Protobuf `FileDescriptorSet` containing known `EventGroup` metadata
+        types.
+
+Place these files in the `src/main/k8s/dev/config_files/` path within the
 Kustomization directory.
-
-See [Creating Resources](../operations/creating-resources.md) for information on
-this file format.
 
 ## Apply the K8s Kustomization
 

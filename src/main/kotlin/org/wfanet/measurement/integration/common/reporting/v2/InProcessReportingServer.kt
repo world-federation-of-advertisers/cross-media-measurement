@@ -17,6 +17,7 @@
 package org.wfanet.measurement.integration.common.reporting.v2
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.Descriptors
 import com.google.protobuf.util.Durations
 import io.grpc.Channel
 import io.grpc.Status
@@ -77,31 +78,26 @@ import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineSt
 /** TestRule that starts and stops all Reporting Server gRPC services. */
 class InProcessReportingServer(
   private val internalReportingServerServices: InternalReportingServer.Services,
-  private val publicKingdomChannelGenerator: () -> Channel,
-  private val encryptionKeyPairConfigGenerator: () -> EncryptionKeyPairConfig,
+  private val kingdomPublicApiChannel: Channel,
+  private val encryptionKeyPairConfig: EncryptionKeyPairConfig,
   private val signingPrivateKeyDir: File,
-  private val measurementConsumerConfigGenerator: suspend () -> MeasurementConsumerConfig,
+  private val measurementConsumerConfig: MeasurementConsumerConfig,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
+  private val knownEventGroupMetadataTypes: Iterable<Descriptors.FileDescriptor>,
   private val verboseGrpcLogging: Boolean = true,
 ) : TestRule {
-  private val publicKingdomMeasurementConsumersClient by lazy {
-    PublicKingdomMeasurementConsumersCoroutineStub(publicKingdomChannelGenerator())
-  }
-  private val publicKingdomMeasurementsClient by lazy {
-    PublicKingdomMeasurementsCoroutineStub(publicKingdomChannelGenerator())
-  }
-  private val publicKingdomCertificatesClient by lazy {
-    PublicKingdomCertificatesCoroutineStub(publicKingdomChannelGenerator())
-  }
-  private val publicKingdomDataProvidersClient by lazy {
-    PublicKingdomDataProvidersCoroutineStub(publicKingdomChannelGenerator())
-  }
-  private val publicKingdomEventGroupMetadataDescriptorsClient by lazy {
-    PublicKingdomEventGroupMetadataDescriptorsCoroutineStub(publicKingdomChannelGenerator())
-  }
-  private val publicKingdomEventGroupsClient by lazy {
-    PublicKingdomEventGroupsCoroutineStub(publicKingdomChannelGenerator())
-  }
+  private val publicKingdomMeasurementConsumersClient =
+    PublicKingdomMeasurementConsumersCoroutineStub(kingdomPublicApiChannel)
+  private val publicKingdomMeasurementsClient =
+    PublicKingdomMeasurementsCoroutineStub(kingdomPublicApiChannel)
+  private val publicKingdomCertificatesClient =
+    PublicKingdomCertificatesCoroutineStub(kingdomPublicApiChannel)
+  private val publicKingdomDataProvidersClient =
+    PublicKingdomDataProvidersCoroutineStub(kingdomPublicApiChannel)
+  private val publicKingdomEventGroupMetadataDescriptorsClient =
+    PublicKingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomPublicApiChannel)
+  private val publicKingdomEventGroupsClient =
+    PublicKingdomEventGroupsCoroutineStub(kingdomPublicApiChannel)
 
   private val internalApiChannel by lazy { internalReportingServer.channel }
   private val internalMeasurementConsumersClient by lazy {
@@ -136,8 +132,6 @@ class InProcessReportingServer(
       runBlocking {
         logger.info("Building Reporting Server's public API services")
 
-        val encryptionKeyPairConfig = encryptionKeyPairConfigGenerator()
-
         val encryptionKeyPairStore =
           InMemoryEncryptionKeyPairStore(
             encryptionKeyPairConfig.principalKeyPairsList.associateBy(
@@ -153,7 +147,6 @@ class InProcessReportingServer(
             )
           )
 
-        val measurementConsumerConfig = measurementConsumerConfigGenerator()
         val measurementConsumerName =
           MeasurementConsumerKey(
             MeasurementConsumerCertificateKey.fromName(
@@ -187,7 +180,7 @@ class InProcessReportingServer(
             ),
             EventGroup.getDescriptor(),
             Duration.ofSeconds(5),
-            Dispatchers.Default,
+            knownEventGroupMetadataTypes,
           )
 
         metricSpecConfig = METRIC_SPEC_CONFIG
