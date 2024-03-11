@@ -17,11 +17,16 @@ package k8s
 #NetworkPolicy: {
 	_egresses: {
 		gkeMetadataServer: {
-			to: [{ipBlock: cidr: "127.0.0.1/32"}]
-			ports: [{
-				protocol: "TCP"
-				port:     988
-			}]
+			to: [{ipBlock: cidr: "169.254.169.252/32"}]
+			ports: [
+				{
+					protocol: "TCP"
+					port:     988
+				},
+				{
+					protocol: "TCP"
+					port:     80
+				}]
 		}
 		openTelemetryCollector: {
 			to: [{podSelector: matchLabels: app: "opentelemetry-collector-app"}]
@@ -80,7 +85,7 @@ package k8s
 }
 
 #JavaOptions: {
-	initialHeapSize:   _ | *"64M"
+	initialHeapSize:   _ | *maxHeapSize
 	maxHeapSize:       _ | *"64M"
 	loggingConfigFile: "/etc/java/logging.properties"
 }

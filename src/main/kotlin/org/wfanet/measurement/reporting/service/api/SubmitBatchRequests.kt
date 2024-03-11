@@ -16,11 +16,13 @@
 
 package org.wfanet.measurement.reporting.service.api
 
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.flatMapConcat
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 class BatchRequestException(message: String? = null, cause: Throwable? = null) :
   Exception(message, cause)
@@ -47,14 +49,17 @@ fun <T> Flow<T>.chunked(chunkSize: Int): Flow<List<T>> {
   }
 }
 
-/** Submits multiple RPCs by dividing the input items to batches. */
-@OptIn(ExperimentalCoroutinesApi::class) // For `flatMapConcat`.
+/**
+ * Submits multiple RPCs by dividing the input items to batches.
+ *
+ * @return [Flow] that emits [List]s containing the results of the multiple RPCs.
+ */
 suspend fun <ITEM, RESP, RESULT> submitBatchRequests(
   items: Flow<ITEM>,
   limit: Int,
   callRpc: suspend (List<ITEM>) -> RESP,
   parseResponse: (RESP) -> List<RESULT>,
-): Flow<RESULT> {
+): Flow<List<RESULT>> {
   if (limit <= 0) {
     throw BatchRequestException(
       "Invalid limit",
@@ -62,5 +67,21 @@ suspend fun <ITEM, RESP, RESULT> submitBatchRequests(
     )
   }
 
-  return items.chunked(limit).flatMapConcat { batch -> parseResponse(callRpc(batch)).asFlow() }
+  // For network requests, the number of concurrent coroutines needs to be capped. To be on the safe
+  // side, a low number is chosen.
+  val batchSemaphore = Semaphore(3)
+  return flow {
+    coroutineScope {
+      val deferred: List<Deferred<List<RESULT>>> = buildList {
+        items.chunked(limit).collect { batch: List<ITEM> ->
+          // The batch reference is reused for every collect call. To ensure async works, a copy
+          // of the contents needs to be saved in a new reference.
+          val tempBatch = batch.toList()
+          add(async { batchSemaphore.withPermit { parseResponse(callRpc(tempBatch)) } })
+        }
+      }
+
+      deferred.forEach { emit(it.await()) }
+    }
+  }
 }

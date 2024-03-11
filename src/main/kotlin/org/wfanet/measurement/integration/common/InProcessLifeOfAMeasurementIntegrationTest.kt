@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.integration.common
 
-import java.time.Duration
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -100,7 +99,6 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
         publicMeasurementsClient,
         publicMeasurementConsumersClient,
         publicCertificatesClient,
-        RESULT_POLLING_DELAY,
         InProcessCmmsComponents.TRUSTED_CERTIFICATES,
         eventQuery,
         NoiseMechanism.CONTINUOUS_GAUSSIAN,
@@ -178,7 +176,6 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
       epsilon = 1.0
       delta = 1e-15
     }
-    private val RESULT_POLLING_DELAY = Duration.ofSeconds(10)
 
     @BeforeClass
     @JvmStatic
