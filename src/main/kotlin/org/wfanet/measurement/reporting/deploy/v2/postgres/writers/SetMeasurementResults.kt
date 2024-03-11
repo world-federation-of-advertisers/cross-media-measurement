@@ -16,8 +16,9 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.postgres.writers
 
-import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
+import org.wfanet.measurement.common.db.r2dbc.postgres.ValuesListBoundStatement
+import org.wfanet.measurement.common.db.r2dbc.postgres.valuesListBoundStatement
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.Measurement
@@ -43,22 +44,25 @@ class SetMeasurementResults(private val request: BatchSetMeasurementResultsReque
         .measurementConsumerId
 
     val statement =
-      boundStatement(
+      valuesListBoundStatement(valuesStartIndex = 2, paramCount = 3,
         """
-      UPDATE Measurements SET MeasurementDetails = $1,
-        MeasurementDetailsJson = $2, State = $3
-      WHERE MeasurementConsumerId = $4 AND CmmsMeasurementId = $5
-      """
+        UPDATE Measurements AS m SET
+        MeasurementDetails = c.MeasurementDetails,
+        MeasurementDetailsJson = c.MeasurementDetailsJson,
+        State = $1
+        FROM (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
+        AS c(MeasurementDetails, MeasurementDetailsJson, CmmsMeasurementId)
+        WHERE MeasurementConsumerId = $2 AND m.CmmsMeasurementId = c.CmmsMeasurementId
+        """
       ) {
-        val state = Measurement.State.SUCCEEDED
+        bind("$1", Measurement.State.SUCCEEDED)
+        bind("$2", measurementConsumerId)
         request.measurementResultsList.forEach {
           val details = MeasurementKt.details { results += it.resultsList }
-          addBinding {
-            bind("$1", details)
-            bind("$2", details.toJson())
-            bind("$3", state)
-            bind("$4", measurementConsumerId)
-            bind("$5", it.cmmsMeasurementId)
+          addValuesBinding {
+            bindValuesParam(0, details)
+            bindValuesParam(1, details.toJson())
+            bindValuesParam(2, it.cmmsMeasurementId)
           }
         }
       }
