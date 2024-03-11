@@ -109,10 +109,17 @@ class ComputationsService(
       throw Status.fromCode(Status.Code.ALREADY_EXISTS).asRuntimeException()
     }
 
+    val initialStage =
+      if (request.hasComputationStage()) {
+        request.computationStage
+      } else {
+        computationsDatabase.getValidInitialStage(request.computationType).first()
+      }
+
     computationsDatabase.insertComputation(
       request.globalComputationId,
       request.computationType,
-      computationsDatabase.getValidInitialStage(request.computationType).first(),
+      initialStage,
       request.stageDetails,
       request.computationDetails,
       request.requisitionsList,

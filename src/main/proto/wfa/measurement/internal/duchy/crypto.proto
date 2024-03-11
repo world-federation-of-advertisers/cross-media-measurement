@@ -62,8 +62,8 @@ message EncryptionPublicKey {
 
 // Keys of the encryption cipher.
 message EncryptionKeyPair {
-  // Secret key of the cipher.
-  bytes secret_key = 1;
+  // The key id of the private key.
+  string private_key_id = 1;
   // Public key of the cipher.
   EncryptionPublicKey public_key = 2;
 }
