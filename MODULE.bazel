@@ -18,7 +18,7 @@ BORINGSSL_VERSION = "0.0.0-20230215-5c22014"
 # * https://docs.aws.amazon.com/kinesisanalytics/latest/java/earlier.html
 APACHE_BEAM_VERSION = "2.45.0"
 
-K8S_CLIENT_VERSION = "16.0.0"
+K8S_CLIENT_VERSION = "20.0.0"
 
 # Bazel Central Registry modules.
 bazel_dep(
@@ -126,7 +126,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.76.0",
+    version = "0.78.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(

@@ -18,7 +18,6 @@ package org.wfanet.measurement.common.k8s
 
 import com.google.gson.reflect.TypeToken
 import io.kubernetes.client.common.KubernetesObject
-import io.kubernetes.client.custom.V1Patch
 import io.kubernetes.client.extended.kubectl.Kubectl
 import io.kubernetes.client.openapi.ApiCallback
 import io.kubernetes.client.openapi.ApiClient
@@ -27,10 +26,12 @@ import io.kubernetes.client.openapi.Configuration
 import io.kubernetes.client.openapi.JSON
 import io.kubernetes.client.openapi.apis.AppsV1Api
 import io.kubernetes.client.openapi.apis.CoreV1Api
-import io.kubernetes.client.openapi.models.V1ConfigMap
 import io.kubernetes.client.openapi.models.V1Deployment
+import io.kubernetes.client.openapi.models.V1DeploymentList
+import io.kubernetes.client.openapi.models.V1LabelSelector
 import io.kubernetes.client.openapi.models.V1Pod
 import io.kubernetes.client.openapi.models.V1PodList
+import io.kubernetes.client.openapi.models.V1ReplicaSet
 import io.kubernetes.client.openapi.models.V1ServiceAccount
 import io.kubernetes.client.openapi.models.V1Status
 import io.kubernetes.client.util.Namespaces
@@ -38,8 +39,6 @@ import io.kubernetes.client.util.Watch
 import io.kubernetes.client.util.Yaml
 import java.io.File
 import java.time.Duration
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CompletableDeferred
@@ -66,35 +65,50 @@ class KubernetesClient(
   private val coreApi = CoreV1Api(apiClient)
   private val appsApi = AppsV1Api(apiClient)
 
-  /** Restarts a [V1Deployment] by adding an annotation. */
-  suspend fun restartDeployment(
+  /** Gets a single [V1Deployment] by [name]. */
+  suspend fun getDeployment(
     name: String,
     namespace: String = Namespaces.NAMESPACE_DEFAULT,
-  ): V1Deployment {
-    return appsApi.restartDeployment(name, namespace)
+  ): V1Deployment? {
+    val deployments: List<V1Deployment> =
+      apiCall<V1DeploymentList> { callback ->
+          appsApi
+            .listNamespacedDeployment(namespace)
+            .fieldSelector("metadata.name=$name")
+            .executeAsync(callback)
+        }
+        .items
+    check(deployments.size <= 1)
+    return deployments.singleOrNull()
   }
 
-  /** Lists [V1Pod]s for [deployment] based on its match labels. */
-  suspend fun listPodsByMatchLabels(deployment: V1Deployment): V1PodList {
-    return coreApi.listPodsByMatchLabels(deployment)
+  /** Gets the [V1ReplicaSet] for the current revision of [deployment]. */
+  suspend fun getNewReplicaSet(deployment: V1Deployment): V1ReplicaSet? {
+    val namespace: String = deployment.metadata?.namespace ?: Namespaces.NAMESPACE_DEFAULT
+    val labelSelector = deployment.labelSelector
+    val revision = deployment.metadata?.annotations?.get(REVISION_ANNOTATION) ?: return null
+
+    return apiCall { callback ->
+        appsApi
+          .listNamespacedReplicaSet(namespace)
+          .labelSelector(labelSelector)
+          .executeAsync(callback)
+      }
+      .items
+      .find { it.metadata?.annotations?.get(REVISION_ANNOTATION) == revision }
   }
 
-  /**
-   * Updates a [V1ConfigMap].
-   *
-   * @param name name of the [V1ConfigMap]
-   * @param namespace namespace of the [V1ConfigMap]
-   * @param key key of the `data` entry to put
-   * @param value value of the `data` entry to put
-   * @return the updated [V1ConfigMap]
-   */
-  suspend fun updateConfigMap(
-    name: String,
-    key: String,
-    value: String,
-    namespace: String = Namespaces.NAMESPACE_DEFAULT,
-  ): V1ConfigMap {
-    return coreApi.updateConfigMap(name, key, value, namespace)
+  /** Lists Pods for the specified [replicaSet]. */
+  suspend fun listPods(replicaSet: V1ReplicaSet): V1PodList {
+    val namespace: String = replicaSet.metadata?.namespace ?: Namespaces.NAMESPACE_DEFAULT
+    val labelSelector: V1LabelSelector = checkNotNull(replicaSet.spec).selector
+
+    return apiCall { callback ->
+      coreApi
+        .listNamespacedPod(namespace)
+        .labelSelector(labelSelector.matchLabelsSelector)
+        .executeAsync(callback)
+    }
   }
 
   private inline fun <reified T : KubernetesObject> watch(
@@ -132,27 +146,19 @@ class KubernetesClient(
       .flowOn(coroutineContext)
   }
 
-  /** Suspends until the [V1Deployment] has all of its replicas ready. */
-  suspend fun waitUntilDeploymentReady(
+  /** Suspends until the [V1Deployment] is complete. */
+  suspend fun waitUntilDeploymentComplete(
     name: String,
     namespace: String = Namespaces.NAMESPACE_DEFAULT,
     timeout: Duration,
   ): V1Deployment {
     return watch<V1Deployment>(
-        appsApi.listNamespacedDeploymentCall(
-          namespace,
-          null,
-          null,
-          null,
-          "metadata.name=$name",
-          null,
-          null,
-          null,
-          null,
-          timeout.seconds.toInt(),
-          true,
-          null,
-        )
+        appsApi
+          .listNamespacedDeployment(namespace)
+          .fieldSelector("metadata.name=$name")
+          .timeoutSeconds(timeout.seconds.toInt())
+          .watch(true)
+          .buildCall(null)
       )
       .filter { response: Watch.Response<V1Deployment> ->
         when (WatchEventType.valueOf(response.type)) {
@@ -164,16 +170,7 @@ class KubernetesClient(
         }
       }
       .map { it.`object` }
-      .first { it.ready }
-  }
-
-  /** Suspends until [deployment] has all of its replicas ready. */
-  suspend fun waitUntilDeploymentReady(deployment: V1Deployment, timeout: Duration): V1Deployment {
-    return waitUntilDeploymentReady(
-      requireNotNull(deployment.metadata?.name),
-      requireNotNull(deployment.metadata?.namespace),
-      timeout,
-    )
+      .first { it.complete }
   }
 
   /** Suspends until the [V1ServiceAccount] exists. */
@@ -183,20 +180,12 @@ class KubernetesClient(
     timeout: Duration,
   ): V1ServiceAccount {
     return watch<V1ServiceAccount>(
-        coreApi.listNamespacedServiceAccountCall(
-          namespace,
-          null,
-          null,
-          null,
-          "metadata.name=$name",
-          null,
-          null,
-          null,
-          null,
-          timeout.seconds.toInt(),
-          true,
-          null,
-        )
+        coreApi
+          .listNamespacedServiceAccount(namespace)
+          .fieldSelector("metadata.name=$name")
+          .timeoutSeconds(timeout.seconds.toInt())
+          .watch(true)
+          .buildCall(null)
       )
       .filter {
         when (WatchEventType.valueOf(it.type)) {
@@ -226,8 +215,18 @@ class KubernetesClient(
   @Blocking
   fun kubectlApply(k8sObjects: Iterable<KubernetesObject>): Sequence<KubernetesObject> = sequence {
     k8sObjects.map { k8sObject ->
+      // TODO(kubernetes-client/java#3076): Remove when fixed.
+      if (k8sObject is V1Pod) {
+        val podSpec = k8sObject.spec
+        if (podSpec.overhead != null && podSpec.overhead.isEmpty()) podSpec.overhead(null)
+      }
+
       yield(Kubectl.apply(k8sObject.javaClass).apiClient(apiClient).resource(k8sObject).execute())
     }
+  }
+
+  companion object {
+    private const val REVISION_ANNOTATION = "deployment.kubernetes.io/revision"
   }
 }
 
@@ -235,92 +234,29 @@ val ApiException.status: V1Status?
   get() {
     if (responseBody == null) return null
 
-    return Configuration.getDefaultApiClient().json.deserialize(responseBody, V1Status::class.java)
+    return JSON.deserialize<V1Status>(responseBody, V1Status::class.java)
   }
 
-private val V1Deployment.ready: Boolean
+/**
+ * Whether the Deployment is complete.
+ *
+ * See https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#complete-deployment
+ */
+private val V1Deployment.complete: Boolean
   get() {
-    val status = checkNotNull(status)
-    val numReplicas = status.replicas ?: 0
-    val numReadyReplicas = status.readyReplicas ?: 0
-    return numReadyReplicas >= 1 && numReadyReplicas == numReplicas
+    val conditions = status?.conditions ?: return false
+    val progressingCondition = conditions.find { it.type == "Progressing" } ?: return false
+    return progressingCondition.status == "True" &&
+      progressingCondition.reason == "NewReplicaSetAvailable"
   }
-
-private suspend fun AppsV1Api.restartDeployment(name: String, namespace: String): V1Deployment {
-  val patchOps =
-    listOf(
-      JsonPatchOperation.add(
-        "/spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt",
-        DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.now()),
-      )
-    )
-  return apiCall { callback ->
-    patchNamespacedDeploymentAsync(
-      name,
-      namespace,
-      patchOps.toPatch(apiClient.json),
-      null,
-      null,
-      null,
-      null,
-      null,
-      callback,
-    )
-  }
-}
 
 private val V1Deployment.labelSelector: String
+  get() = checkNotNull(spec?.selector).matchLabelsSelector
+
+private val V1LabelSelector.matchLabelsSelector: String
   get() {
-    return checkNotNull(spec?.selector?.matchLabels)
-      .map { (key, value) -> "$key=$value" }
-      .joinToString(",")
+    return matchLabels.map { (key, value) -> "$key=$value" }.joinToString(",")
   }
-
-private suspend fun CoreV1Api.listPodsByMatchLabels(deployment: V1Deployment): V1PodList {
-  val namespace: String = deployment.metadata?.namespace ?: Namespaces.NAMESPACE_DEFAULT
-  return listPods(deployment.labelSelector, namespace)
-}
-
-private suspend fun CoreV1Api.listPods(labelSelector: String, namespace: String): V1PodList {
-  return apiCall { callback ->
-    listNamespacedPodAsync(
-      namespace,
-      null,
-      null,
-      null,
-      null,
-      labelSelector,
-      null,
-      null,
-      null,
-      null,
-      null,
-      callback,
-    )
-  }
-}
-
-private suspend fun CoreV1Api.updateConfigMap(
-  name: String,
-  key: String,
-  value: String,
-  namespace: String,
-): V1ConfigMap {
-  val patchOps = listOf(JsonPatchOperation.add("/data/$key", value))
-  return apiCall { callback ->
-    patchNamespacedConfigMapAsync(
-      name,
-      namespace,
-      patchOps.toPatch(apiClient.json),
-      null,
-      null,
-      null,
-      null,
-      null,
-      callback,
-    )
-  }
-}
 
 private class DeferredApiCallback<T>
 private constructor(private val delegate: CompletableDeferred<T>) :
@@ -345,16 +281,15 @@ private constructor(private val delegate: CompletableDeferred<T>) :
   override fun onDownloadProgress(bytesRead: Long, contentLength: Long, done: Boolean) {}
 }
 
-private inline fun <T> apiCallAsync(call: (callback: ApiCallback<T>) -> Unit): Deferred<T> {
-  return DeferredApiCallback<T>().also { call(it) }
+private inline fun <T> apiCallAsync(
+  executeAsync: (callback: ApiCallback<T>) -> okhttp3.Call
+): Deferred<T> {
+  return DeferredApiCallback<T>().also { executeAsync(it) }
 }
 
-private suspend inline fun <T> apiCall(call: (callback: ApiCallback<T>) -> Unit): T =
-  apiCallAsync(call).await()
-
-private fun List<JsonPatchOperation>.toPatch(json: JSON): V1Patch {
-  return V1Patch(json.serialize(this))
-}
+private suspend inline fun <T> apiCall(
+  executeAsync: (callback: ApiCallback<T>) -> okhttp3.Call
+): T = apiCallAsync(executeAsync).await()
 
 /**
  * Type of Watch event.
