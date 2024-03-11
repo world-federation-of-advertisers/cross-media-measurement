@@ -137,8 +137,8 @@ jobs:
       - name: Delete Kubernetes Resources
         continue-on-error: true 
         run: |
-          kubectl delete all --namespace=default --all
-          kubectl delete networkpolicies --all-namespaces --all
+          kubectl delete all --namespace=default --all --cascade=foreground --wait
+          kubectl delete networkpolicies --namespace=default --all
 
       - name: Run panelmatch correctness test
         id: run-panelmatch-correctness-test

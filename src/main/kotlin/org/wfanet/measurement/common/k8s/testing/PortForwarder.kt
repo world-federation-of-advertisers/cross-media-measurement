@@ -42,7 +42,6 @@ import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.runInterruptible
-import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.suspendCancellableCoroutine
 import org.jetbrains.annotations.Blocking
 import org.jetbrains.annotations.BlockingExecutor
@@ -80,24 +79,19 @@ class PortForwarder(
       AsynchronousServerSocketChannel.open().bind(InetSocketAddress(localAddress, 0))
     val boundAddress = serverSocketChannel.localAddress as InetSocketAddress
 
-    @Suppress("BlockingMethodInNonBlockingContext") // Blocking dispatcher.
     scope.launch {
       while (coroutineContext.isActive) {
-        supervisorScope {
-          launch {
-            logger.info { "Listening for connection on $boundAddress for $podName:$port" }
-            val socketChannel: SuspendingByteChannel = listenForConnection()
+        logger.info { "Listening for connection on $boundAddress for $podName:$port" }
+        val socketChannel: SuspendingByteChannel = listenForConnection()
 
-            logger.info { "Handling connection for $podName:$port" }
-            try {
-              handleConnection(socketChannel)
-            } catch (e: IOException) {
-              if (coroutineContext.isActive) throw e
-            } finally {
-              logger.info { "Disconnected from $podName:$port" }
-              socketChannel.close()
-            }
-          }
+        logger.info { "Handling connection for $podName:$port" }
+        try {
+          handleConnection(socketChannel)
+        } catch (e: IOException) {
+          if (coroutineContext.isActive) throw e
+        } finally {
+          logger.info { "Disconnected from $podName:$port" }
+          socketChannel.close()
         }
       }
     }
@@ -106,19 +100,22 @@ class PortForwarder(
   }
 
   private suspend fun listenForConnection(): SuspendingByteChannel {
-    val socketChannel =
-      suspendCancellableCoroutine<AsynchronousSocketChannel> { continuation ->
-        serverSocketChannel.accept(continuation, socketCompletionHandler)
-      }
+    val socketChannel: AsynchronousSocketChannel = suspendCancellableCoroutine { continuation ->
+      serverSocketChannel.accept(continuation, socketCompletionHandler)
+    }
     return SuspendingByteChannel(socketChannel)
   }
 
-  @Throws(IOException::class)
+  /**
+   * Handles a connection on [socketChannel].
+   *
+   * @throws IOException
+   */
   @Blocking
   private suspend fun handleConnection(socketChannel: SuspendingByteChannel) {
+    val forwarding: PortForward.PortForwardResult =
+      PortForward(apiClient).forward(pod, listOf(port))
     coroutineScope {
-      val forwarding: PortForward.PortForwardResult =
-        PortForward(apiClient).forward(pod, listOf(port))
       ensureActive()
       launch {
         Channels.newChannel(forwarding.getInputStream(port)).use { input ->

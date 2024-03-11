@@ -22,6 +22,7 @@ import io.grpc.ManagedChannel
 import io.kubernetes.client.common.KubernetesObject
 import io.kubernetes.client.openapi.Configuration
 import io.kubernetes.client.openapi.models.V1Deployment
+import io.kubernetes.client.openapi.models.V1Pod
 import io.kubernetes.client.util.ClientBuilder
 import java.io.File
 import java.net.InetSocketAddress
@@ -158,28 +159,31 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
       // https://github.com/kubernetes/kubernetes/issues/66689.
       k8sClient.waitForServiceAccount("default", timeout = READY_TIMEOUT)
 
-      loadKingdomForPanelMatch()
+      loadKingdomForSetup()
       val dataProviderEntityContent = withContext(Dispatchers.IO) { createEntityContent("edp1") }
       val modelProviderEntityContent = withContext(Dispatchers.IO) { createEntityContent("mp1") }
-      return runResourceSetup(dataProviderEntityContent, modelProviderEntityContent)
+      val resourceSetupOutput =
+        runResourceSetup(dataProviderEntityContent, modelProviderEntityContent)
+      loadCmms(resourceSetupOutput.akidPrincipalMap)
+
+      return resourceSetupOutput.entitiesData
     }
 
+    /** Runs resource setup, leaving port forwarding active for forwarded storage. */
     private suspend fun runResourceSetup(
       dataProviderContent: EntityContent,
       modelProviderContent: EntityContent,
-    ): EntitiesData {
+    ): ResourceSetupOutput {
       val outputDir = withContext(Dispatchers.IO) { tempDir.newFolder("resource-setup") }
 
       val kingdomInternalPod = getPod(KINGDOM_INTERNAL_DEPLOYMENT_NAME)
       val mpPrivateStoragePod = getPod(MP_PRIVATE_STORAGE_DEPLOYMENT_NAME)
       val dpPrivateStoragePod = getPod(DP_PRIVATE_STORAGE_DEPLOYMENT_NAME)
       val sharedStoragePod = getPod(SHARED_STORAGE_DEPLOYMENT_NAME)
-      var entitiesData: EntitiesData
 
-      PortForwarder(kingdomInternalPod, SERVER_PORT).use { internalForward ->
+      return PortForwarder(kingdomInternalPod, SERVER_PORT).use { internalForward ->
         val internalAddress: InetSocketAddress =
           withContext(Dispatchers.IO) { internalForward.start() }
-            .also { portForwarders.add(internalForward) }
         val internalChannel =
           buildMutualTlsChannel(internalAddress.toTarget(), KINGDOM_SIGNING_CERTS).also {
             channels.add(it)
@@ -193,14 +197,14 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
             outputDir,
           )
         val panelMatchResourceKey =
-          withContext(Dispatchers.IO) {
-            panelMatchResourceSetup.process(
+          panelMatchResourceSetup
+            .process(
               dataProviderContent = dataProviderContent,
               modelProviderContent = modelProviderContent,
               exchangeDate = EXCHANGE_DATE.toProtoDate(),
               exchangeSchedule = SCHEDULE,
             )
-          }
+            .also { internalChannel.shutdown() }
 
         dataProviderKey = panelMatchResourceKey.dataProviderKey
         modelProviderKey = panelMatchResourceKey.modelProviderKey
@@ -287,6 +291,7 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
         }
 
         val akidPrincipalMap = outputDir.resolve(PanelMatchResourceSetup.AKID_PRINCIPAL_MAP_FILE)
+
         loadDpDaemonForPanelMatch(
           k8sClient,
           panelMatchResourceKey.dataProviderKey,
@@ -298,16 +303,17 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
           akidPrincipalMap,
         )
 
-        entitiesData =
+        ResourceSetupOutput(
           EntitiesData(
             apiIdToExternalId(panelMatchResourceKey.dataProviderKey.dataProviderId),
             apiIdToExternalId(panelMatchResourceKey.modelProviderKey.modelProviderId),
-          )
+          ),
+          akidPrincipalMap,
+        )
       }
-      return entitiesData
     }
 
-    private suspend fun loadKingdomForPanelMatch() {
+    private suspend fun loadKingdomForSetup() {
       val appliedObjects: List<KubernetesObject> =
         withContext(Dispatchers.IO) {
           val outputDir = tempDir.newFolder("kingdom-for-panelmatch-setup")
@@ -327,9 +333,36 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
           kubectlApply(config, k8sClient)
         }
 
-      appliedObjects.filterIsInstance<V1Deployment>().forEach {
-        k8sClient.waitUntilDeploymentReady(checkNotNull(it.metadata?.name))
-      }
+      waitUntilDeploymentsComplete(appliedObjects)
+    }
+
+    private suspend fun loadCmms(akidPrincipalMap: File) {
+      val appliedObjects: List<KubernetesObject> =
+        withContext(Dispatchers.IO) {
+          val outputDir = tempDir.newFolder("cmms")
+          extractTar(
+            getRuntimePath(LOCAL_K8S_TESTING_PATH.resolve("cmms_for_panelmatch.tar")).toFile(),
+            outputDir,
+          )
+
+          val configFilesDir = outputDir.toPath().resolve(CONFIG_FILES_PATH).toFile()
+          logger.info("Copying $akidPrincipalMap to $CONFIG_FILES_PATH")
+          akidPrincipalMap.copyTo(configFilesDir.resolve(akidPrincipalMap.name))
+
+          val configFile: File = outputDir.resolve("config.yaml")
+          kustomize(
+            outputDir
+              .toPath()
+              .resolve(LOCAL_K8S_TESTING_PATH)
+              .resolve("cmms_for_panelmatch")
+              .toFile(),
+            configFile,
+          )
+
+          kubectlApply(configFile, k8sClient)
+        }
+
+      waitUntilDeploymentsComplete(appliedObjects)
     }
 
     private suspend fun loadDpDaemonForPanelMatch(
@@ -337,28 +370,31 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
       dataProviderKey: DataProviderKey,
       akidPrincipalMap: File,
     ) {
-      withContext(Dispatchers.IO) {
-        val outputDir = tempDir.newFolder("edp_daemon")
-        extractTar(
-          getRuntimePath(LOCAL_K8S_PANELMATCH_PATH.resolve("edp_daemon.tar")).toFile(),
-          outputDir,
-        )
+      val appliedObjects: List<KubernetesObject> =
+        withContext(Dispatchers.IO) {
+          val outputDir = tempDir.newFolder("edp_daemon")
+          extractTar(
+            getRuntimePath(LOCAL_K8S_PANELMATCH_PATH.resolve("edp_daemon.tar")).toFile(),
+            outputDir,
+          )
 
-        val configFilesDir = outputDir.toPath().resolve(CONFIG_FILES_PATH).toFile()
-        akidPrincipalMap.copyTo(configFilesDir.resolve(akidPrincipalMap.name))
-        val configTemplate: File = outputDir.resolve("config.yaml")
-        kustomize(
-          outputDir.toPath().resolve(LOCAL_K8S_PANELMATCH_PATH).resolve("edp_daemon").toFile(),
-          configTemplate,
-        )
+          val configFilesDir = outputDir.toPath().resolve(PANELMATCH_CONFIG_FILES_PATH).toFile()
+          akidPrincipalMap.copyTo(configFilesDir.resolve(akidPrincipalMap.name))
+          val configTemplate: File = outputDir.resolve("config.yaml")
+          kustomize(
+            outputDir.toPath().resolve(LOCAL_K8S_PANELMATCH_PATH).resolve("edp_daemon").toFile(),
+            configTemplate,
+          )
 
-        val configContent =
-          configTemplate
-            .readText(StandardCharsets.UTF_8)
-            .replace("{party_name}", dataProviderKey.dataProviderId)
+          val configContent =
+            configTemplate
+              .readText(StandardCharsets.UTF_8)
+              .replace("{party_name}", dataProviderKey.dataProviderId)
 
-        kubectlApply(configContent, k8sClient)
-      }
+          kubectlApply(configContent, k8sClient)
+        }
+
+      waitUntilDeploymentsComplete(appliedObjects)
     }
 
     private suspend fun loadMpDaemonForPanelMatch(
@@ -366,28 +402,31 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
       modelProviderKey: ModelProviderKey,
       akidPrincipalMap: File,
     ) {
-      withContext(Dispatchers.IO) {
-        val outputDir = tempDir.newFolder("mp_daemon")
-        extractTar(
-          getRuntimePath(LOCAL_K8S_PANELMATCH_PATH.resolve("mp_daemon.tar")).toFile(),
-          outputDir,
-        )
+      val appliedObjects: List<KubernetesObject> =
+        withContext(Dispatchers.IO) {
+          val outputDir = tempDir.newFolder("mp_daemon")
+          extractTar(
+            getRuntimePath(LOCAL_K8S_PANELMATCH_PATH.resolve("mp_daemon.tar")).toFile(),
+            outputDir,
+          )
 
-        val configFilesDir = outputDir.toPath().resolve(CONFIG_FILES_PATH).toFile()
-        akidPrincipalMap.copyTo(configFilesDir.resolve(akidPrincipalMap.name))
+          val configFilesDir = outputDir.toPath().resolve(PANELMATCH_CONFIG_FILES_PATH).toFile()
+          akidPrincipalMap.copyTo(configFilesDir.resolve(akidPrincipalMap.name))
 
-        val configTemplate: File = outputDir.resolve("config.yaml")
-        kustomize(
-          outputDir.toPath().resolve(LOCAL_K8S_PANELMATCH_PATH).resolve("mp_daemon").toFile(),
-          configTemplate,
-        )
-        val configContent =
-          configTemplate
-            .readText(StandardCharsets.UTF_8)
-            .replace("{party_name}", modelProviderKey.modelProviderId)
+          val configTemplate: File = outputDir.resolve("config.yaml")
+          kustomize(
+            outputDir.toPath().resolve(LOCAL_K8S_PANELMATCH_PATH).resolve("mp_daemon").toFile(),
+            configTemplate,
+          )
+          val configContent =
+            configTemplate
+              .readText(StandardCharsets.UTF_8)
+              .replace("{party_name}", modelProviderKey.modelProviderId)
 
-        kubectlApply(configContent, k8sClient)
-      }
+          kubectlApply(configContent, k8sClient)
+        }
+
+      waitUntilDeploymentsComplete(appliedObjects)
     }
 
     private suspend fun createTestHarness(entitiesData: EntitiesData): PanelMatchSimulator {
@@ -436,6 +475,11 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
         portForwarder.stop()
       }
     }
+
+    private data class ResourceSetupOutput(
+      val entitiesData: EntitiesData,
+      val akidPrincipalMap: File,
+    )
   }
 
   companion object {
@@ -449,8 +493,10 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
     var modelProviderKey: ModelProviderKey? = null
 
     private val LOCAL_K8S_PATH = Paths.get("src", "main", "k8s", "local")
+    private val LOCAL_K8S_TESTING_PATH = LOCAL_K8S_PATH.resolve("testing")
+    private val CONFIG_FILES_PATH = LOCAL_K8S_TESTING_PATH.resolve("config_files")
     private val LOCAL_K8S_PANELMATCH_PATH = Paths.get("src", "main", "k8s", "panelmatch", "local")
-    private val CONFIG_FILES_PATH = LOCAL_K8S_PANELMATCH_PATH.resolve("config_files")
+    private val PANELMATCH_CONFIG_FILES_PATH = LOCAL_K8S_PANELMATCH_PATH.resolve("config_files")
 
     private const val KINGDOM_INTERNAL_DEPLOYMENT_NAME = "gcp-kingdom-data-server-deployment"
     private const val KINGDOM_PUBLIC_DEPLOYMENT_NAME = "v2alpha-public-api-server-deployment"
@@ -512,6 +558,30 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
 
     private fun extractTar(archive: File, outputDirectory: File) {
       Processes.runCommand("tar", "-xf", archive.toString(), "-C", outputDirectory.toString())
+    }
+
+    private suspend fun KubernetesClient.waitUntilDeploymentComplete(name: String): V1Deployment {
+      logger.info { "Waiting for Deployment $name to be complete..." }
+      return waitUntilDeploymentComplete(name, timeout = READY_TIMEOUT).also {
+        logger.info { "Deployment $name complete" }
+      }
+    }
+
+    /**
+     * Returns the first Pod from current ReplicaSet of the Deployment with name [deploymentName].
+     *
+     * This assumes that the Deployment is complete.
+     */
+    private suspend fun getPod(deploymentName: String): V1Pod {
+      val deployment = checkNotNull(k8sClient.getDeployment(deploymentName))
+      val replicaSet = checkNotNull(k8sClient.getNewReplicaSet(deployment))
+      return k8sClient.listPods(replicaSet).items.first()
+    }
+
+    private suspend fun waitUntilDeploymentsComplete(appliedObjects: Iterable<KubernetesObject>) {
+      appliedObjects.filterIsInstance<V1Deployment>().forEach {
+        k8sClient.waitUntilDeploymentComplete(checkNotNull(it.metadata?.name))
+      }
     }
   }
 }
