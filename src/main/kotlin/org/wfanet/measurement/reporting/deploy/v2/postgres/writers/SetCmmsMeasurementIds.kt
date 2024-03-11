@@ -42,13 +42,15 @@ class SetCmmsMeasurementIds(private val request: BatchSetCmmsMeasurementIdsReque
         .measurementConsumerId
 
     val statement =
-      valuesListBoundStatement(valuesStartIndex = 2, paramCount = 2,
+      valuesListBoundStatement(
+        valuesStartIndex = 2,
+        paramCount = 2,
         """
         UPDATE Measurements AS m SET CmmsMeasurementId = c.CmmsMeasurementId, State = $1
         FROM (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
         AS c(CmmsMeasurementId, CmmsCreateMeasurementRequestId)
         WHERE MeasurementConsumerId = $2 AND m.CmmsCreateMeasurementRequestId = c.CmmsCreateMeasurementRequestId::uuid
-        """
+        """,
       ) {
         bind("$1", Measurement.State.PENDING)
         bind("$2", measurementConsumerId)

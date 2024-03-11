@@ -44,7 +44,9 @@ class SetMeasurementResults(private val request: BatchSetMeasurementResultsReque
         .measurementConsumerId
 
     val statement =
-      valuesListBoundStatement(valuesStartIndex = 2, paramCount = 3,
+      valuesListBoundStatement(
+        valuesStartIndex = 2,
+        paramCount = 3,
         """
         UPDATE Measurements AS m SET
         MeasurementDetails = c.MeasurementDetails,
@@ -53,7 +55,7 @@ class SetMeasurementResults(private val request: BatchSetMeasurementResultsReque
         FROM (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
         AS c(MeasurementDetails, MeasurementDetailsJson, CmmsMeasurementId)
         WHERE MeasurementConsumerId = $2 AND m.CmmsMeasurementId = c.CmmsMeasurementId
-        """
+        """,
       ) {
         bind("$1", Measurement.State.SUCCEEDED)
         bind("$2", measurementConsumerId)
