@@ -17,6 +17,8 @@ package org.wfanet.measurement.reporting.service.api.v1alpha
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.DescriptorProtos.FileDescriptorSet
+import com.google.protobuf.Descriptors
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.nio.file.Path
@@ -41,15 +43,19 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest as CmmsListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.TestMetadataMessage
+import org.wfanet.measurement.api.v2alpha.TestMetadataMessageKt.brand
+import org.wfanet.measurement.api.v2alpha.TestMetadataMessageKt.campaignStartDate
+import org.wfanet.measurement.api.v2alpha.TestMetadataMessageKt.date
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetadataMessage
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testParentMetadataMessage
 import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse as cmmsListEventGroupsResponse
+import org.wfanet.measurement.api.v2alpha.testMetadataMessage
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.crypto.tink.TinkPublicKeyHandle
@@ -94,7 +100,16 @@ private val ENCRYPTION_KEY_PAIR_STORE =
         listOf(ENCRYPTION_PUBLIC_KEY.data to ENCRYPTION_PRIVATE_KEY_HANDLE)
     )
   )
-private val TEST_MESSAGE = testMetadataMessage { publisherId = 15 }
+private val TEST_MESSAGE = testMetadataMessage {
+  brand = brand { value = "unilever" }
+  campaignStartDate = campaignStartDate {
+    value = date {
+      year = 2024
+      month = 1
+      day = 1
+    }
+  }
+}
 private const val CMMS_EVENT_GROUP_ID = "AAAAAAAAAHs"
 private val CMMS_EVENT_GROUP = cmmsEventGroup {
   name = "$DATA_PROVIDER_NAME/eventGroups/$CMMS_EVENT_GROUP_ID"
@@ -110,7 +125,7 @@ private val CMMS_EVENT_GROUP = cmmsEventGroup {
       ENCRYPTION_PUBLIC_KEY,
     )
 }
-private val TEST_MESSAGE_2 = testMetadataMessage { publisherId = 5 }
+private val TEST_MESSAGE_2 = testMetadataMessage { brand = brand { value = "unilever2" } }
 private const val CMMS_EVENT_GROUP_ID_2 = "AAAAAAAAAGs"
 private val CMMS_EVENT_GROUP_2 =
   CMMS_EVENT_GROUP.copy {
@@ -148,10 +163,18 @@ private const val EVENT_GROUP_REFERENCE_ID = "edpRefId1"
 private const val EVENT_GROUP_PARENT =
   "measurementConsumers/$MEASUREMENT_CONSUMER_REFERENCE_ID/dataProviders/$DATA_PROVIDER_REFERENCE_ID"
 private const val METADATA_NAME = "$DATA_PROVIDER_NAME/eventGroupMetadataDescriptors/abc"
+private const val METADATA_NAME_TWO = "$DATA_PROVIDER_NAME/eventGroupMetadataDescriptors/def"
+// descriptorSet = TestMetadataMessage.getDescriptor().getFileDescriptorSet()
+// descriptorSet = ProtoReflection.buildFileDescriptorSet(TEST_MESSAGE.descriptorForType)
 private val EVENT_GROUP_METADATA_DESCRIPTOR = eventGroupMetadataDescriptor {
   name = METADATA_NAME
-  descriptorSet = ProtoReflection.buildFileDescriptorSet(TEST_MESSAGE.descriptorForType)
+  descriptorSet = TestMetadataMessage.getDescriptor().getFileDescriptorSet(false)
 }
+private val EVENT_GROUP_METADATA_DESCRIPTOR_TWO = eventGroupMetadataDescriptor {
+  name = METADATA_NAME_TWO
+  descriptorSet = TestMetadataMessage.getDescriptor().getFileDescriptorSet(true)
+}
+private val something = ProtoReflection.buildFileDescriptorSet(TEST_MESSAGE.descriptorForType)
 
 @RunWith(JUnit4::class)
 class EventGroupsServiceTest {
@@ -171,6 +194,7 @@ class EventGroupsServiceTest {
         .thenReturn(
           listEventGroupMetadataDescriptorsResponse {
             eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
+            eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR_TWO
           }
         )
     }
@@ -185,6 +209,7 @@ class EventGroupsServiceTest {
 
   @Before
   fun initService() {
+    println("somethingsomethingsomething $something")
     val celEnvCacheProvider =
       CelEnvCacheProvider(
         EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
@@ -273,13 +298,14 @@ class EventGroupsServiceTest {
           service.listEventGroups(
             listEventGroupsRequest {
               parent = EVENT_GROUP_PARENT
-              filter = "metadata.metadata.publisher_id > 10"
+              filter = "metadata.metadata.campaign_start_date.value.year >2021 "
+
               pageToken = PAGE_TOKEN
             }
           )
         }
       }
-
+    // filter = "metadata.metadata.brand.value == 'unilever' "
     assertThat(result)
       .isEqualTo(
         listEventGroupsResponse {
@@ -337,7 +363,7 @@ class EventGroupsServiceTest {
           service.listEventGroups(
             listEventGroupsRequest {
               parent = EVENT_GROUP_PARENT
-              filter = "metadata.metadata.publisher_id > 10"
+              filter = "metadata.metadata.brand.value == 'unilever' "
               pageToken = PAGE_TOKEN
             }
           )
@@ -487,4 +513,49 @@ private fun loadEncryptionPrivateKey(fileName: String): TinkPrivateKeyHandle {
 
 private fun loadEncryptionPublicKey(fileName: String): TinkPublicKeyHandle {
   return loadPublicKey(SECRET_FILES_PATH.resolve(fileName).toFile())
+}
+
+private fun setFileDescriptorName(
+  desc: Descriptors.Descriptor,
+  givenName: String,
+): Descriptors.Descriptor {
+  // return Descriptors.Descriptor.newBuilder().adddesc.toProto().toBuilder().build()
+
+  val sth = desc.getFile().toProto().toBuilder().setName("new_file_name.proto").build()
+  return desc.toProto().toBuilder().build().getDescriptorForType()
+  // val toReturn =  desc.toProto().toBuilder().setFile(0, sth).build().getDescriptor()
+  // // println("sthsthsthsthsthsth")
+  // // println("sthsthsthsthsthsth")
+  // // println("sthsthsthsthsthsth")
+  // // println("sthsthsthsthsthsth")
+  // // println(toReturn)
+  // return toReturn
+  // .setFile.name = givenName
+}
+
+private fun Descriptors.Descriptor.getFileDescriptorSet(change: Boolean): FileDescriptorSet {
+  val fileDescriptors = mutableSetOf<Descriptors.FileDescriptor>()
+  val fileToUse: Descriptors.FileDescriptor =
+    if (change) {
+      Descriptors.FileDescriptor.buildFrom(
+        file.toProto().toBuilder().setName("new_file_name.proto").build(),
+        arrayOf(),
+      )
+    } else {
+      file
+    }
+
+  val toVisit = mutableListOf<Descriptors.FileDescriptor>(fileToUse)
+  while (toVisit.isNotEmpty()) {
+    val fileDescriptor = toVisit.removeLast()
+    if (!fileDescriptors.contains(fileDescriptor)) {
+      fileDescriptors.add(fileDescriptor)
+      for (dependency in fileDescriptor.dependencies) {
+        if (!fileDescriptors.contains(dependency)) {
+          toVisit.add(dependency)
+        }
+      }
+    }
+  }
+  return FileDescriptorSet.newBuilder().addAllFile(fileDescriptors.map { it.toProto() }).build()
 }
