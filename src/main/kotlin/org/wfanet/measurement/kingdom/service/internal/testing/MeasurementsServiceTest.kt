@@ -2498,7 +2498,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-  fun `batchGetMeasurements with 2 requests retrieves 2 measurements`(): Unit = runBlocking {
+  fun `batchGetMeasurements with 2 unique ids retrieves 2 measurements`(): Unit = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider = population.createDataProvider(dataProvidersService)
@@ -2539,10 +2539,58 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     assertThat(retrievedMeasurements)
       .ignoringRepeatedFieldOrder()
       .containsExactlyElementsIn(createdMeasurements)
+      .inOrder()
   }
 
   @Test
-  fun `batchGetMeasurements throws NOT_FOUND if 1 of 2 measurements not founc`() = runBlocking {
+  fun `batchGetMeasurements with 2 unique ids and 1 duplicate retrieves 2 measurements`(): Unit =
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val dataProvider = population.createDataProvider(dataProvidersService)
+
+      val measurement =
+        REACH_ONLY_MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+          dataProviders[dataProvider.externalDataProviderId] = dataProvider.toDataProviderValue()
+        }
+
+      val createMeasurementRequest = createMeasurementRequest { this.measurement = measurement }
+
+      val createdMeasurements =
+        measurementsService
+          .batchCreateMeasurements(
+            batchCreateMeasurementsRequest {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              requests += createMeasurementRequest
+              requests += createMeasurementRequest
+            }
+          )
+          .measurementsList
+
+      val retrievedMeasurements =
+        measurementsService
+          .batchGetMeasurements(
+            batchGetMeasurementsRequest {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementIds += createdMeasurements[0].externalMeasurementId
+              externalMeasurementIds += createdMeasurements[0].externalMeasurementId
+              externalMeasurementIds += createdMeasurements[1].externalMeasurementId
+            }
+          )
+          .measurementsList
+
+      assertThat(retrievedMeasurements).hasSize(2)
+      assertThat(retrievedMeasurements)
+        .ignoringRepeatedFieldOrder()
+        .containsExactlyElementsIn(createdMeasurements)
+        .inOrder()
+    }
+
+  @Test
+  fun `batchGetMeasurements throws NOT_FOUND if 1 of 2 measurements not found`() = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider = population.createDataProvider(dataProvidersService)
