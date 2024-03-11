@@ -14,9 +14,12 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import com.google.protobuf.DescriptorProtos
+import com.google.protobuf.Descriptors
 import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -27,6 +30,7 @@ import org.wfanet.measurement.internal.kingdom.GetEventGroupMetadataDescriptorRe
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.internal.kingdom.UpdateEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupMetadataDescriptorAlreadyExistsWithTypeException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupMetadataDescriptorNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamEventGroupMetadataDescriptors
@@ -37,14 +41,24 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.UpdateEventG
 class SpannerEventGroupMetadataDescriptorsService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient,
+  knownMetadataTypes: Iterable<Descriptors.FileDescriptor>,
 ) : EventGroupMetadataDescriptorsCoroutineImplBase() {
+  private val allKnownMetadataTypes: Set<Descriptors.FileDescriptor> =
+    knownMetadataTypes.asSequence().plus(ProtoReflection.WELL_KNOWN_TYPES).toSet()
+
   override suspend fun createEventGroupMetadataDescriptor(
     request: EventGroupMetadataDescriptor
   ): EventGroupMetadataDescriptor {
     try {
-      return CreateEventGroupMetadataDescriptor(request).execute(client, idGenerator)
+      return CreateEventGroupMetadataDescriptor(
+          request,
+          getProtobufTypeNames(request.details.descriptorSet),
+        )
+        .execute(client, idGenerator)
     } catch (e: DataProviderNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
+    } catch (e: EventGroupMetadataDescriptorAlreadyExistsWithTypeException) {
+      throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error")
     }
@@ -73,13 +87,18 @@ class SpannerEventGroupMetadataDescriptorsService(
       "ExternalEventGroupMetadataDescriptorId unspecified"
     }
     try {
-      return UpdateEventGroupMetadataDescriptor(request.eventGroupMetadataDescriptor)
+      return UpdateEventGroupMetadataDescriptor(
+          request.eventGroupMetadataDescriptor,
+          getProtobufTypeNames(request.eventGroupMetadataDescriptor.details.descriptorSet),
+        )
         .execute(client, idGenerator)
     } catch (e: EventGroupMetadataDescriptorNotFoundException) {
       throw e.asStatusRuntimeException(
         Status.Code.NOT_FOUND,
         "EventGroupMetadataDescriptor not found.",
       )
+    } catch (e: EventGroupMetadataDescriptorAlreadyExistsWithTypeException) {
+      throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error")
     }
@@ -93,5 +112,17 @@ class SpannerEventGroupMetadataDescriptorsService(
     return StreamEventGroupMetadataDescriptors(request.filter, request.limit)
       .execute(client.singleUse())
       .map { it.eventGroupMetadataDescriptor }
+  }
+
+  /**
+   * Returns the protobuf type names of types defined in [fileDescriptorSet], excluding those
+   * defined in [allKnownMetadataTypes].
+   */
+  private fun getProtobufTypeNames(
+    fileDescriptorSet: DescriptorProtos.FileDescriptorSet
+  ): List<String> {
+    return ProtoReflection.buildDescriptors(listOf(fileDescriptorSet), allKnownMetadataTypes).map {
+      it.fullName
+    }
   }
 }

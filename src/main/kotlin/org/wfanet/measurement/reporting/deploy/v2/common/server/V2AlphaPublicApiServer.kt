@@ -17,6 +17,8 @@
 package org.wfanet.measurement.reporting.deploy.v2.common.server
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.DescriptorProtos
+import com.google.protobuf.Descriptors
 import io.grpc.Channel
 import io.grpc.Server
 import io.grpc.ServerServiceDefinition
@@ -41,6 +43,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as KingdomMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as KingdomMeasurementsCoroutineStub
 import org.wfanet.measurement.api.withAuthenticationKey
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.api.PrincipalLookup
 import org.wfanet.measurement.common.api.memoizing
 import org.wfanet.measurement.common.commandLineMain
@@ -168,6 +171,7 @@ private fun run(
         .withAuthenticationKey(apiKey),
       EventGroup.getDescriptor(),
       reportingApiServerFlags.eventGroupMetadataDescriptorCacheDuration,
+      v2AlphaPublicServerFlags.knownEventGroupMetadataTypes,
       Dispatchers.Default,
     )
 
@@ -289,5 +293,27 @@ private class V2AlphaPublicServerFlags {
     required = true,
   )
   lateinit var dataProviderCacheExpirationDuration: Duration
+    private set
+
+  @CommandLine.Option(
+    names = ["--known-event-group-metadata-type"],
+    description =
+      [
+        "File path to FileDescriptorSet containing known EventGroup metadata types.",
+        "This is in addition to standard protobuf well-known types.",
+        "Can be specified multiple times.",
+      ],
+    required = false,
+    defaultValue = "",
+  )
+  private fun setKnownEventGroupMetadataTypes(fileDescriptorSetFiles: List<File>) {
+    val fileDescriptorSets =
+      fileDescriptorSetFiles.map { file ->
+        file.inputStream().use { input -> DescriptorProtos.FileDescriptorSet.parseFrom(input) }
+      }
+    knownEventGroupMetadataTypes = ProtoReflection.buildFileDescriptors(fileDescriptorSets)
+  }
+
+  lateinit var knownEventGroupMetadataTypes: List<Descriptors.FileDescriptor>
     private set
 }

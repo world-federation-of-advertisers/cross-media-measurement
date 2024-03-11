@@ -14,7 +14,11 @@
 
 package org.wfanet.measurement.kingdom.deploy.common.server
 
+import com.google.protobuf.DescriptorProtos
+import com.google.protobuf.Descriptors
+import java.io.File
 import kotlinx.coroutines.runInterruptible
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.DuchyInfoFlags
@@ -38,6 +42,28 @@ abstract class KingdomDataServer : Runnable {
   @CommandLine.Mixin private lateinit var llv2ProtocolConfigFlags: Llv2ProtocolConfigFlags
 
   @CommandLine.Mixin private lateinit var roLlv2ProtocolConfigFlags: RoLlv2ProtocolConfigFlags
+
+  @CommandLine.Option(
+    names = ["--known-event-group-metadata-type"],
+    description =
+      [
+        "File path to FileDescriptorSet containing known EventGroup metadata types.",
+        "This is in addition to standard protobuf well-known types.",
+        "Can be specified multiple times.",
+      ],
+    required = false,
+    defaultValue = "",
+  )
+  private fun setKnownEventGroupMetadataTypes(fileDescriptorSetFiles: List<File>) {
+    val fileDescriptorSets =
+      fileDescriptorSetFiles.map { file ->
+        file.inputStream().use { input -> DescriptorProtos.FileDescriptorSet.parseFrom(input) }
+      }
+    knownEventGroupMetadataTypes = ProtoReflection.buildFileDescriptors(fileDescriptorSets)
+  }
+
+  protected lateinit var knownEventGroupMetadataTypes: List<Descriptors.FileDescriptor>
+    private set
 
   protected suspend fun run(dataServices: DataServices) {
     DuchyInfo.initializeFromFlags(duchyInfoFlags)
