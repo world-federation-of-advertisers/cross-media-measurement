@@ -89,6 +89,7 @@ class SyntheticGeneratorEdpSimulatorRunner : EdpSimulatorRunner() {
       eventQuery,
       EdpSimulator.buildEventTemplates(eventMessageDescriptor),
       eventGroupSpecByReferenceIdSuffix,
+      listOf(SyntheticEventGroupSpec.getDescriptor().file),
     )
   }
 
