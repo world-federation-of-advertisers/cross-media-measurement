@@ -286,8 +286,11 @@ class SpannerMeasurementsService(
       throw Status.NOT_FOUND.withDescription("Measurement not found").asRuntimeException()
     }
 
-    val measurementsMap = results.associate { result -> result.measurement.externalMeasurementId to result.measurement }
+    val measurementsMap =
+      results.associate { result -> result.measurement.externalMeasurementId to result.measurement }
 
-    return batchGetMeasurementsResponse { measurements += externalMeasurementIds.map { measurementsMap.getValue(it) } }
+    return batchGetMeasurementsResponse {
+      measurements += externalMeasurementIds.map { measurementsMap.getValue(it) }
+    }
   }
 }
