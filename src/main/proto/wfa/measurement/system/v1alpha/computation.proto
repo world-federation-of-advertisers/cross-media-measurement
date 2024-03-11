@@ -164,16 +164,44 @@ message Computation {
           [(google.api.field_behavior) = REQUIRED];
     }
 
+    // Configuration for the Honest Majority Share Shuffle protocol.
+    message HonestMajorityShareShuffle {
+      // Parameters for HonestMajorityShareShuffle sketch.
+      message ShareShuffleSketchParams {
+        // The number of registers in the sketch.
+        int64 register_count = 1 [(google.api.field_behavior) = REQUIRED];
+
+        // Length of each register in bytes.
+        int32 bytes_per_register = 2 [(google.api.field_behavior) = REQUIRED];
+
+        // The modulus used in the MPC protocol.
+        int32 ring_modulus = 3 [(google.api.field_behavior) = REQUIRED];
+      }
+      // Parameters for HonestMajorityShareShuffle sketch.
+      ShareShuffleSketchParams sketch_params = 1
+          [(google.api.field_behavior) = REQUIRED];
+
+      // The mechanism to generate noise during computation.
+      NoiseMechanism noise_mechanism = 5
+          [(google.api.field_behavior) = REQUIRED];
+    }
+
     // Configuration for the specific protocol. Required.
     oneof protocol {
       // Liquid Legions v2 config.
       //
       // May only be set when the measurement type is REACH_AND_FREQUENCY.
       LiquidLegionsV2 liquid_legions_v2 = 1;
+
       // Reach-only Liquid Legions v2 config.
       //
       // Must only be set when the measurement type is REACH.
       LiquidLegionsV2 reach_only_liquid_legions_v2 = 2;
+
+      // Honest Majority Share Shuffle config.
+      //
+      // Set for both REACH_AND_FREQUENCY and REACH.
+      HonestMajorityShareShuffle honest_majority_share_shuffle = 3;
     }
   }
   // MPC protocol configuration that need to be known by Duchies.

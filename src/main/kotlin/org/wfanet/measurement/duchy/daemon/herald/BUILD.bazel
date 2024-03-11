@@ -23,6 +23,7 @@ kt_jvm_library(
     name = "herald",
     srcs = [
         "Herald.kt",
+        "HonestMajorityShareShuffleStarter.kt",
         "LiquidLegionsV2Starter.kt",
         "ReachOnlyLiquidLegionsV2Starter.kt",
     ],

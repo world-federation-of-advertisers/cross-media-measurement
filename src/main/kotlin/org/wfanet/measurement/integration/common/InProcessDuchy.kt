@@ -14,6 +14,9 @@
 
 package org.wfanet.measurement.integration.common
 
+import com.google.crypto.tink.Aead
+import com.google.crypto.tink.KeyTemplates
+import com.google.crypto.tink.KeysetHandle
 import com.google.protobuf.ByteString
 import io.grpc.Channel
 import io.grpc.inprocess.InProcessChannelBuilder
@@ -39,6 +42,8 @@ import org.wfanet.measurement.api.v2alpha.testing.withMetadataPrincipalIdentitie
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
+import org.wfanet.measurement.common.crypto.tink.TinkKeyStorageProvider
+import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.testing.withMetadataDuchyIdentities
@@ -59,11 +64,13 @@ import org.wfanet.measurement.duchy.service.api.v2alpha.RequisitionFulfillmentSe
 import org.wfanet.measurement.duchy.service.internal.computationcontrol.AsyncComputationControlService
 import org.wfanet.measurement.duchy.service.system.v1alpha.ComputationControlService
 import org.wfanet.measurement.duchy.storage.RequisitionStore
+import org.wfanet.measurement.duchy.storage.TinkKeyStore
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineStub
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub as SystemComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub as SystemComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
@@ -121,6 +128,16 @@ class InProcessDuchy(
   }
   private val continuationTokensClient by lazy {
     ContinuationTokensCoroutineStub(computationsServer.channel)
+  }
+
+  // TODO(@renjiez): Use real PrivateKeyStore when enabling HMSS.
+  private val privateKeyStore by lazy {
+    val keyUri = "fake-kms://kek"
+    val privateKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    val aead = privateKeyHandle.getPrimitive(Aead::class.java)
+    val fakeKmsClient = FakeKmsClient().also { it.setAead(keyUri, aead) }
+    TinkKeyStorageProvider(fakeKmsClient)
+      .makeKmsPrivateKeyStore(TinkKeyStore(InMemoryStorageClient()), keyUri)
   }
 
   private val computationsServer =
@@ -185,6 +202,7 @@ class InProcessDuchy(
             internalComputationsClient = computationsClient,
             systemComputationsClient = systemComputationsClient,
             systemComputationParticipantClient = systemComputationParticipantsClient,
+            privateKeyStore = privateKeyStore,
             continuationTokenManager = ContinuationTokenManager(continuationTokensClient),
             protocolsSetupConfig = protocolsSetupConfig,
             clock = Clock.systemUTC(),

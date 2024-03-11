@@ -156,6 +156,14 @@ val ComputationParticipant.key: ComputationParticipantKey
     }
   }
 
+fun getComputationParticipantKey(name: String): ComputationParticipantKey {
+  return if (name.isEmpty()) {
+    ComputationParticipantKey.defaultValue
+  } else {
+    checkNotNull(ComputationParticipantKey.fromName(name)) { "Invalid resource name $name" }
+  }
+}
+
 /** Converts this collection of system API Requisitions to Duchy internal [RequisitionDetails]. */
 fun Iterable<SystemRequisition>.toRequisitionEntries(
   serializedMeasurementSpec: ByteString

@@ -31,8 +31,10 @@ import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisitio
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.Computation.MpcProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.system.v1alpha.ComputationKey
+import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.HonestMajorityShareShuffleKt.shareShuffleSketchParams
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.liquidLegionsSketchParams
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.mpcNoise
+import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.honestMajorityShareShuffle
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.system.v1alpha.ComputationKt.mpcProtocolConfig
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntry
@@ -238,9 +240,9 @@ fun buildMpcProtocolConfig(
   protocolConfig: InternalProtocolConfig,
 ): Computation.MpcProtocolConfig {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-  return when (duchyProtocolConfig.protocolCase) {
-    InternalDuchyProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2 -> {
-      require(protocolConfig.hasLiquidLegionsV2()) {
+  return when (protocolConfig.protocolCase) {
+    InternalProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2 -> {
+      require(duchyProtocolConfig.hasLiquidLegionsV2()) {
         "Public API ProtocolConfig type doesn't match DuchyProtocolConfig type."
       }
       mpcProtocolConfig {
@@ -273,8 +275,8 @@ fun buildMpcProtocolConfig(
         }
       }
     }
-    InternalDuchyProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
-      require(protocolConfig.hasReachOnlyLiquidLegionsV2()) {
+    InternalProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
+      require(duchyProtocolConfig.hasReachOnlyLiquidLegionsV2()) {
         "Public API ProtocolConfig type doesn't match DuchyProtocolConfig type."
       }
       mpcProtocolConfig {
@@ -305,7 +307,22 @@ fun buildMpcProtocolConfig(
         }
       }
     }
-    InternalDuchyProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Protocol not set")
+    InternalProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+      mpcProtocolConfig {
+        honestMajorityShareShuffle = honestMajorityShareShuffle {
+          sketchParams = shareShuffleSketchParams {
+            registerCount = protocolConfig.honestMajorityShareShuffle.sketchParams.registerCount
+            bytesPerRegister =
+              protocolConfig.honestMajorityShareShuffle.sketchParams.bytesPerRegister
+            ringModulus = protocolConfig.honestMajorityShareShuffle.sketchParams.ringModulus
+          }
+          noiseMechanism =
+            protocolConfig.honestMajorityShareShuffle.noiseMechanism.toSystemNoiseMechanism()
+        }
+      }
+    }
+    InternalProtocolConfig.ProtocolCase.DIRECT,
+    InternalProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid Protocol.")
   }
 }
 

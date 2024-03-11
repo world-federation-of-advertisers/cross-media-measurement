@@ -47,10 +47,9 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
 import org.wfanet.measurement.internal.duchy.computationDetails
+import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation.AGGREGATOR
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation.NON_AGGREGATOR
-import org.wfanet.measurement.internal.duchy.config.RoleInComputation.ROLE_IN_COMPUTATION_UNSPECIFIED
-import org.wfanet.measurement.internal.duchy.config.RoleInComputation.UNRECOGNIZED
 import org.wfanet.measurement.internal.duchy.protocol.CompleteReachOnlyExecutionPhaseAtAggregatorResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteReachOnlyExecutionPhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteReachOnlySetupPhaseRequest
@@ -303,8 +302,10 @@ class ReachOnlyLiquidLegionsV2Mill(
             )
             .map { it.publicKey }
             .toCombinedPublicKey(rollv2Details.parameters.ellipticCurveId)
-        ROLE_IN_COMPUTATION_UNSPECIFIED,
-        UNRECOGNIZED -> error("Invalid role ${rollv2Details.role}")
+        RoleInComputation.FIRST_NON_AGGREGATOR,
+        RoleInComputation.SECOND_NON_AGGREGATOR,
+        RoleInComputation.ROLE_IN_COMPUTATION_UNSPECIFIED,
+        RoleInComputation.UNRECOGNIZED -> error("Invalid role ${rollv2Details.role}")
       }
 
     return updateComputationDetails(

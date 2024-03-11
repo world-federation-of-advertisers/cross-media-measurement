@@ -404,7 +404,7 @@ class AsyncComputationControlServiceTest {
       computationDetails = computationDetails {
         honestMajorityShareShuffle =
           HonestMajorityShareShuffleKt.computationDetails {
-            role = RoleInComputation.NON_AGGREGATOR
+            role = RoleInComputation.SECOND_NON_AGGREGATOR
           }
       }
     }
@@ -454,7 +454,7 @@ class AsyncComputationControlServiceTest {
       computationDetails = computationDetails {
         honestMajorityShareShuffle =
           HonestMajorityShareShuffleKt.computationDetails {
-            role = RoleInComputation.NON_AGGREGATOR
+            role = RoleInComputation.SECOND_NON_AGGREGATOR
           }
       }
     }
