@@ -16,7 +16,6 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.DescriptorProtos.FileDescriptorSet
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
@@ -30,6 +29,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessage
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessage2
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
@@ -48,7 +50,11 @@ import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 private const val RANDOM_SEED = 1
 private val DETAILS = details {
   apiVersion = Version.V2_ALPHA.string
-  descriptorSet = FileDescriptorSet.getDefaultInstance()
+  descriptorSet = ProtoReflection.buildFileDescriptorSet(TestMetadataMessage.getDescriptor())
+}
+private val DETAILS_2 = details {
+  apiVersion = Version.V2_ALPHA.string
+  descriptorSet = ProtoReflection.buildFileDescriptorSet(TestMetadataMessage2.getDescriptor())
 }
 
 @RunWith(JUnit4::class)
@@ -164,6 +170,33 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
   }
 
   @Test
+  fun `createEventGroupMetadataDescriptor fails for duplicate message type`() = runBlocking {
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+    val externalDataProviderId2 =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+    eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
+      eventGroupMetadataDescriptor {
+        this.externalDataProviderId = externalDataProviderId
+        details = DETAILS
+      }
+    )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
+          eventGroupMetadataDescriptor {
+            this.externalDataProviderId = externalDataProviderId2
+            details = DETAILS
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    assertThat(exception).hasMessageThat().contains("EventGroupMetadataDescriptor")
+  }
+
+  @Test
   fun `createEventGroupMetadataDescriptor returns existing Descriptor by idempotency key`() =
     runBlocking {
       val externalDataProviderId =
@@ -241,6 +274,43 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
   }
 
   @Test
+  fun `updateEventGroupMetadataDescriptor fails for duplicate message type`() = runBlocking {
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+    val externalDataProviderId2 =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+    eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
+      eventGroupMetadataDescriptor {
+        this.externalDataProviderId = externalDataProviderId
+        details = DETAILS
+      }
+    )
+    val eventGroupMetadataDescriptor =
+      eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
+        eventGroupMetadataDescriptor {
+          this.externalDataProviderId = externalDataProviderId2
+          details = DETAILS_2
+        }
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        eventGroupMetadataDescriptorService.updateEventGroupMetadataDescriptor(
+          updateEventGroupMetadataDescriptorRequest {
+            this.eventGroupMetadataDescriptor =
+              eventGroupMetadataDescriptor.copy {
+                // This should error as the message type is already in use by the other EDP.
+                details = DETAILS
+              }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    assertThat(exception).hasMessageThat().contains("EventGroupMetadataDescriptor")
+  }
+
+  @Test
   fun `streamEventGroupMetadataDescriptors returns all descriptors in order`(): Unit = runBlocking {
     val externalDataProviderId =
       population.createDataProvider(dataProvidersService).externalDataProviderId
@@ -257,7 +327,7 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
       eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
         eventGroupMetadataDescriptor {
           this.externalDataProviderId = externalDataProviderId
-          details = DETAILS
+          details = DETAILS_2
         }
       )
 
@@ -303,7 +373,7 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
       eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
         eventGroupMetadataDescriptor {
           this.externalDataProviderId = externalDataProviderId
-          details = DETAILS
+          details = DETAILS_2
         }
       )
 
@@ -342,7 +412,7 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
       eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
         eventGroupMetadataDescriptor {
           this.externalDataProviderId = externalDataProviderId
-          details = DETAILS
+          details = DETAILS_2
         }
       )
 
@@ -383,7 +453,7 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
       eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
         eventGroupMetadataDescriptor {
           this.externalDataProviderId = externalDataProviderId
-          details = DETAILS
+          details = DETAILS_2
         }
       )
 

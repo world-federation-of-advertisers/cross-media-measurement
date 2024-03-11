@@ -6,14 +6,14 @@ package(
 )
 
 kt_jvm_library(
-    name = "in_process_kingdom",
-    srcs = [
-        "InProcessKingdom.kt",
-    ],
+    name = "kingdom_data_services_provider_rule",
+    srcs = ["KingdomDataServicesProviderRule.kt"],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_kingdom",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:test_metadata_message_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
     ],

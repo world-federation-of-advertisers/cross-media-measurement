@@ -18,3 +18,4 @@ configMapGenerator:
   - authority_key_identifier_to_principal_map.textproto
   - encryption_key_pair_config.textproto
   - metric_spec_config.textproto
+  - known_event_group_metadata_type_set.pb

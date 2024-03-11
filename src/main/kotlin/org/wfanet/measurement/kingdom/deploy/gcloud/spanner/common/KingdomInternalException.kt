@@ -580,6 +580,19 @@ class EventGroupMetadataDescriptorNotFoundException(
       )
 }
 
+class EventGroupMetadataDescriptorAlreadyExistsWithTypeException(
+  message: String = "EventGroupMetadataDescriptor with same protobuf type already exists",
+  cause: Throwable? = null,
+) :
+  KingdomInternalException(
+    ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_ALREADY_EXISTS_WITH_TYPE,
+    message,
+    cause,
+  ) {
+  override val context: Map<String, String>
+    get() = emptyMap()
+}
+
 class RecurringExchangeNotFoundException(
   val externalRecurringExchangeId: ExternalId,
   provideDescription: () -> String = { "RecurringExchange not found" },

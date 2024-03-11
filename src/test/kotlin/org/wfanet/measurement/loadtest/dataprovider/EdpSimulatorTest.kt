@@ -347,6 +347,7 @@ class EdpSimulatorTest {
 
   @Test
   fun `ensureEventGroup creates EventGroup and EventGroupMetadataDescriptor`() {
+    val knownEventGroupMetadataTypes = listOf(SyntheticEventGroupSpec.getDescriptor().file)
     val edpSimulator =
       EdpSimulator(
         EDP_DATA,
@@ -362,22 +363,15 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
+        knownEventGroupMetadataTypes = knownEventGroupMetadataTypes,
       )
 
     runBlocking { edpSimulator.ensureEventGroup(TEST_EVENT_TEMPLATES, SYNTHETIC_DATA_SPEC) }
 
-    // Verify metadata descriptor set contains synthetic data spec.
-    val createDescriptorRequest: CreateEventGroupMetadataDescriptorRequest =
-      verifyAndCapture(
-        eventGroupMetadataDescriptorsServiceMock,
-        EventGroupMetadataDescriptorsCoroutineImplBase::createEventGroupMetadataDescriptor,
-      )
-    val descriptors =
-      ProtoReflection.buildDescriptors(
-        listOf(createDescriptorRequest.eventGroupMetadataDescriptor.descriptorSet)
-      )
-    assertThat(descriptors.map { it.fullName })
-      .contains(SyntheticEventGroupSpec.getDescriptor().fullName)
+    // Verify metadata descriptor is created.
+    verifyBlocking(eventGroupMetadataDescriptorsServiceMock) {
+      createEventGroupMetadataDescriptor(any())
+    }
 
     // Verify EventGroup metadata.
     val createRequest: CreateEventGroupRequest =

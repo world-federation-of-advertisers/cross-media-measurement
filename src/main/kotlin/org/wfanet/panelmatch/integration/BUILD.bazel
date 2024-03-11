@@ -16,6 +16,8 @@ kt_jvm_library(
         "//imports/java/org/apache/beam/runners/direct",
     ],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_kingdom",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy",
         "//src/main/kotlin/org/wfanet/panelmatch/client/launcher",
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage/testing",
@@ -45,6 +47,5 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
         "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/common/api:resource_key",
         "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/common/identity:principal_identity",
-        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:in_process_kingdom",
     ],
 )

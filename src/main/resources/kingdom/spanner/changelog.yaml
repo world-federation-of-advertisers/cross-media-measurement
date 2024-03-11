@@ -60,3 +60,6 @@ databaseChangeLog:
 - include:
     file: add-result-api-version.sql
     relativeToChangeLogFile: true
+- include:
+    file: add-event-group-metadata-descriptor-types.sql
+    relativeToChangeLogFile: true

@@ -1,6 +1,7 @@
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
-load("//build/k8s:defs.bzl", "k8s_apply", "kustomization_dir")
 load("@rules_pkg//pkg:pkg.bzl", "pkg_tar")
+load("@rules_proto//proto:defs.bzl", "proto_descriptor_set")
+load("//build/k8s:defs.bzl", "k8s_apply", "kustomization_dir")
 
 package(
     default_testonly = True,
@@ -121,6 +122,14 @@ genrule(
     outs = ["mc_enc_public.pb.sig"],
     cmd = "$(location //src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:EncryptionPublicKeys) sign --certificate $(location mc_cs_cert.der) --signing-key $(location mc_cs_private.der) --in $(location :mc_enc_public.pb) --out $@",
     tools = ["//src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:EncryptionPublicKeys"],
+)
+
+proto_descriptor_set(
+    name = "known_event_group_metadata_type_set",
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:test_metadata_message_proto",
+    ],
 )
 
 SECRET_FILES = [

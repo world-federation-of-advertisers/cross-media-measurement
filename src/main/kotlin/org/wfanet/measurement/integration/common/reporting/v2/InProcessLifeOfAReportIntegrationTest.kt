@@ -37,6 +37,7 @@ import org.junit.BeforeClass
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestRule
+import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
@@ -60,10 +61,8 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.toInterval
-import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.keyPair
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.principalKeyPairs
-import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
 import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
@@ -143,53 +142,68 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
   abstract val internalReportingServerServices: InternalReportingServer.Services
 
-  private val reportingServer: InProcessReportingServer by lazy {
-    val encryptionKeyPairConfigGenerator: () -> EncryptionKeyPairConfig = {
-      val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+  private val reportingServerRule =
+    object : TestRule {
+      lateinit var reportingServer: InProcessReportingServer
+        private set
 
-      encryptionKeyPairConfig {
-        principalKeyPairs += principalKeyPairs {
-          principal = measurementConsumerData.name
-          keyPairs += keyPair {
-            publicKeyFile = "mc_enc_public.tink"
-            privateKeyFile = "mc_enc_private.tink"
+      private fun buildReportingServer(): InProcessReportingServer {
+        val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+        val measurementConsumer = runBlocking {
+          publicKingdomMeasurementConsumersClient
+            .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+            .getMeasurementConsumer(
+              getMeasurementConsumerRequest { name = measurementConsumerData.name }
+            )
+        }
+
+        val encryptionKeyPairConfig = encryptionKeyPairConfig {
+          principalKeyPairs += principalKeyPairs {
+            principal = measurementConsumerData.name
+            keyPairs += keyPair {
+              publicKeyFile = "mc_enc_public.tink"
+              privateKeyFile = "mc_enc_private.tink"
+            }
+          }
+        }
+        val measurementConsumerConfig = measurementConsumerConfig {
+          apiKey = measurementConsumerData.apiAuthenticationKey
+          signingCertificateName = measurementConsumer.certificate
+          signingPrivateKeyPath = MC_SIGNING_PRIVATE_KEY_PATH
+        }
+
+        return InProcessReportingServer(
+          internalReportingServerServices,
+          inProcessCmmsComponents.kingdom.publicApiChannel,
+          encryptionKeyPairConfig,
+          SECRETS_DIR,
+          measurementConsumerConfig,
+          TRUSTED_CERTIFICATES,
+          inProcessCmmsComponents.kingdom.knownEventGroupMetadataTypes,
+          verboseGrpcLogging = false,
+        )
+      }
+
+      override fun apply(base: Statement, description: Description): Statement {
+        return object : Statement() {
+          override fun evaluate() {
+            reportingServer = buildReportingServer()
+            reportingServer.apply(base, description)
           }
         }
       }
     }
 
-    val measurementConsumerConfigGenerator: suspend () -> MeasurementConsumerConfig = {
-      val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
-
-      val measurementConsumer =
-        publicKingdomMeasurementConsumersClient
-          .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-          .getMeasurementConsumer(
-            getMeasurementConsumerRequest { name = measurementConsumerData.name }
-          )
-
-      measurementConsumerConfig {
-        apiKey = measurementConsumerData.apiAuthenticationKey
-        signingCertificateName = measurementConsumer.certificate
-        signingPrivateKeyPath = MC_SIGNING_PRIVATE_KEY_PATH
-      }
-    }
-
-    InProcessReportingServer(
-      internalReportingServerServices,
-      { inProcessCmmsComponents.kingdom.publicApiChannel },
-      encryptionKeyPairConfigGenerator,
-      SECRETS_DIR,
-      measurementConsumerConfigGenerator,
-      TRUSTED_CERTIFICATES,
-      verboseGrpcLogging = false,
-    )
-  }
+  private val reportingServer: InProcessReportingServer
+    get() = reportingServerRule.reportingServer
 
   @get:Rule
-  val ruleChain: TestRule by lazy {
-    chainRulesSequentially(inProcessCmmsComponents, inProcessCmmsComponentsStartup, reportingServer)
-  }
+  val ruleChain: TestRule =
+    chainRulesSequentially(
+      inProcessCmmsComponents,
+      inProcessCmmsComponentsStartup,
+      reportingServerRule,
+    )
 
   private val publicKingdomMeasurementConsumersClient by lazy {
     MeasurementConsumersCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)

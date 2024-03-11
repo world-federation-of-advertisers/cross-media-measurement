@@ -98,6 +98,7 @@ class CelEnvProviderTest {
           ),
           REPORTING_EVENT_GROUP_DESCRIPTOR,
           Duration.ofMinutes(5),
+          emptyList(),
           coroutineContext,
         )
         .use { it.getTypeRegistryAndEnv() }
@@ -135,8 +136,9 @@ class CelEnvProviderTest {
           ),
           REPORTING_EVENT_GROUP_DESCRIPTOR,
           Duration.ofMinutes(5),
+          emptyList(),
           coroutineContext,
-          1,
+          numRetriesInitialSync = 1,
         )
         .use {
           advanceTimeBy(CelEnvCacheProvider.RETRY_DELAY.toMillis())
@@ -175,8 +177,9 @@ class CelEnvProviderTest {
               ),
               REPORTING_EVENT_GROUP_DESCRIPTOR,
               Duration.ofMinutes(5),
+              emptyList(),
               coroutineContext,
-              numRetries,
+              numRetriesInitialSync = numRetries,
             )
             .use { it.getTypeRegistryAndEnv() }
         }
@@ -206,8 +209,9 @@ class CelEnvProviderTest {
               ),
               REPORTING_EVENT_GROUP_DESCRIPTOR,
               Duration.ofMinutes(5),
+              emptyList(),
               coroutineContext,
-              numRetries,
+              numRetriesInitialSync = numRetries,
             )
             .use { it.getTypeRegistryAndEnv() }
         }
@@ -251,6 +255,7 @@ class CelEnvProviderTest {
             ),
             REPORTING_EVENT_GROUP_DESCRIPTOR,
             cacheRefreshInterval,
+            emptyList(),
             coroutineContext,
           )
           .use {

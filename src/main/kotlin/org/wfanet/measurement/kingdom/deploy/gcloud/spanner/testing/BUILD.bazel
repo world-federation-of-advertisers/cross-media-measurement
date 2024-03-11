@@ -14,7 +14,6 @@ kt_jvm_library(
     srcs = glob(["*.kt"]),
     resources = ["//src/main/resources/kingdom/spanner"],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
     ],

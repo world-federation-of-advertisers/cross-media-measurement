@@ -24,7 +24,6 @@ import org.wfanet.measurement.duchy.deploy.common.postgres.testing.Schemata.DUCH
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.reporting.v2.InProcessLifeOfAReportIntegrationTest
 import org.wfanet.measurement.integration.deploy.common.postgres.PostgresDuchyDependencyProviderRule
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDataServicesProviderRule
 import org.wfanet.measurement.reporting.deploy.v2.common.server.postgres.PostgresServices
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata.REPORTING_CHANGELOG_PATH
 

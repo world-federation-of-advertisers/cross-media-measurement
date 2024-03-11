@@ -59,8 +59,8 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
   private val kingdom: InProcessKingdom =
     InProcessKingdom(
       dataServicesProvider = { kingdomDataServices },
-      verboseGrpcLogging = false,
       REDIRECT_URI,
+      verboseGrpcLogging = false,
     )
 
   @get:Rule

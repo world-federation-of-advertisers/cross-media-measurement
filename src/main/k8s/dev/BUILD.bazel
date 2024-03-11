@@ -82,12 +82,17 @@ kustomization_dir(
 
 kustomization_dir(
     name = "config_files",
-    srcs = ["config_files_kustomization.yaml"],
+    testonly = True,
+    srcs = [
+        "config_files_kustomization.yaml",
+        "//src/main/k8s/testing/secretfiles:known_event_group_metadata_type_set",
+    ],
     renames = {"config_files_kustomization.yaml": "kustomization.yaml"},
 )
 
 kustomization_dir(
     name = "kingdom",
+    testonly = True,
     srcs = [
         "resource_requirements.yaml",
         ":kingdom_gke",
@@ -426,7 +431,11 @@ cue_dump(
 
 kustomization_dir(
     name = "reporting_config_files",
-    srcs = ["reporting_config_files_kustomization.yaml"],
+    testonly = True,
+    srcs = [
+        "reporting_config_files_kustomization.yaml",
+        "//src/main/k8s/testing/secretfiles:known_event_group_metadata_type_set",
+    ],
     renames = {"reporting_config_files_kustomization.yaml": "kustomization.yaml"},
 )
 
@@ -436,6 +445,7 @@ kustomization_dir(
 
 kustomization_dir(
     name = "reporting",
+    testonly = True,
     srcs = [
         "resource_requirements.yaml",
         ":reporting_gke",
@@ -472,7 +482,11 @@ cue_dump(
 
 kustomization_dir(
     name = "reporting_v2_config_files",
-    srcs = ["reporting_v2_config_files_kustomization.yaml"],
+    testonly = True,
+    srcs = [
+        "reporting_v2_config_files_kustomization.yaml",
+        "//src/main/k8s/testing/secretfiles:known_event_group_metadata_type_set",
+    ],
     renames = {"reporting_v2_config_files_kustomization.yaml": "kustomization.yaml"},
 )
 
@@ -482,6 +496,7 @@ kustomization_dir(
 
 kustomization_dir(
     name = "reporting_v2",
+    testonly = True,
     srcs = [
         "resource_requirements.yaml",
         ":reporting_v2_gke",

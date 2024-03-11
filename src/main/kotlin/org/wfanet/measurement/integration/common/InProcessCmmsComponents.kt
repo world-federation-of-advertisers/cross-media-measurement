@@ -62,8 +62,8 @@ class InProcessCmmsComponents(
   val kingdom: InProcessKingdom =
     InProcessKingdom(
       dataServicesProvider = { kingdomDataServices },
-      verboseGrpcLogging = false,
       REDIRECT_URI,
+      verboseGrpcLogging = false,
     )
 
   private val duchies: List<InProcessDuchy> by lazy {

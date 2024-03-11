@@ -20,6 +20,17 @@ kt_jvm_proto_library(
 )
 
 proto_library(
+    name = "test_metadata_message_2_proto",
+    srcs = ["test_metadata_message_2.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "test_metadata_message_2_kt_jvm_proto",
+    deps = [":test_metadata_message_2_proto"],
+)
+
+proto_library(
     name = "test_parent_metadata_message_proto",
     srcs = ["test_parent_metadata_message.proto"],
     strip_import_prefix = IMPORT_PREFIX,

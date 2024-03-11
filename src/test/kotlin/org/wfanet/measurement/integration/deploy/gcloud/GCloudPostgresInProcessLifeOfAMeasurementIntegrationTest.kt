@@ -24,7 +24,6 @@ import org.wfanet.measurement.duchy.deploy.common.postgres.testing.Schemata
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.InProcessLifeOfAMeasurementIntegrationTest
 import org.wfanet.measurement.integration.deploy.common.postgres.PostgresDuchyDependencyProviderRule
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDataServicesProviderRule
 
 /**
  * Implementation of [InProcessLifeOfAMeasurementIntegrationTest] for GCloud backends with Postgres

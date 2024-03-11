@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import com.google.protobuf.Descriptors
 import com.google.protobuf.Message
 import io.grpc.ManagedChannel
 import java.time.Clock
@@ -46,6 +47,7 @@ abstract class EdpSimulatorRunner : Runnable {
     eventQuery: EventQuery<Message>,
     eventTemplates: Iterable<EventGroup.EventTemplate>,
     metadataByReferenceIdSuffix: Map<String, Message>,
+    knownEventGroupMetadataTypes: Iterable<Descriptors.FileDescriptor>,
   ) {
     val clientCerts =
       SigningCerts.fromPemFiles(
@@ -112,6 +114,7 @@ abstract class EdpSimulatorRunner : Runnable {
         MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval),
         createNoOpPrivacyBudgetManager(),
         clientCerts.trustedCertificates,
+        knownEventGroupMetadataTypes = knownEventGroupMetadataTypes,
         random = random,
         logSketchDetails = flags.logSketchDetails,
       )
