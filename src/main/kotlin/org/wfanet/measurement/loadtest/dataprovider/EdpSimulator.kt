@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import java.nio.ByteOrder
+import java.nio.ByteBuffer
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.Descriptors
@@ -197,46 +199,6 @@ class EdpSimulator(
       }
     )
     throttler.loopOnReady { executeRequisitionFulfillingWorkflow() }
-  }
-
-  /**
-   * Generates the hash of (vid + salt)
-   */
-  fun generateHash(vid: Int, salt: ByteString): String {
-    val hashInput = ByteString.copyFromUtf8(vid.toString()).concat(salt)
-    return HexString(Hashing.hashSha256(hashInput)).toString()
-  }
-
-  /**
-   * Generates the map (vid, bucket index) for vid in the range [minVid, maxVid].
-   * Each vid is concatenated with a `salt`, then the sha256 of the combined string is computed.
-   * The vid's are sorted based on its hash value. The bucket index of a vid is its located in the
-   * sorted array.
-   */
-  fun generateVidMap(
-    salt: ByteString,
-    minVid: Int,
-    maxVid: Int,
-  ): Map<Int, Int> {
-    require(minVid >= 0) { "vid must be a non-negative number." }
-    require(maxVid >= minVid) { "The max vid must be greater than or equal to the min vid." }
-
-    val vids = (minVid..maxVid).toList()
-    val hashes = mutableListOf<Pair<Int, String>>()
-
-    for (vid in vids) {
-      hashes.add(Pair(vid, generateHash(vid, salt)))
-    }
-
-    // Sort by hash
-    hashes.sortBy { it.second }
-
-    val vidMap = mutableMapOf<Int, Int>()
-    for ((index, pair) in hashes.withIndex()) {
-      vidMap[pair.first] = index
-    }
-
-    return vidMap
   }
 
   /**
@@ -1020,71 +982,33 @@ class EdpSimulator(
     return sketch
   }
 
-  private fun logHmssSketchDetails(sketch: IntArray) {
+  private fun logShareShuffleSketchDetails(sketch: IntArray) {
     for (register in sketch) {
       logger.log(Level.INFO) { "${register}" }
     }
   }
 
-  private fun IsInSelectedIntervals(
-    index: Long,
-    intervals: List<Pair<Int, Int>>,
-  ): Boolean {
-    for (interval in intervals) {
-      if (index >= interval.first && index <= interval.second) {
-        return true
-      }
-    }
-    return false
-  }
-
-  fun generateHmssSketch(
-    vidUniverseSize: Int,
+  private fun generateShareShuffleSketch(
+    vidUniverse: List<Long>,
     salt: ByteString,
     measurementSpec: MeasurementSpec,
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
   ): IntArray {
-    require(vidUniverseSize > 0) { "The vid universe size must be positive." }
 
     logger.info("Generating HMSS Sketch...")
-    val vidMap = generateVidMap(salt, 0, vidUniverseSize - 1)
-
-    val sketchSize: Int = (measurementSpec.vidSamplingInterval.width * vidUniverseSize).toInt()
-    require(sketchSize > 0) { "The sketch must not be empty." }
-
-    val start: Int = (measurementSpec.vidSamplingInterval.start * vidUniverseSize).toInt()
-    val end: Int = start + sketchSize - 1
-
-    val validIntervals = mutableListOf<Pair<Int, Int>>()
-    if (end < vidUniverseSize) {
-      validIntervals.add(Pair(start, end))
-    } else {
-      validIntervals.add(Pair(start, vidUniverseSize - 1))
-      validIntervals.add(Pair(0, (end - vidUniverseSize)))
-    }
-
-    val sketch = IntArray(sketchSize) { 0 }
-
-    for (eventGroupSpec in eventGroupSpecs) {
-      eventQuery
-        .getUserVirtualIds(eventGroupSpec)
-        .filter {
-          IsInSelectedIntervals(it, validIntervals)
-        }
-        .forEach {
-          val bucketIndex: Int = vidMap.getValue(it.toInt())
-          if (bucketIndex >= start) {
-            sketch[bucketIndex - start] += 1
-          } else {
-            sketch[bucketIndex + vidUniverseSize - start] += 1
-          }
-        }
-    }
+    val sketch =
+      ShareShuffleSketchGenerator(
+        vidUniverse,
+        salt,
+        eventQuery,
+        measurementSpec.vidSamplingInterval
+      )
+        .generate(eventGroupSpecs)
 
     logger.log(Level.INFO) { "Registers Size:\n${sketch.size}" }
 
     if (logSketchDetails) {
-      logHmssSketchDetails(sketch)
+      logShareShuffleSketchDetails(sketch)
     }
 
     return sketch

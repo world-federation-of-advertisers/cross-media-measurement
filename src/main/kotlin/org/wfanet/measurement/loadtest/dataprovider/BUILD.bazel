@@ -140,6 +140,7 @@ kt_jvm_library(
     deps = [
         ":event_query",
         ":measurement_results",
+        ":share_shuffle_sketch_generator",
         ":sketch_encrypter",
         ":sketch_generator",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
@@ -311,4 +312,22 @@ java_image(
     main_class = "org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEdpSimulatorRunnerKt",
     target_compatible_with = DISTROLESS_JAVA,
     visibility = ["//src:docker_image_deployment"],
+)
+
+kt_jvm_library(
+    name = "vid_to_index_map_generator",
+    srcs = ["VidToIndexMapGenerator.kt"],
+    deps = [
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
+    ],
+)
+
+kt_jvm_library(
+    name = "share_shuffle_sketch_generator",
+    srcs = ["ShareShuffleSketchGenerator.kt"],
+    deps = [
+        ":event_query",
+        ":vid_to_index_map_generator",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
+    ],
 )
