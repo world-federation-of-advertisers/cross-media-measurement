@@ -993,12 +993,12 @@ class EdpSimulator(
 
     logger.info("Generating HMSS Sketch...")
     val sketch =
-      ShareShuffleSketchGenerator(
-        vidUniverse,
-        salt,
-        eventQuery,
-        measurementSpec.vidSamplingInterval
-      )
+        ShareShuffleSketchGenerator(
+          vidUniverse,
+          salt,
+          eventQuery,
+          measurementSpec.vidSamplingInterval
+        )
         .generate(eventGroupSpecs)
 
     logger.log(Level.INFO) { "Registers Size:\n${sketch.size}" }

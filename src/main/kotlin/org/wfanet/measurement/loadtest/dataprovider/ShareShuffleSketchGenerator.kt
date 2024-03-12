@@ -73,9 +73,7 @@ class ShareShuffleSketchGenerator(
     for (eventGroupSpec in eventGroupSpecs) {
       eventQuery
         .getUserVirtualIds(eventGroupSpec)
-        .filter {
-          isInSelectedIntervals(vidToIndexMap.getValue(it).first, validIntervals)
-        }
+        .filter { isInSelectedIntervals(vidToIndexMap.getValue(it).first, validIntervals) }
         .forEach {
           val bucketIndex: Int = vidToIndexMap.getValue(it).first - start
           if (bucketIndex >= 0) {
@@ -89,17 +87,14 @@ class ShareShuffleSketchGenerator(
     return sketch
   }
 
-  private fun isInSelectedIntervals(
-    index: Int,
-    intervals: List<IntRange>,
-  ): Boolean {
+  private fun isInSelectedIntervals(index: Int, intervals: List<IntRange>): Boolean {
     return intervals.any { index in it }
   }
 
   /**
-   * Finds the smallest index i such that sortedList[i] >= target.
-   * The value `sortedList.size` is returned in case all values are less than `target`.
-   * The implementation is based on the c++ std::lower_bound.
+   * Finds the smallest index i such that sortedList[i] >= target. The value `sortedList.size` is
+   * returned in case all values are less than `target`. The implementation is based on the c++
+   * std::lower_bound.
    */
   private fun lowerBound(sortedList: List<Double>, target: Double): Int {
     require(sortedList.size > 0) { "Input list cannot be empty." }
@@ -120,9 +115,9 @@ class ShareShuffleSketchGenerator(
   }
 
   /**
-   * Finds the smallest index i such that sortedList[i] > target.
-   * The value `sortedList.size` is returned in case all values are less than or equal to `target`.
-   * The implementation is based on the c++ std::upper_bound
+   * Finds the smallest index i such that sortedList[i] > target. The value `sortedList.size` is
+   * returned in case all values are less than or equal to `target`. The implementation is based on
+   * the c++ std::upper_bound
    */
   private fun upperBound(sortedList: List<Double>, target: Double): Int {
     require(sortedList.size > 0) { "Input list cannot be empty." }
@@ -141,5 +136,4 @@ class ShareShuffleSketchGenerator(
 
     return current
   }
-
 }

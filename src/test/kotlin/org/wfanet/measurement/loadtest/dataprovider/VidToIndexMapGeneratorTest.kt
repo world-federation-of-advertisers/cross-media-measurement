@@ -16,13 +16,10 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
-import java.math.BigInteger
 import kotlin.test.assertFailsWith
-import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.HexString
 
 @RunWith(JUnit4::class)
 class VidToIndexMapGeneratorTest {
@@ -47,8 +44,9 @@ class VidToIndexMapGeneratorTest {
 
     // Verifies that the normalized hashes are in non-decreasing order and the indices increase
     // incrementally.
-    assert(sortedListOfIndexAndNormalizedHashValues
-             .zipWithNext { a, b -> (a.second <= b.second) && (b.first == a.first + 1) }
-             .all { it })
+    assert(
+      sortedListOfIndexAndNormalizedHashValues
+        .zipWithNext { a, b -> (a.second <= b.second) && (b.first == a.first + 1) }
+        .all { it })
   }
 }

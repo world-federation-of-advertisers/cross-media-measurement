@@ -14,36 +14,24 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
-import kotlin.test.assertFailsWith
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.type.interval
-import io.grpc.Status
 import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.runBlocking
-import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.kotlin.any
-import org.mockito.kotlin.eq
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
-import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
-import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.eventGroup
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Banner
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.measurementSpec
@@ -97,11 +85,12 @@ class ShareShuffleSketchGeneratorTest {
     val exception =
       assertFailsWith<IllegalArgumentException> {
         ShareShuffleSketchGenerator(
-          vidUniverse,
-          salt,
-          eventQueries,
-          measurementSpec.vidSamplingInterval
-        ).generate(eventGroupSpecs)
+            vidUniverse,
+            salt,
+            eventQueries,
+            measurementSpec.vidSamplingInterval
+          )
+          .generate(eventGroupSpecs)
       }
 
     assertThat(exception).hasMessageThat().contains("empty")
@@ -141,11 +130,12 @@ class ShareShuffleSketchGeneratorTest {
     val exception =
       assertFailsWith<IllegalArgumentException> {
         ShareShuffleSketchGenerator(
-          vidUniverse,
-          salt,
-          eventQueries,
-          measurementSpec.vidSamplingInterval
-        ).generate(eventGroupSpecs)
+            vidUniverse,
+            salt,
+            eventQueries,
+            measurementSpec.vidSamplingInterval
+          )
+          .generate(eventGroupSpecs)
       }
 
     assertThat(exception).hasMessageThat().contains("empty")
@@ -184,11 +174,12 @@ class ShareShuffleSketchGeneratorTest {
     val exception =
       assertFailsWith<IllegalArgumentException> {
         ShareShuffleSketchGenerator(
-          vidUniverse,
-          salt,
-          eventQueries,
-          measurementSpec.vidSamplingInterval
-        ).generate(eventGroupSpecs)
+            vidUniverse,
+            salt,
+            eventQueries,
+            measurementSpec.vidSamplingInterval
+          )
+          .generate(eventGroupSpecs)
       }
 
     assertThat(exception).hasMessageThat().contains("empty")
@@ -230,11 +221,12 @@ class ShareShuffleSketchGeneratorTest {
     val exception =
       assertFailsWith<IllegalArgumentException> {
         ShareShuffleSketchGenerator(
-          vidUniverse,
-          salt,
-          eventQueries,
-          measurementSpec.vidSamplingInterval
-        ).generate(eventGroupSpecs)
+            vidUniverse,
+            salt,
+            eventQueries,
+            measurementSpec.vidSamplingInterval
+          )
+          .generate(eventGroupSpecs)
       }
 
     assertThat(exception).hasMessageThat().contains("empty")
@@ -265,11 +257,12 @@ class ShareShuffleSketchGeneratorTest {
     }
 
     val hmssSketch = ShareShuffleSketchGenerator(
-      vidUniverse,
-      ByteString.copyFromUtf8("salt"),
-      eventQueries,
-      measurementSpec.vidSamplingInterval
-    ).generate(eventGroupSpecs)
+        vidUniverse,
+        ByteString.copyFromUtf8("salt"),
+        eventQueries,
+        measurementSpec.vidSamplingInterval
+      )
+      .generate(eventGroupSpecs)
     assertThat(hmssSketch.size).isEqualTo(31)
     for (x in hmssSketch) {
       assertThat(x).isEqualTo(0)
@@ -321,8 +314,7 @@ class ShareShuffleSketchGeneratorTest {
     val measurementSpec = measurementSpec {
       vidSamplingInterval = vidSamplingInterval {
         start = (subUniverseNormalizedHashValues[3]).toFloat()
-        width =
-          (subUniverseNormalizedHashValues[7] - subUniverseNormalizedHashValues[3]).toFloat()
+        width = (subUniverseNormalizedHashValues[7] - subUniverseNormalizedHashValues[3]).toFloat()
       }
     }
 
@@ -336,8 +328,9 @@ class ShareShuffleSketchGeneratorTest {
     // Computes the expected sketch size.
     var expectedSketchSize: Int = 0
     for (x in fullUniverseNormalizedHashValues) {
-      if (x >= measurementSpec.vidSamplingInterval.start &&
-        x <= measurementSpec.vidSamplingInterval.start + measurementSpec.vidSamplingInterval.width
+      if (
+        x >= measurementSpec.vidSamplingInterval.start &&
+          x <= measurementSpec.vidSamplingInterval.start + measurementSpec.vidSamplingInterval.width
       ) {
         expectedSketchSize += 1
       }
@@ -408,11 +401,12 @@ class ShareShuffleSketchGeneratorTest {
     }
 
     val hmssSketch = ShareShuffleSketchGenerator(
-      vidUniverse,
-      salt,
-      eventQueries,
-      measurementSpec.vidSamplingInterval
-    ).generate(eventGroupSpecs)
+        vidUniverse,
+        salt,
+        eventQueries,
+        measurementSpec.vidSamplingInterval
+      )
+      .generate(eventGroupSpecs)
 
     val start = measurementSpec.vidSamplingInterval.start
     val end = measurementSpec.vidSamplingInterval.start + measurementSpec.vidSamplingInterval.width
