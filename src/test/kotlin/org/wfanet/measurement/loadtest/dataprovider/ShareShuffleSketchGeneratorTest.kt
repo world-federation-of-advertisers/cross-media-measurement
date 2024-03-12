@@ -88,7 +88,7 @@ class ShareShuffleSketchGeneratorTest {
             vidUniverse,
             salt,
             eventQueries,
-            measurementSpec.vidSamplingInterval
+            measurementSpec.vidSamplingInterval,
           )
           .generate(eventGroupSpecs)
       }
@@ -133,7 +133,7 @@ class ShareShuffleSketchGeneratorTest {
             vidUniverse,
             salt,
             eventQueries,
-            measurementSpec.vidSamplingInterval
+            measurementSpec.vidSamplingInterval,
           )
           .generate(eventGroupSpecs)
       }
@@ -177,7 +177,7 @@ class ShareShuffleSketchGeneratorTest {
             vidUniverse,
             salt,
             eventQueries,
-            measurementSpec.vidSamplingInterval
+            measurementSpec.vidSamplingInterval,
           )
           .generate(eventGroupSpecs)
       }
@@ -224,7 +224,7 @@ class ShareShuffleSketchGeneratorTest {
             vidUniverse,
             salt,
             eventQueries,
-            measurementSpec.vidSamplingInterval
+            measurementSpec.vidSamplingInterval,
           )
           .generate(eventGroupSpecs)
       }
@@ -256,13 +256,14 @@ class ShareShuffleSketchGeneratorTest {
       }
     }
 
-    val hmssSketch = ShareShuffleSketchGenerator(
-        vidUniverse,
-        ByteString.copyFromUtf8("salt"),
-        eventQueries,
-        measurementSpec.vidSamplingInterval
-      )
-      .generate(eventGroupSpecs)
+    val hmssSketch =
+      ShareShuffleSketchGenerator(
+          vidUniverse,
+          ByteString.copyFromUtf8("salt"),
+          eventQueries,
+          measurementSpec.vidSamplingInterval
+        )
+        .generate(eventGroupSpecs)
     assertThat(hmssSketch.size).isEqualTo(31)
     for (x in hmssSketch) {
       assertThat(x).isEqualTo(0)
@@ -318,12 +319,14 @@ class ShareShuffleSketchGeneratorTest {
       }
     }
 
-    val hmssSketch = ShareShuffleSketchGenerator(
-      vidUniverse,
-      salt,
-      eventQueries,
-      measurementSpec.vidSamplingInterval
-    ).generate(eventGroupSpecs)
+    val hmssSketch =
+      ShareShuffleSketchGenerator(
+          vidUniverse,
+          salt,
+          eventQueries,
+          measurementSpec.vidSamplingInterval
+        )
+        .generate(eventGroupSpecs)
 
     // Computes the expected sketch size.
     var expectedSketchSize: Int = 0
@@ -400,13 +403,14 @@ class ShareShuffleSketchGeneratorTest {
       }
     }
 
-    val hmssSketch = ShareShuffleSketchGenerator(
-        vidUniverse,
-        salt,
-        eventQueries,
-        measurementSpec.vidSamplingInterval
-      )
-      .generate(eventGroupSpecs)
+    val hmssSketch =
+      ShareShuffleSketchGenerator(
+          vidUniverse,
+          salt,
+          eventQueries,
+          measurementSpec.vidSamplingInterval
+        )
+        .generate(eventGroupSpecs)
 
     val start = measurementSpec.vidSamplingInterval.start
     val end = measurementSpec.vidSamplingInterval.start + measurementSpec.vidSamplingInterval.width

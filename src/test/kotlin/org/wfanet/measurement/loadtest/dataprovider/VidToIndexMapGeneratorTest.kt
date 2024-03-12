@@ -47,6 +47,7 @@ class VidToIndexMapGeneratorTest {
     assert(
       sortedListOfIndexAndNormalizedHashValues
         .zipWithNext { a, b -> (a.second <= b.second) && (b.first == a.first + 1) }
-        .all { it })
+        .all { it }
+    )
   }
 }

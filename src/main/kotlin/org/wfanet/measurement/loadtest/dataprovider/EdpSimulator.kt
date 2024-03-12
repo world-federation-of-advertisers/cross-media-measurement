@@ -993,11 +993,11 @@ class EdpSimulator(
 
     logger.info("Generating HMSS Sketch...")
     val sketch =
-        ShareShuffleSketchGenerator(
+      ShareShuffleSketchGenerator(
           vidUniverse,
           salt,
           eventQuery,
-          measurementSpec.vidSamplingInterval
+          measurementSpec.vidSamplingInterval,
         )
         .generate(eventGroupSpecs)
 
