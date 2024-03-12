@@ -174,6 +174,13 @@ class EdpSimulator(
   private val throttler: Throttler,
   private val privacyBudgetManager: PrivacyBudgetManager,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
+  /**
+   * Known protobuf types for [EventGroupMetadataDescriptor]s.
+   *
+   * This is in addition to the standard
+   * [protobuf well-known types][ProtoReflection.WELL_KNOWN_TYPES].
+   */
+  private val knownEventGroupMetadataTypes: Iterable<Descriptors.FileDescriptor> = emptyList(),
   private val sketchEncrypter: SketchEncrypter = SketchEncrypter.Default,
   private val random: Random = Random,
   private val logSketchDetails: Boolean = false,
@@ -341,14 +348,18 @@ class EdpSimulator(
   private suspend fun ensureMetadataDescriptor(
     metadataDescriptor: Descriptors.Descriptor
   ): EventGroupMetadataDescriptor {
-    val descriptorSet = ProtoReflection.buildFileDescriptorSet(metadataDescriptor)
+    val descriptorSet =
+      ProtoReflection.buildFileDescriptorSet(
+        metadataDescriptor,
+        ProtoReflection.WELL_KNOWN_TYPES + knownEventGroupMetadataTypes,
+      )
     val descriptorResource =
       try {
         eventGroupMetadataDescriptorsStub.createEventGroupMetadataDescriptor(
           createEventGroupMetadataDescriptorRequest {
             parent = edpData.name
             eventGroupMetadataDescriptor = eventGroupMetadataDescriptor {
-              this.descriptorSet = ProtoReflection.buildFileDescriptorSet(metadataDescriptor)
+              this.descriptorSet = descriptorSet
             }
             requestId = "type.googleapis.com/${metadataDescriptor.fullName}"
           }
@@ -986,7 +997,7 @@ class EdpSimulator(
         vidUniverse,
         salt,
         eventQuery,
-        measurementSpec.vidSamplingInterval,
+        measurementSpec.vidSamplingInterval
       )
         .generate(eventGroupSpecs)
 
@@ -1175,8 +1186,10 @@ class EdpSimulator(
           when (value.protocolCase) {
             DuchyEntry.Value.ProtocolCase.LIQUID_LEGIONS_V2 ->
               value.liquidLegionsV2.elGamalPublicKey
+
             DuchyEntry.Value.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
               value.reachOnlyLiquidLegionsV2.elGamalPublicKey
+
             else -> throw Exception("Invalid protocol to get combined public key.")
           }
         signedElGamalPublicKey.unpack<ElGamalPublicKey>().toAnySketchElGamalPublicKey()
@@ -1265,8 +1278,10 @@ class EdpSimulator(
           override val variance: Double
             get() = distribution.numericalVariance
         }
+
       DirectNoiseMechanism.CONTINUOUS_LAPLACE ->
         LaplaceNoiser(DpParams(privacyParams.epsilon, privacyParams.delta), random.asJavaRandom())
+
       DirectNoiseMechanism.CONTINUOUS_GAUSSIAN ->
         GaussianNoiser(DpParams(privacyParams.epsilon, privacyParams.delta), random.asJavaRandom())
     }
@@ -1414,6 +1429,7 @@ class EdpSimulator(
           }
         }
       }
+
       MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
         if (!directProtocolConfig.hasDeterministicCount()) {
           throw RequisitionRefusalException(
@@ -1443,6 +1459,7 @@ class EdpSimulator(
           }
         }
       }
+
       MeasurementSpec.MeasurementTypeCase.DURATION -> {
         val externalDataProviderId =
           apiIdToExternalId(DataProviderKey.fromName(edpData.name)!!.dataProviderId)
@@ -1460,9 +1477,11 @@ class EdpSimulator(
           }
         }
       }
+
       MeasurementSpec.MeasurementTypeCase.POPULATION -> {
         error("Measurement type not supported.")
       }
+
       MeasurementSpec.MeasurementTypeCase.REACH -> {
         if (!directProtocolConfig.hasDeterministicCountDistinct()) {
           throw RequisitionRefusalException(
@@ -1491,6 +1510,7 @@ class EdpSimulator(
           }
         }
       }
+
       MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> {
         error("Measurement type not set.")
       }
@@ -1503,7 +1523,7 @@ class EdpSimulator(
    * [options].
    */
   private fun selectReachAndFrequencyNoiseMechanism(
-    options: Set<DirectNoiseMechanism>
+    options: Set<DirectNoiseMechanism>,
   ): DirectNoiseMechanism {
     val preferences = DIRECT_MEASUREMENT_ACDP_NOISE_MECHANISM_PREFERENCES
 
@@ -1519,7 +1539,7 @@ class EdpSimulator(
    * of a list of preferred [DirectNoiseMechanism] and a set of [DirectNoiseMechanism] [options].
    */
   private fun selectImpressionNoiseMechanism(
-    options: Set<DirectNoiseMechanism>
+    options: Set<DirectNoiseMechanism>,
   ): DirectNoiseMechanism {
     val preferences = DIRECT_MEASUREMENT_ACDP_NOISE_MECHANISM_PREFERENCES
 
@@ -1536,7 +1556,7 @@ class EdpSimulator(
    * [options].
    */
   private fun selectWatchDurationNoiseMechanism(
-    options: Set<DirectNoiseMechanism>
+    options: Set<DirectNoiseMechanism>,
   ): DirectNoiseMechanism {
     val preferences = DIRECT_MEASUREMENT_ACDP_NOISE_MECHANISM_PREFERENCES
 
@@ -1644,12 +1664,16 @@ class EdpSimulator(
 
     // Resource ID for EventGroup that fails Requisitions with CONSENT_SIGNAL_INVALID if used.
     private const val CONSENT_SIGNAL_INVALID_EVENT_GROUP_ID = "consent-signal-invalid"
+
     // Resource ID for EventGroup that fails Requisitions with SPEC_INVALID if used.
     private const val SPEC_INVALID_EVENT_GROUP_ID = "spec-invalid"
+
     // Resource ID for EventGroup that fails Requisitions with INSUFFICIENT_PRIVACY_BUDGET if used.
     private const val INSUFFICIENT_PRIVACY_BUDGET_EVENT_GROUP_ID = "insufficient-privacy-budget"
+
     // Resource ID for EventGroup that fails Requisitions with UNFULFILLABLE if used.
     private const val UNFULFILLABLE_EVENT_GROUP_ID = "unfulfillable"
+
     // Resource ID for EventGroup that fails Requisitions with DECLINED if used.
     private const val DECLINED_EVENT_GROUP_ID = "declined"
 
@@ -1663,7 +1687,7 @@ class EdpSimulator(
     }
 
     fun buildEventTemplates(
-      eventMessageDescriptor: Descriptors.Descriptor
+      eventMessageDescriptor: Descriptors.Descriptor,
     ): List<EventGroup.EventTemplate> {
       val eventTemplateTypes: List<Descriptors.Descriptor> =
         eventMessageDescriptor.fields
@@ -1696,7 +1720,8 @@ private fun NoiseMechanism.toDirectNoiseMechanism(): DirectNoiseMechanism? {
     NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
     NoiseMechanism.GEOMETRIC,
     NoiseMechanism.DISCRETE_GAUSSIAN,
-    NoiseMechanism.UNRECOGNIZED -> {
+    NoiseMechanism.UNRECOGNIZED,
+    -> {
       null
     }
   }
