@@ -290,7 +290,7 @@ class SpannerMeasurementsService(
       results.associate { result -> result.measurement.externalMeasurementId to result.measurement }
 
     return batchGetMeasurementsResponse {
-      measurements += externalMeasurementIds.map { measurementsMap.getValue(it) }
+      measurements += request.externalMeasurementIdsList.map { measurementsMap.getValue(it) }
     }
   }
 }

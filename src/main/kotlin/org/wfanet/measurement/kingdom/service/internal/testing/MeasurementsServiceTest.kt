@@ -2498,7 +2498,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-  fun `batchGetMeasurements with 2 unique ids retrieves 2 measurements`(): Unit = runBlocking {
+  fun `batchGetMeasurements with 2 requests retrieves 2 measurements`(): Unit = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider = population.createDataProvider(dataProvidersService)
@@ -2543,7 +2543,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-  fun `batchGetMeasurements with 2 unique ids and 1 duplicate retrieves 2 measurements`(): Unit =
+  fun `batchGetMeasurements with 2 unique ids and 1 duplicate retrieves 3 measurements`(): Unit =
     runBlocking {
       val measurementConsumer =
         population.createMeasurementConsumer(measurementConsumersService, accountsService)
@@ -2576,16 +2576,16 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             batchGetMeasurementsRequest {
               externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
               externalMeasurementIds += createdMeasurements[0].externalMeasurementId
-              externalMeasurementIds += createdMeasurements[0].externalMeasurementId
               externalMeasurementIds += createdMeasurements[1].externalMeasurementId
+              externalMeasurementIds += createdMeasurements[0].externalMeasurementId
             }
           )
           .measurementsList
 
-      assertThat(retrievedMeasurements).hasSize(2)
+      assertThat(retrievedMeasurements).hasSize(3)
       assertThat(retrievedMeasurements)
         .ignoringRepeatedFieldOrder()
-        .containsExactlyElementsIn(createdMeasurements)
+        .containsExactly(createdMeasurements[0], createdMeasurements[1], createdMeasurements[0])
         .inOrder()
     }
 
