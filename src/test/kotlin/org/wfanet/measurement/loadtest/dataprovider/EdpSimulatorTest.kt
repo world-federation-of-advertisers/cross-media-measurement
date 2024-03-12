@@ -42,7 +42,6 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
-import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
@@ -215,16 +214,12 @@ private const val RANDOM_SEED: Long = 0
 
 // Resource ID for EventGroup that fails Requisitions with CONSENT_SIGNAL_INVALID if used.
 private const val CONSENT_SIGNAL_INVALID_EVENT_GROUP_ID = "consent-signal-invalid"
-
 // Resource ID for EventGroup that fails Requisitions with SPEC_INVALID if used.
 private const val SPEC_INVALID_EVENT_GROUP_ID = "spec-invalid"
-
 // Resource ID for EventGroup that fails Requisitions with INSUFFICIENT_PRIVACY_BUDGET if used.
 private const val INSUFFICIENT_PRIVACY_BUDGET_EVENT_GROUP_ID = "insufficient-privacy-budget"
-
 // Resource ID for EventGroup that fails Requisitions with UNFULFILLABLE if used.
 private const val UNFULFILLABLE_EVENT_GROUP_ID = "unfulfillable"
-
 // Resource ID for EventGroup that fails Requisitions with DECLINED if used.
 private const val DECLINED_EVENT_GROUP_ID = "declined"
 
@@ -232,18 +227,18 @@ private const val DECLINED_EVENT_GROUP_ID = "declined"
 class EdpSimulatorTest {
   private val certificatesServiceMock: CertificatesCoroutineImplBase = mockService {
     onBlocking {
-      getCertificate(eq(getCertificateRequest { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME }))
-    }
+        getCertificate(eq(getCertificateRequest { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME }))
+      }
       .thenReturn(MEASUREMENT_CONSUMER_CERTIFICATE)
     onBlocking { getCertificate(eq(getCertificateRequest { name = DUCHY_CERTIFICATE.name })) }
       .thenReturn(DUCHY_CERTIFICATE)
     onBlocking {
-      getCertificate(eq(getCertificateRequest { name = DATA_PROVIDER_CERTIFICATE.name }))
-    }
+        getCertificate(eq(getCertificateRequest { name = DATA_PROVIDER_CERTIFICATE.name }))
+      }
       .thenReturn(DATA_PROVIDER_CERTIFICATE)
     onBlocking {
-      getCertificate(eq(getCertificateRequest { name = DATA_PROVIDER_RESULT_CERTIFICATE.name }))
-    }
+        getCertificate(eq(getCertificateRequest { name = DATA_PROVIDER_RESULT_CERTIFICATE.name }))
+      }
       .thenReturn(DATA_PROVIDER_RESULT_CERTIFICATE)
   }
   private val dataProvidersServiceMock: DataProvidersCoroutineImplBase = mockService {
@@ -993,10 +988,10 @@ class EdpSimulatorTest {
     val encryptedSketch: ByteString = requests.drop(1).map { it.bodyChunk.data }.flatten()
     val expectedSketch =
       SketchGenerator(
-        eventQuery,
-        LIQUID_LEGIONS_SKETCH_PARAMS.toSketchConfig(),
-        MEASUREMENT_SPEC.vidSamplingInterval,
-      )
+          eventQuery,
+          LIQUID_LEGIONS_SKETCH_PARAMS.toSketchConfig(),
+          MEASUREMENT_SPEC.vidSamplingInterval,
+        )
         .generate(
           REQUISITION_SPEC.events.eventGroupsList.map {
             EventQuery.EventGroupSpec(eventGroup { name = it.key }, it.value)
@@ -2499,7 +2494,7 @@ class EdpSimulatorTest {
       get() = _fullfillRequisitionInvocations
 
     override suspend fun fulfillRequisition(
-      requests: Flow<FulfillRequisitionRequest>,
+      requests: Flow<FulfillRequisitionRequest>
     ): FulfillRequisitionResponse {
       // Consume flow before returning.
       _fullfillRequisitionInvocations.add(FulfillRequisitionInvocation(requests.toList()))
