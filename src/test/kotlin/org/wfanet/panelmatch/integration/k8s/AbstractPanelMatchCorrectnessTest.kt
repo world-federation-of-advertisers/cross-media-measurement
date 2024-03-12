@@ -19,8 +19,6 @@ package org.wfanet.panelmatch.integration.k8s
 import com.google.privatemembership.batch.Shared
 import com.google.protobuf.Message
 import com.google.protobuf.TypeRegistry
-import io.kubernetes.client.openapi.models.V1Deployment
-import io.kubernetes.client.openapi.models.V1Pod
 import io.kubernetes.client.util.ClientBuilder
 import java.net.InetSocketAddress
 import java.nio.file.Path
@@ -147,25 +145,10 @@ abstract class AbstractPanelMatchCorrectnessTest(private val localSystem: PanelM
       )
     }
 
-    protected suspend fun KubernetesClient.waitUntilDeploymentReady(name: String): V1Deployment {
-      logger.info { "Waiting for Deployment $name to be ready..." }
-      return waitUntilDeploymentReady(name, timeout = READY_TIMEOUT).also {
-        logger.info { "Deployment $name ready" }
-      }
-    }
-
     fun getRuntimePath(workspaceRelativePath: Path): Path {
       return checkNotNull(
         org.wfanet.measurement.common.getRuntimePath(WORKSPACE_PATH.resolve(workspaceRelativePath))
       )
-    }
-
-    @JvmStatic
-    protected suspend fun getPod(deploymentName: String): V1Pod {
-      return k8sClient
-        .listPodsByMatchLabels(k8sClient.waitUntilDeploymentReady(deploymentName))
-        .items
-        .first()
     }
   }
 }

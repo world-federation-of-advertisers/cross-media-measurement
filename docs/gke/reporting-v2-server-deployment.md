@@ -24,7 +24,7 @@ free to use whichever you prefer.
     -   1 Kubernetes configmap
         -   `config-files`
     -   2 Kubernetes services
-        -   `postgres-internal-reporting-server`  (Cluster IP)
+        -   `postgres-internal-reporting-server` (Cluster IP)
         -   `reporting-v2alpha-public-api-server` (External load balancer)
     -   2 Kubernetes deployments
         -   `postgres-internal-reporting-server-deployment`
@@ -153,16 +153,16 @@ In order to use the IAM service account that we created earlier from our
 cluster, we need to create a K8s ServiceAccount and give it access to that IAM
 service account.
 
-For example, to create a K8s ServiceAccount named `internal-reporting-v2-server`,
-run
+For example, to create a K8s ServiceAccount named
+`internal-reporting-v2-server`, run
 
 ```shell
 kubectl create serviceaccount internal-reporting-v2-server
 ```
 
 Supposing the IAM service account you created in a previous step is named
-`reporting-v2-internal` within the `halo-cmm-dev` project. You'll need to allow the
-K8s service account to impersonate it
+`reporting-v2-internal` within the `halo-cmm-dev` project. You'll need to allow
+the K8s service account to impersonate it
 
 ```shell
 gcloud iam service-accounts add-iam-policy-binding \
@@ -259,8 +259,8 @@ Generate the archive:
 bazel build //src/main/k8s/testing/secretfiles:archive
 ```
 
-Extract the generated archive to the `src/main/k8s/dev/reporting_v2_secrets/` path
-within the Kustomization directory.
+Extract the generated archive to the `src/main/k8s/dev/reporting_v2_secrets/`
+path within the Kustomization directory.
 
 ### Measurement Consumer config
 
@@ -273,8 +273,8 @@ Contents:
 
 ### Generator
 
-Place the above files into the `src/main/k8s/dev/reporting_v2_secrets/` path within
-the Kustomization directory.
+Place the above files into the `src/main/k8s/dev/reporting_v2_secrets/` path
+within the Kustomization directory.
 
 Create a `kustomization.yaml` file in that path with the following content,
 substituting the names of your own keys:
@@ -297,17 +297,17 @@ secretGenerator:
 ## Customize the K8s ConfigMap
 
 Configuration that may frequently change is stored in a K8s configMap. The `dev`
-configuration uses one named `config-files`, which contains configuration files
-in
-[protobuf text format](https://developers.google.com/protocol-buffers/docs/text-format-spec).
+configuration uses one named `config-files`.
 
-*   `authority_key_identifier_to_principal_map.textproto` -
-    [`AuthorityKeyToPrincipalMap`](../../src/main/proto/wfa/measurement/config/authority_key_to_principal_map.proto)
-*   `encryption_key_pair_config.textproto` -
-    [`EncryptionKeyPairConfig`](../../src/main/proto/wfa/measurement/config/reporting/encryption_key_pair_config.proto)
-*   `metric_spec_config.textproto` -
-    [`MetricSpecConfig`](../../src/main/proto/wfa/measurement/config/reporting/metric_spec_config.proto)
-
+*   `authority_key_identifier_to_principal_map.textproto`
+    *   [`AuthorityKeyToPrincipalMap`](../../src/main/proto/wfa/measurement/config/authority_key_to_principal_map.proto)
+*   `encryption_key_pair_config.textproto`
+    *   [`EncryptionKeyPairConfig`](../../src/main/proto/wfa/measurement/config/reporting/encryption_key_pair_config.proto)
+*   `metric_spec_config.textproto`
+    *   [`MetricSpecConfig`](../../src/main/proto/wfa/measurement/config/reporting/metric_spec_config.proto)
+*   `known_event_group_metadata_type_set.pb`
+    *   Protobuf `FileDescriptorSet` containing known `EventGroup` metadata
+        types.
 
 Place these files into the `src/main/k8s/dev/reporting_v2_config_files/` path
 within the Kustomization directory.

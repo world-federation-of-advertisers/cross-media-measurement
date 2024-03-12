@@ -20,7 +20,7 @@ terraform {
 
 locals {
   kingdom_cluster_name       = "kingdom"
-  duchy_names                = toset(["aggregator", "worker1", "worker2"])
+  duchy_names                = toset(["aggregator", "worker1"])
   reporting_cluster_name     = "reporting"
   reporting_v2_cluster_name  = "reporting-v2"
   simulators_cluster_name    = "simulators"

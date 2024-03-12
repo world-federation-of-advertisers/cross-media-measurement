@@ -25,7 +25,6 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.Duration
 import kotlin.test.assertFailsWith
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -111,7 +110,7 @@ class EventGroupsServiceTest {
         EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
         EventGroup.getDescriptor(),
         Duration.ofSeconds(5),
-        Dispatchers.Default,
+        emptyList(),
       )
 
     service =
@@ -512,7 +511,7 @@ class EventGroupsServiceTest {
         EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
         EventGroup.getDescriptor(),
         Duration.ofSeconds(5),
-        Dispatchers.Default,
+        emptyList(),
       )
 
     service =

@@ -179,6 +179,13 @@ class EdpSimulator(
   private val throttler: Throttler,
   private val privacyBudgetManager: PrivacyBudgetManager,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
+  /**
+   * Known protobuf types for [EventGroupMetadataDescriptor]s.
+   *
+   * This is in addition to the standard
+   * [protobuf well-known types][ProtoReflection.WELL_KNOWN_TYPES].
+   */
+  private val knownEventGroupMetadataTypes: Iterable<Descriptors.FileDescriptor> = emptyList(),
   private val sketchEncrypter: SketchEncrypter = SketchEncrypter.Default,
   private val random: Random = Random,
   private val logSketchDetails: Boolean = false,
@@ -346,14 +353,18 @@ class EdpSimulator(
   private suspend fun ensureMetadataDescriptor(
     metadataDescriptor: Descriptors.Descriptor,
   ): EventGroupMetadataDescriptor {
-    val descriptorSet = ProtoReflection.buildFileDescriptorSet(metadataDescriptor)
+    val descriptorSet =
+      ProtoReflection.buildFileDescriptorSet(
+        metadataDescriptor,
+        ProtoReflection.WELL_KNOWN_TYPES + knownEventGroupMetadataTypes,
+      )
     val descriptorResource =
       try {
         eventGroupMetadataDescriptorsStub.createEventGroupMetadataDescriptor(
           createEventGroupMetadataDescriptorRequest {
             parent = edpData.name
             eventGroupMetadataDescriptor = eventGroupMetadataDescriptor {
-              this.descriptorSet = ProtoReflection.buildFileDescriptorSet(metadataDescriptor)
+              this.descriptorSet = descriptorSet
             }
             requestId = "type.googleapis.com/${metadataDescriptor.fullName}"
           }

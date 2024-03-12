@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.integration.common
 
+import com.google.protobuf.Descriptors
 import io.grpc.Channel
 import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
@@ -68,11 +69,14 @@ import org.wfanet.measurement.loadtest.panelmatchresourcesetup.PanelMatchResourc
 /** TestRule that starts and stops all Kingdom gRPC services. */
 class InProcessKingdom(
   dataServicesProvider: () -> DataServices,
-  val verboseGrpcLogging: Boolean = true,
   /** The open id client redirect uri when creating the authentication uri. */
   private val redirectUri: String,
+  val verboseGrpcLogging: Boolean = true,
 ) : TestRule {
   private val kingdomDataServices by lazy { dataServicesProvider() }
+
+  val knownEventGroupMetadataTypes: Iterable<Descriptors.FileDescriptor>
+    get() = kingdomDataServices.knownEventGroupMetadataTypes
 
   private val internalApiChannel by lazy {
     internalDataServer.channel.withDefaultDeadline(
