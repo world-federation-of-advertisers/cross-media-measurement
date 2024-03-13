@@ -181,10 +181,7 @@ import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsRequest as in
 import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsResponse as internalBatchGetMetricsResponse
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsResponse
-import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementFailuresResponse
 import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsRequest
-import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsResponse
-import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
@@ -198,6 +195,9 @@ import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetric
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsSketchParams as internalReachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
+import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresResponse
+import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsResponse
+import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMetricVarianceParams
@@ -2114,22 +2114,15 @@ class MetricsServiceTest {
   private val internalMeasurementsMock: InternalMeasurementsCoroutineImplBase = mockService {
     onBlocking { batchSetCmmsMeasurementIds(any()) }
       .thenReturn(
-        batchSetCmmsMeasurementIdsResponse {
-          measurements += INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT
-          measurements += INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
-        }
+        BatchSetCmmsMeasurementIdsResponse.getDefaultInstance()
       )
     onBlocking { batchSetMeasurementResults(any()) }
       .thenReturn(
-        batchSetCmmsMeasurementResultsResponse {
-          measurements += INTERNAL_SUCCEEDED_UNION_ALL_REACH_MEASUREMENT
-        }
+        BatchSetMeasurementResultsResponse.getDefaultInstance()
       )
     onBlocking { batchSetMeasurementFailures(any()) }
       .thenReturn(
-        batchSetCmmsMeasurementFailuresResponse {
-          measurements += INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
-        }
+        BatchSetMeasurementFailuresResponse.getDefaultInstance()
       )
   }
 
@@ -6196,9 +6189,7 @@ class MetricsServiceTest {
 
       whenever(internalMeasurementsMock.batchSetMeasurementResults(any()))
         .thenReturn(
-          batchSetCmmsMeasurementResultsResponse {
-            measurements += INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT
-          }
+          BatchSetMeasurementResultsResponse.getDefaultInstance()
         )
 
       val request = getMetricRequest { name = PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.name }
@@ -6738,9 +6729,7 @@ class MetricsServiceTest {
       }
       whenever(internalMeasurementsMock.batchSetMeasurementResults(any()))
         .thenReturn(
-          batchSetCmmsMeasurementResultsResponse {
-            measurements += INTERNAL_SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT
-          }
+          BatchSetMeasurementResultsResponse.getDefaultInstance()
         )
 
       val request = getMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
@@ -6820,9 +6809,7 @@ class MetricsServiceTest {
 
       whenever(internalMeasurementsMock.batchSetMeasurementResults(any()))
         .thenReturn(
-          batchSetCmmsMeasurementResultsResponse {
-            measurements += INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
-          }
+          BatchSetMeasurementResultsResponse.getDefaultInstance()
         )
 
       val request = getMetricRequest { name = PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
@@ -6902,9 +6889,7 @@ class MetricsServiceTest {
 
       whenever(internalMeasurementsMock.batchSetMeasurementResults(any()))
         .thenReturn(
-          batchSetCmmsMeasurementResultsResponse {
-            measurements += INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_CUSTOM_CAP
-          }
+          BatchSetMeasurementResultsResponse.getDefaultInstance()
         )
 
       val request = getMetricRequest { name = PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
@@ -6997,9 +6982,7 @@ class MetricsServiceTest {
 
       whenever(internalMeasurementsMock.batchSetMeasurementFailures(any()))
         .thenReturn(
-          batchSetCmmsMeasurementFailuresResponse {
-            measurements += INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
-          }
+          BatchSetMeasurementFailuresResponse.getDefaultInstance()
         )
 
       val request = getMetricRequest { name = PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }

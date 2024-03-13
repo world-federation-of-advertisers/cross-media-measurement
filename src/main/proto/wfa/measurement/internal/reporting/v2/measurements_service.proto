@@ -27,10 +27,10 @@ service Measurements {
       returns (BatchSetCmmsMeasurementIdsResponse);
 
   rpc BatchSetMeasurementResults(BatchSetMeasurementResultsRequest)
-      returns (BatchSetCmmsMeasurementResultsResponse);
+      returns (BatchSetMeasurementResultsResponse);
 
   rpc BatchSetMeasurementFailures(BatchSetMeasurementFailuresRequest)
-      returns (BatchSetCmmsMeasurementFailuresResponse);
+      returns (BatchSetMeasurementFailuresResponse);
 }
 
 message BatchSetCmmsMeasurementIdsRequest {
@@ -47,9 +47,7 @@ message BatchSetCmmsMeasurementIdsRequest {
   repeated MeasurementIds measurement_ids = 2;
 }
 
-message BatchSetCmmsMeasurementIdsResponse {
-  repeated Measurement measurements = 1;
-}
+message BatchSetCmmsMeasurementIdsResponse {}
 
 message BatchSetMeasurementResultsRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
@@ -64,9 +62,7 @@ message BatchSetMeasurementResultsRequest {
   repeated MeasurementResult measurement_results = 2;
 }
 
-message BatchSetCmmsMeasurementResultsResponse {
-  repeated Measurement measurements = 1;
-}
+message BatchSetMeasurementResultsResponse {}
 
 message BatchSetMeasurementFailuresRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
@@ -81,6 +77,4 @@ message BatchSetMeasurementFailuresRequest {
   repeated MeasurementFailure measurement_failures = 2;
 }
 
-message BatchSetCmmsMeasurementFailuresResponse {
-  repeated Measurement measurements = 1;
-}
+message BatchSetMeasurementFailuresResponse {}
