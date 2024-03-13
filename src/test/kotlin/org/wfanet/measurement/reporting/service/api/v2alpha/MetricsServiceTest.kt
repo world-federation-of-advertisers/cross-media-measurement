@@ -148,10 +148,13 @@ import org.wfanet.measurement.internal.reporting.v2.BatchGetMetricsRequest as In
 import org.wfanet.measurement.internal.reporting.v2.BatchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequestKt.measurementIds
+import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequestKt.measurementFailure
+import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequestKt.measurementResult
+import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodology as InternalCustomDirectMethodology
 import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodologyKt as InternalCustomDirectMethodologyKt
 import org.wfanet.measurement.internal.reporting.v2.DeterministicCount as InternalDeterministicCount
@@ -195,9 +198,6 @@ import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetric
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsSketchParams as internalReachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
-import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresResponse
-import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsResponse
-import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMetricVarianceParams
@@ -2113,17 +2113,11 @@ class MetricsServiceTest {
 
   private val internalMeasurementsMock: InternalMeasurementsCoroutineImplBase = mockService {
     onBlocking { batchSetCmmsMeasurementIds(any()) }
-      .thenReturn(
-        BatchSetCmmsMeasurementIdsResponse.getDefaultInstance()
-      )
+      .thenReturn(BatchSetCmmsMeasurementIdsResponse.getDefaultInstance())
     onBlocking { batchSetMeasurementResults(any()) }
-      .thenReturn(
-        BatchSetMeasurementResultsResponse.getDefaultInstance()
-      )
+      .thenReturn(BatchSetMeasurementResultsResponse.getDefaultInstance())
     onBlocking { batchSetMeasurementFailures(any()) }
-      .thenReturn(
-        BatchSetMeasurementFailuresResponse.getDefaultInstance()
-      )
+      .thenReturn(BatchSetMeasurementFailuresResponse.getDefaultInstance())
   }
 
   private val measurementsMock: MeasurementsCoroutineImplBase = mockService {
@@ -6188,9 +6182,7 @@ class MetricsServiceTest {
       }
 
       whenever(internalMeasurementsMock.batchSetMeasurementResults(any()))
-        .thenReturn(
-          BatchSetMeasurementResultsResponse.getDefaultInstance()
-        )
+        .thenReturn(BatchSetMeasurementResultsResponse.getDefaultInstance())
 
       val request = getMetricRequest { name = PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.name }
 
@@ -6728,9 +6720,7 @@ class MetricsServiceTest {
         }
       }
       whenever(internalMeasurementsMock.batchSetMeasurementResults(any()))
-        .thenReturn(
-          BatchSetMeasurementResultsResponse.getDefaultInstance()
-        )
+        .thenReturn(BatchSetMeasurementResultsResponse.getDefaultInstance())
 
       val request = getMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
 
@@ -6808,9 +6798,7 @@ class MetricsServiceTest {
       }
 
       whenever(internalMeasurementsMock.batchSetMeasurementResults(any()))
-        .thenReturn(
-          BatchSetMeasurementResultsResponse.getDefaultInstance()
-        )
+        .thenReturn(BatchSetMeasurementResultsResponse.getDefaultInstance())
 
       val request = getMetricRequest { name = PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
 
@@ -6888,9 +6876,7 @@ class MetricsServiceTest {
       }
 
       whenever(internalMeasurementsMock.batchSetMeasurementResults(any()))
-        .thenReturn(
-          BatchSetMeasurementResultsResponse.getDefaultInstance()
-        )
+        .thenReturn(BatchSetMeasurementResultsResponse.getDefaultInstance())
 
       val request = getMetricRequest { name = PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
 
@@ -6981,9 +6967,7 @@ class MetricsServiceTest {
       }
 
       whenever(internalMeasurementsMock.batchSetMeasurementFailures(any()))
-        .thenReturn(
-          BatchSetMeasurementFailuresResponse.getDefaultInstance()
-        )
+        .thenReturn(BatchSetMeasurementFailuresResponse.getDefaultInstance())
 
       val request = getMetricRequest { name = PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
 
