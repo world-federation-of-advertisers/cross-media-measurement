@@ -15,7 +15,6 @@
 package org.wfanet.measurement.duchy.daemon.mill.shareshuffle
 
 import com.google.protobuf.ByteString
-import com.google.protobuf.kotlin.get
 import com.google.protobuf.kotlin.toByteString
 import io.grpc.Status
 import io.grpc.StatusException
@@ -27,16 +26,21 @@ import java.time.Duration
 import java.util.logging.Logger
 import kotlin.experimental.xor
 import kotlinx.coroutines.flow.flowOf
-import org.wfanet.measurement.api.v2alpha.AkidPrincipalLookup
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.SignedMessage
-import org.wfanet.measurement.common.api.AkidConfigResourceNameLookup
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
+import org.wfanet.measurement.api.v2alpha.EncryptedMessage
+import org.wfanet.measurement.api.v2alpha.RandomSeed
+import org.wfanet.measurement.api.v2alpha.getCertificateRequest
+import org.wfanet.measurement.api.v2alpha.signedMessage
+import org.wfanet.measurement.api.v2alpha.unpack
+import org.wfanet.measurement.common.crypto.PrivateKeyStore
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
+import org.wfanet.measurement.common.crypto.readCertificate
+import org.wfanet.measurement.common.crypto.tink.TinkKeyId
+import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.flatten
-import org.wfanet.measurement.common.identity.externalIdToApiId
-import org.wfanet.measurement.common.toDuration
-import org.wfanet.measurement.config.AuthorityKeyToPrincipalMap
-import org.wfanet.measurement.duchy.daemon.mill.CRYPTO_LIB_CPU_DURATION
+import org.wfanet.measurement.consent.client.duchy.decryptRandomSeed
+import org.wfanet.measurement.consent.client.duchy.verifyRandomSeed
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
 import org.wfanet.measurement.duchy.daemon.mill.MillBase
 import org.wfanet.measurement.duchy.daemon.mill.shareshuffle.crypto.HonestMajorityShareShuffleCryptor
@@ -47,8 +51,6 @@ import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
-import org.wfanet.measurement.internal.duchy.config.DataProviderCertConfig
-import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation.AGGREGATOR
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation.FIRST_NON_AGGREGATOR
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation.SECOND_NON_AGGREGATOR
@@ -57,10 +59,10 @@ import org.wfanet.measurement.internal.duchy.protocol.CompleteShufflePhaseReques
 import org.wfanet.measurement.internal.duchy.protocol.CompleteShufflePhaseRequestKt.SketchShareKt.shareData
 import org.wfanet.measurement.internal.duchy.protocol.CompleteShufflePhaseRequestKt.sketchShare
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.ShufflePhaseInput
-import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.ShufflePhaseInput.SecretSeed
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage
-import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt.shufflePhaseInput
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt.ShufflePhaseInputKt
+import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt.aggregationPhaseInput
+import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt.shufflePhaseInput
 import org.wfanet.measurement.internal.duchy.protocol.ShareShuffleSketch
 import org.wfanet.measurement.internal.duchy.protocol.completeShufflePhaseRequest
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
@@ -71,8 +73,6 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.Compu
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt
 import org.wfanet.measurement.system.v1alpha.HonestMajorityShareShuffle.Description
 import org.wfanet.measurement.system.v1alpha.setParticipantRequisitionParamsRequest
-import org.wfanet.measurement.consent.client.common.verifySignedMessage
-
 
 class HonestMajorityShareShuffleMill(
   millId: String,
@@ -80,12 +80,13 @@ class HonestMajorityShareShuffleMill(
   signingKey: SigningKeyHandle,
   consentSignalCert: Certificate,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
-  private val authorityKeyToPrincipalMap: AuthorityKeyToPrincipalMap,
   dataClients: ComputationDataClients,
   systemComputationParticipantsClient: ComputationParticipantsCoroutineStub,
   systemComputationsClient: ComputationsGrpcKt.ComputationsCoroutineStub,
   systemComputationLogEntriesClient: ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub,
   computationStatsClient: ComputationStatsGrpcKt.ComputationStatsCoroutineStub,
+  private val privateKeyStore: PrivateKeyStore<TinkKeyId, TinkPrivateKeyHandle>,
+  private val certificateClient: CertificatesGrpcKt.CertificatesCoroutineStub,
   private val workerStubs: Map<String, ComputationControlCoroutineStub>,
   private val cryptoWorker: HonestMajorityShareShuffleCryptor,
   workLockDuration: Duration,
@@ -94,23 +95,24 @@ class HonestMajorityShareShuffleMill(
   maximumAttempts: Int = 10,
   clock: Clock = Clock.systemUTC(),
   private val parallelism: Int = 1,
-): MillBase(
-  millId = millId,
-  duchyId = duchyId,
-  signingKey = signingKey,
-  consentSignalCert = consentSignalCert,
-  dataClients = dataClients,
-  systemComputationParticipantsClient = systemComputationParticipantsClient,
-  systemComputationsClient = systemComputationsClient,
-  systemComputationLogEntriesClient = systemComputationLogEntriesClient,
-  computationStatsClient = computationStatsClient,
-  computationType = ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE,
-  workLockDuration = workLockDuration,
-  requestChunkSizeBytes  = requestChunkSizeBytes,
-  maximumAttempts = maximumAttempts,
-  clock = clock,
-  openTelemetry = openTelemetry,
-) {
+) :
+  MillBase(
+    millId = millId,
+    duchyId = duchyId,
+    signingKey = signingKey,
+    consentSignalCert = consentSignalCert,
+    dataClients = dataClients,
+    systemComputationParticipantsClient = systemComputationParticipantsClient,
+    systemComputationsClient = systemComputationsClient,
+    systemComputationLogEntriesClient = systemComputationLogEntriesClient,
+    computationStatsClient = computationStatsClient,
+    computationType = ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE,
+    workLockDuration = workLockDuration,
+    requestChunkSizeBytes = requestChunkSizeBytes,
+    maximumAttempts = maximumAttempts,
+    clock = clock,
+    openTelemetry = openTelemetry,
+  ) {
   private val meter: Meter = openTelemetry.getMeter(HonestMajorityShareShuffleMill::class.java.name)
 
   // TODO(@renjiez): add metrics.
@@ -128,7 +130,6 @@ class HonestMajorityShareShuffleMill(
       Pair(Stage.AGGREGATION_PHASE, AGGREGATOR) to ::aggregationPhase,
     )
 
-
   private fun nextStage(token: ComputationToken): Stage {
     require(token.computationDetails.hasHonestMajorityShareShuffle()) {
       "Only Honest Majority Share Shuffle computation is supported in this mill."
@@ -137,15 +138,16 @@ class HonestMajorityShareShuffleMill(
     val stage = token.computationStage.honestMajorityShareShuffle
     val role = token.computationDetails.honestMajorityShareShuffle.role
 
-    val nextStages = mapOf(
-      Pair(Stage.INITIALIZED, FIRST_NON_AGGREGATOR) to Stage.WAIT_TO_START,
-      Pair(Stage.INITIALIZED, SECOND_NON_AGGREGATOR) to Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_ONE,
-      Pair(Stage.SETUP_PHASE, FIRST_NON_AGGREGATOR) to Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_TWO,
-      Pair(Stage.SETUP_PHASE, SECOND_NON_AGGREGATOR) to Stage.SETUP_PHASE,
-      Pair(Stage.SHUFFLE_PHASE, FIRST_NON_AGGREGATOR) to Stage.COMPLETE,
-      Pair(Stage.SHUFFLE_PHASE, SECOND_NON_AGGREGATOR) to Stage.COMPLETE,
-      Pair(Stage.AGGREGATION_PHASE, AGGREGATOR) to Stage.COMPLETE,
-    )
+    val nextStages =
+      mapOf(
+        Pair(Stage.INITIALIZED, FIRST_NON_AGGREGATOR) to Stage.WAIT_TO_START,
+        Pair(Stage.INITIALIZED, SECOND_NON_AGGREGATOR) to Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_ONE,
+        Pair(Stage.SETUP_PHASE, FIRST_NON_AGGREGATOR) to Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_TWO,
+        Pair(Stage.SETUP_PHASE, SECOND_NON_AGGREGATOR) to Stage.SETUP_PHASE,
+        Pair(Stage.SHUFFLE_PHASE, FIRST_NON_AGGREGATOR) to Stage.COMPLETE,
+        Pair(Stage.SHUFFLE_PHASE, SECOND_NON_AGGREGATOR) to Stage.COMPLETE,
+        Pair(Stage.AGGREGATION_PHASE, AGGREGATOR) to Stage.COMPLETE,
+      )
     return nextStages[Pair(stage, role)] ?: error("Unexpected stage or role: ($stage, $role)")
   }
 
@@ -174,11 +176,12 @@ class HonestMajorityShareShuffleMill(
       requisitionParams =
         ComputationParticipantKt.requisitionParams {
           duchyCertificate = consentSignalCert.name
-          honestMajorityShareShuffle = ComputationParticipantKt.RequisitionParamsKt.honestMajorityShareShuffle {
-            tinkPublicKey = publicKey.data
-            tinkPublicKeySignature = signingKey.sign(signingKey.defaultAlgorithm, publicKey.data)
-            tinkPublicKeySignatureAlgorithmOid = signingKey.defaultAlgorithm.oid
-          }
+          honestMajorityShareShuffle =
+            ComputationParticipantKt.RequisitionParamsKt.honestMajorityShareShuffle {
+              tinkPublicKey = publicKey.data
+              tinkPublicKeySignature = signingKey.sign(signingKey.defaultAlgorithm, publicKey.data)
+              tinkPublicKeySignatureAlgorithmOid = signingKey.defaultAlgorithm.oid
+            }
         }
     }
     try {
@@ -202,38 +205,46 @@ class HonestMajorityShareShuffleMill(
     )
   }
 
-  private fun peerDuchyStub(participants: List<String>, role: RoleInComputation): ComputationControlCoroutineStub {
+  private fun peerDuchyStub(participants: List<String>): ComputationControlCoroutineStub {
     val peerDuchy = participants.dropLast(1).find { it != duchyId }
     return workerStubs[peerDuchy]
       ?: throw ComputationDataClients.PermanentErrorException(
         "No ComputationControlService stub for the peer duchy '$peerDuchy'"
       )
   }
+
+  private fun aggregatorStub(participants: List<String>): ComputationControlCoroutineStub {
+    val aggregator = participants.last()
+    return workerStubs[aggregator]
+      ?: throw ComputationDataClients.PermanentErrorException(
+        "No ComputationControlService stub for aggregator '$aggregator'"
+      )
+  }
+
   private suspend fun setupPhase(token: ComputationToken): ComputationToken {
     val hmssDetails = token.computationDetails.honestMajorityShareShuffle
     val role = hmssDetails.role
 
     val headerDescription =
-      if (role == FIRST_NON_AGGREGATOR)
-        Description.SHUFFLE_PHASE_INPUT_ONE
-      else
-        Description.SHUFFLE_PHASE_INPUT_TWO
+      if (role == FIRST_NON_AGGREGATOR) Description.SHUFFLE_PHASE_INPUT_ONE
+      else Description.SHUFFLE_PHASE_INPUT_TWO
 
     val shufflePhaseInput = shufflePhaseInput {
-      peerRandomSeed = hmssDetails.commonRandomSeed
-      secretSeeds += token.requisitionsList.map {
-        val source = it
-        ShufflePhaseInputKt.secretSeed{
-          requisitionId = source.externalKey.externalRequisitionId
-          secretSeedCiphertext = source.secretSeedCiphertext
+      peerRandomSeed = hmssDetails.randomSeed
+      secretSeeds +=
+        token.requisitionsList.map {
+          val source = it
+          ShufflePhaseInputKt.secretSeed {
+            requisitionId = source.externalKey.externalRequisitionId
+            secretSeedCiphertext = source.secretSeedCiphertext
+          }
         }
-      }
     }
 
     sendAdvanceComputationRequest(
       header = advanceComputationHeader(headerDescription, token.globalComputationId),
       content = addLoggingHook(token, flowOf(shufflePhaseInput.toByteString())),
-      stub = peerDuchyStub(hmssDetails.participantsList, role),
+      stub = peerDuchyStub(hmssDetails.participantsList),
     )
 
     return dataClients.transitionComputationToStage(
@@ -250,6 +261,8 @@ class HonestMajorityShareShuffleMill(
     return ShufflePhaseInput.parseFrom(serializedInput)
   }
 
+  private suspend fun getAggregationPhaseInput()
+
   private fun combineRandomSeeds(seed1: ByteString, seed2: ByteString): ByteString {
     require(seed1.size() == seed2.size()) {
       "Seeds size does not match. size_1=${seed1.size()}, size_2=${seed2.size()}"
@@ -262,17 +275,34 @@ class HonestMajorityShareShuffleMill(
     return combinedSeed.toByteString()
   }
 
-  private fun verifySecretSeed(secretSeedCiphertext: ByteString, requisitionMetadata: RequisitionMetadata) {
-    val dataProviderId: Long = requisitionMetadata.details.externalDataProviderId
-    val dataProviderResourceKey = DataProviderKey(externalIdToApiId(dataProviderId)).toName()
-    val akid = authorityKeyToPrincipalMap.entriesList.find {
-      it.principalResourceName == dataProviderResourceKey
-    }?.authorityKeyIdentifier ?: error("DataProvider not found for $dataProviderResourceKey.")
-    val certificate = trustedCertificates[akid] ?: error("Certificate not found for $dataProviderResourceKey.")
+  private suspend fun verifySecretSeed(
+    secretSeedCiphertext: ByteString,
+    requisitionMetadata: RequisitionMetadata,
+    duchyPrivateKeyId: String,
+  ): RandomSeed {
+    val privateKey =
+      privateKeyStore.read(TinkKeyId(duchyPrivateKeyId.toLong()))
+        ?: error(
+          "Fail to read private key for requisition ${requisitionMetadata.externalKey.externalRequisitionId}"
+        )
 
-    val secretSeed = SignedMessage.parseFrom(secretSeedCiphertext)
-    certificate.verifySignedMessage(secretSeed)
+    val encryptedAndSignedMessage = EncryptedMessage.parseFrom(secretSeedCiphertext)
+    val signedMessage = decryptRandomSeed(encryptedAndSignedMessage, privateKey)
 
+    val randomSeed: RandomSeed = signedMessage.unpack()
+
+    val dataProviderCertificateName =
+      requisitionMetadata.details.honestMajorityShareShuffle.dataProviderCertificate
+    val dataProviderCertificate =
+      certificateClient.getCertificate(getCertificateRequest { name = dataProviderCertificateName })
+    val x509Certificate: X509Certificate = readCertificate(dataProviderCertificate.x509Der)
+    val trustedIssuer =
+      trustedCertificates[x509Certificate.authorityKeyIdentifier]
+        ?: error("trustedIssuer not found for $dataProviderCertificateName.")
+
+    verifyRandomSeed(signedMessage, x509Certificate, trustedIssuer)
+
+    return randomSeed
   }
 
   private suspend fun shufflePhase(token: ComputationToken): ComputationToken {
@@ -286,12 +316,13 @@ class HonestMajorityShareShuffleMill(
     val request = completeShufflePhaseRequest {
       val hmss = token.computationDetails.honestMajorityShareShuffle
       sketchParams = hmss.parameters.sketchParams
-      commonRandomSeed = combineRandomSeeds(hmss.commonRandomSeed, shufflePhaseInput.peerRandomSeed)
-      order = if (hmss.role == RoleInComputation.FIRST_NON_AGGREGATOR) {
-        CompleteShufflePhaseRequest.NonAggregatorOrder.FIRST
-      } else {
-        CompleteShufflePhaseRequest.NonAggregatorOrder.SECOND
-      }
+      commonRandomSeed = combineRandomSeeds(hmss.randomSeed, shufflePhaseInput.peerRandomSeed)
+      order =
+        if (hmss.role == FIRST_NON_AGGREGATOR) {
+          CompleteShufflePhaseRequest.NonAggregatorOrder.FIRST
+        } else {
+          CompleteShufflePhaseRequest.NonAggregatorOrder.SECOND
+        }
       dpParams = differentialPrivacyParams {
         delta = hmss.parameters.dpParams.delta
         epsilon = hmss.parameters.dpParams.epsilon
@@ -303,24 +334,38 @@ class HonestMajorityShareShuffleMill(
         val blob = requisitionBlobs[requisitionId]
         if (blob != null) {
           sketchShares += sketchShare {
-            data = shareData { values += ShareShuffleSketch.parseFrom(blob).dataList}
+            data = shareData { values += ShareShuffleSketch.parseFrom(blob).dataList }
           }
         } else {
-          val secretSeed = secretSeeds.find { it.requisitionId == requisitionId}
+          val secretSeed = secretSeeds.find { it.requisitionId == requisitionId }
           require(secretSeed != null) {
             "Neither blob and seed received for requisition $requisitionId"
           }
-          val seed = verifySecretSeed(secretSeed.secretSeedCiphertext, requisition)
+          val privateKeyId =
+            token.computationDetails.honestMajorityShareShuffle.encryptionKeyPair.privateKeyId
+          val seed = verifySecretSeed(secretSeed.secretSeedCiphertext, requisition, privateKeyId)
+          sketchShares += sketchShare { this.seed = seed.data }
         }
       }
     }
 
     val result = cryptoWorker.CompleteShufflePhase(request)
+
+    val aggregationPhaseInput = aggregationPhaseInput {
+      combinedSketch += result.combinedSketchList
+    }
+
+    sendAdvanceComputationRequest(
+      header =
+        advanceComputationHeader(Description.AGGREGATION_PHASE_INPUT, token.globalComputationId),
+      content = addLoggingHook(token, flowOf(aggregationPhaseInput.toByteString())),
+      stub = aggregatorStub(token.computationDetails.honestMajorityShareShuffle.participantsList),
+    )
+
+    return dataClients.transitionComputationToStage(token, stage = Stage.COMPLETE.toProtocolStage())
   }
 
-  private suspend fun aggregationPhase(token: ComputationToken): ComputationToken {
-
-  }
+  private suspend fun aggregationPhase(token: ComputationToken): ComputationToken {}
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)

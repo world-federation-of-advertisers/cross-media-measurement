@@ -63,7 +63,7 @@ object HonestMajorityShareShuffleStarter {
     systemComputation: Computation,
     honestMajorityShareShuffleSetupConfig: HonestMajorityShareShuffleSetupConfig,
     blobStorageBucket: String,
-    privateKetStorageClient: PrivateKeyStore<TinkKeyId, TinkPrivateKeyHandle>,
+    privateKetStore: PrivateKeyStore<TinkKeyId, TinkPrivateKeyHandle>,
   ) {
     require(systemComputation.name.isNotEmpty()) { "Resource name not specified" }
     val globalId: String = systemComputation.key.computationId
@@ -81,7 +81,7 @@ object HonestMajorityShareShuffleStarter {
             randomSeed = generateRandomSeed()
 
             val privateKeyHandle = TinkPrivateKeyHandle.generateHpke()
-            val privateKeyId = storePrivateKey(privateKetStorageClient, privateKeyHandle)
+            val privateKeyId = storePrivateKey(privateKetStore, privateKeyHandle)
             encryptionKeyPair = encryptionKeyPair {
               this.privateKeyId = privateKeyId
               publicKey = encryptionPublicKey {

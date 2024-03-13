@@ -17,31 +17,29 @@ package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto
 import org.wfanet.measurement.duchy.daemon.mill.shareshuffle.crypto.HonestMajorityShareShuffleCryptor
 import org.wfanet.measurement.internal.duchy.protocol.CompleteAggregationPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteAggregationPhaseResponse
-import org.wfanet.measurement.internal.duchy.protocol.CompleteReachOnlyInitializationPhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteShufflePhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteShufflePhaseResponse
-import org.wfanet.measurement.internal.duchy.protocol.reachonlyliquidlegionsv2.ReachOnlyLiquidLegionsV2EncryptionUtility
 import org.wfanet.measurement.internal.duchy.protocol.shareshuffle.HonestMajorityShareShuffleUtility
 
 /**
  * A [HonestMajorityShareShuffleCryptor] implementation using the JNI
- * [ReachOnlyLiquidLegionsV2EncryptionUtility].
+ * [HonestMajorityShareShuffleUtility].
  */
-class JniHonestMajorityShareShuffleCryptor: HonestMajorityShareShuffleCryptor {
+class JniHonestMajorityShareShuffleCryptor : HonestMajorityShareShuffleCryptor {
 
-  override fun CompleteShufflePhase(request: CompleteShufflePhaseRequest): CompleteShufflePhaseResponse {
+  override fun CompleteShufflePhase(
+    request: CompleteShufflePhaseRequest
+  ): CompleteShufflePhaseResponse {
     return CompleteShufflePhaseResponse.parseFrom(
-      HonestMajorityShareShuffleUtility.completeShufflePhase(
-        request.toByteArray()
-      )
+      HonestMajorityShareShuffleUtility.completeShufflePhase(request.toByteArray())
     )
   }
 
-  override fun CompleteAggregationPhase(request: CompleteAggregationPhaseRequest): CompleteAggregationPhaseResponse {
+  override fun CompleteAggregationPhase(
+    request: CompleteAggregationPhaseRequest
+  ): CompleteAggregationPhaseResponse {
     return CompleteAggregationPhaseResponse.parseFrom(
-      HonestMajorityShareShuffleUtility.completeAggregationPhase(
-        request.toByteArray()
-      )
+      HonestMajorityShareShuffleUtility.completeAggregationPhase(request.toByteArray())
     )
   }
 }

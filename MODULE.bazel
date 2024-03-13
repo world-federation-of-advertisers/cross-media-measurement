@@ -144,9 +144,17 @@ bazel_dep(
     version = "0.20.0",
     repo_name = "wfa_consent_signaling_client",
 )
+
+# DO_NOT_SUBMIT: Update version.
+archive_override(
+    module_name = "consent-signaling-client",
+    strip_prefix = "consent-signaling-client-595fa1bd01ed2647822d3e873bfa8ac80e0d92fb",
+    urls = ["https://github.com/world-federation-of-advertisers/consent-signaling-client/archive/595fa1bd01ed2647822d3e873bfa8ac80e0d92fb.tar.gz"],
+)
+
 bazel_dep(
     name = "any-sketch",
-    version = "0.6.0",
+    version = "0.7.0",
     repo_name = "any_sketch",
 )
 bazel_dep(
