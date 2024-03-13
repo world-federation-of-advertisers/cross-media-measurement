@@ -273,18 +273,24 @@ class SpannerMeasurementsService(
   override suspend fun batchGetMeasurements(
     request: BatchGetMeasurementsRequest
   ): BatchGetMeasurementsResponse {
+    val externalMeasurementIds = request.externalMeasurementIdsList.distinct()
     val results: List<MeasurementReader.Result> =
       MeasurementReader(Measurement.View.DEFAULT)
         .readByExternalIds(
           client.singleUse(),
           ExternalId(request.externalMeasurementConsumerId),
-          request.externalMeasurementIdsList.map { ExternalId(it) },
+          externalMeasurementIds.map { ExternalId(it) },
         )
 
-    if (results.size < request.externalMeasurementIdsList.size) {
+    if (results.size < externalMeasurementIds.size) {
       throw Status.NOT_FOUND.withDescription("Measurement not found").asRuntimeException()
     }
 
-    return batchGetMeasurementsResponse { measurements += results.map { it.measurement } }
+    val measurementsMap =
+      results.associate { result -> result.measurement.externalMeasurementId to result.measurement }
+
+    return batchGetMeasurementsResponse {
+      measurements += request.externalMeasurementIdsList.map { measurementsMap.getValue(it) }
+    }
   }
 }
