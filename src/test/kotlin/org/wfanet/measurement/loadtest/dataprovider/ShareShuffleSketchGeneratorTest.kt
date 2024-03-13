@@ -261,7 +261,7 @@ class ShareShuffleSketchGeneratorTest {
           vidUniverse,
           ByteString.copyFromUtf8("salt"),
           eventQueries,
-          measurementSpec.vidSamplingInterval
+          measurementSpec.vidSamplingInterval,
         )
         .generate(eventGroupSpecs)
     assertThat(hmssSketch.size).isEqualTo(31)
@@ -324,7 +324,7 @@ class ShareShuffleSketchGeneratorTest {
           vidUniverse,
           salt,
           eventQueries,
-          measurementSpec.vidSamplingInterval
+          measurementSpec.vidSamplingInterval,
         )
         .generate(eventGroupSpecs)
 
@@ -408,7 +408,7 @@ class ShareShuffleSketchGeneratorTest {
           vidUniverse,
           salt,
           eventQueries,
-          measurementSpec.vidSamplingInterval
+          measurementSpec.vidSamplingInterval,
         )
         .generate(eventGroupSpecs)
 
