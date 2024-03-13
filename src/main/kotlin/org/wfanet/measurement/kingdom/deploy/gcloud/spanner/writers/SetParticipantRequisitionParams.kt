@@ -143,13 +143,28 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
         }
       }
 
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
+    val nextState =
+      when (request.protocolCase) {
+        SetParticipantRequisitionParamsRequest.ProtocolCase.LIQUID_LEGIONS_V2,
+        SetParticipantRequisitionParamsRequest.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
+          ComputationParticipant.State.REQUISITION_PARAMS_SET
+        }
+        SetParticipantRequisitionParamsRequest.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+          ComputationParticipant.State.READY
+        }
+        SetParticipantRequisitionParamsRequest.ProtocolCase.PROTOCOL_NOT_SET -> {
+          error("Unspecified protocol case in SetParticipantRequisitionParamsRequest.")
+        }
+      }
+
     transactionContext.bufferUpdateMutation("ComputationParticipants") {
       set("MeasurementConsumerId" to measurementConsumerId)
       set("MeasurementId" to measurementId)
       set("DuchyId" to duchyId)
       set("CertificateId" to duchyCertificateId)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-      set("State" to NEXT_COMPUTATION_PARTICIPANT_STATE)
+      set("State" to nextState)
       set("ParticipantDetails" to participantDetails)
       setJson("ParticipantDetailsJson" to participantDetails)
     }
