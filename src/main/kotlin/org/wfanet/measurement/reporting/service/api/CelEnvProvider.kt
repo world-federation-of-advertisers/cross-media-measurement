@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.reporting.service.api
 
-import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
 import com.google.protobuf.TypeRegistry
 import io.grpc.Status
@@ -25,6 +24,7 @@ import java.time.Duration
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -39,6 +39,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.time.delay
+import org.jetbrains.annotations.NonBlockingExecutor
 import org.jetbrains.annotations.VisibleForTesting
 import org.projectnessie.cel.Env
 import org.projectnessie.cel.EnvOption
@@ -65,9 +66,12 @@ class CelEnvCacheProvider(
   /** Protobuf descriptor of Reporting EventGroup message type. */
   private val reportingEventGroupDescriptor: Descriptors.Descriptor,
   private val cacheRefreshInterval: Duration,
-  coroutineContext: CoroutineContext,
+  knownMetadataTypes: Iterable<Descriptors.FileDescriptor>,
+  coroutineContext: @NonBlockingExecutor CoroutineContext = EmptyCoroutineContext,
   private val numRetriesInitialSync: Int = 3,
 ) : CelEnvProvider, AutoCloseable {
+  private val allKnownMetadataTypes: Set<Descriptors.FileDescriptor> =
+    knownMetadataTypes.asSequence().plus(ProtoReflection.WELL_KNOWN_TYPES).toSet()
   private lateinit var typeRegistryAndEnv: CelEnvProvider.TypeRegistryAndEnv
   private val coroutineScope = CoroutineScope(coroutineContext + SupervisorJob())
   private val initialSyncJob = CompletableDeferred<Unit>()
@@ -123,10 +127,11 @@ class CelEnvCacheProvider(
     val eventGroupMetadataDescriptors: List<EventGroupMetadataDescriptor> =
       getEventGroupMetadataDescriptors()
 
-    val fileDescriptorSets: List<DescriptorProtos.FileDescriptorSet> =
-      eventGroupMetadataDescriptors.map { it.descriptorSet }
-    val fileDescriptors: List<Descriptors.Descriptor> =
-      ProtoReflection.buildDescriptors(fileDescriptorSets)
+    val fileDescriptors: List<Descriptors.FileDescriptor> =
+      ProtoReflection.buildFileDescriptors(
+        eventGroupMetadataDescriptors.map { it.descriptorSet },
+        allKnownMetadataTypes,
+      )
 
     val env = buildCelEnvironment(fileDescriptors)
     val typeRegistry: TypeRegistry = buildTypeRegistry(fileDescriptors)
@@ -134,11 +139,15 @@ class CelEnvCacheProvider(
     return CelEnvProvider.TypeRegistryAndEnv(typeRegistry, env)
   }
 
-  private fun buildCelEnvironment(descriptors: List<Descriptors.Descriptor>): Env {
+  private fun buildCelEnvironment(fileDescriptors: Iterable<Descriptors.FileDescriptor>): Env {
     // Build CEL ProtoTypeRegistry.
-    val celTypeRegistry = ProtoTypeRegistry.newRegistry()
-    descriptors.forEach { celTypeRegistry.registerDescriptor(it.file) }
-    celTypeRegistry.registerDescriptor(reportingEventGroupDescriptor.file)
+    val celTypeRegistry =
+      ProtoTypeRegistry.newRegistry().apply {
+        for (fileDescriptor in fileDescriptors) {
+          registerDescriptor(fileDescriptor)
+        }
+        registerDescriptor(reportingEventGroupDescriptor.file)
+      }
 
     // Build CEL Env.
     val env =
@@ -196,14 +205,8 @@ class CelEnvCacheProvider(
     }
   }
 
-  private fun buildTypeRegistry(descriptors: List<Descriptors.Descriptor>): TypeRegistry {
-    return TypeRegistry.newBuilder()
-      .apply {
-        for (descriptor in descriptors) {
-          add(descriptor)
-        }
-      }
-      .build()
+  private fun buildTypeRegistry(fileDescriptors: List<Descriptors.FileDescriptor>): TypeRegistry {
+    return TypeRegistry.newBuilder().add(fileDescriptors.flatMap { it.messageTypes }).build()
   }
 
   /** Suspends until any in-flight sync operations are complete. */
