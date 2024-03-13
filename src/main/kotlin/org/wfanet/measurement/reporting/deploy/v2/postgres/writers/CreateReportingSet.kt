@@ -21,6 +21,8 @@ import io.r2dbc.spi.R2dbcDataIntegrityViolationException
 import org.wfanet.measurement.common.db.r2dbc.BoundStatement
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
+import org.wfanet.measurement.common.db.r2dbc.postgres.ValuesListBoundStatement
+import org.wfanet.measurement.common.db.r2dbc.postgres.valuesListBoundStatement
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.internal.reporting.v2.CreateReportingSetRequest
@@ -49,11 +51,42 @@ const val INTEGRITY_CONSTRAINT_VIOLATION = "23505"
  */
 class CreateReportingSet(private val request: CreateReportingSetRequest) :
   PostgresWriter<ReportingSet>() {
-  private data class PrimitiveReportingSetBasesBinders(
-    val primitiveReportingSetBasesBinders: List<BoundStatement.Binder.() -> Unit>,
-    val weightedSubsetUnionPrimitiveReportingSetBasesBinders:
-      List<BoundStatement.Binder.() -> Unit>,
-    val primitiveReportingSetBasisFiltersBinders: List<BoundStatement.Binder.() -> Unit>,
+  private data class SetExpressionsValues(
+    val setExpressionId: InternalId,
+    val operationValue: Int,
+    val leftHandSetExpressionId: InternalId?,
+    val leftHandReportingSetId: InternalId?,
+    val rightHandSetExpressionId: InternalId?,
+    val rightHandReportingSetId: InternalId?,
+  )
+
+  private data class WeightedSubsetUnionsValues(
+    val weightedSubsetUnionId: InternalId,
+    val weight: Int,
+    val binaryRepresentation: Int,
+  )
+
+  private data class PrimitiveReportingSetBasesInsertData(
+    val primitiveReportingSetBasesValues: PrimitiveReportingSetBasesValues,
+    val weightedSubsetUnionPrimitiveReportingSetBasesValues:
+      WeightedSubsetUnionPrimitiveReportingSetBasesValues,
+    val primitiveReportingSetBasisFiltersValuesList: List<PrimitiveReportingSetBasisFiltersValues>,
+  )
+
+  private data class PrimitiveReportingSetBasesValues(
+    val primitiveReportingSetBasisId: InternalId,
+    val primitiveReportingSetId: InternalId,
+  )
+
+  private data class WeightedSubsetUnionPrimitiveReportingSetBasesValues(
+    val weightedSubsetUnionId: InternalId,
+    val primitiveReportingSetBasisId: InternalId,
+  )
+
+  private data class PrimitiveReportingSetBasisFiltersValues(
+    val primitiveReportingSetBasisId: InternalId,
+    val primitiveReportingSetBasisFilterId: InternalId,
+    val filter: String,
   )
 
   override suspend fun TransactionScope.runTransaction(): ReportingSet {
@@ -122,22 +155,47 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
           .collect { reportingSetMap[it.externalReportingSetId] = it.reportingSetId }
 
         val setExpressionId = idGenerator.generateInternalId()
+        val setExpressionsValuesList: List<SetExpressionsValues> = buildList {
+          createSetExpressionsValues(
+            this,
+            setExpressionId = setExpressionId,
+            measurementConsumerId = measurementConsumerId,
+            reportingSetId = reportingSetId,
+            request.reportingSet.composite,
+            reportingSetMap,
+          )
+        }
 
         val setExpressionsStatement =
-          boundStatement(
+          valuesListBoundStatement(
+            valuesStartIndex = 0,
+            paramCount = 8,
             """
-          INSERT INTO SetExpressions (MeasurementConsumerId, ReportingSetId, SetExpressionId, Operation, LeftHandSetExpressionId, LeftHandReportingSetId, RightHandSetExpressionId, RightHandReportingSetId)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-          """
+          INSERT INTO SetExpressions (
+            MeasurementConsumerId,
+            ReportingSetId,
+            SetExpressionId,
+            Operation,
+            LeftHandSetExpressionId,
+            LeftHandReportingSetId,
+            RightHandSetExpressionId,
+            RightHandReportingSetId
+          )
+          VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER}
+          """,
           ) {
-            addSetExpressionsBindings(
-              this,
-              setExpressionId = setExpressionId,
-              measurementConsumerId = measurementConsumerId,
-              reportingSetId = reportingSetId,
-              request.reportingSet.composite,
-              reportingSetMap,
-            )
+            setExpressionsValuesList.forEach {
+              addValuesBinding {
+                bindValuesParam(0, measurementConsumerId)
+                bindValuesParam(1, reportingSetId)
+                bindValuesParam(2, it.setExpressionId)
+                bindValuesParam(3, it.operationValue)
+                bindValuesParam(4, it.leftHandSetExpressionId)
+                bindValuesParam(5, it.leftHandReportingSetId)
+                bindValuesParam(6, it.rightHandSetExpressionId)
+                bindValuesParam(7, it.rightHandReportingSetId)
+              }
+            }
           }
         transactionContext.executeStatement(setExpressionsStatement)
 
@@ -210,7 +268,8 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
         }] = it.eventGroupId
     }
 
-    val eventGroupBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
+    val eventGroupBinders =
+      mutableListOf<ValuesListBoundStatement.ValuesListBoundStatementBuilder.() -> Unit>()
 
     cmmsEventGroupKeys.forEach {
       eventGroupMap.computeIfAbsent(
@@ -221,10 +280,10 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
       ) {
         val id = idGenerator.generateInternalId()
         eventGroupBinders.add {
-          bind("$1", measurementConsumerId)
-          bind("$2", id)
-          bind("$3", it.cmmsDataProviderId)
-          bind("$4", it.cmmsEventGroupId)
+          bindValuesParam(0, measurementConsumerId)
+          bindValuesParam(1, id)
+          bindValuesParam(2, it.cmmsDataProviderId)
+          bindValuesParam(3, it.cmmsEventGroupId)
         }
         id
       }
@@ -232,30 +291,44 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
 
     val eventGroupsStatement: BoundStatement? =
       if (eventGroupBinders.size > 0) {
-        boundStatement(
+        valuesListBoundStatement(
+          valuesStartIndex = 0,
+          paramCount = 4,
           """
-              INSERT INTO EventGroups (MeasurementConsumerId, EventGroupId, CmmsDataProviderId, CmmsEventGroupId)
-              VALUES ($1, $2, $3, $4)
-              """
+              INSERT INTO EventGroups (
+                MeasurementConsumerId,
+                EventGroupId,
+                CmmsDataProviderId,
+                CmmsEventGroupId
+              )
+              VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER
+              }
+              """,
         ) {
-          eventGroupBinders.forEach { addBinding(it) }
+          eventGroupBinders.forEach { addValuesBinding(it) }
         }
       } else {
         null
       }
 
     val reportingSetEventGroupsStatement =
-      boundStatement(
+      valuesListBoundStatement(
+        valuesStartIndex = 0,
+        paramCount = 3,
         """
-            INSERT INTO ReportingSetEventGroups (MeasurementConsumerId, ReportingSetId, EventGroupId)
-            VALUES ($1, $2, $3)
-            """
+            INSERT INTO ReportingSetEventGroups (
+              MeasurementConsumerId,
+              ReportingSetId,
+              EventGroupId
+            )
+            VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER}
+            """,
       ) {
         eventGroupMap.values.forEach {
-          addBinding {
-            bind("$1", measurementConsumerId)
-            bind("$2", reportingSetId)
-            bind("$3", it)
+          addValuesBinding {
+            bindValuesParam(0, measurementConsumerId)
+            bindValuesParam(1, reportingSetId)
+            bindValuesParam(2, it)
           }
         }
       }
@@ -309,8 +382,8 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
     return primitiveReportingSetBasesList.asSequence().map { it.externalReportingSetId }.toSet()
   }
 
-  private fun TransactionScope.addSetExpressionsBindings(
-    statementBuilder: BoundStatement.Builder,
+  private fun TransactionScope.createSetExpressionsValues(
+    values: MutableList<SetExpressionsValues>,
     setExpressionId: InternalId,
     measurementConsumerId: InternalId,
     reportingSetId: InternalId,
@@ -326,8 +399,8 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
     when (setExpression.lhs.operandCase) {
       SetExpression.Operand.OperandCase.EXPRESSION -> {
         leftHandSetExpressionId = idGenerator.generateInternalId()
-        addSetExpressionsBindings(
-          statementBuilder,
+        createSetExpressionsValues(
+          values,
           leftHandSetExpressionId,
           measurementConsumerId,
           reportingSetId,
@@ -352,8 +425,8 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
     when (setExpression.rhs.operandCase) {
       SetExpression.Operand.OperandCase.EXPRESSION -> {
         rightHandSetExpressionId = idGenerator.generateInternalId()
-        addSetExpressionsBindings(
-          statementBuilder,
+        createSetExpressionsValues(
+          values,
           rightHandSetExpressionId,
           measurementConsumerId,
           reportingSetId,
@@ -374,16 +447,16 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
       }
     }
 
-    statementBuilder.addBinding {
-      bind("$1", measurementConsumerId)
-      bind("$2", reportingSetId)
-      bind("$3", setExpressionId)
-      bind("$4", setExpression.operationValue)
-      bind("$5", leftHandSetExpressionId)
-      bind("$6", leftHandReportingSetId)
-      bind("$7", rightHandSetExpressionId)
-      bind("$8", rightHandReportingSetId)
-    }
+    values.add(
+      SetExpressionsValues(
+        setExpressionId = setExpressionId,
+        operationValue = setExpression.operationValue,
+        leftHandSetExpressionId = leftHandSetExpressionId,
+        leftHandReportingSetId = leftHandReportingSetId,
+        rightHandSetExpressionId = rightHandSetExpressionId,
+        rightHandReportingSetId = rightHandReportingSetId,
+      )
+    )
   }
 
   private suspend fun TransactionScope.insertWeightedSubsetUnions(
@@ -392,148 +465,183 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
     weightedSubsetUnions: List<WeightedSubsetUnion>,
     reportingSetMap: Map<String, InternalId> = mapOf(),
   ) {
-    val weightedSubsetUnionsBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
-    val primitiveReportingSetBasesBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
-    val weightedSubsetUnionPrimitiveReportingSetBasesBinders =
-      mutableListOf<BoundStatement.Binder.() -> Unit>()
-    val primitiveReportingSetBasisFiltersBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
+    val weightedSubsetUnionsValuesList = mutableListOf<WeightedSubsetUnionsValues>()
+    val primitiveReportingSetBasesValuesList = mutableListOf<PrimitiveReportingSetBasesValues>()
+    val weightedSubsetUnionPrimitiveReportingSetBasesValuesList =
+      mutableListOf<WeightedSubsetUnionPrimitiveReportingSetBasesValues>()
+    val primitiveReportingSetBasisFiltersValuesList =
+      mutableListOf<PrimitiveReportingSetBasisFiltersValues>()
 
     weightedSubsetUnions.forEach { weightedSubsetUnion ->
       val weightedSubsetUnionId = idGenerator.generateInternalId()
-      weightedSubsetUnionsBinders.add {
-        bind("$1", measurementConsumerId)
-        bind("$2", reportingSetId)
-        bind("$3", weightedSubsetUnionId)
-        bind("$4", weightedSubsetUnion.weight)
-        bind("$5", weightedSubsetUnion.binaryRepresentation)
-      }
+      weightedSubsetUnionsValuesList.add(
+        WeightedSubsetUnionsValues(
+          weightedSubsetUnionId = weightedSubsetUnionId,
+          weight = weightedSubsetUnion.weight,
+          binaryRepresentation = weightedSubsetUnion.binaryRepresentation,
+        )
+      )
 
       weightedSubsetUnion.primitiveReportingSetBasesList.forEach {
-        val binders =
-          createPrimitiveReportingSetBasisBindings(
-            measurementConsumerId,
-            reportingSetId,
-            weightedSubsetUnionId,
-            it,
-            reportingSetMap,
-          )
-        primitiveReportingSetBasesBinders.addAll(binders.primitiveReportingSetBasesBinders)
-        weightedSubsetUnionPrimitiveReportingSetBasesBinders.addAll(
-          binders.weightedSubsetUnionPrimitiveReportingSetBasesBinders
+        val insertData =
+          createPrimitiveReportingSetBasisInsertData(weightedSubsetUnionId, it, reportingSetMap)
+        primitiveReportingSetBasesValuesList.add(insertData.primitiveReportingSetBasesValues)
+        weightedSubsetUnionPrimitiveReportingSetBasesValuesList.add(
+          insertData.weightedSubsetUnionPrimitiveReportingSetBasesValues
         )
-        primitiveReportingSetBasisFiltersBinders.addAll(
-          binders.primitiveReportingSetBasisFiltersBinders
+        primitiveReportingSetBasisFiltersValuesList.addAll(
+          insertData.primitiveReportingSetBasisFiltersValuesList
         )
       }
     }
 
     val weightedSubsetUnionsStatement =
-      boundStatement(
+      valuesListBoundStatement(
+        valuesStartIndex = 0,
+        paramCount = 5,
         """
-        INSERT INTO WeightedSubsetUnions (MeasurementConsumerId, ReportingSetId, WeightedSubsetUnionId, Weight, BinaryRepresentation)
-        VALUES ($1, $2, $3, $4, $5)
-        """
+        INSERT INTO WeightedSubsetUnions (
+          MeasurementConsumerId,
+          ReportingSetId,
+          WeightedSubsetUnionId,
+          Weight,
+          BinaryRepresentation
+        )
+        VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER}
+        """,
       ) {
-        weightedSubsetUnionsBinders.forEach { addBinding(it) }
+        weightedSubsetUnionsValuesList.forEach {
+          addValuesBinding {
+            bindValuesParam(0, measurementConsumerId)
+            bindValuesParam(1, reportingSetId)
+            bindValuesParam(2, it.weightedSubsetUnionId)
+            bindValuesParam(3, it.weight)
+            bindValuesParam(4, it.binaryRepresentation)
+          }
+        }
       }
 
     val primitiveReportingSetBasesStatement =
-      boundStatement(
+      valuesListBoundStatement(
+        valuesStartIndex = 0,
+        paramCount = 3,
         """
-        INSERT INTO PrimitiveReportingSetBases (MeasurementConsumerId, PrimitiveReportingSetBasisId, PrimitiveReportingSetId)
-        VALUES ($1, $2, $3)
-        """
+        INSERT INTO PrimitiveReportingSetBases (
+          MeasurementConsumerId,
+          PrimitiveReportingSetBasisId,
+          PrimitiveReportingSetId
+        )
+        VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER}
+        """,
       ) {
-        primitiveReportingSetBasesBinders.forEach { addBinding(it) }
+        primitiveReportingSetBasesValuesList.forEach {
+          addValuesBinding {
+            bindValuesParam(0, measurementConsumerId)
+            bindValuesParam(1, it.primitiveReportingSetBasisId)
+            bindValuesParam(2, it.primitiveReportingSetId)
+          }
+        }
       }
 
     val weightedSubsetUnionPrimitiveReportingSetBasesStatement =
-      boundStatement(
+      valuesListBoundStatement(
+        valuesStartIndex = 0,
+        paramCount = 4,
         """
-        INSERT INTO WeightedSubsetUnionPrimitiveReportingSetBases (MeasurementConsumerId, ReportingSetId, WeightedSubsetUnionId, PrimitiveReportingSetBasisId)
-        VALUES ($1, $2, $3, $4)
-        """
+        INSERT INTO WeightedSubsetUnionPrimitiveReportingSetBases (
+          MeasurementConsumerId,
+          ReportingSetId,
+          WeightedSubsetUnionId,
+          PrimitiveReportingSetBasisId
+        )
+        VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER}
+        """,
       ) {
-        weightedSubsetUnionPrimitiveReportingSetBasesBinders.forEach { addBinding(it) }
+        weightedSubsetUnionPrimitiveReportingSetBasesValuesList.forEach {
+          addValuesBinding {
+            bindValuesParam(0, measurementConsumerId)
+            bindValuesParam(1, reportingSetId)
+            bindValuesParam(2, it.weightedSubsetUnionId)
+            bindValuesParam(3, it.primitiveReportingSetBasisId)
+          }
+        }
       }
 
     val primitiveReportingSetBasisFiltersStatement =
-      boundStatement(
+      valuesListBoundStatement(
+        valuesStartIndex = 0,
+        paramCount = 4,
         """
-        INSERT INTO PrimitiveReportingSetBasisFilters (MeasurementConsumerId, PrimitiveReportingSetBasisId, PrimitiveReportingSetBasisFilterId, Filter)
-        VALUES ($1, $2, $3, $4)
-        """
+        INSERT INTO PrimitiveReportingSetBasisFilters (
+          MeasurementConsumerId,
+          PrimitiveReportingSetBasisId,
+          PrimitiveReportingSetBasisFilterId,
+          Filter
+        )
+        VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER}
+        """,
       ) {
-        primitiveReportingSetBasisFiltersBinders.forEach { addBinding(it) }
+        primitiveReportingSetBasisFiltersValuesList.forEach {
+          addValuesBinding {
+            bindValuesParam(0, measurementConsumerId)
+            bindValuesParam(1, it.primitiveReportingSetBasisId)
+            bindValuesParam(2, it.primitiveReportingSetBasisFilterId)
+            bindValuesParam(3, it.filter)
+          }
+        }
       }
 
     transactionContext.run {
       executeStatement(weightedSubsetUnionsStatement)
       executeStatement(primitiveReportingSetBasesStatement)
       executeStatement(weightedSubsetUnionPrimitiveReportingSetBasesStatement)
-      if (primitiveReportingSetBasisFiltersBinders.size > 0) {
+      if (primitiveReportingSetBasisFiltersValuesList.size > 0) {
         executeStatement(primitiveReportingSetBasisFiltersStatement)
       }
     }
   }
 
-  private fun TransactionScope.createPrimitiveReportingSetBasisBindings(
-    measurementConsumerId: InternalId,
-    reportingSetId: InternalId,
+  private fun TransactionScope.createPrimitiveReportingSetBasisInsertData(
     weightedSubsetUnionId: InternalId,
     primitiveReportingSetBasis: PrimitiveReportingSetBasis,
     reportingSetMap: Map<String, InternalId> = mapOf(),
-  ): PrimitiveReportingSetBasesBinders {
+  ): PrimitiveReportingSetBasesInsertData {
     val primitiveReportingSetBasisId = idGenerator.generateInternalId()
 
     val primitiveReportingSetId =
       reportingSetMap[primitiveReportingSetBasis.externalReportingSetId]
         ?: throw ReportingSetNotFoundException()
 
-    val primitiveReportingSetBasesBinder: BoundStatement.Binder.() -> Unit = {
-      bind("$1", measurementConsumerId)
-      bind("$2", primitiveReportingSetBasisId)
-      bind("$3", primitiveReportingSetId)
-    }
+    val primitiveReportingSetBasesValues =
+      PrimitiveReportingSetBasesValues(
+        primitiveReportingSetBasisId = primitiveReportingSetBasisId,
+        primitiveReportingSetId = primitiveReportingSetId,
+      )
 
-    val weightedSubsetUnionPrimitiveReportingSetBasesBinder: BoundStatement.Binder.() -> Unit = {
-      bind("$1", measurementConsumerId)
-      bind("$2", reportingSetId)
-      bind("$3", weightedSubsetUnionId)
-      bind("$4", primitiveReportingSetBasisId)
-    }
+    val weightedSubsetUnionPrimitiveReportingSetBasesValues =
+      WeightedSubsetUnionPrimitiveReportingSetBasesValues(
+        weightedSubsetUnionId = weightedSubsetUnionId,
+        primitiveReportingSetBasisId = primitiveReportingSetBasisId,
+      )
 
-    val primitiveReportingSetBasisFiltersBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
-    primitiveReportingSetBasis.filtersList.forEach {
-      primitiveReportingSetBasisFiltersBinders.add(
-        insertPrimitiveReportingSetBasisFilter(
-          measurementConsumerId,
-          primitiveReportingSetBasisId,
-          it,
+    val primitiveReportingSetBasisFiltersValuesList =
+      mutableListOf<PrimitiveReportingSetBasisFiltersValues>()
+    primitiveReportingSetBasis.filtersList.forEach { filter ->
+      val primitiveReportingSetBasisFilterId = idGenerator.generateInternalId()
+      primitiveReportingSetBasisFiltersValuesList.add(
+        PrimitiveReportingSetBasisFiltersValues(
+          primitiveReportingSetBasisId = primitiveReportingSetBasisId,
+          primitiveReportingSetBasisFilterId = primitiveReportingSetBasisFilterId,
+          filter = filter,
         )
       )
     }
 
-    return PrimitiveReportingSetBasesBinders(
-      primitiveReportingSetBasesBinders = listOf(primitiveReportingSetBasesBinder),
-      weightedSubsetUnionPrimitiveReportingSetBasesBinders =
-        listOf(weightedSubsetUnionPrimitiveReportingSetBasesBinder),
-      primitiveReportingSetBasisFiltersBinders,
+    return PrimitiveReportingSetBasesInsertData(
+      primitiveReportingSetBasesValues = primitiveReportingSetBasesValues,
+      weightedSubsetUnionPrimitiveReportingSetBasesValues =
+        weightedSubsetUnionPrimitiveReportingSetBasesValues,
+      primitiveReportingSetBasisFiltersValuesList,
     )
-  }
-
-  private fun TransactionScope.insertPrimitiveReportingSetBasisFilter(
-    measurementConsumerId: InternalId,
-    primitiveReportingSetBasisId: InternalId,
-    filter: String,
-  ): BoundStatement.Binder.() -> Unit {
-    val primitiveReportingSetBasisFilterId = idGenerator.generateInternalId()
-
-    return {
-      bind("$1", measurementConsumerId)
-      bind("$2", primitiveReportingSetBasisId)
-      bind("$3", primitiveReportingSetBasisFilterId)
-      bind("$4", filter)
-    }
   }
 }
