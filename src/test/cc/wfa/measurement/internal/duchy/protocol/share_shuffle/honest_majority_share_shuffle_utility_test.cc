@@ -40,6 +40,7 @@
 #include "wfa/measurement/internal/duchy/noise_mechanism.pb.h"
 #include "wfa/measurement/internal/duchy/protocol/common/noise_parameters_computation.h"
 #include "wfa/measurement/internal/duchy/protocol/honest_majority_share_shuffle_methods.pb.h"
+#include "wfa/measurement/internal/duchy/protocol/share_shuffle/honest_majority_share_shuffle_utility_helper.h"
 
 namespace wfa::measurement::internal::duchy::protocol::share_shuffle {
 namespace {
@@ -67,13 +68,35 @@ using ::wfa::measurement::internal::duchy::protocol::common::
     GetBlindHistogramNoiser;
 
 constexpr int kEdpCount = 5;
-constexpr int kRegisterCount = 10;
+constexpr int kRegisterCount = 100;
 constexpr int kBytesPerRegister = 1;
-constexpr int kMaxFrequencyPerEdp = 10;
+constexpr int kMaxFrequencyPerEdp = 2;
 constexpr int kMaxCombinedFrequency = 1 + kEdpCount * kMaxFrequencyPerEdp;
 constexpr int kRingModulus = 128;
 constexpr double kEpsilon = 1.0;
-constexpr double kDelta = 0.000001;
+constexpr double kDelta = 0.1;
+constexpr double kVidSamplingIntervalWidth = 0.5;
+
+struct MpcResult {
+  int64_t reach;
+  absl::flat_hash_map<int64_t, double> frequency_distribution;
+};
+
+PrngSeed GenerateRandomSeed() {
+  std::string key;
+  std::string iv;
+  key.resize(kBytesPerAes256Key);
+  iv.resize(kBytesPerAes256Iv);
+
+  RAND_bytes(reinterpret_cast<uint8_t*>(key.data()), key.size());
+  RAND_bytes(reinterpret_cast<uint8_t*>(iv.data()), iv.size());
+
+  PrngSeed seed;
+  *seed.mutable_key() = key;
+  *seed.mutable_iv() = iv;
+
+  return seed;
+}
 
 class ShufflePhaseTestData {
  public:
@@ -81,6 +104,10 @@ class ShufflePhaseTestData {
     *request_.mutable_common_random_seed() =
         std::string(kBytesPerAes256Key + kBytesPerAes256Iv, 'a');
     request_.set_noise_mechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+    SetSketchParams(kRegisterCount, kBytesPerRegister, kMaxCombinedFrequency,
+                    kRingModulus);
+    SetDifferentialPrivacyParams(kEpsilon, kDelta);
+
     PrngSeed seed = GenerateRandomSeed();
     auto prng = CreatePrngFromSeed(seed);
     if (!prng.ok()) {
@@ -109,6 +136,8 @@ class ShufflePhaseTestData {
     request_.mutable_dp_params()->set_delta(delta);
   }
 
+  void ClearDifferentialPrivacyParams() { request_.clear_dp_params(); }
+
   void AddSeedToSketchShares(const std::string& seed) {
     *request_.add_sketch_shares()->mutable_seed() = seed;
   }
@@ -126,22 +155,6 @@ class ShufflePhaseTestData {
   void AddShareToSketchShares(const SecretShare& secret_share) {
     request_.add_sketch_shares()->mutable_data()->mutable_values()->Add(
         secret_share.share_vector().begin(), secret_share.share_vector().end());
-  }
-
-  PrngSeed GenerateRandomSeed() {
-    std::string key;
-    std::string iv;
-    key.resize(kBytesPerAes256Key);
-    iv.resize(kBytesPerAes256Iv);
-
-    RAND_bytes(reinterpret_cast<uint8_t*>(key.data()), key.size());
-    RAND_bytes(reinterpret_cast<uint8_t*>(iv.data()), iv.size());
-
-    PrngSeed seed;
-    *seed.mutable_key() = key;
-    *seed.mutable_iv() = iv;
-
-    return seed;
   }
 
   absl::StatusOr<std::vector<uint32_t>> GenerateUniformRandomRange(
@@ -225,8 +238,7 @@ TEST(ShufflePhaseAtNonAggregator, EmptySketchSharesFails) {
 TEST(ShufflePhaseAtNonAggregator,
      NonAggregatorOrderNotSpecifiedAndDpParamsNotSpecifiedSucceeds) {
   ShufflePhaseTestData test_data;
-  test_data.SetSketchParams(kRegisterCount, kBytesPerRegister,
-                            kMaxCombinedFrequency, kRingModulus);
+  test_data.ClearDifferentialPrivacyParams();
   std::vector<uint32_t> share_data(kRegisterCount, 1);
   test_data.AddShareToSketchShares(share_data);
   EXPECT_EQ(test_data.RunShufflePhase().status(), absl::OkStatus());
@@ -247,8 +259,7 @@ TEST(ShufflePhaseAtNonAggregator,
 TEST(ShufflePhaseAtNonAggregator,
      SketchSharesContainOnlyShareVectorAndNoDpNoiseSucceeds) {
   ShufflePhaseTestData test_data;
-  test_data.SetSketchParams(kRegisterCount, kBytesPerRegister,
-                            kMaxCombinedFrequency, kRingModulus);
+  test_data.ClearDifferentialPrivacyParams();
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
   ASSERT_OK_AND_ASSIGN(
       std::vector<uint32_t> share_vector,
@@ -276,8 +287,7 @@ TEST(ShufflePhaseAtNonAggregator,
 TEST(ShufflePhaseAtNonAggregator,
      SketchSharesContainOnlySeedsAndNoDpNoiseSucceeds) {
   ShufflePhaseTestData test_data;
-  test_data.SetSketchParams(kRegisterCount, kBytesPerRegister,
-                            kMaxCombinedFrequency, kRingModulus);
+  test_data.ClearDifferentialPrivacyParams();
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
   std::string share_seed(kBytesPerAes256Key + kBytesPerAes256Iv, 'c');
   for (int i = 0; i < kEdpCount; i++) {
@@ -312,8 +322,7 @@ TEST(ShufflePhaseAtNonAggregator,
 TEST(ShufflePhaseAtNonAggregator,
      SketchSharesContainShareVectorAndSeedsAndNoDpNoiseSucceeds) {
   ShufflePhaseTestData test_data;
-  test_data.SetSketchParams(kRegisterCount, kBytesPerRegister,
-                            kMaxCombinedFrequency, kRingModulus);
+  test_data.ClearDifferentialPrivacyParams();
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
 
   ASSERT_OK_AND_ASSIGN(
@@ -405,13 +414,11 @@ TEST(ShufflePhaseAtNonAggregator, ShufflePhaseWithDpNoiseSucceeds) {
 TEST(ShufflePhaseAtNonAggregator,
      ShufflePhaseSimulationForTwoDuchiesWithoutDpNoiseSucceeds) {
   ShufflePhaseTestData test_data_1;
-  test_data_1.SetSketchParams(kRegisterCount, kBytesPerRegister,
-                              kMaxCombinedFrequency, kRingModulus);
+  test_data_1.ClearDifferentialPrivacyParams();
   test_data_1.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
 
   ShufflePhaseTestData test_data_2;
-  test_data_2.SetSketchParams(kRegisterCount, kBytesPerRegister,
-                              kMaxCombinedFrequency, kRingModulus);
+  test_data_2.ClearDifferentialPrivacyParams();
   test_data_2.SetNonAggregatorOrder(CompleteShufflePhaseRequest::SECOND);
 
   ASSERT_OK_AND_ASSIGN(std::vector<uint32_t> input_a,
@@ -464,15 +471,9 @@ TEST(ShufflePhaseAtNonAggregator,
 TEST(ShufflePhaseAtNonAggregator,
      ShufflePhaseSimulationForTwoDuchiesWithDpNoiseSucceeds) {
   ShufflePhaseTestData test_data_1;
-  test_data_1.SetSketchParams(kRegisterCount, kBytesPerRegister,
-                              kMaxCombinedFrequency, kRingModulus);
-  test_data_1.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   test_data_1.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
 
   ShufflePhaseTestData test_data_2;
-  test_data_2.SetSketchParams(kRegisterCount, kBytesPerRegister,
-                              kMaxCombinedFrequency, kRingModulus);
-  test_data_2.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   test_data_2.SetNonAggregatorOrder(CompleteShufflePhaseRequest::SECOND);
 
   ASSERT_OK_AND_ASSIGN(std::vector<uint32_t> input_a,
@@ -533,11 +534,11 @@ TEST(ShufflePhaseAtNonAggregator,
 
   EXPECT_THAT(combined_sketch, testing::IsSupersetOf(combined_input));
 
-  std::unordered_map<int, int> combined_input_frequency;
+  absl::flat_hash_map<int, int> combined_input_frequency;
   for (auto x : combined_input) {
     combined_input_frequency[x]++;
   }
-  std::unordered_map<int, int> noisy_frequency;
+  absl::flat_hash_map<int, int> noisy_frequency;
   for (auto x : combined_sketch) {
     noisy_frequency[x]++;
   }
@@ -554,6 +555,369 @@ TEST(ShufflePhaseAtNonAggregator,
   // The noisy frequency map [f_0, ..., f_{kMaxCombinedFrequency},
   // f_{kRingModulus-1}] have exactly (2 + kMaxCombinedFrequency) elements.
   EXPECT_EQ(noisy_frequency.size(), 2 + kMaxCombinedFrequency);
+}
+
+class AggregationPhaseTestData {
+ public:
+  AggregationPhaseTestData() {
+    PrngSeed seed = GenerateRandomSeed();
+    auto prng = CreatePrngFromSeed(seed);
+    if (!prng.ok()) {
+      LOG(FATAL) << "Cannot create Prng from seed.\n";
+    }
+    prng_ = std::move(prng.value());
+    request_.set_vid_sampling_interval_width(kVidSamplingIntervalWidth);
+    request_.set_noise_mechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+    SetDifferentialPrivacyParams(kEpsilon, kDelta);
+    SetSketchParams(kRegisterCount, kBytesPerRegister, kMaxCombinedFrequency,
+                    kRingModulus);
+    SetMaximumFrequency(kMaxFrequencyPerEdp);
+  }
+
+  void SetMaximumFrequency(int maximum_frequency) {
+    request_.set_maximum_frequency(maximum_frequency);
+  }
+
+  void SetSketchParams(int register_count, int bytes_per_register,
+                       int maximum_combined_frequency, int ring_modulus) {
+    request_.mutable_sketch_params()->set_register_count(register_count);
+    request_.mutable_sketch_params()->set_bytes_per_register(
+        bytes_per_register);
+    request_.mutable_sketch_params()->set_maximum_combined_frequency(
+        maximum_combined_frequency);
+    request_.mutable_sketch_params()->set_ring_modulus(ring_modulus);
+  }
+
+  void ClearDifferentialPrivacyParams() { request_.clear_dp_params(); }
+
+  void SetDifferentialPrivacyParams(double eps, double delta) {
+    request_.mutable_dp_params()->set_epsilon(eps);
+    request_.mutable_dp_params()->set_delta(delta);
+  }
+
+  void AddShareToSketchShares(absl::Span<const uint32_t> data) {
+    request_.add_sketch_shares()->mutable_share_vector()->Add(data.begin(),
+                                                              data.end());
+  }
+
+  absl::StatusOr<MpcResult> RunAggregationPhase() {
+    MpcResult result;
+    ASSIGN_OR_RETURN(auto response, CompleteAggregationPhase(request_));
+    result.reach = response.reach();
+    for (auto pair : response.frequency_distribution()) {
+      result.frequency_distribution[pair.first] = pair.second;
+    }
+    return result;
+  }
+
+  absl::StatusOr<std::vector<uint32_t>> GenerateRandomShare(int size,
+                                                            uint32_t modulus) {
+    ASSIGN_OR_RETURN(std::vector<uint32_t> share_vector,
+                     prng_->GenerateUniformRandomRange(size, modulus));
+    return share_vector;
+  }
+
+ protected:
+  std::unique_ptr<UniformPseudorandomGenerator> prng_;
+  CompleteAggregationPhaseRequest request_;
+};
+
+TEST(AggregationPhase, InvalidNumberOfSketchSharesFails) {
+  AggregationPhaseTestData test_data;
+  std::vector<uint32_t> share_vector(10, 0);
+  test_data.AddShareToSketchShares(share_vector);
+  EXPECT_THAT(test_data.RunAggregationPhase().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "non-aggregators"));
+}
+
+TEST(AggregationPhase, InvalidMaximumFrequencyFails) {
+  AggregationPhaseTestData test_data;
+  ASSERT_OK_AND_ASSIGN(
+      std::vector<uint32_t> share_vector_1,
+      test_data.GenerateRandomShare(kRegisterCount, kRingModulus));
+  ASSERT_OK_AND_ASSIGN(
+      std::vector<uint32_t> share_vector_2,
+      test_data.GenerateRandomShare(kRegisterCount, kRingModulus));
+  test_data.AddShareToSketchShares(share_vector_1);
+  test_data.AddShareToSketchShares(share_vector_2);
+  test_data.SetMaximumFrequency(0);
+  EXPECT_THAT(test_data.RunAggregationPhase().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "maximum"));
+}
+
+TEST(AggregationPhase, SketchShareVectorsHaveDifferentSizeFails) {
+  AggregationPhaseTestData test_data;
+  ASSERT_OK_AND_ASSIGN(
+      std::vector<uint32_t> share_vector_1,
+      test_data.GenerateRandomShare(kRegisterCount, kRingModulus));
+  ASSERT_OK_AND_ASSIGN(
+      std::vector<uint32_t> share_vector_2,
+      test_data.GenerateRandomShare(kRegisterCount + 1, kRingModulus));
+  test_data.AddShareToSketchShares(share_vector_1);
+  test_data.AddShareToSketchShares(share_vector_2);
+  test_data.SetMaximumFrequency(0);
+  EXPECT_THAT(test_data.RunAggregationPhase().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "same length"));
+}
+
+TEST(AggregationPhase, CombinedSketchElementExceedsMaxCombinedFrequencyFails) {
+  AggregationPhaseTestData test_data;
+  int register_count = 1;
+  test_data.SetSketchParams(register_count, /*bytes_per_register=*/1,
+                            /*max_combined_frequency=*/4,
+                            /*ring_modulus=*/8);
+  test_data.SetMaximumFrequency(2);
+  test_data.ClearDifferentialPrivacyParams();
+
+  std::vector<uint32_t> share_vector_1 = {0};
+  std::vector<uint32_t> share_vector_2 = {5};
+
+  test_data.AddShareToSketchShares(share_vector_1);
+  test_data.AddShareToSketchShares(share_vector_2);
+  EXPECT_THAT(test_data.RunAggregationPhase().status(),
+              StatusIs(absl::StatusCode::kInternal, "5"));
+}
+
+TEST(AggregationPhase, AggregationPhaseWithoutDPNoiseSucceeds) {
+  AggregationPhaseTestData test_data;
+  int register_count = 8;
+  test_data.SetSketchParams(register_count, /*bytes_per_register=*/1,
+                            /*max_combined_frequency=*/4,
+                            /*ring_modulus=*/8);
+  test_data.SetMaximumFrequency(2);
+  test_data.ClearDifferentialPrivacyParams();
+
+  // The combined sketch is {0, 0, 0, 0, 1, 2, 3, 4}. The frequency histogram
+  // after removing offset is {f[0] = 4, f[1] = f[2] = f[3] = f[4] = 1}.
+  std::vector<uint32_t> share_vector_1 = {3, 4, 3, 6, 1, 7, 2, 0};
+  std::vector<uint32_t> share_vector_2 = {5, 4, 5, 2, 0, 3, 1, 4};
+
+  test_data.AddShareToSketchShares(share_vector_1);
+  test_data.AddShareToSketchShares(share_vector_2);
+
+  ASSERT_OK_AND_ASSIGN(MpcResult result, test_data.RunAggregationPhase());
+  ASSERT_OK_AND_ASSIGN(int64_t expected_reach,
+                       EstimateReach(4.0, kVidSamplingIntervalWidth));
+  EXPECT_EQ(result.reach, expected_reach);
+  ASSERT_THAT(result.frequency_distribution, SizeIs(2));
+  EXPECT_EQ(result.frequency_distribution[1], 0.25);
+  EXPECT_EQ(result.frequency_distribution[2], 0.75);
+}
+
+TEST(AggregationPhase, AggregationPhaseWithDPNoiseSucceeds) {
+  AggregationPhaseTestData test_data;
+  int register_count = 8;
+  test_data.SetSketchParams(register_count, /*bytes_per_register=*/1,
+                            /*max_combined_frequency=*/4,
+                            /*ring_modulus=*/8);
+  test_data.SetMaximumFrequency(2);
+  // Computed offset = 2.
+  test_data.SetDifferentialPrivacyParams(10.0, 1.0);
+  // The combined sketch is {0, 0, 0, 0, 1, 2, 3, 4, 0, 0, 1, 1, 2, 2, 3, 3, 4,
+  // 4}. The frequency histogram after removing offset is {f[0] = 4,
+  // f[1] = f[2] = f[3] = f[4] = 1}.
+  std::vector<uint32_t> share_vector_1 = {3, 4, 3, 6, 1, 7, 4, 2, 0,
+                                          0, 0, 0, 0, 0, 0, 0, 0, 0};
+  std::vector<uint32_t> share_vector_2 = {5, 4, 5, 2, 0, 3, 7, 2, 0,
+                                          0, 1, 1, 2, 2, 3, 3, 4, 4};
+
+  test_data.AddShareToSketchShares(share_vector_1);
+  test_data.AddShareToSketchShares(share_vector_2);
+
+  ASSERT_OK_AND_ASSIGN(MpcResult result, test_data.RunAggregationPhase());
+  ASSERT_OK_AND_ASSIGN(int64_t expected_reach,
+                       EstimateReach(4.0, kVidSamplingIntervalWidth));
+  EXPECT_EQ(result.reach, expected_reach);
+  ASSERT_THAT(result.frequency_distribution, SizeIs(2));
+  EXPECT_EQ(result.frequency_distribution[1], 0.25);
+  EXPECT_EQ(result.frequency_distribution[2], 0.75);
+}
+
+TEST(AggregationPhase, AggregationPhaseNoDataNorEffectiveNoiseFails) {
+  AggregationPhaseTestData test_data;
+  int register_count = 4;
+  test_data.SetSketchParams(register_count, /*bytes_per_register=*/1,
+                            /*max_combined_frequency=*/4,
+                            /*ring_modulus=*/8);
+  test_data.SetMaximumFrequency(2);
+  // Computed offset = 2.
+  test_data.SetDifferentialPrivacyParams(10.0, 1.0);
+  // The combined sketch is {0, 0, 0, 0, 0, 0, 2, 2, 2}. The frequency histogram
+  // after removing offset is {f[0] = 4, f[2] = 1}.
+  std::vector<uint32_t> share_vector_1 = {0, 3, 4, 3, 6, 1, 7, 4, 3};
+  std::vector<uint32_t> share_vector_2 = {0, 5, 4, 5, 2, 7, 3, 6, 7};
+
+  test_data.AddShareToSketchShares(share_vector_1);
+  test_data.AddShareToSketchShares(share_vector_2);
+
+  EXPECT_THAT(
+      test_data.RunAggregationPhase().status(),
+      StatusIs(absl::StatusCode::kInvalidArgument, "data nor effective noise"));
+}
+
+class EndToEndHmssTest {
+ public:
+  EndToEndHmssTest() {}
+  absl::Status GoThroughEntireMpcProtocol(int edp_count, int register_count,
+                                          int bytes_per_register,
+                                          int maximum_combined_frequency,
+                                          int ring_modulus,
+                                          int maximum_frequency, double epsilon,
+                                          double delta, bool has_dp_noise) {
+    ShufflePhaseTestData worker_1;
+    ShufflePhaseTestData worker_2;
+    AggregationPhaseTestData aggregator;
+
+    worker_1.SetSketchParams(register_count, bytes_per_register,
+                             maximum_combined_frequency, ring_modulus);
+    worker_2.SetSketchParams(register_count, bytes_per_register,
+                             maximum_combined_frequency, ring_modulus);
+    aggregator.SetSketchParams(register_count, bytes_per_register,
+                               maximum_combined_frequency, ring_modulus);
+    worker_1.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
+    worker_2.SetNonAggregatorOrder(CompleteShufflePhaseRequest::SECOND);
+
+    SecretShareParameter secret_share_params;
+    secret_share_params.set_modulus(ring_modulus);
+
+    int64_t shift_offset = 0;
+    int64_t total_noise_registers_count_per_duchy = 0;
+
+    if (has_dp_noise) {
+      DifferentialPrivacyParams dp_params;
+      dp_params.set_epsilon(kEpsilon);
+      dp_params.set_delta(kDelta);
+      auto noiser = GetBlindHistogramNoiser(dp_params,
+                                            /*contributors_count=*/2,
+                                            NoiseMechanism::DISCRETE_GAUSSIAN);
+      shift_offset = noiser->options().shift_offset;
+      total_noise_registers_count_per_duchy =
+          noiser->options().shift_offset * 2 * (1 + maximum_combined_frequency);
+    } else {
+      worker_1.ClearDifferentialPrivacyParams();
+      worker_2.ClearDifferentialPrivacyParams();
+      aggregator.ClearDifferentialPrivacyParams();
+    }
+
+    PrngSeed seed = GenerateRandomSeed();
+    ASSIGN_OR_RETURN(auto prng, CreatePrngFromSeed(seed));
+
+    std::vector<std::vector<uint32_t>> data_from_edps(edp_count);
+    std::vector<uint32_t> combined_sketch(register_count, 0);
+    std::vector<SecretShare> secret_shares(edp_count);
+
+    // Emulates the EDPs.
+    // Generates shares from input and distributes them to workers.
+    for (int i = 0; i < edp_count; i++) {
+      // Generates random sketch for the Edp.
+      ASSIGN_OR_RETURN(
+          data_from_edps[i],
+          prng->GenerateUniformRandomRange(register_count, maximum_frequency));
+      // Adds the sketch to the combined sketch.
+      ASSIGN_OR_RETURN(
+          combined_sketch,
+          VectorAddMod(combined_sketch, data_from_edps[i], ring_modulus));
+      // Generates secret share from the sketch.
+      ASSIGN_OR_RETURN(
+          secret_shares[i],
+          GenerateSecretShares(secret_share_params, data_from_edps[i]));
+      // Assigns the sketch shares to the workers.
+      if (i % 2 == 0) {
+        worker_1.AddShareToSketchShares(secret_shares[i]);
+        worker_2.AddSeedToSketchShares(secret_shares[i]);
+      } else {
+        worker_1.AddSeedToSketchShares(secret_shares[i]);
+        worker_2.AddShareToSketchShares(secret_shares[i]);
+      }
+    }
+
+    // Worker 1 runs the shuffle phase.
+    ASSIGN_OR_RETURN(
+        CompleteShufflePhaseResponse complete_shuffle_phase_response_1,
+        worker_1.RunShufflePhase());
+
+    // Worker 2 runs the shuffle phase.
+    ASSIGN_OR_RETURN(
+        CompleteShufflePhaseResponse complete_shuffle_phase_response_2,
+        worker_2.RunShufflePhase());
+
+    std::vector<uint32_t> share_from_worker_1(
+        complete_shuffle_phase_response_1.combined_sketch().begin(),
+        complete_shuffle_phase_response_1.combined_sketch().end());
+    std::vector<uint32_t> share_from_worker_2(
+        complete_shuffle_phase_response_2.combined_sketch().begin(),
+        complete_shuffle_phase_response_2.combined_sketch().end());
+
+    EXPECT_THAT(
+        share_from_worker_1,
+        SizeIs(register_count + 2 * total_noise_registers_count_per_duchy));
+    EXPECT_THAT(
+        share_from_worker_2,
+        SizeIs(register_count + 2 * total_noise_registers_count_per_duchy));
+
+    // Emulates the aggregator.
+    aggregator.AddShareToSketchShares(share_from_worker_1);
+    aggregator.AddShareToSketchShares(share_from_worker_2);
+
+    std::unordered_map<int, int64_t> frequency_histogram;
+    for (auto x : combined_sketch) {
+      frequency_histogram[x]++;
+    }
+
+    ASSIGN_OR_RETURN(int64_t expected_reach,
+                     EstimateReach(register_count - frequency_histogram[0],
+                                   kVidSamplingIntervalWidth));
+
+    // When there is no differential noise, the shift offset is 0.
+    int64_t max_reach_error = 2 * shift_offset / kVidSamplingIntervalWidth;
+
+    ASSIGN_OR_RETURN(MpcResult result, aggregator.RunAggregationPhase());
+
+    EXPECT_LE(std::abs(expected_reach - result.reach), max_reach_error);
+
+    for (int i = 1; i < kMaxFrequencyPerEdp; i++) {
+      if (frequency_histogram.count(i)) {
+        int min_reach = std::max(
+            1L, register_count - frequency_histogram[0] - 2 * shift_offset);
+        int max_reach =
+            register_count - frequency_histogram[0] + 2 * shift_offset;
+        double upper_bound =
+            0.00001 + (frequency_histogram[i] + 2 * shift_offset) /
+                          static_cast<double>(min_reach);
+        double lower_bound =
+            -0.00001 + (frequency_histogram[i] - 2 * shift_offset) /
+                           static_cast<double>(max_reach);
+        EXPECT_LE(result.frequency_distribution[i], upper_bound);
+        EXPECT_GE(result.frequency_distribution[i], lower_bound);
+      }
+    }
+
+    return absl::OkStatus();
+  }
+};
+
+TEST(EndToEndHmss, HmssWithoutDPNoiseSucceeds) {
+  EndToEndHmssTest mpc;
+  auto mpc_result = mpc.GoThroughEntireMpcProtocol(
+      /*edp_count=*/kEdpCount, /*register_count=*/kRegisterCount,
+      /*bytes_per_register=*/kBytesPerRegister,
+      /*maximum_combined_frequency=*/kMaxCombinedFrequency,
+      /*ring_modulus=*/kRingModulus,
+      /*maximum_frequency=*/kMaxFrequencyPerEdp, /*epsilon=*/kEpsilon,
+      /*delta=*/kDelta, /*has_dp_noise=*/false);
+  EXPECT_THAT(mpc_result, IsOk());
+}
+
+TEST(EndToEndHmss, HmssWithDPNoiseSucceeds) {
+  EndToEndHmssTest mpc;
+  auto mpc_result = mpc.GoThroughEntireMpcProtocol(
+      /*edp_count=*/kEdpCount, /*register_count=*/kRegisterCount,
+      /*bytes_per_register=*/kBytesPerRegister,
+      /*maximum_combined_frequency=*/kMaxCombinedFrequency,
+      /*ring_modulus=*/kRingModulus,
+      /*maximum_frequency=*/kMaxFrequencyPerEdp, /*epsilon=*/kEpsilon,
+      /*delta=*/kDelta, /*has_dp_noise=*/true);
+  EXPECT_THAT(mpc_result, IsOk());
 }
 
 }  // namespace
