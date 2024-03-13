@@ -51,6 +51,8 @@ using ::wfa::measurement::common::crypto::SecureShuffleWithSeed;
 using ::wfa::measurement::internal::duchy::protocol::common::
     GetBlindHistogramNoiser;
 
+constexpr int kWorkerCount = 2;
+
 absl::Status VerifySketchParameters(const ShareShuffleSketchParams& params) {
   if (params.register_count() < 1) {
     return absl::InvalidArgumentError("The register count must be at least 1.");
@@ -182,6 +184,140 @@ absl::StatusOr<CompleteShufflePhaseResponse> CompleteShufflePhase(
 
   response.mutable_combined_sketch()->Add(combined_sketch.begin(),
                                           combined_sketch.end());
+  *response.mutable_elapsed_cpu_duration() =
+      google::protobuf::util::TimeUtil::MillisecondsToDuration(
+          timer.ElapsedMillis());
+  return response;
+}
+
+absl::StatusOr<CompleteAggregationPhaseResponse> CompleteAggregationPhase(
+    const CompleteAggregationPhaseRequest& request) {
+  StartedThreadCpuTimer timer;
+  CompleteAggregationPhaseResponse response;
+
+  if (request.sketch_shares().size() != kWorkerCount) {
+    return absl::InvalidArgumentError(
+        "The number of share vectors must be equal to the number of "
+        "non-aggregators.");
+  }
+  ASSIGN_OR_RETURN(
+      std::vector<uint32_t> combined_sketch,
+      CombineSketchShares(request.sketch_params(), request.sketch_shares()));
+
+  int maximum_frequency = request.maximum_frequency();
+  if (maximum_frequency < 1) {
+    return absl::InvalidArgumentError(
+        "The maximum frequency should be greater than 0.");
+  }
+
+  // Validates the combined sketch and generates the frequency histogram.
+  // frequency_histogram[i] = the number of times value i occurs where
+  // i in {0, ..., maximum_frequency-1}.
+  absl::flat_hash_map<int, int64_t> frequency_histogram;
+  for (auto x : combined_sketch) {
+    if (x > request.sketch_params().maximum_combined_frequency() &&
+        x != (request.sketch_params().ring_modulus() - 1)) {
+      return absl::InternalError(absl::Substitute(
+          "The combined register value, which is $0, is not valid. It must be "
+          "either the "
+          "sentinel value, which is $1, or less that or equal to the combined "
+          "maximum "
+          "frequency, which is $2.",
+          x, request.sketch_params().ring_modulus() - 1,
+          request.sketch_params().maximum_combined_frequency()));
+    }
+    if (x < maximum_frequency) {
+      frequency_histogram[x]++;
+    }
+  }
+
+  int64_t register_count = request.sketch_params().register_count();
+
+  // Computes the non empty register count by subtracting frequency zero from
+  // the input sketch size. Another way to compute it is to add up all
+  // frequencies from 1 to the maximum combined frequency. However, the latter
+  // approach will have a lot more noise.
+  int64_t non_empty_register_count = register_count - frequency_histogram[0];
+
+  // Adjusts the frequency histogram and non empty register count according the
+  // noise baseline for the frequencies from 0 to {maximum_frequency - 1}.
+  if (request.has_dp_params()) {
+    auto noiser = GetBlindHistogramNoiser(request.dp_params(), kWorkerCount,
+                                          request.noise_mechanism());
+    int64_t noise_baseline_per_bucket =
+        noiser->options().shift_offset * kWorkerCount;
+    // Removes the noise baseline from the frequency histogram.
+    for (auto it = frequency_histogram.begin(); it != frequency_histogram.end();
+         it++) {
+      it->second = std::max(0L, it->second - noise_baseline_per_bucket);
+    }
+    // Adjusts the non empty register count.
+    non_empty_register_count += noise_baseline_per_bucket;
+
+    // Ensures that non_empty_register_count is at least 0.
+    non_empty_register_count = std::max(0L, non_empty_register_count);
+
+    // Ensures that non_empty_register_count is at most the input sketch size.
+    non_empty_register_count =
+        std::min(register_count, non_empty_register_count);
+  }
+
+  // Counts the number of registers that have frequency value in the range
+  // [0, maximum_frequency - 1].
+  int accumulated_count = 0;
+  for (auto it = frequency_histogram.begin(); it != frequency_histogram.end();
+       it++) {
+    accumulated_count += it->second;
+  }
+
+  // Computes the value frequency_histogram[maximum_frequency+] from the current
+  // frequency histogram, then stores the number of registers that have
+  // frequency value in the range [1, maximum_frequency+] in adjusted_total, and
+  // uses the adjusted total in the calculation of the frequency distribution.
+  //
+  // Let f[i] = frequency_histogram[i], MF = maximum_frequency. From the
+  // previous step we have: accumulated_count = f[0] + ... + f[MF - 1].
+  //
+  // If the accumulated count exceeds the register count, f[MF+] will be
+  // assigned zero value (which is very unlikely in practice). Then
+  // adjusted_total = accumulated_count - f[0] = f[1] + ... + f[MF - 1] = f[1] +
+  // ... + f[MF - 1] + f[MF+] (as f[MF+] = 0).
+  //
+  // Otherwise, f[MF+] is equal to {register_count - accumulated_count}. And
+  // adjusted_total = register_count - f[0] = f[MF+] + accumulated_count - f[0]
+  // = f[1] + ... + f[MF - 1] + f[MF+].
+  int64_t adjusted_total = 0;
+  if (accumulated_count > register_count) {
+    frequency_histogram[maximum_frequency] = 0;
+    adjusted_total = accumulated_count - frequency_histogram[0];
+  } else {
+    frequency_histogram[maximum_frequency] = register_count - accumulated_count;
+    adjusted_total = register_count - frequency_histogram[0];
+  }
+
+  // Returns error message when the adjusted_total equals to zero. This happens
+  // when frequency_histogram[0] = max(register_count, accumulated_count) which
+  // suggests that the sketchs are empty.
+  if (adjusted_total == 0) {
+    return absl::InvalidArgumentError(
+        "There is neither actual data nor effective noise in the request.");
+  }
+  // Estimates reach using the number of non-empty buckets and the vid sampling
+  // interval width.
+  ASSIGN_OR_RETURN(int64_t reach,
+                   EstimateReach(non_empty_register_count,
+                                 request.vid_sampling_interval_width()));
+
+  response.set_reach(reach);
+
+  google::protobuf::Map<int64_t, double>& distribution =
+      *response.mutable_frequency_distribution();
+  for (int i = 1; i <= maximum_frequency; ++i) {
+    if (frequency_histogram[i] != 0) {
+      distribution[i] =
+          static_cast<double>(frequency_histogram[i]) / adjusted_total;
+    }
+  }
   *response.mutable_elapsed_cpu_duration() =
       google::protobuf::util::TimeUtil::MillisecondsToDuration(
           timer.ElapsedMillis());

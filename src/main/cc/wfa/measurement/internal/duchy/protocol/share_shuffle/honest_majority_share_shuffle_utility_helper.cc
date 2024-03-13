@@ -134,24 +134,114 @@ absl::StatusOr<std::vector<uint32_t>> GetShareVectorFromSketchShare(
   return share_vector;
 }
 
-absl::StatusOr<std::vector<uint32_t>> VectorSubMod(
-    const std::vector<uint32_t>& X, const std::vector<uint32_t>& Y,
+absl::StatusOr<std::vector<uint32_t>> CombineSketchShares(
+    const ShareShuffleSketchParams& sketch_params,
+    const google::protobuf::RepeatedPtrField<
+        CompleteAggregationPhaseRequest::ShareData>& sketch_shares) {
+  if (sketch_shares.empty()) {
+    return absl::InvalidArgumentError(
+        "There must be at least one share vector.");
+  }
+
+  if (sketch_params.ring_modulus() < 2) {
+    return absl::InvalidArgumentError("Ring modulus must be at least 2.");
+  }
+
+  std::vector<uint32_t> combined_share(
+      sketch_shares.Get(0).share_vector().size(), 0);
+  for (int i = 0; i < sketch_shares.size(); i++) {
+    std::vector<uint32_t> temp =
+        std::vector(sketch_shares.Get(i).share_vector().begin(),
+                    sketch_shares.Get(i).share_vector().end());
+
+    ASSIGN_OR_RETURN(
+        combined_share,
+        VectorAddMod(combined_share, temp, sketch_params.ring_modulus()));
+  }
+
+  return combined_share;
+}
+
+absl::StatusOr<std::vector<uint32_t>> VectorAddMod(
+    absl::Span<const uint32_t> vector_x, absl::Span<const uint32_t> vector_y,
     const uint32_t modulus) {
-  if (X.size() != Y.size()) {
+  if (vector_x.size() != vector_y.size()) {
     return absl::InvalidArgumentError(
         "Input vectors must have the same length.");
   }
-  for (int i = 0; i < X.size(); i++) {
-    if (X[i] >= modulus || Y[i] >= modulus) {
+  for (int i = 0; i < vector_x.size(); i++) {
+    if (vector_x[i] >= modulus && vector_y[i] >= modulus) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "Both vector_x[$0], which is $1, and vector_y[$0], which is $2, must "
+          "be less than the modulus, which is $3.",
+          i, vector_x[i], vector_y[i], modulus));
+    } else if (vector_x[i] >= modulus) {
       return absl::InvalidArgumentError(
-          "Input vectors' elements must be less than modulus.");
+          absl::Substitute("vector_x[$0], which is $1, must be less than the "
+                           "modulus, which is $2.",
+                           i, vector_x[i], modulus));
+    } else if (vector_y[i] >= modulus) {
+      return absl::InvalidArgumentError(
+          absl::Substitute("vector_y[$0], which is $1, must be less than the "
+                           "modulus, which is $2.",
+                           i, vector_y[i], modulus));
     }
   }
-  std::vector<uint32_t> result(X.size());
-  for (int i = 0; i < X.size(); i++) {
-    result[i] = X[i] - Y[i] + (X[i] < Y[i]) * modulus;
+  std::vector<uint32_t> result(vector_x.size());
+  for (int i = 0; i < vector_x.size(); i++) {
+    result[i] = vector_x[i] + vector_y[i] -
+                (vector_x[i] >= (modulus - vector_y[i])) * modulus;
   }
   return result;
+}
+
+absl::StatusOr<std::vector<uint32_t>> VectorSubMod(
+    const std::vector<uint32_t>& vector_x,
+    const std::vector<uint32_t>& vector_y, const uint32_t modulus) {
+  if (vector_x.size() != vector_y.size()) {
+    return absl::InvalidArgumentError(
+        "Input vectors must have the same length.");
+  }
+  for (int i = 0; i < vector_x.size(); i++) {
+    if (vector_x[i] >= modulus && vector_y[i] >= modulus) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "Both vector_x[$0], which is $1, and vector_y[$0], which is $2, must "
+          "be less than the modulus, which is $3.",
+          i, vector_x[i], vector_y[i], modulus));
+    } else if (vector_x[i] >= modulus) {
+      return absl::InvalidArgumentError(
+          absl::Substitute("vector_x[$0], which is $1, must be less than the "
+                           "modulus, which is $2.",
+                           i, vector_x[i], modulus));
+    } else if (vector_y[i] >= modulus) {
+      return absl::InvalidArgumentError(
+          absl::Substitute("vector_y[$0], which is $1, must be less than the "
+                           "modulus, which is $2.",
+                           i, vector_y[i], modulus));
+    }
+  }
+  std::vector<uint32_t> result(vector_x.size());
+  for (int i = 0; i < vector_x.size(); i++) {
+    result[i] =
+        vector_x[i] - vector_y[i] + (vector_x[i] < vector_y[i]) * modulus;
+  }
+  return result;
+}
+
+absl::StatusOr<int64_t> EstimateReach(int64_t non_empty_register_count,
+                                      double vid_sampling_interval_width) {
+  if (non_empty_register_count < 0) {
+    return absl::InvalidArgumentError(
+        "Non-empty register count must be a non-negative integer.");
+  }
+  if (vid_sampling_interval_width <= 0 || vid_sampling_interval_width > 1) {
+    return absl::InvalidArgumentError(
+        absl::Substitute("The vid sampling interval width must be greater than "
+                         "0 and do not exceed 1, but $0 is provided.",
+                         vid_sampling_interval_width));
+  }
+  return static_cast<int64_t>(non_empty_register_count /
+                              vid_sampling_interval_width);
 }
 
 }  // namespace wfa::measurement::internal::duchy::protocol::share_shuffle
