@@ -214,11 +214,25 @@ TEST(VectorSubMod, InputVectorsHaveDifferentSizeFails) {
               StatusIs(absl::StatusCode::kInvalidArgument, "same length"));
 }
 
-TEST(VectorSubMode, InputVectorHasElementGreaterThanOrEqualToModulusFails) {
+TEST(VectorSubMode, FirstVectorHasElementGreaterThanOrEqualToModulusFails) {
   std::vector<uint32_t> X = {1, 2, 3, 4, 5, 6, 7, kRingModulus};
   std::vector<uint32_t> Y = {7, 6, 5, 4, 3, 2, 1, 0};
   EXPECT_THAT(VectorSubMod(X, Y, kRingModulus).status(),
-              StatusIs(absl::StatusCode::kInvalidArgument, "modulus"));
+              StatusIs(absl::StatusCode::kInvalidArgument, "vector_x"));
+}
+
+TEST(VectorSubMode, SecondVectorHasElementGreaterThanOrEqualToModulusFails) {
+  std::vector<uint32_t> X = {1, 2, 3, 4, 5, 6, 7, 4};
+  std::vector<uint32_t> Y = {7, 6, 5, 4, 3, 2, 1, kRingModulus};
+  EXPECT_THAT(VectorSubMod(X, Y, kRingModulus).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "vector_y"));
+}
+
+TEST(VectorSubMode, BothVectorsHaveElementGreaterThanOrEqualToModulusFails) {
+  std::vector<uint32_t> X = {1, 2, 3, 4, 5, 6, 7, kRingModulus};
+  std::vector<uint32_t> Y = {7, 6, 5, 4, 3, 2, 1, kRingModulus};
+  EXPECT_THAT(VectorSubMod(X, Y, kRingModulus).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "Both"));
 }
 
 TEST(VectorSubMod, InputVectorsHaveSameSizeSucceeds) {
@@ -229,6 +243,136 @@ TEST(VectorSubMod, InputVectorsHaveSameSizeSucceeds) {
   ASSERT_OK_AND_ASSIGN(std::vector<uint32_t> result,
                        VectorSubMod(X, Y, kModulus));
   EXPECT_EQ(result, expected_result);
+}
+
+TEST(VectorAddMod, InputVectorsHaveDifferentSizeFails) {
+  std::vector<uint32_t> X(5, 1);
+  std::vector<uint32_t> Y(6, 0);
+  EXPECT_THAT(VectorAddMod(X, Y, kRingModulus).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "same length"));
+}
+
+TEST(VectorAddMode, FirstVectorHasElementGreaterThanOrEqualToModulusFails) {
+  std::vector<uint32_t> X = {1, 2, 3, 4, 5, 6, 7, kRingModulus};
+  std::vector<uint32_t> Y = {7, 6, 5, 4, 3, 2, 1, 0};
+  EXPECT_THAT(VectorAddMod(X, Y, kRingModulus).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "vector_x"));
+}
+
+TEST(VectorAddMode, SecondVectorHasElementGreaterThanOrEqualToModulusFails) {
+  std::vector<uint32_t> X = {1, 2, 3, 4, 5, 6, 7, 4};
+  std::vector<uint32_t> Y = {7, 6, 5, 4, 3, 2, 1, kRingModulus};
+  EXPECT_THAT(VectorAddMod(X, Y, kRingModulus).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "vector_y"));
+}
+
+TEST(VectorAddMode, BothVectorsHaveElementGreaterThanOrEqualToModulusFails) {
+  std::vector<uint32_t> X = {1, 2, 3, 4, 5, 6, 7, kRingModulus};
+  std::vector<uint32_t> Y = {7, 6, 5, 4, 3, 2, 1, kRingModulus};
+  EXPECT_THAT(VectorAddMod(X, Y, kRingModulus).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "Both"));
+}
+
+TEST(VectorAddMod, InputVectorsHaveSameSizeSucceeds) {
+  std::vector<uint32_t> X = {1, 2, 3, 4, 5, 6, 7};
+  std::vector<uint32_t> Y = {7, 1, 2, 4, 5, 3, 6};
+  int kModulus = 8;
+  std::vector<uint32_t> expected_result = {0, 3, 5, 0, 2, 1, 5};
+  ASSERT_OK_AND_ASSIGN(std::vector<uint32_t> result,
+                       VectorAddMod(X, Y, kModulus));
+  EXPECT_EQ(result, expected_result);
+}
+
+TEST(EstimateReach, InvalidNonEmptyRegisterCountFails) {
+  EXPECT_THAT(EstimateReach(-1, 0.5).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "non-negative"));
+}
+
+TEST(EstimateReach, ZeroVidSamplingIntervalWidthFails) {
+  EXPECT_THAT(EstimateReach(10, 0).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "interval width"));
+}
+
+TEST(EstimateReach, NegativeVidSamplingIntervalWidthFails) {
+  EXPECT_THAT(EstimateReach(10, -0.5).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "interval width"));
+}
+
+TEST(EstimateReach, VidSamplingIntervalWidthGreaterThanOneFails) {
+  EXPECT_THAT(EstimateReach(10, 1.1).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "interval width"));
+}
+
+TEST(EstimateReach, ValidInputSucceeds) {
+  ASSERT_OK_AND_ASSIGN(int64_t reach_1, EstimateReach(10, 0.5));
+  EXPECT_EQ(reach_1, 20);
+  ASSERT_OK_AND_ASSIGN(int64_t reach_2, EstimateReach(10, 1.0));
+  EXPECT_EQ(reach_2, 10);
+}
+
+TEST(CombineSketchShares, EmptySketchSharesFails) {
+  ShareShuffleSketchParams sketch_params;
+  sketch_params.set_ring_modulus(kRingModulus);
+  CompleteAggregationPhaseRequest request;
+  EXPECT_THAT(
+      CombineSketchShares(sketch_params, request.sketch_shares()).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument, "at least one"));
+}
+
+TEST(CombineSketchShares, InvalidRingModulusFails) {
+  ShareShuffleSketchParams sketch_params;
+  sketch_params.set_ring_modulus(1);
+  CompleteAggregationPhaseRequest request;
+  request.add_sketch_shares()->mutable_share_vector()->Add(1);
+  EXPECT_THAT(
+      CombineSketchShares(sketch_params, request.sketch_shares()).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument, "modulus"));
+}
+
+TEST(CombineSketchShares, InvalidInputShareFails) {
+  ShareShuffleSketchParams sketch_params;
+  sketch_params.set_ring_modulus(kRingModulus);
+  CompleteAggregationPhaseRequest request;
+  std::vector<uint32_t> share_vector_1 = {1, 0, 1, 0, 1};
+  std::vector<uint32_t> share_vector_2 = {kRingModulus, 1, 0, 1, 0};
+  request.add_sketch_shares()->mutable_share_vector()->Add(
+      share_vector_1.begin(), share_vector_1.end());
+  request.add_sketch_shares()->mutable_share_vector()->Add(
+      share_vector_2.begin(), share_vector_2.end());
+  EXPECT_THAT(
+      CombineSketchShares(sketch_params, request.sketch_shares()).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               "must be less than the modulus"));
+}
+
+TEST(CombineSketchShares, InputSharesHaveDifferentLengthFails) {
+  ShareShuffleSketchParams sketch_params;
+  sketch_params.set_ring_modulus(kRingModulus);
+  CompleteAggregationPhaseRequest request;
+  std::vector<uint32_t> share_vector_1 = {0, 1, 0, 1, 3};
+  std::vector<uint32_t> share_vector_2 = {2, 1, 0, 1, 0, 5};
+  request.add_sketch_shares()->mutable_share_vector()->Add(
+      share_vector_1.begin(), share_vector_1.end());
+  request.add_sketch_shares()->mutable_share_vector()->Add(
+      share_vector_2.begin(), share_vector_2.end());
+  EXPECT_THAT(
+      CombineSketchShares(sketch_params, request.sketch_shares()).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument, "length"));
+}
+
+TEST(CombineSketchShares, ValidInputSharesAndParamsSucceeds) {
+  ShareShuffleSketchParams sketch_params;
+  sketch_params.set_ring_modulus(10);
+  CompleteAggregationPhaseRequest request;
+  std::vector<uint32_t> share_vector_1 = {1, 0, 1, 0, 1};
+  std::vector<uint32_t> share_vector_2 = {5, 1, 0, 1, 0};
+  request.add_sketch_shares()->mutable_share_vector()->Add(
+      share_vector_1.begin(), share_vector_1.end());
+  request.add_sketch_shares()->mutable_share_vector()->Add(
+      share_vector_2.begin(), share_vector_2.end());
+  ASSERT_OK_AND_ASSIGN(
+      auto combined_share,
+      CombineSketchShares(sketch_params, request.sketch_shares()));
 }
 
 }  // namespace
