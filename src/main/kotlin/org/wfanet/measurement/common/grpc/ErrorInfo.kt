@@ -65,18 +65,17 @@ fun StatusException.toExternalRuntimeException(
     } else {
       metadataMap.putAll(errorInfo.metadataMap)
     }
-  val statusProto =
-    status {
-      code = status.code.value()
-      message = description
-      details +=
-        ProtoAny.pack(
-          errorInfo {
-            reason = this@toExternalRuntimeException.status.code.toString()
-            domain = ErrorInfo.getDescriptor().fullName
-            metadata.putAll(metadataMap)
-          }
-        )
-    }
+  val statusProto = status {
+    code = status.code.value()
+    message = description
+    details +=
+      ProtoAny.pack(
+        errorInfo {
+          reason = this@toExternalRuntimeException.status.code.toString()
+          domain = ErrorInfo.getDescriptor().fullName
+          metadata.putAll(metadataMap)
+        }
+      )
+  }
   return StatusProto.toStatusRuntimeException(statusProto)
 }
