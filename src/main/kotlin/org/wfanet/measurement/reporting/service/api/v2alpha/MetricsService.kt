@@ -20,7 +20,6 @@ import com.github.benmanes.caffeine.cache.Caffeine
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
 import com.google.protobuf.Duration as ProtoDuration
-import com.google.protobuf.Empty
 import com.google.protobuf.duration
 import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.util.Durations
