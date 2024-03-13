@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import com.google.protobuf.Empty
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
@@ -115,12 +116,9 @@ import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
 import org.wfanet.measurement.internal.reporting.v2.BatchGetReportingSetsResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequest.MeasurementIds
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequestKt.measurementIds
-import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequestKt.measurementFailure
-import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequestKt.measurementResult
-import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.CreateMetricRequest as InternalCreateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodology
 import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
@@ -405,7 +403,7 @@ class MetricsService(
 
       // Set CMMS measurement IDs.
       val callBatchSetCmmsMeasurementIdsRpc:
-        suspend (List<MeasurementIds>) -> BatchSetCmmsMeasurementIdsResponse =
+        suspend (List<MeasurementIds>) -> Empty =
         { items ->
           batchSetCmmsMeasurementIds(principal.resourceKey.measurementConsumerId, items)
         }
@@ -419,7 +417,7 @@ class MetricsService(
           },
           BATCH_SET_CMMS_MEASUREMENT_IDS_LIMIT,
           callBatchSetCmmsMeasurementIdsRpc,
-        ) { _: BatchSetCmmsMeasurementIdsResponse ->
+        ) { _: Empty ->
           emptyList<Unit>()
         }
         .collect {}
@@ -429,7 +427,7 @@ class MetricsService(
     private suspend fun batchSetCmmsMeasurementIds(
       cmmsMeasurementConsumerId: String,
       measurementIds: List<MeasurementIds>,
-    ): BatchSetCmmsMeasurementIdsResponse {
+    ): Empty {
       return try {
         internalMeasurementsStub.batchSetCmmsMeasurementIds(
           batchSetCmmsMeasurementIdsRequest {
@@ -836,7 +834,7 @@ class MetricsService(
       var anyUpdate = false
 
       val callBatchSetInternalMeasurementResultsRpc:
-        suspend (List<Measurement>) -> BatchSetMeasurementResultsResponse =
+        suspend (List<Measurement>) -> Empty =
         { items ->
           batchSetInternalMeasurementResults(items, apiAuthenticationKey, principal)
         }
@@ -845,7 +843,7 @@ class MetricsService(
             succeededMeasurements,
             BATCH_SET_MEASUREMENT_RESULTS_LIMIT,
             callBatchSetInternalMeasurementResultsRpc,
-          ) { _: BatchSetMeasurementResultsResponse ->
+          ) { _: Empty ->
             emptyList<Unit>()
           }
           .count()
@@ -856,7 +854,7 @@ class MetricsService(
 
       if (failedMeasurements.isNotEmpty()) {
         val callBatchSetInternalMeasurementFailuresRpc:
-          suspend (List<Measurement>) -> BatchSetMeasurementFailuresResponse =
+          suspend (List<Measurement>) -> Empty =
           { items ->
             batchSetInternalMeasurementFailures(items, principal.resourceKey.measurementConsumerId)
           }
@@ -864,7 +862,7 @@ class MetricsService(
             failedMeasurements.asFlow(),
             BATCH_SET_MEASUREMENT_FAILURES_LIMIT,
             callBatchSetInternalMeasurementFailuresRpc,
-          ) { _: BatchSetMeasurementFailuresResponse ->
+          ) { _: Empty ->
             emptyList<Unit>()
           }
           .collect {}
@@ -882,7 +880,7 @@ class MetricsService(
     private suspend fun batchSetInternalMeasurementFailures(
       failedMeasurementsList: List<Measurement>,
       cmmsMeasurementConsumerId: String,
-    ): BatchSetMeasurementFailuresResponse {
+    ): Empty {
       val batchSetInternalMeasurementFailuresRequest = batchSetMeasurementFailuresRequest {
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
         measurementFailures +=
@@ -911,7 +909,7 @@ class MetricsService(
       succeededMeasurementsList: List<Measurement>,
       apiAuthenticationKey: String,
       principal: MeasurementConsumerPrincipal,
-    ): BatchSetMeasurementResultsResponse {
+    ): Empty {
       val batchSetMeasurementResultsRequest = batchSetMeasurementResultsRequest {
         cmmsMeasurementConsumerId = principal.resourceKey.measurementConsumerId
         measurementResults +=

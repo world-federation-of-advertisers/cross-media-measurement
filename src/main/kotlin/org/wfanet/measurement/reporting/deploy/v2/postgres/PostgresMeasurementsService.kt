@@ -16,16 +16,14 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.postgres
 
+import com.google.protobuf.Empty
 import io.grpc.Status
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequest
-import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequest
-import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequest
-import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.SetCmmsMeasurementIds
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.SetMeasurementFailures
@@ -41,7 +39,7 @@ class PostgresMeasurementsService(
 ) : MeasurementsGrpcKt.MeasurementsCoroutineImplBase() {
   override suspend fun batchSetCmmsMeasurementIds(
     request: BatchSetCmmsMeasurementIdsRequest
-  ): BatchSetCmmsMeasurementIdsResponse {
+  ): Empty  {
     grpcRequire(request.measurementIdsList.size <= BATCH_SIZE) { "Too many requests" }
 
     grpcRequire(request.cmmsMeasurementConsumerId.isNotEmpty()) {
@@ -50,7 +48,7 @@ class PostgresMeasurementsService(
 
     try {
       SetCmmsMeasurementIds(request).execute(client, idGenerator)
-      return BatchSetCmmsMeasurementIdsResponse.getDefaultInstance()
+      return Empty.getDefaultInstance()
     } catch (e: MeasurementConsumerNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found")
     } catch (e: MeasurementNotFoundException) {
@@ -60,7 +58,7 @@ class PostgresMeasurementsService(
 
   override suspend fun batchSetMeasurementResults(
     request: BatchSetMeasurementResultsRequest
-  ): BatchSetMeasurementResultsResponse {
+  ): Empty  {
     grpcRequire(request.measurementResultsList.size <= BATCH_SIZE) { "Too many requests" }
 
     grpcRequire(request.cmmsMeasurementConsumerId.isNotEmpty()) {
@@ -69,7 +67,7 @@ class PostgresMeasurementsService(
 
     try {
       SetMeasurementResults(request).execute(client, idGenerator)
-      return BatchSetMeasurementResultsResponse.getDefaultInstance()
+      return Empty.getDefaultInstance()
     } catch (e: MeasurementConsumerNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found")
     } catch (e: MeasurementNotFoundException) {
@@ -79,7 +77,7 @@ class PostgresMeasurementsService(
 
   override suspend fun batchSetMeasurementFailures(
     request: BatchSetMeasurementFailuresRequest
-  ): BatchSetMeasurementFailuresResponse {
+  ): Empty  {
     grpcRequire(request.measurementFailuresList.size <= BATCH_SIZE) { "Too many requests" }
 
     grpcRequire(request.cmmsMeasurementConsumerId.isNotEmpty()) {
@@ -88,7 +86,7 @@ class PostgresMeasurementsService(
 
     try {
       SetMeasurementFailures(request).execute(client, idGenerator)
-      return BatchSetMeasurementFailuresResponse.getDefaultInstance()
+      return Empty.getDefaultInstance()
     } catch (e: MeasurementConsumerNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found")
     } catch (e: MeasurementNotFoundException) {

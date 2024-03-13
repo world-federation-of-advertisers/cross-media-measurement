@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import com.google.protobuf.Empty
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.duration
@@ -148,13 +149,10 @@ import org.wfanet.measurement.internal.reporting.v2.BatchGetMetricsRequest as In
 import org.wfanet.measurement.internal.reporting.v2.BatchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequestKt.measurementIds
-import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequestKt.measurementFailure
-import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequestKt.measurementResult
-import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodology as InternalCustomDirectMethodology
 import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodologyKt as InternalCustomDirectMethodologyKt
 import org.wfanet.measurement.internal.reporting.v2.DeterministicCount as InternalDeterministicCount
@@ -2113,11 +2111,11 @@ class MetricsServiceTest {
 
   private val internalMeasurementsMock: InternalMeasurementsCoroutineImplBase = mockService {
     onBlocking { batchSetCmmsMeasurementIds(any()) }
-      .thenReturn(BatchSetCmmsMeasurementIdsResponse.getDefaultInstance())
+      .thenReturn(Empty.getDefaultInstance())
     onBlocking { batchSetMeasurementResults(any()) }
-      .thenReturn(BatchSetMeasurementResultsResponse.getDefaultInstance())
+      .thenReturn(Empty.getDefaultInstance())
     onBlocking { batchSetMeasurementFailures(any()) }
-      .thenReturn(BatchSetMeasurementFailuresResponse.getDefaultInstance())
+      .thenReturn(Empty.getDefaultInstance())
   }
 
   private val measurementsMock: MeasurementsCoroutineImplBase = mockService {
@@ -6182,7 +6180,7 @@ class MetricsServiceTest {
       }
 
       whenever(internalMeasurementsMock.batchSetMeasurementResults(any()))
-        .thenReturn(BatchSetMeasurementResultsResponse.getDefaultInstance())
+        .thenReturn(Empty.getDefaultInstance())
 
       val request = getMetricRequest { name = PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.name }
 
@@ -6720,7 +6718,7 @@ class MetricsServiceTest {
         }
       }
       whenever(internalMeasurementsMock.batchSetMeasurementResults(any()))
-        .thenReturn(BatchSetMeasurementResultsResponse.getDefaultInstance())
+        .thenReturn(Empty.getDefaultInstance())
 
       val request = getMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
 
@@ -6798,7 +6796,7 @@ class MetricsServiceTest {
       }
 
       whenever(internalMeasurementsMock.batchSetMeasurementResults(any()))
-        .thenReturn(BatchSetMeasurementResultsResponse.getDefaultInstance())
+        .thenReturn(Empty.getDefaultInstance())
 
       val request = getMetricRequest { name = PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
 
@@ -6876,7 +6874,7 @@ class MetricsServiceTest {
       }
 
       whenever(internalMeasurementsMock.batchSetMeasurementResults(any()))
-        .thenReturn(BatchSetMeasurementResultsResponse.getDefaultInstance())
+        .thenReturn(Empty.getDefaultInstance())
 
       val request = getMetricRequest { name = PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
 
@@ -6967,7 +6965,7 @@ class MetricsServiceTest {
       }
 
       whenever(internalMeasurementsMock.batchSetMeasurementFailures(any()))
-        .thenReturn(BatchSetMeasurementFailuresResponse.getDefaultInstance())
+        .thenReturn(Empty.getDefaultInstance())
 
       val request = getMetricRequest { name = PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
 
