@@ -387,7 +387,7 @@ class MeasurementsService(
       } catch (ex: StatusException) {
         when (ex.status.code) {
           Status.Code.NOT_FOUND ->
-            throw ex.toExternalRuntimeException(Status.NOT_FOUND, "Measurement not found")
+            throw ex.toExternalRuntimeException(Status.NOT_FOUND, "Measurement not found.")
           else -> throw ex.toExternalRuntimeException(Status.UNKNOWN, "Unknown exception.")
         }
       }
