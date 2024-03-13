@@ -16,11 +16,11 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
-import com.google.protobuf.Empty
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
 import com.google.protobuf.Duration as ProtoDuration
+import com.google.protobuf.Empty
 import com.google.protobuf.duration
 import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.util.Durations
@@ -402,11 +402,9 @@ class MetricsService(
           .flattenMerge()
 
       // Set CMMS measurement IDs.
-      val callBatchSetCmmsMeasurementIdsRpc:
-        suspend (List<MeasurementIds>) -> Empty =
-        { items ->
-          batchSetCmmsMeasurementIds(principal.resourceKey.measurementConsumerId, items)
-        }
+      val callBatchSetCmmsMeasurementIdsRpc: suspend (List<MeasurementIds>) -> Empty = { items ->
+        batchSetCmmsMeasurementIds(principal.resourceKey.measurementConsumerId, items)
+      }
 
       submitBatchRequests(
           cmmsMeasurements.map {
@@ -833,8 +831,7 @@ class MetricsService(
 
       var anyUpdate = false
 
-      val callBatchSetInternalMeasurementResultsRpc:
-        suspend (List<Measurement>) -> Empty =
+      val callBatchSetInternalMeasurementResultsRpc: suspend (List<Measurement>) -> Empty =
         { items ->
           batchSetInternalMeasurementResults(items, apiAuthenticationKey, principal)
         }
@@ -853,8 +850,7 @@ class MetricsService(
       }
 
       if (failedMeasurements.isNotEmpty()) {
-        val callBatchSetInternalMeasurementFailuresRpc:
-          suspend (List<Measurement>) -> Empty =
+        val callBatchSetInternalMeasurementFailuresRpc: suspend (List<Measurement>) -> Empty =
           { items ->
             batchSetInternalMeasurementFailures(items, principal.resourceKey.measurementConsumerId)
           }

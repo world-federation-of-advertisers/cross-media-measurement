@@ -39,7 +39,7 @@ class PostgresMeasurementsService(
 ) : MeasurementsGrpcKt.MeasurementsCoroutineImplBase() {
   override suspend fun batchSetCmmsMeasurementIds(
     request: BatchSetCmmsMeasurementIdsRequest
-  ): Empty  {
+  ): Empty {
     grpcRequire(request.measurementIdsList.size <= BATCH_SIZE) { "Too many requests" }
 
     grpcRequire(request.cmmsMeasurementConsumerId.isNotEmpty()) {
@@ -58,7 +58,7 @@ class PostgresMeasurementsService(
 
   override suspend fun batchSetMeasurementResults(
     request: BatchSetMeasurementResultsRequest
-  ): Empty  {
+  ): Empty {
     grpcRequire(request.measurementResultsList.size <= BATCH_SIZE) { "Too many requests" }
 
     grpcRequire(request.cmmsMeasurementConsumerId.isNotEmpty()) {
@@ -77,7 +77,7 @@ class PostgresMeasurementsService(
 
   override suspend fun batchSetMeasurementFailures(
     request: BatchSetMeasurementFailuresRequest
-  ): Empty  {
+  ): Empty {
     grpcRequire(request.measurementFailuresList.size <= BATCH_SIZE) { "Too many requests" }
 
     grpcRequire(request.cmmsMeasurementConsumerId.isNotEmpty()) {
