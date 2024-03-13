@@ -28,6 +28,9 @@ using ::wfa::measurement::internal::duchy::protocol::
 absl::StatusOr<CompleteShufflePhaseResponse> CompleteShufflePhase(
     const CompleteShufflePhaseRequest& request);
 
+absl::StatusOr<CompleteAggregationPhaseResponse> CompleteAggregationPhase(
+    const CompleteAggregationPhaseRequest& request);
+
 }  // namespace wfa::measurement::internal::duchy::protocol::share_shuffle
 
 #endif  // SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_SHARE_SHUFFLE_HONEST_MAJORITY_SHARE_SHUFFLE_UTILITY_H_

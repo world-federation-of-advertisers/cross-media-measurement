@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.common.service
 
+import com.google.protobuf.Descriptors
 import io.grpc.BindableService
 import kotlin.reflect.full.declaredMemberProperties
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
@@ -42,9 +43,15 @@ import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.Recurrin
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 
 interface DataServices {
-
   /** Builds a list of all the Kingdom's internal data-layer services. */
   fun buildDataServices(): KingdomDataServices
+
+  /**
+   * Known types for EventGroup metadata.
+   *
+   * This is in addition to standard protobuf well-known types.
+   */
+  val knownEventGroupMetadataTypes: Iterable<Descriptors.FileDescriptor>
 }
 
 data class KingdomDataServices(

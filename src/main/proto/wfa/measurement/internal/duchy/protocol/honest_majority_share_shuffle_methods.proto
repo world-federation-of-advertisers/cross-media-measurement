@@ -84,16 +84,26 @@ message CompleteShufflePhaseResponse {
 message CompleteAggregationPhaseRequest {
   // The sketch params for the Computation.
   ShareShuffleSketchParams sketch_params = 1;
+
   // The maximum frequency to reveal in the histogram.
-  int32 max_frequency = 2;
+  int32 maximum_frequency = 2;
 
   // Combined sketches from non-aggregators.
-  repeated bytes combined_sketches = 3;
+  message ShareData {
+    repeated uint32 share_vector = 1;
+  }
+  repeated ShareData sketch_shares = 3;
+
+  // The sampling rate to be used by the HMSS protocol.
+  // This is taken from the VidSamplingInterval.width parameter in the
+  // MeasurementSpec.
+  float vid_sampling_interval_width = 4;
 
   // Differential privacy parameters used to calculate the offset of noise.
-  DifferentialPrivacyParams dp_params = 4;
+  DifferentialPrivacyParams dp_params = 5;
+
   // Noise mechanism used to calculate the offset of noise.
-  NoiseMechanism noise_mechanism = 5;
+  NoiseMechanism noise_mechanism = 6;
 }
 
 // For aggregators.
@@ -104,5 +114,5 @@ message CompleteAggregationPhaseResponse {
   // Normalized histogram of frequency.
   map<int64, double> frequency_distribution = 2;
   // The CPU time of processing the request.
-  int64 elapsed_cpu_time_millis = 3;
+  google.protobuf.Duration elapsed_cpu_duration = 3;
 }

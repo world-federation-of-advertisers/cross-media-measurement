@@ -18,6 +18,7 @@ import com.google.cloud.bigquery.BigQuery
 import com.google.cloud.bigquery.BigQueryOptions
 import kotlin.properties.Delegates
 import org.halo_cmm.uk.pilot.Event
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessage
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.loadtest.config.EventGroupMetadata
 import picocli.CommandLine
@@ -76,6 +77,7 @@ class BigQueryEdpSimulatorRunner : EdpSimulatorRunner() {
       eventQuery,
       EdpSimulator.buildEventTemplates(Event.getDescriptor()),
       mapOf("" to EventGroupMetadata.testMetadata(publisherId)),
+      listOf(TestMetadataMessage.getDescriptor().file),
     )
   }
 }
