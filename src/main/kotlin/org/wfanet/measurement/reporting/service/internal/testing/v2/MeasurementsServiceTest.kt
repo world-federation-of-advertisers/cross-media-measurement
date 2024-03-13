@@ -23,6 +23,7 @@ import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
+import java.util.UUID
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
@@ -327,7 +328,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
                 }
               measurementIds +=
                 BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-                  cmmsCreateMeasurementRequestId = "1"
+                  cmmsCreateMeasurementRequestId = UUID.randomUUID().toString()
                   cmmsMeasurementId = "1235"
                 }
             }
@@ -350,7 +351,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               measurementIds +=
                 BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-                  cmmsCreateMeasurementRequestId = "1"
+                  cmmsCreateMeasurementRequestId = UUID.randomUUID().toString()
                   cmmsMeasurementId = "1235"
                 }
             }
@@ -371,7 +372,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               measurementIds +=
                 BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-                  cmmsCreateMeasurementRequestId = "1"
+                  cmmsCreateMeasurementRequestId = UUID.randomUUID().toString()
                   cmmsMeasurementId = "1235"
                 }
             }
@@ -391,7 +392,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
             batchSetCmmsMeasurementIdsRequest {
               measurementIds +=
                 BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-                  cmmsCreateMeasurementRequestId = "1234"
+                  cmmsCreateMeasurementRequestId = UUID.randomUUID().toString()
                   cmmsMeasurementId = "1234"
                 }
             }
@@ -412,7 +413,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
               for (i in 1L..(MAX_BATCH_SIZE + 1)) {
                 measurementIds +=
                   BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-                    cmmsCreateMeasurementRequestId = "123"
+                    cmmsCreateMeasurementRequestId = UUID.randomUUID().toString()
                     cmmsMeasurementId = "1234"
                   }
               }
@@ -1381,6 +1382,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
             MetricKt.weightedMeasurement {
               weight = 2
               measurement = measurement {
+                cmmsCreateMeasurementRequestId = UUID.randomUUID().toString()
                 this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
                 timeInterval = interval {
                   startTime = timestamp { seconds = 10 }
