@@ -14,10 +14,13 @@
 
 package k8s
 
+// Name of K8s service account for OpenTelemetry collector.
+#CollectorServiceAccount: "internal-reporting-server"
+
 objectSets: [
-	openTelemetry.collectors,
+	collectors,
 	openTelemetry.instrumentations,
-	openTelemetry.networkPolicies,
+	networkPolicies,
 ]
 
 #OpenTelemetryCollector: {
@@ -25,3 +28,77 @@ objectSets: [
 }
 
 openTelemetry: #OpenTelemetry
+
+collectors: [Name=string]: #OpenTelemetryCollector & {
+	metadata: name: Name
+}
+
+collectors: {
+	"default": {
+		spec: {
+			nodeSelector:   #ServiceAccountNodeSelector
+			serviceAccount: #CollectorServiceAccount
+			config:         """
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:\(#OpenTelemetryReceiverPort)
+
+processors:
+  batch:
+    send_batch_size: 200
+    timeout: 10s
+  filter:
+    spans:
+      exclude:
+        match_type: strict
+        attributes:
+          - key: rpc.method
+            value: Check
+
+exporters:
+  prometheus:
+    send_timestamps: true
+    endpoint: 0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)
+    resource_to_telemetry_conversion:
+      enabled: true
+  googlecloud:
+    project: \(#GCloudProject)
+    trace:
+
+extensions:
+  health_check:
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch, filter]
+      exporters: [googlecloud]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus]
+"""
+		}
+	}
+}
+
+networkPolicies: [Name=_]: #NetworkPolicy & {
+	_policyPodSelectorMatchLabels: "app.kubernetes.io/component": "opentelemetry-collector"
+	_name: Name
+}
+
+networkPolicies: {
+	"opentelemetry-collector": {
+		_ingresses: {
+			any: {}
+		}
+		_egresses: {
+			any: {}
+		}
+	}
+}
+
