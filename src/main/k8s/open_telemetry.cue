@@ -103,7 +103,10 @@ import "encoding/yaml"
 				env: [
 					{
 						name:  "OTEL_TRACES_EXPORTER"
-						value: "none"
+						value: "otlp"
+          }, {
+            name:  "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"
+            value: "grpc"
 					}, {
 						name:  "OTEL_EXPORTER_OTLP_ENDPOINT"
 						value: #OpenTelemetryCollectorEndpoint
