@@ -16,20 +16,15 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.postgres
 
+import com.google.protobuf.Empty
 import io.grpc.Status
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementFailuresResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequest
-import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsResponse
-import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt
-import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementFailuresResponse
-import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsResponse
-import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementResultsResponse
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.SetCmmsMeasurementIds
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.SetMeasurementFailures
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.SetMeasurementResults
@@ -44,7 +39,7 @@ class PostgresMeasurementsService(
 ) : MeasurementsGrpcKt.MeasurementsCoroutineImplBase() {
   override suspend fun batchSetCmmsMeasurementIds(
     request: BatchSetCmmsMeasurementIdsRequest
-  ): BatchSetCmmsMeasurementIdsResponse {
+  ): Empty {
     grpcRequire(request.measurementIdsList.size <= BATCH_SIZE) { "Too many requests" }
 
     grpcRequire(request.cmmsMeasurementConsumerId.isNotEmpty()) {
@@ -52,9 +47,8 @@ class PostgresMeasurementsService(
     }
 
     try {
-      return batchSetCmmsMeasurementIdsResponse {
-        measurements += SetCmmsMeasurementIds(request).execute(client, idGenerator)
-      }
+      SetCmmsMeasurementIds(request).execute(client, idGenerator)
+      return Empty.getDefaultInstance()
     } catch (e: MeasurementConsumerNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found")
     } catch (e: MeasurementNotFoundException) {
@@ -64,7 +58,7 @@ class PostgresMeasurementsService(
 
   override suspend fun batchSetMeasurementResults(
     request: BatchSetMeasurementResultsRequest
-  ): BatchSetCmmsMeasurementResultsResponse {
+  ): Empty {
     grpcRequire(request.measurementResultsList.size <= BATCH_SIZE) { "Too many requests" }
 
     grpcRequire(request.cmmsMeasurementConsumerId.isNotEmpty()) {
@@ -72,9 +66,8 @@ class PostgresMeasurementsService(
     }
 
     try {
-      return batchSetCmmsMeasurementResultsResponse {
-        measurements += SetMeasurementResults(request).execute(client, idGenerator)
-      }
+      SetMeasurementResults(request).execute(client, idGenerator)
+      return Empty.getDefaultInstance()
     } catch (e: MeasurementConsumerNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found")
     } catch (e: MeasurementNotFoundException) {
@@ -84,7 +77,7 @@ class PostgresMeasurementsService(
 
   override suspend fun batchSetMeasurementFailures(
     request: BatchSetMeasurementFailuresRequest
-  ): BatchSetCmmsMeasurementFailuresResponse {
+  ): Empty {
     grpcRequire(request.measurementFailuresList.size <= BATCH_SIZE) { "Too many requests" }
 
     grpcRequire(request.cmmsMeasurementConsumerId.isNotEmpty()) {
@@ -92,9 +85,8 @@ class PostgresMeasurementsService(
     }
 
     try {
-      return batchSetCmmsMeasurementFailuresResponse {
-        measurements += SetMeasurementFailures(request).execute(client, idGenerator)
-      }
+      SetMeasurementFailures(request).execute(client, idGenerator)
+      return Empty.getDefaultInstance()
     } catch (e: MeasurementConsumerNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found")
     } catch (e: MeasurementNotFoundException) {
