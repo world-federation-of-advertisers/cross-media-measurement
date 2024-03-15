@@ -49,12 +49,12 @@ fun StatusException.toExternalRuntimeException(
           ) {
             metadataMap["measurement"] =
               MeasurementKey(
-                externalIdToApiId(
-                  errorInfo.metadataMap["external_measurement_consumer_id"]!!.toLong()
-                ),
-                externalIdToApiId(errorInfo.metadataMap["external_measurement_id"]!!.toLong()),
-              )
-              .toName()
+                  externalIdToApiId(
+                    errorInfo.metadataMap["external_measurement_consumer_id"]!!.toLong()
+                  ),
+                  externalIdToApiId(errorInfo.metadataMap["external_measurement_id"]!!.toLong()),
+                )
+                .toName()
             errorMessage = "Measurement ${metadataMap["measurement"]} not found"
           } else {
             errorMessage = "Measurement not found."
@@ -63,18 +63,18 @@ fun StatusException.toExternalRuntimeException(
         ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND.toString() -> {
           metadataMap["measurement_consumer"] =
             MeasurementConsumerKey(
-              externalIdToApiId(errorInfo.metadataMap["external_measurement_consumer_id"]!!.toLong()),
-            )
+                externalIdToApiId(
+                  errorInfo.metadataMap["external_measurement_consumer_id"]!!.toLong()
+                )
+              )
               .toName()
           errorMessage = "Measurement Consumer ${metadataMap["measurement_consumer"]} not found."
         }
         ErrorCode.DATA_PROVIDER_NOT_FOUND.toString() -> {
           metadataMap["data_provider"] =
             DataProviderKey(
-              externalIdToApiId(
-                errorInfo.metadataMap["external_data_provider_id"]!!.toLong()
+                externalIdToApiId(errorInfo.metadataMap["external_data_provider_id"]!!.toLong())
               )
-            )
               .toName()
           errorMessage = "Data Provider ${metadataMap["data_provider"]} not found."
         }
@@ -99,10 +99,10 @@ fun StatusException.toExternalRuntimeException(
         ErrorCode.MEASUREMENT_STATE_ILLEGAL.toString() -> {
           metadataMap["measurement"] =
             MeasurementKey(
-              externalIdToApiId(
-                errorInfo.metadataMap["external_measurement_consumer_id"]!!.toLong()
-              ),
-              externalIdToApiId(errorInfo.metadataMap["external_measurement_id"]!!.toLong()),
+                externalIdToApiId(
+                  errorInfo.metadataMap["external_measurement_consumer_id"]!!.toLong()
+                ),
+                externalIdToApiId(errorInfo.metadataMap["external_measurement_id"]!!.toLong()),
               )
               .toName()
           metadataMap["state"] = errorInfo.metadataMap["measurement_state"].toString()
