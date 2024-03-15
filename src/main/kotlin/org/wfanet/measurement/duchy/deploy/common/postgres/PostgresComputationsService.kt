@@ -247,6 +247,7 @@ class PostgresComputationsService(
     ) {
       "Requested stage list contains non terminal stage."
     }
+    grpcRequire(request.updatedBefore.nanos > 0) { "Timestamp resolution is 1 microsecond" }
     val purgeResult =
       PurgeComputations(
           request.stagesList,

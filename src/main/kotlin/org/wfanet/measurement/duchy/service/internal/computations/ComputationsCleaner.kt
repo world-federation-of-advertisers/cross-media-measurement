@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.service.internal.computations
 
 import java.time.Clock
 import java.time.Duration
+import java.time.temporal.ChronoUnit
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.toProtoTime
@@ -40,7 +41,7 @@ class ComputationsCleaner(
     runBlocking {
       computationsService.purgeComputations(
         purgeComputationsRequest {
-          updatedBefore = currentTime.minusMillis(timeToLive.toMillis()).toProtoTime()
+          updatedBefore = currentTime.minus(timeToLive).truncatedTo(ChronoUnit.MICROS).toProtoTime()
           stages += Stage.COMPLETE.toProtocolStage()
           force = !dryRun
         }

@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.deploy.common.postgres.writers
 
 import java.time.Clock
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 
 /**
@@ -36,7 +37,7 @@ class EnqueueComputation(
   override suspend fun TransactionScope.runTransaction() {
     checkComputationUnmodified(localId, editVersion)
 
-    val writeTime = clock.instant()
+    val writeTime = clock.instant().truncatedTo(ChronoUnit.MICROS)
     enqueueComputation(localId, writeTime, delaySeconds)
   }
 }

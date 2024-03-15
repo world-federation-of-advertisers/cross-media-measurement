@@ -20,6 +20,7 @@ import io.r2dbc.postgresql.codec.Interval as PostgresInterval
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
@@ -228,7 +229,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
             val metricId = idGenerator.generateInternalId()
             val externalMetricId: String = it.externalMetricId
             val reportingSetId: InternalId? = reportingSetMap[it.metric.externalReportingSetId]
-            val createTime = Instant.now().atOffset(ZoneOffset.UTC)
+            val createTime = Instant.now().atOffset(ZoneOffset.UTC).truncatedTo(ChronoUnit.MICROS)
             val vidSamplingIntervalStart =
               if (it.metric.metricSpec.typeCase == MetricSpec.TypeCase.POPULATION_COUNT) 0
               else it.metric.metricSpec.vidSamplingInterval.start
