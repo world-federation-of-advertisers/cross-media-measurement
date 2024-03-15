@@ -36,54 +36,69 @@ collectors: [Name=string]: #OpenTelemetryCollector & {
 collectors: {
 	"default": {
 		spec: {
-			nodeSelector:   #ServiceAccountNodeSelector
-			serviceAccount: #CollectorServiceAccount
-			config:         """
-receivers:
-  otlp:
-    protocols:
-      grpc:
-        endpoint: 0.0.0.0:\(#OpenTelemetryReceiverPort)
+      _config: {
+        receivers: {
+          otlp:
+            protocols:
+              grpc:
+                endpoint: "0.0.0.0:\(#OpenTelemetryReceiverPort)"
+        }
 
-processors:
-  batch:
-    send_batch_size: 200
-    timeout: 10s
-  filter:
-    spans:
-      exclude:
-        match_type: strict
-        attributes:
-          - key: rpc.method
-            value: Check
+        processors: {
+          batch: {
+            send_batch_size: 200
+            timeout:         "10s"
+          }
+          filter: {
+            spans: {
+              exclude: {
+                match_type: strict
+                attributes: [{
+                   key: rpc.method
+                   value: Check
+                }]
+              }
+            }
+          }
+        }
 
-exporters:
-  prometheus:
-    send_timestamps: true
-    endpoint: 0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)
-    resource_to_telemetry_conversion:
-      enabled: true
-  googlecloud:
-    project: \(#GCloudProject)
-    trace:
+        exporters: {...} | *{
+          prometheus: {
+            send_timestamps: true
+            endpoint:        "0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)"
+            resource_to_telemetry_conversion:
+              enabled: true
+          }
+          googlecloud: {
+            project: \(#GCloudProject)
+            trace: {}
+          }
+        }
 
-extensions:
-  health_check:
+        extensions: {...} | *{
+          health_check: {}
+        }
 
-service:
-  extensions: [health_check]
-  pipelines:
-    traces:
-      receivers: [otlp]
-      processors: [batch, filter]
-      exporters: [googlecloud]
-    metrics:
-      receivers: [otlp]
-      processors: [batch]
-      exporters: [prometheus]
-"""
-		}
-	}
+        service: {
+          extensions: [...] | *["health_check"]
+          pipelines: {
+            traces: {
+              receivers: ["otlp"]
+              processors: ["batch", "filter"]
+              exporters: [...] | *["googlecloud"]
+            }
+            metrics: {
+              receivers: ["otlp"]
+              processors: ["batch"]
+              exporters: [...] | *["prometheus"]
+            }
+          }
+        }
+      }
+
+      config: yaml.Marshal(_config)
+     }
+   }
 }
 
 networkPolicies: [Name=_]: #NetworkPolicy & {
