@@ -28,6 +28,9 @@ service DataProviders {
 
   rpc GetDataProvider(GetDataProviderRequest) returns (DataProvider);
 
+  rpc BatchGetDataProviders(BatchGetDataProvidersRequest)
+      returns (BatchGetDataProvidersResponse);
+
   rpc ReplaceDataProviderRequiredDuchies(
       ReplaceDataProviderRequiredDuchiesRequest) returns (DataProvider);
 
@@ -42,6 +45,14 @@ message ReplaceDataProviderRequiredDuchiesRequest {
 
 message GetDataProviderRequest {
   fixed64 external_data_provider_id = 1;
+}
+
+message BatchGetDataProvidersRequest {
+  repeated fixed64 external_data_provider_ids = 1;
+}
+
+message BatchGetDataProvidersResponse {
+  repeated DataProvider data_providers = 1;
 }
 
 message ReplaceDataAvailabilityIntervalRequest {
