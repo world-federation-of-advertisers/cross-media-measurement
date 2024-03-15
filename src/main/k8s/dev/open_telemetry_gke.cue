@@ -70,7 +70,7 @@ collectors: {
               enabled: true
           }
           googlecloud: {
-            project: \(#GCloudProject)
+            project: "\(#GCloudProject)"
             trace: {}
           }
         }
@@ -116,4 +116,3 @@ networkPolicies: {
 		}
 	}
 }
-
