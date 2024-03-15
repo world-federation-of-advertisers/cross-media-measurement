@@ -29,4 +29,3 @@ val StatusException.errorInfo: ErrorInfo?
       }
     return errorInfoPacked?.unpack(ErrorInfo::class.java)
   }
-
