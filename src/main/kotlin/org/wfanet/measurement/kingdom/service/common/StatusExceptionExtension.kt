@@ -43,13 +43,18 @@ fun StatusException.toExternalRuntimeException(
     if (errorInfo.domain == ErrorCode.getDescriptor().fullName) {
       when (errorInfo.reason) {
         ErrorCode.MEASUREMENT_NOT_FOUND.toString() -> {
-          if (errorInfo.metadataMap.containsKey("external_measurement_consumer_id") && errorInfo.metadataMap.containsKey("external_measurement_id")) {
+          if (
+            errorInfo.metadataMap.containsKey("external_measurement_consumer_id") &&
+              errorInfo.metadataMap.containsKey("external_measurement_id")
+          ) {
             metadataMap["measurement"] =
               MeasurementKey(
-                externalIdToApiId(errorInfo.metadataMap["external_measurement_consumer_id"]!!.toLong()),
+                externalIdToApiId(
+                  errorInfo.metadataMap["external_measurement_consumer_id"]!!.toLong()
+                ),
                 externalIdToApiId(errorInfo.metadataMap["external_measurement_id"]!!.toLong()),
               )
-                .toName()
+              .toName()
             errorMessage = "Measurement ${metadataMap["measurement"]} not found"
           } else {
             errorMessage = "Measurement not found."
@@ -66,7 +71,9 @@ fun StatusException.toExternalRuntimeException(
         ErrorCode.DATA_PROVIDER_NOT_FOUND.toString() -> {
           metadataMap["data_provider"] =
             DataProviderKey(
-              externalIdToApiId(errorInfo.metadataMap["external_data_provider_id"]!!.toLong())
+              externalIdToApiId(
+                errorInfo.metadataMap["external_data_provider_id"]!!.toLong()
+              )
             )
               .toName()
           errorMessage = "Data Provider ${metadataMap["data_provider"]} not found."
@@ -76,7 +83,7 @@ fun StatusException.toExternalRuntimeException(
             DuchyKey(errorInfo.metadataMap["external_duchy_id"].toString()).toName()
           errorMessage = "Duchy ${metadataMap["duchy"]} not found."
         }
-        //TODO{@jcorilla}: Look to differentiate  certificate types
+        // TODO{@jcorilla}: Look to differentiate certificate types
         ErrorCode.CERTIFICATE_NOT_FOUND.toString() -> {
           metadataMap["certificate"] = errorInfo.metadataMap["external_certificate_id"].toString()
           errorMessage = "Certificate not found."
@@ -88,17 +95,19 @@ fun StatusException.toExternalRuntimeException(
           metadataMap["duchy"] =
             DuchyKey(errorInfo.metadataMap["external_duchy_id"]!!.toString()).toName()
           errorMessage = "Duchy ${metadataMap["duchy"]} is not active."
-
         }
         ErrorCode.MEASUREMENT_STATE_ILLEGAL.toString() -> {
           metadataMap["measurement"] =
             MeasurementKey(
-              externalIdToApiId(errorInfo.metadataMap["external_measurement_consumer_id"]!!.toLong()),
+              externalIdToApiId(
+                errorInfo.metadataMap["external_measurement_consumer_id"]!!.toLong()
+              ),
               externalIdToApiId(errorInfo.metadataMap["external_measurement_id"]!!.toLong()),
-            )
+              )
               .toName()
           metadataMap["state"] = errorInfo.metadataMap["measurement_state"].toString()
-          errorMessage = "Measurement ${metadataMap["measurement"]} is in illegal state: ${metadataMap["state"]}"
+          errorMessage =
+            "Measurement ${metadataMap["measurement"]} is in illegal state: ${metadataMap["state"]}"
         }
         else -> {
           metadataMap.putAll(errorInfo.metadataMap)
