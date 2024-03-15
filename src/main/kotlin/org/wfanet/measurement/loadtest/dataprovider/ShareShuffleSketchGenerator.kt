@@ -103,7 +103,7 @@ class ShareShuffleSketchGenerator(
    * implementation is based on the c++ std::lower_bound.
    */
   private fun lowerBound(sortedList: List<Double>, target: Double): Int {
-    require(sortedList.size > 0) { "Input list cannot be empty." }
+    require(sortedList.isNotEmpty()) { "Input list cannot be empty." }
 
     var current = 0
     var count = sortedList.size
@@ -127,7 +127,7 @@ class ShareShuffleSketchGenerator(
    * The implementation is based on the c++ std::upper_bound
    */
   private fun upperBound(sortedList: List<Double>, target: Double): Int {
-    require(sortedList.size > 0) { "Input list cannot be empty." }
+    require(sortedList.isNotEmpty()) { "Input list cannot be empty." }
 
     var current = 0
     var count = sortedList.size
