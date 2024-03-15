@@ -22,7 +22,6 @@ import org.wfanet.measurement.common.db.r2dbc.postgres.valuesListBoundStatement
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequest
 import org.wfanet.measurement.internal.reporting.v2.Measurement
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MeasurementConsumerReader
-import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MeasurementReader
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.MeasurementNotFoundException
 
@@ -34,8 +33,8 @@ import org.wfanet.measurement.reporting.service.internal.MeasurementNotFoundExce
  * * [MeasurementNotFoundException] Measurement not found.
  */
 class SetCmmsMeasurementIds(private val request: BatchSetCmmsMeasurementIdsRequest) :
-  PostgresWriter<List<Measurement>>() {
-  override suspend fun TransactionScope.runTransaction(): List<Measurement> {
+  PostgresWriter<Unit>() {
+  override suspend fun TransactionScope.runTransaction() {
     val measurementConsumerId =
       (MeasurementConsumerReader(transactionContext).getByCmmsId(request.cmmsMeasurementConsumerId)
           ?: throw MeasurementConsumerNotFoundException())
@@ -66,25 +65,5 @@ class SetCmmsMeasurementIds(private val request: BatchSetCmmsMeasurementIdsReque
     if (result.numRowsUpdated < request.measurementIdsList.size) {
       throw MeasurementNotFoundException()
     }
-
-    val createRequestIdMap = mutableMapOf<String, Measurement>()
-    MeasurementReader(transactionContext)
-      .readMeasurementsByCmmsCreateRequestId(
-        measurementConsumerId,
-        request.measurementIdsList.map { it.cmmsCreateMeasurementRequestId },
-      )
-      .collect {
-        val measurement = it.measurement
-        createRequestIdMap.computeIfAbsent(measurement.cmmsCreateMeasurementRequestId) {
-          measurement
-        }
-      }
-
-    val measurements = mutableListOf<Measurement>()
-    request.measurementIdsList.forEach {
-      measurements.add(createRequestIdMap[it.cmmsCreateMeasurementRequestId]!!)
-    }
-
-    return measurements
   }
 }

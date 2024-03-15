@@ -24,7 +24,6 @@ import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRe
 import org.wfanet.measurement.internal.reporting.v2.Measurement
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MeasurementConsumerReader
-import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MeasurementReader
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.MeasurementNotFoundException
 
@@ -36,8 +35,8 @@ import org.wfanet.measurement.reporting.service.internal.MeasurementNotFoundExce
  * * [MeasurementNotFoundException] Measurement not found.
  */
 class SetMeasurementResults(private val request: BatchSetMeasurementResultsRequest) :
-  PostgresWriter<List<Measurement>>() {
-  override suspend fun TransactionScope.runTransaction(): List<Measurement> {
+  PostgresWriter<Unit>() {
+  override suspend fun TransactionScope.runTransaction() {
     val measurementConsumerId =
       (MeasurementConsumerReader(transactionContext).getByCmmsId(request.cmmsMeasurementConsumerId)
           ?: throw MeasurementConsumerNotFoundException())
@@ -73,21 +72,5 @@ class SetMeasurementResults(private val request: BatchSetMeasurementResultsReque
     if (result.numRowsUpdated < request.measurementResultsList.size) {
       throw MeasurementNotFoundException()
     }
-
-    val idMap = mutableMapOf<String, Measurement>()
-    MeasurementReader(transactionContext)
-      .readMeasurementsByCmmsId(
-        measurementConsumerId,
-        request.measurementResultsList.map { it.cmmsMeasurementId },
-      )
-      .collect {
-        val measurement = it.measurement
-        idMap.computeIfAbsent(measurement.cmmsMeasurementId) { measurement }
-      }
-
-    val measurements = mutableListOf<Measurement>()
-    request.measurementResultsList.forEach { measurements.add(idMap[it.cmmsMeasurementId]!!) }
-
-    return measurements
   }
 }
