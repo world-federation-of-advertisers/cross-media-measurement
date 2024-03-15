@@ -6,6 +6,7 @@ on:
 jobs:
   update-reporting-v2:
     uses: ./.github/workflows/configure-reporting-v2.yml
+    secrets: inherit
     with:
       image-tag: ce569eac3fa403244a3cbe7ba356deb543c8550c
       environment: dev
