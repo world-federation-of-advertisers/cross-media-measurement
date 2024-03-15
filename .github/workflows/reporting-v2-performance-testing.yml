@@ -1,12 +1,12 @@
 name: Reporting V2 Performance Testing
 
 on:
-  workflow_dispatch:
+  push:
 
 jobs:
   update-reporting-v2:
     uses: ./.github/workflows/configure-reporting-v2.yml
     with:
-      image-tag: 0.5.1
+      image-tag: ce569eac3fa403244a3cbe7ba356deb543c8550c
       environment: dev
       apply: true
