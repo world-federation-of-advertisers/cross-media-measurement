@@ -55,10 +55,10 @@ collectors: {
           filter: {
             spans: {
               exclude: {
-                match_type: strict
+                match_type: "strict"
                 attributes: [{
-                   key: rpc.method
-                   value: Check
+                   key: "rpc.method"
+                   value: "Check"
                 }]
               }
             }
