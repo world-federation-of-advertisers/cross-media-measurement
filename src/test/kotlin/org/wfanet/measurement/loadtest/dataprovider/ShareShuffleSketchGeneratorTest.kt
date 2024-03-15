@@ -21,7 +21,6 @@ import com.google.type.interval
 import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.random.Random
-import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.toList
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -52,7 +51,99 @@ private const val RANDOM_SEED: Long = 0
 @RunWith(JUnit4::class)
 class ShareShuffleSketchGeneratorTest {
   @Test
-  fun `vid sampling interval in the middle of the unit interval and contains no vid fails`() {
+  fun `ShareShuffleSketchGenerator returns non-wrapped around sketch with correct range`() {
+    // EventGroupSpecs for female 18_TO_34
+    val eventGroupSpecs =
+      REQUISITION_SPEC.events.eventGroupsList.map {
+        EventQuery.EventGroupSpec(eventGroup { name = it.key }, it.value)
+      }
+
+    val allEvents =
+      generateEvents(
+        1L..4L,
+        FIRST_EVENT_DATE,
+        Person.AgeGroup.YEARS_18_TO_34,
+        Person.Gender.FEMALE,
+      )
+    val eventQueries = InMemoryEventQuery(allEvents)
+
+    val salt = ByteString.copyFromUtf8("salt")
+    val vidUniverse = (1L..10L).toList()
+    val vidToIndexMap = mutableMapOf<Long, IndexedValue>()
+    for (i in 1L..10L) {
+      vidToIndexMap[i] = IndexedValue((i - 1).toInt(), 0.05 + 0.1 * (i - 1))
+    }
+
+    // The interval contains 4 vids {3, 4, 5, 6} of the vid universe.
+    val measurementSpec = measurementSpec {
+      vidSamplingInterval = vidSamplingInterval {
+        start = 0.25f
+        width = 0.30f
+      }
+    }
+
+    val hmssSketch =
+      ShareShuffleSketchGenerator(
+          vidUniverse,
+          salt,
+          vidToIndexMap,
+          eventQueries,
+          measurementSpec.vidSamplingInterval,
+        )
+        .generate(eventGroupSpecs)
+
+    val expectedSketch = intArrayOf(1, 1, 0, 0)
+    assertThat(hmssSketch).isEqualTo(expectedSketch)
+  }
+
+  @Test
+  fun `ShareShuffleSketchGenerator returns wrapped around sketch with correct range`() {
+    // EventGroupSpecs for female 18_TO_34
+    val eventGroupSpecs =
+      REQUISITION_SPEC.events.eventGroupsList.map {
+        EventQuery.EventGroupSpec(eventGroup { name = it.key }, it.value)
+      }
+
+    val allEvents =
+      generateEvents(
+        1L..4L,
+        FIRST_EVENT_DATE,
+        Person.AgeGroup.YEARS_18_TO_34,
+        Person.Gender.FEMALE,
+      )
+    val eventQueries = InMemoryEventQuery(allEvents)
+
+    val salt = ByteString.copyFromUtf8("salt")
+    val vidUniverse = (1L..10L).toList()
+    val vidToIndexMap = mutableMapOf<Long, IndexedValue>()
+    for (i in 1L..10L) {
+      vidToIndexMap[i] = IndexedValue((i - 1).toInt(), 0.05 + 0.1 * (i - 1))
+    }
+
+    // The interval contains 5 vids {8, 9, 10, 1, 2} of the vid universe.
+    val measurementSpec = measurementSpec {
+      vidSamplingInterval = vidSamplingInterval {
+        start = 0.75f
+        width = 0.45f
+      }
+    }
+
+    val hmssSketch =
+      ShareShuffleSketchGenerator(
+          vidUniverse,
+          salt,
+          vidToIndexMap,
+          eventQueries,
+          measurementSpec.vidSamplingInterval,
+        )
+        .generate(eventGroupSpecs)
+
+    val expectedSketch = intArrayOf(0, 0, 0, 1, 1)
+    assertThat(hmssSketch).isEqualTo(expectedSketch)
+  }
+
+  @Test
+  fun `ShareShuffleSketchGenerator returns an empty sketch when vid sampling interval is in the middle of the unit interval and contains no vid`() {
     val eventGroupSpecs =
       REQUISITION_SPEC.events.eventGroupsList.map {
         EventQuery.EventGroupSpec(eventGroup { name = it.key }, it.value)
@@ -70,11 +161,11 @@ class ShareShuffleSketchGeneratorTest {
     val vidUniverse = (0L..9L).toList()
     val salt = ByteString.copyFromUtf8("salt")
 
-    val sortedNormalizedHashValues =
-      VidToIndexMapGenerator.generateMapping(salt, vidUniverse).values.toList().map { it.second }
+    val vidToIndexMap = VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
+    val sortedNormalizedHashValues = vidToIndexMap.values.toList().map { it.value }.sorted()
 
-    // sortedNormalizedHashValues[5] = 0.24775366918362596
-    // sortedNormalizedHashValues[6] = 0.4839473026593172
+    // sortedNormalizedHashValues[5] = 0.2478
+    // sortedNormalizedHashValues[6] = 0.4839
     val measurementSpec = measurementSpec {
       vidSamplingInterval = vidSamplingInterval {
         start = (sortedNormalizedHashValues[5] + 0.01).toFloat()
@@ -82,22 +173,21 @@ class ShareShuffleSketchGeneratorTest {
       }
     }
 
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        ShareShuffleSketchGenerator(
-            vidUniverse,
-            salt,
-            eventQueries,
-            measurementSpec.vidSamplingInterval,
-          )
-          .generate(eventGroupSpecs)
-      }
+    val sketch =
+      ShareShuffleSketchGenerator(
+          vidUniverse,
+          salt,
+          vidToIndexMap,
+          eventQueries,
+          measurementSpec.vidSamplingInterval,
+        )
+        .generate(eventGroupSpecs)
 
-    assertThat(exception).hasMessageThat().contains("empty")
+    assert(sketch.isEmpty())
   }
 
   @Test
-  fun `vid sampling interval at the beginning of the unit interval and contains no vid fails`() {
+  fun `ShareShuffleSketchGenerator returns an empty sketch when vid sampling interval is at the beginning of the unit interval and contains no vid`() {
     val eventGroupSpecs =
       REQUISITION_SPEC.events.eventGroupsList.map {
         EventQuery.EventGroupSpec(eventGroup { name = it.key }, it.value)
@@ -115,11 +205,10 @@ class ShareShuffleSketchGeneratorTest {
     val vidUniverse = (0L..9L).toList()
     val salt = ByteString.copyFromUtf8("salt")
 
-    // The list of normalized hash values is:
-    val sortedNormalizedHashValues =
-      VidToIndexMapGenerator.generateMapping(salt, vidUniverse).values.toList().map { it.second }
+    val vidToIndexMap = VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
+    val sortedNormalizedHashValues = vidToIndexMap.values.toList().map { it.value }.sorted()
 
-    // sortedNormalizedHashValues[0] = 0.016258805691466528
+    // sortedNormalizedHashValues[0] = 0.0163
     val measurementSpec = measurementSpec {
       vidSamplingInterval = vidSamplingInterval {
         start = 0.0f
@@ -127,22 +216,21 @@ class ShareShuffleSketchGeneratorTest {
       }
     }
 
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        ShareShuffleSketchGenerator(
-            vidUniverse,
-            salt,
-            eventQueries,
-            measurementSpec.vidSamplingInterval,
-          )
-          .generate(eventGroupSpecs)
-      }
+    val sketch =
+      ShareShuffleSketchGenerator(
+          vidUniverse,
+          salt,
+          vidToIndexMap,
+          eventQueries,
+          measurementSpec.vidSamplingInterval,
+        )
+        .generate(eventGroupSpecs)
 
-    assertThat(exception).hasMessageThat().contains("empty")
+    assert(sketch.isEmpty())
   }
 
   @Test
-  fun `vid sampling interval at the end of the unit interval and contains no vid fails`() {
+  fun `ShareShuffleSketchGenerator returns an empty sketch when vid sampling interval is at the end of the unit interval and contains no vid`() {
     val eventGroupSpecs =
       REQUISITION_SPEC.events.eventGroupsList.map {
         EventQuery.EventGroupSpec(eventGroup { name = it.key }, it.value)
@@ -160,10 +248,10 @@ class ShareShuffleSketchGeneratorTest {
     val vidUniverse = (0L..9L).toList()
     val salt = ByteString.copyFromUtf8("salt")
 
-    val sortedNormalizedHashValues =
-      VidToIndexMapGenerator.generateMapping(salt, vidUniverse).values.toList().map { it.second }
+    val vidToIndexMap = VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
+    val sortedNormalizedHashValues = vidToIndexMap.values.toList().map { it.value }.sorted()
 
-    // sortedNormalizedHashValues[9] = 0.7261164619517929
+    // sortedNormalizedHashValues[9] = 0.7261
     val measurementSpec = measurementSpec {
       vidSamplingInterval = vidSamplingInterval {
         start = (sortedNormalizedHashValues[9] + 0.01).toFloat()
@@ -171,22 +259,21 @@ class ShareShuffleSketchGeneratorTest {
       }
     }
 
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        ShareShuffleSketchGenerator(
-            vidUniverse,
-            salt,
-            eventQueries,
-            measurementSpec.vidSamplingInterval,
-          )
-          .generate(eventGroupSpecs)
-      }
+    val sketch =
+      ShareShuffleSketchGenerator(
+          vidUniverse,
+          salt,
+          vidToIndexMap,
+          eventQueries,
+          measurementSpec.vidSamplingInterval,
+        )
+        .generate(eventGroupSpecs)
 
-    assertThat(exception).hasMessageThat().contains("empty")
+    assert(sketch.isEmpty())
   }
 
   @Test
-  fun `vid sampling interval wraps around the unit interval and contains no vid fails`() {
+  fun `ShareShuffleSketchGenerator returns an empty sketch when vid sampling interval wraps around the unit interval and contains no vid`() {
     val eventGroupSpecs =
       REQUISITION_SPEC.events.eventGroupsList.map {
         EventQuery.EventGroupSpec(eventGroup { name = it.key }, it.value)
@@ -204,12 +291,11 @@ class ShareShuffleSketchGeneratorTest {
     val vidUniverse = (0L..9L).toList()
     val salt = ByteString.copyFromUtf8("salt")
 
-    // The list of normalized hash values is:
-    val sortedNormalizedHashValues =
-      VidToIndexMapGenerator.generateMapping(salt, vidUniverse).values.toList().map { it.second }
+    val vidToIndexMap = VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
+    val sortedNormalizedHashValues = vidToIndexMap.values.toList().map { it.value }.sorted()
 
-    // sortedNormalizedHashValues[0] = 0.0162588056914665
-    // sortedNormalizedHashValues[9] = 0.7261164619517929
+    // sortedNormalizedHashValues[0] = 0.0163
+    // sortedNormalizedHashValues[9] = 0.7261
     val measurementSpec = measurementSpec {
       vidSamplingInterval = vidSamplingInterval {
         start = (sortedNormalizedHashValues[9] + 0.01).toFloat()
@@ -218,18 +304,17 @@ class ShareShuffleSketchGeneratorTest {
       }
     }
 
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        ShareShuffleSketchGenerator(
-            vidUniverse,
-            salt,
-            eventQueries,
-            measurementSpec.vidSamplingInterval,
-          )
-          .generate(eventGroupSpecs)
-      }
+    val sketch =
+      ShareShuffleSketchGenerator(
+          vidUniverse,
+          salt,
+          vidToIndexMap,
+          eventQueries,
+          measurementSpec.vidSamplingInterval,
+        )
+        .generate(eventGroupSpecs)
 
-    assertThat(exception).hasMessageThat().contains("empty")
+    assert(sketch.isEmpty())
   }
 
   @Test
@@ -248,6 +333,8 @@ class ShareShuffleSketchGeneratorTest {
       )
 
     val vidUniverse = (0L..30L).toList()
+    val salt = ByteString.copyFromUtf8("salt")
+    val vidToIndexMap = VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
     val eventQueries = InMemoryEventQuery(allEvents)
     val measurementSpec = measurementSpec {
       vidSamplingInterval = vidSamplingInterval {
@@ -259,7 +346,8 @@ class ShareShuffleSketchGeneratorTest {
     val hmssSketch =
       ShareShuffleSketchGenerator(
           vidUniverse,
-          ByteString.copyFromUtf8("salt"),
+          salt,
+          vidToIndexMap,
           eventQueries,
           measurementSpec.vidSamplingInterval,
         )
@@ -301,13 +389,18 @@ class ShareShuffleSketchGeneratorTest {
 
     val vidUniverse = (0L..30L).toList()
     val salt = ByteString.copyFromUtf8("salt")
+    val vidToIndexMap = VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
 
     // The vids of the group event (FEMALE, YEARS_18_TO_34).
     val subUniverse = (1L..10L).toList()
-    val fullUniverseNormalizedHashValues =
-      VidToIndexMapGenerator.generateMapping(salt, vidUniverse).values.toList().map { it.second }
+
+    val fullUniverseNormalizedHashValues = vidToIndexMap.values.toList().map { it.value }.sorted()
     val subUniverseNormalizedHashValues =
-      VidToIndexMapGenerator.generateMapping(salt, subUniverse).values.toList().map { it.second }
+      VidToIndexMapGenerator.generateMapping(salt, subUniverse)
+        .values
+        .toList()
+        .map { it.value }
+        .sorted()
 
     val eventQueries = InMemoryEventQuery(allEvents)
 
@@ -323,6 +416,7 @@ class ShareShuffleSketchGeneratorTest {
       ShareShuffleSketchGenerator(
           vidUniverse,
           salt,
+          vidToIndexMap,
           eventQueries,
           measurementSpec.vidSamplingInterval,
         )
@@ -383,13 +477,17 @@ class ShareShuffleSketchGeneratorTest {
 
     val vidUniverse = (0L..30L).toList()
     val salt = ByteString.copyFromUtf8("salt")
+    val vidToIndexMap = VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
 
     // The vids of the group event (FEMALE, YEARS_18_TO_34).
     val subUniverse = (1L..10L).toList()
-    val fullUniverseNormalizedHashValues =
-      VidToIndexMapGenerator.generateMapping(salt, vidUniverse).values.toList().map { it.second }
+    val fullUniverseNormalizedHashValues = vidToIndexMap.values.toList().map { it.value }.sorted()
     val subUniverseNormalizedHashValues =
-      VidToIndexMapGenerator.generateMapping(salt, subUniverse).values.toList().map { it.second }
+      VidToIndexMapGenerator.generateMapping(salt, subUniverse)
+        .values
+        .toList()
+        .map { it.value }
+        .sorted()
 
     val eventQueries = InMemoryEventQuery(allEvents)
 
@@ -407,6 +505,7 @@ class ShareShuffleSketchGeneratorTest {
       ShareShuffleSketchGenerator(
           vidUniverse,
           salt,
+          vidToIndexMap,
           eventQueries,
           measurementSpec.vidSamplingInterval,
         )

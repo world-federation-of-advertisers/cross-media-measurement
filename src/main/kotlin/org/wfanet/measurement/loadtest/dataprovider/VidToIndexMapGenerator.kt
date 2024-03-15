@@ -19,30 +19,33 @@ package org.wfanet.measurement.loadtest.dataprovider
 import com.google.protobuf.ByteString
 import java.math.BigInteger
 import java.nio.ByteOrder
-import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.toByteString
 
+data class IndexedValue(val index: Int, val value: Double)
+
 object VidToIndexMapGenerator {
   /** Generates the hash of (vid + salt). */
-  private fun generateHash(vid: Long, salt: ByteString): String {
+  private fun generateHash(vid: Long, salt: ByteString): ByteString {
     val hashInput = vid.toByteString(ByteOrder.BIG_ENDIAN).concat(salt)
-    return HexString(Hashing.hashSha256(hashInput)).toString()
+    return Hashing.hashSha256(hashInput)
   }
 
   /**
-   * Generates the map (vid, (bucket index, normalized hash)) for all vids in the vid universe. Each
-   * vid is concatenated with a `salt`, then the sha256 of the combined string is computed. The
+   * Generates the map (vid, (bucket index, normalized hash)) for all vids in the vid universe.
+   *
+   * Each vid is concatenated with a `salt`, then the sha256 of the combined string is computed. The
    * vid's are sorted based on its hash value. The bucket index of a vid is its located in the
    * sorted array.
    */
-  fun generateMapping(salt: ByteString, vidUniverse: List<Long>): Map<Long, Pair<Int, Double>> {
-    require(vidUniverse.size > 0) { "The vid universe must be greater than or equal to 0." }
+  fun generateMapping(salt: ByteString, vidUniverse: List<Long>): Map<Long, IndexedValue> {
+    require(vidUniverse.isNotEmpty()) { "The vid universe must not be empty." }
 
     val hashes = mutableListOf<Pair<Long, BigInteger>>()
 
     for (vid in vidUniverse) {
-      val hash = BigInteger(generateHash(vid, salt), 16)
+      // Converts the hash to a non-negative BigInteger.
+      val hash = BigInteger(1, generateHash(vid, salt).toByteArray())
       hashes.add(Pair(vid, hash))
     }
 
@@ -50,12 +53,12 @@ object VidToIndexMapGenerator {
     hashes.sortBy { it.second }
 
     // Maps the hash values to the unit interval and generates the vid to index and normalized hash
-    // map.
+    // value map.
     val maxHashValue = BigInteger.ONE.shiftLeft(256).subtract(BigInteger.ONE).toDouble()
-    val vidMap = mutableMapOf<Long, Pair<Int, Double>>()
+    val vidMap = mutableMapOf<Long, IndexedValue>()
     for ((index, pair) in hashes.withIndex()) {
       val normalizedHashValue = pair.second.toDouble() / maxHashValue
-      vidMap[pair.first] = Pair(index, normalizedHashValue)
+      vidMap[pair.first] = IndexedValue(index, normalizedHashValue)
     }
 
     return vidMap

@@ -987,6 +987,7 @@ class EdpSimulator(
   private fun generateShareShuffleSketch(
     vidUniverse: List<Long>,
     salt: ByteString,
+    vidToIndexMap: Map<Long, IndexedValue>,
     measurementSpec: MeasurementSpec,
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
   ): IntArray {
@@ -996,6 +997,7 @@ class EdpSimulator(
       ShareShuffleSketchGenerator(
           vidUniverse,
           salt,
+          vidToIndexMap,
           eventQuery,
           measurementSpec.vidSamplingInterval,
         )

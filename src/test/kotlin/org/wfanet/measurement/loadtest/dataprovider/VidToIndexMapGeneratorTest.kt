@@ -40,13 +40,14 @@ class VidToIndexMapGeneratorTest {
     val salt = ByteString.copyFromUtf8("salt")
     val vidUniverse: List<Long> = (1L..10L).toList()
     val vidMap = VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
-    val sortedListOfIndexAndNormalizedHashValues = vidMap.values.toList()
+    val sortedListOfIndexedValues = vidMap.values.toList().sortedBy { it.index }
 
-    // Verifies that the normalized hashes are in non-decreasing order and the indices increase
-    // incrementally.
+    // Verifies the consistency of the index and the normalized hash values.
     assert(
-      sortedListOfIndexAndNormalizedHashValues
-        .zipWithNext { a, b -> (a.second <= b.second) && (b.first == a.first + 1) }
+      sortedListOfIndexedValues
+        .zipWithNext { a: IndexedValue, b: IndexedValue ->
+          (a.value <= b.value) && (b.index == a.index + 1)
+        }
         .all { it }
     )
   }

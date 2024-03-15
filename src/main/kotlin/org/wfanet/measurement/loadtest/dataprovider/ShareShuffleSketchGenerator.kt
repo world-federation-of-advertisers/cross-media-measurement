@@ -23,23 +23,28 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 class ShareShuffleSketchGenerator(
   private val vidUniverse: List<Long>,
   private val salt: ByteString,
+  private var vidToIndexMap: Map<Long, IndexedValue>,
   private val eventQuery: EventQuery<Message>,
   private val vidSamplingInterval: MeasurementSpec.VidSamplingInterval,
 ) {
-
-  /** Generates a [Sketch] for the specified [eventGroupSpecs]. */
+  init {
+    if (vidToIndexMap.isEmpty()) {
+      vidToIndexMap = VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
+    }
+  }
+  /** Generates a frequency vector for the specified [eventGroupSpecs]. */
   fun generate(eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>): IntArray {
-    require(vidUniverse.size > 0) { "The vid universe size must be positive." }
+    require(vidUniverse.isNotEmpty()) { "The vid universe size must be positive." }
 
-    val vidToIndexMap = VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
-    val sortedNormalizedHashValues = vidToIndexMap.values.toList().map { it.second }
+    val sortedNormalizedHashValues: List<Double> =
+      vidToIndexMap.values.toList().map { it.value }.sorted()
 
     var samplingIntervalEnd: Double =
       (vidSamplingInterval.start + vidSamplingInterval.width).toDouble()
 
     val isWrappedAround = (samplingIntervalEnd > 1.0)
 
-    if (samplingIntervalEnd > 1.0) {
+    if (isWrappedAround) {
       samplingIntervalEnd -= 1.0
     }
 
@@ -53,6 +58,8 @@ class ShareShuffleSketchGenerator(
       if (start <= end) {
         validIntervals.add(start..end)
         sketchSize = end - start + 1
+      } else {
+        return IntArray(0)
       }
     } else {
       if (start < vidUniverse.size) {
@@ -66,16 +73,14 @@ class ShareShuffleSketchGenerator(
       sketchSize += (end + 1)
     }
 
-    require(sketchSize > 0) { "The sketch must not be empty." }
-
     val sketch = IntArray(sketchSize) { 0 }
 
     for (eventGroupSpec in eventGroupSpecs) {
       eventQuery
         .getUserVirtualIds(eventGroupSpec)
-        .filter { isInSelectedIntervals(vidToIndexMap.getValue(it).first, validIntervals) }
+        .filter { isInSelectedIntervals(vidToIndexMap.getValue(it).index, validIntervals) }
         .forEach {
-          val bucketIndex: Int = vidToIndexMap.getValue(it).first - start
+          val bucketIndex: Int = vidToIndexMap.getValue(it).index - start
           if (bucketIndex >= 0) {
             sketch[bucketIndex] += 1
           } else {
@@ -92,9 +97,10 @@ class ShareShuffleSketchGenerator(
   }
 
   /**
-   * Finds the smallest index i such that sortedList[i] >= target. The value `sortedList.size` is
-   * returned in case all values are less than `target`. The implementation is based on the c++
-   * std::lower_bound.
+   * Finds the smallest index i such that sortedList[i] >= target.
+   *
+   * The value `sortedList.size` is returned in case all values are less than `target`. The
+   * implementation is based on the c++ std::lower_bound.
    */
   private fun lowerBound(sortedList: List<Double>, target: Double): Int {
     require(sortedList.size > 0) { "Input list cannot be empty." }
@@ -115,9 +121,10 @@ class ShareShuffleSketchGenerator(
   }
 
   /**
-   * Finds the smallest index i such that sortedList[i] > target. The value `sortedList.size` is
-   * returned in case all values are less than or equal to `target`. The implementation is based on
-   * the c++ std::upper_bound
+   * Finds the smallest index i such that sortedList[i] > target.
+   *
+   * The value `sortedList.size` is returned in case all values are less than or equal to `target`.
+   * The implementation is based on the c++ std::upper_bound
    */
   private fun upperBound(sortedList: List<Double>, target: Double): Int {
     require(sortedList.size > 0) { "Input list cannot be empty." }
