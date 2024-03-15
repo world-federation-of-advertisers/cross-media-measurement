@@ -63,23 +63,34 @@ import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.common.identity.ApiId
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.internal.kingdom.CreateMeasurementRequest as InternalCreateMeasurementRequest
+import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
+import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
 import org.wfanet.measurement.internal.kingdom.Measurement.View as InternalMeasurementView
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
-import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
+import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.batchCreateMeasurementsRequest
+import org.wfanet.measurement.internal.kingdom.batchGetDataProvidersRequest
 import org.wfanet.measurement.internal.kingdom.batchGetMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.createMeasurementRequest as internalCreateMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.measurementKey
+import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
+import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
@@ -88,9 +99,16 @@ private const val MAX_BATCH_SIZE = 50
 private const val MISSING_RESOURCE_NAME_ERROR = "Resource name is either unspecified or invalid"
 
 class MeasurementsService(
-  private val internalMeasurementsStub: MeasurementsCoroutineStub,
+  private val internalMeasurementsStub: InternalMeasurementsCoroutineStub,
+  private val internalDataProvidersStub: InternalDataProvidersCoroutineStub,
   private val noiseMechanisms: List<NoiseMechanism>,
   private val reachOnlyLlV2Enabled: Boolean,
+  /**
+   * Whether Honest Majority Share Shuffle (HMSS) is enabled.
+   *
+   * TODO(@renjiezh): Set this based on feature flag.
+   */
+  private val hmssEnabled: Boolean = false,
 ) : MeasurementsCoroutineImplBase() {
 
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
@@ -124,20 +142,53 @@ class MeasurementsService(
   }
 
   override suspend fun createMeasurement(request: CreateMeasurementRequest): Measurement {
-    val authenticatedMeasurementConsumerKey = getAuthenticatedMeasurementConsumerKey()
-
+    val authenticatedPrincipal: MeasurementPrincipal = principalFromCurrentContext
     val parentKey =
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
         "parent is either unspecified or invalid"
       }
-
-    if (parentKey != authenticatedMeasurementConsumerKey) {
+    if (parentKey != authenticatedPrincipal.resourceKey) {
       failGrpc(Status.PERMISSION_DENIED) {
         "Cannot create a Measurement for another MeasurementConsumer"
       }
     }
 
-    val internalRequest = request.buildInternalCreateMeasurementRequest(parentKey)
+    grpcRequire(request.measurement.dataProvidersList.isNotEmpty()) {
+      "measurement.data_providers is empty"
+    }
+
+    val externalDataProviderIds: List<ExternalId> =
+      request.measurement.dataProvidersList.map {
+        val key =
+          grpcRequireNotNull(DataProviderKey.fromName(it.key)) {
+            "DataProvider resource name unspecified or invalid"
+          }
+        ApiId(key.dataProviderId).externalId
+      }
+    val dataProviderCapabilities: List<InternalDataProvider.Capabilities> =
+      try {
+          internalDataProvidersStub.batchGetDataProviders(
+            batchGetDataProvidersRequest {
+              this.externalDataProviderIds += externalDataProviderIds.map { it.value }
+            }
+          )
+        } catch (e: StatusException) {
+          throw when (e.status.code) {
+              Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription("DataProvider not found")
+              Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+              Status.Code.INTERNAL -> Status.INTERNAL
+              else -> Status.UNKNOWN
+            }
+            .withCause(e)
+            .asRuntimeException()
+        }
+        .dataProvidersList
+        .map { it.details.capabilities }
+
+    // TODO(@SanjayVas): Check required capabilities once we have any.
+
+    val internalRequest =
+      request.buildInternalCreateMeasurementRequest(dataProviderCapabilities, parentKey)
 
     val internalMeasurement =
       try {
@@ -258,6 +309,41 @@ class MeasurementsService(
       failGrpc { "Number of elements in requests exceeds the maximum batch size." }
     }
 
+    val allExternalDataProviderIds: List<ExternalId> =
+      request.requestsList
+        .flatMap { it.measurement.dataProvidersList }
+        .map { it.key }
+        .distinct()
+        .map { dataProviderName ->
+          val key =
+            grpcRequireNotNull(DataProviderKey.fromName(dataProviderName)) {
+              "DataProvider resource name unspecified or invalid"
+            }
+          ApiId(key.dataProviderId).externalId
+        }
+    val dataProviderCapabilities: Map<ExternalId, InternalDataProvider.Capabilities> =
+      try {
+          internalDataProvidersStub.batchGetDataProviders(
+            batchGetDataProvidersRequest {
+              this.externalDataProviderIds += allExternalDataProviderIds.map { it.value }
+            }
+          )
+        } catch (e: StatusException) {
+          throw when (e.status.code) {
+              Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription("DataProvider not found")
+              Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+              Status.Code.INTERNAL -> Status.INTERNAL
+              else -> Status.UNKNOWN
+            }
+            .withCause(e)
+            .asRuntimeException()
+        }
+        .dataProvidersList
+        .associateBy { ExternalId(it.externalDataProviderId) }
+        .mapValues { it.value.details.capabilities }
+
+    // TODO(@SanjayVas): Check required capabilities once we have any.
+
     val internalCreateMeasurementRequests = mutableListOf<InternalCreateMeasurementRequest>()
     var isParentEmpty = false
     var isParentNotEmpty = false
@@ -289,8 +375,15 @@ class MeasurementsService(
         }
       }
 
+      val externalDataProviderIds: Set<ExternalId> =
+        createMeasurementRequest.measurement.dataProvidersList
+          .map { ApiId(DataProviderKey.fromName(it.key)!!.dataProviderId).externalId }
+          .toSet()
       val internalCreateMeasurementRequest =
-        createMeasurementRequest.buildInternalCreateMeasurementRequest(parentKey)
+        createMeasurementRequest.buildInternalCreateMeasurementRequest(
+          dataProviderCapabilities.filterKeys { it in externalDataProviderIds }.values,
+          parentKey,
+        )
       internalCreateMeasurementRequests.add(internalCreateMeasurementRequest)
     }
 
@@ -381,8 +474,110 @@ class MeasurementsService(
     }
   }
 
+  private fun buildInternalProtocolConfig(
+    measurementSpec: MeasurementSpec,
+    dataProviderCapabilities: Collection<InternalDataProvider.Capabilities>,
+  ): InternalProtocolConfig {
+    val dataProvidersCount = dataProviderCapabilities.size
+    val internalNoiseMechanisms = noiseMechanisms.map { it.toInternal() }
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    return when (measurementSpec.measurementTypeCase) {
+      MeasurementSpec.MeasurementTypeCase.REACH -> {
+        if (dataProvidersCount == 1) {
+          protocolConfig {
+            direct =
+              ProtocolConfigKt.direct {
+                this.noiseMechanisms += internalNoiseMechanisms
+                customDirectMethodology =
+                  InternalProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
+                deterministicCountDistinct =
+                  InternalProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
+                liquidLegionsCountDistinct =
+                  InternalProtocolConfig.Direct.LiquidLegionsCountDistinct.getDefaultInstance()
+              }
+          }
+        } else {
+          if (reachOnlyLlV2Enabled) {
+            protocolConfig {
+              externalProtocolConfigId = RoLlv2ProtocolConfig.name
+              reachOnlyLiquidLegionsV2 = RoLlv2ProtocolConfig.protocolConfig
+            }
+          } else {
+            protocolConfig {
+              externalProtocolConfigId = Llv2ProtocolConfig.name
+              liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
+            }
+          }
+        }
+      }
+      MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
+        if (dataProvidersCount == 1) {
+          protocolConfig {
+            direct =
+              ProtocolConfigKt.direct {
+                this.noiseMechanisms += internalNoiseMechanisms
+                customDirectMethodology =
+                  InternalProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
+                deterministicCountDistinct =
+                  InternalProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
+                liquidLegionsCountDistinct =
+                  InternalProtocolConfig.Direct.LiquidLegionsCountDistinct.getDefaultInstance()
+                deterministicDistribution =
+                  InternalProtocolConfig.Direct.DeterministicDistribution.getDefaultInstance()
+                liquidLegionsDistribution =
+                  InternalProtocolConfig.Direct.LiquidLegionsDistribution.getDefaultInstance()
+              }
+          }
+        } else {
+          if (
+            hmssEnabled && dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
+          ) {
+            protocolConfig {
+              externalProtocolConfigId = HmssProtocolConfig.name
+              honestMajorityShareShuffle = HmssProtocolConfig.protocolConfig
+            }
+          } else {
+            protocolConfig {
+              externalProtocolConfigId = Llv2ProtocolConfig.name
+              liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
+            }
+          }
+        }
+      }
+      MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
+        protocolConfig {
+          direct =
+            ProtocolConfigKt.direct {
+              this.noiseMechanisms += internalNoiseMechanisms
+              customDirectMethodology =
+                InternalProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
+              deterministicCount =
+                InternalProtocolConfig.Direct.DeterministicCount.getDefaultInstance()
+            }
+        }
+      }
+      MeasurementSpec.MeasurementTypeCase.DURATION -> {
+        protocolConfig {
+          direct =
+            ProtocolConfigKt.direct {
+              this.noiseMechanisms += internalNoiseMechanisms
+              customDirectMethodology =
+                InternalProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
+              deterministicSum = InternalProtocolConfig.Direct.DeterministicSum.getDefaultInstance()
+            }
+        }
+      }
+      MeasurementSpec.MeasurementTypeCase.POPULATION -> {
+        protocolConfig { direct = InternalProtocolConfig.Direct.getDefaultInstance() }
+      }
+      MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
+        error("MeasurementType not set.")
+    }
+  }
+
   private fun CreateMeasurementRequest.buildInternalCreateMeasurementRequest(
-    parentKey: MeasurementConsumerKey
+    dataProviderCapabilities: Collection<InternalDataProvider.Capabilities>,
+    parentKey: MeasurementConsumerKey,
   ): InternalCreateMeasurementRequest {
     val measurementConsumerCertificateKey =
       grpcRequireNotNull(
@@ -409,13 +604,14 @@ class MeasurementsService(
     measurementSpec.validate()
 
     grpcRequire(measurement.dataProvidersList.isNotEmpty()) { "Data Providers list is empty" }
-    val dataProvidersMap = mutableMapOf<Long, DataProviderValue>()
-    measurement.dataProvidersList.forEach {
-      with(it.validateAndMap()) {
-        grpcRequire(!dataProvidersMap.containsKey(key)) {
-          "Duplicated keys found in the data_providers."
+    val dataProviderValues: Map<ExternalId, DataProviderValue> = buildMap {
+      for (dataProviderEntry in measurement.dataProvidersList) {
+        val mapEntry: Map.Entry<ExternalId, DataProviderValue> =
+          dataProviderEntry.toValidatedInternalMapEntry()
+        grpcRequire(!containsKey(mapEntry.key)) {
+          "Duplicated keys found in measurement.data_providers."
         }
-        dataProvidersMap[key] = value
+        put(mapEntry.key, mapEntry.value)
       }
     }
 
@@ -426,10 +622,8 @@ class MeasurementsService(
     val internalMeasurement =
       measurement.toInternal(
         measurementConsumerCertificateKey,
-        dataProvidersMap,
-        measurementSpec,
-        noiseMechanisms.map { it.toInternal() },
-        reachOnlyLlV2Enabled,
+        dataProviderValues,
+        buildInternalProtocolConfig(measurementSpec, dataProviderCapabilities),
       )
 
     val requestId = this.requestId
@@ -510,11 +704,9 @@ private fun MeasurementSpec.validate() {
 }
 
 /** Validates a [DataProviderEntry] for a request and then creates a map entry from it. */
-private fun DataProviderEntry.validateAndMap(): Map.Entry<Long, DataProviderValue> {
-  val dataProviderKey =
-    grpcRequireNotNull(DataProviderKey.fromName(key)) {
-      "Data Provider resource name is either unspecified or invalid"
-    }
+private fun DataProviderEntry.toValidatedInternalMapEntry():
+  Map.Entry<ExternalId, DataProviderValue> {
+  val dataProviderKey = checkNotNull(DataProviderKey.fromName(key))
 
   val dataProviderCertificateKey =
     grpcRequireNotNull(DataProviderCertificateKey.fromName(value.dataProviderCertificate)) {
@@ -546,7 +738,7 @@ private fun DataProviderEntry.validateAndMap(): Map.Entry<Long, DataProviderValu
   }
 
   return AbstractMap.SimpleEntry(
-    apiIdToExternalId(dataProviderKey.dataProviderId),
+    ApiId(dataProviderKey.dataProviderId).externalId,
     dataProviderValue,
   )
 }

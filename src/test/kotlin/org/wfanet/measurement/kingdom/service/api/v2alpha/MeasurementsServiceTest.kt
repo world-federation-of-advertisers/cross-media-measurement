@@ -17,6 +17,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
@@ -102,6 +103,10 @@ import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.kingdom.BatchGetDataProvidersRequest
+import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
+import org.wfanet.measurement.internal.kingdom.DataProviderKt as InternalDataProviderKt
+import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.State as InternalState
@@ -116,11 +121,13 @@ import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.batchCreateMeasurementsRequest as internalBatchCreateMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.batchCreateMeasurementsResponse as internalBatchCreateMeasurementsResponse
+import org.wfanet.measurement.internal.kingdom.batchGetDataProvidersResponse as internalBatchGetDataProvidersResponse
 import org.wfanet.measurement.internal.kingdom.batchGetMeasurementsRequest as internalBatchGetMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.batchGetMeasurementsResponse as internalBatchGetMeasurementsResponse
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest as internalCancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.createMeasurementRequest as internalCreateMeasurementRequest
+import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
 import org.wfanet.measurement.internal.kingdom.differentialPrivacyParams as internalDifferentialPrivacyParams
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest as internalGetMeasurementRequest
@@ -129,12 +136,11 @@ import org.wfanet.measurement.internal.kingdom.measurement as internalMeasuremen
 import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
+import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 
 private const val DEFAULT_LIMIT = 50
-private const val DATA_PROVIDERS_CERTIFICATE_NAME =
-  "dataProviders/AAAAAAAAAHs/certificates/AAAAAAAAAHs"
 private const val DATA_PROVIDERS_RESULT_CERTIFICATE_NAME =
   "dataProviders/AAAAAAAAALs/certificates/AAAAAAAAALs"
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
@@ -198,8 +204,24 @@ class MeasurementsServiceTest {
           }
         )
     }
+  private val internalDataProvidersMock: DataProvidersGrpcKt.DataProvidersCoroutineImplBase =
+    mockService {
+      onBlocking { batchGetDataProviders(any()) }
+        .thenAnswer { invocation ->
+          val request: BatchGetDataProvidersRequest = invocation.getArgument(0)
+          val internalDataProviders: List<InternalDataProvider> =
+            request.externalDataProviderIdsList.map {
+              internalDataProvider { externalDataProviderId = it }
+            }
+          internalBatchGetDataProvidersResponse { dataProviders.addAll(internalDataProviders) }
+        }
+    }
 
-  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalMeasurementsMock) }
+  @get:Rule
+  val grpcTestServerRule = GrpcTestServerRule {
+    addService(internalMeasurementsMock)
+    addService(internalDataProvidersMock)
+  }
 
   private lateinit var service: MeasurementsService
 
@@ -208,8 +230,10 @@ class MeasurementsServiceTest {
     service =
       MeasurementsService(
         MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
+        DataProvidersGrpcKt.DataProvidersCoroutineStub(grpcTestServerRule.channel),
         NOISE_MECHANISMS,
         reachOnlyLlV2Enabled = true,
+        hmssEnabled = true,
       )
   }
 
@@ -739,6 +763,66 @@ class MeasurementsServiceTest {
   }
 
   @Test
+  fun `createMeasurement with HMSS enabled and EDPs capable specifies HMSS protocol`() {
+    internalDataProvidersMock.stub {
+      onBlocking { batchGetDataProviders(any()) }
+        .thenReturn(
+          internalBatchGetDataProvidersResponse {
+            for (externalDataProviderId in EXTERNAL_DATA_PROVIDER_IDS) {
+              dataProviders += internalDataProvider {
+                this.externalDataProviderId = externalDataProviderId.value
+                details =
+                  details.copy {
+                    capabilities =
+                      InternalDataProviderKt.capabilities {
+                        honestMajorityShareShuffleSupported = true
+                      }
+                  }
+              }
+            }
+          }
+        )
+    }
+    val measurement =
+      MEASUREMENT.copy {
+        clearFailure()
+        results.clear()
+        clearProtocolConfig()
+      }
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      this.measurement = measurement
+      requestId = "foo"
+    }
+
+    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+      runBlocking { service.createMeasurement(request) }
+    }
+
+    verifyProtoArgument(
+        internalMeasurementsMock,
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement,
+      )
+      .isEqualTo(
+        internalCreateMeasurementRequest {
+          this.measurement =
+            INTERNAL_MEASUREMENT.copy {
+              clearExternalMeasurementId()
+              clearUpdateTime()
+              results.clear()
+              details =
+                details.copy {
+                  clearFailure()
+                  protocolConfig = HMSS_INTERNAL_PROTOCOL_CONFIG
+                  clearDuchyProtocolConfig()
+                }
+            }
+          requestId = request.requestId
+        }
+      )
+  }
+
+  @Test
   fun `createMeasurement throws INVALID_ARGUMENT when model line is missing for POPULATION measurement`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -809,11 +893,19 @@ class MeasurementsServiceTest {
       assertFailsWith<StatusRuntimeException> {
         withDataProviderPrincipal(DATA_PROVIDERS_NAME) {
           runBlocking {
-            service.createMeasurement(createMeasurementRequest { measurement = MEASUREMENT })
+            service.createMeasurement(
+              createMeasurementRequest {
+                parent = MEASUREMENT_CONSUMER_NAME
+                measurement = MEASUREMENT
+              }
+            )
           }
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+
+    assertWithMessage(exception.toString())
+      .that(exception.status.code)
+      .isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
@@ -824,7 +916,9 @@ class MeasurementsServiceTest {
           service.createMeasurement(createMeasurementRequest { measurement = MEASUREMENT })
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertWithMessage(exception.toString())
+      .that(exception.status.code)
+      .isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 
   @Test
@@ -1968,6 +2062,7 @@ class MeasurementsServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
+  @Test
   fun `batchCreateMeasurements throws INVALID_ARGUMENT when child parent doesn't match`() {
     val createMeasurementRequest = createMeasurementRequest {
       parent = MEASUREMENT_CONSUMER_NAME_2
@@ -2336,6 +2431,10 @@ class MeasurementsServiceTest {
         setOf("aggregator"),
         2,
       )
+      HmssProtocolConfig.setForTest(
+        HMSS_INTERNAL_PROTOCOL_CONFIG.honestMajorityShareShuffle,
+        setOf("aggregator", "worker1", "worker2"),
+      )
     }
 
     private val API_VERSION = Version.V2_ALPHA
@@ -2429,6 +2528,11 @@ class MeasurementsServiceTest {
 
     private val RO_LLV2_DUCHY_PROTOCOL_CONFIG = duchyProtocolConfig {
       reachOnlyLiquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
+    }
+
+    private val HMSS_INTERNAL_PROTOCOL_CONFIG = internalProtocolConfig {
+      externalProtocolConfigId = "hmss"
+      honestMajorityShareShuffle = InternalProtocolConfigKt.honestMajorityShareShuffle {}
     }
 
     private val DATA_PROVIDER_PUBLIC_KEY = encryptionPublicKey { data = UPDATE_TIME.toByteString() }
