@@ -27,17 +27,16 @@ class ShareShuffleSketchGenerator(
   private val eventQuery: EventQuery<Message>,
   private val vidSamplingInterval: MeasurementSpec.VidSamplingInterval,
 ) {
+  var sortedNormalizedHashValues: List<Double>
   init {
     if (vidToIndexMap.isEmpty()) {
       vidToIndexMap = VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
     }
+    sortedNormalizedHashValues = vidToIndexMap.values.toList().map { it.value }.sorted()
   }
   /** Generates a frequency vector for the specified [eventGroupSpecs]. */
   fun generate(eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>): IntArray {
     require(vidUniverse.isNotEmpty()) { "The vid universe size must be positive." }
-
-    val sortedNormalizedHashValues: List<Double> =
-      vidToIndexMap.values.toList().map { it.value }.sorted()
 
     var samplingIntervalEnd: Double =
       (vidSamplingInterval.start + vidSamplingInterval.width).toDouble()
