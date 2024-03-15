@@ -73,7 +73,7 @@ collectors: {
               enabled: true
           }
           googlecloud: {
-            project: "\(#GCloudProject)"
+            project: "halo-cmm-dev"
             trace: {}
           }
         }
