@@ -115,8 +115,7 @@ class MeasurementsService(
         internalMeasurementsStub.getMeasurement(internalGetMeasurementRequest)
       } catch (ex: StatusException) {
         when (ex.status.code) {
-          Status.Code.NOT_FOUND ->
-            throw Status.NOT_FOUND.toExternalStatusRuntimeException(ex)
+          Status.Code.NOT_FOUND -> throw Status.NOT_FOUND.toExternalStatusRuntimeException(ex)
           else -> throw Status.UNKNOWN.toExternalStatusRuntimeException(ex)
         }
       }
@@ -149,8 +148,7 @@ class MeasurementsService(
             throw Status.INVALID_ARGUMENT.toExternalStatusRuntimeException(ex)
           Status.Code.FAILED_PRECONDITION ->
             throw Status.FAILED_PRECONDITION.toExternalStatusRuntimeException(ex)
-          Status.Code.NOT_FOUND ->
-            throw Status.NOT_FOUND.toExternalStatusRuntimeException(ex)
+          Status.Code.NOT_FOUND -> throw Status.NOT_FOUND.toExternalStatusRuntimeException(ex)
           else -> throw Status.UNKNOWN.toExternalStatusRuntimeException(ex)
         }
       }
@@ -225,8 +223,7 @@ class MeasurementsService(
         when (ex.status.code) {
           Status.Code.INVALID_ARGUMENT ->
             throw Status.INVALID_ARGUMENT.toExternalStatusRuntimeException(ex)
-          Status.Code.NOT_FOUND ->
-            throw Status.NOT_FOUND.toExternalStatusRuntimeException(ex)
+          Status.Code.NOT_FOUND -> throw Status.NOT_FOUND.toExternalStatusRuntimeException(ex)
           Status.Code.FAILED_PRECONDITION ->
             throw Status.FAILED_PRECONDITION.toExternalStatusRuntimeException(ex)
           else -> throw Status.UNKNOWN.toExternalStatusRuntimeException(ex)
@@ -373,8 +370,7 @@ class MeasurementsService(
           .measurementsList
       } catch (ex: StatusException) {
         when (ex.status.code) {
-          Status.Code.NOT_FOUND ->
-            throw Status.NOT_FOUND.toExternalStatusRuntimeException(ex)
+          Status.Code.NOT_FOUND -> throw Status.NOT_FOUND.toExternalStatusRuntimeException(ex)
           else -> throw Status.UNKNOWN.toExternalStatusRuntimeException(ex)
         }
       }
