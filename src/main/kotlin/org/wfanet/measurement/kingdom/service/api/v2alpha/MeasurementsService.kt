@@ -80,7 +80,6 @@ import org.wfanet.measurement.internal.kingdom.createMeasurementRequest as inter
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
-import org.wfanet.measurement.kingdom.service.common.toExternalRuntimeException
 
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
@@ -117,8 +116,8 @@ class MeasurementsService(
       } catch (ex: StatusException) {
         when (ex.status.code) {
           Status.Code.NOT_FOUND ->
-            throw ex.toExternalRuntimeException(Status.NOT_FOUND, "Measurement not found.")
-          else -> throw ex.toExternalRuntimeException(Status.UNKNOWN, "Unknown exception.")
+            throw Status.NOT_FOUND.toExternalStatusRuntimeException(ex)
+          else -> throw Status.UNKNOWN.toExternalStatusRuntimeException(ex)
         }
       }
 
@@ -147,15 +146,12 @@ class MeasurementsService(
       } catch (ex: StatusException) {
         when (ex.status.code) {
           Status.Code.INVALID_ARGUMENT ->
-            throw ex.toExternalRuntimeException(
-              Status.INVALID_ARGUMENT,
-              "Required field unspecified or invalid",
-            )
+            throw Status.INVALID_ARGUMENT.toExternalStatusRuntimeException(ex)
           Status.Code.FAILED_PRECONDITION ->
-            throw ex.toExternalRuntimeException(Status.FAILED_PRECONDITION, "Failed precondition")
+            throw Status.FAILED_PRECONDITION.toExternalStatusRuntimeException(ex)
           Status.Code.NOT_FOUND ->
-            throw ex.toExternalRuntimeException(Status.NOT_FOUND, "MeasurementConsumer not found.")
-          else -> throw ex.toExternalRuntimeException(Status.UNKNOWN, "Unknown exception.")
+            throw Status.NOT_FOUND.toExternalStatusRuntimeException(ex)
+          else -> throw Status.UNKNOWN.toExternalStatusRuntimeException(ex)
         }
       }
 
@@ -228,18 +224,12 @@ class MeasurementsService(
       } catch (ex: StatusException) {
         when (ex.status.code) {
           Status.Code.INVALID_ARGUMENT ->
-            throw ex.toExternalRuntimeException(
-              Status.INVALID_ARGUMENT,
-              "Required field unspecified or invalid.",
-            )
+            throw Status.INVALID_ARGUMENT.toExternalStatusRuntimeException(ex)
           Status.Code.NOT_FOUND ->
-            throw ex.toExternalRuntimeException(Status.NOT_FOUND, "Measurement not found.")
+            throw Status.NOT_FOUND.toExternalStatusRuntimeException(ex)
           Status.Code.FAILED_PRECONDITION ->
-            throw ex.toExternalRuntimeException(
-              Status.FAILED_PRECONDITION,
-              "Measurement state illegal.",
-            )
-          else -> throw ex.toExternalRuntimeException(Status.UNKNOWN, "Unknown exception.")
+            throw Status.FAILED_PRECONDITION.toExternalStatusRuntimeException(ex)
+          else -> throw Status.UNKNOWN.toExternalStatusRuntimeException(ex)
         }
       }
 
@@ -319,15 +309,12 @@ class MeasurementsService(
       } catch (ex: StatusException) {
         when (ex.status.code) {
           Status.Code.INVALID_ARGUMENT ->
-            throw ex.toExternalRuntimeException(
-              Status.INVALID_ARGUMENT,
-              "Required field unspecified or invalid",
-            )
+            throw Status.INVALID_ARGUMENT.toExternalStatusRuntimeException(ex)
           Status.Code.FAILED_PRECONDITION ->
-            throw ex.toExternalRuntimeException(Status.FAILED_PRECONDITION, "Failed precondition")
+            throw Status.FAILED_PRECONDITION.toExternalStatusRuntimeException(ex)
           Status.Code.NOT_FOUND ->
-            throw ex.toExternalRuntimeException(Status.FAILED_PRECONDITION, "Failed precondition")
-          else -> throw ex.toExternalRuntimeException(Status.UNKNOWN, "Unknown exception.")
+            throw Status.FAILED_PRECONDITION.toExternalStatusRuntimeException(ex)
+          else -> throw Status.UNKNOWN.toExternalStatusRuntimeException(ex)
         }
       }
 
@@ -387,8 +374,8 @@ class MeasurementsService(
       } catch (ex: StatusException) {
         when (ex.status.code) {
           Status.Code.NOT_FOUND ->
-            throw ex.toExternalRuntimeException(Status.NOT_FOUND, "Measurement not found.")
-          else -> throw ex.toExternalRuntimeException(Status.UNKNOWN, "Unknown exception.")
+            throw Status.NOT_FOUND.toExternalStatusRuntimeException(ex)
+          else -> throw Status.UNKNOWN.toExternalStatusRuntimeException(ex)
         }
       }
 

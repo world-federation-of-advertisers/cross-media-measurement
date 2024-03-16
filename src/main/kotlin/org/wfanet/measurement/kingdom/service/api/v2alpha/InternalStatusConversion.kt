@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.kingdom.service.common
+package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.protobuf.Any as ProtoAny
 import com.google.rpc.ErrorInfo
@@ -32,12 +32,15 @@ import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 
-fun StatusException.toExternalRuntimeException(
-  status: Status,
-  description: String,
+/**
+ * Converts this [Status] to a [StatusRuntimeException] with details from [internalApiException].
+ * This may replace the error info and description...
+ */
+fun Status.toExternalStatusRuntimeException(
+  internalApiException: StatusException
 ): StatusRuntimeException {
-  val errorInfo = this.errorInfo
-  var errorMessage = description
+  val errorInfo = internalApiException.errorInfo
+  var errorMessage = this.description ?: "Unknown exception."
   val metadataMap = mutableMapOf<String, String>()
   if (errorInfo != null)
     if (errorInfo.domain == ErrorCode.getDescriptor().fullName) {
@@ -117,12 +120,12 @@ fun StatusException.toExternalRuntimeException(
       metadataMap.putAll(errorInfo.metadataMap)
     }
   val statusProto = status {
-    code = status.code.value()
+    code = this@toExternalStatusRuntimeException.code.value()
     message = errorMessage
     details +=
       ProtoAny.pack(
         errorInfo {
-          reason = this@toExternalRuntimeException.status.code.toString()
+          reason = internalApiException.status.code.toString()
           domain = ErrorInfo.getDescriptor().fullName
           metadata.putAll(metadataMap)
         }
