@@ -21,9 +21,7 @@ import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import io.grpc.protobuf.StatusProto
 
-/**
- * [ErrorInfo] from status details.
- */
+/** [ErrorInfo] from status details. */
 val StatusException.errorInfo: ErrorInfo?
   get() {
     val errorInfoFullName = ErrorInfo.getDescriptor().fullName
@@ -37,7 +35,7 @@ val StatusRuntimeException.errorInfo: ErrorInfo?
   get() {
     val errorInfoFullName = ErrorInfo.getDescriptor().fullName
     val errorInfoPacked =
-      StatusProto.fromStatusAndTrailers(this.status, this.trailers).detailsList.find{
+      StatusProto.fromStatusAndTrailers(this.status, this.trailers).detailsList.find {
         it.typeUrl.endsWith("/$errorInfoFullName")
       }
     return errorInfoPacked?.unpack(ErrorInfo::class.java)
