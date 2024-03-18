@@ -4,8 +4,15 @@ on:
   push:
 
 jobs:
+  terraform:
+    uses: ./.github/workflows/terraform-cmms.yml
+    secrets: inherit
+    with:
+      environment: dev
+      apply: false
   update-reporting-v2:
     uses: ./.github/workflows/configure-reporting-v2.yml
+    needs: [ terraform ]
     secrets: inherit
     with:
       image-tag: ce569eac3fa403244a3cbe7ba356deb543c8550c

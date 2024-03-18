@@ -16,6 +16,9 @@ package k8s
 
 import "encoding/yaml"
 
+// Name of K8s service account for OpenTelemetry collector.
+#CollectorServiceAccount: "open-telemetry"
+
 objectSets: [
 	collectors,
 	openTelemetry.instrumentations,
@@ -35,6 +38,7 @@ collectors: [Name=string]: #OpenTelemetryCollector & {
 collectors: {
 	"default": {
 		spec: {
+			serviceAccount: #CollectorServiceAccount
       _config: {
         receivers: {
           otlp:

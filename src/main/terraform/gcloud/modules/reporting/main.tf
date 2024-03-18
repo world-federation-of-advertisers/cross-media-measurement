@@ -29,6 +29,20 @@ module "reporting_internal" {
   iam_service_account_description = "Reporting internal API server."
 }
 
+module "open_telemetry" {
+  source = "../workload-identity-user"
+
+  k8s_service_account_name        = "open-telemetry"
+  iam_service_account_name        = "open-telemetry"
+  iam_service_account_description = "Open Telemetry Collector."
+}
+
+resource "google_project_iam_member" "cloud_traces_agent" {
+  project = data.google_project.project.name
+  role    = "roles/cloudtrace.agent"
+  member  = module.open_telemetry.iam_service_account.member
+}
+
 resource "google_sql_user" "reporting_internal" {
   instance = var.postgres_instance.name
   name     = trimsuffix(module.reporting_internal.iam_service_account.email, ".gserviceaccount.com")
