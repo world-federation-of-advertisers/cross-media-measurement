@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import com.google.protobuf.Descriptors
 import java.time.Clock
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -24,6 +25,7 @@ class SpannerDataServices(
   private val clock: Clock,
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient,
+  override val knownEventGroupMetadataTypes: Iterable<Descriptors.FileDescriptor> = emptyList(),
 ) : DataServices {
   override fun buildDataServices(): KingdomDataServices {
     return KingdomDataServices(
@@ -32,7 +34,11 @@ class SpannerDataServices(
       SpannerCertificatesService(idGenerator, client),
       SpannerDataProvidersService(idGenerator, client),
       SpannerModelProvidersService(idGenerator, client),
-      SpannerEventGroupMetadataDescriptorsService(idGenerator, client),
+      SpannerEventGroupMetadataDescriptorsService(
+        idGenerator,
+        client,
+        knownEventGroupMetadataTypes,
+      ),
       SpannerEventGroupsService(idGenerator, client),
       SpannerMeasurementConsumersService(idGenerator, client),
       SpannerMeasurementsService(idGenerator, client),

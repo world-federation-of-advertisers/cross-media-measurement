@@ -91,8 +91,13 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
     val updatedMeasurementState: Measurement.State? =
       if (nonFulfilledRequisitionIds.singleOrNull() == requisitionId) {
         val nextState =
-          if (request.hasComputedParams()) Measurement.State.PENDING_PARTICIPANT_CONFIRMATION
-          else Measurement.State.SUCCEEDED
+          if (request.hasComputedParams()) {
+            if (requisition.parentMeasurement.protocolConfig.hasHonestMajorityShareShuffle()) {
+              Measurement.State.PENDING_COMPUTATION
+            } else {
+              Measurement.State.PENDING_PARTICIPANT_CONFIRMATION
+            }
+          } else Measurement.State.SUCCEEDED
         val measurementLogEntryDetails =
           MeasurementLogEntryKt.details { logMessage = "All requisitions fulfilled" }
         // All other Requisitions are already FULFILLED, so update Measurement state.

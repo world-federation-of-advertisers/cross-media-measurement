@@ -22,18 +22,21 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.kingdom.BatchGetDataProvidersRequest
+import org.wfanet.measurement.internal.kingdom.BatchGetDataProvidersResponse
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetDataProviderRequest
 import org.wfanet.measurement.internal.kingdom.ReplaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.internal.kingdom.ReplaceDataProviderRequiredDuchiesRequest
+import org.wfanet.measurement.internal.kingdom.batchGetDataProvidersResponse
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateDataProvider
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ReplaceDataAvailabilityInterval
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ReplaceDataProviderRequiredDuchies
 
-// TODO(@marcopremier): Add method to update data provider required duchies list.
 class SpannerDataProvidersService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient,
@@ -52,6 +55,26 @@ class SpannerDataProvidersService(
     return DataProviderReader()
       .readByExternalDataProviderId(client.singleUse(), ExternalId(request.externalDataProviderId))
       ?.dataProvider ?: failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
+  }
+
+  override suspend fun batchGetDataProviders(
+    request: BatchGetDataProvidersRequest
+  ): BatchGetDataProvidersResponse {
+    val dataProviders =
+      try {
+        DataProviderReader()
+          .readByExternalDataProviderIds(
+            client.singleUse(),
+            request.externalDataProviderIdsList.map(::ExternalId),
+          )
+          .map(DataProviderReader.Result::dataProvider)
+      } catch (e: DataProviderNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+      } catch (e: KingdomInternalException) {
+        throw e.asStatusRuntimeException(Status.Code.INTERNAL)
+      }
+
+    return batchGetDataProvidersResponse { this.dataProviders += dataProviders }
   }
 
   override suspend fun replaceDataProviderRequiredDuchies(

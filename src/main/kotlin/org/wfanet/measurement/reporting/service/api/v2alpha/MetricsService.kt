@@ -113,11 +113,8 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signRequisition
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
 import org.wfanet.measurement.internal.reporting.v2.BatchGetReportingSetsResponse
-import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementFailuresResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequest.MeasurementIds
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequestKt.measurementIds
-import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsResponse
-import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequestKt.measurementFailure
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequestKt.measurementResult
@@ -404,11 +401,9 @@ class MetricsService(
           .flattenMerge()
 
       // Set CMMS measurement IDs.
-      val callBatchSetCmmsMeasurementIdsRpc:
-        suspend (List<MeasurementIds>) -> BatchSetCmmsMeasurementIdsResponse =
-        { items ->
-          batchSetCmmsMeasurementIds(principal.resourceKey.measurementConsumerId, items)
-        }
+      val callBatchSetCmmsMeasurementIdsRpc: suspend (List<MeasurementIds>) -> Unit = { items ->
+        batchSetCmmsMeasurementIds(principal.resourceKey.measurementConsumerId, items)
+      }
 
       submitBatchRequests(
           cmmsMeasurements.map {
@@ -419,8 +414,8 @@ class MetricsService(
           },
           BATCH_SET_CMMS_MEASUREMENT_IDS_LIMIT,
           callBatchSetCmmsMeasurementIdsRpc,
-        ) { response: BatchSetCmmsMeasurementIdsResponse ->
-          response.measurementsList
+        ) { _: Unit ->
+          emptyList<Unit>()
         }
         .collect {}
     }
@@ -429,8 +424,8 @@ class MetricsService(
     private suspend fun batchSetCmmsMeasurementIds(
       cmmsMeasurementConsumerId: String,
       measurementIds: List<MeasurementIds>,
-    ): BatchSetCmmsMeasurementIdsResponse {
-      return try {
+    ) {
+      try {
         internalMeasurementsStub.batchSetCmmsMeasurementIds(
           batchSetCmmsMeasurementIdsRequest {
             this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
@@ -835,8 +830,7 @@ class MetricsService(
 
       var anyUpdate = false
 
-      val callBatchSetInternalMeasurementResultsRpc:
-        suspend (List<Measurement>) -> BatchSetCmmsMeasurementResultsResponse =
+      val callBatchSetInternalMeasurementResultsRpc: suspend (List<Measurement>) -> Unit =
         { items ->
           batchSetInternalMeasurementResults(items, apiAuthenticationKey, principal)
         }
@@ -845,8 +839,8 @@ class MetricsService(
             succeededMeasurements,
             BATCH_SET_MEASUREMENT_RESULTS_LIMIT,
             callBatchSetInternalMeasurementResultsRpc,
-          ) { response: BatchSetCmmsMeasurementResultsResponse ->
-            response.measurementsList
+          ) { _: Unit ->
+            emptyList<Unit>()
           }
           .count()
 
@@ -855,8 +849,7 @@ class MetricsService(
       }
 
       if (failedMeasurements.isNotEmpty()) {
-        val callBatchSetInternalMeasurementFailuresRpc:
-          suspend (List<Measurement>) -> BatchSetCmmsMeasurementFailuresResponse =
+        val callBatchSetInternalMeasurementFailuresRpc: suspend (List<Measurement>) -> Unit =
           { items ->
             batchSetInternalMeasurementFailures(items, principal.resourceKey.measurementConsumerId)
           }
@@ -864,8 +857,8 @@ class MetricsService(
             failedMeasurements.asFlow(),
             BATCH_SET_MEASUREMENT_FAILURES_LIMIT,
             callBatchSetInternalMeasurementFailuresRpc,
-          ) { response: BatchSetCmmsMeasurementFailuresResponse ->
-            response.measurementsList
+          ) { _: Unit ->
+            emptyList<Unit>()
           }
           .collect {}
 
@@ -882,7 +875,7 @@ class MetricsService(
     private suspend fun batchSetInternalMeasurementFailures(
       failedMeasurementsList: List<Measurement>,
       cmmsMeasurementConsumerId: String,
-    ): BatchSetCmmsMeasurementFailuresResponse {
+    ) {
       val batchSetInternalMeasurementFailuresRequest = batchSetMeasurementFailuresRequest {
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
         measurementFailures +=
@@ -894,7 +887,7 @@ class MetricsService(
           }
       }
 
-      return try {
+      try {
         internalMeasurementsStub.batchSetMeasurementFailures(
           batchSetInternalMeasurementFailuresRequest
         )
@@ -911,7 +904,7 @@ class MetricsService(
       succeededMeasurementsList: List<Measurement>,
       apiAuthenticationKey: String,
       principal: MeasurementConsumerPrincipal,
-    ): BatchSetCmmsMeasurementResultsResponse {
+    ) {
       val batchSetMeasurementResultsRequest = batchSetMeasurementResultsRequest {
         cmmsMeasurementConsumerId = principal.resourceKey.measurementConsumerId
         measurementResults +=
@@ -924,7 +917,7 @@ class MetricsService(
           }
       }
 
-      return try {
+      try {
         internalMeasurementsStub.batchSetMeasurementResults(batchSetMeasurementResultsRequest)
       } catch (e: StatusException) {
         throw Exception("Unable to set measurement results for Measurements.", e)
@@ -1384,8 +1377,20 @@ class MetricsService(
       }
     }
 
+    grpcRequire(request.hasMetric()) { "Metric is not specified." }
+
+    val batchGetReportingSetsResponse =
+      batchGetInternalReportingSets(
+        parentKey.measurementConsumerId,
+        listOf(request.metric.reportingSet),
+      )
+
     val internalCreateMetricRequest: InternalCreateMetricRequest =
-      buildInternalCreateMetricRequest(principal.resourceKey.measurementConsumerId, request)
+      buildInternalCreateMetricRequest(
+        principal.resourceKey.measurementConsumerId,
+        request,
+        batchGetReportingSetsResponse.reportingSetsList.first(),
+      )
 
     val internalMetric =
       try {
@@ -1446,9 +1451,48 @@ class MetricsService(
       "Duplicate metric IDs in the request."
     }
 
-    val internalCreateMetricRequestsList: List<InternalCreateMetricRequest> =
-      request.requestsList.map { createMetricRequest ->
-        buildInternalCreateMetricRequest(parentKey.measurementConsumerId, createMetricRequest)
+    val reportingSetNames =
+      request.requestsList
+        .map {
+          grpcRequire(it.hasMetric()) { "Metric is not specified." }
+
+          it.metric.reportingSet
+        }
+        .distinct()
+
+    val callRpc: suspend (List<String>) -> BatchGetReportingSetsResponse = { items ->
+      batchGetInternalReportingSets(parentKey.measurementConsumerId, items)
+    }
+
+    val reportingSetNameToInternalReportingSetMap: Map<String, InternalReportingSet> = buildMap {
+      submitBatchRequests(reportingSetNames.asFlow(), BATCH_GET_REPORTING_SETS_LIMIT, callRpc) {
+          response ->
+          response.reportingSetsList
+        }
+        .collect { reportingSetsList ->
+          for (reportingSet in reportingSetsList) {
+            putIfAbsent(
+              ReportingSetKey(parentKey.measurementConsumerId, reportingSet.externalReportingSetId)
+                .toName(),
+              reportingSet,
+            )
+          }
+        }
+    }
+
+    val internalCreateMetricRequestsList: List<Deferred<InternalCreateMetricRequest>> =
+      coroutineScope {
+        request.requestsList.map { createMetricRequest ->
+          async {
+            buildInternalCreateMetricRequest(
+              parentKey.measurementConsumerId,
+              createMetricRequest,
+              reportingSetNameToInternalReportingSetMap.getValue(
+                createMetricRequest.metric.reportingSet
+              ),
+            )
+          }
+        }
       }
 
     val internalMetrics =
@@ -1457,7 +1501,7 @@ class MetricsService(
           .batchCreateMetrics(
             internalBatchCreateMetricsRequest {
               cmmsMeasurementConsumerId = parentKey.measurementConsumerId
-              requests += internalCreateMetricRequestsList
+              requests += internalCreateMetricRequestsList.awaitAll()
             }
           )
           .metricsList
@@ -1486,12 +1530,11 @@ class MetricsService(
   }
 
   /** Builds an [InternalCreateMetricRequest]. */
-  private suspend fun buildInternalCreateMetricRequest(
+  private fun buildInternalCreateMetricRequest(
     cmmsMeasurementConsumerId: String,
     request: CreateMetricRequest,
+    internalReportingSet: InternalReportingSet,
   ): InternalCreateMetricRequest {
-    grpcRequire(request.hasMetric()) { "Metric is not specified." }
-
     grpcRequire(request.metricId.matches(RESOURCE_ID_REGEX)) { "Metric ID is invalid." }
     grpcRequire(request.metric.reportingSet.isNotEmpty()) {
       "Reporting set in metric is not specified."
@@ -1516,9 +1559,6 @@ class MetricsService(
       "TimeInterval endTime is not later than startTime."
     }
     grpcRequire(request.metric.hasMetricSpec()) { "Metric spec in metric is not specified." }
-
-    val internalReportingSet: InternalReportingSet =
-      getInternalReportingSet(cmmsMeasurementConsumerId, request.metric.reportingSet)
 
     // Utilizes the property of the set expression compilation result -- If the set expression
     // contains only union operators, the compilation result has to be a single component.
@@ -1582,35 +1622,32 @@ class MetricsService(
     }
   }
 
-  /** Gets an [InternalReportingSet] based on a reporting set name. */
-  private suspend fun getInternalReportingSet(
+  /** Batch get [InternalReportingSet]s based on [ReportingSet] names. */
+  private suspend fun batchGetInternalReportingSets(
     cmmsMeasurementConsumerId: String,
-    reportingSetName: String,
-  ): InternalReportingSet {
-    val reportingSetKey =
-      grpcRequireNotNull(ReportingSetKey.fromName(reportingSetName)) {
-        "Invalid reporting set name $reportingSetName."
+    reportingSetNames: List<String>,
+  ): BatchGetReportingSetsResponse {
+    val externalReportingSetIds: List<String> =
+      reportingSetNames.map {
+        val reportingSetKey =
+          grpcRequireNotNull(ReportingSetKey.fromName(it)) { "Invalid reporting set name $it." }
+
+        if (reportingSetKey.cmmsMeasurementConsumerId != cmmsMeasurementConsumerId) {
+          failGrpc(Status.PERMISSION_DENIED) { "No access to the reporting set [$it]." }
+        }
+
+        reportingSetKey.reportingSetId
       }
 
-    if (reportingSetKey.cmmsMeasurementConsumerId != cmmsMeasurementConsumerId) {
-      failGrpc(Status.PERMISSION_DENIED) { "No access to the reporting set [$reportingSetName]." }
-    }
-
     return try {
-      internalReportingSetsStub
-        .batchGetReportingSets(
-          batchGetReportingSetsRequest {
-            this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-            this.externalReportingSetIds += reportingSetKey.reportingSetId
-          }
-        )
-        .reportingSetsList
-        .first()
-    } catch (e: StatusException) {
-      throw Exception(
-        "Unable to retrieve ReportingSet using the provided name [$reportingSetName].",
-        e,
+      internalReportingSetsStub.batchGetReportingSets(
+        batchGetReportingSetsRequest {
+          this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+          this.externalReportingSetIds += externalReportingSetIds
+        }
       )
+    } catch (e: StatusException) {
+      throw Exception("Unable to retrieve ReportingSets using the provided names.", e)
     }
   }
 
