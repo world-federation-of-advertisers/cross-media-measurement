@@ -157,6 +157,7 @@ class InProcessKingdom(
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
           MeasurementsService(
               internalMeasurementsClient,
+              internalDataProvidersClient,
               MEASUREMENT_NOISE_MECHANISMS,
               reachOnlyLlV2Enabled = true,
             )
