@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.deploy.common.postgres.writers
 
 import com.google.protobuf.ByteString
 import java.time.Clock
+import java.time.temporal.ChronoUnit
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationReader
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.RequisitionReader
@@ -64,7 +65,7 @@ class RecordRequisitionData(
         publicApiVersion = this@RecordRequisitionData.publicApiVersion
       }
 
-    val writeTime = clock.instant()
+    val writeTime = clock.instant().truncatedTo(ChronoUnit.MICROS)
     updateComputation(localId = localId, updateTime = writeTime)
     updateRequisition(
       localComputationId = requisition.computationId,
