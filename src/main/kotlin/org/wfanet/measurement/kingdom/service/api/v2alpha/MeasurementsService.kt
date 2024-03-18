@@ -403,7 +403,7 @@ class MeasurementsService(
           Status.Code.FAILED_PRECONDITION ->
             throw Status.FAILED_PRECONDITION.toExternalStatusRuntimeException(ex)
           Status.Code.NOT_FOUND ->
-            throw Status.FAILED_PRECONDITION.toExternalStatusRuntimeException(ex)
+            throw Status.NOT_FOUND.toExternalStatusRuntimeException(ex)
           else -> throw Status.UNKNOWN.toExternalStatusRuntimeException(ex)
         }
       }

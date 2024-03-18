@@ -17,6 +17,8 @@
 package org.wfanet.measurement.common.grpc
 
 import com.google.rpc.ErrorInfo
+import io.grpc.Metadata
+import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import io.grpc.protobuf.StatusProto
@@ -24,19 +26,18 @@ import io.grpc.protobuf.StatusProto
 /** [ErrorInfo] from status details. */
 val StatusException.errorInfo: ErrorInfo?
   get() {
-    val errorInfoFullName = ErrorInfo.getDescriptor().fullName
-    val errorInfoPacked =
-      StatusProto.fromStatusAndTrailers(this.status, this.trailers).detailsList.find {
-        it.typeUrl.endsWith("/$errorInfoFullName")
-      }
-    return errorInfoPacked?.unpack(ErrorInfo::class.java)
+    return getErrorInfo(this.status, this.trailers)
   }
 val StatusRuntimeException.errorInfo: ErrorInfo?
   get() {
-    val errorInfoFullName = ErrorInfo.getDescriptor().fullName
-    val errorInfoPacked =
-      StatusProto.fromStatusAndTrailers(this.status, this.trailers).detailsList.find {
-        it.typeUrl.endsWith("/$errorInfoFullName")
-      }
-    return errorInfoPacked?.unpack(ErrorInfo::class.java)
+    return getErrorInfo(this.status, this.trailers)
   }
+
+private fun getErrorInfo(status: Status, trailers: Metadata?): ErrorInfo? {
+  val errorInfoFullName = ErrorInfo.getDescriptor().fullName
+  val errorInfoPacked =
+    StatusProto.fromStatusAndTrailers(status, trailers).detailsList.find {
+      it.typeUrl.endsWith("/$errorInfoFullName")
+    }
+  return errorInfoPacked?.unpack(ErrorInfo::class.java)
+}

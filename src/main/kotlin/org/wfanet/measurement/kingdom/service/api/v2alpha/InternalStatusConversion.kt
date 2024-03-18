@@ -17,7 +17,6 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.protobuf.Any as ProtoAny
-import com.google.rpc.ErrorInfo
 import com.google.rpc.errorInfo
 import com.google.rpc.status
 import io.grpc.Status
@@ -40,96 +39,85 @@ fun Status.toExternalStatusRuntimeException(
   internalApiException: StatusException
 ): StatusRuntimeException {
   val errorInfo = internalApiException.errorInfo
+
+  if (errorInfo == null || errorInfo.domain == ErrorCode.getDescriptor().fullName) {
+    return this.asRuntimeException()
+  }
   var errorMessage = this.description ?: "Unknown exception."
   val metadataMap = mutableMapOf<String, String>()
-  if (errorInfo != null)
-    if (errorInfo.domain == ErrorCode.getDescriptor().fullName) {
-      when (errorInfo.reason) {
-        ErrorCode.MEASUREMENT_NOT_FOUND.toString() -> {
-          if (
-            errorInfo.metadataMap.containsKey("external_measurement_consumer_id") &&
-              errorInfo.metadataMap.containsKey("external_measurement_id")
-          ) {
-            metadataMap["measurement"] =
-              MeasurementKey(
-                  externalIdToApiId(
-                    errorInfo.metadataMap["external_measurement_consumer_id"]!!.toLong()
-                  ),
-                  externalIdToApiId(errorInfo.metadataMap["external_measurement_id"]!!.toLong()),
-                )
-                .toName()
-            errorMessage = "Measurement ${metadataMap["measurement"]} not found"
-          } else {
-            errorMessage = "Measurement not found."
-          }
-        }
-        ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND.toString() -> {
-          metadataMap["measurement_consumer"] =
-            MeasurementConsumerKey(
-                externalIdToApiId(
-                  errorInfo.metadataMap["external_measurement_consumer_id"]!!.toLong()
-                )
-              )
-              .toName()
-          errorMessage = "Measurement Consumer ${metadataMap["measurement_consumer"]} not found."
-        }
-        ErrorCode.DATA_PROVIDER_NOT_FOUND.toString() -> {
-          metadataMap["data_provider"] =
-            DataProviderKey(
-                externalIdToApiId(errorInfo.metadataMap["external_data_provider_id"]!!.toLong())
-              )
-              .toName()
-          errorMessage = "Data Provider ${metadataMap["data_provider"]} not found."
-        }
-        ErrorCode.DUCHY_NOT_FOUND.toString() -> {
-          metadataMap["duchy"] =
-            DuchyKey(errorInfo.metadataMap["external_duchy_id"].toString()).toName()
-          errorMessage = "Duchy ${metadataMap["duchy"]} not found."
-        }
-        // TODO{@jcorilla}: Look to differentiate certificate types
-        ErrorCode.CERTIFICATE_NOT_FOUND.toString() -> {
-          metadataMap["certificate"] = errorInfo.metadataMap["external_certificate_id"].toString()
-          errorMessage = "Certificate not found."
-        }
-        ErrorCode.CERTIFICATE_IS_INVALID.toString() -> {
-          errorMessage = "Certificate is invalid."
-        }
-        ErrorCode.DUCHY_NOT_ACTIVE.toString() -> {
-          metadataMap["duchy"] =
-            DuchyKey(errorInfo.metadataMap["external_duchy_id"]!!.toString()).toName()
-          errorMessage = "Duchy ${metadataMap["duchy"]} is not active."
-        }
-        ErrorCode.MEASUREMENT_STATE_ILLEGAL.toString() -> {
-          metadataMap["measurement"] =
-            MeasurementKey(
-                externalIdToApiId(
-                  errorInfo.metadataMap["external_measurement_consumer_id"]!!.toLong()
-                ),
-                externalIdToApiId(errorInfo.metadataMap["external_measurement_id"]!!.toLong()),
-              )
-              .toName()
-          metadataMap["state"] = errorInfo.metadataMap["measurement_state"].toString()
-          errorMessage =
-            "Measurement ${metadataMap["measurement"]} is in illegal state: ${metadataMap["state"]}"
-        }
-        else -> {
-          metadataMap.putAll(errorInfo.metadataMap)
-        }
+  when (errorInfo.reason) {
+    ErrorCode.MEASUREMENT_NOT_FOUND.toString() -> {
+      if (
+        errorInfo.metadataMap.containsKey("external_measurement_consumer_id") &&
+          errorInfo.metadataMap.containsKey("external_measurement_id")
+      ) {
+        metadataMap["measurement"] =
+          MeasurementKey(
+              externalIdToApiId(
+                errorInfo.metadataMap["external_measurement_consumer_id"]!!.toLong()
+              ),
+              externalIdToApiId(errorInfo.metadataMap["external_measurement_id"]!!.toLong()),
+            )
+            .toName()
+        errorMessage = "Measurement ${metadataMap["measurement"]} not found"
+      } else {
+        errorMessage = "Measurement not found."
       }
-    } else {
+    }
+    ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND.toString() -> {
+      metadataMap["measurement_consumer"] =
+        MeasurementConsumerKey(
+            externalIdToApiId(errorInfo.metadataMap["external_measurement_consumer_id"]!!.toLong())
+          )
+          .toName()
+      errorMessage = "Measurement Consumer ${metadataMap["measurement_consumer"]} not found."
+    }
+    ErrorCode.DATA_PROVIDER_NOT_FOUND.toString() -> {
+      metadataMap["data_provider"] =
+        DataProviderKey(
+            externalIdToApiId(errorInfo.metadataMap["external_data_provider_id"]!!.toLong())
+          )
+          .toName()
+      errorMessage = "Data Provider ${metadataMap["data_provider"]} not found."
+    }
+    ErrorCode.DUCHY_NOT_FOUND.toString() -> {
+      metadataMap["duchy"] =
+        DuchyKey(errorInfo.metadataMap["external_duchy_id"].toString()).toName()
+      errorMessage = "Duchy ${metadataMap["duchy"]} not found."
+    }
+    // TODO{@jcorilla}: Look to differentiate certificate types
+    ErrorCode.CERTIFICATE_NOT_FOUND.toString() -> {
+      metadataMap["certificate"] = errorInfo.metadataMap["external_certificate_id"].toString()
+      errorMessage = "Certificate not found."
+    }
+    ErrorCode.CERTIFICATE_IS_INVALID.toString() -> {
+      errorMessage = "Certificate is invalid."
+    }
+    ErrorCode.DUCHY_NOT_ACTIVE.toString() -> {
+      metadataMap["duchy"] =
+        DuchyKey(errorInfo.metadataMap["external_duchy_id"]!!.toString()).toName()
+      errorMessage = "Duchy ${metadataMap["duchy"]} is not active."
+    }
+    ErrorCode.MEASUREMENT_STATE_ILLEGAL.toString() -> {
+      metadataMap["measurement"] =
+        MeasurementKey(
+            externalIdToApiId(errorInfo.metadataMap["external_measurement_consumer_id"]!!.toLong()),
+            externalIdToApiId(errorInfo.metadataMap["external_measurement_id"]!!.toLong()),
+          )
+          .toName()
+      metadataMap["state"] = errorInfo.metadataMap["measurement_state"].toString()
+      errorMessage =
+        "Measurement ${metadataMap["measurement"]} is in illegal state: ${metadataMap["state"]}"
+    }
+    else -> {
       metadataMap.putAll(errorInfo.metadataMap)
     }
+  }
+
   val statusProto = status {
     code = this@toExternalStatusRuntimeException.code.value()
     message = errorMessage
-    details +=
-      ProtoAny.pack(
-        errorInfo {
-          reason = internalApiException.status.code.toString()
-          domain = ErrorInfo.getDescriptor().fullName
-          metadata.putAll(metadataMap)
-        }
-      )
+    details += ProtoAny.pack(errorInfo { metadata.putAll(metadataMap) })
   }
   return StatusProto.toStatusRuntimeException(statusProto)
 }
