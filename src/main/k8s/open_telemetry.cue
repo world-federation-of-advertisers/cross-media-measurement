@@ -101,7 +101,10 @@ import "encoding/yaml"
 			metadata: name: "open-telemetry-java-agent"
 			spec: {
 				env: [
-					{
+				  {
+				    name: "OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT"
+				    value: "128"
+				  }, {
 						name:  "OTEL_TRACES_EXPORTER"
 						value: "otlp"
           }, {
