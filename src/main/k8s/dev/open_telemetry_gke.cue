@@ -23,7 +23,14 @@ objectSets: [
 	collectors,
 	openTelemetry.instrumentations,
 	networkPolicies,
+	serviceAccounts,
 ]
+
+serviceAccounts: {
+  "\(#CollectorServiceAccount)": #WorkloadIdentityServiceAccount & {
+    _iamServiceAccountName: "open-telemetry"
+  }
+}
 
 #OpenTelemetryCollector: {
 	spec: resources: requests: memory: "48Mi"
