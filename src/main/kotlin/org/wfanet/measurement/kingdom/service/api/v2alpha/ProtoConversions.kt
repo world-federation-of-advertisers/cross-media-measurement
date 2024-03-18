@@ -458,7 +458,6 @@ private fun buildMpcProtocolConfig(
       protocol {
         honestMajorityShareShuffle = honestMajorityShareShuffle {
           sketchParams = shareShuffleSketchParams {
-            registerCount = protocolConfig.honestMajorityShareShuffle.sketchParams.registerCount
             bytesPerRegister =
               protocolConfig.honestMajorityShareShuffle.sketchParams.bytesPerRegister
           }
