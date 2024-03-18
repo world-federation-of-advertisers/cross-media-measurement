@@ -1,0 +1,27 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library")
+
+package(
+    default_testonly = True,
+    default_visibility = ["//visibility:public"],
+)
+
+IMPORT_PREFIX = "/src/main/proto"
+
+
+proto_library(
+    name = "population_bucket_proto",
+    srcs = ["population_bucket.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/type:datetime_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "population_bucket_kt_jvm_proto",
+    deps = [":population_bucket_proto"],
+)
