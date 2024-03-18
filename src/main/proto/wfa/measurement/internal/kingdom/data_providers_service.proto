@@ -36,6 +36,9 @@ service DataProviders {
 
   rpc ReplaceDataAvailabilityInterval(ReplaceDataAvailabilityIntervalRequest)
       returns (DataProvider);
+
+  rpc ReplaceDataProviderCapabilities(ReplaceDataProviderCapabilitiesRequest)
+      returns (DataProvider);
 }
 
 message ReplaceDataProviderRequiredDuchiesRequest {
@@ -58,4 +61,11 @@ message BatchGetDataProvidersResponse {
 message ReplaceDataAvailabilityIntervalRequest {
   fixed64 external_data_provider_id = 1;
   google.type.Interval data_availability_interval = 2;
+}
+
+message ReplaceDataProviderCapabilitiesRequest {
+  fixed64 external_data_provider_id = 1;
+
+  // New value for `capabilities`.
+  DataProvider.Capabilities capabilities = 2;
 }
