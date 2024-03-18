@@ -27,7 +27,7 @@ objectSets: [
 ]
 
 serviceAccounts: {
-  "\(#CollectorServiceAccount)": #WorkloadIdentityServiceAccount & {
+  "open-telemetry": #WorkloadIdentityServiceAccount & {
     _iamServiceAccountName: "open-telemetry"
   }
 }
