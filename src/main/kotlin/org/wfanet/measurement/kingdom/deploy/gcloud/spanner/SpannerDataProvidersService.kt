@@ -28,6 +28,7 @@ import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetDataProviderRequest
 import org.wfanet.measurement.internal.kingdom.ReplaceDataAvailabilityIntervalRequest
+import org.wfanet.measurement.internal.kingdom.ReplaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.internal.kingdom.ReplaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.internal.kingdom.batchGetDataProvidersResponse
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
@@ -35,6 +36,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomIntern
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateDataProvider
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ReplaceDataAvailabilityInterval
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ReplaceDataProviderCapabilities
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ReplaceDataProviderRequiredDuchies
 
 class SpannerDataProvidersService(
@@ -95,6 +97,18 @@ class SpannerDataProvidersService(
 
     try {
       return ReplaceDataAvailabilityInterval(request).execute(client, idGenerator)
+    } catch (e: DataProviderNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
+    }
+  }
+
+  override suspend fun replaceDataProviderCapabilities(
+    request: ReplaceDataProviderCapabilitiesRequest
+  ): DataProvider {
+    grpcRequire(request.externalDataProviderId != 0L) { "external_data_provider_id is missing." }
+
+    try {
+      return ReplaceDataProviderCapabilities(request).execute(client, idGenerator)
     } catch (e: DataProviderNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
     }

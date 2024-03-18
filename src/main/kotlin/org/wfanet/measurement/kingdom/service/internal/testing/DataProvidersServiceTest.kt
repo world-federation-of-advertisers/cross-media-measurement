@@ -44,6 +44,7 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataAvailabilityIntervalRequest
+import org.wfanet.measurement.internal.kingdom.replaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.DUCHIES
@@ -93,7 +94,7 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
   }
 
   @Test
-  fun `createDataProvider succeeds`() = runBlocking {
+  fun `createDataProvider returns created DataProvider`() = runBlocking {
     val request = CREATE_DATA_PROVIDER_REQUEST
 
     val response: DataProvider = dataProvidersService.createDataProvider(request)
@@ -113,7 +114,7 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
   fun `createDataProvider succeeds when requiredExternalDuchyIds is empty`() = runBlocking {
     val request = CREATE_DATA_PROVIDER_REQUEST.copy { requiredExternalDuchyIds.clear() }
 
-    val response = dataProvidersService.createDataProvider(request)
+    val response: DataProvider = dataProvidersService.createDataProvider(request)
 
     assertThat(response)
       .ignoringRepeatedFieldOrderOfFieldDescriptors(UNORDERED_FIELD_DESCRIPTORS)
@@ -306,6 +307,31 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `replaceDataProviderCapabilites updates DataProvider`() = runBlocking {
+    val dataProvider: DataProvider =
+      dataProvidersService.createDataProvider(CREATE_DATA_PROVIDER_REQUEST)
+    val capabilities = DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true }
+
+    val response: DataProvider =
+      dataProvidersService.replaceDataProviderCapabilities(
+        replaceDataProviderCapabilitiesRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          this.capabilities = capabilities
+        }
+      )
+
+    assertThat(response.details.capabilities).isEqualTo(capabilities)
+    // Ensure changes were persisted.
+    assertThat(
+        dataProvidersService.getDataProvider(
+          getDataProviderRequest { externalDataProviderId = dataProvider.externalDataProviderId }
+        )
+      )
+      .ignoringRepeatedFieldOrderOfFieldDescriptors(UNORDERED_FIELD_DESCRIPTORS)
+      .isEqualTo(response)
   }
 
   /** Random [IdGenerator] which records generated IDs. */

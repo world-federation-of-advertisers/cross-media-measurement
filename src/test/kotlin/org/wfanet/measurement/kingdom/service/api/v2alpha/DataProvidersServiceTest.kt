@@ -31,13 +31,17 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.stub
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.DataProvider
+import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalRequest
+import org.wfanet.measurement.api.v2alpha.replaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.setMessage
 import org.wfanet.measurement.api.v2alpha.signedMessage
@@ -58,7 +62,7 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
-import org.wfanet.measurement.internal.kingdom.DataProviderKt.details
+import org.wfanet.measurement.internal.kingdom.DataProviderKt as InternalDataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase as InternalDataProvidersService
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersClient
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
@@ -66,6 +70,7 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest as internalGetDataProviderRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataAvailabilityIntervalRequest as internalReplaceDataAvailabilityIntervalRequest
+import org.wfanet.measurement.internal.kingdom.replaceDataProviderCapabilitiesRequest as internalReplaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderRequiredDuchiesRequest as internalReplaceDataProviderRequiredDuchiesRequest
 
 private const val DATA_PROVIDER_ID = 123L
@@ -527,6 +532,61 @@ class DataProvidersServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
+  @Test
+  fun `replaceDataProviderCapabilities returns updated DataProvider`() {
+    val internalDataProvider =
+      INTERNAL_DATA_PROVIDER.copy {
+        details =
+          details.copy {
+            capabilities = capabilities.copy { honestMajorityShareShuffleSupported = true }
+          }
+      }
+    internalServiceMock.stub {
+      onBlocking { replaceDataProviderCapabilities(any()) }.thenReturn(internalDataProvider)
+    }
+    val request = replaceDataProviderCapabilitiesRequest {
+      name = DATA_PROVIDER_NAME
+      capabilities = DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true }
+    }
+
+    val response: DataProvider = runBlocking {
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        service.replaceDataProviderCapabilities(request)
+      }
+    }
+
+    assertThat(response).isEqualTo(DATA_PROVIDER.copy { capabilities = request.capabilities })
+    verifyProtoArgument(
+        internalServiceMock,
+        InternalDataProvidersService::replaceDataProviderCapabilities,
+      )
+      .isEqualTo(
+        internalReplaceDataProviderCapabilitiesRequest {
+          externalDataProviderId = internalDataProvider.externalDataProviderId
+          capabilities = internalDataProvider.details.capabilities
+        }
+      )
+  }
+
+  @Test
+  fun `replaceDataProviderCapabilities throws PERMISSION_DENIED for incorrect principal`() {
+    val request = replaceDataProviderCapabilitiesRequest {
+      name = DATA_PROVIDER_NAME
+      capabilities = DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          withDataProviderPrincipal(DATA_PROVIDER_NAME_2) {
+            service.replaceDataProviderCapabilities(request)
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
   companion object {
     private val API_VERSION = Version.V2_ALPHA
 
@@ -544,16 +604,17 @@ class DataProvidersServiceTest {
 
     private val INTERNAL_DATA_PROVIDER: InternalDataProvider = internalDataProvider {
       externalDataProviderId = DATA_PROVIDER_ID
-      details = details {
-        apiVersion = API_VERSION.string
-        publicKey = SIGNED_PUBLIC_KEY.message.value
-        publicKeySignature = SIGNED_PUBLIC_KEY.signature
-        publicKeySignatureAlgorithmOid = SIGNED_PUBLIC_KEY.signatureAlgorithmOid
-        dataAvailabilityInterval = interval {
-          startTime = timestamp { seconds = 100 }
-          endTime = timestamp { seconds = 200 }
+      details =
+        InternalDataProviderKt.details {
+          apiVersion = API_VERSION.string
+          publicKey = SIGNED_PUBLIC_KEY.message.value
+          publicKeySignature = SIGNED_PUBLIC_KEY.signature
+          publicKeySignatureAlgorithmOid = SIGNED_PUBLIC_KEY.signatureAlgorithmOid
+          dataAvailabilityInterval = interval {
+            startTime = timestamp { seconds = 100 }
+            endTime = timestamp { seconds = 200 }
+          }
         }
-      }
       certificate = internalCertificate {
         externalDataProviderId = DATA_PROVIDER_ID
         externalCertificateId = CERTIFICATE_ID
@@ -572,6 +633,7 @@ class DataProvidersServiceTest {
       publicKey = SIGNED_PUBLIC_KEY
       requiredDuchies += DUCHY_NAMES
       dataAvailabilityInterval = INTERNAL_DATA_PROVIDER.details.dataAvailabilityInterval
+      capabilities = DataProvider.Capabilities.getDefaultInstance()
     }
   }
 }

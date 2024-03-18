@@ -22,6 +22,7 @@ import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase as DataProvidersCoroutineService
 import org.wfanet.measurement.api.v2alpha.DuchyKey
@@ -31,6 +32,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.ModelProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.ReplaceDataAvailabilityIntervalRequest
+import org.wfanet.measurement.api.v2alpha.ReplaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.api.v2alpha.ReplaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
@@ -40,12 +42,15 @@ import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
+import org.wfanet.measurement.internal.kingdom.DataProviderKt as InternalDataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataAvailabilityIntervalRequest
+import org.wfanet.measurement.internal.kingdom.replaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderRequiredDuchiesRequest
 
 class DataProvidersService(private val internalClient: DataProvidersCoroutineStub) :
@@ -177,6 +182,42 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
       }
     return internalDataProvider.toDataProvider()
   }
+
+  override suspend fun replaceDataProviderCapabilities(
+    request: ReplaceDataProviderCapabilitiesRequest
+  ): DataProvider {
+    val key: DataProviderKey =
+      grpcRequireNotNull(DataProviderKey.fromName(request.name)) {
+        "Resource name unspecified or invalid"
+      }
+
+    val principal: MeasurementPrincipal = principalFromCurrentContext
+    if (principal.resourceKey != key) {
+      failGrpc(Status.PERMISSION_DENIED) {
+        "Permission for method replaceDataProviderCapabilities denied on resource $request.name"
+      }
+    }
+
+    val response: InternalDataProvider =
+      try {
+        internalClient.replaceDataProviderCapabilities(
+          replaceDataProviderCapabilitiesRequest {
+            externalDataProviderId = ApiId(key.dataProviderId).externalId.value
+            capabilities = request.capabilities.toInternal()
+          }
+        )
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            Status.Code.CANCELLED -> Status.CANCELLED
+            Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription("DataProvider not found")
+            else -> Status.UNKNOWN
+          }
+          .withCause(e)
+          .asRuntimeException()
+      }
+    return response.toDataProvider()
+  }
 }
 
 private fun InternalDataProvider.toDataProvider(): DataProvider {
@@ -204,5 +245,20 @@ private fun InternalDataProvider.toDataProvider(): DataProvider {
     }
     requiredDuchies += source.requiredExternalDuchyIdsList.map { DuchyKey(it).toName() }
     dataAvailabilityInterval = source.details.dataAvailabilityInterval
+    capabilities = source.details.capabilities.toCapabilities()
+  }
+}
+
+private fun InternalDataProvider.Capabilities.toCapabilities(): DataProvider.Capabilities {
+  val source = this
+  return DataProviderKt.capabilities {
+    honestMajorityShareShuffleSupported = source.honestMajorityShareShuffleSupported
+  }
+}
+
+private fun DataProvider.Capabilities.toInternal(): InternalDataProvider.Capabilities {
+  val source = this
+  return InternalDataProviderKt.capabilities {
+    honestMajorityShareShuffleSupported = source.honestMajorityShareShuffleSupported
   }
 }
