@@ -30,6 +30,10 @@ message DataProvider {
   // verification.
   Certificate certificate = 2;
 
+  message Capabilities {
+    // Whether the Honest Majority Share Shuffle (HMSS) protocol is supported.
+    bool honest_majority_share_shuffle_supported = 1;
+  }
   message Details {
     // Version the public API for serialized message definitions.
     string api_version = 1;
@@ -40,6 +44,7 @@ message DataProvider {
     string public_key_signature_algorithm_oid = 4;
 
     google.type.Interval data_availability_interval = 5;
+    Capabilities capabilities = 6;
   }
   Details details = 3;
 
