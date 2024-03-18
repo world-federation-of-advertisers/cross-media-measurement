@@ -23,15 +23,17 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 class ShareShuffleSketchGenerator(
   private val vidUniverse: List<Long>,
   private val salt: ByteString,
-  private var vidToIndexMap: Map<Long, IndexedValue>,
+  private val inputVidToIndexMap: Map<Long, IndexedValue>,
   private val eventQuery: EventQuery<Message>,
   private val vidSamplingInterval: MeasurementSpec.VidSamplingInterval,
 ) {
-  var sortedNormalizedHashValues: List<Double>
+  private val sortedNormalizedHashValues: List<Double>
+  private val vidToIndexMap: Map<Long, IndexedValue>
+
   init {
-    if (vidToIndexMap.isEmpty()) {
-      vidToIndexMap = VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
-    }
+    vidToIndexMap =
+      if (inputVidToIndexMap.isNotEmpty()) inputVidToIndexMap
+      else VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
     sortedNormalizedHashValues = vidToIndexMap.values.toList().map { it.value }.sorted()
   }
   /** Generates a frequency vector for the specified [eventGroupSpecs]. */
@@ -47,30 +49,32 @@ class ShareShuffleSketchGenerator(
       samplingIntervalEnd -= 1.0
     }
 
-    val start = lowerBound(sortedNormalizedHashValues, vidSamplingInterval.start.toDouble())
-    val end = upperBound(sortedNormalizedHashValues, samplingIntervalEnd) - 1
+    val startIndex = lowerBound(sortedNormalizedHashValues, vidSamplingInterval.start.toDouble())
+    val endIndexExclusive = upperBound(sortedNormalizedHashValues, samplingIntervalEnd)
 
     var sketchSize: Int = 0
     val validIntervals = mutableListOf<IntRange>()
 
     if (!isWrappedAround) {
-      if (start <= end) {
-        validIntervals.add(start..end)
-        sketchSize = end - start + 1
+      if (startIndex < endIndexExclusive) {
+        validIntervals.add(startIndex..(endIndexExclusive - 1))
+        sketchSize = endIndexExclusive - startIndex
       } else {
-        return IntArray(0)
+        sketchSize = 0
       }
     } else {
-      if (start < vidUniverse.size) {
-        validIntervals.add(start..(vidUniverse.size - 1))
+      if (startIndex < vidUniverse.size) {
+        validIntervals.add(startIndex..(vidUniverse.size - 1))
       }
-      sketchSize += (vidUniverse.size - start)
+      sketchSize += (vidUniverse.size - startIndex)
 
-      if (end >= 0) {
-        validIntervals.add(0..end)
+      if (endIndexExclusive > 0) {
+        validIntervals.add(0..(endIndexExclusive - 1))
       }
-      sketchSize += (end + 1)
+      sketchSize += endIndexExclusive
     }
+
+    require(sketchSize > 0) { "The sampling interval is too small." }
 
     val sketch = IntArray(sketchSize) { 0 }
 
@@ -79,7 +83,7 @@ class ShareShuffleSketchGenerator(
         .getUserVirtualIds(eventGroupSpec)
         .filter { isInSelectedIntervals(vidToIndexMap.getValue(it).index, validIntervals) }
         .forEach {
-          val bucketIndex: Int = vidToIndexMap.getValue(it).index - start
+          val bucketIndex: Int = vidToIndexMap.getValue(it).index - startIndex
           if (bucketIndex >= 0) {
             sketch[bucketIndex] += 1
           } else {

@@ -36,9 +36,26 @@ class VidToIndexMapGeneratorTest {
   }
 
   @Test
-  fun `the vid map is generated correctly`() {
+  fun `the vid map is generated correctly with a salt`() {
     val salt = ByteString.copyFromUtf8("salt")
-    val vidUniverse: List<Long> = (1L..10L).toList()
+    val vidUniverse: List<Long> = (1L..100L).toList()
+    val vidMap = VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
+    val sortedListOfIndexedValues = vidMap.values.toList().sortedBy { it.index }
+
+    // Verifies the consistency of the index and the normalized hash values.
+    assert(
+      sortedListOfIndexedValues
+        .zipWithNext { a: IndexedValue, b: IndexedValue ->
+          (a.value <= b.value) && (b.index == a.index + 1)
+        }
+        .all { it }
+    )
+  }
+
+  @Test
+  fun `the vid map is generated correctly without a salt`() {
+    val salt = ByteString.EMPTY
+    val vidUniverse: List<Long> = (1L..100L).toList()
     val vidMap = VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
     val sortedListOfIndexedValues = vidMap.values.toList().sortedBy { it.index }
 

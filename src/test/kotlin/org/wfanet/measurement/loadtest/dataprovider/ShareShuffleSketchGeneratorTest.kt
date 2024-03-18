@@ -21,6 +21,7 @@ import com.google.type.interval
 import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.random.Random
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.toList
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -51,7 +52,7 @@ private const val RANDOM_SEED: Long = 0
 @RunWith(JUnit4::class)
 class ShareShuffleSketchGeneratorTest {
   @Test
-  fun `ShareShuffleSketchGenerator returns non-wrapped around sketch with correct range`() {
+  fun `generate returns non-wrapped around sketch with correct range`() {
     // EventGroupSpecs for female 18_TO_34
     val eventGroupSpecs =
       REQUISITION_SPEC.events.eventGroupsList.map {
@@ -59,12 +60,7 @@ class ShareShuffleSketchGeneratorTest {
       }
 
     val allEvents =
-      generateEvents(
-        1L..4L,
-        FIRST_EVENT_DATE,
-        Person.AgeGroup.YEARS_18_TO_34,
-        Person.Gender.FEMALE,
-      )
+      generateEvents(1L..4L, FIRST_EVENT_DATE, Person.AgeGroup.YEARS_18_TO_34, Person.Gender.FEMALE)
     val eventQueries = InMemoryEventQuery(allEvents)
 
     val salt = ByteString.copyFromUtf8("salt")
@@ -97,7 +93,7 @@ class ShareShuffleSketchGeneratorTest {
   }
 
   @Test
-  fun `ShareShuffleSketchGenerator returns wrapped around sketch with correct range`() {
+  fun `generate returns wrapped around sketch with correct range`() {
     // EventGroupSpecs for female 18_TO_34
     val eventGroupSpecs =
       REQUISITION_SPEC.events.eventGroupsList.map {
@@ -105,12 +101,7 @@ class ShareShuffleSketchGeneratorTest {
       }
 
     val allEvents =
-      generateEvents(
-        1L..4L,
-        FIRST_EVENT_DATE,
-        Person.AgeGroup.YEARS_18_TO_34,
-        Person.Gender.FEMALE,
-      )
+      generateEvents(1L..4L, FIRST_EVENT_DATE, Person.AgeGroup.YEARS_18_TO_34, Person.Gender.FEMALE)
     val eventQueries = InMemoryEventQuery(allEvents)
 
     val salt = ByteString.copyFromUtf8("salt")
@@ -143,7 +134,7 @@ class ShareShuffleSketchGeneratorTest {
   }
 
   @Test
-  fun `ShareShuffleSketchGenerator returns an empty sketch when vid sampling interval is in the middle of the unit interval and contains no vid`() {
+  fun `generate throws IllegalArgumentException when vid sampling interval is in the middle of the unit interval and contains no vid`() {
     val eventGroupSpecs =
       REQUISITION_SPEC.events.eventGroupsList.map {
         EventQuery.EventGroupSpec(eventGroup { name = it.key }, it.value)
@@ -173,21 +164,23 @@ class ShareShuffleSketchGeneratorTest {
       }
     }
 
-    val sketch =
-      ShareShuffleSketchGenerator(
-          vidUniverse,
-          salt,
-          vidToIndexMap,
-          eventQueries,
-          measurementSpec.vidSamplingInterval,
-        )
-        .generate(eventGroupSpecs)
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ShareShuffleSketchGenerator(
+            vidUniverse,
+            salt,
+            vidToIndexMap,
+            eventQueries,
+            measurementSpec.vidSamplingInterval,
+          )
+          .generate(eventGroupSpecs)
+      }
 
-    assert(sketch.isEmpty())
+    assertThat(exception).hasMessageThat().contains("small")
   }
 
   @Test
-  fun `ShareShuffleSketchGenerator returns an empty sketch when vid sampling interval is at the beginning of the unit interval and contains no vid`() {
+  fun `generate throws IllegalArgumentException when vid sampling interval is at the beginning of the unit interval and contains no vid`() {
     val eventGroupSpecs =
       REQUISITION_SPEC.events.eventGroupsList.map {
         EventQuery.EventGroupSpec(eventGroup { name = it.key }, it.value)
@@ -216,21 +209,23 @@ class ShareShuffleSketchGeneratorTest {
       }
     }
 
-    val sketch =
-      ShareShuffleSketchGenerator(
-          vidUniverse,
-          salt,
-          vidToIndexMap,
-          eventQueries,
-          measurementSpec.vidSamplingInterval,
-        )
-        .generate(eventGroupSpecs)
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ShareShuffleSketchGenerator(
+            vidUniverse,
+            salt,
+            vidToIndexMap,
+            eventQueries,
+            measurementSpec.vidSamplingInterval,
+          )
+          .generate(eventGroupSpecs)
+      }
 
-    assert(sketch.isEmpty())
+    assertThat(exception).hasMessageThat().contains("small")
   }
 
   @Test
-  fun `ShareShuffleSketchGenerator returns an empty sketch when vid sampling interval is at the end of the unit interval and contains no vid`() {
+  fun `generate throws IllegalArgumentException when vid sampling interval is at the end of the unit interval and contains no vid`() {
     val eventGroupSpecs =
       REQUISITION_SPEC.events.eventGroupsList.map {
         EventQuery.EventGroupSpec(eventGroup { name = it.key }, it.value)
@@ -259,21 +254,23 @@ class ShareShuffleSketchGeneratorTest {
       }
     }
 
-    val sketch =
-      ShareShuffleSketchGenerator(
-          vidUniverse,
-          salt,
-          vidToIndexMap,
-          eventQueries,
-          measurementSpec.vidSamplingInterval,
-        )
-        .generate(eventGroupSpecs)
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ShareShuffleSketchGenerator(
+            vidUniverse,
+            salt,
+            vidToIndexMap,
+            eventQueries,
+            measurementSpec.vidSamplingInterval,
+          )
+          .generate(eventGroupSpecs)
+      }
 
-    assert(sketch.isEmpty())
+    assertThat(exception).hasMessageThat().contains("small")
   }
 
   @Test
-  fun `ShareShuffleSketchGenerator returns an empty sketch when vid sampling interval wraps around the unit interval and contains no vid`() {
+  fun `generate throws IllegalArgumentException when vid sampling interval wraps around the unit interval and contains no vid`() {
     val eventGroupSpecs =
       REQUISITION_SPEC.events.eventGroupsList.map {
         EventQuery.EventGroupSpec(eventGroup { name = it.key }, it.value)
@@ -304,17 +301,19 @@ class ShareShuffleSketchGeneratorTest {
       }
     }
 
-    val sketch =
-      ShareShuffleSketchGenerator(
-          vidUniverse,
-          salt,
-          vidToIndexMap,
-          eventQueries,
-          measurementSpec.vidSamplingInterval,
-        )
-        .generate(eventGroupSpecs)
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ShareShuffleSketchGenerator(
+            vidUniverse,
+            salt,
+            vidToIndexMap,
+            eventQueries,
+            measurementSpec.vidSamplingInterval,
+          )
+          .generate(eventGroupSpecs)
+      }
 
-    assert(sketch.isEmpty())
+    assertThat(exception).hasMessageThat().contains("small")
   }
 
   @Test
@@ -356,6 +355,53 @@ class ShareShuffleSketchGeneratorTest {
     for (x in hmssSketch) {
       assertThat(x).isEqualTo(0)
     }
+  }
+
+  @Test
+  fun `empty salt is used to generate the vid map`() {
+    val eventGroupSpecs =
+      REQUISITION_SPEC.events.eventGroupsList.map {
+        EventQuery.EventGroupSpec(eventGroup { name = it.key }, it.value)
+      }
+
+    val allEvents =
+      generateEvents(
+        0L..10L,
+        FIRST_EVENT_DATE,
+        Person.AgeGroup.YEARS_18_TO_34,
+        Person.Gender.FEMALE,
+      )
+
+    val vidUniverse = (0L..30L).toList()
+    val salt = ByteString.EMPTY
+    val vidToIndexMap = VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
+    val eventQueries = InMemoryEventQuery(allEvents)
+    val measurementSpec = measurementSpec {
+      vidSamplingInterval = vidSamplingInterval {
+        start = 0.0f
+        width = 1.0f
+      }
+    }
+
+    val hmssSketch =
+      ShareShuffleSketchGenerator(
+          vidUniverse,
+          salt,
+          vidToIndexMap,
+          eventQueries,
+          measurementSpec.vidSamplingInterval,
+        )
+        .generate(eventGroupSpecs)
+    assertThat(hmssSketch.size).isEqualTo(31)
+    var oneCount: Int = 0
+    for (x in hmssSketch) {
+      if (x == 1) {
+        oneCount++
+      }
+    }
+
+    // It is expected to have 5 registers with the frequency count of 2.
+    assertThat(oneCount).isEqualTo(11)
   }
 
   @Test
