@@ -499,6 +499,7 @@ cue_dump(
     srcs = ["open_telemetry_gke.cue"],
     tags = ["manual"],
     deps = [
+        ":base_gke",
         ":config_gke",
         "//src/main/k8s:open_telemetry",
     ],
