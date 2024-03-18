@@ -29,7 +29,6 @@ import io.grpc.StatusRuntimeException
 import java.io.File
 import java.lang.IllegalStateException
 import java.security.PrivateKey
-import java.security.SecureRandom
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
@@ -40,6 +39,7 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
+import kotlin.random.Random
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -222,7 +222,7 @@ class MetricsService(
   certificatesStub: CertificatesCoroutineStub,
   measurementConsumersStub: MeasurementConsumersCoroutineStub,
   encryptionKeyPairStore: EncryptionKeyPairStore,
-  secureRandom: SecureRandom,
+  secureRandom: Random,
   signingPrivateKeyDir: File,
   trustedCertificates: Map<ByteString, X509Certificate>,
   certificateCacheExpirationDuration: Duration = Duration.ofMinutes(60),
@@ -263,7 +263,7 @@ class MetricsService(
     private val certificatesStub: CertificatesCoroutineStub,
     private val measurementConsumersStub: MeasurementConsumersCoroutineStub,
     private val encryptionKeyPairStore: EncryptionKeyPairStore,
-    private val secureRandom: SecureRandom,
+    private val secureRandom: Random,
     private val signingPrivateKeyDir: File,
     private val trustedCertificates: Map<ByteString, X509Certificate>,
     certificateCacheExpirationDuration: Duration,

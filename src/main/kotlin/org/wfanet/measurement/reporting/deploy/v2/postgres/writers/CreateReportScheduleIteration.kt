@@ -18,6 +18,7 @@ package org.wfanet.measurement.reporting.deploy.v2.postgres.writers
 
 import java.time.Instant
 import java.time.ZoneOffset
+import java.time.temporal.ChronoUnit
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.common.toInstant
@@ -49,7 +50,7 @@ class CreateReportScheduleIteration(private val reportScheduleIteration: ReportS
 
     val reportScheduleIterationId = idGenerator.generateInternalId()
     val externalReportScheduleIterationId = idGenerator.generateExternalId().apiId.value
-    val createTime = Instant.now().atOffset(ZoneOffset.UTC)
+    val createTime = Instant.now().atOffset(ZoneOffset.UTC).truncatedTo(ChronoUnit.MICROS)
 
     val statement =
       boundStatement(
