@@ -8,16 +8,15 @@ package(
 
 IMPORT_PREFIX = "/src/main/proto"
 
-
 proto_library(
     name = "population_bucket_proto",
     srcs = ["population_bucket.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        "@com_google_googleapis//google/type:datetime_proto",
-        "@com_google_googleapis//google/api:resource_proto",
-        "@com_google_googleapis//google/api:field_behavior_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_protobuf//:timestamp_proto",
     ],
 )
 

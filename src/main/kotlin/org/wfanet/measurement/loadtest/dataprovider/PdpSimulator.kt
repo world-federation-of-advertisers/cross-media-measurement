@@ -1,4 +1,4 @@
-// Copyright 2021 The Cross-Media Measurement Authors
+// Copyright 2024 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,9 +15,9 @@
 package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.protobuf.ByteString
-import com.google.protobuf.Timestamp
 import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.timestamp
+import com.google.protobuf.util.Timestamps
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
@@ -273,7 +273,7 @@ class PdpSimulator(
   ): ModelRelease {
     val measurementSpecModelLineName = measurementSpec.modelLine
 
-    // Returns list of ModelRollouts sorted from latest to earliest update time.
+    // Returns list of ModelRollouts.
     val listModelRolloutsResponse =
       try {
         modelRolloutsStub.listModelRollouts(
@@ -287,8 +287,14 @@ class PdpSimulator(
         }
       }
 
+    // Sort list of ModelRollouts by descending updateTime.
+    val sortedModelRolloutsList =
+      listModelRolloutsResponse.modelRolloutsList.sortedWith { a, b ->
+        Timestamps.compare(a.updateTime, b.updateTime) * -1
+      }
+
     // Retrieves latest ModelRollout from list.
-    val latestModelRollout = listModelRolloutsResponse.modelRolloutsList[0]
+    val latestModelRollout = sortedModelRolloutsList.first()
     val modelReleaseName = latestModelRollout.modelRelease
 
     // Returns ModelRelease associated with latest ModelRollout.
@@ -310,8 +316,8 @@ class PdpSimulator(
     modelRelease: ModelRelease,
     filterExpression: String,
   ) {
-    // Calculates total sum by running the populationBucketsList through a program that will filter
-    // out irrelevant populations and sum the relevant ones.
+    // Calculates total sum by running the populationBucketsList through a program that will sum
+    // matching populations.
     val populationSum =
       getTotalPopulation(
         requisitionSpec,
@@ -342,29 +348,25 @@ class PdpSimulator(
 
     // Filter populationBucketsList to only include buckets that 1) contain the latest ModelRelease
     // connected to the ModelLine provided in the measurementSpec and 2) have a start and end time
-    // within the time window provided in the requisitionSpec. Ensures there are no duplicates.
+    // within the time window provided in the requisitionSpec.
     val validPopulationBucketsList =
-      populationBucketsList
-        .filter {
-          it.modelReleasesList.contains(modelRelease.name)
-          // find better way to do this
-          &&
-            Timestamp.parseFrom(it.validStartTime.toByteString()).seconds >=
-              requisitionIntervalStartTime.seconds &&
-            Timestamp.parseFrom(it.validEndTime.toByteString()).seconds >=
-              requisitionIntervalEndTime.seconds
-        }
-        .distinct()
+      populationBucketsList.filter {
+        it.modelReleasesList.contains(modelRelease.name) &&
+          Timestamps.compare(it.validStartTime, requisitionIntervalStartTime) >= 0 &&
+          (it.validEndTime === null ||
+            Timestamps.compare(it.validEndTime, requisitionIntervalEndTime) <= 0)
+      }
 
-    for (populationBucket in validPopulationBucketsList) {
+    return validPopulationBucketsList.sumOf {
       val program = EventFilters.compileProgram(TestEvent.getDescriptor(), filterExpression)
 
       // Use program to check if Person field in the PopulationBucket contains the filterExpression.
-      if (EventFilters.matches(populationBucket.event, program)) {
-        totalPopulation += populationBucket.populationSize
+      if (EventFilters.matches(it.event, program)) {
+        it.populationSize
+      } else {
+        0L
       }
     }
-    return 0L
   }
 
   private suspend fun refuseRequisition(
