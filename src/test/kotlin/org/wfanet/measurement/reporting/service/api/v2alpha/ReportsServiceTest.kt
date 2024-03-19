@@ -149,7 +149,7 @@ private val MAXIMUM_WATCH_DURATION_PER_USER = Durations.fromSeconds(4000)
 private const val DIFFERENTIAL_PRIVACY_DELTA = 1e-12
 
 private const val BATCH_CREATE_METRICS_LIMIT = 1000
-private const val BATCH_GET_METRICS_LIMIT = 100
+private const val BATCH_GET_METRICS_LIMIT = 1000
 
 @RunWith(JUnit4::class)
 class ReportsServiceTest {

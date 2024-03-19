@@ -92,7 +92,7 @@ message BatchGetMetricsRequest {
       child_type: "reporting.halo-cmm.org/Metric"
     }
   ];
-  // A maximum of 100 metrics can be retrieved in a batch.
+  // A maximum of 1000 metrics can be retrieved in a batch.
   // Format: measurementConsumers/{measurement_consumer}/metrics/{metric}
   repeated string names = 2 [
     (google.api.field_behavior) = REQUIRED,
