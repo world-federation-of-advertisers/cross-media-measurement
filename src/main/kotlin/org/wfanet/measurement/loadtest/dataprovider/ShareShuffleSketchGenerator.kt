@@ -18,6 +18,7 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.Message
+import java.util.Collections
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 
 class ShareShuffleSketchGenerator(
@@ -108,19 +109,21 @@ class ShareShuffleSketchGenerator(
   private fun lowerBound(sortedList: List<Double>, target: Double): Int {
     require(sortedList.isNotEmpty()) { "Input list cannot be empty." }
 
-    var current = 0
-    var count = sortedList.size
-    while (count > 0) {
-      val step = count / 2
-      if (sortedList[current + step] < target) {
-        current += (step + 1)
-        count -= (step + 1)
-      } else {
-        count = step
-      }
-    }
+    // Obtains the index of the target if there is a match, otherwise return (-insertionPoint - 1).
+    var index = Collections.binarySearch(sortedList, target)
 
-    return current
+    // Finds the lower bound index.
+    //
+    // If there is an exact match, finds the first index where the value is not less than target.
+    // Otherwise, the lower bound is the insertion point.
+    if (index >= 0) {
+      while (index > 0 && sortedList[index - 1] >= target) {
+        index--
+      }
+      return index
+    } else {
+      return -(index + 1)
+    }
   }
 
   /**
@@ -132,18 +135,21 @@ class ShareShuffleSketchGenerator(
   private fun upperBound(sortedList: List<Double>, target: Double): Int {
     require(sortedList.isNotEmpty()) { "Input list cannot be empty." }
 
-    var current = 0
-    var count = sortedList.size
-    while (count > 0) {
-      val step = count / 2
-      if (sortedList[current + step] <= target) {
-        current += (step + 1)
-        count -= (step + 1)
-      } else {
-        count = step
-      }
-    }
+    // Obtains the index of the target if there is a match, otherwise return (-insertionPoint - 1).
+    var index = Collections.binarySearch(sortedList, target)
 
-    return current
+    // Finds the upper bound index.
+    //
+    // If there is an exact match, finds the first index where the value is greater than target (if
+    // the rest of the list is equal to target, the upper bound is sortedList.size).
+    // Otherwise, the lower bound is the insertion point.
+    if (index >= 0) {
+      while (index < sortedList.size && sortedList[index] <= target) {
+        index++
+      }
+      return index
+    } else {
+      return -(index + 1)
+    }
   }
 }
