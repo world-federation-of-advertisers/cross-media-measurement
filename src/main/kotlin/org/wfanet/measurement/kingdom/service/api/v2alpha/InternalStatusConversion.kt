@@ -23,10 +23,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import io.grpc.protobuf.StatusProto
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.DuchyKey
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
-import org.wfanet.measurement.api.v2alpha.MeasurementKey
+import org.wfanet.measurement.api.v2alpha.*
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.ErrorCode
@@ -48,8 +45,7 @@ fun Status.toExternalStatusRuntimeException(
     buildMap<String, String> {
       when (ErrorCode.valueOf(errorInfo.reason)) {
         ErrorCode.MEASUREMENT_NOT_FOUND -> {
-          put(
-            "measurement",
+          val measurementKey =
             MeasurementKey(
                 externalIdToApiId(
                   checkNotNull(errorInfo.metadataMap["external_measurement_consumer_id"]).toLong()
@@ -58,62 +54,103 @@ fun Status.toExternalStatusRuntimeException(
                   checkNotNull(errorInfo.metadataMap["external_measurement_id"]).toLong()
                 ),
               )
-              .toName(),
-          )
-          errorMessage = "Measurement ${get("measurement")} not found"
+              .toName()
+          put("measurement", measurementKey)
+          errorMessage = "Measurement $measurementKey not found"
         }
         ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND -> {
-          put(
-            "measurement_consumer",
+          val measurementConsumerKey =
             MeasurementConsumerKey(
                 externalIdToApiId(
                   checkNotNull(errorInfo.metadataMap["external_measurement_consumer_id"]).toLong()
                 )
               )
-              .toName(),
-          )
-          errorMessage = "Measurement Consumer ${get("measurement_consumer")} not found."
+              .toName()
+          put("measurement_consumer", measurementConsumerKey)
+          errorMessage = "MeasurementConsumer $measurementConsumerKey not found."
         }
         ErrorCode.DATA_PROVIDER_NOT_FOUND -> {
-          put(
-            "data_provider",
+          val dataProviderKey =
             DataProviderKey(
                 externalIdToApiId(
                   checkNotNull(errorInfo.metadataMap["external_data_provider_id"]).toLong()
                 )
               )
-              .toName(),
-          )
-          errorMessage = "Data Provider ${get("data_provider")} not found."
+              .toName()
+          put("data_provider", dataProviderKey)
+          errorMessage = "DataProvider $dataProviderKey not found."
         }
         ErrorCode.DUCHY_NOT_FOUND -> {
-          put(
-            "duchy",
-            DuchyKey(checkNotNull(errorInfo.metadataMap["external_duchy_id"]).toString()).toName(),
-          )
-          errorMessage = "Duchy ${get("duchy")} not found."
+          val duchyKey =
+            DuchyKey(checkNotNull(errorInfo.metadataMap["external_duchy_id"]).toString()).toName()
+          put("duchy", duchyKey)
+          errorMessage = "Duchy $duchyKey not found."
         }
-        // TODO{@jcorilla}: Look to differentiate certificate types
         ErrorCode.CERTIFICATE_NOT_FOUND -> {
-          put(
-            "certificate",
-            checkNotNull(errorInfo.metadataMap["external_certificate_id"]).toString(),
-          )
-          errorMessage = "Certificate not found."
+          val certificateApiId =
+            externalIdToApiId(
+              checkNotNull(errorInfo.metadataMap["external_certificate_id"]).toLong()
+            )
+          if (errorInfo.metadataMap.containsKey("external_data_provider_id")) {
+            val dataProviderCertificateKey =
+              DataProviderCertificateKey(
+                  externalIdToApiId(
+                    checkNotNull(errorInfo.metadataMap["external_data_provider_id"]).toLong()
+                  ),
+                  certificateApiId,
+                )
+                .toName()
+            put("data_provider_certificate", dataProviderCertificateKey)
+            errorMessage = "DataProviderCertificate $dataProviderCertificateKey not found."
+          } else if (errorInfo.metadataMap.containsKey("external_measurement_consumer_id")) {
+            val measurementConsumerCertificateKey =
+              MeasurementConsumerCertificateKey(
+                  externalIdToApiId(
+                    checkNotNull(errorInfo.metadataMap["external_measurement_consumer_id"]).toLong()
+                  ),
+                  certificateApiId,
+                )
+                .toName()
+            put("measurement_consumer_certificate", measurementConsumerCertificateKey)
+            errorMessage =
+              "MeasurementConsumerCertificate $measurementConsumerCertificateKey not found."
+          } else if (errorInfo.metadataMap.containsKey("external_duchy_id")) {
+            val duchyCertificateKey =
+              DuchyCertificateKey(
+                  checkNotNull(errorInfo.metadataMap["external_duchy_id"]).toString(),
+                  certificateApiId,
+                )
+                .toName()
+            put("duchy_certificate", duchyCertificateKey)
+            errorMessage = "DuchyCertificate $duchyCertificateKey not found."
+          } else if (errorInfo.metadataMap.containsKey("external_model_provider_id")) {
+            val modelProviderCertificateKey =
+              ModelProviderCertificateKey(
+                  externalIdToApiId(
+                    checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
+                  ),
+                  certificateApiId,
+                )
+                .toName()
+            put("model_provider_certificate", modelProviderCertificateKey)
+            errorMessage = "ModelProviderCertificate $modelProviderCertificateKey not found."
+          } else {
+            put("external_certificate_id", certificateApiId)
+            errorMessage = "Certificate not found."
+          }
         }
         ErrorCode.CERTIFICATE_IS_INVALID -> {
           errorMessage = "Certificate is invalid."
         }
         ErrorCode.DUCHY_NOT_ACTIVE -> {
-          put(
-            "duchy",
-            DuchyKey(checkNotNull(errorInfo.metadataMap["external_duchy_id"]).toString()).toName(),
-          )
-          errorMessage = "Duchy ${get("duchy")} is not active."
+          val duchyKey =
+            DuchyKey(checkNotNull(errorInfo.metadataMap["external_duchy_id"]).toString()).toName()
+
+          put("duchy", duchyKey)
+          errorMessage = "Duchy $duchyKey is not active."
         }
         ErrorCode.MEASUREMENT_STATE_ILLEGAL -> {
-          put(
-            "measurement",
+          val measurementKey =
             MeasurementKey(
                 externalIdToApiId(
                   checkNotNull(errorInfo.metadataMap["external_measurement_consumer_id"]).toLong()
@@ -122,10 +159,11 @@ fun Status.toExternalStatusRuntimeException(
                   checkNotNull(errorInfo.metadataMap["external_measurement_id"]).toLong()
                 ),
               )
-              .toName(),
-          )
-          put("state", checkNotNull(errorInfo.metadataMap["measurement_state"]).toString())
-          errorMessage = "Measurement ${get("measurement")} is in illegal state: ${get("state")}"
+              .toName()
+          val measurementState = checkNotNull(errorInfo.metadataMap["measurement_state"]).toString()
+          put("measurement", measurementKey)
+          put("state", measurementState)
+          errorMessage = "Measurement $measurementKey is in illegal state: $measurementState"
         }
         // TODO{@jcorilla}: Populate metadata using subsequent error codes
         ErrorCode.MODEL_PROVIDER_NOT_FOUND -> {
@@ -138,7 +176,7 @@ fun Status.toExternalStatusRuntimeException(
           errorMessage = "Certificate is in wrong State."
         }
         ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL -> {
-          errorMessage = "ComputationParticipant not in CREATED state."
+          errorMessage = "ComputationParticipant state illegal."
         }
         ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND -> {
           errorMessage = "ComputationParticipant not found."
