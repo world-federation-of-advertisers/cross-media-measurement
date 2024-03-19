@@ -113,6 +113,7 @@ class BigQueryCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         MEASUREMENT_CONSUMER_SIGNING_CERTS.trustedCertificates,
         eventQuery,
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
+        filterExpression = FILTER_EXPRESSION,
       )
     }
 
@@ -124,6 +125,7 @@ class BigQueryCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
   }
 
   companion object {
+    private const val FILTER_EXPRESSION = "video.completed_25_percent_plus == true"
     private val RPC_DEADLINE_DURATION = Duration.ofSeconds(30)
     private val CONFIG_PATH =
       Paths.get("src", "test", "kotlin", "org", "wfanet", "measurement", "integration", "k8s")
