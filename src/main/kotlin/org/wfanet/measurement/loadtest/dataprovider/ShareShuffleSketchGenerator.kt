@@ -18,7 +18,6 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.Message
-import java.util.Collections
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 
 class ShareShuffleSketchGenerator(
@@ -110,7 +109,7 @@ class ShareShuffleSketchGenerator(
     require(sortedList.isNotEmpty()) { "Input list cannot be empty." }
 
     // Obtains the index of the target if there is a match, otherwise return (-insertionPoint - 1).
-    var index = Collections.binarySearch(sortedList, target)
+    var index = sortedList.binarySearch(target)
 
     // Finds the lower bound index.
     //
@@ -136,7 +135,7 @@ class ShareShuffleSketchGenerator(
     require(sortedList.isNotEmpty()) { "Input list cannot be empty." }
 
     // Obtains the index of the target if there is a match, otherwise return (-insertionPoint - 1).
-    var index = Collections.binarySearch(sortedList, target)
+    var index = sortedList.binarySearch(target)
 
     // Finds the upper bound index.
     //
