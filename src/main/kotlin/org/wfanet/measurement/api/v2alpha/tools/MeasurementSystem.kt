@@ -45,6 +45,7 @@ import org.wfanet.measurement.api.v2alpha.ApiKey
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt.ApiKeysCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt.filter
@@ -83,6 +84,7 @@ import org.wfanet.measurement.api.v2alpha.apiKey
 import org.wfanet.measurement.api.v2alpha.authenticateRequest
 import org.wfanet.measurement.api.v2alpha.cancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.certificate
+import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createApiKeyRequest
 import org.wfanet.measurement.api.v2alpha.createCertificateRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
@@ -120,6 +122,7 @@ import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.publicKey
+import org.wfanet.measurement.api.v2alpha.replaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.revokeCertificateRequest
@@ -944,6 +947,37 @@ private class DataProviders {
     println(
       "Data Provider ${outputDataProvider.name} duchy list replaced with ${outputDataProvider.requiredDuchiesList}"
     )
+  }
+
+  @Command(name = "update-capabilities", description = ["Updates DataProvider's capabilities"])
+  fun updateCapabilities(
+    @Option(
+      names = ["--hmss-supported", "--honest-majority-share-shuffle-supported"],
+      description = ["Whether the Honest Majority Share Shuffle (HMSS) protocol is supported"],
+      required = false,
+    )
+    honestMajorityShareShuffleSupported: Boolean? = null
+  ) {
+    val capabilities: DataProvider.Capabilities =
+      runBlocking(parentCommand.rpcDispatcher) {
+          dataProviderStub.getDataProvider(getDataProviderRequest { name = dataProviderName })
+        }
+        .capabilities
+    val request = replaceDataProviderCapabilitiesRequest {
+      name = dataProviderName
+      this.capabilities =
+        capabilities.copy {
+          if (honestMajorityShareShuffleSupported != null) {
+            this.honestMajorityShareShuffleSupported = honestMajorityShareShuffleSupported
+          }
+        }
+    }
+    val dataProvider: DataProvider =
+      runBlocking(parentCommand.rpcDispatcher) {
+        dataProviderStub.replaceDataProviderCapabilities(request)
+      }
+
+    println(dataProvider.capabilities)
   }
 
   @Command(name = "get", description = ["gets a DataProvider"])
