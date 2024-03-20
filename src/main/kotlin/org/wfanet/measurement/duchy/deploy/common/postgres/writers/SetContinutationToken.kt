@@ -17,6 +17,7 @@ package org.wfanet.measurement.duchy.deploy.common.postgres.writers
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.util.Timestamps
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
@@ -57,7 +58,7 @@ class SetContinuationToken(private val continuationToken: String) : PostgresWrit
       ) {
         bind("$1", true)
         bind("$2", continuationToken)
-        bind("$3", Instant.now())
+        bind("$3", Instant.now().truncatedTo(ChronoUnit.MICROS))
       }
 
     transactionContext.run {

@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.deploy.common.postgres.writers
 
 import java.time.Clock
 import java.time.Duration
+import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.firstOrNull
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
@@ -58,7 +59,11 @@ class ClaimWork<ProtocolT, StageT>(
   override suspend fun TransactionScope.runTransaction(): ComputationToken? {
     val protocolEnum = computationTypeEnumHelper.protocolEnumToLong(protocol)
     return computationReader
-      .listUnclaimedTasks(transactionContext, protocolEnum, clock.instant())
+      .listUnclaimedTasks(
+        transactionContext,
+        protocolEnum,
+        clock.instant().truncatedTo(ChronoUnit.MICROS),
+      )
       // First the possible tasks to claim are selected from the computations table, then for each
       // item in the list we try to claim the lock in a transaction which will only succeed if the
       // lock is still available. This pattern means only the item which is being updated
@@ -84,7 +89,7 @@ class ClaimWork<ProtocolT, StageT>(
     // If it has been updated since that time the lock should not be acquired.
     if (currentLockOwner.updateTime != unclaimedTask.updateTime) return false
 
-    val writeTime = clock.instant()
+    val writeTime = clock.instant().truncatedTo(ChronoUnit.MICROS)
     acquireComputationLock(
       unclaimedTask.computationId,
       writeTime,

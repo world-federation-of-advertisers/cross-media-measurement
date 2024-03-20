@@ -29,10 +29,10 @@ import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import java.nio.file.Paths
-import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.time.Duration
 import java.time.Instant
+import kotlin.random.Random
 import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
@@ -1515,7 +1515,7 @@ class ReportsServiceTest {
     }
   }
 
-  private val secureRandomMock: SecureRandom = mock()
+  private val randomMock: Random = mock()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
@@ -1532,7 +1532,7 @@ class ReportsServiceTest {
 
   @Before
   fun initService() {
-    secureRandomMock.stub {
+    randomMock.stub {
       on { nextInt(any()) } doReturn SECURE_RANDOM_OUTPUT_INT
       on { nextLong() } doReturn SECURE_RANDOM_OUTPUT_LONG
     }
@@ -1547,7 +1547,7 @@ class ReportsServiceTest {
         MeasurementsCoroutineStub(grpcTestServerRule.channel),
         CertificatesCoroutineStub(grpcTestServerRule.channel),
         ENCRYPTION_KEY_PAIR_STORE,
-        secureRandomMock,
+        randomMock,
         SECRETS_DIR,
         listOf(AGGREGATOR_ROOT_CERTIFICATE, DATA_PROVIDER_ROOT_CERTIFICATE).associateBy {
           it.subjectKeyIdentifier!!

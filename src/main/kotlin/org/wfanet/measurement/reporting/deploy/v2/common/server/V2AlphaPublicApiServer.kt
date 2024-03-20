@@ -33,6 +33,7 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+import kotlin.random.asKotlinRandom
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as KingdomCertificatesCoroutineStub
@@ -187,7 +188,7 @@ private fun run(
       KingdomCertificatesCoroutineStub(kingdomChannel),
       KingdomMeasurementConsumersCoroutineStub(kingdomChannel),
       InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
-      SecureRandom(),
+      SecureRandom().asKotlinRandom(),
       v2AlphaFlags.signingPrivateKeyStoreDir,
       commonServerFlags.tlsFlags.signingCerts.trustedCertificates,
       certificateCacheExpirationDuration =

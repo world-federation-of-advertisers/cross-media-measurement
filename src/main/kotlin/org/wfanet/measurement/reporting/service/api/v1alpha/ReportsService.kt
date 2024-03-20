@@ -28,12 +28,12 @@ import io.grpc.Status
 import io.grpc.StatusException
 import java.io.File
 import java.security.PrivateKey
-import java.security.SecureRandom
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.time.Instant
 import kotlin.math.min
+import kotlin.random.Random
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -205,7 +205,7 @@ class ReportsService(
   private val measurementsStub: MeasurementsCoroutineStub,
   private val certificateStub: CertificatesCoroutineStub,
   private val encryptionKeyPairStore: EncryptionKeyPairStore,
-  private val secureRandom: SecureRandom,
+  private val secureRandom: Random,
   private val signingPrivateKeyDir: File,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   measurementSpecConfig: MeasurementSpecConfig,
@@ -1455,7 +1455,7 @@ class ReportsService(
 
   private class MeasurementSpecComponentFactory(
     private val measurementSpecConfig: MeasurementSpecConfig,
-    private val secureRandom: SecureRandom,
+    private val secureRandom: Random,
   ) {
     private val DEFAULT_VID_START = 0.0f
     private val DEFAULT_VID_WIDTH = 1.0f

@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.deploy.common.postgres.writers
 
 import com.google.protobuf.Message
 import java.time.Clock
+import java.time.temporal.ChronoUnit
 import java.util.logging.Logger
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.duchy.db.computation.ComputationEditToken
@@ -63,7 +64,7 @@ class FinishComputation<ProtocolT, StageT, ComputationDT : Message, StageDT : Me
 
     checkComputationUnmodified(localId, editVersion)
 
-    val writeTime = clock.instant()
+    val writeTime = clock.instant().truncatedTo(ChronoUnit.MICROS)
     val endingStageLong =
       protocolStagesEnumHelper.computationStageEnumToLongValues(endingStage).stage
     val currentStageLong =

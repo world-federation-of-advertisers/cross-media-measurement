@@ -23,6 +23,7 @@ import io.grpc.StatusRuntimeException
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -80,7 +81,10 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   /** Constructs the service being tested. */
   protected abstract fun newService(clock: Clock): T
 
-  private val clock = TestClockWithNamedInstants(Clock.systemUTC().instant().minusSeconds(10))
+  private val clock =
+    TestClockWithNamedInstants(
+      Clock.systemUTC().instant().minusSeconds(10).truncatedTo(ChronoUnit.MICROS)
+    )
 
   @Before
   fun initService() {

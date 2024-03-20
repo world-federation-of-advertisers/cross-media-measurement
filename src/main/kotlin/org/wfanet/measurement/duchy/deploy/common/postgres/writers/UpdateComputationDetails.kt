@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.deploy.common.postgres.writers
 
 import com.google.protobuf.Message
 import java.time.Clock
+import java.time.temporal.ChronoUnit
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.duchy.db.computation.ComputationEditToken
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationReader
@@ -45,7 +46,7 @@ class UpdateComputationDetails<ProtocolT, StageT, ComputationDT : Message>(
   override suspend fun TransactionScope.runTransaction(): ComputationToken {
     checkComputationUnmodified(token.localId, token.editVersion)
 
-    val writeTime = clock.instant()
+    val writeTime = clock.instant().truncatedTo(ChronoUnit.MICROS)
     requisitionEntries.forEach {
       val requisition =
         RequisitionReader().readRequisitionByExternalKey(transactionContext, it.key)

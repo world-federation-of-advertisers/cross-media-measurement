@@ -15,6 +15,7 @@
 package org.wfanet.measurement.duchy.deploy.common.postgres.writers
 
 import java.time.Clock
+import java.time.temporal.ChronoUnit
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.duchy.db.computation.BlobRef
 import org.wfanet.measurement.duchy.db.computation.ComputationEditToken
@@ -63,7 +64,10 @@ class RecordOutputBlobPath<ProtocolT, StageT>(
         )
     check(type == ComputationBlobDependency.OUTPUT) { "Cannot write to $type blob" }
 
-    updateComputation(localId = localId, updateTime = clock.instant())
+    updateComputation(
+      localId = localId,
+      updateTime = clock.instant().truncatedTo(ChronoUnit.MICROS),
+    )
 
     updateComputationBlobReference(
       localId = localId,

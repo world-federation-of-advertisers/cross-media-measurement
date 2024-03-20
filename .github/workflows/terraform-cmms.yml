@@ -41,7 +41,7 @@ permissions:
 
 jobs:
   terraform:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     environment: ${{ inputs.environment }}
     env:
       GCLOUD_MODULE_PATH: src/main/terraform/gcloud/cmms

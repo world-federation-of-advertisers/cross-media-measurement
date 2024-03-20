@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.deploy.common.postgres.writers
 
 import com.google.protobuf.Message
 import java.time.Clock
+import java.time.temporal.ChronoUnit
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
@@ -71,7 +72,7 @@ class CreateComputation<ProtocolT : Any, ComputationDT : Message, StageT : Any, 
 
     val lockOwner: String? = null
     val localId = idGenerator.generateInternalId()
-    val writeTimestamp = clock.instant()
+    val writeTimestamp = clock.instant().truncatedTo(ChronoUnit.MICROS)
     val initialStageLongValue =
       computationProtocolStagesEnumHelper.computationStageEnumToLongValues(initialStage).stage
 

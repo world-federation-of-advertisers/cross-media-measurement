@@ -21,6 +21,7 @@ import io.grpc.Channel
 import io.grpc.ServerServiceDefinition
 import java.io.File
 import java.security.SecureRandom
+import kotlin.random.asKotlinRandom
 import kotlinx.coroutines.Dispatchers
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as KingdomCertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub as KingdomDataProvidersCoroutineStub
@@ -149,7 +150,7 @@ private fun run(
           KingdomMeasurementsCoroutineStub(kingdomChannel),
           KingdomCertificatesCoroutineStub(kingdomChannel),
           InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
-          SecureRandom(),
+          SecureRandom().asKotlinRandom(),
           v1AlphaFlags.signingPrivateKeyStoreDir,
           commonServerFlags.tlsFlags.signingCerts.trustedCertificates,
           measurementSpecConfig,

@@ -21,6 +21,7 @@ import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.time.Duration
 import java.util.logging.Logger
+import kotlin.random.asKotlinRandom
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
@@ -146,7 +147,7 @@ class InProcessReportingServer(
               publicKingdomMeasurementsClient,
               publicKingdomCertificatesClient,
               encryptionKeyPairStore,
-              SecureRandom(),
+              SecureRandom().asKotlinRandom(),
               signingPrivateKeyDir,
               trustedCertificates,
               MEASUREMENT_SPEC_CONFIG,

@@ -15,6 +15,7 @@
 package org.wfanet.measurement.duchy.deploy.common.postgres.writers
 
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages.computationStageEnumToLongValues
@@ -42,7 +43,7 @@ class InsertComputationStat(
         bind("$1", computationId)
         bind("$2", computationStageEnumToLongValues(computationStage).stage)
         bind("$3", attempt)
-        bind("$4", Instant.now())
+        bind("$4", Instant.now().truncatedTo(ChronoUnit.MICROS))
         bind("$5", metricName)
         bind("$6", metricValue)
       }

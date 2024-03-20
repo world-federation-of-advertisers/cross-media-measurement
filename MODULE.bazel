@@ -53,7 +53,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_java",
-    version = "7.3.2",
+    version = "7.4.0",
 )
 bazel_dep(
     name = "rules_jvm_external",
@@ -126,7 +126,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.78.0",
+    version = "0.79.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
