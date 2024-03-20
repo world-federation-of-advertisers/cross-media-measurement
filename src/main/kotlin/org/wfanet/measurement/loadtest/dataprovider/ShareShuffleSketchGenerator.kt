@@ -19,6 +19,8 @@ package org.wfanet.measurement.loadtest.dataprovider
 import com.google.protobuf.ByteString
 import com.google.protobuf.Message
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.loadtest.common.lowerBound
+import org.wfanet.measurement.loadtest.common.upperBound
 
 class ShareShuffleSketchGenerator(
   private val vidUniverse: List<Long>,
@@ -97,58 +99,5 @@ class ShareShuffleSketchGenerator(
 
   private fun isInSelectedIntervals(index: Int, intervals: List<IntRange>): Boolean {
     return intervals.any { index in it }
-  }
-
-  /**
-   * Finds the smallest index i such that sortedList[i] >= target.
-   *
-   * The value `sortedList.size` is returned in case all values are less than `target`. The
-   * implementation is based on the c++ std::lower_bound.
-   */
-  private fun lowerBound(sortedList: List<Double>, target: Double): Int {
-    require(sortedList.isNotEmpty()) { "Input list cannot be empty." }
-
-    // Obtains the index of the target if there is a match, otherwise return (-insertionPoint - 1).
-    var index = sortedList.binarySearch(target)
-
-    // Finds the lower bound index.
-    //
-    // If there is an exact match, finds the first index where the value is not less than target.
-    // Otherwise, the lower bound is the insertion point.
-    if (index >= 0) {
-      while (index > 0 && sortedList[index - 1] >= target) {
-        index--
-      }
-      return index
-    } else {
-      return -(index + 1)
-    }
-  }
-
-  /**
-   * Finds the smallest index i such that sortedList[i] > target.
-   *
-   * The value `sortedList.size` is returned in case all values are less than or equal to `target`.
-   * The implementation is based on the c++ std::upper_bound
-   */
-  private fun upperBound(sortedList: List<Double>, target: Double): Int {
-    require(sortedList.isNotEmpty()) { "Input list cannot be empty." }
-
-    // Obtains the index of the target if there is a match, otherwise return (-insertionPoint - 1).
-    var index = sortedList.binarySearch(target)
-
-    // Finds the upper bound index.
-    //
-    // If there is an exact match, finds the first index where the value is greater than target (if
-    // the rest of the list is equal to target, the upper bound is sortedList.size).
-    // Otherwise, the lower bound is the insertion point.
-    if (index >= 0) {
-      while (index < sortedList.size && sortedList[index] <= target) {
-        index++
-      }
-      return index
-    } else {
-      return -(index + 1)
-    }
   }
 }

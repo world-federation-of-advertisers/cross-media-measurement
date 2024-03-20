@@ -328,6 +328,7 @@ kt_jvm_library(
     deps = [
         ":event_query",
         ":vid_to_index_map_generator",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/common:sorted_list_utils",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
     ],
 )
