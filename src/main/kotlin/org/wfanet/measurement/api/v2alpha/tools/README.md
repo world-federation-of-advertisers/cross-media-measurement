@@ -85,6 +85,15 @@ using the `--api-key` option.
     `Measurement` and provides the private encryption key to decrypt the
     results.
 
+#### `data-providers`
+
+The `data-providers``command requires the DataProvider resource name to be
+specified using the`--name` option.
+
+*   `get`
+*   `replace-required-duchies`
+*   `update-capabilities`
+
 #### `api-keys`
 
 *   `create`

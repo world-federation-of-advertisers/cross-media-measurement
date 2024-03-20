@@ -28,12 +28,12 @@ concurrency:
 jobs:
   lint:
     name: API lint
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     defaults:
       run:
         shell: bash
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - uses: world-federation-of-advertisers/actions/setup-api-linter@v2
       with:

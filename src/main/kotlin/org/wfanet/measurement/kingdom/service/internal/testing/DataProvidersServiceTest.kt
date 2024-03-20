@@ -31,38 +31,31 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
-import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
+import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetDataProviderRequest
+import org.wfanet.measurement.internal.kingdom.batchGetDataProvidersRequest
 import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataAvailabilityIntervalRequest
+import org.wfanet.measurement.internal.kingdom.replaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.DUCHIES
-
-private const val EXTERNAL_DATA_PROVIDER_ID = 123L
-private const val FIXED_GENERATED_INTERNAL_ID = 2345L
-private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
-private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
-private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public key signature.")
-private const val PUBLIC_KEY_SIGNATURE_ALGORITHM_OID = "2.9999"
-private val CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certificate der.")
 
 @RunWith(JUnit4::class)
 abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
   @get:Rule val duchyIdSetter = DuchyIdSetter(DUCHIES)
 
-  protected val idGenerator =
-    FixedIdGenerator(
-      InternalId(FIXED_GENERATED_INTERNAL_ID),
-      ExternalId(FIXED_GENERATED_EXTERNAL_ID),
-    )
+  private val recordingIdGenerator = RecordingIdGenerator()
+  protected val idGenerator: IdGenerator
+    get() = recordingIdGenerator
 
   protected lateinit var dataProvidersService: T
     private set
@@ -79,36 +72,20 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         dataProvidersService.getDataProvider(
-          GetDataProviderRequest.newBuilder()
-            .setExternalDataProviderId(EXTERNAL_DATA_PROVIDER_ID)
-            .build()
+          getDataProviderRequest { externalDataProviderId = 404L }
         )
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("NOT_FOUND: DataProvider not found")
+    assertThat(exception).hasMessageThat().contains("DataProvider")
   }
 
   @Test
   fun `createDataProvider fails for missing fields`() = runBlocking {
-    val dataProvider =
-      DataProvider.newBuilder()
-        .apply {
-          certificateBuilder.apply {
-            notValidBeforeBuilder.seconds = 12345
-            notValidAfterBuilder.seconds = 23456
-            detailsBuilder.x509Der = CERTIFICATE_DER
-          }
-          detailsBuilder.apply {
-            apiVersion = "v2alpha"
-            publicKey = PUBLIC_KEY
-          }
-        }
-        .build()
+    val request =
+      CREATE_DATA_PROVIDER_REQUEST.copy { details = details.copy { clearPublicKeySignature() } }
     val exception =
-      assertFailsWith<StatusRuntimeException> {
-        dataProvidersService.createDataProvider(dataProvider)
-      }
+      assertFailsWith<StatusRuntimeException> { dataProvidersService.createDataProvider(request) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception)
@@ -117,125 +94,89 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
   }
 
   @Test
-  fun `createDataProvider succeeds`() = runBlocking {
-    val request = dataProvider {
-      certificate {
-        notValidBefore = timestamp { seconds = 12345 }
-        notValidAfter = timestamp { seconds = 23456 }
-        details = CertificateKt.details { x509Der = CERTIFICATE_DER }
-      }
-      details =
-        DataProviderKt.details {
-          apiVersion = "v2alpha"
-          publicKey = PUBLIC_KEY
-          publicKeySignature = PUBLIC_KEY_SIGNATURE
-          publicKeySignatureAlgorithmOid = PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
-        }
-      requiredExternalDuchyIds += DUCHIES.map { it.externalDuchyId }
-    }
+  fun `createDataProvider returns created DataProvider`() = runBlocking {
+    val request = CREATE_DATA_PROVIDER_REQUEST
 
     val response: DataProvider = dataProvidersService.createDataProvider(request)
 
-    assertThat(response)
-      .isEqualTo(
-        request.copy {
-          externalDataProviderId = FIXED_GENERATED_EXTERNAL_ID
-          certificate =
-            certificate.copy {
-              externalDataProviderId = FIXED_GENERATED_EXTERNAL_ID
-              externalCertificateId = FIXED_GENERATED_EXTERNAL_ID
-            }
-        }
-      )
+    assertThat(recordingIdGenerator.externalIds).hasSize(2)
+    val remainingExternalIds = recordingIdGenerator.externalIds.toMutableSet()
+    assertThat(response).ignoringFieldDescriptors(EXTERNAL_ID_FIELD_DESCRIPTORS).isEqualTo(request)
+    val externalDataProviderId = ExternalId(response.externalDataProviderId)
+    assertThat(externalDataProviderId).isIn(remainingExternalIds)
+    remainingExternalIds.remove(externalDataProviderId)
+    assertThat(ExternalId(response.certificate.externalDataProviderId))
+      .isEqualTo(externalDataProviderId)
+    assertThat(ExternalId(response.certificate.externalCertificateId)).isIn(remainingExternalIds)
   }
 
   @Test
   fun `createDataProvider succeeds when requiredExternalDuchyIds is empty`() = runBlocking {
-    val request =
-      DataProvider.newBuilder()
-        .apply {
-          certificateBuilder.apply {
-            notValidBeforeBuilder.seconds = 12345
-            notValidAfterBuilder.seconds = 23456
-            detailsBuilder.x509Der = CERTIFICATE_DER
-          }
-          detailsBuilder.apply {
-            apiVersion = "v2alpha"
-            publicKey = PUBLIC_KEY
-            publicKeySignature = PUBLIC_KEY_SIGNATURE
-            publicKeySignatureAlgorithmOid = PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
-          }
-        }
-        .build()
+    val request = CREATE_DATA_PROVIDER_REQUEST.copy { requiredExternalDuchyIds.clear() }
 
-    val response = dataProvidersService.createDataProvider(request)
+    val response: DataProvider = dataProvidersService.createDataProvider(request)
 
     assertThat(response)
-      .isEqualTo(
-        request
-          .toBuilder()
-          .apply {
-            externalDataProviderId = FIXED_GENERATED_EXTERNAL_ID
-            certificateBuilder.apply {
-              externalDataProviderId = FIXED_GENERATED_EXTERNAL_ID
-              externalCertificateId = FIXED_GENERATED_EXTERNAL_ID
-            }
-          }
-          .build()
-      )
+      .ignoringRepeatedFieldOrderOfFieldDescriptors(UNORDERED_FIELD_DESCRIPTORS)
+      .ignoringFieldDescriptors(EXTERNAL_ID_FIELD_DESCRIPTORS)
+      .isEqualTo(request)
   }
 
   @Test
   fun `getDataProvider succeeds`() = runBlocking {
-    val dataProvider =
-      DataProvider.newBuilder()
-        .apply {
-          certificateBuilder.apply {
-            notValidBeforeBuilder.seconds = 12345
-            notValidAfterBuilder.seconds = 23456
-            detailsBuilder.x509Der = CERTIFICATE_DER
-          }
-          detailsBuilder.apply {
-            apiVersion = "v2alpha"
-            publicKey = PUBLIC_KEY
-            publicKeySignature = PUBLIC_KEY_SIGNATURE
-          }
-          addAllRequiredExternalDuchyIds(DUCHIES.map { it.externalDuchyId })
-        }
-        .build()
+    val dataProvider = dataProvidersService.createDataProvider(CREATE_DATA_PROVIDER_REQUEST)
 
-    val createdDataProvider = dataProvidersService.createDataProvider(dataProvider)
-
-    val dataProviderRead =
+    val response =
       dataProvidersService.getDataProvider(
         GetDataProviderRequest.newBuilder()
-          .setExternalDataProviderId(createdDataProvider.externalDataProviderId)
+          .setExternalDataProviderId(dataProvider.externalDataProviderId)
           .build()
       )
 
-    assertThat(dataProviderRead).isEqualTo(createdDataProvider)
+    assertThat(response)
+      .ignoringRepeatedFieldOrderOfFieldDescriptors(UNORDERED_FIELD_DESCRIPTORS)
+      .isEqualTo(dataProvider)
+  }
+
+  @Test
+  fun `batchGetDataProviders returns DataProviders in request order`() {
+    val dataProviders = runBlocking {
+      listOf(
+        dataProvidersService.createDataProvider(CREATE_DATA_PROVIDER_REQUEST),
+        dataProvidersService.createDataProvider(
+          CREATE_DATA_PROVIDER_REQUEST.copy {
+            certificate =
+              certificate.copy {
+                subjectKeyIdentifier = subjectKeyIdentifier.concat(ByteString.copyFromUtf8("2"))
+              }
+          }
+        ),
+        dataProvidersService.createDataProvider(
+          CREATE_DATA_PROVIDER_REQUEST.copy {
+            certificate =
+              certificate.copy {
+                subjectKeyIdentifier = subjectKeyIdentifier.concat(ByteString.copyFromUtf8("3"))
+              }
+          }
+        ),
+      )
+    }
+    val shuffledDataProviders = dataProviders.shuffled()
+    val request = batchGetDataProvidersRequest {
+      externalDataProviderIds += shuffledDataProviders.map { it.externalDataProviderId }
+    }
+
+    val response = runBlocking { dataProvidersService.batchGetDataProviders(request) }
+
+    assertThat(response.dataProvidersList)
+      .ignoringRepeatedFieldOrderOfFieldDescriptors(UNORDERED_FIELD_DESCRIPTORS)
+      .containsExactlyElementsIn(shuffledDataProviders)
+      .inOrder()
   }
 
   @Test
   fun `replaceDataProviderRequiredDuchies succeeds`() = runBlocking {
-    val dataProvider =
-      dataProvidersService.createDataProvider(
-        dataProvider {
-          certificate {
-            notValidBefore = timestamp { seconds = 12345 }
-            notValidAfter = timestamp { seconds = 23456 }
-            details = CertificateKt.details { x509Der = CERTIFICATE_DER }
-          }
-          details =
-            DataProviderKt.details {
-              apiVersion = "v2alpha"
-              publicKey = PUBLIC_KEY
-              publicKeySignature = PUBLIC_KEY_SIGNATURE
-              publicKeySignatureAlgorithmOid = PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
-            }
-          requiredExternalDuchyIds += DUCHIES.map { it.externalDuchyId }
-        }
-      )
+    val dataProvider = dataProvidersService.createDataProvider(CREATE_DATA_PROVIDER_REQUEST)
     val desiredDuchyList = listOf(Population.AGGREGATOR_DUCHY.externalDuchyId)
 
     val updatedDataProvider =
@@ -254,6 +195,7 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
           getDataProviderRequest { externalDataProviderId = dataProvider.externalDataProviderId }
         )
       )
+      .ignoringRepeatedFieldOrderOfFieldDescriptors(UNORDERED_FIELD_DESCRIPTORS)
       .isEqualTo(updatedDataProvider)
   }
 
@@ -328,6 +270,7 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
           getDataProviderRequest { externalDataProviderId = dataProvider.externalDataProviderId }
         )
       )
+      .ignoringRepeatedFieldOrderOfFieldDescriptors(UNORDERED_FIELD_DESCRIPTORS)
       .isEqualTo(updatedDataProvider)
   }
 
@@ -364,5 +307,90 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `replaceDataProviderCapabilites updates DataProvider`() = runBlocking {
+    val dataProvider: DataProvider =
+      dataProvidersService.createDataProvider(CREATE_DATA_PROVIDER_REQUEST)
+    val capabilities = DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true }
+
+    val response: DataProvider =
+      dataProvidersService.replaceDataProviderCapabilities(
+        replaceDataProviderCapabilitiesRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          this.capabilities = capabilities
+        }
+      )
+
+    assertThat(response.details.capabilities).isEqualTo(capabilities)
+    // Ensure changes were persisted.
+    assertThat(
+        dataProvidersService.getDataProvider(
+          getDataProviderRequest { externalDataProviderId = dataProvider.externalDataProviderId }
+        )
+      )
+      .ignoringRepeatedFieldOrderOfFieldDescriptors(UNORDERED_FIELD_DESCRIPTORS)
+      .isEqualTo(response)
+  }
+
+  /** Random [IdGenerator] which records generated IDs. */
+  private class RecordingIdGenerator : IdGenerator {
+    private val delegate = RandomIdGenerator()
+    private val mutableInternalIds: MutableList<InternalId> = mutableListOf()
+    private val mutableExternalIds: MutableList<ExternalId> = mutableListOf()
+
+    val internalIds: List<InternalId>
+      get() = mutableInternalIds
+
+    val externalIds: List<ExternalId>
+      get() = mutableExternalIds
+
+    override fun generateExternalId(): ExternalId {
+      return delegate.generateExternalId().also { mutableExternalIds.add(it) }
+    }
+
+    override fun generateInternalId(): InternalId {
+      return delegate.generateInternalId().also { mutableInternalIds.add(it) }
+    }
+  }
+
+  companion object {
+    private val EXTERNAL_ID_FIELD_DESCRIPTORS =
+      listOf(
+        DataProvider.getDescriptor()
+          .findFieldByNumber(DataProvider.EXTERNAL_DATA_PROVIDER_ID_FIELD_NUMBER),
+        Certificate.getDescriptor()
+          .findFieldByNumber(Certificate.EXTERNAL_DATA_PROVIDER_ID_FIELD_NUMBER),
+        Certificate.getDescriptor()
+          .findFieldByNumber(Certificate.EXTERNAL_CERTIFICATE_ID_FIELD_NUMBER),
+      )
+    private val UNORDERED_FIELD_DESCRIPTORS =
+      listOf(
+        DataProvider.getDescriptor()
+          .findFieldByNumber(DataProvider.REQUIRED_EXTERNAL_DUCHY_IDS_FIELD_NUMBER)
+      )
+
+    private const val PUBLIC_KEY_SIGNATURE_ALGORITHM_OID = "2.9999"
+    private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
+    private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public key signature.")
+    private val CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certificate der.")
+    private val CERTIFICATE_SKID = ByteString.copyFromUtf8("Certificate SKID")
+    private val CREATE_DATA_PROVIDER_REQUEST = dataProvider {
+      certificate = certificate {
+        notValidBefore = timestamp { seconds = 12345 }
+        notValidAfter = timestamp { seconds = 23456 }
+        subjectKeyIdentifier = CERTIFICATE_SKID
+        details = CertificateKt.details { x509Der = CERTIFICATE_DER }
+      }
+      details =
+        DataProviderKt.details {
+          apiVersion = "v2alpha"
+          publicKey = PUBLIC_KEY
+          publicKeySignature = PUBLIC_KEY_SIGNATURE
+          publicKeySignatureAlgorithmOid = PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
+        }
+      requiredExternalDuchyIds += DUCHIES.map { it.externalDuchyId }
+    }
   }
 }

@@ -64,177 +64,13 @@ from the Kustomization directory:
 kubectl apply -k src/main/k8s/dev/kingdom
 ```
 
-## Configure event data source
-
-There are two data sources that can be used for
-[test events](../../src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/test_event.proto):
-
-1.  Synthetic generator
-
-    Events are generated according to
-    [simulator synthetic data specifications](../../src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto),
-    consisting of a single `SyntheticPopulationSpec` and a
-    `SyntheticEventGroupSpec` for each `EventGroup`. There are default
-    specifications included, but you can replace these with your own after
-    before you apply the K8s Kustomization.
-
-2.  BigQuery table
-
-    Events are read from a Google Cloud BigQuery table. See the section below on
-    how to populate the table.
-
-### Populate BigQuery table
-
-The BigQuery table can be populated with synthetic event data generated using
-the
-[`uk-pilot-synthetic-data-gen` script](https://github.com/world-federation-of-advertisers/uk-pilot-synthetic-data-gen).
-
-The `dev` configuration expects a table named `labelled_events` in a dataset
-named `demo` in the `us-central1` region. The table can be created in the
-[Google Cloud Console](https://console.cloud.google.com/bigquery), specifying
-the generated CSV file with automatic schema detection.
-
-![image-step-4-1](step-4-1.png)![image-step-4-1](step-4-2.png)
-
-You will need to ensure that the simulator service account has access to this
-table. See
-[Granting BigQuery table access](cluster-config.md#granting-bigquery-table-access).
-
 ## Deploy EDP simulators
 
-The correctness test assumes that you have six Event Data Provider (EDP)
-simulators running, each acting as a different fake `DataProvider`.
-
-### Initial setup
-
-1.  Create a K8s cluster
-
-    The simulators can run in their own cluster. You can use the Google Cloud
-    SDK to create a new one, substituting your own
-    [Use least privilege service account](https://cloud.google.com/kubernetes-engine/docs/how-to/hardening-your-cluster#use_least_privilege_sa)
-    address:
-
-    ```shell
-    gcloud container clusters create simulators \
-    --service-account="gke-cluster@halo-cmm-demo.iam.gserviceaccount.com" \
-    --num-nodes=4 --enable-autoscaling --min-nodes=4 --max-nodes=8 \
-    --machine-type=e2-small
-    ```
-
-    Point your KUBECONFIG to this cluster:
-
-    ```shell
-    gcloud container clusters get-credentials simulators
-    ```
-
-1.  Create a `simulator` K8s service account
-
-    The underlying IAM service account must be able to create BigQuery jobs and
-    access the `labelled_events` BigQuery table. See the
-    [configuration guide](cluster-config.md#workload-identity) for details.
-
-### Build and push simulator image
-
-If you aren't using pre-built release images, you can build the image yourself
-from source and push them to a container registry. For example, if you're using
-the [Google Container Registry](https://cloud.google.com/container-registry),
-you would specify `gcr.io` as your container registry and your Cloud project
-name as your image repository prefix.
-
-The build target to use depends on the event data source. Assuming a project
-named `halo-cmm-demo` and an image tag `build-0001`, run the following to build
-and push the image:
-
-*   Synthetic generator
-
-    ```shell
-    bazel run -c opt //src/main/docker:push_synthetic_generator_edp_simulator_runner_image \
-      --define container_registry=gcr.io \
-      --define image_repo_prefix=halo-cmm-demo --define image_tag=build-0001
-    ```
-
-*   BigQuery
-
-    ```shell
-    bazel run -c opt //src/main/docker:push_bigquery_edp_simulator_runner_image \
-      --define container_registry=gcr.io \
-      --define image_repo_prefix=halo-cmm-demo --define image_tag=build-0001
-    ```
-
-### Generate K8s Kustomization
-
-Run the following, substituting your own values:
-
-*   Synthetic generator
-
-    ```shell
-    bazel build //src/main/k8s/dev:synthetic_generator_edp_simulators.tar \
-    --define=kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
-    --define=duchy_public_api_target=public.worker1.dev.halo-cmm.org:8443 \
-    --define=mc_name=measurementConsumers/TGWOaWehLQ8 \
-    --define=edp1_name=dataProviders/HRL1wWehTSM \
-    --define=edp1_cert_name=dataProviders/HRL1wWehTSM/certificates/HRL1wWehTSM \
-    --define=edp2_name=dataProviders/djQdz2ehSSE \
-    --define=edp2_cert_name=dataProviders/djQdz2ehSSE/certificates/djQdz2ehSSE \
-    --define=edp3_name=dataProviders/SQ99TmehSA8 \
-    --define=edp3_cert_name=dataProviders/SQ99TmehSA8/certificates/SQ99TmehSA8 \
-    --define=edp4_name=dataProviders/TBZkB5heuL0 \
-    --define=edp4_cert_name=dataProviders/TBZkB5heuL0/certificates/TBZkB5heuL0 \
-    --define=edp5_name=dataProviders/HOCBxZheuS8 \
-    --define=edp5_cert_name=dataProviders/HOCBxZheuS8/certificates/HOCBxZheuS8 \
-    --define=edp6_name=dataProviders/VGExFmehRhY \
-    --define=edp6_cert_name=dataProviders/VGExFmehRhY/certificates/VGExFmehRhY \
-    --define container_registry=gcr.io \
-    --define image_repo_prefix=halo-cmm-demo --define image_tag=build-0001
-    ```
-
-    The resulting archive will contain `SyntheticEventGroupSpec` messages in
-    text format under `src/main/k8s/dev/synthetic_generator_config_files/`.
-    These can be replaced in order to customize the synthetic generator.
-
-*   BigQuery
-
-    ```shell
-    bazel build //src/main/k8s/dev:bigquery_edp_simulators.tar \
-      --define=kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
-      --define=duchy_public_api_target=public.worker1.dev.halo-cmm.org:8443 \
-      --define=mc_name=measurementConsumers/TGWOaWehLQ8 \
-      --define=edp1_name=dataProviders/HRL1wWehTSM \
-      --define=edp1_cert_name=dataProviders/HRL1wWehTSM/certificates/HRL1wWehTSM \
-      --define=edp2_name=dataProviders/djQdz2ehSSE \
-      --define=edp2_cert_name=dataProviders/djQdz2ehSSE/certificates/djQdz2ehSSE \
-      --define=edp3_name=dataProviders/SQ99TmehSA8 \
-      --define=edp3_cert_name=dataProviders/SQ99TmehSA8/certificates/SQ99TmehSA8 \
-      --define=edp4_name=dataProviders/TBZkB5heuL0 \
-      --define=edp4_cert_name=dataProviders/TBZkB5heuL0/certificates/TBZkB5heuL0 \
-      --define=edp5_name=dataProviders/HOCBxZheuS8 \
-      --define=edp5_cert_name=dataProviders/HOCBxZheuS8/certificates/HOCBxZheuS8 \
-      --define=edp6_name=dataProviders/VGExFmehRhY \
-      --define=edp6_cert_name=dataProviders/VGExFmehRhY/certificates/VGExFmehRhY \
-      --define container_registry=gcr.io \
-      --define=google_cloud_project=halo-cmm-demo \
-      --define=bigquery_dataset=demo \
-      --define=bigquery_table=labelled_events \
-      --define image_repo_prefix=halo-cmm-demo --define image_tag=build-0001
-    ```
-
-Extract the generated archive to some directory.
-
-### Apply K8s Kustomization
-
-From the Kustomization directory, run
-
-*   Synthetic generator
-
-    ```shell
-    kubectl apply -k src/main/k8s/dev/synthetic_generator_edp_simulators
-    ```
-
-*   BigQuery
-
-    ```shell
-    kubectl apply -k src/main/k8s/dev/bigquery_edp_simulators
-    ```
+See the [simulator deployment guide](simulator-deployment.md). The test assumes
+that there are valid events in the range `[2021-03-15, 2021-03-17]`. The
+synthetic generator variant assumes that the event message type is
+`wfa.measurement.api.v2alpha.event_templates.testing.TestEvent`, and the
+BigQuery variant assumes the event message type is `halo_cmm.uk.pilot.Event`.
 
 ## Run the correctness test
 
@@ -263,8 +99,9 @@ Run the following, substituting your own values:
       --define=bigquery_table=labelled_events
     ```
 
-The test generally takes around 6 minutes to complete, since that is how long
-the MPC protocol takes to finish. Eventually, you should see logs like this
+The time the test takes depends on the size of the data set. With the default
+synthetic generator configuration, this is about an hour. Eventually, you should
+see logs like this:
 
 ```
 Jan 27, 2022 12:47:01 AM org.wfanet.measurement.loadtest.frontend.FrontendSimulator process

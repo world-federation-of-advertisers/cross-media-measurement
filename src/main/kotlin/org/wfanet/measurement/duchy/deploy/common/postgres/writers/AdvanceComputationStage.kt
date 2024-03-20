@@ -17,6 +17,7 @@ package org.wfanet.measurement.duchy.deploy.common.postgres.writers
 import com.google.protobuf.Message
 import java.time.Clock
 import java.time.Duration
+import java.time.temporal.ChronoUnit
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.common.numberAsLong
 import org.wfanet.measurement.duchy.db.computation.AfterTransition
@@ -85,7 +86,7 @@ class AdvanceComputationStage<ProtocolT, StageT, StageDT : Message>(
         .trimIndent()
     }
 
-    val writeTime = clock.instant()
+    val writeTime = clock.instant().truncatedTo(ChronoUnit.MICROS)
     val nextStageLong = protocolStagesEnumHelper.computationStageEnumToLongValues(nextStage).stage
     val currentStageLong =
       protocolStagesEnumHelper.computationStageEnumToLongValues(currentStage).stage
