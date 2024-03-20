@@ -45,7 +45,7 @@ fun Status.toExternalStatusRuntimeException(
     buildMap<String, String> {
       when (ErrorCode.valueOf(errorInfo.reason)) {
         ErrorCode.MEASUREMENT_NOT_FOUND -> {
-          val measurementKey =
+          val measurementKeyName =
             MeasurementKey(
                 externalIdToApiId(
                   checkNotNull(errorInfo.metadataMap["external_measurement_consumer_id"]).toLong()
@@ -55,36 +55,36 @@ fun Status.toExternalStatusRuntimeException(
                 ),
               )
               .toName()
-          put("measurement", measurementKey)
-          errorMessage = "Measurement $measurementKey not found"
+          put("measurement", measurementKeyName)
+          errorMessage = "Measurement $measurementKeyName not found"
         }
         ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND -> {
-          val measurementConsumerKey =
+          val measurementConsumerKeyName =
             MeasurementConsumerKey(
                 externalIdToApiId(
                   checkNotNull(errorInfo.metadataMap["external_measurement_consumer_id"]).toLong()
                 )
               )
               .toName()
-          put("measurement_consumer", measurementConsumerKey)
-          errorMessage = "MeasurementConsumer $measurementConsumerKey not found."
+          put("measurement_consumer", measurementConsumerKeyName)
+          errorMessage = "MeasurementConsumer $measurementConsumerKeyName not found."
         }
         ErrorCode.DATA_PROVIDER_NOT_FOUND -> {
-          val dataProviderKey =
+          val dataProviderKeyName =
             DataProviderKey(
                 externalIdToApiId(
                   checkNotNull(errorInfo.metadataMap["external_data_provider_id"]).toLong()
                 )
               )
               .toName()
-          put("data_provider", dataProviderKey)
-          errorMessage = "DataProvider $dataProviderKey not found."
+          put("data_provider", dataProviderKeyName)
+          errorMessage = "DataProvider $dataProviderKeyName not found."
         }
         ErrorCode.DUCHY_NOT_FOUND -> {
-          val duchyKey =
+          val duchyKeyName =
             DuchyKey(checkNotNull(errorInfo.metadataMap["external_duchy_id"]).toString()).toName()
-          put("duchy", duchyKey)
-          errorMessage = "Duchy $duchyKey not found."
+          put("duchy", duchyKeyName)
+          errorMessage = "Duchy $duchyKeyName not found."
         }
         ErrorCode.CERTIFICATE_NOT_FOUND -> {
           val certificateApiId =
@@ -92,7 +92,7 @@ fun Status.toExternalStatusRuntimeException(
               checkNotNull(errorInfo.metadataMap["external_certificate_id"]).toLong()
             )
           if (errorInfo.metadataMap.containsKey("external_data_provider_id")) {
-            val dataProviderCertificateKey =
+            val dataProviderCertificateKeyName =
               DataProviderCertificateKey(
                   externalIdToApiId(
                     checkNotNull(errorInfo.metadataMap["external_data_provider_id"]).toLong()
@@ -100,10 +100,10 @@ fun Status.toExternalStatusRuntimeException(
                   certificateApiId,
                 )
                 .toName()
-            put("data_provider_certificate", dataProviderCertificateKey)
-            errorMessage = "DataProviderCertificate $dataProviderCertificateKey not found."
+            put("data_provider_certificate", dataProviderCertificateKeyName)
+            errorMessage = "DataProviderCertificate $dataProviderCertificateKeyName not found."
           } else if (errorInfo.metadataMap.containsKey("external_measurement_consumer_id")) {
-            val measurementConsumerCertificateKey =
+            val measurementConsumerCertificateKeyName =
               MeasurementConsumerCertificateKey(
                   externalIdToApiId(
                     checkNotNull(errorInfo.metadataMap["external_measurement_consumer_id"]).toLong()
@@ -111,20 +111,20 @@ fun Status.toExternalStatusRuntimeException(
                   certificateApiId,
                 )
                 .toName()
-            put("measurement_consumer_certificate", measurementConsumerCertificateKey)
+            put("measurement_consumer_certificate", measurementConsumerCertificateKeyName)
             errorMessage =
-              "MeasurementConsumerCertificate $measurementConsumerCertificateKey not found."
+              "MeasurementConsumerCertificate $measurementConsumerCertificateKeyName not found."
           } else if (errorInfo.metadataMap.containsKey("external_duchy_id")) {
-            val duchyCertificateKey =
+            val duchyCertificateKeyName =
               DuchyCertificateKey(
                   checkNotNull(errorInfo.metadataMap["external_duchy_id"]).toString(),
                   certificateApiId,
                 )
                 .toName()
-            put("duchy_certificate", duchyCertificateKey)
-            errorMessage = "DuchyCertificate $duchyCertificateKey not found."
+            put("duchy_certificate", duchyCertificateKeyName)
+            errorMessage = "DuchyCertificate $duchyCertificateKeyName not found."
           } else if (errorInfo.metadataMap.containsKey("external_model_provider_id")) {
-            val modelProviderCertificateKey =
+            val modelProviderCertificateKeyName =
               ModelProviderCertificateKey(
                   externalIdToApiId(
                     checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
@@ -132,8 +132,8 @@ fun Status.toExternalStatusRuntimeException(
                   certificateApiId,
                 )
                 .toName()
-            put("model_provider_certificate", modelProviderCertificateKey)
-            errorMessage = "ModelProviderCertificate $modelProviderCertificateKey not found."
+            put("model_provider_certificate", modelProviderCertificateKeyName)
+            errorMessage = "ModelProviderCertificate $modelProviderCertificateKeyName not found."
           } else {
             put("external_certificate_id", certificateApiId)
             errorMessage = "Certificate not found."
@@ -143,14 +143,14 @@ fun Status.toExternalStatusRuntimeException(
           errorMessage = "Certificate is invalid."
         }
         ErrorCode.DUCHY_NOT_ACTIVE -> {
-          val duchyKey =
+          val duchyKeyName =
             DuchyKey(checkNotNull(errorInfo.metadataMap["external_duchy_id"]).toString()).toName()
 
-          put("duchy", duchyKey)
-          errorMessage = "Duchy $duchyKey is not active."
+          put("duchy", duchyKeyName)
+          errorMessage = "Duchy $duchyKeyName is not active."
         }
         ErrorCode.MEASUREMENT_STATE_ILLEGAL -> {
-          val measurementKey =
+          val measurementKeyName =
             MeasurementKey(
                 externalIdToApiId(
                   checkNotNull(errorInfo.metadataMap["external_measurement_consumer_id"]).toLong()
@@ -161,9 +161,9 @@ fun Status.toExternalStatusRuntimeException(
               )
               .toName()
           val measurementState = checkNotNull(errorInfo.metadataMap["measurement_state"]).toString()
-          put("measurement", measurementKey)
+          put("measurement", measurementKeyName)
           put("state", measurementState)
-          errorMessage = "Measurement $measurementKey is in illegal state: $measurementState"
+          errorMessage = "Measurement $measurementKeyName is in illegal state: $measurementState"
         }
         // TODO{@jcorilla}: Populate metadata using subsequent error codes
         ErrorCode.MODEL_PROVIDER_NOT_FOUND -> {
