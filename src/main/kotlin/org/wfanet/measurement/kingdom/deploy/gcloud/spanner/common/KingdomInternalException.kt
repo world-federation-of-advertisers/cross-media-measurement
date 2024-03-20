@@ -76,7 +76,8 @@ class MeasurementConsumerNotFoundException(
   provideDescription: () -> String = { "MeasurementConsumer not found" },
 ) : KingdomInternalException(ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND, provideDescription) {
   override val context
-    get() = mapOf("external_measurement_consumer_id" to externalMeasurementConsumerId.toString())
+    get() =
+      mapOf("external_measurement_consumer_id" to externalMeasurementConsumerId.value.toString())
 }
 
 class ModelSuiteNotFoundException(
@@ -87,8 +88,8 @@ class ModelSuiteNotFoundException(
   override val context
     get() =
       mapOf(
-        "external_model_provider_id" to externalModelProviderId.toString(),
-        "external_model_suite_id" to externalModelSuiteId.toString(),
+        "external_model_provider_id" to externalModelProviderId.value.toString(),
+        "external_model_suite_id" to externalModelSuiteId.value.toString(),
       )
 }
 
@@ -101,9 +102,9 @@ class ModelLineNotFoundException(
   override val context
     get() =
       mapOf(
-        "external_model_provider_id" to externalModelProviderId.toString(),
-        "external_model_suite_id" to externalModelSuiteId.toString(),
-        "external_model_line_id" to externalModelLineId.toString(),
+        "external_model_provider_id" to externalModelProviderId.value.toString(),
+        "external_model_suite_id" to externalModelSuiteId.value.toString(),
+        "external_model_line_id" to externalModelLineId.value.toString(),
       )
 }
 
@@ -117,9 +118,9 @@ class ModelLineTypeIllegalException(
   override val context
     get() =
       mapOf(
-        "external_model_provider_id" to externalModelProviderId.toString(),
-        "external_model_suite_id" to externalModelSuiteId.toString(),
-        "external_model_line_id" to externalModelLineId.toString(),
+        "external_model_provider_id" to externalModelProviderId.value.toString(),
+        "external_model_suite_id" to externalModelSuiteId.value.toString(),
+        "external_model_line_id" to externalModelLineId.value.toString(),
         "model_line_type" to type.toString(),
       )
 }
@@ -133,9 +134,9 @@ class ModelLineInvalidArgsException(
   override val context
     get() =
       mapOf(
-        "external_model_provider_id" to externalModelProviderId.toString(),
-        "external_model_suite_id" to externalModelSuiteId.toString(),
-        "external_model_line_id" to externalModelLineId.toString(),
+        "external_model_provider_id" to externalModelProviderId.value.toString(),
+        "external_model_suite_id" to externalModelSuiteId.value.toString(),
+        "external_model_line_id" to externalModelLineId?.value.toString(),
       )
 }
 
@@ -148,9 +149,9 @@ class ModelReleaseNotFoundException(
   override val context
     get() =
       mapOf(
-        "external_model_provider_id" to externalModelProviderId.toString(),
-        "external_model_suite_id" to externalModelSuiteId.toString(),
-        "external_model_release_id" to externalModelReleaseId.toString(),
+        "external_model_provider_id" to externalModelProviderId.value.toString(),
+        "external_model_suite_id" to externalModelSuiteId.value.toString(),
+        "external_model_release_id" to externalModelReleaseId.value.toString(),
       )
 }
 
@@ -164,10 +165,10 @@ class ModelRolloutNotFoundException(
   override val context
     get() =
       mapOf(
-        "external_model_provider_id" to externalModelProviderId.toString(),
-        "external_model_suite_id" to externalModelSuiteId.toString(),
-        "external_model_line_id" to externalModelLineId.toString(),
-        "external_model_rollout_id" to externalModelRolloutId.toString(),
+        "external_model_provider_id" to externalModelProviderId.value.toString(),
+        "external_model_suite_id" to externalModelSuiteId.value.toString(),
+        "external_model_line_id" to externalModelLineId.value.toString(),
+        "external_model_rollout_id" to externalModelRolloutId?.value.toString(),
       )
 }
 
@@ -181,10 +182,10 @@ class ModelRolloutInvalidArgsException(
   override val context
     get() =
       mapOf(
-        "external_model_provider_id" to externalModelProviderId.toString(),
-        "external_model_suite_id" to externalModelSuiteId.toString(),
-        "external_model_line_id" to externalModelLineId.toString(),
-        "external_model_rollout_i     d" to externalModelRolloutId.toString(),
+        "external_model_provider_id" to externalModelProviderId.value.toString(),
+        "external_model_suite_id" to externalModelSuiteId.value.toString(),
+        "external_model_line_id" to externalModelLineId.value.toString(),
+        "external_model_rollout_i     d" to externalModelRolloutId?.value.toString(),
       )
 }
 
@@ -193,7 +194,7 @@ class DataProviderNotFoundException(
   provideDescription: () -> String = { "DataProvider not found" },
 ) : KingdomInternalException(ErrorCode.DATA_PROVIDER_NOT_FOUND, provideDescription) {
   override val context
-    get() = mapOf("external_data_provider_id" to externalDataProviderId.toString())
+    get() = mapOf("external_data_provider_id" to externalDataProviderId.value.toString())
 }
 
 class ModelProviderNotFoundException(
@@ -201,7 +202,7 @@ class ModelProviderNotFoundException(
   provideDescription: () -> String = { "ModelProvider not found" },
 ) : KingdomInternalException(ErrorCode.MODEL_PROVIDER_NOT_FOUND, provideDescription) {
   override val context
-    get() = mapOf("external_model_provider_id" to externalModelProviderId.toString())
+    get() = mapOf("external_model_provider_id" to externalModelProviderId.value.toString())
 }
 
 class DuchyNotFoundException(
@@ -234,7 +235,7 @@ class MeasurementNotFoundByComputationException(
   provideDescription: () -> String = { "Measurement not found by ComputationId" },
 ) : MeasurementNotFoundException(provideDescription) {
   override val context
-    get() = mapOf("external_computation_id" to externalComputationId.toString())
+    get() = mapOf("external_computation_id" to externalComputationId.value.toString())
 }
 
 class MeasurementNotFoundByMeasurementConsumerException(
@@ -245,8 +246,8 @@ class MeasurementNotFoundByMeasurementConsumerException(
   override val context
     get() =
       mapOf(
-        "external_measurement_consumer_id" to externalMeasurementConsumerId.toString(),
-        "external_measurement_id" to externalMeasurementId.toString(),
+        "external_measurement_consumer_id" to externalMeasurementConsumerId.value.toString(),
+        "external_measurement_id" to externalMeasurementId.value.toString(),
       )
 }
 
@@ -259,8 +260,8 @@ class MeasurementStateIllegalException(
   override val context
     get() =
       mapOf(
-        "external_measurement_consumer_id" to externalMeasurementConsumerId.toString(),
-        "external_measurement_id" to externalMeasurementId.toString(),
+        "external_measurement_consumer_id" to externalMeasurementConsumerId.value.toString(),
+        "external_measurement_id" to externalMeasurementId.value.toString(),
         "measurement_state" to state.toString(),
       )
 }
@@ -291,7 +292,7 @@ open class CertificateNotFoundException(
   provideDescription: () -> String = { "Certificate not found" },
 ) : KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND, provideDescription) {
   override val context
-    get() = mapOf("external_certificate_id" to externalCertificateId.toString())
+    get() = mapOf("external_certificate_id" to externalCertificateId.value.toString())
 }
 
 class DataProviderCertificateNotFoundException(
@@ -302,8 +303,8 @@ class DataProviderCertificateNotFoundException(
   override val context
     get() =
       mapOf(
-        "external_data_provider_id" to externalDataProviderId.toString(),
-        "external_certificate_id" to externalCertificateId.toString(),
+        "external_data_provider_id" to externalDataProviderId.value.toString(),
+        "external_certificate_id" to externalCertificateId.value.toString(),
       )
 }
 
@@ -315,8 +316,8 @@ class MeasurementConsumerCertificateNotFoundException(
   override val context
     get() =
       mapOf(
-        "external_measurement_consumer_id" to externalMeasurementConsumerId.toString(),
-        "external_certificate_id" to externalCertificateId.toString(),
+        "external_measurement_consumer_id" to externalMeasurementConsumerId.value.toString(),
+        "external_certificate_id" to externalCertificateId.value.toString(),
       )
 }
 
@@ -329,7 +330,7 @@ class DuchyCertificateNotFoundException(
     get() =
       mapOf(
         "external_duchy_id" to externalDuchyId,
-        "external_certificate_id" to externalCertificateId.toString(),
+        "external_certificate_id" to externalCertificateId.value.toString(),
       )
 }
 
@@ -341,8 +342,8 @@ class ModelProviderCertificateNotFoundException(
   override val context
     get() =
       mapOf(
-        "external_model_provider_id" to externalModelProviderId.toString(),
-        "external_certificate_id" to externalCertificateId.toString(),
+        "external_model_provider_id" to externalModelProviderId.value.toString(),
+        "external_certificate_id" to externalCertificateId.value.toString(),
       )
 }
 
@@ -354,7 +355,7 @@ class CertificateRevocationStateIllegalException(
   override val context
     get() =
       mapOf(
-        "external_certificate_id" to externalCertificateId.toString(),
+        "external_certificate_id" to externalCertificateId.value.toString(),
         "certificate_revocation_state" to state.toString(),
       )
 }
@@ -375,7 +376,7 @@ class ComputationParticipantStateIllegalException(
   override val context
     get() =
       mapOf(
-        "external_computation_id" to externalComputationId.toString(),
+        "external_computation_id" to externalComputationId.value.toString(),
         "external_duchy_id" to externalDuchyId,
         "computation_participant_state" to state.toString(),
       )
@@ -396,7 +397,7 @@ class ComputationParticipantNotFoundByComputationException(
   override val context
     get() =
       mapOf(
-        "external_computation_id" to externalComputationId.toString(),
+        "external_computation_id" to externalComputationId.value.toString(),
         "external_duchy_id" to externalDuchyId,
       )
 }
@@ -416,7 +417,7 @@ open class RequisitionNotFoundException(
   provideDescription: () -> String = { "Requisition not found" },
 ) : KingdomInternalException(ErrorCode.REQUISITION_NOT_FOUND, provideDescription) {
   override val context
-    get() = mapOf("external_requisition_id" to externalRequisitionId.toString())
+    get() = mapOf("external_requisition_id" to externalRequisitionId.value.toString())
 }
 
 class RequisitionNotFoundByComputationException(
@@ -427,8 +428,8 @@ class RequisitionNotFoundByComputationException(
   override val context
     get() =
       mapOf(
-        "external_computation_id" to externalComputationId.toString(),
-        "external_requisition_id" to externalRequisitionId.toString(),
+        "external_computation_id" to externalComputationId.value.toString(),
+        "external_requisition_id" to externalRequisitionId.value.toString(),
       )
 }
 
@@ -440,8 +441,8 @@ class RequisitionNotFoundByDataProviderException(
   override val context
     get() =
       mapOf(
-        "external_data_provider_id" to externalDataProviderId.toString(),
-        "external_requisition_id" to externalRequisitionId.toString(),
+        "external_data_provider_id" to externalDataProviderId.value.toString(),
+        "external_requisition_id" to externalRequisitionId.value.toString(),
       )
 }
 
@@ -453,7 +454,7 @@ class RequisitionStateIllegalException(
   override val context
     get() =
       mapOf(
-        "external_requisition_id" to externalRequisitionId.toString(),
+        "external_requisition_id" to externalRequisitionId.value.toString(),
         "requisition_state" to state.toString(),
       )
 }
@@ -463,7 +464,7 @@ class AccountNotFoundException(
   provideDescription: () -> String = { "Account not found" },
 ) : KingdomInternalException(ErrorCode.ACCOUNT_NOT_FOUND, provideDescription) {
   override val context
-    get() = mapOf("external_account_id" to externalAccountId.toString())
+    get() = mapOf("external_account_id" to externalAccountId.value.toString())
 }
 
 class DuplicateAccountIdentityException(
@@ -475,7 +476,7 @@ class DuplicateAccountIdentityException(
   override val context
     get() =
       mapOf(
-        "external_account_id" to externalAccountId.toString(),
+        "external_account_id" to externalAccountId.value.toString(),
         "issuer" to issuer,
         "subject" to subject,
       )
@@ -489,7 +490,7 @@ class AccountActivationStateIllegalException(
   override val context
     get() =
       mapOf(
-        "external_account_id" to externalAccountId.toString(),
+        "external_account_id" to externalAccountId.value.toString(),
         "account_activation_state" to state.toString(),
       )
 }
@@ -505,7 +506,7 @@ class ApiKeyNotFoundException(
   provideDescription: () -> String = { "ApiKey not found" },
 ) : KingdomInternalException(ErrorCode.API_KEY_NOT_FOUND, provideDescription) {
   override val context
-    get() = mapOf("external_api_key_id" to externalApiKeyId.toString())
+    get() = mapOf("external_api_key_id" to externalApiKeyId.value.toString())
 }
 
 class EventGroupNotFoundException(
@@ -542,8 +543,8 @@ class EventGroupInvalidArgsException(
   override val context
     get() =
       mapOf(
-        "original_external_measurement_id" to originalExternalMeasurementId.toString(),
-        "provided_external_measurement_id" to providedExternalMeasurementId.toString(),
+        "original_external_measurement_id" to originalExternalMeasurementId.value.toString(),
+        "provided_external_measurement_id" to providedExternalMeasurementId.value.toString(),
       )
 }
 
@@ -556,8 +557,8 @@ class EventGroupStateIllegalException(
   override val context
     get() =
       mapOf(
-        "external_data_provider_id" to externalDataProviderId.toString(),
-        "external_event_group_id" to externalEventGroupId.toString(),
+        "external_data_provider_id" to externalDataProviderId.value.toString(),
+        "external_event_group_id" to externalEventGroupId.value.toString(),
         "event_group_state" to state.toString(),
       )
 }
@@ -574,9 +575,9 @@ class EventGroupMetadataDescriptorNotFoundException(
   override val context
     get() =
       mapOf(
-        "external_data_provider_id" to externalDataProviderId.toString(),
+        "external_data_provider_id" to externalDataProviderId.value.toString(),
         "external_event_group_metadata_descriptor_id" to
-          externalEventGroupMetadataDescriptorId.toString(),
+          externalEventGroupMetadataDescriptorId.value.toString(),
       )
 }
 
@@ -643,10 +644,10 @@ class ModelOutageNotFoundException(
   override val context
     get() =
       mapOf(
-        "external_model_provider_id" to externalModelProviderId.toString(),
-        "external_model_suite_id" to externalModelSuiteId.toString(),
-        "external_model_line_id" to externalModelLineId.toString(),
-        "external_model_outage_id" to externalModelOutageId.toString(),
+        "external_model_provider_id" to externalModelProviderId.value.toString(),
+        "external_model_suite_id" to externalModelSuiteId.value.toString(),
+        "external_model_line_id" to externalModelLineId.value.toString(),
+        "external_model_outage_id" to externalModelOutageId.value.toString(),
       )
 }
 
@@ -661,10 +662,10 @@ class ModelOutageStateIllegalException(
   override val context
     get() =
       mapOf(
-        "external_model_provider_id" to externalModelProviderId.toString(),
-        "external_model_suite_id" to externalModelSuiteId.toString(),
-        "external_model_line_id" to externalModelLineId.toString(),
-        "external_model_outage_id" to externalModelOutageId.toString(),
+        "external_model_provider_id" to externalModelProviderId.value.toString(),
+        "external_model_suite_id" to externalModelSuiteId.value.toString(),
+        "external_model_line_id" to externalModelLineId.value.toString(),
+        "external_model_outage_id" to externalModelOutageId.value.toString(),
         "model_outage_state" to state.toString(),
       )
 }
@@ -679,10 +680,10 @@ class ModelOutageInvalidArgsException(
   override val context
     get() =
       mapOf(
-        "external_model_provider_id" to externalModelProviderId.toString(),
-        "external_model_suite_id" to externalModelSuiteId.toString(),
-        "external_model_line_id" to externalModelLineId.toString(),
-        "external_model_outage_id" to externalModelOutageId.toString(),
+        "external_model_provider_id" to externalModelProviderId.value.toString(),
+        "external_model_suite_id" to externalModelSuiteId.value.toString(),
+        "external_model_line_id" to externalModelLineId.value.toString(),
+        "external_model_outage_id" to externalModelOutageId?.value.toString(),
       )
 }
 
@@ -694,8 +695,8 @@ class ModelShardNotFoundException(
   override val context
     get() =
       mapOf(
-        "external_data_provider_id" to externalDataProviderId.toString(),
-        "external_model_shard_id" to externalModelShardId.toString(),
+        "external_data_provider_id" to externalDataProviderId.value.toString(),
+        "external_model_shard_id" to externalModelShardId.value.toString(),
       )
 }
 
@@ -708,9 +709,9 @@ class ModelShardInvalidArgsException(
   override val context
     get() =
       mapOf(
-        "external_data_provider_id" to externalDataProviderId.toString(),
-        "external_model_shard_id" to externalModelShardId.toString(),
-        "external_model_provider_id" to externalModelProviderId.toString(),
+        "external_data_provider_id" to externalDataProviderId.value.toString(),
+        "external_model_shard_id" to externalModelShardId.value.toString(),
+        "external_model_provider_id" to externalModelProviderId.value.toString(),
       )
 }
 
@@ -735,7 +736,7 @@ class PopulationNotFoundException(
   override val context
     get() =
       mapOf(
-        "external_data_provider_id" to externalDataProviderId.toString(),
-        "external_population_id" to externalPopulationId.toString(),
+        "external_data_provider_id" to externalDataProviderId.value.toString(),
+        "external_population_id" to externalPopulationId.value.toString(),
       )
 }
