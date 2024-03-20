@@ -40,7 +40,7 @@ class ComputationsCleaner(
     runBlocking {
       computationsService.purgeComputations(
         purgeComputationsRequest {
-          updatedBefore = currentTime.minusMillis(timeToLive.toMillis()).toProtoTime()
+          updatedBefore = currentTime.minus(timeToLive).toProtoTime()
           stages += Stage.COMPLETE.toProtocolStage()
           force = !dryRun
         }

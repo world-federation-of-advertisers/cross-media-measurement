@@ -24,6 +24,21 @@ constraint_value(
     constraint_setting = ":glibc_version",
 )
 
+constraint_value(
+    name = "glibc_2_35",
+    constraint_setting = ":glibc_version",
+)
+
+constraint_value(
+    name = "glibc_2_36",
+    constraint_setting = ":glibc_version",
+)
+
+constraint_value(
+    name = "glibc_2_37",
+    constraint_setting = ":glibc_version",
+)
+
 platform(
     name = "linux_x86_64",
     constraint_values = [
@@ -41,17 +56,43 @@ platform(
     parents = [":linux_x86_64"],
 )
 
-alias(
-    name = "distroless",
-    actual = ":debian_bullseye",
-)
-
 platform(
     name = "debian_bullseye",
     constraint_values = [
         ":glibc_2_31",
     ],
     parents = [":debian_buster"],
+)
+
+platform(
+    name = "debian_bookworm",
+    constraint_values = [
+        ":glibc_2_36",
+    ],
+    parents = [":debian_bullseye"],
+)
+
+platform(
+    name = "debian_trixie",
+    constraint_values = [
+        ":glibc_2_37",
+    ],
+    parents = [":debian_bookworm"],
+)
+
+platform(
+    name = "debian_bookworm_rbe",
+    constraint_values = [
+        ":glibc_2_36",
+    ],
+    parents = [
+        "//third_party/rbe_configs/config:platform",
+    ],
+)
+
+alias(
+    name = "distroless",
+    actual = ":debian_bookworm",
 )
 
 platform(
@@ -81,16 +122,6 @@ alias(
 )
 
 platform(
-    name = "ubuntu_20_04_rbe",
-    constraint_values = [
-        ":glibc_2_31",
-    ],
-    parents = [
-        "@wfa_measurement_system//third_party/rbe_configs/config:platform",
-    ],
-)
-
-platform(
     name = "ubuntu_focal",
     constraint_values = [
         ":glibc_2_31",
@@ -100,5 +131,18 @@ platform(
 
 alias(
     name = "ubuntu_20_04",
+    actual = ":ubuntu_focal",
+)
+
+platform(
+    name = "ubuntu_jammy",
+    constraint_values = [
+        ":glibc_2_35",
+    ],
+    parents = [":ubuntu_focal"],
+)
+
+alias(
+    name = "ubuntu_22_04",
     actual = ":ubuntu_focal",
 )
