@@ -37,6 +37,7 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.CancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
@@ -135,10 +136,12 @@ import org.wfanet.measurement.internal.kingdom.liquidLegionsSketchParams as inte
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
 import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByMeasurementConsumerException
 
 private const val DEFAULT_LIMIT = 50
 private const val DATA_PROVIDERS_RESULT_CERTIFICATE_NAME =
@@ -2413,6 +2416,30 @@ class MeasurementsServiceTest {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `cancelMeasurement throws NOT_FOUND with metadataMap`() {
+    runBlocking {
+      whenever(internalMeasurementsMock.cancelMeasurement(any()))
+        .thenThrow(
+          MeasurementNotFoundByMeasurementConsumerException(
+              ExternalId(EXTERNAL_MEASUREMENT_CONSUMER_ID),
+              ExternalId(EXTERNAL_MEASUREMENT_ID),
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "Measurement not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.cancelMeasurement(cancelMeasurementRequest { name = MEASUREMENT_NAME })
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsKey("measurement")
   }
 
   companion object {
