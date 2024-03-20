@@ -20,8 +20,7 @@ package org.wfanet.measurement.loadtest.common
  * Finds the smallest index i such that sortedList[i] >= target.
  *
  * The function takes input as a list of elements of type T. T is a Comparable and has the natural
- * order. The value `sortedList.size` is returned in case all values are less than `target`. The
- * implementation is based on the c++ std::lower_bound.
+ * order. The value `sortedList.size` is returned in case all values are less than `target`.
  */
 fun <T : Comparable<T>> lowerBound(sortedList: List<T>, target: T): Int {
   require(sortedList.isNotEmpty()) { "Input list cannot be empty." }
@@ -48,7 +47,7 @@ fun <T : Comparable<T>> lowerBound(sortedList: List<T>, target: T): Int {
  *
  * The function takes input as a list of elements of type T. T is a Comparable and has the natural
  * order. The value `sortedList.size` is returned in case all values are less than or equal to
- * `target`. The implementation is based on the c++ std::upper_bound
+ * `target`.
  */
 fun <T : Comparable<T>> upperBound(sortedList: List<T>, target: T): Int {
   require(sortedList.isNotEmpty()) { "Input list cannot be empty." }
