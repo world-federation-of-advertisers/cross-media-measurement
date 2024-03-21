@@ -18,6 +18,12 @@ variable "aws_region" {
   nullable    = false
 }
 
+variable "aws_project_env" {
+  description = "The environments name of the project (e.g. halo-cmm-dev), will be used as prefix to distinguish the resource names."
+  type        = string
+  nullable    = false
+}
+
 variable "postgres_instance_name" {
   description = "Name of the RDS PostgreSQL instance."
   type        = string

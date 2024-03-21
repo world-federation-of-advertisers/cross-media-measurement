@@ -24,8 +24,8 @@ locals {
   vpc_cidr        = "10.0.0.0/16"
   duchy_names     = toset(["worker2"])
   vpc_subnet_tags = {for name in local.duchy_names : "kubernetes.io/cluster/${name}-duchy" => "shared"}
-  vpc_name        = "halo-cmm-dev"
-  bucket_name     = "halo-cmm-dev-bucket"
+  vpc_name        = var.aws_project_env
+  bucket_name     = "${var.aws_project_env}-bucket"
 }
 
 
@@ -79,7 +79,7 @@ provider "aws" {
   default_tags {
     tags = {
       Terraform   = "true"
-      Environment = "halo-cmm-dev"
+      Environment = var.aws_project_env
     }
   }
 }

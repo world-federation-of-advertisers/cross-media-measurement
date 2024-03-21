@@ -98,14 +98,14 @@ jobs:
         common --config=ghcr
         build --define image_tag=$IMAGE_TAG
         build --define kingdom_system_api_target=$KINGDOM_SYSTEM_API_TARGET
-        build --define s3_bucket=$S3_BUCKET
+        build --define s3_bucket=halo-cmm-qa-bucket
         build --define s3_region=$AWS_REGION
         build --define duchy_cert_id=$DUCHY_CERT_ID
-        build --define postgres_host=$POSTGRES_HOST
+        build --define postgres_host=qa-postgres.cncisa22uo1o.us-west-2.rds.amazonaws.com
         build --define postgres_port=5432
         build --define postgres_region=$AWS_REGION
-        build --define postgres_credential_secret_name=$POSTGRES_CRED_SECRET_NAME
-        build --define computation_control_server_eips=$COMPUTATION_CONTROL_SERVER_EIPS
+        build --define postgres_credential_secret_name="rds\!db-04a89418-6fe8-4c5d-a870-d281981eec5b"
+        build --define computation_control_server_eips="eipalloc-0804ed2e1fac87e25,eipalloc-002817ca48c199533"
         EOF
 
     - name: Get EKS cluster credentials
@@ -114,12 +114,12 @@ jobs:
     - name: Export BAZEL_BIN
       run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
 
-    - name: Configure metrics
-      uses: ./.github/actions/configure-metrics-aws
-      if: ${{ inputs.apply }}
-      with:
-        amp-ingest-endpoint: ${{ vars.AMP_INGEST_ENDPOINT }}
-        amp-region: ${{ vars.AWS_REGION }}
+#    - name: Configure metrics
+#      uses: ./.github/actions/configure-metrics-aws
+#      if: ${{ inputs.apply }}
+#      with:
+#        amp-ingest-endpoint: ${{ vars.AMP_INGEST_ENDPOINT }}
+#        amp-region: ${{ vars.AWS_REGION }}
 
     - name: Generate archives
       run: >
