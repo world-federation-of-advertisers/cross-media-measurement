@@ -46,7 +46,12 @@ Go to the [Amazon Managed Service for Grafana](https://us-east-1.console.aws.ama
 page, and using the `Create` button and follow the instructions to create a new workspace.
 
 Once created, follow this [doc](https://docs.aws.amazon.com/prometheus/latest/userguide/AMP-onboard-amg.html) to
-set up Amazon Managed Grafana for use with Amazon Managed Service for Prometheus
+set up Amazon Managed Grafana for use with Amazon Managed Service for Prometheus.
+
+For WFA project, we can re-use the same Grafana workspace created under the root account to ingest the metrics from
+other environments by adding new Prometheus data sources with URL of the AMP (e.g.
+https://aps-workspaces.us-west-2.amazonaws.com/workspaces/ws-0e3283c8-86b9-4b89-a6a5-e0d8e15f3b46). 
+![grafana-setting](grafana-data-source-setting.png)
 
 ## Set up EKS cluster to send metric to AMP
 
