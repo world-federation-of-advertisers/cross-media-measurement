@@ -24,8 +24,12 @@ set -eu -o pipefail
 readonly BAZEL="${BAZEL:-bazel}"
 readonly PROTO_PATH='src/main/proto'
 
+get_proto_library_deps() {
+  "$BAZEL" query "${deps_query}"
+}
+
 get_descriptor_sets() {
-  "$BAZEL" cquery "kind('^proto_library rule', deps(${target}))" --output=files
+  "$BAZEL" cquery "${deps_query}" --output=files
 }
 
 get_proto_files() {
@@ -33,6 +37,10 @@ get_proto_files() {
     -path "$PROTO_PATH/${path}/*" \
     -name '*.proto' \
     -printf '%P\0'
+}
+
+build() {
+  get_proto_library_deps | xargs "$BAZEL" build
 }
 
 lint() {
@@ -53,8 +61,9 @@ main() {
   shift 1
   
   readonly target="//$PROTO_PATH/${path}/..."
-  "$BAZEL" build "${target}"
-
+  readonly deps_query="kind('^proto_library rule', deps(${target}))"
+  
+  build
   lint "$@"
 }
 
