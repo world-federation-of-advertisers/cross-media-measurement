@@ -19,23 +19,22 @@
 #include "absl/status/statusor.h"
 #include "common_cpp/jni/jni_wrap.h"
 #include "common_cpp/macros/macros.h"
-#include "wfa/measurement/internal/duchy/protocol/share_shuffle/honest_majority_share_shuffle_utility.h"
 #include "wfa/measurement/internal/duchy/protocol/honest_majority_share_shuffle_methods.pb.h"
+#include "wfa/measurement/internal/duchy/protocol/share_shuffle/honest_majority_share_shuffle_utility.h"
 
 namespace wfa::measurement::internal::duchy::protocol::share_shuffle {
 
 absl::StatusOr<std::string> CompleteShufflePhase(
     const std::string& serialized_request) {
-  return JniWrap<CompleteShufflePhaseRequest,
-                 CompleteShufflePhaseResponse>(
+  return JniWrap<CompleteShufflePhaseRequest, CompleteShufflePhaseResponse>(
       serialized_request, CompleteShufflePhase);
 }
 
 absl::StatusOr<std::string> CompleteAggregationPhase(
     const std::string& serialized_request) {
   return JniWrap<CompleteAggregationPhaseRequest,
-                 CompleteAggregationPhaseResponse>(
-      serialized_request, CompleteAggregationPhase);
+                 CompleteAggregationPhaseResponse>(serialized_request,
+                                                   CompleteAggregationPhase);
 }
 
 }  // namespace wfa::measurement::internal::duchy::protocol::share_shuffle

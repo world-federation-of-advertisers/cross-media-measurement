@@ -29,6 +29,7 @@ message DataProviderCertConfig {
     bytes root_certificate_skid = 3;
   }
 
-  // The list of all the Data Provider certificate information in this config message.
+  // The list of all the Data Provider certificate information in this config
+  // message.
   repeated DataProvider data_providers = 1;
 }
