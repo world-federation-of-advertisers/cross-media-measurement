@@ -342,6 +342,27 @@ the created elastic IP could be attached to the load balancer service through an
         kubernetes.io/ingress.allow-http: "false"
 ```
 
+## Set up Athena to query the Postgres Database
+
+Follow this [instruction](https://docs.aws.amazon.com/athena/latest/ug/connectors-postgresql.html) to create 
+an athena_postgres_connector. This instruction will guide u to:
+1. create a lambda function that will be used to execute queries against Postgres. 
+Configs for creating the lambda function:
+   * The SecretNamePrefix should be `rds`.
+   * The ConnectionString should be something like `postgres://jdbc:postgresql://{postgres_hostname}:5432/postgres?secret=${secret_name}
+     `. Take QA env as example:
+     * `postgres_hostname` is `qa-postgres.cncisa22uo1o.us-west-2.rds.amazonaws.com`,
+     * `secret_name` is `rds!db-04a89418-6fe8-4c5d-a870-d281981eec5b`
+   * The Subnets should contain at two db subnet Ids, which could be found from the RDS connection console. For example:
+     * `subnet-0e3cdc48416db8801` tagged as halo-cmm-qa-db-us-west-2a
+     * `subnet-08dc813bdebc2e5c1` tagged as halo-cmm-qa-db-us-west-2b
+   * The Security should be the eks-cluster-worker2-duchy security group. e.g.
+     * `sg-035eaa8e939aa6a26` tagged as eks-cluster-sg-worker2-duchy-104327146`.
+   * Other configs could be left as default.
+2. create an Athena data source with the above created connection.
+3. run Athena query in query edition. ![Athena-example](athena-usage-example.png)
+
+
 ## Q/A
 
 ### Q1. How to generate certificates/key pairs?
