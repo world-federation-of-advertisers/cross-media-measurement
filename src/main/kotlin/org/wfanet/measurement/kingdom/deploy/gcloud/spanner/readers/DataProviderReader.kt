@@ -70,7 +70,12 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
       .trimIndent()
 
   override suspend fun translate(struct: Struct): Result =
-    Result(buildDataProvider(struct), struct.getLong("DataProviderId"), struct.getLong("CertificateId"), struct.getBoolean("IsValid"))
+    Result(
+      buildDataProvider(struct),
+      struct.getLong("DataProviderId"),
+      struct.getLong("CertificateId"),
+      struct.getBoolean("IsValid"),
+    )
 
   suspend fun readByExternalDataProviderId(
     readContext: AsyncDatabaseClient.ReadContext,

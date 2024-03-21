@@ -63,10 +63,12 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
     val firstMeasurement = requests.first().measurement
     val externalMeasurementConsumerId = firstMeasurement.externalMeasurementConsumerId
 
-    val measurementConsumerReaderResult = MeasurementConsumerReader().readByExternalMeasurementConsumerId(transactionContext, ExternalId(firstMeasurement.externalMeasurementConsumerId))
-      ?: throw MeasurementConsumerNotFoundException(
-        ExternalId(externalMeasurementConsumerId),
-      )
+    val measurementConsumerReaderResult =
+      MeasurementConsumerReader()
+        .readByExternalMeasurementConsumerId(
+          transactionContext,
+          ExternalId(firstMeasurement.externalMeasurementConsumerId),
+        ) ?: throw MeasurementConsumerNotFoundException(ExternalId(externalMeasurementConsumerId))
 
     val measurementConsumerId = InternalId(measurementConsumerReaderResult.measurementConsumerId)
 
@@ -75,18 +77,15 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
     }
 
     val existingMeasurementsMap = findExistingMeasurements(requests, measurementConsumerId)
-    val externalDataProviderIdsSet =
-      buildSet {
-        requests.map {request ->
-          if (existingMeasurementsMap[request.requestId] == null) {
-            addAll(request.measurement.dataProvidersMap.keys.map {
-              ExternalId(it)
-            })
-          }
+    val externalDataProviderIdsSet = buildSet {
+      requests.map { request ->
+        if (existingMeasurementsMap[request.requestId] == null) {
+          addAll(request.measurement.dataProvidersMap.keys.map { ExternalId(it) })
         }
       }
+    }
 
-    //Map of external data provider ID to DataProviderReader.Result
+    // Map of external data provider ID to DataProviderReader.Result
     val dataProvideReaderResultsMap =
       DataProviderReader()
         .readByExternalDataProviderIds(transactionContext, externalDataProviderIdsSet)
@@ -113,16 +112,19 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
             createComputedMeasurement(
               createMeasurementRequest = it,
               measurementConsumerId = measurementConsumerId,
-              measurementConsumerCertificateId = InternalId(measurementConsumerReaderResult.certificateId),
+              measurementConsumerCertificateId =
+                InternalId(measurementConsumerReaderResult.certificateId),
               dataProvideReaderResultsMap = dataProvideReaderResultsMap,
             )
           }
-          ProtocolConfig.ProtocolCase.DIRECT -> createDirectMeasurement(
-            createMeasurementRequest = it,
-            measurementConsumerId = measurementConsumerId,
-            measurementConsumerCertificateId = InternalId(measurementConsumerReaderResult.certificateId),
-            dataProvideReaderResultsMap = dataProvideReaderResultsMap,
-          )
+          ProtocolConfig.ProtocolCase.DIRECT ->
+            createDirectMeasurement(
+              createMeasurementRequest = it,
+              measurementConsumerId = measurementConsumerId,
+              measurementConsumerCertificateId =
+                InternalId(measurementConsumerReaderResult.certificateId),
+              dataProvideReaderResultsMap = dataProvideReaderResultsMap,
+            )
           ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Protocol is not set.")
         }
     }
@@ -148,7 +150,10 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid protocol.")
       }
     val requiredDuchyIds: Set<String> =
-        requiredExternalDuchyIds + createMeasurementRequest.measurement.dataProvidersMap.keys.flatMap { dataProvideReaderResultsMap.getValue(it).dataProvider.requiredExternalDuchyIdsList }
+      requiredExternalDuchyIds +
+        createMeasurementRequest.measurement.dataProvidersMap.keys.flatMap {
+          dataProvideReaderResultsMap.getValue(it).dataProvider.requiredExternalDuchyIdsList
+        }
     val now = Clock.systemUTC().instant()
     val requiredDuchyEntries = DuchyIds.entries.filter { it.externalDuchyId in requiredDuchyIds }
     requiredDuchyEntries.forEach {

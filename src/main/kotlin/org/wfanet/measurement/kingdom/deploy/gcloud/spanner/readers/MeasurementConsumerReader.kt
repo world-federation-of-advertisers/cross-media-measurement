@@ -59,7 +59,12 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
       .trimIndent()
 
   override suspend fun translate(struct: Struct): Result =
-    Result(buildMeasurementConsumer(struct), struct.getLong("MeasurementConsumerId"), struct.getLong("CertificateId"), struct.getBoolean("IsValid"))
+    Result(
+      buildMeasurementConsumer(struct),
+      struct.getLong("MeasurementConsumerId"),
+      struct.getLong("CertificateId"),
+      struct.getBoolean("IsValid"),
+    )
 
   private fun buildMeasurementConsumer(struct: Struct): MeasurementConsumer =
     MeasurementConsumer.newBuilder()

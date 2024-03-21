@@ -41,7 +41,6 @@ import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.batchCreateMeasurementsResponse
 import org.wfanet.measurement.internal.kingdom.batchGetMeasurementsResponse
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotActiveException
