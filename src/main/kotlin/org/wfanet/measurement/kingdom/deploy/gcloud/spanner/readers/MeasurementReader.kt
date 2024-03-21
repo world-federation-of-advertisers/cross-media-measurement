@@ -50,6 +50,7 @@ class MeasurementReader(private val view: Measurement.View) :
   data class Result(
     val measurementConsumerId: InternalId,
     val measurementId: InternalId,
+    val createRequestId: String?,
     val measurement: Measurement,
   )
 
@@ -68,6 +69,7 @@ class MeasurementReader(private val view: Measurement.View) :
     Result(
       struct.getInternalId("MeasurementConsumerId"),
       struct.getInternalId("MeasurementId"),
+      if (struct.isNull("CreateRequestId")) null else struct.getString("CreateRequestId"),
       buildMeasurement(struct),
     )
 
@@ -234,6 +236,7 @@ class MeasurementReader(private val view: Measurement.View) :
       Measurements.ExternalMeasurementId,
       Measurements.ExternalComputationId,
       Measurements.ProvidedMeasurementId,
+      Measurements.CreateRequestId,
       Measurements.MeasurementDetails,
       Measurements.CreateTime,
       Measurements.UpdateTime,
@@ -286,6 +289,7 @@ class MeasurementReader(private val view: Measurement.View) :
       Measurements.ExternalMeasurementId,
       Measurements.ExternalComputationId,
       Measurements.ProvidedMeasurementId,
+      Measurements.CreateRequestId,
       Measurements.MeasurementDetails,
       Measurements.CreateTime,
       Measurements.UpdateTime,

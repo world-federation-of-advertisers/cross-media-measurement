@@ -14,15 +14,9 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Value
 import java.time.Clock
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.flattenConcat
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.singleOrNull
-import kotlinx.coroutines.flow.toSet
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.appendClause
@@ -32,7 +26,6 @@ import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.CreateMeasurementRequest
-import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -43,18 +36,14 @@ import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotActiveException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamDataProviders
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader.Companion.getEtag
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWriter.TransactionScope
 
 /**
  * Create measurements in the database.
@@ -63,8 +52,6 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWrite
  *
  * @throws [MeasurementConsumerNotFoundException] MeasurementConsumer not found
  * @throws [DataProviderNotFoundException] DataProvider not found
- * @throws [MeasurementConsumerCertificateNotFoundException] MeasurementConsumer's Certificate not
- *   found
  * @throws [CertificateIsInvalidException] Certificate is invalid
  * @throws [DuchyNotActiveException] One or more required duchies were inactive at measurement
  *   creation time
@@ -73,29 +60,79 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
   SpannerWriter<List<Measurement>, List<Measurement>>() {
 
   override suspend fun TransactionScope.runTransaction(): List<Measurement> {
-    val measurementConsumerId: InternalId =
-      readMeasurementConsumerId(
-        ExternalId(requests.first().measurement.externalMeasurementConsumerId)
+    val firstMeasurement = requests.first().measurement
+    val externalMeasurementConsumerId = firstMeasurement.externalMeasurementConsumerId
+
+    val measurementConsumerReaderResult = MeasurementConsumerReader().readByExternalMeasurementConsumerId(transactionContext, ExternalId(firstMeasurement.externalMeasurementConsumerId))
+      ?: throw MeasurementConsumerNotFoundException(
+        ExternalId(externalMeasurementConsumerId),
       )
 
+    val measurementConsumerId = InternalId(measurementConsumerReaderResult.measurementConsumerId)
+
+    if (!measurementConsumerReaderResult.isValid) {
+      throw CertificateIsInvalidException()
+    }
+
+    val existingMeasurementsMap = findExistingMeasurements(requests, measurementConsumerId)
+    val externalDataProviderIdsSet =
+      buildSet {
+        requests.map {request ->
+          if (existingMeasurementsMap[request.requestId] == null) {
+            addAll(request.measurement.dataProvidersMap.keys.map {
+              ExternalId(it)
+            })
+          }
+        }
+      }
+
+    //Map of external data provider ID to DataProviderReader.Result
+    val dataProvideReaderResultsMap =
+      DataProviderReader()
+        .readByExternalDataProviderIds(transactionContext, externalDataProviderIdsSet)
+        .associateBy {
+          if (!it.isValid) {
+            throw CertificateIsInvalidException()
+          }
+          it.dataProvider.externalDataProviderId
+        }
+
+    externalDataProviderIdsSet.forEach {
+      if (dataProvideReaderResultsMap[it.value] == null) {
+        throw DataProviderNotFoundException(it)
+      }
+    }
+
     return requests.map {
-      findExistingMeasurement(it, measurementConsumerId)
+      existingMeasurementsMap[it.requestId]
         ?: @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields are never null.
         when (it.measurement.details.protocolConfig.protocolCase) {
           ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2,
           ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2,
           ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
-            createComputedMeasurement(it, measurementConsumerId)
+            createComputedMeasurement(
+              createMeasurementRequest = it,
+              measurementConsumerId = measurementConsumerId,
+              measurementConsumerCertificateId = InternalId(measurementConsumerReaderResult.certificateId),
+              dataProvideReaderResultsMap = dataProvideReaderResultsMap,
+            )
           }
-          ProtocolConfig.ProtocolCase.DIRECT -> createDirectMeasurement(it, measurementConsumerId)
+          ProtocolConfig.ProtocolCase.DIRECT -> createDirectMeasurement(
+            createMeasurementRequest = it,
+            measurementConsumerId = measurementConsumerId,
+            measurementConsumerCertificateId = InternalId(measurementConsumerReaderResult.certificateId),
+            dataProvideReaderResultsMap = dataProvideReaderResultsMap,
+          )
           ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Protocol is not set.")
         }
     }
   }
 
-  private suspend fun TransactionScope.createComputedMeasurement(
+  private fun TransactionScope.createComputedMeasurement(
     createMeasurementRequest: CreateMeasurementRequest,
     measurementConsumerId: InternalId,
+    measurementConsumerCertificateId: InternalId,
+    dataProvideReaderResultsMap: Map<Long, DataProviderReader.Result>,
   ): Measurement {
     val initialMeasurementState = Measurement.State.PENDING_REQUISITION_PARAMS
 
@@ -110,11 +147,8 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         ProtocolConfig.ProtocolCase.DIRECT,
         ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid protocol.")
       }
-    val requiredDuchyIds =
-      requiredExternalDuchyIds +
-        readDataProviderRequiredDuchies(
-          createMeasurementRequest.measurement.dataProvidersMap.keys.map { ExternalId(it) }.toSet()
-        )
+    val requiredDuchyIds: Set<String> =
+        requiredExternalDuchyIds + createMeasurementRequest.measurement.dataProvidersMap.keys.flatMap { dataProvideReaderResultsMap.getValue(it).dataProvider.requiredExternalDuchyIdsList }
     val now = Clock.systemUTC().instant()
     val requiredDuchyEntries = DuchyIds.entries.filter { it.externalDuchyId in requiredDuchyIds }
     requiredDuchyEntries.forEach {
@@ -159,6 +193,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       externalMeasurementId,
       externalComputationId,
       initialMeasurementState,
+      measurementConsumerCertificateId,
     )
 
     includedDuchyEntries.forEach { entry ->
@@ -175,20 +210,22 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
         // For each EDP, insert a Requisition.
         insertRequisitions(
-          measurementConsumerId,
-          measurementId,
-          createMeasurementRequest.measurement.dataProvidersMap,
-          Requisition.State.PENDING_PARAMS,
+          measurementConsumerId = measurementConsumerId,
+          measurementId = measurementId,
+          dataProvidersMap = createMeasurementRequest.measurement.dataProvidersMap,
+          dataProvideReaderResultsMap = dataProvideReaderResultsMap,
+          initialRequisitionState = Requisition.State.PENDING_PARAMS,
         )
       }
       ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
         // For each EDP, insert a Requisition for each non-aggregator Duchy.
         insertRequisitions(
-          measurementConsumerId,
-          measurementId,
-          createMeasurementRequest.measurement.dataProvidersMap,
-          Requisition.State.PENDING_PARAMS,
-          includedDuchyEntries.drop(1),
+          measurementConsumerId = measurementConsumerId,
+          measurementId = measurementId,
+          dataProvidersMap = createMeasurementRequest.measurement.dataProvidersMap,
+          dataProvideReaderResultsMap = dataProvideReaderResultsMap,
+          initialRequisitionState = Requisition.State.PENDING_PARAMS,
+          fulfillingDuchies = includedDuchyEntries.drop(1),
         )
       }
       ProtocolConfig.ProtocolCase.DIRECT,
@@ -202,9 +239,11 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
     }
   }
 
-  private suspend fun TransactionScope.createDirectMeasurement(
+  private fun TransactionScope.createDirectMeasurement(
     createMeasurementRequest: CreateMeasurementRequest,
     measurementConsumerId: InternalId,
+    measurementConsumerCertificateId: InternalId,
+    dataProvideReaderResultsMap: Map<Long, DataProviderReader.Result>,
   ): Measurement {
     val initialMeasurementState = Measurement.State.PENDING_REQUISITION_FULFILLMENT
 
@@ -217,14 +256,16 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       externalMeasurementId,
       null,
       initialMeasurementState,
+      measurementConsumerCertificateId,
     )
 
     // Insert into Requisitions for each EDP
     insertRequisitions(
-      measurementConsumerId,
-      measurementId,
-      createMeasurementRequest.measurement.dataProvidersMap,
-      Requisition.State.UNFULFILLED,
+      measurementConsumerId = measurementConsumerId,
+      measurementId = measurementId,
+      dataProvidersMap = createMeasurementRequest.measurement.dataProvidersMap,
+      dataProvideReaderResultsMap = dataProvideReaderResultsMap,
+      initialRequisitionState = Requisition.State.UNFULFILLED,
     )
 
     return createMeasurementRequest.measurement.copy {
@@ -233,26 +274,15 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
     }
   }
 
-  private suspend fun TransactionScope.insertMeasurement(
+  private fun TransactionScope.insertMeasurement(
     createMeasurementRequest: CreateMeasurementRequest,
     measurementConsumerId: InternalId,
     measurementId: InternalId,
     externalMeasurementId: ExternalId,
     externalComputationId: ExternalId?,
     initialMeasurementState: Measurement.State,
+    measurementConsumerCertificateId: InternalId,
   ) {
-    val externalMeasurementConsumerId =
-      ExternalId(createMeasurementRequest.measurement.externalMeasurementConsumerCertificateId)
-    val reader =
-      CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
-        .bindWhereClause(measurementConsumerId, externalMeasurementConsumerId)
-    val measurementConsumerCertificateId =
-      reader.execute(transactionContext).singleOrNull()?.let { validateCertificate(it) }
-        ?: throw MeasurementConsumerCertificateNotFoundException(
-          externalMeasurementConsumerId,
-          externalMeasurementId,
-        )
-
     transactionContext.bufferInsertMutation("Measurements") {
       set("MeasurementConsumerId" to measurementConsumerId)
       set("MeasurementId" to measurementId)
@@ -292,50 +322,37 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
     }
   }
 
-  private suspend fun TransactionScope.insertRequisitions(
+  private fun TransactionScope.insertRequisitions(
     measurementConsumerId: InternalId,
     measurementId: InternalId,
     dataProvidersMap: Map<Long, Measurement.DataProviderValue>,
+    dataProvideReaderResultsMap: Map<Long, DataProviderReader.Result>,
     initialRequisitionState: Requisition.State,
     fulfillingDuchies: List<DuchyIds.Entry> = emptyList(),
   ) {
     for ((externalDataProviderId, dataProviderValue) in dataProvidersMap) {
+      val dataProviderReaderResult = dataProvideReaderResultsMap.getValue(externalDataProviderId)
       insertRequisition(
-        measurementConsumerId,
-        measurementId,
-        ExternalId(externalDataProviderId),
-        dataProviderValue,
-        initialRequisitionState,
-        fulfillingDuchies,
+        measurementConsumerId = measurementConsumerId,
+        measurementId = measurementId,
+        dataProviderId = InternalId(dataProviderReaderResult.dataProviderId),
+        dataProviderValue = dataProviderValue,
+        dataProviderCertificateId = InternalId(dataProviderReaderResult.certificateId),
+        initialRequisitionState = initialRequisitionState,
+        fulfillingDuchies = fulfillingDuchies,
       )
     }
   }
 
-  private suspend fun TransactionScope.insertRequisition(
+  private fun TransactionScope.insertRequisition(
     measurementConsumerId: InternalId,
     measurementId: InternalId,
-    externalDataProviderId: ExternalId,
+    dataProviderId: InternalId,
     dataProviderValue: Measurement.DataProviderValue,
+    dataProviderCertificateId: InternalId,
     initialRequisitionState: Requisition.State,
     fulfillingDuchies: List<DuchyIds.Entry> = emptyList(),
   ) {
-    val dataProviderId =
-      DataProviderReader.readDataProviderId(transactionContext, externalDataProviderId)
-        ?: throw DataProviderNotFoundException(externalDataProviderId)
-    val reader =
-      CertificateReader(CertificateReader.ParentType.DATA_PROVIDER)
-        .bindWhereClause(
-          dataProviderId,
-          ExternalId(dataProviderValue.externalDataProviderCertificateId),
-        )
-
-    val dataProviderCertificateId =
-      reader.execute(transactionContext).singleOrNull()?.let { validateCertificate(it) }
-        ?: throw DataProviderCertificateNotFoundException(
-          externalDataProviderId,
-          ExternalId(dataProviderValue.externalDataProviderCertificateId),
-        )
-
     val requisitionId = idGenerator.generateInternalId()
     val externalRequisitionId = idGenerator.generateExternalId()
     val details: Requisition.Details =
@@ -374,10 +391,10 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
     }
   }
 
-  private suspend fun TransactionScope.findExistingMeasurement(
-    createMeasurementRequest: CreateMeasurementRequest,
+  private suspend fun TransactionScope.findExistingMeasurements(
+    createMeasurementRequests: List<CreateMeasurementRequest>,
     measurementConsumerId: InternalId,
-  ): Measurement? {
+  ): Map<String?, Measurement> {
     val params =
       object {
         val MEASUREMENT_CONSUMER_ID = "measurementConsumerId"
@@ -386,7 +403,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
     val whereClause =
       """
       WHERE MeasurementConsumerId = @${params.MEASUREMENT_CONSUMER_ID}
-        AND CreateRequestId = @${params.CREATE_REQUEST_ID}
+        AND CreateRequestId IN UNNEST(@${params.CREATE_REQUEST_ID})
       """
         .trimIndent()
 
@@ -394,11 +411,11 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       .fillStatementBuilder {
         appendClause(whereClause)
         bind(params.MEASUREMENT_CONSUMER_ID to measurementConsumerId)
-        bind(params.CREATE_REQUEST_ID to createMeasurementRequest.requestId)
+        bind(params.CREATE_REQUEST_ID).toStringArray(createMeasurementRequests.map { it.requestId })
       }
       .execute(transactionContext)
-      .map { it.measurement }
-      .singleOrNull()
+      .toList()
+      .associate { result -> Pair(result.createRequestId, result.measurement) }
   }
 
   override fun ResultScope<List<Measurement>>.buildResult(): List<Measurement> {
@@ -416,46 +433,4 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       }
     }
   }
-}
-
-private suspend fun TransactionScope.readMeasurementConsumerId(
-  externalMeasurementConsumerId: ExternalId
-): InternalId {
-  val column = "MeasurementConsumerId"
-  return transactionContext
-    .readRowUsingIndex(
-      "MeasurementConsumers",
-      "MeasurementConsumersByExternalId",
-      Key.of(externalMeasurementConsumerId.value),
-      column,
-    )
-    ?.let { struct -> InternalId(struct.getLong(column)) }
-    ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId) {
-      "MeasurementConsumer with external ID $externalMeasurementConsumerId not found"
-    }
-}
-
-@OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
-private suspend fun TransactionScope.readDataProviderRequiredDuchies(
-  externalDataProviderIds: Set<ExternalId>
-): Set<String> {
-  return StreamDataProviders(externalDataProviderIds)
-    .execute(transactionContext)
-    .map { it.dataProvider.requiredExternalDuchyIdsList.asFlow() }
-    .flattenConcat()
-    .toSet()
-}
-
-/**
- * Returns the internal Certificate Id if the revocation state has not been set and the current time
- * is inside the valid time period.
- *
- * Throws a [ErrorCode.CERTIFICATE_IS_INVALID] otherwise.
- */
-private fun validateCertificate(certificateResult: CertificateReader.Result): InternalId {
-  if (!certificateResult.isValid) {
-    throw CertificateIsInvalidException()
-  }
-
-  return certificateResult.certificateId
 }

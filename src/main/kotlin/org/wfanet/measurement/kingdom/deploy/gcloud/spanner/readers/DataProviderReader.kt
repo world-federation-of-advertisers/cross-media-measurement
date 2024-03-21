@@ -24,12 +24,18 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getInternalId
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
+import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 
 class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
-  data class Result(val dataProvider: DataProvider, val dataProviderId: Long)
+  data class Result(
+    val dataProvider: DataProvider,
+    val dataProviderId: Long,
+    val certificateId: Long,
+    val isValid: Boolean,
+  )
 
   override val baseSql: String =
     """
@@ -39,11 +45,13 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
       DataProviders.DataProviderDetails,
       DataProviders.DataProviderDetailsJson,
       DataProviderCertificates.ExternalDataProviderCertificateId,
+      Certificates.CertificateId,
       Certificates.SubjectKeyIdentifier,
       Certificates.NotValidBefore,
       Certificates.NotValidAfter,
       Certificates.RevocationState,
       Certificates.CertificateDetails,
+      RevocationState = ${Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED.number} AND CURRENT_TIMESTAMP() >= NotValidBefore AND CURRENT_TIMESTAMP() <= NotValidAfter AS IsValid,
       ARRAY(
         SELECT AS STRUCT
           DataProviderRequiredDuchies.DuchyId
@@ -62,7 +70,7 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
       .trimIndent()
 
   override suspend fun translate(struct: Struct): Result =
-    Result(buildDataProvider(struct), struct.getLong("DataProviderId"))
+    Result(buildDataProvider(struct), struct.getLong("DataProviderId"), struct.getLong("CertificateId"), struct.getBoolean("IsValid"))
 
   suspend fun readByExternalDataProviderId(
     readContext: AsyncDatabaseClient.ReadContext,

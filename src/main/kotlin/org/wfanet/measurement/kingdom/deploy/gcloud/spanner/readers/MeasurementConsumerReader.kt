@@ -23,10 +23,16 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getInternalId
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
+import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 
 class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result>() {
-  data class Result(val measurementConsumer: MeasurementConsumer, val measurementConsumerId: Long)
+  data class Result(
+    val measurementConsumer: MeasurementConsumer,
+    val measurementConsumerId: Long,
+    val certificateId: Long,
+    val isValid: Boolean,
+  )
 
   override val baseSql: String =
     """
@@ -36,11 +42,13 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
       MeasurementConsumers.MeasurementConsumerDetails,
       MeasurementConsumers.MeasurementConsumerDetailsJson,
       MeasurementConsumerCertificates.ExternalMeasurementConsumerCertificateId,
+      Certificates.CertificateId,
       Certificates.SubjectKeyIdentifier,
       Certificates.NotValidBefore,
       Certificates.NotValidAfter,
       Certificates.RevocationState,
-      Certificates.CertificateDetails
+      Certificates.CertificateDetails,
+      RevocationState = ${Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED.number} AND CURRENT_TIMESTAMP() >= NotValidBefore AND CURRENT_TIMESTAMP() <= NotValidAfter AS IsValid,
     FROM MeasurementConsumers
     JOIN MeasurementConsumerCertificates ON (
       MeasurementConsumerCertificates.MeasurementConsumerId = MeasurementConsumers.MeasurementConsumerId
@@ -51,7 +59,7 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
       .trimIndent()
 
   override suspend fun translate(struct: Struct): Result =
-    Result(buildMeasurementConsumer(struct), struct.getLong("MeasurementConsumerId"))
+    Result(buildMeasurementConsumer(struct), struct.getLong("MeasurementConsumerId"), struct.getLong("CertificateId"), struct.getBoolean("IsValid"))
 
   private fun buildMeasurementConsumer(struct: Struct): MeasurementConsumer =
     MeasurementConsumer.newBuilder()
