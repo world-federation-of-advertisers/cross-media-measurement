@@ -123,7 +123,6 @@ import org.wfanet.measurement.internal.kingdom.Population as InternalPopulation
 import org.wfanet.measurement.internal.kingdom.PopulationKt.populationBlob as internalPopulationBlob
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig.NoiseMechanism as InternalNoiseMechanism
-import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt as InternalProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.eventTemplate as internalEventTemplate
 import org.wfanet.measurement.internal.kingdom.exchangeWorkflow
@@ -135,7 +134,6 @@ import org.wfanet.measurement.internal.kingdom.modelRollout as internalModelRoll
 import org.wfanet.measurement.internal.kingdom.modelShard as internalModelShard
 import org.wfanet.measurement.internal.kingdom.modelSuite as internalModelSuite
 import org.wfanet.measurement.internal.kingdom.population as internalPopulation
-import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 
@@ -988,15 +986,11 @@ fun Map.Entry<Long, DataProviderValue>.toDataProviderEntry(apiVersion: Version):
  * Converts a public [Measurement] to an internal [InternalMeasurement] for creation.
  *
  * @throws [IllegalStateException] if MeasurementType not specified
- *
- * TODO(@renjie): Enable HMSS protocol based on feature flag.
  */
 fun Measurement.toInternal(
   measurementConsumerCertificateKey: MeasurementConsumerCertificateKey,
-  dataProvidersMap: Map<Long, DataProviderValue>,
-  measurementSpecProto: MeasurementSpec,
-  internalNoiseMechanisms: List<InternalProtocolConfig.NoiseMechanism>,
-  reachOnlyLlV2Enabled: Boolean,
+  dataProviderValues: Map<ExternalId, DataProviderValue>,
+  internalProtocolConfig: InternalProtocolConfig,
 ): InternalMeasurement {
   val source = this
   return internalMeasurement {
@@ -1005,108 +999,29 @@ fun Measurement.toInternal(
       apiIdToExternalId(measurementConsumerCertificateKey.measurementConsumerId)
     externalMeasurementConsumerCertificateId =
       apiIdToExternalId(measurementConsumerCertificateKey.certificateId)
-    dataProviders.putAll(dataProvidersMap)
+    dataProviders.putAll(dataProviderValues.mapKeys { it.key.value })
     details = details {
       apiVersion = Version.V2_ALPHA.string
       measurementSpec = source.measurementSpec.message.value
       measurementSpecSignature = source.measurementSpec.signature
       measurementSpecSignatureAlgorithmOid = source.measurementSpec.signatureAlgorithmOid
 
+      protocolConfig = internalProtocolConfig
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-      when (measurementSpecProto.measurementTypeCase) {
-        MeasurementSpec.MeasurementTypeCase.REACH -> {
-          if (dataProvidersCount > 1) {
-            if (reachOnlyLlV2Enabled) {
-              protocolConfig = internalProtocolConfig {
-                externalProtocolConfigId = RoLlv2ProtocolConfig.name
-                reachOnlyLiquidLegionsV2 = RoLlv2ProtocolConfig.protocolConfig
-              }
-              duchyProtocolConfig = duchyProtocolConfig {
-                reachOnlyLiquidLegionsV2 = RoLlv2ProtocolConfig.duchyProtocolConfig
-              }
-            } else {
-              protocolConfig = internalProtocolConfig {
-                externalProtocolConfigId = Llv2ProtocolConfig.name
-                liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
-              }
-              duchyProtocolConfig = duchyProtocolConfig {
-                liquidLegionsV2 = Llv2ProtocolConfig.duchyProtocolConfig
-              }
-            }
-          } else if (dataProvidersCount == 1) {
-            protocolConfig = internalProtocolConfig {
-              direct =
-                InternalProtocolConfigKt.direct {
-                  noiseMechanisms += internalNoiseMechanisms
-                  customDirectMethodology =
-                    InternalProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
-                  deterministicCountDistinct =
-                    InternalProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
-                  liquidLegionsCountDistinct =
-                    InternalProtocolConfig.Direct.LiquidLegionsCountDistinct.getDefaultInstance()
-                }
-            }
+      when (protocolConfig.protocolCase) {
+        InternalProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2 -> {
+          duchyProtocolConfig = duchyProtocolConfig {
+            liquidLegionsV2 = Llv2ProtocolConfig.duchyProtocolConfig
           }
         }
-        MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
-          if (dataProvidersCount > 1) {
-            protocolConfig = internalProtocolConfig {
-              externalProtocolConfigId = Llv2ProtocolConfig.name
-              liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
-            }
-            duchyProtocolConfig = duchyProtocolConfig {
-              liquidLegionsV2 = Llv2ProtocolConfig.duchyProtocolConfig
-            }
-          } else if (dataProvidersCount == 1) {
-            protocolConfig = internalProtocolConfig {
-              direct =
-                InternalProtocolConfigKt.direct {
-                  noiseMechanisms += internalNoiseMechanisms
-                  customDirectMethodology =
-                    InternalProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
-                  deterministicCountDistinct =
-                    InternalProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
-                  liquidLegionsCountDistinct =
-                    InternalProtocolConfig.Direct.LiquidLegionsCountDistinct.getDefaultInstance()
-                  deterministicDistribution =
-                    InternalProtocolConfig.Direct.DeterministicDistribution.getDefaultInstance()
-                  liquidLegionsDistribution =
-                    InternalProtocolConfig.Direct.LiquidLegionsDistribution.getDefaultInstance()
-                }
-            }
+        InternalProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
+          duchyProtocolConfig = duchyProtocolConfig {
+            reachOnlyLiquidLegionsV2 = RoLlv2ProtocolConfig.duchyProtocolConfig
           }
         }
-        MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
-          protocolConfig = internalProtocolConfig {
-            direct =
-              InternalProtocolConfigKt.direct {
-                noiseMechanisms += internalNoiseMechanisms
-                customDirectMethodology =
-                  InternalProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
-                deterministicCount =
-                  InternalProtocolConfig.Direct.DeterministicCount.getDefaultInstance()
-              }
-          }
-        }
-        MeasurementSpec.MeasurementTypeCase.DURATION -> {
-          protocolConfig = internalProtocolConfig {
-            direct =
-              InternalProtocolConfigKt.direct {
-                noiseMechanisms += internalNoiseMechanisms
-                customDirectMethodology =
-                  InternalProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
-                deterministicSum =
-                  InternalProtocolConfig.Direct.DeterministicSum.getDefaultInstance()
-              }
-          }
-        }
-        MeasurementSpec.MeasurementTypeCase.POPULATION -> {
-          protocolConfig = internalProtocolConfig {
-            direct = InternalProtocolConfig.Direct.getDefaultInstance()
-          }
-        }
-        MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
-          error("MeasurementType not set.")
+        InternalProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
+        InternalProtocolConfig.ProtocolCase.DIRECT -> {}
+        InternalProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("protocol not set")
       }
     }
   }

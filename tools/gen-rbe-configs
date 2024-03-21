@@ -5,6 +5,7 @@
 
 readonly bazel_version="$1"
 readonly toolchain_container="$2"
+shift 2
 
 rbe_configs_gen \
   --exec_os=linux \
@@ -12,4 +13,6 @@ rbe_configs_gen \
   --output_src_root=. \
   --output_config_path=third_party/rbe_configs \
   --bazel_version="${bazel_version}" \
-  --toolchain_container="${toolchain_container}"
+  --bazel_path=bazel \
+  --toolchain_container="${toolchain_container}" \
+  "$@"

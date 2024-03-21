@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.v2;
 
+import "google/protobuf/empty.proto";
 import "wfa/measurement/internal/reporting/v2/measurement.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
@@ -24,13 +25,13 @@ option java_multiple_files = true;
 // Internal service for persistence of Measurement entities.
 service Measurements {
   rpc BatchSetCmmsMeasurementIds(BatchSetCmmsMeasurementIdsRequest)
-      returns (BatchSetCmmsMeasurementIdsResponse);
+      returns (google.protobuf.Empty);
 
   rpc BatchSetMeasurementResults(BatchSetMeasurementResultsRequest)
-      returns (BatchSetCmmsMeasurementResultsResponse);
+      returns (google.protobuf.Empty);
 
   rpc BatchSetMeasurementFailures(BatchSetMeasurementFailuresRequest)
-      returns (BatchSetCmmsMeasurementFailuresResponse);
+      returns (google.protobuf.Empty);
 }
 
 message BatchSetCmmsMeasurementIdsRequest {
@@ -47,10 +48,6 @@ message BatchSetCmmsMeasurementIdsRequest {
   repeated MeasurementIds measurement_ids = 2;
 }
 
-message BatchSetCmmsMeasurementIdsResponse {
-  repeated Measurement measurements = 1;
-}
-
 message BatchSetMeasurementResultsRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
   string cmms_measurement_consumer_id = 1;
@@ -64,10 +61,6 @@ message BatchSetMeasurementResultsRequest {
   repeated MeasurementResult measurement_results = 2;
 }
 
-message BatchSetCmmsMeasurementResultsResponse {
-  repeated Measurement measurements = 1;
-}
-
 message BatchSetMeasurementFailuresRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
   string cmms_measurement_consumer_id = 1;
@@ -79,8 +72,4 @@ message BatchSetMeasurementFailuresRequest {
   }
   // Maximum is 1000.
   repeated MeasurementFailure measurement_failures = 2;
-}
-
-message BatchSetCmmsMeasurementFailuresResponse {
-  repeated Measurement measurements = 1;
 }
