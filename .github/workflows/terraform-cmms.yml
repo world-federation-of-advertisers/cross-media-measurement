@@ -31,6 +31,7 @@ on:
         type: choice
         options:
         - dev
+        - qa
       apply:
         description: "Apply the new configuration"
         type: boolean
@@ -115,12 +116,14 @@ jobs:
     - name: terraform plan - aws
       env:
         POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
+        ENVIRONMENT: ${{ inputs.environment }}
       working-directory: ${{ env.AWS_MODULE_PATH }}
       run: >
         terraform plan
         -input=false
         -var="aws_region=$AWS_REGION"
         -var="postgres_instance_name=$POSTGRES_INSTANCE"
+        -var="aws_project_env=halo-cmm-$ENVIRONMENT"
         -out=tfplan
 
     - name: terraform apply - aws
