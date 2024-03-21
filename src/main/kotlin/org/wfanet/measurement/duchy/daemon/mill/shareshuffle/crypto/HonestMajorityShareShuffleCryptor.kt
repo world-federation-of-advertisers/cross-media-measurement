@@ -26,7 +26,7 @@ import org.wfanet.measurement.internal.duchy.protocol.CompleteShufflePhaseRespon
  */
 
 interface HonestMajorityShareShuffleCryptor {
-  fun CompleteShufflePhase(request: CompleteShufflePhaseRequest): CompleteShufflePhaseResponse
+  fun completeShufflePhase(request: CompleteShufflePhaseRequest): CompleteShufflePhaseResponse
 
-  fun CompleteAggregationPhase(request: CompleteAggregationPhaseRequest): CompleteAggregationPhaseResponse
+  fun completeAggregationPhase(request: CompleteAggregationPhaseRequest): CompleteAggregationPhaseResponse
 }

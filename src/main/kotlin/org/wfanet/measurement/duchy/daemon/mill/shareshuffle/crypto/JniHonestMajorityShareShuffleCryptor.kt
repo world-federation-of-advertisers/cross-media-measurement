@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto
+package org.wfanet.measurement.duchy.daemon.mill.shareshuffle.crypto
 
 import org.wfanet.measurement.duchy.daemon.mill.shareshuffle.crypto.HonestMajorityShareShuffleCryptor
 import org.wfanet.measurement.internal.duchy.protocol.CompleteAggregationPhaseRequest
@@ -27,7 +27,7 @@ import org.wfanet.measurement.internal.duchy.protocol.shareshuffle.HonestMajorit
  */
 class JniHonestMajorityShareShuffleCryptor : HonestMajorityShareShuffleCryptor {
 
-  override fun CompleteShufflePhase(
+  override fun completeShufflePhase(
     request: CompleteShufflePhaseRequest
   ): CompleteShufflePhaseResponse {
     return CompleteShufflePhaseResponse.parseFrom(
@@ -35,11 +35,17 @@ class JniHonestMajorityShareShuffleCryptor : HonestMajorityShareShuffleCryptor {
     )
   }
 
-  override fun CompleteAggregationPhase(
+  override fun completeAggregationPhase(
     request: CompleteAggregationPhaseRequest
   ): CompleteAggregationPhaseResponse {
     return CompleteAggregationPhaseResponse.parseFrom(
       HonestMajorityShareShuffleUtility.completeAggregationPhase(request.toByteArray())
     )
+  }
+
+  companion object {
+    init {
+      System.loadLibrary("honest_majority_share_shuffle_utility")
+    }
   }
 }

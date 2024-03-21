@@ -92,9 +92,9 @@ object HonestMajorityShareShuffleProtocol {
         details: HonestMajorityShareShuffle.ComputationDetails,
       ): Boolean {
         return when (stage) {
-          WAIT_ON_SHUFFLE_INPUT_PHASE_ONE -> details.role == RoleInComputation.FIRST_NON_AGGREGATOR
           WAIT_TO_START,
-          WAIT_ON_SHUFFLE_INPUT_PHASE_TWO -> details.role == RoleInComputation.SECOND_NON_AGGREGATOR
+          WAIT_ON_SHUFFLE_INPUT_PHASE_TWO -> details.role == RoleInComputation.FIRST_NON_AGGREGATOR
+          WAIT_ON_SHUFFLE_INPUT_PHASE_ONE -> details.role == RoleInComputation.SECOND_NON_AGGREGATOR
           INITIALIZED,
           SETUP_PHASE,
           SHUFFLE_PHASE ->

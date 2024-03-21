@@ -20,7 +20,7 @@
 #include "common_cpp/jni/jni_wrap.h"
 #include "common_cpp/macros/macros.h"
 #include "wfa/measurement/internal/duchy/protocol/share_shuffle/honest_majority_share_shuffle_utility.h"
-#include "wfa/measurement/internal/duchy/protocol/honest_majority_share_shuffle.pb.h"
+#include "wfa/measurement/internal/duchy/protocol/honest_majority_share_shuffle_methods.pb.h"
 
 namespace wfa::measurement::internal::duchy::protocol::share_shuffle {
 

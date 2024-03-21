@@ -71,6 +71,10 @@ import org.wfanet.measurement.system.v1alpha.ComputationLogEntry
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
+import org.wfanet.measurement.consent.client.duchy.encryptResult
+import org.wfanet.measurement.consent.client.duchy.signResult
+import org.wfanet.measurement.duchy.daemon.utils.ComputationResult
+import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaEncryptionPublicKey
 import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
 import org.wfanet.measurement.system.v1alpha.FailComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.setComputationResultRequest
@@ -300,7 +304,7 @@ abstract class MillBase(
   }
 
   /** Sends measurement result to the kingdom's system computationsService. */
-  protected suspend fun sendResultToKingdom(
+  private suspend fun sendResultToKingdom(
     globalId: String,
     certificate: Certificate,
     resultPublicKey: ByteString,
@@ -531,6 +535,33 @@ abstract class MillBase(
         }
       }
     return response.token
+  }
+
+  /** Send encrypted result of Computation to the Kingdom. */
+  protected suspend fun sendResultToKingdom(
+    token: ComputationToken,
+    computationResult: ComputationResult,
+  ) {
+    val kingdomComputation = token.computationDetails.kingdomComputation
+    val serializedPublicApiEncryptionPublicKey: ByteString
+    val publicApiVersion = Version.fromString(kingdomComputation.publicApiVersion)
+    val encryptedResultCiphertext: ByteString =
+      when (publicApiVersion) {
+        Version.V2_ALPHA -> {
+          val signedResult = signResult(computationResult.toV2AlphaMeasurementResult(), signingKey)
+          val publicApiEncryptionPublicKey =
+            kingdomComputation.measurementPublicKey.toV2AlphaEncryptionPublicKey()
+          serializedPublicApiEncryptionPublicKey = publicApiEncryptionPublicKey.toByteString()
+          encryptResult(signedResult, publicApiEncryptionPublicKey).ciphertext
+        }
+      }
+    sendResultToKingdom(
+      globalId = token.globalComputationId,
+      certificate = consentSignalCert,
+      resultPublicKey = serializedPublicApiEncryptionPublicKey,
+      encryptedResult = encryptedResultCiphertext,
+      publicApiVersion = publicApiVersion,
+    )
   }
 
   /** Gets the latest [ComputationToken] for computation with [globalId]. */

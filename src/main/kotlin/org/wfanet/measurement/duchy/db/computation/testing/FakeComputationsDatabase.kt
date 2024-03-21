@@ -365,12 +365,16 @@ private constructor(
           ComputationEditToken(
             localId = it.localComputationId,
             protocol =
+              @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
               when (it.computationStage.stageCase) {
                 ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
                   ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
                 ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
                   ComputationType.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
-                else -> error("Computation type for $it is unknown")
+                ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
+                  ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE
+                ComputationStage.StageCase.STAGE_NOT_SET
+                  -> error("Computation type for $it is unknown")
               },
             stage = it.computationStage,
             attempt = it.attempt,
