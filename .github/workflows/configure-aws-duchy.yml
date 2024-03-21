@@ -74,7 +74,7 @@ jobs:
       uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-region: ${{ vars.AWS_REGION }}
-        role-to-assume: ${{ vars.AWS_GHA_ROLE }}
+        role-to-assume: arn:aws:iam::975050279799:role/GitHubAction-AssumeRoleWithAction
         role-session-name: GitHubAction
 
     - name: Export DUCHY_CERT_ID
