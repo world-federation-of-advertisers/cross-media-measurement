@@ -19,7 +19,6 @@ package org.wfanet.measurement.duchy.daemon.testing
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import kotlin.random.Random
-import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.internal.duchy.externalRequisitionKey
 import org.wfanet.measurement.internal.duchy.requisitionDetails
@@ -49,7 +48,8 @@ data class TestRequisition(
     nonceHash = this@TestRequisition.nonceHash
     this.state = state
     if (externalDuchyId.isNotBlank()) {
-      fulfillingComputationParticipant = ComputationParticipantKey(globalId, externalDuchyId).toName()
+      fulfillingComputationParticipant =
+        ComputationParticipantKey(globalId, externalDuchyId).toName()
     }
     if (state == Requisition.State.FULFILLED) {
       nonce = this@TestRequisition.nonce
@@ -64,7 +64,6 @@ data class TestRequisition(
       }
       details = requisitionDetails {
         nonceHash = this@TestRequisition.nonceHash
-        publicApiVersion = Version.V2_ALPHA.string
         if (externalDuchyId.isNotBlank()) {
           externalFulfillingDuchyId = externalDuchyId
         }

@@ -24,7 +24,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 
 @RunWith(JUnit4::class)
-class HonestMajorityShareShuffleCryptorProtocolEnumStagesTest {
+class HonestMajorityShareShuffleProtocolEnumStagesTest {
   @Test
   fun `verify initial stage`() {
     assertTrue {

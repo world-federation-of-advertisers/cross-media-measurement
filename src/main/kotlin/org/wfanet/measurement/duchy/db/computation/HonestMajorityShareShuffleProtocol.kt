@@ -134,13 +134,15 @@ object HonestMajorityShareShuffleProtocol {
       ): Int {
         return when (stage) {
           SETUP_PHASE,
-          WAIT_TO_START -> 0
+          WAIT_TO_START,
+          // TODO(@renjiez): consider writing intermediate result as output for shuffle phase and
+          // aggregation phase.
+          SHUFFLE_PHASE,
+          AGGREGATION_PHASE -> 0
           // The output of these stages are the data received from the peer non-aggregator duchy:
           WAIT_ON_SHUFFLE_INPUT_PHASE_ONE,
-          WAIT_ON_SHUFFLE_INPUT_PHASE_TWO,
+          WAIT_ON_SHUFFLE_INPUT_PHASE_TWO -> 1
           // The output of these stages are the computed intermediate data:
-          SHUFFLE_PHASE,
-          AGGREGATION_PHASE -> 1
           WAIT_ON_AGGREGATION_INPUT -> 2
           COMPLETE -> error("Computation should be ended with call to endComputation(...)")
           INITIALIZED,

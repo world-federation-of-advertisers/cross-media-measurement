@@ -67,7 +67,7 @@ kt_jvm_test(
 
 kt_jvm_test(
     name = "HonestMajorityShareShuffleProtocolEnumStagesTest",
-    srcs = ["HonestMajorityShareShuffleCryptorProtocolEnumStagesTest.kt"],
+    srcs = ["HonestMajorityShareShuffleProtocolEnumStagesTest.kt"],
     test_class = "org.wfanet.measurement.duchy.db.computation.HonestMajorityShareShuffleProtocolEnumStagesTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
@@ -107,7 +107,7 @@ kt_jvm_test(
 
 kt_jvm_test(
     name = "HonestMajorityShareShuffleProtocolEnumStagesDetailsTest",
-    srcs = ["HonestMajorityShareShuffleCryptorProtocolEnumStagesDetailsTest.kt"],
+    srcs = ["HonestMajorityShareShuffleProtocolEnumStagesDetailsTest.kt"],
     test_class = "org.wfanet.measurement.duchy.db.computation.HonestMajorityShareShuffleProtocolEnumStagesDetailsTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",

@@ -27,7 +27,7 @@ import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt.waitOnAggregationInputDetails
 
 @RunWith(JUnit4::class)
-class HonestMajorityShareShuffleCryptorProtocolEnumStagesDetailsTest {
+class HonestMajorityShareShuffleProtocolEnumStagesDetailsTest {
 
   @Test
   fun `stage defaults and conversions`() {

@@ -44,6 +44,10 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.common.toProtoDuration
+import org.wfanet.measurement.consent.client.duchy.encryptResult
+import org.wfanet.measurement.consent.client.duchy.signResult
+import org.wfanet.measurement.duchy.daemon.utils.ComputationResult
+import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaEncryptionPublicKey
 import org.wfanet.measurement.duchy.db.computation.BlobRef
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.singleOutputBlobMetadata
@@ -71,10 +75,6 @@ import org.wfanet.measurement.system.v1alpha.ComputationLogEntry
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
-import org.wfanet.measurement.consent.client.duchy.encryptResult
-import org.wfanet.measurement.consent.client.duchy.signResult
-import org.wfanet.measurement.duchy.daemon.utils.ComputationResult
-import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaEncryptionPublicKey
 import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
 import org.wfanet.measurement.system.v1alpha.FailComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.setComputationResultRequest
@@ -236,7 +236,7 @@ abstract class MillBase(
   }
 
   /**
-   * Sends request to the kingdom's system ComputationParticipantsService to fail the computation..
+   * Sends request to the kingdom's system ComputationParticipantsService to fail the computation.
    */
   private suspend fun failComputationAtKingdom(token: ComputationToken, errorMessage: String) {
     val timestamp = clock.protoTimestamp()

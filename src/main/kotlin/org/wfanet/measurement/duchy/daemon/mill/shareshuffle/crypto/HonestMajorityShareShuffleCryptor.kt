@@ -24,9 +24,10 @@ import org.wfanet.measurement.internal.duchy.protocol.CompleteShufflePhaseRespon
  * src/main/cc/wfa/measurement/internal/duchy/protocol/share_shuffle/
  * honest_majority_share_shuffle_utility.h for more descriptions.
  */
-
 interface HonestMajorityShareShuffleCryptor {
   fun completeShufflePhase(request: CompleteShufflePhaseRequest): CompleteShufflePhaseResponse
 
-  fun completeAggregationPhase(request: CompleteAggregationPhaseRequest): CompleteAggregationPhaseResponse
+  fun completeAggregationPhase(
+    request: CompleteAggregationPhaseRequest
+  ): CompleteAggregationPhaseResponse
 }

@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.duchy.daemon.mill.shareshuffle.crypto
 
-import org.wfanet.measurement.duchy.daemon.mill.shareshuffle.crypto.HonestMajorityShareShuffleCryptor
 import org.wfanet.measurement.internal.duchy.protocol.CompleteAggregationPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteAggregationPhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteShufflePhaseRequest

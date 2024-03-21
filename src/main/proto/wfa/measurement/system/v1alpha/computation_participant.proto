@@ -99,8 +99,15 @@ message ComputationParticipant {
 
     // Parameters for the Honest Majority Share Shuffle protocol.
     message HonestMajorityShareShuffle {
-      // Serialized `EncryptionPublicKey` message from public API.
+      // Serialized Keyset of TinkPublicKeyHandle.
       bytes tink_public_key = 1 [(google.api.field_behavior) = REQUIRED];
+      // Digital signautre of `tink_public_key` which can be verified using
+      // 'duchy_certificate'.
+      bytes tink_public_key_signature = 2
+          [(google.api.field_behavior) = REQUIRED];
+      // Object identifier (OID) of the signature algorithm in dot notation.
+      string tink_public_key_signature_algorithm_oid = 3
+          [(google.api.field_behavior) = REQUIRED];
     }
 
     // Protocol. Required.
