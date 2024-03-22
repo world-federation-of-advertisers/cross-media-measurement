@@ -507,21 +507,22 @@ class PerformanceTestCommand : Runnable {
             }
           }
 
+          val now = (System.currentTimeMillis() / 1000) + 250
           timeIntervals = timeIntervals {
             for (i in 1..100) {
               timeIntervals += interval {
                 startTime = timestamp {
-                  seconds = 1704096000 - j.toLong()
+                  seconds = now - i.toLong()
                 }
                 endTime = timestamp {
-                  seconds = 1704096000 + j.toLong()
+                  seconds = now + i.toLong()
                 }
               }
             }
           }
         }
-        reportId = "test-new-large-21"
-        requestId = "test-new-large-21"
+        reportId = "test-new-large-51"
+        requestId = "test-new-large-51"
       }
 
       runBlocking(Dispatchers.IO) { parent.reportsStub.createReport(request) }
