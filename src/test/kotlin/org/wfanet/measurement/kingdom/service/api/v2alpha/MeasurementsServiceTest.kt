@@ -39,20 +39,11 @@ import org.mockito.kotlin.stub
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.Version
-import org.wfanet.measurement.api.v2alpha.CancelMeasurementRequest
-import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
-import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.*
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsPageTokenKt.previousPageEnd
-import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequestKt.filter
-import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Measurement.Failure
 import org.wfanet.measurement.api.v2alpha.Measurement.State
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
-import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt.value
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
@@ -63,38 +54,13 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.population
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
-import org.wfanet.measurement.api.v2alpha.ProtocolConfig
-import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.reachOnlyLiquidLegionsV2
-import org.wfanet.measurement.api.v2alpha.SignedMessage
-import org.wfanet.measurement.api.v2alpha.batchCreateMeasurementsRequest
-import org.wfanet.measurement.api.v2alpha.batchCreateMeasurementsResponse
-import org.wfanet.measurement.api.v2alpha.batchGetMeasurementsRequest
-import org.wfanet.measurement.api.v2alpha.batchGetMeasurementsResponse
-import org.wfanet.measurement.api.v2alpha.cancelMeasurementRequest
-import org.wfanet.measurement.api.v2alpha.copy
-import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
-import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
-import org.wfanet.measurement.api.v2alpha.encryptedMessage
-import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
-import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
-import org.wfanet.measurement.api.v2alpha.liquidLegionsSketchParams
-import org.wfanet.measurement.api.v2alpha.listMeasurementsPageToken
-import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
-import org.wfanet.measurement.api.v2alpha.listMeasurementsResponse
-import org.wfanet.measurement.api.v2alpha.measurement
-import org.wfanet.measurement.api.v2alpha.measurementSpec
-import org.wfanet.measurement.api.v2alpha.protocolConfig
-import org.wfanet.measurement.api.v2alpha.reachOnlyLiquidLegionsSketchParams
-import org.wfanet.measurement.api.v2alpha.setMessage
-import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
-import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
-import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.ExternalId
@@ -136,12 +102,11 @@ import org.wfanet.measurement.internal.kingdom.liquidLegionsSketchParams as inte
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
 import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
-import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByMeasurementConsumerException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.*
 
 private const val DEFAULT_LIMIT = 50
 private const val DATA_PROVIDERS_RESULT_CERTIFICATE_NAME =
@@ -2419,7 +2384,141 @@ class MeasurementsServiceTest {
   }
 
   @Test
-  fun `cancelMeasurement throws NOT_FOUND with metadataMap`() {
+  fun `getMeasurement throws NOT_FOUND with measurement name when measurement not found`() {
+    runBlocking {
+      whenever(internalMeasurementsMock.getMeasurement(any()))
+        .thenThrow(
+          MeasurementNotFoundByMeasurementConsumerException(
+              ExternalId(EXTERNAL_MEASUREMENT_CONSUMER_ID),
+              ExternalId(EXTERNAL_MEASUREMENT_ID),
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "Measurement not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.getMeasurement(getMeasurementRequest { name = MEASUREMENT_NAME }) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("measurement", MEASUREMENT_NAME)
+  }
+
+  @Test
+  fun `createMeasurement throws FAILED_PRECONDITION when certificate is invalid`() {
+    runBlocking {
+      whenever(internalMeasurementsMock.createMeasurement(any()))
+        .thenThrow(
+          CertificateIsInvalidException()
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Certificate is invalid.")
+        )
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                parent = MEASUREMENT_CONSUMER_NAME
+                this.measurement = MEASUREMENT
+                requestId = "foo"
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `createMeasurement throws FAILED_PRECONDITION with data provider name when data provider not found`() {
+    runBlocking {
+      whenever(internalMeasurementsMock.createMeasurement(any()))
+        .thenThrow(
+          DataProviderNotFoundException(EXTERNAL_DATA_PROVIDER_IDS.first())
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "DataProvider not found.")
+        )
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                parent = MEASUREMENT_CONSUMER_NAME
+                this.measurement = MEASUREMENT
+                requestId = "foo"
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("data_provider", DATA_PROVIDERS_NAME)
+  }
+
+  @Test
+  fun `createMeasurement throws FAILED_PRECONDITION with duchy name when duchy not found`() {
+    val duchyID = DuchyCertificateKey.fromName(DUCHY_CERTIFICATE_NAME)!!.duchyId
+    runBlocking {
+      whenever(internalMeasurementsMock.createMeasurement(any()))
+        .thenThrow(
+          DuchyNotFoundException(duchyID)
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Duchy not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                parent = MEASUREMENT_CONSUMER_NAME
+                this.measurement = MEASUREMENT
+                requestId = "foo"
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("duchy", DuchyKey(duchyID).toName())
+  }
+
+  @Test
+  fun `createMeasurement throws NOT_FOUND with measurement consumer name when measurement consumer not found`() {
+    runBlocking {
+      whenever(internalMeasurementsMock.createMeasurement(any()))
+        .thenThrow(
+          MeasurementConsumerNotFoundException(ExternalId(EXTERNAL_MEASUREMENT_CONSUMER_ID))
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found.")
+        )
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                parent = MEASUREMENT_CONSUMER_NAME
+                this.measurement = MEASUREMENT
+                requestId = "foo"
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("measurement_consumer", MEASUREMENT_CONSUMER_NAME)
+  }
+
+  @Test
+  fun `cancelMeasurement throws NOT_FOUND with measurement name when measurement not found`() {
     runBlocking {
       whenever(internalMeasurementsMock.cancelMeasurement(any()))
         .thenThrow(
@@ -2439,7 +2538,120 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception.errorInfo?.metadataMap).containsKey("measurement")
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("measurement", MEASUREMENT_NAME)
+  }
+
+  @Test
+  fun `cancelMeasurement throws FAILED_PRECONDITION with measurement state and name when measurement state illegal`() {
+    runBlocking {
+      whenever(internalMeasurementsMock.cancelMeasurement(any()))
+        .thenThrow(
+          MeasurementStateIllegalException(
+              ExternalId(EXTERNAL_MEASUREMENT_CONSUMER_ID),
+              ExternalId(EXTERNAL_MEASUREMENT_ID),
+              InternalMeasurement.State.FAILED,
+            )
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Measurement state illegal.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.cancelMeasurement(cancelMeasurementRequest { name = MEASUREMENT_NAME })
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("measurement", MEASUREMENT_NAME)
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("state", InternalMeasurement.State.FAILED.toString())
+  }
+
+  @Test
+  fun `batchCreateMeasurement throws FAILED_PRECONDITION with data provider name when data provider not found`() {
+    runBlocking {
+      whenever(internalMeasurementsMock.batchCreateMeasurements(any()))
+        .thenThrow(
+          DataProviderNotFoundException(EXTERNAL_DATA_PROVIDER_IDS.first())
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "DataProvider not found.")
+        )
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.batchCreateMeasurements(
+              batchCreateMeasurementsRequest {
+                parent = MEASUREMENT_CONSUMER_NAME
+                requests += createMeasurementRequest {
+                  parent = MEASUREMENT_CONSUMER_NAME
+                  this.measurement = MEASUREMENT
+                  requestId = "foo"
+                }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("data_provider", DATA_PROVIDERS_NAME)
+  }
+
+  @Test
+  fun `batchCreateMeasurement throws NOT_FOUND with measurement consumer name when measurment consumer not found`() {
+    runBlocking {
+      whenever(internalMeasurementsMock.batchCreateMeasurements(any()))
+        .thenThrow(
+          MeasurementConsumerNotFoundException(ExternalId(EXTERNAL_MEASUREMENT_CONSUMER_ID))
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found.")
+        )
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.batchCreateMeasurements(
+              batchCreateMeasurementsRequest {
+                parent = MEASUREMENT_CONSUMER_NAME
+                requests += createMeasurementRequest {
+                  parent = MEASUREMENT_CONSUMER_NAME
+                  this.measurement = MEASUREMENT
+                  requestId = "foo"
+                }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("measurement_consumer", MEASUREMENT_CONSUMER_NAME)
+  }
+
+  @Test
+  fun `batchGetMeasurements throws NOT_FOUND when a measurement not found`() {
+    runBlocking {
+      whenever(internalMeasurementsMock.batchGetMeasurements(any()))
+        .thenThrow(Status.NOT_FOUND.withDescription("Measurement not found").asRuntimeException())
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.batchGetMeasurements(
+              batchGetMeasurementsRequest {
+                parent = MEASUREMENT_CONSUMER_NAME
+                names += MEASUREMENT_NAME
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
 
   companion object {

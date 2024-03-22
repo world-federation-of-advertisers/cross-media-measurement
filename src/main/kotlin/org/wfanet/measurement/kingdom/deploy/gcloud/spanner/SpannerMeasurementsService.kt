@@ -18,7 +18,6 @@ import com.google.protobuf.Empty
 import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -40,17 +39,7 @@ import org.wfanet.measurement.internal.kingdom.SetMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.batchCreateMeasurementsResponse
 import org.wfanet.measurement.internal.kingdom.batchGetMeasurementsResponse
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyCertificateNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotActiveException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementEtagMismatchException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.*
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurements
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchCancelMeasurements
@@ -119,7 +108,12 @@ class SpannerMeasurementsService(
         ExternalId(request.externalMeasurementConsumerId),
         ExternalId(request.externalMeasurementId),
       )
-      ?.measurement ?: failGrpc(Status.NOT_FOUND) { "Measurement not found" }
+      ?.measurement
+      ?: throw MeasurementNotFoundByMeasurementConsumerException(
+          ExternalId(request.externalMeasurementConsumerId),
+          ExternalId(request.externalMeasurementId),
+        )
+        .asStatusRuntimeException(Status.Code.NOT_FOUND, "Measurement not found")
   }
 
   override suspend fun getMeasurementByComputationId(
@@ -127,7 +121,9 @@ class SpannerMeasurementsService(
   ): Measurement {
     return MeasurementReader(Measurement.View.COMPUTATION)
       .readByExternalComputationId(client.singleUse(), ExternalId(request.externalComputationId))
-      ?.measurement ?: failGrpc(Status.NOT_FOUND) { "Measurement not found" }
+      ?.measurement
+      ?: throw MeasurementNotFoundByComputationException(ExternalId(request.externalComputationId))
+        .asStatusRuntimeException(Status.Code.NOT_FOUND, "Measurement not found")
   }
 
   override fun streamMeasurements(request: StreamMeasurementsRequest): Flow<Measurement> {
