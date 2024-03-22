@@ -220,6 +220,7 @@ class HonestMajorityShareShuffleMill(
   }
 
   private fun peerDuchyStub(participants: List<String>): ComputationControlCoroutineStub {
+    // The last participant is the aggregator.
     val peerDuchy = participants.dropLast(1).find { it != duchyId }
     return workerStubs[peerDuchy]
       ?: throw ComputationDataClients.PermanentErrorException(
@@ -228,6 +229,7 @@ class HonestMajorityShareShuffleMill(
   }
 
   private fun aggregatorStub(participants: List<String>): ComputationControlCoroutineStub {
+    // The last participant is the aggregator.
     val aggregator = participants.last()
     return workerStubs[aggregator]
       ?: throw ComputationDataClients.PermanentErrorException(
@@ -298,7 +300,7 @@ class HonestMajorityShareShuffleMill(
 
   private fun combineRandomSeeds(seed1: ByteString, seed2: ByteString): ByteString {
     require(seed1.size() == seed2.size()) {
-      "Seeds size does not match. size_1=${seed1.size()}, size_2=${seed2.size()}"
+      "Seeds sizes do not match. size_1=${seed1.size()}, size_2=${seed2.size()}"
     }
 
     val combinedSeed = ByteArray(seed1.size())

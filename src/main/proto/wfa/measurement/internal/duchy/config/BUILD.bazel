@@ -15,14 +15,3 @@ kt_jvm_proto_library(
     name = "protocols_setup_config_kt_jvm_proto",
     deps = [":protocols_setup_config_proto"],
 )
-
-proto_library(
-    name = "data_provider_cert_config",
-    srcs = ["data_provider_cert_config.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-)
-
-kt_jvm_proto_library(
-    name = "data_provider_cert_config_kt_jvm_proto",
-    deps = [":data_provider_cert_config"],
-)
