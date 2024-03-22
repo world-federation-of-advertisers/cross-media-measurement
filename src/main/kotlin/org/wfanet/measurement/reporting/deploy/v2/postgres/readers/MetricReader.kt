@@ -260,11 +260,10 @@ class MetricReader(private val readContext: ReadContext) {
 
     val sqlJoins: String =
       """
-      JOIN Metrics USING(MeasurementConsumerId)
-      JOIN ReportingSets USING(MeasurementConsumerId, ReportingSetId)
-      LEFT JOIN MetricCalculationSpecReportingMetrics ON
-        Metrics.MeasurementConsumerId = MetricCalculationSpecReportingMetrics.MeasurementConsumerId
-        AND Metrics.MetricId = MetricCalculationSpecReportingMetrics.MetricId
+      JOIN ReportingSets USING(MeasurementConsumerId)
+      JOIN MetricCalculationSpecs USING(MeasurementConsumerId)
+      JOIN MetricCalculationSpecReportingMetrics USING(MeasurementConsumerId, ReportingSetId, MetricCalculationSpecId, CreateMetricRequestId)
+      JOIN Metrics USING(MeasurementConsumerId, CreateMetricRequestId, ReportingSetId)
       """
         .trimIndent()
 
