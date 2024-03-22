@@ -1,13 +1,13 @@
 name: Reporting V2 Performance Testing
 
 on:
-  workflow_dispatch:
+  push:
 
 jobs:
   update-reporting-v2:
     uses: ./.github/workflows/configure-reporting-v2.yml
     secrets: inherit
     with:
-      image-tag: 2637301653399af5ad209dc0684f80d2b48515da
+      image-tag: 0bc464096d872ae5d68a9d7942962fc98489d45e
       environment: dev
       apply: true
