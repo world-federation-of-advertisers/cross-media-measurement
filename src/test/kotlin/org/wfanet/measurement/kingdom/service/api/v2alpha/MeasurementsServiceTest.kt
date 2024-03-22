@@ -2596,8 +2596,7 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    assertThat(exception.errorInfo?.metadataMap)
-      .containsEntry("data_provider", DATA_PROVIDERS_NAME)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("data_provider", DATA_PROVIDERS_NAME)
   }
 
   @Test
