@@ -3,7 +3,6 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:__subpackages__",
-    #TODO(@jcorilla) Undo public visibility after internalExceptions are fixed
     "//src/test/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:__subpackages__",
 ])
 
