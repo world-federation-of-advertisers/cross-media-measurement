@@ -58,3 +58,28 @@ resource "postgresql_grant" "db" {
   object_type = "database"
   privileges  = local.all_db_privileges
 }
+
+moved {
+  from = module.postgres_database.google_project_iam_member.grant_sql_client_role
+  to   = google_project_iam_member.sql_client
+}
+
+moved {
+  from = module.postgres_database.google_project_iam_member.grant_sql_user_role
+  to   = google_project_iam_member.sql_user
+}
+
+moved {
+  from = module.postgres_database.google_sql_user.service_account
+  to   = google_sql_user.reporting_internal
+}
+
+moved {
+  from = module.postgres_database.google_sql_database.db
+  to   = google_sql_database.db
+}
+
+moved {
+  from = module.postgres_database.postgresql_grant.db
+  to   = postgresql_grant.db
+}
