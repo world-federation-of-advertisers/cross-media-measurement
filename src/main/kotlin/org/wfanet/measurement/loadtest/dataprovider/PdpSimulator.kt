@@ -63,6 +63,7 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.NonceMismatchException
 import org.wfanet.measurement.consent.client.common.PublicKeyMismatchException
@@ -288,7 +289,11 @@ class PdpSimulator(
     // Sort list of ModelRollouts by descending updateTime.
     val sortedModelRolloutsList =
       listModelRolloutsResponse.modelRolloutsList.sortedWith { a, b ->
-        Timestamps.compare(a.updateTime, b.updateTime) * -1
+        val aDate =
+          if (a.hasGradualRolloutPeriod()) a.gradualRolloutPeriod.endDate else a.instantRolloutDate
+        val bDate =
+          if (b.hasGradualRolloutPeriod()) b.gradualRolloutPeriod.endDate else b.instantRolloutDate
+        if (aDate.toLocalDate().isBefore(bDate.toLocalDate())) -1 else 1
       }
 
     // Retrieves latest ModelRollout from list.
@@ -335,7 +340,6 @@ class PdpSimulator(
     modelRelease: ModelRelease,
     filterExpression: String,
   ): Long {
-    val requisitionIntervalStartTime = requisitionSpec.population.interval.startTime
     val requisitionIntervalEndTime = requisitionSpec.population.interval.endTime
 
     // Filter populationBucketsList to only include buckets that 1) contain the latest ModelRelease
@@ -344,11 +348,9 @@ class PdpSimulator(
     val validPopulationBucketsList =
       populationBucketsList.filter {
         it.modelReleasesList.contains(modelRelease.name) &&
-          Timestamps.compare(it.validStartTime, requisitionIntervalStartTime) >= 0 &&
-          (it.validEndTime === null ||
-            Timestamps.compare(it.validEndTime, requisitionIntervalEndTime) <= 0)
+          Timestamps.compare(it.validStartTime, requisitionIntervalEndTime) < 0 &&
+          (it.validEndTime === null || Timestamps.compare(it.validEndTime, it.validStartTime) > 0)
       }
-
     return validPopulationBucketsList.sumOf {
       val program = EventFilters.compileProgram(TestEvent.getDescriptor(), filterExpression)
 

@@ -375,7 +375,7 @@ class PdpSimulatorTest {
             filter = eventFilter { expression = "person.gender == ${Person.Gender.MALE_VALUE}" }
             interval = interval {
               startTime = VALID_START_TIME_2
-              endTime = VALID_END_TIME_2
+              endTime = timestamp { seconds = 200L }
             }
           }
       }
@@ -416,8 +416,8 @@ class PdpSimulatorTest {
       )
     val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
 
-    // Result should be only POPULATION_BUCKET_2 because it is the only bucket in this time range
-    assertThat(result.population.value).isEqualTo(POPULATION_SIZE_2)
+    // Result should be only POPULATION_BUCKET_1 because it is the only bucket in this time range
+    assertThat(result.population.value).isEqualTo(POPULATION_SIZE_1)
   }
 
   @Test
