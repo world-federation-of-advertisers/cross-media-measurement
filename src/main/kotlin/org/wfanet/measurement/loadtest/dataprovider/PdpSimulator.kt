@@ -342,7 +342,6 @@ class PdpSimulator(
     modelRelease: ModelRelease,
     filterExpression: String,
   ): Long {
-    var totalPopulation = 0L
     val requisitionIntervalStartTime = requisitionSpec.population.interval.startTime
     val requisitionIntervalEndTime = requisitionSpec.population.interval.endTime
 

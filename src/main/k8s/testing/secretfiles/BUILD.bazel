@@ -210,6 +210,12 @@ SECRET_FILES = [
     "exchange_workflow.textproto",
     "reporting_tls.key",
     "reporting_tls.pem",
+    "pdp1_cs_cert.der",
+    "pdp1_cs_private.der",
+    "pdp1_enc_private.tink",
+    "pdp1_enc_public.tink",
+    "pdp1_result_cs_cert.der",
+    "pdp1_result_cs_private.der",
 ]
 
 filegroup(
