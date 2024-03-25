@@ -1,5 +1,4 @@
-# Dev Environment Configuration
+# Dev Configuration
 
-Configuration for the `dev` environment in the `halo-cmm-dev` Google Cloud project.
-
-This configuration can be adapted and used as the basis for other Google Cloud projects.
+Configuration for Halo development and testing environments. This configuration
+can be adapted and used as the basis for other environments.

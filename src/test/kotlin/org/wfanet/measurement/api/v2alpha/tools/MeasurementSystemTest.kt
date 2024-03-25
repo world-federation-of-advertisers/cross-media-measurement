@@ -163,6 +163,7 @@ import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.publicKey
+import org.wfanet.measurement.api.v2alpha.replaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.revokeCertificateRequest
@@ -1413,7 +1414,7 @@ class MeasurementSystemTest {
   }
 
   @Test
-  fun `replace data providers duchy list with valid request`() {
+  fun `data-providers replace-required-duchies calls ReplaceDataProviderRequiredDuchies`() {
     val args =
       commonArgs +
         arrayOf(
@@ -1436,6 +1437,46 @@ class MeasurementSystemTest {
           requiredDuchies += DUCHY_NAMES
         }
       )
+  }
+
+  @Test
+  fun `data-providers update-capabilities calls ReplaceDataProviderCapabilities`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "data-providers",
+          "--name=$DATA_PROVIDER_NAME",
+          "update-capabilities",
+          "--hmss-supported=true",
+        )
+
+    callCli(args)
+
+    val request = captureFirst {
+      runBlocking { verify(dataProvidersServiceMock).replaceDataProviderCapabilities(capture()) }
+    }
+    assertThat(request)
+      .isEqualTo(
+        replaceDataProviderCapabilitiesRequest {
+          name = DATA_PROVIDER_NAME
+          capabilities =
+            DATA_PROVIDER.capabilities.copy { honestMajorityShareShuffleSupported = true }
+        }
+      )
+  }
+
+  @Test
+  fun `data-providers get calls GetDataProvider with correct params`() {
+    val args = commonArgs + arrayOf("data-providers", "--name=dataProviders/777", "get")
+    callCli(args)
+    dataProvidersServiceMock.stub {
+      onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDER)
+    }
+    val request: GetDataProviderRequest = captureFirst {
+      runBlocking { verify(dataProvidersServiceMock).getDataProvider(capture()) }
+    }
+    val dataProviderName = request.name
+    assertThat(dataProviderName).isEqualTo("dataProviders/777")
   }
 
   @Test
@@ -2040,20 +2081,6 @@ class MeasurementSystemTest {
           pageToken = ""
         }
       )
-  }
-
-  @Test
-  fun `dataProviders get calls GetDataProvider with correct params`() {
-    val args = commonArgs + arrayOf("data-providers", "--name=dataProviders/777", "get")
-    callCli(args)
-    dataProvidersServiceMock.stub {
-      onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDER)
-    }
-    val request: GetDataProviderRequest = captureFirst {
-      runBlocking { verify(dataProvidersServiceMock).getDataProvider(capture()) }
-    }
-    val dataProviderName = request.name
-    assertThat(dataProviderName).isEqualTo("dataProviders/777")
   }
 
   companion object {
