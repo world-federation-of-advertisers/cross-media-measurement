@@ -115,6 +115,50 @@ protobuf message in text format. You can use shell quoting for a multiline strin
 use command substitution to read the message from a file e.g. `--reporting-metric-entry=$(cat
 reporting_metric_entry.textproto)`.
 
+#### create ui
+```shell
+Reporting \
+  --tls-cert-file=secretfiles/mc_tls.pem \
+  --tls-key-file=secretfiles/mc_tls.key \
+  --cert-collection-file=secretfiles/reporting_root.pem \
+  --reporting-server-api-target=v2alpha.reporting.dev.halo-cmm.org:8443 \
+  reports create-ui-report\
+  --parent=measurementConsumers/VCTqwV_vFXw \
+  --id=abcd \
+  --request-id=abcd \
+  --display-name=TESTDISPLAYREPORT \
+  --cmms-event-group=1 \
+  --primitive-rs-display-name='EDP 1' \
+  --primitive-rs-id=abc \
+  --cmms-event-group=2 \
+  --primitive-rs-display-name='EDP 2' \
+  --primitive-rs-id=def \
+  --cmms-event-group=3 \
+  --primitive-rs-display-name='EDP 3' \
+  --primitive-rs-id=ghi \
+  --prim-metric-id='mcs-2',
+  --prim-metric-display-name='primitive calc spec 1',
+  --comp-metric-id='mcs-2',
+  --comp-metric-display-name='primitive calc spec 2',
+  --union-rs-id=union-rs-1,
+  --union-rs-display-name='EDP Union',
+  --reporting-interval-report-start-time='2000-01-01T00:00:00',
+  --reporting-interval-report-end='2000-01-30',
+  --daily-frequency=true,
+```
+
+There currently needs to be three groups of primitive reporting sets defined by the arg group: --cmms-event-group, --primitive-rs-id, and --primitive-rs-display-name. You can pass in multiple event groups, but be sure to specify them first. There is a parsing issue if they are specified later in the arg group. This is similar to creating a reporting set.
+
+The union reporting set is created automatically from the primitives, but just require an id and name: --union-rs-id and --union-rs-display-name.
+
+The unique reporting sets are created automatically from the primitives and union. They are not explicitly used in the UI and require no input. They are post-fixed with "unique."
+
+The actual values of the metric calculation specs are hardcoded for user simplicity as the combinations have to be very specific. What the user will define are the ids and names for the specs. There are two different configurations of specs so they each need to be defined: --prim-metric-id and --prim-metric-display-name as well as --comp-metric-id and --comp-metric-display-name. These aren't use in the UI so they can be any valid value for creation purposes.
+
+The time range of the report must be specified through the start time and end (date): --reporting-interval-report-start-time and --reporting-interval-report-end. These are formatted as the example above and are the same as in create report. We force incremental to simplify the input.
+
+The user must specify the interval frequency: --daily-frequency, --day-of-the-week, or --day-of-the-month. This is used in combination with the interval time range.
+
 #### list
 
 ```shell
