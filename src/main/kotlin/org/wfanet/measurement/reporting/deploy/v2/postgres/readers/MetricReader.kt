@@ -239,10 +239,10 @@ class MetricReader(private val readContext: ReadContext) {
       SELECT
         CmmsMeasurementConsumerId,
         MeasurementConsumerId,
-        Metrics.CreateMetricRequestId,
-        ReportingSetId,
         MetricCalculationSpecId,
-        MetricId,
+        Metrics.CreateMetricRequestId,
+        Metrics.ReportingSetId,
+        Metrics.MetricId,
         Metrics.ExternalMetricId,
         Metrics.TimeIntervalStart AS MetricsTimeIntervalStart,
         Metrics.TimeIntervalEndExclusive AS MetricsTimeIntervalEndExclusive,
@@ -264,10 +264,8 @@ class MetricReader(private val readContext: ReadContext) {
       """
      FROM
         MeasurementConsumers
-        JOIN ReportingSets USING(MeasurementConsumerId)
-        JOIN MetricCalculationSpecs USING(MeasurementConsumerId)
-        JOIN MetricCalculationSpecReportingMetrics USING(MeasurementConsumerId, ReportingSetId, MetricCalculationSpecId)
-        JOIN Metrics USING(MeasurementConsumerId, MetricId, ReportingSetId)
+        JOIN MetricCalculationSpecReportingMetrics USING(MeasurementConsumerId)
+        JOIN Metrics USING(MeasurementConsumerId, MetricId)
       """
         .trimIndent()
 
@@ -276,7 +274,7 @@ class MetricReader(private val readContext: ReadContext) {
           $sqlSelect
           $sqlFrom
           WHERE MeasurementConsumerId = $1
-            AND (ReportingSetId, MetricCalculationSpecId, TimeIntervalStart, TimeIntervalEndExclusive)
+            AND (Metrics.ReportingSetId, MetricCalculationSpecId, TimeIntervalStart, TimeIntervalEndExclusive)
             IN (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
         """
           .trimIndent()
