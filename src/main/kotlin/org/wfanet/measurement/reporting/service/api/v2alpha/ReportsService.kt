@@ -93,8 +93,8 @@ private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 
-private const val BATCH_CREATE_METRICS_LIMIT = 200
-private const val BATCH_GET_METRICS_LIMIT = 200
+private const val BATCH_CREATE_METRICS_LIMIT = 500
+private const val BATCH_GET_METRICS_LIMIT = 500
 
 private typealias InternalReportingMetricEntries =
   Map<String, InternalReport.ReportingMetricCalculationSpec>
