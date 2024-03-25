@@ -48,6 +48,7 @@ import org.wfanet.measurement.duchy.daemon.mill.shareshuffle.crypto.HonestMajori
 import org.wfanet.measurement.duchy.daemon.utils.ReachAndFrequencyResult
 import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaEncryptionPublicKey
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
+import org.wfanet.measurement.duchy.db.computation.ComputationDataClients.PermanentErrorException
 import org.wfanet.measurement.duchy.service.system.v1alpha.advanceComputationHeader
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails
@@ -205,7 +206,7 @@ class HonestMajorityShareShuffleMill(
       throw when (e.status.code) {
         Status.Code.UNAVAILABLE,
         Status.Code.ABORTED -> ComputationDataClients.TransientErrorException(message, e)
-        else -> ComputationDataClients.PermanentErrorException(message, e)
+        else -> PermanentErrorException(message, e)
       }
     }
   }
@@ -223,7 +224,7 @@ class HonestMajorityShareShuffleMill(
     // The last participant is the aggregator.
     val peerDuchy = participants.dropLast(1).find { it != duchyId }
     return workerStubs[peerDuchy]
-      ?: throw ComputationDataClients.PermanentErrorException(
+      ?: throw PermanentErrorException(
         "No ComputationControlService stub for the peer duchy '$peerDuchy'"
       )
   }
@@ -232,7 +233,7 @@ class HonestMajorityShareShuffleMill(
     // The last participant is the aggregator.
     val aggregator = participants.last()
     return workerStubs[aggregator]
-      ?: throw ComputationDataClients.PermanentErrorException(
+      ?: throw PermanentErrorException(
         "No ComputationControlService stub for aggregator '$aggregator'"
       )
   }
@@ -316,7 +317,9 @@ class HonestMajorityShareShuffleMill(
   ): RandomSeed {
     val privateKey =
       privateKeyStore.read(TinkKeyId(duchyPrivateKeyId.toLong()))
-        ?: error("Fail to read private key for requisition ${secretSeed.requisitionId}")
+        ?: throw PermanentErrorException(
+          "Fail to read private key for requisition ${secretSeed.requisitionId}"
+        )
 
     val encryptedAndSignedMessage = EncryptedMessage.parseFrom(secretSeed.secretSeedCiphertext)
     val signedMessage = decryptRandomSeed(encryptedAndSignedMessage, privateKey)
@@ -325,13 +328,26 @@ class HonestMajorityShareShuffleMill(
 
     val dataProviderCertificateName = secretSeed.dataProviderCertificate
     val dataProviderCertificate =
-      certificateClient.getCertificate(getCertificateRequest { name = dataProviderCertificateName })
+      try {
+        certificateClient.getCertificate(
+          getCertificateRequest { name = dataProviderCertificateName }
+        )
+      } catch (e: StatusException) {
+        throw PermanentErrorException(e.message, e)
+      }
+
     val x509Certificate: X509Certificate = readCertificate(dataProviderCertificate.x509Der)
     val trustedIssuer =
       trustedCertificates[x509Certificate.authorityKeyIdentifier]
-        ?: error("trustedIssuer not found for $dataProviderCertificateName.")
+        ?: throw PermanentErrorException(
+          "trustedIssuer not found for $dataProviderCertificateName."
+        )
 
-    verifyRandomSeed(signedMessage, x509Certificate, trustedIssuer)
+    try {
+      verifyRandomSeed(signedMessage, x509Certificate, trustedIssuer)
+    } catch (e: Exception) {
+      throw PermanentErrorException(e.message)
+    }
 
     return randomSeed
   }

@@ -21,6 +21,7 @@ import com.google.crypto.tink.KeysetHandle
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
+import io.grpc.Status
 import io.opentelemetry.api.GlobalOpenTelemetry
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
@@ -744,6 +745,80 @@ class HonestMajorityShareShuffleMillTest {
             data =
               CompleteShufflePhaseRequestKt.SketchShareKt.shareData { values += listOf(4, 5, 6) }
           }
+        }
+      )
+  }
+
+  @Test
+  fun `shufflePhase throw exception when fail to get data provider certificate`() = runBlocking {
+    val computationDetails = getHmssComputationDetails(RoleInComputation.FIRST_NON_AGGREGATOR)
+
+    val inputBlobPath = ComputationBlobContext(GLOBAL_ID, Stage.SHUFFLE_PHASE.toProtocolStage(), 0L)
+    val peerRandomSeed = RANDOM.generateSeed(RANDOM_SEED_LENGTH_IN_BYTES).toByteString()
+    val requisitionSeed = randomSeed {
+      RANDOM.generateSeed(RANDOM_SEED_LENGTH_IN_BYTES).toByteString()
+    }
+    val requisitionSignedSeed = signRandomSeed(requisitionSeed, DATA_PROVIDER_SIGNING_KEY)
+    val duchyPublicKey =
+      computationDetails.honestMajorityShareShuffle.encryptionKeyPair.publicKey
+        .toV2AlphaEncryptionPublicKey()
+    val requisitionEncryptedSeed = encryptRandomSeed(requisitionSignedSeed, duchyPublicKey)
+
+    val inputBlobData =
+      shufflePhaseInput {
+          this.peerRandomSeed = peerRandomSeed
+          secretSeeds += secretSeed {
+            requisitionId = REQUISITION_2.externalKey.externalRequisitionId
+            secretSeedCiphertext = requisitionEncryptedSeed.toByteString()
+            registerCount = 100
+            dataProviderCertificate = "DataProviders/2/Certificates/2"
+          }
+        }
+        .toByteString()
+    val inputBlobs =
+      listOf(
+        computationStageBlobMetadata {
+          dependencyType = ComputationBlobDependency.INPUT
+          blobId = 0L
+          path = inputBlobPath.blobKey
+        }
+      )
+    computationStore.write(inputBlobPath, inputBlobData)
+
+    val requisitionBlobContext1 =
+      RequisitionBlobContext(GLOBAL_ID, REQUISITION_1.externalKey.externalRequisitionId)
+    val requisitionBlobContext3 =
+      RequisitionBlobContext(GLOBAL_ID, REQUISITION_3.externalKey.externalRequisitionId)
+    // TODO(@renjiez): Use ShareShuffleSketch from any-sketch-java when it is available..
+    val requisitionData1 = shareShuffleSketch { data += listOf(1, 2, 3) }.toByteString()
+    val requisitionData3 = shareShuffleSketch { data += listOf(4, 5, 6) }.toByteString()
+    requisitionStore.write(requisitionBlobContext1, requisitionData1)
+    requisitionStore.write(requisitionBlobContext3, requisitionData3)
+
+    fakeComputationDb.addComputation(
+      LOCAL_ID,
+      Stage.SHUFFLE_PHASE.toProtocolStage(),
+      blobs = inputBlobs,
+      computationDetails = computationDetails,
+      requisitions = REQUISITIONS,
+    )
+
+    whenever(mockCertificates.getCertificate(any()))
+      .thenThrow(Status.NOT_FOUND.asRuntimeException())
+
+    firstWorkerMill.pollAndProcessNextComputation()
+
+    assertThat(fakeComputationDb[LOCAL_ID])
+      .isEqualTo(
+        computationToken {
+          globalComputationId = GLOBAL_ID
+          localComputationId = LOCAL_ID
+          computationStage = Stage.COMPLETE.toProtocolStage()
+          attempt = 1
+          version = 2
+          this.computationDetails =
+            computationDetails.copy { endingState = ComputationDetails.CompletedReason.FAILED }
+          requisitions += REQUISITIONS
         }
       )
   }
