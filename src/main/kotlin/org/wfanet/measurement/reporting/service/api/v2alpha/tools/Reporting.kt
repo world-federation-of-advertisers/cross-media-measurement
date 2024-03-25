@@ -553,13 +553,13 @@ class CreateUiReportCommand : Runnable {
                         rhs =
                           ReportingSetKt.SetExpressionKt.operand {
                             reportingSet = complement.elementAt(1).name
-                          }
-                      }
-                  }
-               }
-           }
-       }
-     }
+                           }
+                       }
+                   }
+              }
+          }
+      }
+    }
 
     return runBlocking(Dispatchers.IO) { parent.reportingSetStub.createReportingSet(request) }
   }
@@ -602,7 +602,7 @@ class CreateUiReportCommand : Runnable {
           vidSamplingInterval = MetricSpecKt.vidSamplingInterval { width = 1.0f }
         },
       )
- 
+
     return this.createMetricSpecs(name, displayName, measurementConsumerName, specs, frequencySpec)
   }
 
@@ -638,7 +638,7 @@ class CreateUiReportCommand : Runnable {
           vidSamplingInterval = MetricSpecKt.vidSamplingInterval { width = 1.0f }
         },
       )
- 
+
     return this.createMetricSpecs(name, displayName, measurementConsumerName, specs, frequencySpec)
   }
 
