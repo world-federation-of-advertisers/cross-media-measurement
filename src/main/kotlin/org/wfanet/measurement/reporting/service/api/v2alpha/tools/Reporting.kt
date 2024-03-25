@@ -508,6 +508,7 @@ class CreateUiReportCommand : Runnable {
               }
           }
       }
+    }
 
     return runBlocking(Dispatchers.IO) { parent.reportingSetStub.createReportingSet(rsRequest) }
   }
