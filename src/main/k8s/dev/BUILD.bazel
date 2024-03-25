@@ -302,6 +302,7 @@ kustomization_dir(
 
 kustomization_dir(
     name = "worker2_duchy_aws",
+    testonly = True,
     srcs = [
         "resource_requirements.yaml",
         ":worker2_duchy_eks",
