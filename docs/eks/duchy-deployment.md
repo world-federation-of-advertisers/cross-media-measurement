@@ -345,7 +345,7 @@ the created elastic IP could be attached to the load balancer service through an
 ## Set up Athena to query the Postgres Database
 
 Follow this [instruction](https://docs.aws.amazon.com/athena/latest/ug/connectors-postgresql.html) to create 
-an athena_postgres_connector. This instruction will guide u to:
+an athena_postgres_connector. This instruction will guide you to:
 1. create a lambda function that will be used to execute queries against Postgres. 
 Configs for creating the lambda function:
    * The SecretNamePrefix should be `rds`.
@@ -357,7 +357,7 @@ Configs for creating the lambda function:
      * `subnet-0e3cdc48416db8801` tagged as halo-cmm-qa-db-us-west-2a
      * `subnet-08dc813bdebc2e5c1` tagged as halo-cmm-qa-db-us-west-2b
    * The Security should be the eks-cluster-worker2-duchy security group. e.g.
-     * `sg-035eaa8e939aa6a26` tagged as eks-cluster-sg-worker2-duchy-104327146`.
+     * `sg-035eaa8e939aa6a26` tagged as eks-cluster-sg-worker2-duchy-104327146.
    * Other configs could be left as default.
 2. create an Athena data source with the above created connection.
 3. run Athena query in query edition. ![Athena-example](athena-usage-example.png)

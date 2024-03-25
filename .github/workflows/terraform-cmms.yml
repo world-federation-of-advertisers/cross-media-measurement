@@ -116,6 +116,7 @@ jobs:
     - name: terraform plan - aws
       env:
         POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
+        AWS_S3_BUCKET: ${{ vars.AWS_S3_BUCKET }}
         ENVIRONMENT: ${{ inputs.environment }}
       working-directory: ${{ env.AWS_MODULE_PATH }}
       run: >
@@ -124,6 +125,7 @@ jobs:
         -var="aws_region=$AWS_REGION"
         -var="postgres_instance_name=$POSTGRES_INSTANCE"
         -var="aws_project_env=halo-cmm-$ENVIRONMENT"
+        -var="aws_s3_bucket=$AWS_S3_BUCKET"
         -out=tfplan
 
     - name: terraform apply - aws

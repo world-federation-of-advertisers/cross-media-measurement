@@ -24,6 +24,12 @@ variable "aws_project_env" {
   nullable    = false
 }
 
+variable "aws_s3_bucket" {
+  description = "The name of the S3 bucket."
+  type        = string
+  nullable    = false
+}
+
 variable "postgres_instance_name" {
   description = "Name of the RDS PostgreSQL instance."
   type        = string

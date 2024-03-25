@@ -56,9 +56,10 @@ Amazon Managed Prometheus. Follow [Install ADOT](https://docs.aws.amazon.com/eks
 doc to create:
 * the ADOT addon to the existing EKS cluster. (using console to install the version `v0.80.0-eksbuild.2`. There
 were some breaking changes in later versions.)
-* a service account that allows ADOT addon to publish metrics to Amazon Managed Prometheus
-```shell
-eksctl create iamserviceaccount \
+* a service account that allows ADOT addon to publish metrics to Amazon Managed Prometheus.
+  ```shell
+  # command to create service account
+  eksctl create iamserviceaccount \
     --name adot-collector \
     --namespace default \
     --cluster worker2-duchy \
@@ -67,7 +68,7 @@ eksctl create iamserviceaccount \
     --attach-policy-arn arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy \
     --approve \
     --override-existing-serviceaccounts
-```
+  ```
 
 With ADOT addon, EKS cluster can publish metrics to AMP through the remote write url, see [open telemetry config](#opentelemetry-collectors-and-instrumentation)
 
