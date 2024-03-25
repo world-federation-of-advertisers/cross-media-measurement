@@ -553,9 +553,9 @@ class CreateUiReportCommand : Runnable {
                         rhs =
                           ReportingSetKt.SetExpressionKt.operand {
                             reportingSet = complement.elementAt(1).name
-                           }
-                       }
-                   }
+                          }
+                      }
+                  }
               }
           }
       }

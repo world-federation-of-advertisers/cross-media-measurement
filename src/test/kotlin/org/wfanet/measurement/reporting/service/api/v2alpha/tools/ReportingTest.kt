@@ -1106,7 +1106,7 @@ class ReportingTest {
                               }
                           }
                       }
-                   }
+                  }
               }
             tags.put("ui.halo-cmm.org/reporting_set_type", "union")
           }
@@ -1244,7 +1244,7 @@ class ReportingTest {
           }
         }
       )
-   }
+  }
 
   fun assertPrimitiveRs(expected: CreateReportingSetRequest, props: Edp) {
     assertThat(expected)
@@ -1311,7 +1311,7 @@ class ReportingTest {
                           }
                       }
                   }
-               }
+              }
             tags.put("ui.halo-cmm.org/reporting_set_type", "unique")
             tags.put(
               "ui.halo-cmm.org/reporting_set_id",
