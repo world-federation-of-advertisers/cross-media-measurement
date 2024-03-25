@@ -78,5 +78,5 @@ message Requisition {
   //
   // (-- api-linter: core::0141::forbidden-types=disabled
   //     aip.dev/not-precedent: This is a random 64-bit value. --)
-  int64 nonce = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+  fixed64 nonce = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
 }

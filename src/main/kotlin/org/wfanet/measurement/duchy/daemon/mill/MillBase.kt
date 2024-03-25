@@ -303,6 +303,33 @@ abstract class MillBase(
     }
   }
 
+  /** Send encrypted result of Computation to the Kingdom. */
+  protected suspend fun sendResultToKingdom(
+    token: ComputationToken,
+    computationResult: ComputationResult,
+  ) {
+    val kingdomComputation = token.computationDetails.kingdomComputation
+    val serializedPublicApiEncryptionPublicKey: ByteString
+    val publicApiVersion = Version.fromString(kingdomComputation.publicApiVersion)
+    val encryptedResultCiphertext: ByteString =
+      when (publicApiVersion) {
+        Version.V2_ALPHA -> {
+          val signedResult = signResult(computationResult.toV2AlphaMeasurementResult(), signingKey)
+          val publicApiEncryptionPublicKey =
+            kingdomComputation.measurementPublicKey.toV2AlphaEncryptionPublicKey()
+          serializedPublicApiEncryptionPublicKey = publicApiEncryptionPublicKey.toByteString()
+          encryptResult(signedResult, publicApiEncryptionPublicKey).ciphertext
+        }
+      }
+    sendResultToKingdom(
+      globalId = token.globalComputationId,
+      certificate = consentSignalCert,
+      resultPublicKey = serializedPublicApiEncryptionPublicKey,
+      encryptedResult = encryptedResultCiphertext,
+      publicApiVersion = publicApiVersion,
+    )
+  }
+
   /** Sends measurement result to the kingdom's system computationsService. */
   private suspend fun sendResultToKingdom(
     globalId: String,
@@ -535,33 +562,6 @@ abstract class MillBase(
         }
       }
     return response.token
-  }
-
-  /** Send encrypted result of Computation to the Kingdom. */
-  protected suspend fun sendResultToKingdom(
-    token: ComputationToken,
-    computationResult: ComputationResult,
-  ) {
-    val kingdomComputation = token.computationDetails.kingdomComputation
-    val serializedPublicApiEncryptionPublicKey: ByteString
-    val publicApiVersion = Version.fromString(kingdomComputation.publicApiVersion)
-    val encryptedResultCiphertext: ByteString =
-      when (publicApiVersion) {
-        Version.V2_ALPHA -> {
-          val signedResult = signResult(computationResult.toV2AlphaMeasurementResult(), signingKey)
-          val publicApiEncryptionPublicKey =
-            kingdomComputation.measurementPublicKey.toV2AlphaEncryptionPublicKey()
-          serializedPublicApiEncryptionPublicKey = publicApiEncryptionPublicKey.toByteString()
-          encryptResult(signedResult, publicApiEncryptionPublicKey).ciphertext
-        }
-      }
-    sendResultToKingdom(
-      globalId = token.globalComputationId,
-      certificate = consentSignalCert,
-      resultPublicKey = serializedPublicApiEncryptionPublicKey,
-      encryptedResult = encryptedResultCiphertext,
-      publicApiVersion = publicApiVersion,
-    )
   }
 
   /** Gets the latest [ComputationToken] for computation with [globalId]. */

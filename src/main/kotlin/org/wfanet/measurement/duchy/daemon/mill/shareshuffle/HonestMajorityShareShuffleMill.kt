@@ -136,25 +136,22 @@ class HonestMajorityShareShuffleMill(
       Pair(Stage.AGGREGATION_PHASE, AGGREGATOR) to ::aggregationPhase,
     )
 
-  private fun nextStage(token: ComputationToken): Stage {
-    require(token.computationDetails.hasHonestMajorityShareShuffle()) {
-      "Only Honest Majority Share Shuffle computation is supported in this mill."
-    }
+  private val stageTransitions =
+    mapOf(
+      Pair(Stage.INITIALIZED, FIRST_NON_AGGREGATOR) to Stage.WAIT_TO_START,
+      Pair(Stage.INITIALIZED, SECOND_NON_AGGREGATOR) to Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_ONE,
+      Pair(Stage.SETUP_PHASE, FIRST_NON_AGGREGATOR) to Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_TWO,
+      Pair(Stage.SETUP_PHASE, SECOND_NON_AGGREGATOR) to Stage.SHUFFLE_PHASE,
+      Pair(Stage.SHUFFLE_PHASE, FIRST_NON_AGGREGATOR) to Stage.COMPLETE,
+      Pair(Stage.SHUFFLE_PHASE, SECOND_NON_AGGREGATOR) to Stage.COMPLETE,
+      Pair(Stage.AGGREGATION_PHASE, AGGREGATOR) to Stage.COMPLETE,
+    )
 
+  private fun nextStage(token: ComputationToken): Stage {
     val stage = token.computationStage.honestMajorityShareShuffle
     val role = token.computationDetails.honestMajorityShareShuffle.role
 
-    val nextStages =
-      mapOf(
-        Pair(Stage.INITIALIZED, FIRST_NON_AGGREGATOR) to Stage.WAIT_TO_START,
-        Pair(Stage.INITIALIZED, SECOND_NON_AGGREGATOR) to Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_ONE,
-        Pair(Stage.SETUP_PHASE, FIRST_NON_AGGREGATOR) to Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_TWO,
-        Pair(Stage.SETUP_PHASE, SECOND_NON_AGGREGATOR) to Stage.SHUFFLE_PHASE,
-        Pair(Stage.SHUFFLE_PHASE, FIRST_NON_AGGREGATOR) to Stage.COMPLETE,
-        Pair(Stage.SHUFFLE_PHASE, SECOND_NON_AGGREGATOR) to Stage.COMPLETE,
-        Pair(Stage.AGGREGATION_PHASE, AGGREGATOR) to Stage.COMPLETE,
-      )
-    return nextStages[Pair(stage, role)] ?: error("Unexpected stage or role: ($stage, $role)")
+    return stageTransitions[Pair(stage, role)] ?: error("Unexpected stage or role: ($stage, $role)")
   }
 
   override suspend fun processComputationImpl(token: ComputationToken) {
@@ -300,6 +297,7 @@ class HonestMajorityShareShuffleMill(
   }
 
   private fun combineRandomSeeds(seed1: ByteString, seed2: ByteString): ByteString {
+    // TODO(@renjiez): Move this function to common-jvm.
     require(seed1.size() == seed2.size()) {
       "Seeds sizes do not match. size_1=${seed1.size()}, size_2=${seed2.size()}"
     }

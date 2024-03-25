@@ -189,9 +189,13 @@ message Computation {
     // Configuration for the specific protocol. Required.
     oneof protocol {
       // Liquid Legions v2 config.
+      //
+      // May only be set when the measurement type is REACH_AND_FREQUENCY.
       LiquidLegionsV2 liquid_legions_v2 = 1;
 
       // Reach-only Liquid Legions v2 config.
+      //
+      // Must only be set when the measurement type is REACH.
       LiquidLegionsV2 reach_only_liquid_legions_v2 = 2;
 
       // Honest Majority Share Shuffle config.
