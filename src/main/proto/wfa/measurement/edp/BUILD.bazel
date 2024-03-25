@@ -1,0 +1,219 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@rules_java//java:defs.bzl", "java_proto_library", "java_binary")
+load("@io_grpc_grpc_java//:java_grpc_library.bzl", "java_grpc_library")
+
+java_binary(
+    name = "edp_libs",
+    main_class = "NotImportant",
+    runtime_deps = [
+        ":edp_java_proto",
+        ":event_groups_service_java_proto",
+        ":api_keys_service_java_proto",
+        ":certificates_service_java_proto",
+        ":data_providers_service_java_proto",
+        ":event_group_metadata_descriptors_service_java_proto",
+        ":measurements_service_java_proto",
+        ":public_keys_service_java_proto",
+        ":requisitions_service_java_proto",
+        ":model_lines_service_java_proto",
+        ":model_suites_service_java_proto",
+        ":model_rollouts_service_java_proto",
+        ":model_releases_service_java_proto",
+        ":model_shards_service_java_proto",
+    ],
+)
+
+java_proto_library(
+    name = "edp_java_proto",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:account_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:api_key_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:certificate_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:data_provider_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:encrypted_sketch_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_group_metadata_descriptor_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_group_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:measurement_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:measurement_consumer_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_provider_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:page_token_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:public_key_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_suite_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_line_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_release_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_rollout_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_outage_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_shard_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_template_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:date_interval_proto",
+        # GRPCs
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:api_keys_service_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_group_metadata_descriptors_service_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:public_keys_service_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:requisition_fulfillment_service_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_lines_service_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_suites_service_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_rollouts_service_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_outages_service_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_releases_service_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_shards_service_proto",
+    ],
+)
+
+java_grpc_library(
+    name = "event_groups_service_java_proto",
+    srcs = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_proto",
+    ],
+    deps = [
+        ":edp_java_proto",
+    ],
+)
+
+java_grpc_library(
+    name = "api_keys_service_java_proto",
+    srcs = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:api_keys_service_proto",
+    ],
+    deps = [
+        ":edp_java_proto",
+    ],
+)
+
+java_grpc_library(
+    name = "certificates_service_java_proto",
+    srcs = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_proto",
+    ],
+    deps = [
+        ":edp_java_proto",
+    ],
+)
+
+java_grpc_library(
+    name = "data_providers_service_java_proto",
+    srcs = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_proto",
+    ],
+    deps = [
+        ":edp_java_proto",
+    ],
+)
+
+java_grpc_library(
+    name = "event_group_metadata_descriptors_service_java_proto",
+    srcs = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_group_metadata_descriptors_service_proto",
+    ],
+    deps = [
+        ":edp_java_proto",
+    ],
+)
+
+java_grpc_library(
+    name = "measurements_service_java_proto",
+    srcs = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_proto",
+    ],
+    deps = [
+        ":edp_java_proto",
+    ],
+)
+
+java_grpc_library(
+    name = "public_keys_service_java_proto",
+    srcs = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:public_keys_service_proto",
+    ],
+    deps = [
+        ":edp_java_proto",
+    ],
+)
+
+java_grpc_library(
+    name = "requisitions_service_java_proto",
+    srcs = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_proto",
+    ],
+    deps = [
+        ":edp_java_proto",
+    ],
+)
+
+java_grpc_library(
+    name = "requisition_fulfillment_service_java_proto",
+    srcs = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:requisition_fulfillment_service_proto",
+    ],
+    deps = [
+        ":edp_java_proto",
+    ],
+)
+
+java_grpc_library(
+    name = "model_lines_service_java_proto",
+    srcs = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_lines_service_proto",
+    ],
+    deps = [
+        ":edp_java_proto",
+    ],
+)
+
+java_grpc_library(
+    name = "model_suites_service_java_proto",
+    srcs = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_suites_service_proto",
+    ],
+    deps = [
+        ":edp_java_proto",
+    ],
+)
+
+java_grpc_library(
+    name = "model_rollouts_service_java_proto",
+    srcs = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_rollouts_service_proto",
+    ],
+    deps = [
+        ":edp_java_proto",
+    ],
+)
+
+java_grpc_library(
+    name = "model_outages_service_java_proto",
+    srcs = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_outages_service_proto",
+    ],
+    deps = [
+        ":edp_java_proto",
+    ],
+)
+
+java_grpc_library(
+    name = "model_releases_service_java_proto",
+    srcs = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_releases_service_proto",
+    ],
+    deps = [
+        ":edp_java_proto",
+    ],
+)
+
+java_grpc_library(
+    name = "model_shards_service_java_proto",
+    srcs = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_shards_service_proto",
+    ],
+    deps = [
+        ":edp_java_proto",
+    ],
+)
