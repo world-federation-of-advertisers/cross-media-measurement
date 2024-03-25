@@ -46,7 +46,7 @@ Go to the [Amazon Managed Service for Grafana](https://us-east-1.console.aws.ama
 page, and using the `Create` button and follow the instructions to create a new workspace.
 
 Once created, follow this [doc](https://docs.aws.amazon.com/prometheus/latest/userguide/AMP-onboard-amg.html) to
-set up Amazon Managed Grafana for use with Amazon Managed Service for Prometheus
+set up Amazon Managed Grafana for use with Amazon Managed Service for Prometheus.
 
 ## Set up EKS cluster to send metric to AMP
 
@@ -54,8 +54,21 @@ set up Amazon Managed Grafana for use with Amazon Managed Service for Prometheus
 distribution of the OpenTelemetry project that can help publishing EKS cluster metrics to
 Amazon Managed Prometheus. Follow [Install ADOT](https://docs.aws.amazon.com/eks/latest/userguide/adot-manage.html#adot-install)
 doc to create:
-* the ADOT addon to the existing EKS cluster
-* a service account that allows ADOT addon to publish metrics to Amazon Managed Prometheus
+* the ADOT addon to the existing EKS cluster. (using console to install the version `v0.80.0-eksbuild.2`. There
+were some breaking changes in later versions.)
+* a service account that allows ADOT addon to publish metrics to Amazon Managed Prometheus.
+  ```shell
+  # command to create service account
+  eksctl create iamserviceaccount \
+    --name adot-collector \
+    --namespace default \
+    --cluster worker2-duchy \
+    --attach-policy-arn arn:aws:iam::aws:policy/AmazonPrometheusRemoteWriteAccess \
+    --attach-policy-arn arn:aws:iam::aws:policy/AWSXrayWriteOnlyAccess \
+    --attach-policy-arn arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy \
+    --approve \
+    --override-existing-serviceaccounts
+  ```
 
 With ADOT addon, EKS cluster can publish metrics to AMP through the remote write url, see [open telemetry config](#opentelemetry-collectors-and-instrumentation)
 
