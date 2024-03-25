@@ -268,9 +268,7 @@ class PdpSimulator(
    * Returns the [ModelRelease] associated with the latest `ModelRollout` that is connected to the
    * `ModelLine` provided in the MeasurementSpec`
    */
-  private suspend fun getModelRelease(
-    measurementSpec: MeasurementSpec,
-  ): ModelRelease {
+  private suspend fun getModelRelease(measurementSpec: MeasurementSpec): ModelRelease {
     val measurementSpecModelLineName = measurementSpec.modelLine
 
     // Returns list of ModelRollouts.
@@ -319,12 +317,7 @@ class PdpSimulator(
     // Calculates total sum by running the populationBucketsList through a program that will sum
     // matching populations.
     val populationSum =
-      getTotalPopulation(
-        requisitionSpec,
-        populationBucketsList,
-        modelRelease,
-        filterExpression,
-      )
+      getTotalPopulation(requisitionSpec, populationBucketsList, modelRelease, filterExpression)
 
     // Create measurement result with sum of valid populations.
     val measurementResult =

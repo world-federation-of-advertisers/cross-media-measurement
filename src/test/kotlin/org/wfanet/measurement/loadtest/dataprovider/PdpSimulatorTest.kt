@@ -208,11 +208,7 @@ private val POPULATION_BUCKET_3 = populationBucket {
 }
 
 private val POPULATION_BUCKETS_LIST =
-  listOf(
-    POPULATION_BUCKET_1,
-    POPULATION_BUCKET_2,
-    POPULATION_BUCKET_3,
-  )
+  listOf(POPULATION_BUCKET_1, POPULATION_BUCKET_2, POPULATION_BUCKET_3)
 
 @RunWith(JUnit4::class)
 class PdpSimulatorTest {
@@ -300,7 +296,7 @@ class PdpSimulatorTest {
         requisitionsStub,
         dummyThrottler,
         TRUSTED_CERTIFICATES,
-        POPULATION_BUCKETS_LIST
+        POPULATION_BUCKETS_LIST,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -354,7 +350,7 @@ class PdpSimulatorTest {
         requisitionsStub,
         dummyThrottler,
         TRUSTED_CERTIFICATES,
-        POPULATION_BUCKETS_LIST
+        POPULATION_BUCKETS_LIST,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -408,7 +404,7 @@ class PdpSimulatorTest {
         requisitionsStub,
         dummyThrottler,
         TRUSTED_CERTIFICATES,
-        POPULATION_BUCKETS_LIST
+        POPULATION_BUCKETS_LIST,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -466,7 +462,7 @@ class PdpSimulatorTest {
         requisitionsStub,
         dummyThrottler,
         TRUSTED_CERTIFICATES,
-        POPULATION_BUCKETS_LIST
+        POPULATION_BUCKETS_LIST,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
