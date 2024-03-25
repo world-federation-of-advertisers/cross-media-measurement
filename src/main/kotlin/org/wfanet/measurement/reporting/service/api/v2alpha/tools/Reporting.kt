@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha.tools
 
+import com.google.protobuf.timestamp
 import com.google.type.DayOfWeek
 import com.google.type.date
 import com.google.type.dateTime
@@ -30,6 +31,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getEventGroupMetadataDescriptorRequest
@@ -42,12 +44,15 @@ import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.reporting.service.api.v2alpha.MetricCalculationSpecKey
+import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.Report
+import org.wfanet.measurement.reporting.v2alpha.ReportKt
 import org.wfanet.measurement.reporting.v2alpha.ReportKt.reportingInterval
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
@@ -459,6 +464,72 @@ class GetReportCommand : Runnable {
   }
 }
 
+@CommandLine.Command(name = "performance-test", description = ["Test Performance"])
+class PerformanceTestCommand : Runnable {
+  @CommandLine.ParentCommand private lateinit var parent: ReportsCommand
+
+  @CommandLine.Option(
+    names = ["--parent"],
+    description = ["API resource name of the Measurement Consumer"],
+    required = true,
+  )
+  private lateinit var measurementConsumerName: String
+
+  @CommandLine.Option(
+    names = ["--reporting-set-id"],
+    description = ["Resource ID of the Reporting Set"],
+    required = true,
+    defaultValue = "",
+  )
+  private lateinit var reportingSetId: String
+
+  @CommandLine.Option(
+    names = ["--metric-calculation-spec-id"],
+    description = ["Resource ID of the Metric Calculation Spec"],
+    required = true,
+    defaultValue = "",
+  )
+  private lateinit var metricCalculationSpecId: String
+
+  override fun run() {
+    val measurementConsumerKey = MeasurementConsumerKey.fromName(measurementConsumerName)
+    val reportingSetKey = ReportingSetKey(measurementConsumerKey!!.measurementConsumerId, reportingSetId)
+    val metricCalculationSpecKey = MetricCalculationSpecKey(measurementConsumerKey.measurementConsumerId, metricCalculationSpecId)
+
+    for (j in 1..1) {
+      val request = createReportRequest {
+        parent = measurementConsumerName
+        report = report {
+          reportingMetricEntries += ReportKt.reportingMetricEntry {
+            key = reportingSetKey.toName()
+            value = ReportKt.reportingMetricCalculationSpec {
+              metricCalculationSpecs += metricCalculationSpecKey.toName()
+            }
+          }
+
+          val now = (System.currentTimeMillis() / 1000) + 250
+          timeIntervals = timeIntervals {
+            for (i in 1..100) {
+              timeIntervals += interval {
+                startTime = timestamp {
+                  seconds = now - i.toLong()
+                }
+                endTime = timestamp {
+                  seconds = now + i.toLong()
+                }
+              }
+            }
+          }
+        }
+        reportId = "test-new-large-51"
+        requestId = "test-new-large-51"
+      }
+
+      runBlocking(Dispatchers.IO) { parent.reportsStub.createReport(request) }
+    }
+  }
+}
+
 @CommandLine.Command(
   name = "reports",
   sortOptions = false,
@@ -468,6 +539,7 @@ class GetReportCommand : Runnable {
       CreateReportCommand::class,
       ListReportsCommand::class,
       GetReportCommand::class,
+      PerformanceTestCommand::class,
     ],
 )
 class ReportsCommand : Runnable {

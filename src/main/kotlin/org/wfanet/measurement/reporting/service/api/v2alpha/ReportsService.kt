@@ -64,6 +64,7 @@ import org.wfanet.measurement.internal.reporting.v2.batchGetMetricCalculationSpe
 import org.wfanet.measurement.internal.reporting.v2.createReportRequest as internalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internalGetReportRequest
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
+import kotlinx.coroutines.flow.filter
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withPrincipalName
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.reportScheduleInfoFromCurrentContext
@@ -92,8 +93,8 @@ private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 
-private const val BATCH_CREATE_METRICS_LIMIT = 1000
-private const val BATCH_GET_METRICS_LIMIT = 100
+private const val BATCH_CREATE_METRICS_LIMIT = 200
+private const val BATCH_GET_METRICS_LIMIT = 200
 
 private typealias InternalReportingMetricEntries =
   Map<String, InternalReport.ReportingMetricCalculationSpec>
@@ -421,16 +422,20 @@ class ReportsService(
       internalReport.reportingMetricEntriesMap.entries.asFlow().flatMapMerge { entry ->
         entry.value.metricCalculationSpecReportingMetricsList.asFlow().flatMapMerge {
           metricCalculationSpecReportingMetrics ->
-          metricCalculationSpecReportingMetrics.reportingMetricsList.asFlow().map {
-            it.toCreateMetricRequest(
-              principal.resourceKey,
-              entry.key,
-              externalIdToMetricCalculationSpecMap
-                .getValue(metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId)
-                .details
-                .filter,
-            )
-          }
+          metricCalculationSpecReportingMetrics.reportingMetricsList.asFlow()
+            .filter {
+              it.externalMetricId.isEmpty()
+            }
+            .map {
+              it.toCreateMetricRequest(
+                principal.resourceKey,
+                entry.key,
+                externalIdToMetricCalculationSpecMap
+                  .getValue(metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId)
+                  .details
+                  .filter,
+              )
+            }
         }
       }
 
