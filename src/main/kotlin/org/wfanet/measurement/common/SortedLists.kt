@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+// TODO(@ple13): Move this file to commom-jvm.
+
 package org.wfanet.measurement.common
 
 /**
