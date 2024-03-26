@@ -12,3 +12,8 @@ kt_jvm_library(
     srcs = ["Flows.kt"],
     deps = ["@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core"],
 )
+
+kt_jvm_library(
+    name = "sorted_lists",
+    srcs = ["SortedLists.kt"],
+)

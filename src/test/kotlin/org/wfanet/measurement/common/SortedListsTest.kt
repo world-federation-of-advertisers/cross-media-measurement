@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.loadtest.common
+package org.wfanet.measurement.common
 
 import com.google.common.truth.Truth.assertThat
 import kotlin.test.assertFailsWith
@@ -21,7 +21,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 
 @RunWith(JUnit4::class)
-class SortedListUtilsTest {
+class SortedListsTest {
   @Test
   fun `lowerBound throws IllegalArgumentException when the list is empty`() {
     val sortedList = emptyList<Double>()

@@ -19,13 +19,13 @@ package org.wfanet.measurement.loadtest.dataprovider
 import com.google.protobuf.ByteString
 import com.google.protobuf.Message
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.loadtest.common.lowerBound
-import org.wfanet.measurement.loadtest.common.upperBound
+import org.wfanet.measurement.common.lowerBound
+import org.wfanet.measurement.common.upperBound
 
 class ShareShuffleSketchGenerator(
   private val vidUniverse: List<Long>,
   private val salt: ByteString,
-  private val inputVidToIndexMap: Map<Long, IndexedValue>,
+  inputVidToIndexMap: Map<Long, IndexedValue>,
   private val eventQuery: EventQuery<Message>,
   private val vidSamplingInterval: MeasurementSpec.VidSamplingInterval,
 ) {

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.loadtest.common
+package org.wfanet.measurement.common
 
 /**
  * Finds the smallest index i such that sortedList[i] >= target.
