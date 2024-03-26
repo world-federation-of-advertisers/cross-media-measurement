@@ -482,11 +482,7 @@ cue_dump(
 
 kustomization_dir(
     name = "reporting_v2_config_files",
-    testonly = True,
-    srcs = [
-        "reporting_v2_config_files_kustomization.yaml",
-        "//src/main/k8s/testing/secretfiles:known_event_group_metadata_type_set",
-    ],
+    srcs = ["reporting_v2_config_files_kustomization.yaml"],
     renames = {"reporting_v2_config_files_kustomization.yaml": "kustomization.yaml"},
 )
 
@@ -496,7 +492,6 @@ kustomization_dir(
 
 kustomization_dir(
     name = "reporting_v2",
-    testonly = True,
     srcs = [
         "resource_requirements.yaml",
         ":reporting_v2_gke",

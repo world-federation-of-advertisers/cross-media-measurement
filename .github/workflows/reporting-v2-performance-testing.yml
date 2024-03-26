@@ -8,6 +8,6 @@ jobs:
     uses: ./.github/workflows/configure-reporting-v2.yml
     secrets: inherit
     with:
-      image-tag: dde6d8e213406a89b30f9dce28790da5ff17b090
+      image-tag: ce569eac3fa403244a3cbe7ba356deb543c8550c
       environment: dev
       apply: true
