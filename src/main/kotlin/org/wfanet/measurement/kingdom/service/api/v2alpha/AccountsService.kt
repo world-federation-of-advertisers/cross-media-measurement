@@ -90,12 +90,10 @@ class AccountsService(
         internalAccountsStub.createAccount(internalCreateAccountRequest)
       } catch (ex: StatusException) {
         when (ex.status.code) {
-          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Creator's Account not found." }
+          Status.Code.NOT_FOUND -> throw Status.NOT_FOUND.toExternalStatusRuntimeException(ex)
           Status.Code.PERMISSION_DENIED ->
-            failGrpc(Status.PERMISSION_DENIED, ex) {
-              "Caller does not own the owned measurement consumer."
-            }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+            throw Status.PERMISSION_DENIED.toExternalStatusRuntimeException(ex)
+          else -> throw Status.UNKNOWN.toExternalStatusRuntimeException(ex)
         }
       }
 
@@ -138,14 +136,12 @@ class AccountsService(
       } catch (ex: StatusException) {
         when (ex.status.code) {
           Status.Code.PERMISSION_DENIED ->
-            failGrpc(Status.PERMISSION_DENIED, ex) {
-              "Activation token is not valid for this account."
-            }
+            throw Status.PERMISSION_DENIED.toExternalStatusRuntimeException(ex)
           Status.Code.FAILED_PRECONDITION ->
-            failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition." }
+            throw Status.FAILED_PRECONDITION.toExternalStatusRuntimeException(ex)
           Status.Code.NOT_FOUND ->
-            failGrpc(Status.NOT_FOUND, ex) { "Account to activate has not been found." }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+            throw Status.NOT_FOUND.toExternalStatusRuntimeException(ex)
+          else -> throw Status.UNKNOWN.toExternalStatusRuntimeException(ex)
         }
       }
 
@@ -185,9 +181,9 @@ class AccountsService(
       } catch (ex: StatusException) {
         when (ex.status.code) {
           Status.Code.FAILED_PRECONDITION ->
-            failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition." }
-          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Account was not found." }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+            throw Status.FAILED_PRECONDITION.toExternalStatusRuntimeException(ex)
+          Status.Code.NOT_FOUND -> throw Status.NOT_FOUND.toExternalStatusRuntimeException(ex)
+          else -> throw Status.UNKNOWN.toExternalStatusRuntimeException(ex)
         }
       }
 
