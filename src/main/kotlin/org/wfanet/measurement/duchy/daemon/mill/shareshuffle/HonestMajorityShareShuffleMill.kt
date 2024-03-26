@@ -15,16 +15,16 @@
 package org.wfanet.measurement.duchy.daemon.mill.shareshuffle
 
 import com.google.protobuf.ByteString
-import com.google.protobuf.kotlin.toByteString
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.metrics.Meter
+import java.security.SignatureException
+import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
-import kotlin.experimental.xor
 import kotlinx.coroutines.flow.flowOf
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
@@ -33,6 +33,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.RandomSeed
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.unpack
+import org.wfanet.measurement.common.BitwiseOperations.xor
 import org.wfanet.measurement.common.crypto.PrivateKeyStore
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
@@ -136,22 +137,12 @@ class HonestMajorityShareShuffleMill(
       Pair(Stage.AGGREGATION_PHASE, AGGREGATOR) to ::aggregationPhase,
     )
 
-  private val stageTransitions =
-    mapOf(
-      Pair(Stage.INITIALIZED, FIRST_NON_AGGREGATOR) to Stage.WAIT_TO_START,
-      Pair(Stage.INITIALIZED, SECOND_NON_AGGREGATOR) to Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_ONE,
-      Pair(Stage.SETUP_PHASE, FIRST_NON_AGGREGATOR) to Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_TWO,
-      Pair(Stage.SETUP_PHASE, SECOND_NON_AGGREGATOR) to Stage.SHUFFLE_PHASE,
-      Pair(Stage.SHUFFLE_PHASE, FIRST_NON_AGGREGATOR) to Stage.COMPLETE,
-      Pair(Stage.SHUFFLE_PHASE, SECOND_NON_AGGREGATOR) to Stage.COMPLETE,
-      Pair(Stage.AGGREGATION_PHASE, AGGREGATOR) to Stage.COMPLETE,
-    )
-
   private fun nextStage(token: ComputationToken): Stage {
     val stage = token.computationStage.honestMajorityShareShuffle
     val role = token.computationDetails.honestMajorityShareShuffle.role
 
-    return stageTransitions[Pair(stage, role)] ?: error("Unexpected stage or role: ($stage, $role)")
+    return STAGE_TRANSITIONS[Pair(stage, role)]
+      ?: error("Unexpected stage or role: ($stage, $role)")
   }
 
   override suspend fun processComputationImpl(token: ComputationToken) {
@@ -296,19 +287,6 @@ class HonestMajorityShareShuffleMill(
     return aggregationPhaseInputBlobs.map { AggregationPhaseInput.parseFrom(it.value) }
   }
 
-  private fun combineRandomSeeds(seed1: ByteString, seed2: ByteString): ByteString {
-    // TODO(@renjiez): Move this function to common-jvm.
-    require(seed1.size() == seed2.size()) {
-      "Seeds sizes do not match. size_1=${seed1.size()}, size_2=${seed2.size()}"
-    }
-
-    val combinedSeed = ByteArray(seed1.size())
-    for (i in combinedSeed.indices) {
-      combinedSeed[i] = seed1.byteAt(i) xor seed2.byteAt(i)
-    }
-    return combinedSeed.toByteString()
-  }
-
   private suspend fun verifySecretSeed(
     secretSeed: ShufflePhaseInput.SecretSeed,
     duchyPrivateKeyId: String,
@@ -316,7 +294,7 @@ class HonestMajorityShareShuffleMill(
     val privateKey =
       privateKeyStore.read(TinkKeyId(duchyPrivateKeyId.toLong()))
         ?: throw PermanentErrorException(
-          "Fail to read private key for requisition ${secretSeed.requisitionId}"
+          "Fail to get private key for requisition ${secretSeed.requisitionId}"
         )
 
     val encryptedAndSignedMessage = EncryptedMessage.parseFrom(secretSeed.secretSeedCiphertext)
@@ -331,7 +309,7 @@ class HonestMajorityShareShuffleMill(
           getCertificateRequest { name = dataProviderCertificateName }
         )
       } catch (e: StatusException) {
-        throw PermanentErrorException(e.message, e)
+        throw PermanentErrorException("Fail to get certificate for $dataProviderCertificateName", e)
       }
 
     val x509Certificate: X509Certificate = readCertificate(dataProviderCertificate.x509Der)
@@ -344,7 +322,11 @@ class HonestMajorityShareShuffleMill(
     try {
       verifyRandomSeed(signedMessage, x509Certificate, trustedIssuer)
     } catch (e: Exception) {
-      throw PermanentErrorException(e.message)
+      when (e) {
+        is CertPathValidatorException ->
+          throw PermanentErrorException("Invalid certificate for $dataProviderCertificateName", e)
+        is SignatureException -> throw PermanentErrorException("Signature fails verification.", e)
+      }
     }
 
     return randomSeed
@@ -361,7 +343,7 @@ class HonestMajorityShareShuffleMill(
     val request = completeShufflePhaseRequest {
       val hmss = token.computationDetails.honestMajorityShareShuffle
       sketchParams = hmss.parameters.sketchParams
-      commonRandomSeed = combineRandomSeeds(hmss.randomSeed, shufflePhaseInput.peerRandomSeed)
+      commonRandomSeed = hmss.randomSeed xor shufflePhaseInput.peerRandomSeed
       order =
         if (hmss.role == FIRST_NON_AGGREGATOR) {
           CompleteShufflePhaseRequest.NonAggregatorOrder.FIRST
@@ -393,6 +375,7 @@ class HonestMajorityShareShuffleMill(
           require(secretSeed != null) {
             "Neither blob and seed received for requisition $requisitionId"
           }
+
           val seed = verifySecretSeed(secretSeed, hmss.encryptionKeyPair.privateKeyId)
 
           sketchShares += sketchShare { this.seed = seed.data }
@@ -456,5 +439,16 @@ class HonestMajorityShareShuffleMill(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    private val STAGE_TRANSITIONS =
+      mapOf(
+        Pair(Stage.INITIALIZED, FIRST_NON_AGGREGATOR) to Stage.WAIT_TO_START,
+        Pair(Stage.INITIALIZED, SECOND_NON_AGGREGATOR) to Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_ONE,
+        Pair(Stage.SETUP_PHASE, FIRST_NON_AGGREGATOR) to Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_TWO,
+        Pair(Stage.SETUP_PHASE, SECOND_NON_AGGREGATOR) to Stage.SHUFFLE_PHASE,
+        Pair(Stage.SHUFFLE_PHASE, FIRST_NON_AGGREGATOR) to Stage.COMPLETE,
+        Pair(Stage.SHUFFLE_PHASE, SECOND_NON_AGGREGATOR) to Stage.COMPLETE,
+        Pair(Stage.AGGREGATION_PHASE, AGGREGATOR) to Stage.COMPLETE,
+      )
   }
 }
