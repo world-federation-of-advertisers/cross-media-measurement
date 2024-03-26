@@ -1,25 +1,27 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
-load("@rules_java//java:defs.bzl", "java_proto_library", "java_binary")
+load("@rules_java//java:defs.bzl", "java_binary", "java_proto_library")
 load("@io_grpc_grpc_java//:java_grpc_library.bzl", "java_grpc_library")
 
 java_binary(
     name = "edp_libs",
     main_class = "NotImportant",
     runtime_deps = [
-        ":edp_java_proto",
-        ":event_groups_service_java_proto",
         ":api_keys_service_java_proto",
         ":certificates_service_java_proto",
         ":data_providers_service_java_proto",
+        ":edp_java_proto",
         ":event_group_metadata_descriptors_service_java_proto",
+        ":event_groups_service_java_proto",
         ":measurements_service_java_proto",
+        ":model_lines_service_java_proto",
+        ":model_releases_service_java_proto",
+        ":model_rollouts_service_java_proto",
+        ":model_shards_service_java_proto",
+        ":model_suites_service_java_proto",
         ":public_keys_service_java_proto",
         ":requisitions_service_java_proto",
-        ":model_lines_service_java_proto",
-        ":model_suites_service_java_proto",
-        ":model_rollouts_service_java_proto",
-        ":model_releases_service_java_proto",
-        ":model_shards_service_java_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
     ],
 )
 
