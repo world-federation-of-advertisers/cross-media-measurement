@@ -209,6 +209,9 @@ class HonestMajorityShareShuffleMill(
   }
 
   private fun peerDuchyStub(participants: List<String>): ComputationControlCoroutineStub {
+    // TODO(@renjiez): remove participants fields and use a map to get stub for specific
+    // RoleInComputation.
+
     // The last participant is the aggregator.
     val peerDuchy = participants.dropLast(1).find { it != duchyId }
     return workerStubs[peerDuchy]
