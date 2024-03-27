@@ -35,7 +35,7 @@ object VidToIndexMapGenerator {
    * Generates the map (vid, (bucket index, normalized hash)) for all vids in the vid universe.
    *
    * Each vid is concatenated with a `salt`, then the sha256 of the combined string is computed. The
-   * vid's are sorted based on its hash value. The bucket index of a vid is its located in the
+   * vid's are sorted based on its hash value. The bucket index of a vid is its location in the
    * sorted array.
    */
   fun generateMapping(salt: ByteString, vidUniverse: List<Long>): Map<Long, IndexedValue> {
