@@ -66,27 +66,42 @@ import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt.Met
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportKt
+import org.wfanet.measurement.reporting.v2alpha.ReportSchedule
+import org.wfanet.measurement.reporting.v2alpha.ReportScheduleIteration
+import org.wfanet.measurement.reporting.v2alpha.ReportScheduleIterationsGrpcKt.ReportScheduleIterationsCoroutineImplBase
+import org.wfanet.measurement.reporting.v2alpha.ReportScheduleKt
+import org.wfanet.measurement.reporting.v2alpha.ReportSchedulesGrpcKt.ReportSchedulesCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.createMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
+import org.wfanet.measurement.reporting.v2alpha.createReportScheduleRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.eventGroup
 import org.wfanet.measurement.reporting.v2alpha.getMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
+import org.wfanet.measurement.reporting.v2alpha.getReportScheduleIterationRequest
+import org.wfanet.measurement.reporting.v2alpha.getReportScheduleRequest
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.reporting.v2alpha.listMetricCalculationSpecsRequest
 import org.wfanet.measurement.reporting.v2alpha.listMetricCalculationSpecsResponse
+import org.wfanet.measurement.reporting.v2alpha.listReportScheduleIterationsRequest
+import org.wfanet.measurement.reporting.v2alpha.listReportScheduleIterationsResponse
+import org.wfanet.measurement.reporting.v2alpha.listReportSchedulesRequest
+import org.wfanet.measurement.reporting.v2alpha.listReportSchedulesResponse
 import org.wfanet.measurement.reporting.v2alpha.listReportingSetsRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportingSetsResponse
 import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportsResponse
 import org.wfanet.measurement.reporting.v2alpha.metricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.report
+import org.wfanet.measurement.reporting.v2alpha.reportSchedule
+import org.wfanet.measurement.reporting.v2alpha.reportScheduleIteration
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
+import org.wfanet.measurement.reporting.v2alpha.stopReportScheduleRequest
 import org.wfanet.measurement.reporting.v2alpha.timeIntervals
 
 @RunWith(JUnit4::class)
@@ -130,6 +145,23 @@ class ReportingTest {
           }
         )
     }
+  private val reportSchedulesServiceMock: ReportSchedulesCoroutineImplBase = mockService {
+    onBlocking { createReportSchedule(any()) }.thenReturn(REPORT_SCHEDULE)
+    onBlocking { listReportSchedules(any()) }
+      .thenReturn(listReportSchedulesResponse { reportSchedules += REPORT_SCHEDULE })
+    onBlocking { getReportSchedule(any()) }.thenReturn(REPORT_SCHEDULE)
+    onBlocking { stopReportSchedule(any()) }.thenReturn(REPORT_SCHEDULE)
+  }
+  private val reportScheduleIterationsServiceMock: ReportScheduleIterationsCoroutineImplBase =
+    mockService {
+      onBlocking { listReportScheduleIterations(any()) }
+        .thenReturn(
+          listReportScheduleIterationsResponse {
+            reportScheduleIterations += REPORT_SCHEDULE_ITERATION
+          }
+        )
+      onBlocking { getReportScheduleIteration(any()) }.thenReturn(REPORT_SCHEDULE_ITERATION)
+    }
 
   private val serverCerts =
     SigningCerts.fromPemFiles(
@@ -146,6 +178,8 @@ class ReportingTest {
       eventGroupsServiceMock.bindService(),
       dataProvidersServiceMock.bindService(),
       eventGroupMetadataDescriptorsServiceMock.bindService(),
+      reportSchedulesServiceMock.bindService(),
+      reportScheduleIterationsServiceMock.bindService(),
     )
 
   private val server: Server =
@@ -975,6 +1009,451 @@ class ReportingTest {
       )
   }
 
+  @Test
+  fun `create report schedule with event start utc offset calls api with valid request`() {
+    val textFormatReportingMetricEntryFile =
+      TEXTPROTO_DIR.resolve("reporting_metric_entry.textproto").toFile()
+    val eventStartTime = "2024-01-17T01:00:00"
+    // number of hours
+    val utcOffset = "-8"
+    val eventEnd = "2025-01-17"
+    val dayOfTheWeek = 2
+    val dailyWindowCount = 5
+
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "report-schedules",
+        "create",
+        "--parent=$MEASUREMENT_CONSUMER_NAME",
+        "--display-name=$DISPLAY_NAME",
+        "--description=$DESCRIPTION",
+        "--event-start-time=$eventStartTime",
+        "--event-start-utc-offset=$utcOffset",
+        "--event-end=$eventEnd",
+        "--day-of-the-week=$dayOfTheWeek",
+        "--daily-window-count=$dailyWindowCount",
+        "--id=$REPORT_SCHEDULE_ID",
+        "--request-id=$REPORT_SCHEDULE_REQUEST_ID",
+        "--reporting-metric-entry=${textFormatReportingMetricEntryFile.readText()}",
+      )
+
+    val output = callCli(args)
+
+    verifyProtoArgument(
+        reportSchedulesServiceMock,
+        ReportSchedulesCoroutineImplBase::createReportSchedule,
+      )
+      .isEqualTo(
+        createReportScheduleRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          reportScheduleId = REPORT_SCHEDULE_ID
+          requestId = REPORT_SCHEDULE_REQUEST_ID
+          reportSchedule = reportSchedule {
+            displayName = DISPLAY_NAME
+            description = DESCRIPTION
+            eventStart = dateTime {
+              year = 2024
+              month = 1
+              day = 17
+              hours = 1
+              this.utcOffset = duration { seconds = 60 * 60 * -8 }
+            }
+            this.eventEnd = date {
+              year = 2025
+              month = 1
+              day = 17
+            }
+            reportTemplate = report {
+              reportingMetricEntries +=
+                parseTextProto(
+                  textFormatReportingMetricEntryFile,
+                  Report.ReportingMetricEntry.getDefaultInstance(),
+                )
+            }
+            frequency =
+              ReportScheduleKt.frequency {
+                weekly = ReportScheduleKt.FrequencyKt.weekly { this.dayOfWeek = DayOfWeek.TUESDAY }
+              }
+            reportWindow =
+              ReportScheduleKt.reportWindow {
+                trailingWindow =
+                  ReportScheduleKt.ReportWindowKt.trailingWindow {
+                    count = 5
+                    increment = ReportSchedule.ReportWindow.TrailingWindow.Increment.DAY
+                  }
+              }
+          }
+        }
+      )
+
+    assertThat(output).status().isEqualTo(0)
+    assertThat(parseTextProto(output.out.reader(), ReportSchedule.getDefaultInstance()))
+      .isEqualTo(REPORT_SCHEDULE)
+  }
+
+  @Test
+  fun `create report schedule with event start time zone calls api with valid request`() {
+    val textFormatReportingMetricEntryFile =
+      TEXTPROTO_DIR.resolve("reporting_metric_entry.textproto").toFile()
+    val eventStartTime = "2024-01-17T01:00:00"
+    val timeZone = "America/Los_Angeles"
+    val eventEnd = "2025-01-17"
+    val dayOfTheWeek = 2
+    val dailyWindowCount = 5
+
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "report-schedules",
+        "create",
+        "--parent=$MEASUREMENT_CONSUMER_NAME",
+        "--display-name=$DISPLAY_NAME",
+        "--description=$DESCRIPTION",
+        "--event-start-time=$eventStartTime",
+        "--event-start-time-zone=$timeZone",
+        "--event-end=$eventEnd",
+        "--day-of-the-week=$dayOfTheWeek",
+        "--daily-window-count=$dailyWindowCount",
+        "--id=$REPORT_SCHEDULE_ID",
+        "--request-id=$REPORT_SCHEDULE_REQUEST_ID",
+        "--reporting-metric-entry=${textFormatReportingMetricEntryFile.readText()}",
+      )
+
+    val output = callCli(args)
+
+    verifyProtoArgument(
+        reportSchedulesServiceMock,
+        ReportSchedulesCoroutineImplBase::createReportSchedule,
+      )
+      .isEqualTo(
+        createReportScheduleRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          reportScheduleId = REPORT_SCHEDULE_ID
+          requestId = REPORT_SCHEDULE_REQUEST_ID
+          reportSchedule = reportSchedule {
+            displayName = DISPLAY_NAME
+            description = DESCRIPTION
+            eventStart = dateTime {
+              year = 2024
+              month = 1
+              day = 17
+              hours = 1
+              this.timeZone = timeZone { id = timeZone }
+            }
+            this.eventEnd = date {
+              year = 2025
+              month = 1
+              day = 17
+            }
+            reportTemplate = report {
+              reportingMetricEntries +=
+                parseTextProto(
+                  textFormatReportingMetricEntryFile,
+                  Report.ReportingMetricEntry.getDefaultInstance(),
+                )
+            }
+            frequency =
+              ReportScheduleKt.frequency {
+                weekly = ReportScheduleKt.FrequencyKt.weekly { this.dayOfWeek = DayOfWeek.TUESDAY }
+              }
+            reportWindow =
+              ReportScheduleKt.reportWindow {
+                trailingWindow =
+                  ReportScheduleKt.ReportWindowKt.trailingWindow {
+                    count = 5
+                    increment = ReportSchedule.ReportWindow.TrailingWindow.Increment.DAY
+                  }
+              }
+          }
+        }
+      )
+
+    assertThat(output).status().isEqualTo(0)
+    assertThat(parseTextProto(output.out.reader(), ReportSchedule.getDefaultInstance()))
+      .isEqualTo(REPORT_SCHEDULE)
+  }
+
+  @Test
+  fun `create report schedule with fixed report window calls api with valid request`() {
+    val textFormatReportingMetricEntryFile =
+      TEXTPROTO_DIR.resolve("reporting_metric_entry.textproto").toFile()
+    val eventStartTime = "2024-01-17T01:00:00"
+    val timeZone = "America/Los_Angeles"
+    val eventEnd = "2025-01-17"
+    val dayOfTheWeek = 2
+    val fixedReportWindow = "2024-01-01"
+
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "report-schedules",
+        "create",
+        "--parent=$MEASUREMENT_CONSUMER_NAME",
+        "--display-name=$DISPLAY_NAME",
+        "--description=$DESCRIPTION",
+        "--event-start-time=$eventStartTime",
+        "--event-start-time-zone=$timeZone",
+        "--event-end=$eventEnd",
+        "--day-of-the-week=$dayOfTheWeek",
+        "--fixed-window=$fixedReportWindow",
+        "--id=$REPORT_SCHEDULE_ID",
+        "--request-id=$REPORT_SCHEDULE_REQUEST_ID",
+        "--reporting-metric-entry=${textFormatReportingMetricEntryFile.readText()}",
+      )
+
+    val output = callCli(args)
+
+    verifyProtoArgument(
+        reportSchedulesServiceMock,
+        ReportSchedulesCoroutineImplBase::createReportSchedule,
+      )
+      .isEqualTo(
+        createReportScheduleRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          reportScheduleId = REPORT_SCHEDULE_ID
+          requestId = REPORT_SCHEDULE_REQUEST_ID
+          reportSchedule = reportSchedule {
+            displayName = DISPLAY_NAME
+            description = DESCRIPTION
+            eventStart = dateTime {
+              year = 2024
+              month = 1
+              day = 17
+              hours = 1
+              this.timeZone = timeZone { id = timeZone }
+            }
+            this.eventEnd = date {
+              year = 2025
+              month = 1
+              day = 17
+            }
+            reportTemplate = report {
+              reportingMetricEntries +=
+                parseTextProto(
+                  textFormatReportingMetricEntryFile,
+                  Report.ReportingMetricEntry.getDefaultInstance(),
+                )
+            }
+            frequency =
+              ReportScheduleKt.frequency {
+                weekly = ReportScheduleKt.FrequencyKt.weekly { this.dayOfWeek = DayOfWeek.TUESDAY }
+              }
+            reportWindow =
+              ReportScheduleKt.reportWindow {
+                fixedWindow = date {
+                  year = 2024
+                  month = 1
+                  day = 1
+                }
+              }
+          }
+        }
+      )
+
+    assertThat(output).status().isEqualTo(0)
+    assertThat(parseTextProto(output.out.reader(), ReportSchedule.getDefaultInstance()))
+      .isEqualTo(REPORT_SCHEDULE)
+  }
+
+  @Test
+  fun `create report schedule with no time offset information fails`() {
+    val textFormatReportingMetricEntryFile =
+      TEXTPROTO_DIR.resolve("reporting_metric_entry.textproto").toFile()
+    val eventStartTime = "2024-01-17T01:00:00"
+    val eventEnd = "2025-01-17"
+    val dayOfTheWeek = 2
+    val dailyWindowCount = 5
+
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "report-schedules",
+        "create",
+        "--parent=$MEASUREMENT_CONSUMER_NAME",
+        "--display-name=$DISPLAY_NAME",
+        "--description=$DESCRIPTION",
+        "--event-start-time=$eventStartTime",
+        "--event-end=$eventEnd",
+        "--day-of-the-week=$dayOfTheWeek",
+        "--daily-window-count=$dailyWindowCount",
+        "--id=$REPORT_SCHEDULE_ID",
+        "--request-id=$REPORT_SCHEDULE_REQUEST_ID",
+        "--reporting-metric-entry=${textFormatReportingMetricEntryFile.readText()}",
+      )
+
+    val output = callCli(args)
+    assertThat(output).status().isEqualTo(2)
+  }
+
+  @Test
+  fun `create report schedule with no --reporting-metric-entry fails`() {
+    val eventStartTime = "2024-01-17T01:00:00"
+    val timeZone = "America/Los_Angeles"
+    val eventEnd = "2025-01-17"
+    val dayOfTheWeek = 2
+    val dailyWindowCount = 5
+
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "report-schedules",
+        "create",
+        "--parent=$MEASUREMENT_CONSUMER_NAME",
+        "--display-name=$DISPLAY_NAME",
+        "--description=$DESCRIPTION",
+        "--event-start-time=$eventStartTime",
+        "--event-start-time-zone=$timeZone",
+        "--event-end=$eventEnd",
+        "--day-of-the-week=$dayOfTheWeek",
+        "--daily-window-count=$dailyWindowCount",
+        "--id=$REPORT_SCHEDULE_ID",
+        "--request-id=$REPORT_SCHEDULE_REQUEST_ID",
+      )
+
+    val output = callCli(args)
+    assertThat(output).status().isEqualTo(2)
+  }
+
+  @Test
+  fun `list report schedules calls api with valid request`() {
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "report-schedules",
+        "list",
+        "--parent=$MEASUREMENT_CONSUMER_NAME",
+      )
+    callCli(args)
+
+    verifyProtoArgument(
+        reportSchedulesServiceMock,
+        ReportSchedulesCoroutineImplBase::listReportSchedules,
+      )
+      .isEqualTo(
+        listReportSchedulesRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          pageSize = 1000
+        }
+      )
+  }
+
+  @Test
+  fun `get report schedule calls api with valid request`() {
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "report-schedules",
+        "get",
+        REPORT_SCHEDULE_NAME,
+      )
+    val output = callCli(args)
+
+    verifyProtoArgument(
+        reportSchedulesServiceMock,
+        ReportSchedulesCoroutineImplBase::getReportSchedule,
+      )
+      .isEqualTo(getReportScheduleRequest { name = REPORT_SCHEDULE_NAME })
+    assertThat(output).status().isEqualTo(0)
+    assertThat(parseTextProto(output.out.reader(), ReportSchedule.getDefaultInstance()))
+      .isEqualTo(REPORT_SCHEDULE)
+  }
+
+  @Test
+  fun `stop report schedule calls api with valid request`() {
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "report-schedules",
+        "stop",
+        REPORT_SCHEDULE_NAME,
+      )
+    val output = callCli(args)
+
+    verifyProtoArgument(
+        reportSchedulesServiceMock,
+        ReportSchedulesCoroutineImplBase::stopReportSchedule,
+      )
+      .isEqualTo(stopReportScheduleRequest { name = REPORT_SCHEDULE_NAME })
+    assertThat(output).status().isEqualTo(0)
+    assertThat(parseTextProto(output.out.reader(), ReportSchedule.getDefaultInstance()))
+      .isEqualTo(REPORT_SCHEDULE)
+  }
+
+  @Test
+  fun `list report schedule iterations calls api with valid request`() {
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "report-schedule-iterations",
+        "list",
+        "--parent=$REPORT_SCHEDULE_NAME",
+      )
+    callCli(args)
+
+    verifyProtoArgument(
+        reportScheduleIterationsServiceMock,
+        ReportScheduleIterationsCoroutineImplBase::listReportScheduleIterations,
+      )
+      .isEqualTo(
+        listReportScheduleIterationsRequest {
+          parent = REPORT_SCHEDULE_NAME
+          pageSize = 1000
+        }
+      )
+  }
+
+  @Test
+  fun `get report schedule iteration calls api with valid request`() {
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "report-schedule-iterations",
+        "get",
+        REPORT_SCHEDULE_ITERATION_NAME,
+      )
+    val output = callCli(args)
+
+    verifyProtoArgument(
+        reportScheduleIterationsServiceMock,
+        ReportScheduleIterationsCoroutineImplBase::getReportScheduleIteration,
+      )
+      .isEqualTo(getReportScheduleIterationRequest { name = REPORT_SCHEDULE_ITERATION_NAME })
+    assertThat(output).status().isEqualTo(0)
+    assertThat(parseTextProto(output.out.reader(), ReportScheduleIteration.getDefaultInstance()))
+      .isEqualTo(REPORT_SCHEDULE_ITERATION)
+  }
+
   companion object {
     init {
       System.setSecurityManager(ExitInterceptingSecurityManager)
@@ -1040,6 +1519,19 @@ class ReportingTest {
       "$DATA_PROVIDER_NAME/eventGroupMetadataDescriptors/2"
     private val EVENT_GROUP_METADATA_DESCRIPTOR_2 = eventGroupMetadataDescriptor {
       name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2
+    }
+    private const val REPORT_SCHEDULE_REQUEST_ID = "def"
+    private const val REPORT_SCHEDULE_ID = "abc"
+    private const val REPORT_SCHEDULE_NAME =
+      "$MEASUREMENT_CONSUMER_NAME/reportSchedules/$REPORT_SCHEDULE_ID"
+    private const val DISPLAY_NAME = "display"
+    private const val DESCRIPTION = "description"
+    private val REPORT_SCHEDULE = reportSchedule { name = REPORT_SCHEDULE_NAME }
+    private const val REPORT_SCHEDULE_ITERATION_ID = "abc"
+    private const val REPORT_SCHEDULE_ITERATION_NAME =
+      "$MEASUREMENT_CONSUMER_NAME/reportSchedules/$REPORT_SCHEDULE_ID/iterations/$REPORT_SCHEDULE_ITERATION_ID"
+    private val REPORT_SCHEDULE_ITERATION = reportScheduleIteration {
+      name = REPORT_SCHEDULE_ITERATION_NAME
     }
   }
 }
