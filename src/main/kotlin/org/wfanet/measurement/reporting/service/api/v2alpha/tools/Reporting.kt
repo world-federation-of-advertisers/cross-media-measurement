@@ -624,7 +624,7 @@ class CreateUiReportCommand : Runnable {
     while (retry) {
       randomString = getRandomString(6)
       newName = name + "-" + randomString
-val getMetricSpecRequest = getMetricCalculationSpecRequest { this.name = newName }
+      val getMetricSpecRequest = getMetricCalculationSpecRequest { this.name = newName }
       try {
         runBlocking(Dispatchers.IO) {
           parent.metricCalculationSpecStub.getMetricCalculationSpec(getMetricSpecRequest)
@@ -660,7 +660,8 @@ val getMetricSpecRequest = getMetricCalculationSpecRequest { this.name = newName
         }
         for (grouping in groupings) {
           this.groupings +=
-            MetricCalculationSpecKt.grouping { predicates += grouping.trim().split(',') }        }
+            MetricCalculationSpecKt.grouping { predicates += grouping.trim().split(',') }
+        }
       }
     }
 
