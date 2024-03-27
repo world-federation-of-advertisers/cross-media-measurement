@@ -425,7 +425,7 @@ class CreateUiReportCommand : Runnable {
     primitiveRs: List<ReportingSet>,
     measurementConsumerName: String,
   ): ReportingSet {
-    val unionName = "union-" + edps.map{it.reportingSetName}.joinToString(separator = "-")
+    val unionName = "union-" + edps.map { it.reportingSetName }.joinToString(separator = "-")
     val unionDisplayName = "Union (${edps.map{it.reportingSetDisplayName}.joinToString()})"
 
     val rsRequest = createReportingSetRequest {
@@ -514,17 +514,15 @@ class CreateUiReportCommand : Runnable {
     return runBlocking(Dispatchers.IO) { parent.reportingSetStub.createReportingSet(request) }
   }
 
-  private fun getRandomString(length: Int) : String {
+  private fun getRandomString(length: Int): String {
     val allowedChars = ('A'..'Z') + ('a'..'z') + ('0'..'9')
-    return (1..length)
-        .map { allowedChars.random() }
-        .joinToString("")
+    return (1..length).map { allowedChars.random() }.joinToString("")
   }
 
   private fun createPrimitiveMetricSpecs(
     frequencySpec: MetricFrequencySpecInput,
     measurementConsumerName: String,
-    groupings: List<String>
+    groupings: List<String>,
   ): MetricCalculationSpec {
     val baseName = "basic-metric-spec"
     val specs =
@@ -560,13 +558,19 @@ class CreateUiReportCommand : Runnable {
         },
       )
 
-    return this.createMetricSpecs(baseName, measurementConsumerName, specs, frequencySpec, groupings)
+    return this.createMetricSpecs(
+      baseName,
+      measurementConsumerName,
+      specs,
+      frequencySpec,
+      groupings,
+    )
   }
 
   private fun createCompositeMetricSpecs(
     frequencySpec: MetricFrequencySpecInput,
     measurementConsumerName: String,
-    groupings: List<String>
+    groupings: List<String>,
   ): MetricCalculationSpec {
     val baseName = "other-metric-spec"
     val specs =
@@ -596,7 +600,13 @@ class CreateUiReportCommand : Runnable {
         },
       )
 
-    return this.createMetricSpecs(baseName, measurementConsumerName, specs, frequencySpec, groupings)
+    return this.createMetricSpecs(
+      baseName,
+      measurementConsumerName,
+      specs,
+      frequencySpec,
+      groupings,
+    )
   }
 
   private fun createMetricSpecs(
@@ -604,28 +614,25 @@ class CreateUiReportCommand : Runnable {
     measurementConsumerName: String,
     specs: List<MetricSpec>,
     frequencySpec: MetricFrequencySpecInput,
-    groupings: List<String>
+    groupings: List<String>,
   ): MetricCalculationSpec {
     // Add random string to the end of the name to help with uniqueness.
     // This only helps so still need to make sure it's actually unique.
     var retry = true
-    var randomString: String = ""
+    var randomString: String
     var newName: String = ""
     while (retry) {
       randomString = getRandomString(6)
       newName = name + "-" + randomString
-      val getMetricSpecRequest = getMetricCalculationSpecRequest {
-        this.name = newName
-      }
+val getMetricSpecRequest = getMetricCalculationSpecRequest { this.name = newName }
       try {
         runBlocking(Dispatchers.IO) {
           parent.metricCalculationSpecStub.getMetricCalculationSpec(getMetricSpecRequest)
         }
-      } catch(e: StatusException) {
+      } catch (e: StatusException) {
         retry = false
       }
     }
-
 
     val msRequestUnique = createMetricCalculationSpecRequest {
       parent = measurementConsumerName
@@ -652,8 +659,8 @@ class CreateUiReportCommand : Runnable {
           metricSpecs += spec
         }
         for (grouping in groupings) {
-          this.groupings += MetricCalculationSpecKt.grouping { predicates += grouping.trim().split(',') }
-        }
+          this.groupings +=
+            MetricCalculationSpecKt.grouping { predicates += grouping.trim().split(',') }        }
       }
     }
 
@@ -703,19 +710,11 @@ class CreateUiReportCommand : Runnable {
 
     // 2a. create impressions and reach and frequency metric specs
     val metricCalculationSpecAll =
-      createPrimitiveMetricSpecs(
-        metricFrequencySpecInput,
-        measurementConsumerName,
-        groupings
-      )
+      createPrimitiveMetricSpecs(metricFrequencySpecInput, measurementConsumerName, groupings)
 
     // 2b. create impressions and reach metric specs
     val metricCalculationSpecUnique =
-      createCompositeMetricSpecs(
-        metricFrequencySpecInput,
-        measurementConsumerName,
-        groupings
-      )
+      createCompositeMetricSpecs(metricFrequencySpecInput, measurementConsumerName, groupings)
 
     // 3. create the report
     val request = createReportRequest {
