@@ -171,7 +171,7 @@ message HonestMajorityShareShuffle {
 
     // The requisition data in format of a secret seed.
     message SecretSeed {
-      // Corresponding external requisition id.
+      // Requisition id from the public api.
       string requisition_id = 1;
 
       // Ciphertext containing a serialized `SignedMessage` message from the
@@ -181,8 +181,9 @@ message HonestMajorityShareShuffle {
       // The number of registers in the sketch.
       int64 register_count = 3;
 
-      // Resource name of the `Certificate` belonging to the parent
-      // `DataProvider` used to verify the secret_seed signature.
+      // Resource name of the `Certificate` from the public api belonging to the
+      // parent `DataProvider` used to verify the secret_seed signature. The
+      // public api version is in requisition details.
       string data_provider_certificate = 4;
     }
     repeated SecretSeed secret_seeds = 2;
