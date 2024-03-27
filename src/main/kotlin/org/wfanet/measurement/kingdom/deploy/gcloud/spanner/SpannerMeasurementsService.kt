@@ -18,7 +18,6 @@ import com.google.protobuf.Empty
 import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -48,6 +47,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFound
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementEtagMismatchException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByComputationException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByMeasurementConsumerException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurements
@@ -116,7 +117,12 @@ class SpannerMeasurementsService(
         ExternalId(request.externalMeasurementConsumerId),
         ExternalId(request.externalMeasurementId),
       )
-      ?.measurement ?: failGrpc(Status.NOT_FOUND) { "Measurement not found" }
+      ?.measurement
+      ?: throw MeasurementNotFoundByMeasurementConsumerException(
+          ExternalId(request.externalMeasurementConsumerId),
+          ExternalId(request.externalMeasurementId),
+        )
+        .asStatusRuntimeException(Status.Code.NOT_FOUND, "Measurement not found")
   }
 
   override suspend fun getMeasurementByComputationId(
@@ -124,7 +130,9 @@ class SpannerMeasurementsService(
   ): Measurement {
     return MeasurementReader(Measurement.View.COMPUTATION)
       .readByExternalComputationId(client.singleUse(), ExternalId(request.externalComputationId))
-      ?.measurement ?: failGrpc(Status.NOT_FOUND) { "Measurement not found" }
+      ?.measurement
+      ?: throw MeasurementNotFoundByComputationException(ExternalId(request.externalComputationId))
+        .asStatusRuntimeException(Status.Code.NOT_FOUND, "Measurement not found")
   }
 
   override fun streamMeasurements(request: StreamMeasurementsRequest): Flow<Measurement> {
