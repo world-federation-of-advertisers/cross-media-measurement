@@ -53,15 +53,15 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ApiKeyNotFoun
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 
 private const val ACCOUNT_NAME = "accounts/AAAAAAC8YU4"
-private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
-private const val MEASUREMENT_CONSUMER_NAME_2 = "measurementConsumers/AAAAAAAAAJs"
-private const val API_KEY_NAME = "$MEASUREMENT_CONSUMER_NAME/apiKeys/AAAAAAAAAMs"
-private const val API_KEY_NAME_2 = "$MEASUREMENT_CONSUMER_NAME_2/apiKeys/AAAAAAAAANs"
+private const val EXTERNAL_MEASUREMENT_CONSUMER_ID = 123L
+private const val EXTERNAL_MEASUREMENT_CONSUMER_ID_2 = 155L
 private const val AUTHENTICATION_KEY = 12345672L
-private val EXTERNAL_MEASUREMENT_CONSUMER_ID =
-  apiIdToExternalId(
-    MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
-  )
+private val MEASUREMENT_CONSUMER_NAME =
+  MeasurementConsumerKey(externalIdToApiId(EXTERNAL_MEASUREMENT_CONSUMER_ID)).toName()
+private val MEASUREMENT_CONSUMER_NAME_2 =
+  MeasurementConsumerKey(externalIdToApiId(EXTERNAL_MEASUREMENT_CONSUMER_ID_2)).toName()
+private val API_KEY_NAME = "$MEASUREMENT_CONSUMER_NAME/apiKeys/AAAAAAAAAMs"
+private val API_KEY_NAME_2 = "$MEASUREMENT_CONSUMER_NAME_2/apiKeys/AAAAAAAAANs"
 private val EXTERNAL_API_KEY_ID = apiIdToExternalId(ApiKeyKey.fromName(API_KEY_NAME)!!.apiKeyId)
 
 @RunWith(JUnit4::class)

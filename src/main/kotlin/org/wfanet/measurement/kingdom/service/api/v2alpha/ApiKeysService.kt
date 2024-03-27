@@ -62,11 +62,11 @@ class ApiKeysService(private val internalApiKeysStub: ApiKeysCoroutineStub) :
     val result =
       try {
         internalApiKeysStub.createApiKey(internalCreateApiKeyRequest)
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.NOT_FOUND -> throw Status.NOT_FOUND.toExternalStatusRuntimeException(ex)
-          else -> throw Status.UNKNOWN.toExternalStatusRuntimeException(ex)
-        }
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
 
     return result.toApiKey()
@@ -93,11 +93,11 @@ class ApiKeysService(private val internalApiKeysStub: ApiKeysCoroutineStub) :
     val result =
       try {
         internalApiKeysStub.deleteApiKey(deleteApiKeyRequest)
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.NOT_FOUND -> throw Status.NOT_FOUND.toExternalStatusRuntimeException(ex)
-          else -> throw Status.UNKNOWN.toExternalStatusRuntimeException(ex)
-        }
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
 
     return result.toApiKey()
