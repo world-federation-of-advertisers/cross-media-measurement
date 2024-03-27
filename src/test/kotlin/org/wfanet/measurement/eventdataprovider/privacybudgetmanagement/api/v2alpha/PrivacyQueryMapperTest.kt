@@ -80,7 +80,8 @@ class PrivacyQueryMapperTest {
         REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.reachPrivacyParams.delta +
           REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.frequencyPrivacyParams.delta,
       )
-    val expectedAcdpCharge = AcdpParamsConverter.getDirectAcdpCharge(dpParams, SENSITIVITY)
+    val expectedAcdpCharge =
+      AcdpParamsConverter.getDirectAcdpCharge(dpParams, PrivacyQueryMapper.SENSITIVITY)
 
     assertThat(
         getDirectAcdpQuery(
@@ -142,7 +143,7 @@ class PrivacyQueryMapperTest {
           REACH_MEASUREMENT_SPEC.reach.privacyParams.epsilon,
           REACH_MEASUREMENT_SPEC.reach.privacyParams.delta,
         ),
-        SENSITIVITY,
+        PrivacyQueryMapper.SENSITIVITY,
       )
 
     assertThat(
@@ -175,7 +176,7 @@ class PrivacyQueryMapperTest {
           IMPRESSION_MEASUREMENT_SPEC.impression.privacyParams.epsilon,
           IMPRESSION_MEASUREMENT_SPEC.impression.privacyParams.delta,
         ),
-        SENSITIVITY,
+        PrivacyQueryMapper.SENSITIVITY,
       )
 
     assertThat(
@@ -204,7 +205,7 @@ class PrivacyQueryMapperTest {
           DURATION_MEASUREMENT_SPEC.duration.privacyParams.epsilon,
           DURATION_MEASUREMENT_SPEC.duration.privacyParams.delta,
         ),
-        SENSITIVITY,
+        PrivacyQueryMapper.SENSITIVITY,
       )
 
     assertThat(
@@ -231,7 +232,6 @@ class PrivacyQueryMapperTest {
     private const val FILTER_EXPRESSION =
       "person.gender==0 && person.age_group==0 && banner_ad.gender == 1"
     private const val CONTRIBUTOR_COUNT = 3
-    private const val SENSITIVITY = 1.0
 
     private val REQUISITION_SPEC = requisitionSpec {
       events =

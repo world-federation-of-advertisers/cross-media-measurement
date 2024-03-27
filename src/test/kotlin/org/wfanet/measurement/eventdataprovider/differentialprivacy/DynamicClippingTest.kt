@@ -21,6 +21,22 @@ import org.junit.runners.JUnit4
 
 @RunWith(JUnit4::class)
 class DynamicClippingTest {
+  @Test
+  fun `computeImpressionCappedHistogram returns expected result when frequencyMap is empty`() {
+    val frequencyMap: Map<Long, Long> = mapOf()
+
+    // Rho should not affect the result when input is empty.
+    val dynamicClipping = DynamicClipping(0.5, IMPRESSION_MEASUREMENT_TYPE)
+    val dynamicClipResult = dynamicClipping.computeImpressionCappedHistogram(frequencyMap)
+
+    // Expected noisedCumulativeHistogramList should be empty.
+    val expectedCumulativeHistogramList: List<Double> = listOf()
+
+    assertAlmostEqualCumulativeHistogram(
+      dynamicClipResult.noisedCumulativeHistogramList,
+      expectedCumulativeHistogramList,
+    )
+  }
 
   @Test
   fun `computeImpressionCappedHistogram returns expected result with small maxThreshold`() {
@@ -178,6 +194,17 @@ class DynamicClippingTest {
 
     // The first element should be zero which means 0 impression/duration has 0 count.
     val expectedHistogramList = listOf(0L, 5L, 0L, 10L, 0L, 3L)
+
+    assertThat(histogramList).isEqualTo(expectedHistogramList)
+  }
+
+  @Test
+  fun `frequencyHistogramMapToList works as expected for empty frequencyHistogramMap`() {
+    val frequencyHistogramMap: Map<Long, Long> = mapOf()
+    val histogramList = DynamicClipping.frequencyHistogramMapToList(frequencyHistogramMap)
+
+    // List of [0L] should be returned.
+    val expectedHistogramList: List<Long> = listOf(0L)
 
     assertThat(histogramList).isEqualTo(expectedHistogramList)
   }
