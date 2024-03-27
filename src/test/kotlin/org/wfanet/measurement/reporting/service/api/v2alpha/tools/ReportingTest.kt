@@ -1152,9 +1152,7 @@ class ReportingTest {
             year = 2000
             month = 1
             day = 1
-            this.timeZone = timeZone {
-              id = "UTC"
-            }
+            this.timeZone = timeZone { id = "UTC" }
           }
           reportEnd = date {
             year = 2000
