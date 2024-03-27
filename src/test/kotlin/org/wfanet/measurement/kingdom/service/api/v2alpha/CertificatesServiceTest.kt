@@ -1469,9 +1469,10 @@ class CertificatesServiceTest {
     internalCertificatesMock.stub {
       onBlocking { releaseCertificateHold(any()) }
         .thenThrow(
-          CertificateRevocationStateIllegalException(EXTERNAL_CERTIFICATE_ID,
-            InternalCertificate.RevocationState.REVOCATION_STATE_UNSPECIFIED,
-          )
+          CertificateRevocationStateIllegalException(
+              EXTERNAL_CERTIFICATE_ID,
+              InternalCertificate.RevocationState.REVOCATION_STATE_UNSPECIFIED,
+            )
             .asStatusRuntimeException(
               Status.Code.FAILED_PRECONDITION,
               "Certificate in illegal state",

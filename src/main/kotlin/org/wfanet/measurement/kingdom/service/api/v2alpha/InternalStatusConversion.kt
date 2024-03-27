@@ -194,7 +194,8 @@ fun Status.toExternalStatusRuntimeException(
             externalIdToApiId(
               checkNotNull(errorInfo.metadataMap["external_certificate_id"]).toLong()
             )
-          val certificateRevocationState = checkNotNull(errorInfo.metadataMap["certificate_revocation_state"]).toString()
+          val certificateRevocationState =
+            checkNotNull(errorInfo.metadataMap["certificate_revocation_state"]).toString()
           put("external_certificate_id", certificateApiId)
           put("certification_revocation_state", certificateRevocationState)
           errorMessage = "Certificate is in illegal revocation state: $certificateRevocationState."
