@@ -84,7 +84,7 @@ collectors: {
               enabled: true
           }
           googlecloud: {
-            project: "\(#GCloudConfig.project"
+            project: "\(#GCloudConfig.project)"
             trace: {}
           }
         }
