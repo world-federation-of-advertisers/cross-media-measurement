@@ -14,14 +14,121 @@
 
 package k8s
 
+import "encoding/yaml"
+
+#GCloudProject: string @tag("google_cloud_project")
+
+// Name of K8s service account for OpenTelemetry collector.
+#CollectorServiceAccount: "open-telemetry"
+
 objectSets: [
-	openTelemetry.collectors,
+	collectors,
 	openTelemetry.instrumentations,
-	openTelemetry.networkPolicies,
+	networkPolicies,
+	serviceAccounts,
 ]
+
+serviceAccounts: [Name=string]: #ServiceAccount & {
+  metadata: name: Name
+}
+
+serviceAccounts: {
+  "\(#CollectorServiceAccount)": #WorkloadIdentityServiceAccount & {
+    _iamServiceAccountName: "open-telemetry"
+  }
+}
 
 #OpenTelemetryCollector: {
 	spec: resources: requests: memory: "48Mi"
 }
 
 openTelemetry: #OpenTelemetry
+
+collectors: [Name=string]: #OpenTelemetryCollector & {
+	metadata: name: Name
+}
+
+collectors: {
+	"default": {
+		spec: {
+			serviceAccount: #CollectorServiceAccount
+      _config: {
+        receivers: {
+          otlp:
+            protocols:
+              grpc:
+                endpoint: "0.0.0.0:\(#OpenTelemetryReceiverPort)"
+        }
+
+        processors: {
+          batch: {
+            send_batch_size: 200
+            timeout:         "10s"
+          }
+          filter: {
+            spans: {
+              exclude: {
+                match_type: "strict"
+                attributes: [{
+                   key: "rpc.method"
+                   value: "Check"
+                }]
+              }
+            }
+          }
+        }
+
+        exporters: {...} | *{
+          prometheus: {
+            send_timestamps: true
+            endpoint:        "0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)"
+            resource_to_telemetry_conversion:
+              enabled: true
+          }
+          googlecloud: {
+            project: "\(#GCloudProject)"
+            trace: {}
+          }
+        }
+
+        extensions: {...} | *{
+          health_check: {}
+        }
+
+        service: {
+          extensions: [...] | *["health_check"]
+          pipelines: {
+            traces: {
+              receivers: ["otlp"]
+              processors: ["batch", "filter"]
+              exporters: [...] | *["googlecloud"]
+            }
+            metrics: {
+              receivers: ["otlp"]
+              processors: ["batch"]
+              exporters: [...] | *["prometheus"]
+            }
+          }
+        }
+      }
+
+      config: yaml.Marshal(_config)
+     }
+   }
+}
+
+networkPolicies: [Name=_]: #NetworkPolicy & {
+	_policyPodSelectorMatchLabels: "app.kubernetes.io/component": "opentelemetry-collector"
+	_name: Name
+}
+
+networkPolicies: {
+	"opentelemetry-collector": {
+		_ingresses: {
+			any: {}
+		}
+		_egresses: {
+			any: {}
+		}
+	}
+}
