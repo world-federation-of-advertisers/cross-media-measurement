@@ -974,7 +974,8 @@ class ReportingTest {
           metricCalculationSpec {
             name =
               MEASUREMENT_CONSUMER_NAME +
-                "/metricCalculationSpecs/${request.metricCalculationSpec.name}"          }
+                "/metricCalculationSpecs/${request.metricCalculationSpec.name}"
+          }
         }
     }
 
@@ -984,7 +985,8 @@ class ReportingTest {
           val request = it.arguments[0] as CreateReportingSetRequest
           reportingSet {
             name = MEASUREMENT_CONSUMER_NAME + "/reportingSets/${request.reportingSet.name}"
-          }        }
+          }
+        }
     }
 
     val args =
@@ -1210,7 +1212,7 @@ class ReportingTest {
           .size
       )
       .isEqualTo(1)
-    
+
     //  - verify union reporting set
     val meUnion =
       metricEntries.filter { it.key == MEASUREMENT_CONSUMER_NAME + "/reportingSets/union-A-B-C" }
