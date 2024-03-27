@@ -1,0 +1,44 @@
+# proto-file: wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto
+# proto-message: CartesianSyntheticEventGroupSpecRecipe
+
+# Spec for use with synthetic_population_spec.textproto.
+# Reach of this spec is ~2M.
+
+date_specs {
+  date_range {
+    start {
+      year: 2021
+      month: 3
+      day: 15
+    }
+    end_exclusive {
+      year: 2021
+      month: 3
+      day: 16
+    }
+  }
+  total_reach: 2000000
+
+  frequency_ratios: { key: 1 value: 0.6 }
+  frequency_ratios: { key: 2 value: 0.2 }
+  frequency_ratios: { key: 3 value: 0.1 }
+  frequency_ratios: { key: 4 value: 0.1 }
+
+  non_population_dimension_specs: {
+
+    key: "video_ad.viewed_fraction"
+    field_value_ratios: {
+      value {
+        double_value: 0.25
+      }
+      ratio: 0.7
+    }
+    field_value_ratios: {
+      value {
+        double_value: 0.5
+      }
+      ratio: 0.3
+    }
+  }
+}
+

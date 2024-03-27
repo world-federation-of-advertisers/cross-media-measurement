@@ -26,9 +26,9 @@ _resourceRequirements: ResourceRequirements=#ResourceRequirements & {
 
 _populationSpec: "/etc/\(#AppName)/config-files/synthetic_population_spec.textproto"
 _eventGroupSpecs: [
-	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_1.textproto",
-	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_2.textproto",
-	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_3.textproto",
+	"/etc/\(#AppName)/config-files/cartesian_synthetic_event_group_spec_recipie_1.textproto",
+	"/etc/\(#AppName)/config-files/cartesian_synthetic_event_group_spec_recipie_2.textproto",
+	"/etc/\(#AppName)/config-files/cartesian_synthetic_event_group_spec_recipie_3.textproto",
 ]
 
 edp_simulators: {
@@ -40,7 +40,7 @@ edp_simulators: {
 			_imageConfig: repoSuffix: "simulator/synthetic-generator-edp"
 			_additional_args: [
 				"--population-spec=\(_populationSpec)",
-				"--event-group-spec==\(EventGroupSpec)",
+				"--cartesian-event-group-spec==\(EventGroupSpec)",
 			]
 			deployment: {
 				_container: {
