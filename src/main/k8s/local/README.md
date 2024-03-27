@@ -176,15 +176,11 @@ directory. This uses the AKIDs from the test certificates in
 [secretfiles](../testing/secretfiles). For more information on the file format,
 see [Creating Resources](../../../../docs/operations/creating-resources.md).
 
-```shell
-cp /tmp/resource-setup/authority_key_identifier_to_principal_map.textproto /tmp/cmms/src/main/k8s/local/config_files
-```
-
 You can then apply the Kustomization from the directory where you extracted the
 archive:
 
 ```shell
-kubectl apply -k /tmp/cmms/src/main/k8s/local/cmms/
+kubectl apply -k src/main/k8s/local/cmms/
 ```
 
 This will restart the Kingdom with the updated configuration. It will also
