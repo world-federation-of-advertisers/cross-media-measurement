@@ -293,7 +293,7 @@ class CreateUiReportCommand : Runnable {
   class ReportingSetParams {
     @CommandLine.Option(
       names = ["--cmms-event-group"],
-      description = ["List of CMMS EventGroup resource names"],
+      description = ["EventGroup resource name from the CMMS API. This can be specified multiple times"],
       required = true,
     )
     lateinit var eventGroupNames: List<String>
@@ -1089,7 +1089,7 @@ class CreateMetricCalculationSpecCommand : Runnable {
       """
         ],
     )
-    var dayOfTheWeek: Int = 0
+    var dayOfTheWeek: DayOfWeek = 0
       private set
 
     @CommandLine.Option(
