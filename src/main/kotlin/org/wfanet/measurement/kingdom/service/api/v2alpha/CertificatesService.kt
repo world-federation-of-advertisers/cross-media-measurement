@@ -111,8 +111,8 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
       } catch (ex: StatusException) {
         when (ex.status.code) {
           Status.Code.INVALID_ARGUMENT ->
-            failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+            throw Status.INVALID_ARGUMENT.toExternalStatusRuntimeException(ex)
+          else -> throw Status.UNKNOWN.toExternalStatusRuntimeException(ex)
         }
       }
     return internalCertificate.toCertificate()
@@ -185,11 +185,10 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
         internalCertificatesStub.streamCertificates(internalRequest).toList()
       } catch (e: StatusException) {
         throw when (e.status.code) {
-            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-            else -> Status.UNKNOWN
-          }
-          .withCause(e)
-          .asRuntimeException()
+          Status.Code.DEADLINE_EXCEEDED ->
+            Status.DEADLINE_EXCEEDED.toExternalStatusRuntimeException(e)
+          else -> Status.UNKNOWN.toExternalStatusRuntimeException(e)
+        }
       }
 
     if (internalCertificates.isEmpty()) {
@@ -244,14 +243,12 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
         internalCertificatesStub.createCertificate(internalCertificate)
       } catch (ex: StatusException) {
         when (ex.status.code) {
-          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { ex.message ?: "Not found" }
+          Status.Code.NOT_FOUND -> throw Status.NOT_FOUND.toExternalStatusRuntimeException(ex)
           Status.Code.ALREADY_EXISTS ->
-            failGrpc(Status.ALREADY_EXISTS, ex) {
-              "Certificate with the subject key identifier (SKID) already exists."
-            }
+            throw Status.ALREADY_EXISTS.toExternalStatusRuntimeException(ex)
           Status.Code.INVALID_ARGUMENT ->
-            failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+            throw Status.INVALID_ARGUMENT.toExternalStatusRuntimeException(ex)
+          else -> throw Status.UNKNOWN.toExternalStatusRuntimeException(ex)
         }
       }
     return response.toCertificate()
@@ -296,10 +293,10 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
         internalCertificatesStub.revokeCertificate(internalRevokeCertificateRequest)
       } catch (ex: StatusException) {
         when (ex.status.code) {
-          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { ex.message ?: "Not found" }
+          Status.Code.NOT_FOUND -> throw Status.NOT_FOUND.toExternalStatusRuntimeException(ex)
           Status.Code.FAILED_PRECONDITION ->
-            failGrpc(Status.FAILED_PRECONDITION, ex) { "Certificate is in wrong State." }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+            throw Status.FAILED_PRECONDITION.toExternalStatusRuntimeException(ex)
+          else -> throw Status.UNKNOWN.toExternalStatusRuntimeException(ex)
         }
       }
     return internalCertificate.toCertificate()
@@ -339,10 +336,10 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
         internalCertificatesStub.releaseCertificateHold(internalReleaseCertificateHoldRequest)
       } catch (ex: StatusException) {
         when (ex.status.code) {
-          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { ex.message ?: "Not found" }
+          Status.Code.NOT_FOUND -> throw Status.NOT_FOUND.toExternalStatusRuntimeException(ex)
           Status.Code.FAILED_PRECONDITION ->
-            failGrpc(Status.FAILED_PRECONDITION, ex) { "Certificate is in wrong State." }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+            throw Status.FAILED_PRECONDITION.toExternalStatusRuntimeException(ex)
+          else -> throw Status.UNKNOWN.toExternalStatusRuntimeException(ex)
         }
       }
     return internalCertificate.toCertificate()
