@@ -198,10 +198,10 @@ fun Status.toExternalStatusRuntimeException(
         ErrorCode.ACCOUNT_NOT_FOUND -> {
           val accountName =
             AccountKey(
-              externalIdToApiId(
-                checkNotNull(errorInfo.metadataMap["external_account_id"]).toLong()
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_account_id"]).toLong()
+                )
               )
-            )
               .toName()
           put("account", accountName)
           errorMessage = "Account $accountName not found."
@@ -209,10 +209,10 @@ fun Status.toExternalStatusRuntimeException(
         ErrorCode.DUPLICATE_ACCOUNT_IDENTITY -> {
           val accountName =
             AccountKey(
-              externalIdToApiId(
-                checkNotNull(errorInfo.metadataMap["external_account_id"]).toLong()
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_account_id"]).toLong()
+                )
               )
-            )
               .toName()
           val issuer = checkNotNull(errorInfo.metadataMap["issuer"])
           val subject = checkNotNull(errorInfo.metadataMap["subject"])
@@ -225,10 +225,10 @@ fun Status.toExternalStatusRuntimeException(
         ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL -> {
           val accountName =
             AccountKey(
-              externalIdToApiId(
-                checkNotNull(errorInfo.metadataMap["external_account_id"]).toLong()
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_account_id"]).toLong()
+                )
               )
-            )
               .toName()
           val accountActivationState =
             checkNotNull(errorInfo.metadataMap["account_activation_state"]).toString()
