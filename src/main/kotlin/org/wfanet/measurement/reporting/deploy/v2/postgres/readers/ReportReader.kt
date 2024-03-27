@@ -90,9 +90,9 @@ class ReportReader(private val readContext: ReadContext) {
     """
     LEFT JOIN ReportsReportSchedules USING(MeasurementConsumerId, ReportId)
     LEFT JOIN ReportSchedules USING(MeasurementConsumerId, ReportScheduleId)
-    JOIN MetricCalculationSpecReportingMetrics USING(MeasurementConsumerId, ReportId)
-    JOIN ReportingSets USING(MeasurementConsumerId, ReportingSetId)
-    JOIN MetricCalculationSpecs USING(MeasurementConsumerId, MetricCalculationSpecId)
+    JOIN ReportingSets USING(MeasurementConsumerId)
+    JOIN MetricCalculationSpecs USING(MeasurementConsumerId)
+    JOIN MetricCalculationSpecReportingMetrics USING(MeasurementConsumerId, ReportId, ReportingSetId, MetricCalculationSpecId)
     LEFT JOIN Metrics USING(MeasurementConsumerId, MetricId)
     """
       .trimIndent()
