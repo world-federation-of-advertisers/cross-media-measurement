@@ -512,7 +512,7 @@ kustomization_dir(
 cue_dump(
     name = "open_telemetry_gke",
     srcs = ["open_telemetry_gke.cue"],
-    cue_tages = {
+    cue_tags = {
         "google_cloud_project": GCLOUD_SETTINGS.project,
     },
     tags = ["manual"],
