@@ -103,7 +103,7 @@ import "encoding/yaml"
 				env: [
 				  {
 				    name: "OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT"
-				    value: "128"
+				    value: "256"
 				  }, {
 						name:  "OTEL_TRACES_EXPORTER"
 						value: "otlp"

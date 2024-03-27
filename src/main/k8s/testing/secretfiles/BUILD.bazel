@@ -124,6 +124,14 @@ genrule(
     tools = ["//src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:EncryptionPublicKeys"],
 )
 
+proto_descriptor_set(
+    name = "known_event_group_metadata_type_set",
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:test_metadata_message_proto",
+    ],
+)
+
 SECRET_FILES = [
     "all_root_certs.pem",
     "edp_trusted_certs.pem",

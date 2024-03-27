@@ -20,6 +20,9 @@ package k8s
 
 	_reportSchedulingCronSchedule: string | *"30 6 * * *" // Daily at 6:30 AM
 
+	_certificateCacheExpirationDuration:  string | *"60m"
+	_dataProviderCacheExpirationDuration: string | *"60m"
+
 	_postgresConfig: #PostgresConfig
 
 	_internalApiTarget: #GrpcTarget & {
@@ -64,6 +67,7 @@ package k8s
 	_encryptionKeyPairDirFlag:          "--key-pair-dir=/var/run/secrets/files"
 	_encryptionKeyPairConfigFileFlag:   "--key-pair-config-file=/etc/\(#AppName)/config-files/encryption_key_pair_config.textproto"
 	_metricSpecConfigFileFlag:          "--metric-spec-config-file=/etc/\(#AppName)/config-files/metric_spec_config.textproto"
+	_knownEventGroupMetadataTypeFlag:   "--known-event-group-metadata-type=/etc/\(#AppName)/config-files/known_event_group_metadata_type_set.pb"
 	_debugVerboseGrpcClientLoggingFlag: "--debug-verbose-grpc-client-logging=\(_verboseGrpcClientLogging)"
 	_debugVerboseGrpcServerLoggingFlag: "--debug-verbose-grpc-server-logging=\(_verboseGrpcServerLogging)"
 
@@ -119,9 +123,12 @@ package k8s
 						_encryptionKeyPairDirFlag,
 						_encryptionKeyPairConfigFileFlag,
 						_metricSpecConfigFileFlag,
+						_knownEventGroupMetadataTypeFlag,
 						"--port=8443",
 						"--health-port=8080",
 						"--event-group-metadata-descriptor-cache-duration=1h",
+						"--certificate-cache-expiration-duration=\(_certificateCacheExpirationDuration)",
+						"--data-provider-cache-expiration-duration=\(_dataProviderCacheExpirationDuration)",
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args
 
 			spec: template: spec: {

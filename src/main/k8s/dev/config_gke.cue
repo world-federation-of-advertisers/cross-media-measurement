@@ -17,7 +17,7 @@ package k8s
 #GCloudProject: string @tag("google_cloud_project")
 
 #GCloudConfig: {
-	project: "halo-cmm-dev"
+	project: #GCloudProject
 }
 
 #SpannerConfig: {
