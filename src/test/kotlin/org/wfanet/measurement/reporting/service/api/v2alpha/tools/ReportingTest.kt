@@ -960,25 +960,21 @@ class ReportingTest {
     val eventGroupArgs1 = edps[0].eventGroups.map { "--cmms-event-group=${it}" }
     val eventGroupArgs2 = edps[1].eventGroups.map { "--cmms-event-group=${it}" }
     val eventGroupArgs3 = edps[2].eventGroups.map { "--cmms-event-group=${it}" }
-    val metric1Name = "MC1"
-    val metric1DisplayName = "Metric Spec 1"
-    val metric2Name = "MC2"
-    val metric2DisplayName = "Metric Spec 2"
     val unionRsName = "union-A-B-C"
 
     metricCalculationSpecsServiceMock.stub {
       onBlocking { getMetricCalculationSpec(any()) }
         .thenAnswer {
-          Status.NOT_FOUND
-            .withDescription("Unable to get MetricCalculationSpec.")
+          Status.NOT_FOUND.withDescription("Unable to get MetricCalculationSpec.")
             .asRuntimeException()
         }
       onBlocking { createMetricCalculationSpec(any()) }
         .thenAnswer {
           val request = it.arguments[0] as CreateMetricCalculationSpecRequest
           metricCalculationSpec {
-            name = MEASUREMENT_CONSUMER_NAME + "/metricCalculationSpecs/${request.metricCalculationSpec.name}"
-          }
+            name =
+              MEASUREMENT_CONSUMER_NAME +
+                "/metricCalculationSpecs/${request.metricCalculationSpec.name}"          }
         }
     }
 
@@ -986,8 +982,9 @@ class ReportingTest {
       onBlocking { createReportingSet(any()) }
         .thenAnswer {
           val request = it.arguments[0] as CreateReportingSetRequest
-          reportingSet { name = MEASUREMENT_CONSUMER_NAME + "/reportingSets/${request.reportingSet.name}" }
-        }
+          reportingSet {
+            name = MEASUREMENT_CONSUMER_NAME + "/reportingSets/${request.reportingSet.name}"
+          }        }
     }
 
     val args =
@@ -1020,7 +1017,7 @@ class ReportingTest {
           "--report-end=2000-01-30",
           "--daily-frequency=true",
           "--grouping='person.gender == 1,person.gender == 2'",
-          "--grouping='person.age_group == 1,person.age_group == 2,person.age_group == 3'"
+          "--grouping='person.age_group == 1,person.age_group == 2,person.age_group == 3'",
         )
 
     val output = callCli(args)
@@ -1053,7 +1050,7 @@ class ReportingTest {
         createReportingSetRequest {
           parent = MEASUREMENT_CONSUMER_NAME
           reportingSet = reportingSet {
-            name = "union-A-B-C"
+            name = unionRsName
             displayName = "Union (RS A, RS B, RS C)"
             composite =
               ReportingSetKt.composite {
@@ -1096,17 +1093,17 @@ class ReportingTest {
     // unique A
     val ursa = reportingSetCaptor.allValues.filter { it.reportingSet.name == "A-unique" }
     assertThat(ursa.size).isEqualTo(1)
-    assertUniqueRs(ursa[0], edps[0], "union-A-B-C", edps)
+    assertUniqueRs(ursa[0], edps[0], unionRsName, edps)
 
     // unique B
     val ursb = reportingSetCaptor.allValues.filter { it.reportingSet.name == "B-unique" }
     assertThat(ursb.size).isEqualTo(1)
-    assertUniqueRs(ursb[0], edps[1], "union-A-B-C", edps)
+    assertUniqueRs(ursb[0], edps[1], unionRsName, edps)
 
     // unique C
     val ursc = reportingSetCaptor.allValues.filter { it.reportingSet.name == "C-unique" }
     assertThat(ursc.size).isEqualTo(1)
-    assertUniqueRs(ursc[0], edps[2], "union-A-B-C", edps)
+    assertUniqueRs(ursc[0], edps[2], unionRsName, edps)
 
     // Verify metric calc specs
     val metricSpecCaptor: KArgumentCaptor<CreateMetricCalculationSpecRequest> = argumentCaptor()
@@ -1116,7 +1113,10 @@ class ReportingTest {
 
     // Spec for primitives and union
     // reach & frequency and impression count
-    val mcs1 = metricSpecCaptor.allValues.filter { it.metricCalculationSpec.name.startsWith("basic-metric-spec-") }
+    val mcs1 =
+      metricSpecCaptor.allValues.filter {
+        it.metricCalculationSpec.name.startsWith("basic-metric-spec-")
+      }
     assertThat(mcs1.size).isEqualTo(1)
     val rAndFSpec =
       mcs1[0].metricCalculationSpec.metricSpecsList.filter { it.hasReachAndFrequency() }
@@ -1126,7 +1126,10 @@ class ReportingTest {
 
     // Spec for uniques
     // reach & frequency and impression count
-    val mcs2 = metricSpecCaptor.allValues.filter { it.metricCalculationSpec.name.startsWith("other-metric-spec-")}
+    val mcs2 =
+      metricSpecCaptor.allValues.filter {
+        it.metricCalculationSpec.name.startsWith("other-metric-spec-")
+      }
     assertThat(mcs2.size).isEqualTo(1)
     val rSpec = mcs2[0].metricCalculationSpec.metricSpecsList.filter { it.hasReach() }
     assertThat(rSpec.size).isEqualTo(1)
@@ -1140,51 +1143,135 @@ class ReportingTest {
     assertThat(reportResponse.parent).isEqualTo(MEASUREMENT_CONSUMER_NAME)
     assertThat(reportResponse.reportId).isEqualTo(testReportId)
     assertThat(reportResponse.report.name).isEqualTo(testReportId)
-    assertThat(reportResponse.report.reportingInterval).isEqualTo(
-      ReportKt.reportingInterval {
-        reportStart = dateTime {
-          year = 2000
-          month = 1
-          day = 1
+    assertThat(reportResponse.report.reportingInterval)
+      .isEqualTo(
+        ReportKt.reportingInterval {
+          reportStart = dateTime {
+            year = 2000
+            month = 1
+            day = 1
+          }
+          reportEnd = date {
+            year = 2000
+            month = 1
+            day = 30
+          }
         }
-        reportEnd = date {
-          year = 2000
-          month = 1
-          day = 30
-        }
-      }
-    )
-    assertThat(reportResponse.report.tagsMap).isEqualTo(
-      mapOf("ui.halo-cmm.org" to "true", "ui.halo-cmm.org/display_name" to "TESTDISPLAYREPORT")
-    )
+      )
+    assertThat(reportResponse.report.tagsMap)
+      .isEqualTo(
+        mapOf("ui.halo-cmm.org" to "true", "ui.halo-cmm.org/display_name" to "TESTDISPLAYREPORT")
+      )
     // Verify metric entries
     //  - verify primitive reporting sets
     val metricEntries = reportResponse.report.reportingMetricEntriesList
-    val meA = metricEntries.filter { it.key == MEASUREMENT_CONSUMER_NAME + "/reportingSets/${edps[0].reportingSetName}" }
+    val meA =
+      metricEntries.filter {
+        it.key == MEASUREMENT_CONSUMER_NAME + "/reportingSets/${edps[0].reportingSetName}"
+      }
     assertThat(meA.size).isEqualTo(1)
-    assertThat(meA[0].value.metricCalculationSpecsList.filter { it.startsWith(MEASUREMENT_CONSUMER_NAME + "/metricCalculationSpecs/basic-metric-spec")}.size).isEqualTo(1)
-    val meB = metricEntries.filter { it.key == MEASUREMENT_CONSUMER_NAME + "/reportingSets/${edps[1].reportingSetName}" }
+    assertThat(
+        meA[0]
+          .value
+          .metricCalculationSpecsList
+          .filter {
+            it.startsWith(MEASUREMENT_CONSUMER_NAME + "/metricCalculationSpecs/basic-metric-spec")
+          }
+          .size
+      )
+      .isEqualTo(1)
+    val meB =
+      metricEntries.filter {
+        it.key == MEASUREMENT_CONSUMER_NAME + "/reportingSets/${edps[1].reportingSetName}"
+      }
     assertThat(meB.size).isEqualTo(1)
-    assertThat(meB[0].value.metricCalculationSpecsList.filter { it.startsWith(MEASUREMENT_CONSUMER_NAME + "/metricCalculationSpecs/basic-metric-spec")}.size).isEqualTo(1)
-    val meC = metricEntries.filter { it.key == MEASUREMENT_CONSUMER_NAME + "/reportingSets/${edps[2].reportingSetName}" }
+    assertThat(
+        meB[0]
+          .value
+          .metricCalculationSpecsList
+          .filter {
+            it.startsWith(MEASUREMENT_CONSUMER_NAME + "/metricCalculationSpecs/basic-metric-spec")
+          }
+          .size
+      )
+      .isEqualTo(1)
+    val meC =
+      metricEntries.filter {
+        it.key == MEASUREMENT_CONSUMER_NAME + "/reportingSets/${edps[2].reportingSetName}"
+      }
     assertThat(meC.size).isEqualTo(1)
-    assertThat(meC[0].value.metricCalculationSpecsList.filter { it.startsWith(MEASUREMENT_CONSUMER_NAME + "/metricCalculationSpecs/basic-metric-spec")}.size).isEqualTo(1)
+    assertThat(
+        meC[0]
+          .value
+          .metricCalculationSpecsList
+          .filter {
+            it.startsWith(MEASUREMENT_CONSUMER_NAME + "/metricCalculationSpecs/basic-metric-spec")
+          }
+          .size
+      )
+      .isEqualTo(1)
     
     //  - verify union reporting set
-    val meUnion = metricEntries.filter { it.key == MEASUREMENT_CONSUMER_NAME + "/reportingSets/union-A-B-C" }
+    val meUnion =
+      metricEntries.filter { it.key == MEASUREMENT_CONSUMER_NAME + "/reportingSets/union-A-B-C" }
     assertThat(meUnion.size).isEqualTo(1)
-    assertThat(meUnion[0].value.metricCalculationSpecsList.filter { it.startsWith(MEASUREMENT_CONSUMER_NAME + "/metricCalculationSpecs/basic-metric-spec")}.size).isEqualTo(1)
-    
+    assertThat(
+        meUnion[0]
+          .value
+          .metricCalculationSpecsList
+          .filter {
+            it.startsWith(MEASUREMENT_CONSUMER_NAME + "/metricCalculationSpecs/basic-metric-spec")
+          }
+          .size
+      )
+      .isEqualTo(1)
+
     //  - verify unique reporting sets
-    val meUniqueA = metricEntries.filter { it.key == MEASUREMENT_CONSUMER_NAME + "/reportingSets/${edps[0].reportingSetName}-unique" }
+    val meUniqueA =
+      metricEntries.filter {
+        it.key == MEASUREMENT_CONSUMER_NAME + "/reportingSets/${edps[0].reportingSetName}-unique"
+      }
     assertThat(meUniqueA.size).isEqualTo(1)
-    assertThat(meUniqueA[0].value.metricCalculationSpecsList.filter { it.startsWith(MEASUREMENT_CONSUMER_NAME + "/metricCalculationSpecs/other-metric-spec")}.size).isEqualTo(1)
-    val meUniqueB = metricEntries.filter { it.key == MEASUREMENT_CONSUMER_NAME + "/reportingSets/${edps[1].reportingSetName}-unique" }
+    assertThat(
+        meUniqueA[0]
+          .value
+          .metricCalculationSpecsList
+          .filter {
+            it.startsWith(MEASUREMENT_CONSUMER_NAME + "/metricCalculationSpecs/other-metric-spec")
+          }
+          .size
+      )
+      .isEqualTo(1)
+    val meUniqueB =
+      metricEntries.filter {
+        it.key == MEASUREMENT_CONSUMER_NAME + "/reportingSets/${edps[1].reportingSetName}-unique"
+      }
     assertThat(meUniqueB.size).isEqualTo(1)
-    assertThat(meUniqueB[0].value.metricCalculationSpecsList.filter { it.startsWith(MEASUREMENT_CONSUMER_NAME + "/metricCalculationSpecs/other-metric-spec")}.size).isEqualTo(1)
-    val meUniqueC = metricEntries.filter { it.key == MEASUREMENT_CONSUMER_NAME + "/reportingSets/${edps[1].reportingSetName}-unique" }
+    assertThat(
+        meUniqueB[0]
+          .value
+          .metricCalculationSpecsList
+          .filter {
+            it.startsWith(MEASUREMENT_CONSUMER_NAME + "/metricCalculationSpecs/other-metric-spec")
+          }
+          .size
+      )
+      .isEqualTo(1)
+    val meUniqueC =
+      metricEntries.filter {
+        it.key == MEASUREMENT_CONSUMER_NAME + "/reportingSets/${edps[1].reportingSetName}-unique"
+      }
     assertThat(meUniqueC.size).isEqualTo(1)
-    assertThat(meUniqueC[0].value.metricCalculationSpecsList.filter { it.startsWith(MEASUREMENT_CONSUMER_NAME + "/metricCalculationSpecs/other-metric-spec")}.size).isEqualTo(1)
+    assertThat(
+        meUniqueC[0]
+          .value
+          .metricCalculationSpecsList
+          .filter {
+            it.startsWith(MEASUREMENT_CONSUMER_NAME + "/metricCalculationSpecs/other-metric-spec")
+          }
+          .size
+      )
+      .isEqualTo(1)
   }
 
   fun assertPrimitiveRs(expected: CreateReportingSetRequest, props: Edp) {
