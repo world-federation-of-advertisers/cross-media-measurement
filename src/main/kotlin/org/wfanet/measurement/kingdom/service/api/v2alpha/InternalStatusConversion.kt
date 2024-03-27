@@ -207,6 +207,10 @@ fun Status.toExternalStatusRuntimeException(
           errorMessage = "Permission Denied."
         }
         ErrorCode.API_KEY_NOT_FOUND -> {
+          val apiKeyApiId =
+            externalIdToApiId(checkNotNull(errorInfo.metadataMap["external_api_key_id"]).toLong())
+
+          put("external_api_key_id", apiKeyApiId)
           errorMessage = "ApiKey not found."
         }
         ErrorCode.EVENT_GROUP_NOT_FOUND -> {
