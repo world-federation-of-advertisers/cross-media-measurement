@@ -236,10 +236,10 @@ class MetricReader(private val readContext: ReadContext) {
       """
       SELECT
         CmmsMeasurementConsumerId,
-        Metrics.MeasurementConsumerId,
+        MeasurementConsumerId,
+        MetricCalculationSpecId,
         Metrics.CreateMetricRequestId,
-        ReportingSets.ReportingSetId as MetricsReportingSetId,
-        MetricCalculationSpecReportingMetrics.MetricCalculationSpecId,
+        Metrics.ReportingSetId,
         Metrics.MetricId,
         Metrics.ExternalMetricId,
         Metrics.TimeIntervalStart AS MetricsTimeIntervalStart,
@@ -261,10 +261,7 @@ class MetricReader(private val readContext: ReadContext) {
     val sqlJoins: String =
       """
       JOIN Metrics USING(MeasurementConsumerId)
-      JOIN ReportingSets USING(MeasurementConsumerId, ReportingSetId)
-      LEFT JOIN MetricCalculationSpecReportingMetrics ON
-        Metrics.MeasurementConsumerId = MetricCalculationSpecReportingMetrics.MeasurementConsumerId
-        AND Metrics.MetricId = MetricCalculationSpecReportingMetrics.MetricId
+      JOIN MetricCalculationSpecReportingMetrics USING(MeasurementConsumerId, MetricId)
       """
         .trimIndent()
 
@@ -363,7 +360,7 @@ class MetricReader(private val readContext: ReadContext) {
         requireNotNull(row["CreateMetricRequestId"]) {
           "Metric that is associated with a MetricCalculationSpec must have createMetricRequestId"
         }
-      val reportingSetId: InternalId = row["MetricsReportingSetId"]
+      val reportingSetId: InternalId = row["ReportingSetId"]
       val metricCalculationSpecId: InternalId = row["MetricCalculationSpecId"]
       val metricId: InternalId = row["MetricId"]
       val externalMetricId: String = row["ExternalMetricId"]
