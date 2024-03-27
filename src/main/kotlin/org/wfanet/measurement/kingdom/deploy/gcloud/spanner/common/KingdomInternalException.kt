@@ -449,7 +449,7 @@ class RequisitionNotFoundByDataProviderException(
 class RequisitionStateIllegalException(
   val externalRequisitionId: ExternalId,
   val state: Requisition.State,
-  provideDescription: () -> String = { "ComputationParticipant state illegal" },
+  provideDescription: () -> String = { "Requisition state illegal" },
 ) : KingdomInternalException(ErrorCode.REQUISITION_STATE_ILLEGAL, provideDescription) {
   override val context
     get() =

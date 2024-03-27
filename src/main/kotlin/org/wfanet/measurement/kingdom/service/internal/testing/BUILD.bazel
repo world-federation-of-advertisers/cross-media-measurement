@@ -9,6 +9,7 @@ kt_jvm_library(
     srcs = glob(["*.kt"]),
     deps = KINGDOM_INTERNAL_PROTOS + [
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:error_info",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:hmss_protocol_config",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:llv2_protocol_config",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:ro_llv2_protocol_config",
