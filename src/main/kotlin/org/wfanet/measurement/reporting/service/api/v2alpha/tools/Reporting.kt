@@ -294,7 +294,8 @@ class CreateUiReportCommand : Runnable {
   class ReportingSetParams {
     @CommandLine.Option(
       names = ["--cmms-event-group"],
-      description = ["EventGroup resource name from the CMMS API. This can be specified multiple times"],
+      description =
+        ["EventGroup resource name from the CMMS API. This can be specified multiple times"],
       required = true,
     )
     lateinit var eventGroupNames: List<String>
@@ -334,12 +335,9 @@ class CreateUiReportCommand : Runnable {
 
     @CommandLine.Option(
       names = ["--day-of-week"],
-      description =
-        [
-          """
+      description = ["""
           Day of the week for weekly frequency.
-          """
-        ],
+          """],
     )
     var dayOfWeek: DayOfWeek = DayOfWeek.DAY_OF_WEEK_UNSPECIFIED
       private set
