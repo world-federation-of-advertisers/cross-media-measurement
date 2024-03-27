@@ -22,6 +22,7 @@ import com.google.type.dateTime
 import com.google.type.interval
 import com.google.type.timeZone
 import io.grpc.ManagedChannel
+import io.grpc.StatusException
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -289,7 +290,7 @@ class CreateUiReportCommand : Runnable {
   )
   private lateinit var reportParams: ReportParams
 
-  class PrimitiveReportingSetParams {
+  class ReportingSetParams {
     @CommandLine.Option(
       names = ["--cmms-event-group"],
       description = ["List of CMMS EventGroup resource names"],
@@ -299,7 +300,7 @@ class CreateUiReportCommand : Runnable {
       private set
 
     @CommandLine.Option(
-      names = ["--primitive-rs-id"],
+      names = ["--reporting-set-id"],
       description = ["Name of the ReportingSet used with the EDP"],
       required = true,
     )
@@ -307,7 +308,7 @@ class CreateUiReportCommand : Runnable {
       private set
 
     @CommandLine.Option(
-      names = ["--primitive-rs-display-name"],
+      names = ["--reporting-set-display-name"],
       description = ["Human-readable name for display purposes"],
       required = false,
     )
@@ -320,76 +321,7 @@ class CreateUiReportCommand : Runnable {
     multiplicity = "3",
     heading = "Primitive Reporting Set request configuration\n",
   )
-  private lateinit var edps: List<PrimitiveReportingSetParams>
-
-  class UnionReportingSetParams {
-    @CommandLine.Option(
-      names = ["--union-rs-id"],
-      description = ["Resource ID of the union Reporting Set"],
-      required = false,
-      defaultValue = "",
-    )
-    lateinit var id: String
-      private set
-
-    @CommandLine.Option(
-      names = ["--union-rs-display-name"],
-      description = ["Human-readable name for display purposes"],
-      required = false,
-      defaultValue = "",
-    )
-    lateinit var displayName: String
-      private set
-  }
-
-  @CommandLine.ArgGroup(exclusive = false, heading = "Union Reporting Set request configuration\n")
-  private lateinit var unionParams: UnionReportingSetParams
-
-  class PrimitiveMetricSpecParams {
-    @CommandLine.Option(
-      names = ["--prim-metric-id"],
-      description = ["Metric Calculation Spec id for primitive sets"],
-      required = true,
-    )
-    lateinit var metricName: String
-      private set
-
-    @CommandLine.Option(
-      names = ["--prim-metric-display-name"],
-      description = ["Human-readable name for display purposes"],
-      required = false,
-    )
-    lateinit var metricDisplayName: String
-      private set
-  }
-
-  @CommandLine.ArgGroup(
-    exclusive = false,
-    heading = "Primitive Metric Calculation Spec configuration\n",
-  )
-  private lateinit var primitiveMetricSpecParams: PrimitiveMetricSpecParams
-
-  class CompositeMetricSpecParams {
-    @CommandLine.Option(
-      names = ["--comp-metric-id"],
-      description = ["Metric Calculation Spec resource id for composite sets"],
-      required = true,
-    )
-    lateinit var metricName: String
-
-    @CommandLine.Option(
-      names = ["--comp-metric-display-name"],
-      description = ["Human-readable name for display purposes"],
-      required = false,
-    )
-    lateinit var metricDisplayName: String
-  }
-
-  @CommandLine.ArgGroup(
-    exclusive = false,
-    heading = "Composite Metric Calculation Spec configuration\n",
-  )
-  private lateinit var compositeMetricSpecParams: CompositeMetricSpecParams
+  private lateinit var edps: List<ReportingSetParams>
 
   class MetricFrequencySpecInput {
     @CommandLine.Option(
@@ -400,7 +332,7 @@ class CreateUiReportCommand : Runnable {
       private set
 
     @CommandLine.Option(
-      names = ["--day-of-the-week"],
+      names = ["--day-of-week"],
       description =
         [
           """
@@ -409,11 +341,11 @@ class CreateUiReportCommand : Runnable {
           """
         ],
     )
-    var dayOfTheWeek: Int = 0
+    var dayOfWeek: Int = 0
       private set
 
     @CommandLine.Option(
-      names = ["--day-of-the-month"],
+      names = ["--day-of-month"],
       description =
         [
           """
@@ -421,7 +353,7 @@ class CreateUiReportCommand : Runnable {
           """
         ],
     )
-    var dayOfTheMonth: Int = 0
+    var dayOfMonth: Int = 0
       private set
   }
 
@@ -434,7 +366,7 @@ class CreateUiReportCommand : Runnable {
 
   class ReportingIntervalInput {
     @CommandLine.Option(
-      names = ["--reporting-interval-report-start-time"],
+      names = ["--report-start"],
       description = ["Start of the report in yyyy-MM-ddTHH:mm:ss"],
       required = true,
     )
@@ -442,19 +374,34 @@ class CreateUiReportCommand : Runnable {
       private set
 
     @CommandLine.Option(
-      names = ["--reporting-interval-report-end"],
+      names = ["--report-end"],
       description = ["End of the report in yyyy-mm-dd"],
       required = true,
     )
     lateinit var reportingIntervalReportEnd: LocalDate
+      private set
+
+    @CommandLine.Option(
+      names = ["--report-time-zone"],
+      description = ["IANA Time zone"],
+      required = false,
+    )
+    var timeZone: String = "Hello"
       private set
   }
 
   @CommandLine.ArgGroup(exclusive = false, multiplicity = "1", heading = "Time intervals\n")
   private lateinit var interval: ReportingIntervalInput
 
+  @CommandLine.Option(
+    names = ["--grouping"],
+    description = ["Each grouping is a list of comma-separated predicates"],
+    required = true,
+  )
+  lateinit var groupings: List<String>
+
   private fun createPrimitiveReportingSet(
-    edp: PrimitiveReportingSetParams,
+    edp: ReportingSetParams,
     measurementConsumerName: String,
   ): ReportingSet {
     val request = createReportingSetRequest {
@@ -474,15 +421,18 @@ class CreateUiReportCommand : Runnable {
   }
 
   private fun createUnionReportingSet(
-    unionRsParams: UnionReportingSetParams,
+    edps: List<ReportingSetParams>,
     primitiveRs: List<ReportingSet>,
     measurementConsumerName: String,
   ): ReportingSet {
+    val unionName = "union-" + edps.map{it.reportingSetName}.joinToString(separator = "-")
+    val unionDisplayName = "Union (${edps.map{it.reportingSetDisplayName}.joinToString()})"
+
     val rsRequest = createReportingSetRequest {
       parent = measurementConsumerName
       reportingSet = reportingSet {
-        name = unionRsParams.id
-        displayName = unionRsParams.displayName
+        name = unionName
+        displayName = unionDisplayName
         tags.put("ui.halo-cmm.org/reporting_set_type", "union")
         composite =
           ReportingSetKt.composite {
@@ -514,7 +464,7 @@ class CreateUiReportCommand : Runnable {
   }
 
   private fun createUniqueReportingSet(
-    edp: PrimitiveReportingSetParams,
+    edp: ReportingSetParams,
     primitiveReportingSets: ArrayList<ReportingSet>,
     unionRsName: String,
     measurementConsumerName: String,
@@ -564,12 +514,19 @@ class CreateUiReportCommand : Runnable {
     return runBlocking(Dispatchers.IO) { parent.reportingSetStub.createReportingSet(request) }
   }
 
+  private fun getRandomString(length: Int) : String {
+    val allowedChars = ('A'..'Z') + ('a'..'z') + ('0'..'9')
+    return (1..length)
+        .map { allowedChars.random() }
+        .joinToString("")
+  }
+
   private fun createPrimitiveMetricSpecs(
-    name: String,
-    displayName: String,
     frequencySpec: MetricFrequencySpecInput,
     measurementConsumerName: String,
+    groupings: List<String>
   ): MetricCalculationSpec {
+    val baseName = "basic-metric-spec"
     val specs =
       mutableListOf<MetricSpec>(
         metricSpec {
@@ -603,15 +560,15 @@ class CreateUiReportCommand : Runnable {
         },
       )
 
-    return this.createMetricSpecs(name, displayName, measurementConsumerName, specs, frequencySpec)
+    return this.createMetricSpecs(baseName, measurementConsumerName, specs, frequencySpec, groupings)
   }
 
   private fun createCompositeMetricSpecs(
-    name: String,
-    displayName: String,
     frequencySpec: MetricFrequencySpecInput,
     measurementConsumerName: String,
+    groupings: List<String>
   ): MetricCalculationSpec {
+    val baseName = "other-metric-spec"
     val specs =
       mutableListOf<MetricSpec>(
         metricSpec {
@@ -639,34 +596,54 @@ class CreateUiReportCommand : Runnable {
         },
       )
 
-    return this.createMetricSpecs(name, displayName, measurementConsumerName, specs, frequencySpec)
+    return this.createMetricSpecs(baseName, measurementConsumerName, specs, frequencySpec, groupings)
   }
 
   private fun createMetricSpecs(
     name: String,
-    displayName: String,
     measurementConsumerName: String,
     specs: List<MetricSpec>,
     frequencySpec: MetricFrequencySpecInput,
+    groupings: List<String>
   ): MetricCalculationSpec {
+    // Add random string to the end of the name to help with uniqueness.
+    // This only helps so still need to make sure it's actually unique.
+    var retry = true
+    var randomString: String = ""
+    var newName: String = ""
+    while (retry) {
+      randomString = getRandomString(6)
+      newName = name + "-" + randomString
+      val getMetricSpecRequest = getMetricCalculationSpecRequest {
+        this.name = newName
+      }
+      try {
+        runBlocking(Dispatchers.IO) {
+          parent.metricCalculationSpecStub.getMetricCalculationSpec(getMetricSpecRequest)
+        }
+      } catch(e: StatusException) {
+        retry = false
+      }
+    }
+
+
     val msRequestUnique = createMetricCalculationSpecRequest {
       parent = measurementConsumerName
       metricCalculationSpec = metricCalculationSpec {
-        this.name = name
-        this.displayName = displayName
+        this.name = newName
         metricFrequencySpec =
           MetricCalculationSpecKt.metricFrequencySpec {
             if (frequencySpec.daily) {
               daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
-            } else if (frequencySpec.dayOfTheWeek > 0) {
+            } else if (frequencySpec.dayOfWeek > 0) {
               weekly =
                 MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
-                  dayOfWeek = DayOfWeek.forNumber(frequencySpec.dayOfTheWeek)
+                  dayOfWeek = DayOfWeek.forNumber(frequencySpec.dayOfWeek)
                 }
-            } else if (frequencySpec.dayOfTheMonth > 0) {
+            } else if (frequencySpec.dayOfMonth > 0) {
               monthly =
                 MetricCalculationSpecKt.MetricFrequencySpecKt.monthly {
-                  dayOfMonth = frequencySpec.dayOfTheMonth
+                  dayOfMonth = frequencySpec.dayOfMonth
                 }
             }
           }
@@ -674,17 +651,9 @@ class CreateUiReportCommand : Runnable {
         for (spec in specs) {
           metricSpecs += spec
         }
-        groupings +=
-          MetricCalculationSpecKt.grouping {
-            predicates += "person.gender === 1"
-            predicates += "person.gender === 2"
-          }
-        groupings +=
-          MetricCalculationSpecKt.grouping {
-            predicates += "person.age_group === 1"
-            predicates += "person.age_group === 2"
-            predicates += "person.age_group === 3"
-          }
+        for (grouping in groupings) {
+          this.groupings += MetricCalculationSpecKt.grouping { predicates += grouping.trim().split(',') }
+        }
       }
     }
 
@@ -695,9 +664,9 @@ class CreateUiReportCommand : Runnable {
 
   // Steps:
   //  1. Create Reporting Sets
-  //    a. One for each desired event group
-  //    b. One for union of all event groups
-  //    c. One for each unique event group (eg. unique A = ABC - BC)
+  //    a. One for each desired primitive reporting set
+  //    b. One for union of all reporting sets
+  //    c. One for each unique reporting set (eg. unique A = ABC - BC)
   //  2. Create Metric Calculation Specs
   //    a. One for impressions and reach and frequency cumulative = true (for 1a and 1b)
   //    b. One for impressions and reach cumulative = true (for 1c)
@@ -717,7 +686,7 @@ class CreateUiReportCommand : Runnable {
 
     // 1b. create composite reporting sets (union)
     val unionReportingSet =
-      createUnionReportingSet(unionParams, primitiveReportingSets, measurementConsumerName)
+      createUnionReportingSet(edps, primitiveReportingSets, measurementConsumerName)
 
     // 1c. create unique reporting sets (union - complement)
     val uniqueReportingSets = ArrayList<ReportingSet>()
@@ -735,19 +704,17 @@ class CreateUiReportCommand : Runnable {
     // 2a. create impressions and reach and frequency metric specs
     val metricCalculationSpecAll =
       createPrimitiveMetricSpecs(
-        primitiveMetricSpecParams.metricName,
-        primitiveMetricSpecParams.metricDisplayName,
         metricFrequencySpecInput,
         measurementConsumerName,
+        groupings
       )
 
     // 2b. create impressions and reach metric specs
     val metricCalculationSpecUnique =
       createCompositeMetricSpecs(
-        compositeMetricSpecParams.metricName,
-        compositeMetricSpecParams.metricDisplayName,
         metricFrequencySpecInput,
         measurementConsumerName,
+        groupings
       )
 
     // 3. create the report
@@ -765,6 +732,7 @@ class CreateUiReportCommand : Runnable {
             hours = interval.reportingIntervalReportStartTime.hour
             minutes = interval.reportingIntervalReportStartTime.minute
             seconds = interval.reportingIntervalReportStartTime.second
+            // timeZone = interval.timeZone
           }
           reportEnd = date {
             year = interval.reportingIntervalReportEnd.year

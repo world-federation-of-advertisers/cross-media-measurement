@@ -136,7 +136,7 @@ Reporting \
   --cmms-event-group=3 \
   --primitive-rs-display-name='EDP 3' \
   --primitive-rs-id=ghi \
-  --prim-metric-id='mcs-2',
+  --prim-metric-id='mcs-1',
   --prim-metric-display-name='primitive calc spec 1',
   --comp-metric-id='mcs-2',
   --comp-metric-display-name='primitive calc spec 2',
