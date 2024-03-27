@@ -16,6 +16,8 @@ package k8s
 
 import "encoding/yaml"
 
+#GCloudProject: string @tag("google_cloud_project")
+
 // Name of K8s service account for OpenTelemetry collector.
 #CollectorServiceAccount: "open-telemetry"
 
@@ -84,7 +86,7 @@ collectors: {
               enabled: true
           }
           googlecloud: {
-            project: "\(#GCloudConfig.project)"
+            project: "\(#GCloudProject)"
             trace: {}
           }
         }
