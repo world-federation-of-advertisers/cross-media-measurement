@@ -38,6 +38,7 @@ import kotlin.math.min
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapMerge
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -421,16 +422,20 @@ class ReportsService(
       internalReport.reportingMetricEntriesMap.entries.asFlow().flatMapMerge { entry ->
         entry.value.metricCalculationSpecReportingMetricsList.asFlow().flatMapMerge {
           metricCalculationSpecReportingMetrics ->
-          metricCalculationSpecReportingMetrics.reportingMetricsList.asFlow().map {
-            it.toCreateMetricRequest(
-              principal.resourceKey,
-              entry.key,
-              externalIdToMetricCalculationSpecMap
-                .getValue(metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId)
-                .details
-                .filter,
-            )
-          }
+          metricCalculationSpecReportingMetrics.reportingMetricsList.asFlow()
+            .filter {
+              it.externalMetricId.isEmpty()
+            }
+            .map {
+              it.toCreateMetricRequest(
+                principal.resourceKey,
+                entry.key,
+                externalIdToMetricCalculationSpecMap
+                  .getValue(metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId)
+                  .details
+                  .filter,
+              )
+            }
         }
       }
 
