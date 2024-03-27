@@ -37,7 +37,7 @@ class CancelMeasurement(
   private val externalMeasurementId: ExternalId,
 ) : SpannerWriter<Measurement, Measurement>() {
   override suspend fun TransactionScope.runTransaction(): Measurement {
-    val (measurementConsumerId, measurementId, measurement) =
+    val (measurementConsumerId, measurementId, _, measurement) =
       MeasurementReader(Measurement.View.DEFAULT)
         .readByExternalIds(transactionContext, externalMeasurementConsumerId, externalMeasurementId)
         ?: throw MeasurementNotFoundByMeasurementConsumerException(

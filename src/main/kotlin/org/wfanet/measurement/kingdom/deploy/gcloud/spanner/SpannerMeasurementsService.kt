@@ -40,7 +40,6 @@ import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.batchCreateMeasurementsResponse
 import org.wfanet.measurement.internal.kingdom.batchGetMeasurementsResponse
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotActiveException
@@ -80,8 +79,6 @@ class SpannerMeasurementsService(
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "DataProvider not found.")
     } catch (e: DuchyNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Duchy not found.")
-    } catch (e: CertificateNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Certificate not found.")
     } catch (e: DuchyNotActiveException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Inactive required duchy.")
     } catch (e: KingdomInternalException) {
@@ -269,8 +266,6 @@ class SpannerMeasurementsService(
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "DataProvider not found.")
     } catch (e: DuchyNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Duchy not found.")
-    } catch (e: CertificateNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Certificate not found.")
     } catch (e: DuchyNotActiveException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Inactive required duchy.")
     } catch (e: KingdomInternalException) {
