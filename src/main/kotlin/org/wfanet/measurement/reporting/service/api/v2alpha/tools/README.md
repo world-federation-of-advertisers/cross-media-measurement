@@ -128,36 +128,32 @@ Reporting \
   --request-id=abcd \
   --display-name=TESTDISPLAYREPORT \
   --cmms-event-group=1 \
-  --primitive-rs-display-name='EDP 1' \
-  --primitive-rs-id=abc \
+  --reporting-set-id=abc \
+  --reporting-set-display-name='EDP 1' \
   --cmms-event-group=2 \
-  --primitive-rs-display-name='EDP 2' \
-  --primitive-rs-id=def \
+  --reporting-set-id=def \
+  --reporting-set-display-name='EDP 2' \
   --cmms-event-group=3 \
-  --primitive-rs-display-name='EDP 3' \
-  --primitive-rs-id=ghi \
-  --prim-metric-id='mcs-1',
-  --prim-metric-display-name='primitive calc spec 1',
-  --comp-metric-id='mcs-2',
-  --comp-metric-display-name='primitive calc spec 2',
-  --union-rs-id=union-rs-1,
-  --union-rs-display-name='EDP Union',
-  --reporting-interval-report-start-time='2000-01-01T00:00:00',
-  --reporting-interval-report-end='2000-01-30',
-  --daily-frequency=true,
+  --reporting-set-id=ghi \
+  --reporting-set-display-name='EDP 3' \
+  --report-start='2000-01-01T00:00:00' \
+  --report-end='2000-01-30' \
+  --daily-frequency=true \
+  --grouping='person.gender == 1,person.gender == 2' \
+  --grouping='person.age_group == 1,person.age_group == 2,person.age_group == 3'
 ```
 
-There currently needs to be three groups of primitive reporting sets defined by the arg group: --cmms-event-group, --primitive-rs-id, and --primitive-rs-display-name. You can pass in multiple event groups, but be sure to specify them first. There is a parsing issue if they are specified later in the arg group. This is similar to creating a reporting set.
+There currently needs to be three groups of primitive reporting sets defined by the arg group: --cmms-event-group, --reporting-set-id, and --reporting-set-display-name. You can pass in multiple event groups, but be sure to specify them first. There is a parsing issue if they are specified later in the arg group. This is similar to creating a reporting set.
 
-The union reporting set is created automatically from the primitives, but just require an id and name: --union-rs-id and --union-rs-display-name.
+The union and unique reporting sets are created automatically from the provided reporting sets. Ids and display names are derived.
 
-The unique reporting sets are created automatically from the primitives and union. They are not explicitly used in the UI and require no input. They are post-fixed with "unique."
+The user will not specify metric calculation specs although they will be automatically created. They are not used in the UI.
 
-The actual values of the metric calculation specs are hardcoded for user simplicity as the combinations have to be very specific. What the user will define are the ids and names for the specs. There are two different configurations of specs so they each need to be defined: --prim-metric-id and --prim-metric-display-name as well as --comp-metric-id and --comp-metric-display-name. These aren't use in the UI so they can be any valid value for creation purposes.
-
-The time range of the report must be specified through the start time and end (date): --reporting-interval-report-start-time and --reporting-interval-report-end. These are formatted as the example above and are the same as in create report. We force incremental to simplify the input.
+The time range of the report must be specified through the start time and end (date): --report-start and --report-end as an interval time range. These are formatted as the example above and are the same as in create report.
 
 The user must specify the interval frequency: --daily-frequency, --day-of-the-week, or --day-of-the-month. This is used in combination with the interval time range.
+
+The user must specify the grouping predicates using --grouping. Each is a comma delimited string like the example above.
 
 #### list
 

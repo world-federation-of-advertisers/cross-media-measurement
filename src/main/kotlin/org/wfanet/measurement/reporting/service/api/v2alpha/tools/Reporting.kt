@@ -27,6 +27,7 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
@@ -336,12 +337,11 @@ class CreateUiReportCommand : Runnable {
       description =
         [
           """
-          Day of the week for weekly frequency. Represented by a number between 1 and 7, inclusive,
-          where Monday is 1 and Sunday is 7.
+          Day of the week for weekly frequency.
           """
         ],
     )
-    var dayOfWeek: Int = 0
+    var dayOfWeek: DayOfWeek = DayOfWeek.DAY_OF_WEEK_UNSPECIFIED
       private set
 
     @CommandLine.Option(
@@ -386,7 +386,7 @@ class CreateUiReportCommand : Runnable {
       description = ["IANA Time zone"],
       required = false,
     )
-    var timeZone: String = "Hello"
+    var timeZone: String = ZoneId.systemDefault().toString()
       private set
   }
 
@@ -642,10 +642,10 @@ class CreateUiReportCommand : Runnable {
           MetricCalculationSpecKt.metricFrequencySpec {
             if (frequencySpec.daily) {
               daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
-            } else if (frequencySpec.dayOfWeek > 0) {
+            } else if (frequencySpec.dayOfWeek != DayOfWeek.DAY_OF_WEEK_UNSPECIFIED) {
               weekly =
                 MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
-                  dayOfWeek = DayOfWeek.forNumber(frequencySpec.dayOfWeek)
+                  this.dayOfWeek = frequencySpec.dayOfWeek
                 }
             } else if (frequencySpec.dayOfMonth > 0) {
               monthly =
@@ -732,7 +732,7 @@ class CreateUiReportCommand : Runnable {
             hours = interval.reportingIntervalReportStartTime.hour
             minutes = interval.reportingIntervalReportStartTime.minute
             seconds = interval.reportingIntervalReportStartTime.second
-            // timeZone = interval.timeZone
+            this.timeZone = timeZone { id = interval.timeZone }
           }
           reportEnd = date {
             year = interval.reportingIntervalReportEnd.year
@@ -1089,7 +1089,7 @@ class CreateMetricCalculationSpecCommand : Runnable {
       """
         ],
     )
-    var dayOfTheWeek: DayOfWeek = 0
+    var dayOfTheWeek: Int = 0
       private set
 
     @CommandLine.Option(
