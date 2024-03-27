@@ -88,13 +88,12 @@ class AccountsService(
     val result =
       try {
         internalAccountsStub.createAccount(internalCreateAccountRequest)
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.NOT_FOUND -> throw Status.NOT_FOUND.toExternalStatusRuntimeException(ex)
-          Status.Code.PERMISSION_DENIED ->
-            throw Status.PERMISSION_DENIED.toExternalStatusRuntimeException(ex)
-          else -> throw Status.UNKNOWN.toExternalStatusRuntimeException(ex)
-        }
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          Status.Code.PERMISSION_DENIED -> Status.PERMISSION_DENIED
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
 
     return result.toAccount()
@@ -133,15 +132,13 @@ class AccountsService(
     val result =
       try {
         internalAccountsStub.activateAccount(internalActivateAccountRequest)
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.PERMISSION_DENIED ->
-            throw Status.PERMISSION_DENIED.toExternalStatusRuntimeException(ex)
-          Status.Code.FAILED_PRECONDITION ->
-            throw Status.FAILED_PRECONDITION.toExternalStatusRuntimeException(ex)
-          Status.Code.NOT_FOUND -> throw Status.NOT_FOUND.toExternalStatusRuntimeException(ex)
-          else -> throw Status.UNKNOWN.toExternalStatusRuntimeException(ex)
-        }
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.PERMISSION_DENIED -> Status.PERMISSION_DENIED
+          Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
 
     // method only returns the basic account view so some fields are cleared
@@ -177,13 +174,12 @@ class AccountsService(
     val result =
       try {
         internalAccountsStub.replaceAccountIdentity(internalReplaceAccountIdentityRequest)
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.FAILED_PRECONDITION ->
-            throw Status.FAILED_PRECONDITION.toExternalStatusRuntimeException(ex)
-          Status.Code.NOT_FOUND -> throw Status.NOT_FOUND.toExternalStatusRuntimeException(ex)
-          else -> throw Status.UNKNOWN.toExternalStatusRuntimeException(ex)
-        }
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
 
     // method only returns the basic account view so some fields are cleared
