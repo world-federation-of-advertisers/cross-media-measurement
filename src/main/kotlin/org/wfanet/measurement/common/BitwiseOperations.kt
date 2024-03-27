@@ -20,16 +20,14 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import kotlin.experimental.xor
 
-object BitwiseOperations {
-  infix fun ByteString.xor(other: ByteString): ByteString {
-    require(this.size() == other.size()) {
-      "ByteString sizes do not match. size_1=${this.size()}, size_2=${other.size()}"
-    }
-
-    val result = ByteArray(this.size())
-    for (i in result.indices) {
-      result[i] = this.byteAt(i) xor other.byteAt(i)
-    }
-    return result.toByteString()
+infix fun ByteString.xor(other: ByteString): ByteString {
+  require(this.size() == other.size()) {
+    "ByteString sizes do not match. size_1=${this.size()}, size_2=${other.size()}"
   }
+
+  val result = ByteArray(this.size())
+  for (i in result.indices) {
+    result[i] = this.byteAt(i) xor other.byteAt(i)
+  }
+  return result.toByteString()
 }

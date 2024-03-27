@@ -33,13 +33,13 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.RandomSeed
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.unpack
-import org.wfanet.measurement.common.BitwiseOperations.xor
 import org.wfanet.measurement.common.crypto.PrivateKeyStore
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.tink.TinkKeyId
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
+import org.wfanet.measurement.common.xor
 import org.wfanet.measurement.consent.client.duchy.decryptRandomSeed
 import org.wfanet.measurement.consent.client.duchy.signEncryptionPublicKey
 import org.wfanet.measurement.consent.client.duchy.verifyRandomSeed
@@ -324,12 +324,10 @@ class HonestMajorityShareShuffleMill(
 
     try {
       verifyRandomSeed(signedMessage, x509Certificate, trustedIssuer)
-    } catch (e: Exception) {
-      when (e) {
-        is CertPathValidatorException ->
-          throw PermanentErrorException("Invalid certificate for $dataProviderCertificateName", e)
-        is SignatureException -> throw PermanentErrorException("Signature fails verification.", e)
-      }
+    } catch (e: CertPathValidatorException) {
+      throw PermanentErrorException("Invalid certificate for $dataProviderCertificateName", e)
+    } catch (e: SignatureException) {
+      throw PermanentErrorException("Signature fails verification.", e)
     }
 
     return randomSeed
