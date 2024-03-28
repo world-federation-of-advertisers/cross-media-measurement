@@ -108,12 +108,11 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
     val internalCertificate =
       try {
         internalCertificatesStub.getCertificate(internalGetCertificateRequest)
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.INVALID_ARGUMENT ->
-            throw Status.INVALID_ARGUMENT.toExternalStatusRuntimeException(ex)
-          else -> throw Status.UNKNOWN.toExternalStatusRuntimeException(ex)
-        }
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
     return internalCertificate.toCertificate()
   }
@@ -185,10 +184,9 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
         internalCertificatesStub.streamCertificates(internalRequest).toList()
       } catch (e: StatusException) {
         throw when (e.status.code) {
-          Status.Code.DEADLINE_EXCEEDED ->
-            Status.DEADLINE_EXCEEDED.toExternalStatusRuntimeException(e)
-          else -> Status.UNKNOWN.toExternalStatusRuntimeException(e)
-        }
+          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
 
     if (internalCertificates.isEmpty()) {
@@ -241,15 +239,13 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
     val response =
       try {
         internalCertificatesStub.createCertificate(internalCertificate)
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.NOT_FOUND -> throw Status.NOT_FOUND.toExternalStatusRuntimeException(ex)
-          Status.Code.ALREADY_EXISTS ->
-            throw Status.ALREADY_EXISTS.toExternalStatusRuntimeException(ex)
-          Status.Code.INVALID_ARGUMENT ->
-            throw Status.INVALID_ARGUMENT.toExternalStatusRuntimeException(ex)
-          else -> throw Status.UNKNOWN.toExternalStatusRuntimeException(ex)
-        }
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          Status.Code.ALREADY_EXISTS -> Status.ALREADY_EXISTS
+          Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
     return response.toCertificate()
   }
@@ -291,13 +287,12 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
     val internalCertificate =
       try {
         internalCertificatesStub.revokeCertificate(internalRevokeCertificateRequest)
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.NOT_FOUND -> throw Status.NOT_FOUND.toExternalStatusRuntimeException(ex)
-          Status.Code.FAILED_PRECONDITION ->
-            throw Status.FAILED_PRECONDITION.toExternalStatusRuntimeException(ex)
-          else -> throw Status.UNKNOWN.toExternalStatusRuntimeException(ex)
-        }
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
     return internalCertificate.toCertificate()
   }
@@ -334,13 +329,12 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
     val internalCertificate =
       try {
         internalCertificatesStub.releaseCertificateHold(internalReleaseCertificateHoldRequest)
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.NOT_FOUND -> throw Status.NOT_FOUND.toExternalStatusRuntimeException(ex)
-          Status.Code.FAILED_PRECONDITION ->
-            throw Status.FAILED_PRECONDITION.toExternalStatusRuntimeException(ex)
-          else -> throw Status.UNKNOWN.toExternalStatusRuntimeException(ex)
-        }
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
     return internalCertificate.toCertificate()
   }

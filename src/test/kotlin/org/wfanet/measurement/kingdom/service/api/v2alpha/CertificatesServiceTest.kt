@@ -96,8 +96,10 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateRe
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelProviderNotFoundException
 
-private val MODEL_PROVIDER_NAME = makeModelProvider(23456L)
-private val MODEL_PROVIDER_NAME_2 = makeModelProvider(23457L)
+private const val EXTERNAL_MODEL_PROVIDER_ID = 23456L
+private const val EXTERNAL_MODEL_PROVIDER_ID_2 = 23457L
+private val MODEL_PROVIDER_NAME = makeModelProvider(EXTERNAL_MODEL_PROVIDER_ID)
+private val MODEL_PROVIDER_NAME_2 = makeModelProvider(EXTERNAL_MODEL_PROVIDER_ID_2)
 private val MODEL_PROVIDER_CERTIFICATE_NAME = "$MODEL_PROVIDER_NAME/certificates/AAAAAAAAAcg"
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 private const val MEASUREMENT_CONSUMER_NAME_2 = "measurementConsumers/BBBBBBBBBHs"
@@ -108,8 +110,6 @@ private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME_2 =
 private const val DUCHY_NAME = "duchies/AAAAAAAAAHs"
 private const val DUCHY_NAME_2 = "duchies/BBBBBBBBBHs"
 private const val DUCHY_CERTIFICATE_NAME = "$DUCHY_NAME/certificates/AAAAAAAAAcg"
-private val EXTERNAL_MODEL_PROVIDER_ID =
-  apiIdToExternalId(ModelProviderKey.fromName(MODEL_PROVIDER_NAME)!!.modelProviderId)
 
 @RunWith(JUnit4::class)
 class CertificatesServiceTest {
