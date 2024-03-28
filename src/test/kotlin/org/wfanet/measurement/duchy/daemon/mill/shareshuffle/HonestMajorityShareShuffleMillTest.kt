@@ -270,6 +270,8 @@ class HonestMajorityShareShuffleMillTest {
   private val tempDirectory = TemporaryFolder()
 
   private val grpcTestServerRule = GrpcTestServerRule {
+    DuchyInfo.setForTest(setOf(DUCHY_ONE_NAME, DUCHY_TWO_NAME, DUCHY_THREE_NAME))
+
     val storageClient = FileSystemStorageClient(tempDirectory.root)
     computationStore = ComputationStore(storageClient)
     requisitionStore = RequisitionStore(storageClient)
@@ -339,8 +341,6 @@ class HonestMajorityShareShuffleMillTest {
     )
 
   private fun createHmssMill(duchyName: String): HonestMajorityShareShuffleMill {
-    DuchyInfo.setForTest(setOf(DUCHY_ONE_NAME, DUCHY_TWO_NAME, DUCHY_THREE_NAME))
-
     val csCertificate = Certificate(DUCHY_CERT_NAME, DUCHY_SIGNING_CERT)
 
     val duchyCertificates =
