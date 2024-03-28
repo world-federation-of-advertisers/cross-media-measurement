@@ -175,12 +175,9 @@ message LiquidLegionsSketchParams {
 
 // Parameters for a honest majority share shuffle sketch.
 message ShareShuffleSketchParams {
-  // The number of registers in the sketch.
-  int64 register_count = 1;
-
   // Length of each register in bytes.
-  int32 bytes_per_register = 2;
+  int32 bytes_per_register = 1;
 
   // Secret share modulus.
-  uint32 ring_modulus = 3;
+  uint32 ring_modulus = 2;
 }

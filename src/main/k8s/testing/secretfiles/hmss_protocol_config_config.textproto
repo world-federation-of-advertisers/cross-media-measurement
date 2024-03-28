@@ -1,0 +1,13 @@
+# proto-file: src/main/proto/wfa/measurement/internal/kingdom/protocol_config_config.proto
+# proto-message: HmssProtocolConfigConfig
+protocol_config {
+  sketch_params {
+    bytes_per_register: 2
+    ring_modulus: 127
+  }
+  noise_mechanism: DISCRETE_GAUSSIAN
+}
+
+required_external_duchy_ids: "worker_1"
+required_external_duchy_ids: "worker_2"
+required_external_duchy_ids: "aggregator"

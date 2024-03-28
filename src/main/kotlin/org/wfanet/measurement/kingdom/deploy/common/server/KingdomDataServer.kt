@@ -24,6 +24,8 @@ import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIdsFlags
+import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfigFlags
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfigFlags
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
@@ -42,6 +44,8 @@ abstract class KingdomDataServer : Runnable {
   @CommandLine.Mixin private lateinit var llv2ProtocolConfigFlags: Llv2ProtocolConfigFlags
 
   @CommandLine.Mixin private lateinit var roLlv2ProtocolConfigFlags: RoLlv2ProtocolConfigFlags
+
+  @CommandLine.Mixin private lateinit var hmssProtocolConfigFlags: HmssProtocolConfigFlags
 
   @CommandLine.Option(
     names = ["--known-event-group-metadata-type"],
@@ -70,6 +74,7 @@ abstract class KingdomDataServer : Runnable {
     DuchyIds.initializeFromFlags(duchyIdsFlags)
     Llv2ProtocolConfig.initializeFromFlags(llv2ProtocolConfigFlags)
     RoLlv2ProtocolConfig.initializeFromFlags(roLlv2ProtocolConfigFlags)
+    HmssProtocolConfig.initializeFromFlags(hmssProtocolConfigFlags)
 
     val services = dataServices.buildDataServices().toList()
     val server = CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services)

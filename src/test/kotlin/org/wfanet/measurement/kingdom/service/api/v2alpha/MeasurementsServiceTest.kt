@@ -233,7 +233,7 @@ class MeasurementsServiceTest {
         DataProvidersGrpcKt.DataProvidersCoroutineStub(grpcTestServerRule.channel),
         NOISE_MECHANISMS,
         reachOnlyLlV2Enabled = true,
-        hmssEnabled = true,
+        reachAndFrequencyHmssEnabled = true,
       )
   }
 

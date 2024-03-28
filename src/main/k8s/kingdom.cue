@@ -60,6 +60,7 @@ import ("strings")
 	_llv2_protocol_config_config:            "--llv2-protocol-config-config=/var/run/secrets/files/llv2_protocol_config_config.textproto"
 	_ro_llv2_protocol_config_config:         "--ro-llv2-protocol-config-config=/var/run/secrets/files/ro_llv2_protocol_config_config.textproto"
 	_ro_llv2_enable_flag:                    "--enable-ro-llv2-protocol"
+	_hmssProtocolConfigConfig:               "--hmss-protocol-config-config=/var/run/secrets/files/hmss_protocol_config_config.textproto.textproto"
 	_kingdom_tls_cert_file_flag:             "--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem"
 	_kingdom_tls_key_file_flag:              "--tls-key-file=/var/run/secrets/files/kingdom_tls.key"
 	_kingdom_cert_collection_file_flag:      "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
@@ -128,6 +129,7 @@ import ("strings")
 					_duchy_id_config_flag,
 					_llv2_protocol_config_config,
 					_ro_llv2_protocol_config_config,
+					_hmssProtocolConfigConfig,
 					_kingdom_tls_cert_file_flag,
 					_kingdom_tls_key_file_flag,
 					// Internal Kingdom API server should only trust Kingdom certs.
@@ -173,6 +175,7 @@ import ("strings")
 					_llv2_protocol_config_config,
 					_ro_llv2_protocol_config_config,
 					_ro_llv2_enable_flag,
+					_hmssProtocolConfigConfig,
 					_kingdom_tls_cert_file_flag,
 					_kingdom_tls_key_file_flag,
 					_kingdom_cert_collection_file_flag,

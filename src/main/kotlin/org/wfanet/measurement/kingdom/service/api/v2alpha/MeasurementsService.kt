@@ -102,13 +102,9 @@ class MeasurementsService(
   private val internalMeasurementsStub: InternalMeasurementsCoroutineStub,
   private val internalDataProvidersStub: InternalDataProvidersCoroutineStub,
   private val noiseMechanisms: List<NoiseMechanism>,
-  private val reachOnlyLlV2Enabled: Boolean,
-  /**
-   * Whether Honest Majority Share Shuffle (HMSS) is enabled.
-   *
-   * TODO(@renjiezh): Set this based on feature flag.
-   */
-  private val hmssEnabled: Boolean = false,
+  private val reachOnlyLlV2Enabled: Boolean = false,
+  private val reachAndFrequencyHmssEnabled: Boolean = false,
+  private val reachOnlyHmssEnabled: Boolean = false,
 ) : MeasurementsCoroutineImplBase() {
 
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
@@ -498,7 +494,8 @@ class MeasurementsService(
           }
         } else {
           if (
-            hmssEnabled && dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
+            reachOnlyHmssEnabled &&
+              dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
           ) {
             protocolConfig {
               externalProtocolConfigId = HmssProtocolConfig.name
@@ -537,7 +534,8 @@ class MeasurementsService(
           }
         } else {
           if (
-            hmssEnabled && dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
+            reachAndFrequencyHmssEnabled &&
+              dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
           ) {
             protocolConfig {
               externalProtocolConfigId = HmssProtocolConfig.name

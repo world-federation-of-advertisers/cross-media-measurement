@@ -35,6 +35,7 @@ import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.internal.kingdom.DuchyIdConfig
+import org.wfanet.measurement.internal.kingdom.HmssProtocolConfigConfig
 import org.wfanet.measurement.internal.kingdom.Llv2ProtocolConfigConfig
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
@@ -69,6 +70,11 @@ val RO_LLV2_PROTOCOL_CONFIG_CONFIG: Llv2ProtocolConfigConfig =
   loadTextProto(
     "ro_llv2_protocol_config_config.textproto",
     Llv2ProtocolConfigConfig.getDefaultInstance(),
+  )
+val HMSS_PROTOCOL_CONFIG_CONFIG: HmssProtocolConfigConfig =
+  loadTextProto(
+    "hmss_protocol_config_config.textproto",
+    HmssProtocolConfigConfig.getDefaultInstance(),
   )
 
 val ALL_DUCHY_NAMES = DUCHY_ID_CONFIG.duchiesList.map { it.externalDuchyId }
