@@ -44,11 +44,7 @@ serviceAccounts: {
 
 openTelemetry: #OpenTelemetry
 
-collectors: [Name=string]: #OpenTelemetryCollector & {
-	metadata: name: Name
-}
-
-collectors: {
+collectors: openTelemetry.collectors & {
 	"default": {
 		spec: {
 			serviceAccount: #CollectorServiceAccount
