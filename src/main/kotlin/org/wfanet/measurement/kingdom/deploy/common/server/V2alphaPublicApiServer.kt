@@ -49,6 +49,8 @@ import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoro
 import org.wfanet.measurement.internal.kingdom.PublicKeysGrpcKt.PublicKeysCoroutineStub as InternalPublicKeysCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub as InternalRecurringExchangesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub as InternalRequisitionsCoroutineStub
+import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfigFlags
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfigFlags
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
@@ -90,11 +92,14 @@ private fun run(
   @CommandLine.Mixin commonServerFlags: CommonServer.Flags,
   @CommandLine.Mixin llv2ProtocolConfigFlags: Llv2ProtocolConfigFlags,
   @CommandLine.Mixin roLlv2ProtocolConfigFlags: RoLlv2ProtocolConfigFlags,
+  @CommandLine.Mixin hmssProtocolConfigFlags: HmssProtocolConfigFlags,
   @CommandLine.Mixin v2alphaFlags: V2alphaFlags,
   @CommandLine.Mixin duchyInfoFlags: DuchyInfoFlags,
 ) {
   Llv2ProtocolConfig.initializeFromFlags(llv2ProtocolConfigFlags)
   RoLlv2ProtocolConfig.initializeFromFlags(roLlv2ProtocolConfigFlags)
+  HmssProtocolConfig.initializeFromFlags(hmssProtocolConfigFlags)
+
   DuchyInfo.initializeFromFlags(duchyInfoFlags)
 
   val clientCerts =
@@ -238,6 +243,30 @@ private class V2alphaFlags {
     defaultValue = "false",
   )
   var reachOnlyLlV2Enabled by Delegates.notNull<Boolean>()
+    private set
+
+  @set:CommandLine.Option(
+    names = ["--enable-hmss-for-rf"],
+    description =
+      [
+        "whether to enable to Honest Majority Share Shuffle protocol for ReachAndFrequency Measurement"
+      ],
+    negatable = true,
+    required = false,
+    defaultValue = "false",
+  )
+  var hmssForRfEnabled by Delegates.notNull<Boolean>()
+    private set
+
+  @set:CommandLine.Option(
+    names = ["--enable-hmss-for-reach"],
+    description =
+      ["whether to enable to Honest Majority Share Shuffle protocol for Reach Measurement"],
+    negatable = true,
+    required = false,
+    defaultValue = "false",
+  )
+  var hmssForReachEnabled by Delegates.notNull<Boolean>()
     private set
 
   @CommandLine.Option(
