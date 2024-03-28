@@ -35,10 +35,12 @@ on:
   workflow_dispatch:
     inputs:
       environment:
+        description: "GitHub-managed environment"
         required: true
         type: choice
         options:
         - dev
+        - qa
       image-tag:
         description: "Tag of container images"
         type: string
