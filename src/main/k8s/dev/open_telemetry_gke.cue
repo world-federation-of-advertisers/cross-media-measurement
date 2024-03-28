@@ -44,27 +44,12 @@ serviceAccounts: {
 
 openTelemetry: #OpenTelemetry
 
-collectors: [Name=string]: #OpenTelemetryCollector & {
-	metadata: name: Name
-}
-
-collectors: {
+collectors: openTelemetry.collectors & {
 	"default": {
 		spec: {
 			serviceAccount: #CollectorServiceAccount
 			_config: {
-				receivers: {
-					otlp:
-						protocols:
-							grpc:
-								endpoint: "0.0.0.0:\(#OpenTelemetryReceiverPort)"
-				}
-
 				processors: {
-					batch: {
-						send_batch_size: 200
-						timeout:         "10s"
-					}
 					filter: {
 						spans: {
 							exclude: {
@@ -79,34 +64,18 @@ collectors: {
 				}
 
 				exporters: {...} | *{
-					prometheus: {
-						send_timestamps: true
-						endpoint:        "0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)"
-						resource_to_telemetry_conversion:
-							enabled: true
-					}
 					googlecloud: {
 						project: "\(#GCloudProject)"
 						trace: {}
 					}
 				}
 
-				extensions: {...} | *{
-					health_check: {}
-				}
-
 				service: {
-					extensions: [...] | *["health_check"]
 					pipelines: {
 						traces: {
 							receivers: ["otlp"]
 							processors: ["batch", "filter"]
 							exporters: [...] | *["googlecloud"]
-						}
-						metrics: {
-							receivers: ["otlp"]
-							processors: ["batch"]
-							exporters: [...] | *["prometheus"]
 						}
 					}
 				}
