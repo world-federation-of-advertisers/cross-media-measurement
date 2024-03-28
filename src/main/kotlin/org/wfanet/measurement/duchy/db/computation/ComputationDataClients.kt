@@ -162,6 +162,17 @@ private constructor(
       .flatten()
   }
 
+  /** Reads and returns fulfilled requisition blobs associated by requisition ids. */
+  suspend fun readRequisitionBlobs(token: ComputationToken): Map<String, ByteString> {
+    return token.requisitionsList
+      .filter { it.path.isNotBlank() }
+      .associate {
+        val blob =
+          checkNotNull(requisitionStore.get(it.path)) { "Blob with key ${it.path} not found" }
+        it.externalKey.externalRequisitionId to blob.read().flatten()
+      }
+  }
+
   /** Returns a map of [BlobRef]s to the actual bytes of the blob for all inputs to the stage. */
   suspend fun readInputBlobs(token: ComputationToken): Map<BlobRef, ByteString> {
     return token.blobsList

@@ -46,7 +46,6 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/io/opentelemetry/api",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/duchy",
     ],
 )
 
@@ -62,7 +61,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/liquidlegionsv2/crypto:liquidlegionsv2encryption",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/utils:computation_conversions",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/utils:duchy_order",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/system/v1alpha:advance_computation_request_headers",

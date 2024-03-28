@@ -88,11 +88,10 @@ message CompleteAggregationPhaseRequest {
   // The maximum frequency to reveal in the histogram.
   int32 maximum_frequency = 2;
 
+  // Combined sketches from non-aggregators.
   message ShareData {
     repeated uint32 share_vector = 1;
   }
-
-  // Combined sketches from non-aggregators.
   repeated ShareData sketch_shares = 3;
 
   // The sampling rate to be used by the HMSS protocol.

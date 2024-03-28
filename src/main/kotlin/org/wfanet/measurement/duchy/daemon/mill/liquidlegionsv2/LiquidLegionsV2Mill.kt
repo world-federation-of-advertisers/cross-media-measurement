@@ -28,14 +28,10 @@ import org.wfanet.measurement.common.crypto.SignatureAlgorithm
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.identity.DuchyInfo
-import org.wfanet.measurement.consent.client.duchy.encryptResult
-import org.wfanet.measurement.consent.client.duchy.signResult
 import org.wfanet.measurement.consent.client.duchy.verifyDataProviderParticipation
 import org.wfanet.measurement.consent.client.duchy.verifyElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
 import org.wfanet.measurement.duchy.daemon.mill.MillBase
-import org.wfanet.measurement.duchy.daemon.utils.ComputationResult
-import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaEncryptionPublicKey
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.internal.duchy.ComputationDetails.KingdomComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
@@ -187,32 +183,6 @@ abstract class LiquidLegionsV2Mill(
       "@Mill $millId, Computation ${token.globalComputationId} failed due to:\n" +
         errorList.joinToString(separator = "\n")
     throw ComputationDataClients.PermanentErrorException(errorMessage)
-  }
-
-  protected suspend fun sendResultToKingdom(
-    token: ComputationToken,
-    computationResult: ComputationResult,
-  ) {
-    val kingdomComputation = token.computationDetails.kingdomComputation
-    val serializedPublicApiEncryptionPublicKey: ByteString
-    val publicApiVersion = Version.fromString(kingdomComputation.publicApiVersion)
-    val encryptedResultCiphertext: ByteString =
-      when (publicApiVersion) {
-        Version.V2_ALPHA -> {
-          val signedResult = signResult(computationResult.toV2AlphaMeasurementResult(), signingKey)
-          val publicApiEncryptionPublicKey =
-            kingdomComputation.measurementPublicKey.toV2AlphaEncryptionPublicKey()
-          serializedPublicApiEncryptionPublicKey = publicApiEncryptionPublicKey.toByteString()
-          encryptResult(signedResult, publicApiEncryptionPublicKey).ciphertext
-        }
-      }
-    sendResultToKingdom(
-      globalId = token.globalComputationId,
-      certificate = consentSignalCert,
-      resultPublicKey = serializedPublicApiEncryptionPublicKey,
-      encryptedResult = encryptedResultCiphertext,
-      publicApiVersion = publicApiVersion,
-    )
   }
 
   protected fun nextDuchyStub(

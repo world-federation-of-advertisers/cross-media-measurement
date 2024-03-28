@@ -758,9 +758,9 @@ class HeraldTest {
       buildComputationAtKingdom("1", Computation.State.PENDING_REQUISITION_PARAMS)
 
     val systemApiRequisitions1 =
-      REQUISITION_1.toSystemRequisition("2", Requisition.State.UNFULFILLED, DUCHY_ONE)
+      REQUISITION_1.toSystemRequisition("2", Requisition.State.UNFULFILLED)
     val systemApiRequisitions2 =
-      REQUISITION_2.toSystemRequisition("2", Requisition.State.UNFULFILLED, DUCHY_TWO)
+      REQUISITION_2.toSystemRequisition("2", Requisition.State.UNFULFILLED)
     val confirmingUnknown =
       buildComputationAtKingdom(
         "2",
@@ -865,9 +865,9 @@ class HeraldTest {
       buildComputationAtKingdom("1", Computation.State.PENDING_REQUISITION_PARAMS)
 
     val systemApiRequisitions1 =
-      REQUISITION_1.toSystemRequisition("2", Requisition.State.UNFULFILLED, DUCHY_ONE)
+      REQUISITION_1.toSystemRequisition("2", Requisition.State.UNFULFILLED)
     val systemApiRequisitions2 =
-      REQUISITION_2.toSystemRequisition("2", Requisition.State.UNFULFILLED, DUCHY_TWO)
+      REQUISITION_2.toSystemRequisition("2", Requisition.State.UNFULFILLED)
     val confirmingUnknown =
       buildComputationAtKingdom(
         "2",

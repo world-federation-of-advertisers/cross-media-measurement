@@ -47,10 +47,12 @@ data class TestRequisition(
     requisitionSpecHash = this@TestRequisition.requisitionSpecHash
     nonceHash = this@TestRequisition.nonceHash
     this.state = state
-    if (state == Requisition.State.FULFILLED) {
-      nonce = this@TestRequisition.nonce
+    if (externalDuchyId.isNotBlank()) {
       fulfillingComputationParticipant =
         ComputationParticipantKey(globalId, externalDuchyId).toName()
+    }
+    if (state == Requisition.State.FULFILLED) {
+      nonce = this@TestRequisition.nonce
     }
   }
 
@@ -62,9 +64,11 @@ data class TestRequisition(
       }
       details = requisitionDetails {
         nonceHash = this@TestRequisition.nonceHash
+        if (externalDuchyId.isNotBlank()) {
+          externalFulfillingDuchyId = externalDuchyId
+        }
         if (state == Requisition.State.FULFILLED) {
           nonce = this@TestRequisition.nonce
-          externalFulfillingDuchyId = externalDuchyId
         }
       }
     }

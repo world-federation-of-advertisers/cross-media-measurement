@@ -172,3 +172,14 @@ kt_jvm_proto_library(
     name = "honest_majority_share_shuffle_methods_kt_jvm_proto",
     deps = [":honest_majority_share_shuffle_methods_proto"],
 )
+
+# TODO(@renjiez): replace with target in any-sketch-java.
+proto_library(
+    name = "share_shuffle_sketch_proto",
+    srcs = ["share_shuffle_sketch.proto"],
+)
+
+kt_jvm_proto_library(
+    name = "share_shuffle_sketch_kt_jvm_proto",
+    deps = ["share_shuffle_sketch_proto"],
+)

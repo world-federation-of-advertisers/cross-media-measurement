@@ -28,6 +28,7 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyKey
+import org.wfanet.measurement.api.v2alpha.DuchyPrincipal
 import org.wfanet.measurement.api.v2alpha.GetCertificateRequest
 import org.wfanet.measurement.api.v2alpha.ListCertificatesPageToken
 import org.wfanet.measurement.api.v2alpha.ListCertificatesPageTokenKt
@@ -390,8 +391,8 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
      * The rules are as follows:
      * * Any Certificate can be read by a principal that maps to its parent resource.
      * * A ModelProvider or Duchy Certificate can be read by any authenticated principal.
-     * * A DataProvider certificate can be read by any MeasurementConsumer or ModelProvider
-     *   principal.
+     * * A DataProvider certificate can be read by any MeasurementConsumer, ModelProvider,
+     * * or Duchy principal.
      * * A MeasurementConsumer certificate can be read by any DataProvider principal.
      */
     private fun MeasurementPrincipal.isAuthorizedToGet(certificateKey: CertificateKey): Boolean {
@@ -403,7 +404,9 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
         is DuchyCertificateKey,
         is ModelProviderCertificateKey -> true
         is DataProviderCertificateKey ->
-          this is MeasurementConsumerPrincipal || this is ModelProviderPrincipal
+          this is MeasurementConsumerPrincipal ||
+            this is ModelProviderPrincipal ||
+            this is DuchyPrincipal
         is MeasurementConsumerCertificateKey -> this is DataProviderPrincipal
       }
     }

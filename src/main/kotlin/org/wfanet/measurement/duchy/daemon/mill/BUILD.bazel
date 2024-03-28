@@ -13,6 +13,7 @@ kt_jvm_library(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/utils:computation_conversions",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/system/v1alpha:resource_key",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_stats_service_kt_jvm_grpc_proto",
@@ -24,5 +25,6 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/io/opentelemetry/api",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_key_storage",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/duchy",
     ],
 )
