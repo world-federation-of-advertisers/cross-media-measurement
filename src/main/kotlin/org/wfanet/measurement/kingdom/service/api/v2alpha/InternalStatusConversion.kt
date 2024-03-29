@@ -24,6 +24,7 @@ import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import io.grpc.protobuf.StatusProto
 import org.wfanet.measurement.api.v2alpha.AccountKey
+import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
@@ -208,10 +209,33 @@ fun Status.toExternalStatusRuntimeException(
           errorMessage = "ComputationParticipant not found."
         }
         ErrorCode.REQUISITION_NOT_FOUND -> {
-          errorMessage = "Requisition not found."
+          val dataProviderKey =
+            DataProviderKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_data_provider_id"]).toLong()
+              )
+            )
+          val requisitionName =
+            CanonicalRequisitionKey(
+                dataProviderKey,
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_requisition_id"]).toLong()
+                ),
+              )
+              .toName()
+          put("requisition", requisitionName)
+          errorMessage = "Requisition $requisitionName not found"
         }
         ErrorCode.REQUISITION_STATE_ILLEGAL -> {
-          errorMessage = "Requisition state illegal."
+          val requisitionApiId =
+            externalIdToApiId(
+              checkNotNull(errorInfo.metadataMap["external_requisition_id"]).toLong()
+            )
+          val requisitionState = checkNotNull(errorInfo.metadataMap["requisition_state"]).toString()
+          put("requisition_id", requisitionApiId)
+          put("state", requisitionState)
+          errorMessage =
+            "Requisition with id: $requisitionApiId is in illegal state: $requisitionState"
         }
         ErrorCode.ACCOUNT_NOT_FOUND -> {
           val accountName =
