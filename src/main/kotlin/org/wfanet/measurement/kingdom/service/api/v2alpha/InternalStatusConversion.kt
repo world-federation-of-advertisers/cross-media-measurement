@@ -23,6 +23,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import io.grpc.protobuf.StatusProto
+import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
@@ -31,6 +32,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.ModelProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.ErrorCode
@@ -174,13 +176,29 @@ fun Status.toExternalStatusRuntimeException(
         }
         // TODO{@jcorilla}: Populate metadata using subsequent error codes
         ErrorCode.MODEL_PROVIDER_NOT_FOUND -> {
-          errorMessage = "ModelProvider not found."
+          val modelProviderName =
+            ModelProviderKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
+                )
+              )
+              .toName()
+          put("model_provider", modelProviderName)
+          errorMessage = "ModelProvider $modelProviderName not found."
         }
         ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS -> {
           errorMessage = "Certificate with the subject key identifier (SKID) already exists."
         }
         ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL -> {
-          errorMessage = "Certificate is in wrong State."
+          val certificateApiId =
+            externalIdToApiId(
+              checkNotNull(errorInfo.metadataMap["external_certificate_id"]).toLong()
+            )
+          val certificateRevocationState =
+            checkNotNull(errorInfo.metadataMap["certificate_revocation_state"]).toString()
+          put("external_certificate_id", certificateApiId)
+          put("certification_revocation_state", certificateRevocationState)
+          errorMessage = "Certificate is in illegal revocation state: $certificateRevocationState."
         }
         ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL -> {
           errorMessage = "ComputationParticipant state illegal."
@@ -195,18 +213,55 @@ fun Status.toExternalStatusRuntimeException(
           errorMessage = "Requisition state illegal."
         }
         ErrorCode.ACCOUNT_NOT_FOUND -> {
-          errorMessage = "Account not found."
+          val accountName =
+            AccountKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_account_id"]).toLong()
+                )
+              )
+              .toName()
+          put("account", accountName)
+          errorMessage = "Account $accountName not found."
         }
         ErrorCode.DUPLICATE_ACCOUNT_IDENTITY -> {
-          errorMessage = "Duplicated account identity."
+          val accountName =
+            AccountKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_account_id"]).toLong()
+                )
+              )
+              .toName()
+          val issuer = checkNotNull(errorInfo.metadataMap["issuer"])
+          val subject = checkNotNull(errorInfo.metadataMap["subject"])
+          put("account", accountName)
+          put("issuer", issuer)
+          put("subject", subject)
+          errorMessage =
+            "Account $accountName with issuer: $issuer and subject: $subject pair already exists."
         }
         ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL -> {
-          errorMessage = "Account activation state illegal."
+          val accountName =
+            AccountKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_account_id"]).toLong()
+                )
+              )
+              .toName()
+          val accountActivationState =
+            checkNotNull(errorInfo.metadataMap["account_activation_state"]).toString()
+          put("account", accountName)
+          put("account_activation_state", accountActivationState)
+          errorMessage =
+            "Account $accountName is in illegal activation state: $accountActivationState."
         }
         ErrorCode.PERMISSION_DENIED -> {
           errorMessage = "Permission Denied."
         }
         ErrorCode.API_KEY_NOT_FOUND -> {
+          val apiKeyApiId =
+            externalIdToApiId(checkNotNull(errorInfo.metadataMap["external_api_key_id"]).toLong())
+
+          put("external_api_key_id", apiKeyApiId)
           errorMessage = "ApiKey not found."
         }
         ErrorCode.EVENT_GROUP_NOT_FOUND -> {
