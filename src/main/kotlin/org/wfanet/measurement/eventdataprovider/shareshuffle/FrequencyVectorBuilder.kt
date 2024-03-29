@@ -56,7 +56,7 @@ class FrequencyVectorBuilder(
    * VidSamplingInterval it is ignored.
    */
   fun addVid(vid: Long) {
-    // TODO(@kungfucraig): Implement this method
+    // TODO(kungfucraig): Implement this method
   }
 
   /**
@@ -74,6 +74,6 @@ class FrequencyVectorBuilder(
    *   [this].
    */
   fun addVids(other: FrequencyVectorBuilder) {
-    // TODO(@kungfucraig): Implement this method
+    // TODO(kungfucraig): Implement this method
   }
 }

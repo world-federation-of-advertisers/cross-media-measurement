@@ -25,7 +25,7 @@ class VidNotFoundException(message: String) : Exception(message)
  */
 class VidIndexMap(populationSpec: PopulationSpec) {
   /** The number of VIDs managed by this VidIndexMap */
-  // TODO(@kungfucraig): Implement this property
+  // TODO(kungfucraig): Implement this property
   val vidCount: Long = 0
 
   /**
@@ -34,7 +34,7 @@ class VidIndexMap(populationSpec: PopulationSpec) {
    * @throws VidNotFoundException if the [vid] does not exist in the map
    */
   fun getVidIndex(vid: Long): Int {
-    // TODO(@kungfucraig): Implement this method
+    // TODO(kungfucraig): Implement this method
     return 0
   }
 }
