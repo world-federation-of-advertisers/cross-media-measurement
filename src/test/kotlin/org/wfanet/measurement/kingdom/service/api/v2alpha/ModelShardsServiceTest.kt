@@ -32,6 +32,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.stub
 import org.mockito.kotlin.verify
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ListModelShardsPageTokenKt.previousPageEnd
@@ -54,9 +55,11 @@ import org.wfanet.measurement.api.v2alpha.withDuchyPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
@@ -72,6 +75,11 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.deleteModelShardRequest as internalDeleteModelShardRequest
 import org.wfanet.measurement.internal.kingdom.modelShard as internalModelShard
 import org.wfanet.measurement.internal.kingdom.streamModelShardsRequest as internalStreamModelShardsRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelReleaseNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelShardInvalidArgsException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelShardNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelSuiteNotFoundException
 
 private const val DEFAULT_LIMIT = 50
 
@@ -696,5 +704,161 @@ class ModelShardsServiceTest {
           }
         }
       )
+  }
+
+  @Test
+  fun `createModelShard throws NOT_FOUND with data provider name when data provider not found`() {
+    internalModelShardsMock.stub {
+      onBlocking { createModelShard(any()) }
+        .thenThrow(
+          DataProviderNotFoundException(ExternalId(EXTERNAL_DATA_PROVIDER_ID))
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking {
+            service.createModelShard(
+              createModelShardRequest {
+                parent = DATA_PROVIDER_NAME
+                modelShard = MODEL_SHARD
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("data_provider", DATA_PROVIDER_NAME)
+  }
+
+  @Test
+  fun `createModelShard throws NOT_FOUND with model suite name when model suite not found`() {
+    internalModelShardsMock.stub {
+      onBlocking { createModelShard(any()) }
+        .thenThrow(
+          ModelSuiteNotFoundException(
+              ExternalId(EXTERNAL_MODEL_PROVIDER_ID),
+              ExternalId(EXTERNAL_MODEL_SUITE_ID),
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelSuite not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking {
+            service.createModelShard(
+              createModelShardRequest {
+                parent = DATA_PROVIDER_NAME
+                modelShard = MODEL_SHARD
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("modelSuite", MODEL_SUITE_NAME)
+  }
+
+  @Test
+  fun `createModelShard throws NOT_FOUND with model release name when model release not found`() {
+    internalModelShardsMock.stub {
+      onBlocking { createModelShard(any()) }
+        .thenThrow(
+          ModelReleaseNotFoundException(
+              ExternalId(EXTERNAL_MODEL_PROVIDER_ID),
+              ExternalId(EXTERNAL_MODEL_SUITE_ID),
+              ExternalId(EXTERNAL_MODEL_RELEASE_ID),
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelRelease not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking {
+            service.createModelShard(
+              createModelShardRequest {
+                parent = DATA_PROVIDER_NAME
+                modelShard = MODEL_SHARD
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("modelRelease", MODEL_RELEASE_NAME)
+  }
+
+  @Test
+  fun `deleteModelShard throws NOT_FOUND with data provider name when data provider not found`() {
+    internalModelShardsMock.stub {
+      onBlocking { deleteModelShard(any()) }
+        .thenThrow(
+          DataProviderNotFoundException(ExternalId(EXTERNAL_DATA_PROVIDER_ID))
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking {
+            service.deleteModelShard(deleteModelShardRequest { name = MODEL_SHARD_NAME })
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("data_provider", DATA_PROVIDER_NAME)
+  }
+
+  @Test
+  fun `deleteModelShard throws NOT_FOUND with model shard name when model shard not found`() {
+    internalModelShardsMock.stub {
+      onBlocking { deleteModelShard(any()) }
+        .thenThrow(
+          ModelShardNotFoundException(
+              ExternalId(EXTERNAL_DATA_PROVIDER_ID),
+              ExternalId(EXTERNAL_MODEL_SHARD_ID),
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelShard not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking {
+            service.deleteModelShard(deleteModelShardRequest { name = MODEL_SHARD_NAME })
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("modelShard", MODEL_SHARD_NAME)
+  }
+
+  @Test
+  fun `deleteModelShard throws INVALID_ARGUMENT with model shard and provider name when argument invalid`() {
+    internalModelShardsMock.stub {
+      onBlocking { deleteModelShard(any()) }
+        .thenThrow(
+          ModelShardInvalidArgsException(
+              ExternalId(EXTERNAL_DATA_PROVIDER_ID),
+              ExternalId(EXTERNAL_MODEL_SHARD_ID),
+              ExternalId(EXTERNAL_MODEL_PROVIDER_ID),
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelShard invalid arguments.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking {
+            service.deleteModelShard(deleteModelShardRequest { name = MODEL_SHARD_NAME })
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("modelShard", MODEL_SHARD_NAME)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("modelProvider", MODEL_PROVIDER_NAME)
   }
 }

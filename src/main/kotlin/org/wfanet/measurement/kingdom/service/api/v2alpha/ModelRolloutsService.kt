@@ -109,16 +109,12 @@ class ModelRolloutsService(private val internalClient: ModelRolloutsCoroutineStu
     val createModelRolloutRequest = request.modelRollout.toInternal(parentKey, modelReleaseKey)
     return try {
       internalClient.createModelRollout(createModelRolloutRequest).toModelRollout()
-    } catch (ex: StatusException) {
-      when (ex.status.code) {
-        Status.Code.NOT_FOUND ->
-          failGrpc(Status.NOT_FOUND, ex) { "Either ModelLine or ModelRelease were not found" }
-        Status.Code.INVALID_ARGUMENT ->
-          failGrpc(Status.INVALID_ARGUMENT, ex) {
-            ex.message ?: "Required field unspecified or invalid"
-          }
-        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception" }
-      }
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+        else -> Status.UNKNOWN
+      }.toExternalStatusRuntimeException(e)
     }
   }
 
@@ -162,16 +158,12 @@ class ModelRolloutsService(private val internalClient: ModelRolloutsCoroutineStu
       return internalClient
         .scheduleModelRolloutFreeze(internalScheduleModelRolloutFreezeRequest)
         .toModelRollout()
-    } catch (ex: StatusException) {
-      when (ex.status.code) {
-        Status.Code.NOT_FOUND ->
-          failGrpc(Status.NOT_FOUND, ex) { ex.message ?: "ModelRollout not found" }
-        Status.Code.INVALID_ARGUMENT ->
-          failGrpc(Status.INVALID_ARGUMENT, ex) {
-            ex.message ?: "Required field unspecified or invalid"
-          }
-        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception" }
-      }
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+        else -> Status.UNKNOWN
+      }.toExternalStatusRuntimeException(e)
     }
   }
 
@@ -205,20 +197,13 @@ class ModelRolloutsService(private val internalClient: ModelRolloutsCoroutineStu
     try {
       internalClient.deleteModelRollout(deleteModelRolloutRequest)
       return Empty.getDefaultInstance()
-    } catch (ex: StatusException) {
-      when (ex.status.code) {
-        Status.Code.NOT_FOUND ->
-          failGrpc(Status.NOT_FOUND, ex) { ex.message ?: "ModelRollout not found" }
-        Status.Code.INVALID_ARGUMENT ->
-          failGrpc(Status.INVALID_ARGUMENT, ex) {
-            ex.message ?: "Required field unspecified or invalid"
-          }
-        Status.Code.FAILED_PRECONDITION ->
-          failGrpc(Status.FAILED_PRECONDITION, ex) {
-            ex.message ?: "RolloutStartTime already passed"
-          }
-        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception" }
-      }
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+        Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
+        else -> Status.UNKNOWN
+      }.toExternalStatusRuntimeException(e)
     }
   }
 
