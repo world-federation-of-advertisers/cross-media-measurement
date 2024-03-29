@@ -69,6 +69,7 @@ import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.testing.TestData
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.ExternalId
@@ -89,9 +90,16 @@ import org.wfanet.measurement.internal.kingdom.getCertificateRequest as internal
 import org.wfanet.measurement.internal.kingdom.releaseCertificateHoldRequest as internalReleaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest as internalRevokeCertificateRequest
 import org.wfanet.measurement.internal.kingdom.streamCertificatesRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertSubjectKeyIdAlreadyExistsException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateRevocationStateIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelProviderNotFoundException
 
-private val MODEL_PROVIDER_NAME = makeModelProvider(23456L)
-private val MODEL_PROVIDER_NAME_2 = makeModelProvider(23457L)
+private const val EXTERNAL_MODEL_PROVIDER_ID = 23456L
+private const val EXTERNAL_MODEL_PROVIDER_ID_2 = 23457L
+private val MODEL_PROVIDER_NAME = makeModelProvider(EXTERNAL_MODEL_PROVIDER_ID)
+private val MODEL_PROVIDER_NAME_2 = makeModelProvider(EXTERNAL_MODEL_PROVIDER_ID_2)
 private val MODEL_PROVIDER_CERTIFICATE_NAME = "$MODEL_PROVIDER_NAME/certificates/AAAAAAAAAcg"
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 private const val MEASUREMENT_CONSUMER_NAME_2 = "measurementConsumers/BBBBBBBBBHs"
@@ -1292,6 +1300,201 @@ class CertificatesServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `getCertificate throws INVALID_ARGUMENT when parent not specified`() {
+    internalCertificatesMock.stub {
+      onBlocking { getCertificate(any()) }
+        .thenThrow(
+          Status.INVALID_ARGUMENT.withDescription("Parent not specified").asRuntimeException()
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipal(
+          MeasurementConsumerPrincipal(MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!)
+        ) {
+          runBlocking {
+            service.getCertificate(
+              getCertificateRequest { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createCertificate throws NOT_FOUND with model provider name when model provider not found`() {
+    internalCertificatesMock.stub {
+      onBlocking { createCertificate(any()) }
+        .thenThrow(
+          ModelProviderNotFoundException(ExternalId(EXTERNAL_MODEL_PROVIDER_ID))
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "Model provider not found")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipal(ModelProviderPrincipal(ModelProviderKey.fromName(MODEL_PROVIDER_NAME)!!)) {
+          runBlocking {
+            service.createCertificate(
+              createCertificateRequest {
+                parent = MODEL_PROVIDER_NAME
+                certificate = CERTIFICATE
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("model_provider", MODEL_PROVIDER_NAME)
+  }
+
+  @Test
+  fun `createCertificate throws ALREADY_EXISTS when certificate with subject key identifier already exists`() {
+    internalCertificatesMock.stub {
+      onBlocking { createCertificate(any()) }
+        .thenThrow(
+          CertSubjectKeyIdAlreadyExistsException()
+            .asStatusRuntimeException(
+              Status.Code.ALREADY_EXISTS,
+              "Certificate with the subject key identifier (SKID) already exists.",
+            )
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipal(ModelProviderPrincipal(ModelProviderKey.fromName(MODEL_PROVIDER_NAME)!!)) {
+          runBlocking {
+            service.createCertificate(
+              createCertificateRequest {
+                parent = MODEL_PROVIDER_NAME
+                certificate = CERTIFICATE
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+  }
+
+  @Test
+  fun `revokeCertificate throws NOT_FOUND when certificate is not found`() {
+    internalCertificatesMock.stub {
+      onBlocking { revokeCertificate(any()) }
+        .thenThrow(
+          CertificateNotFoundException(EXTERNAL_CERTIFICATE_ID)
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "Certificate not found")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipal(ModelProviderPrincipal(ModelProviderKey.fromName(MODEL_PROVIDER_NAME)!!)) {
+          runBlocking {
+            service.revokeCertificate(
+              revokeCertificateRequest {
+                name = MODEL_PROVIDER_CERTIFICATE_NAME
+                revocationState = Certificate.RevocationState.REVOKED
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `revokeCertificate throws FAILED_PRECONDITION with certificate revocation state when certificate state illegal`() {
+    internalCertificatesMock.stub {
+      onBlocking { revokeCertificate(any()) }
+        .thenThrow(
+          CertificateRevocationStateIllegalException(
+              EXTERNAL_CERTIFICATE_ID,
+              InternalCertificate.RevocationState.REVOCATION_STATE_UNSPECIFIED,
+            )
+            .asStatusRuntimeException(
+              Status.Code.FAILED_PRECONDITION,
+              "Certificate in illegal state",
+            )
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipal(ModelProviderPrincipal(ModelProviderKey.fromName(MODEL_PROVIDER_NAME)!!)) {
+          runBlocking {
+            service.revokeCertificate(
+              revokeCertificateRequest {
+                name = MODEL_PROVIDER_CERTIFICATE_NAME
+                revocationState = Certificate.RevocationState.REVOKED
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry(
+        "certification_revocation_state",
+        InternalCertificate.RevocationState.REVOCATION_STATE_UNSPECIFIED.toString(),
+      )
+  }
+
+  @Test
+  fun `releaseCertificateHold throws NOT_FOUND with duchy api id when duchy not found`() {
+    internalCertificatesMock.stub {
+      onBlocking { releaseCertificateHold(any()) }
+        .thenThrow(
+          DuchyNotFoundException(DuchyKey.fromName(DUCHY_NAME)!!.duchyId)
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "Duchy not found")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipal(DuchyPrincipal(DuchyKey.fromName(DUCHY_NAME)!!)) {
+          runBlocking {
+            service.releaseCertificateHold(
+              releaseCertificateHoldRequest { name = DUCHY_CERTIFICATE_NAME }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("duchy", DUCHY_NAME)
+  }
+
+  @Test
+  fun `releaseCertificateHold throws FAILED_PRECONDITION with certificate revocation state when certificate state illegal`() {
+    internalCertificatesMock.stub {
+      onBlocking { releaseCertificateHold(any()) }
+        .thenThrow(
+          CertificateRevocationStateIllegalException(
+              EXTERNAL_CERTIFICATE_ID,
+              InternalCertificate.RevocationState.REVOCATION_STATE_UNSPECIFIED,
+            )
+            .asStatusRuntimeException(
+              Status.Code.FAILED_PRECONDITION,
+              "Certificate in illegal state",
+            )
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipal(DuchyPrincipal(DuchyKey.fromName(DUCHY_NAME)!!)) {
+          runBlocking {
+            service.releaseCertificateHold(
+              releaseCertificateHoldRequest { name = DUCHY_CERTIFICATE_NAME }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry(
+        "certification_revocation_state",
+        InternalCertificate.RevocationState.REVOCATION_STATE_UNSPECIFIED.toString(),
+      )
   }
 
   companion object {
