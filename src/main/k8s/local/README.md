@@ -111,7 +111,8 @@ kubectl port-forward --address=localhost services/v2alpha-public-api-server 8443
 kubectl port-forward --address=localhost services/gcp-kingdom-data-server 9443:8443
 ```
 
-Then run the tool, outputting to some directory (e.g. `/tmp/resource-setup`):
+Then run the tool, outputting to some directory (e.g. `/tmp/resource-setup`, make sure 
+this directory has been created):
 
 ```shell
 src/main/k8s/testing/resource_setup.sh \
@@ -304,7 +305,7 @@ forwarding as mentioned before:
 kubectl port-forward --address=localhost services/v2alpha-public-api-server 8443:8443
 ```
 
-Then you can run the test, substituting your own values:
+Then you can run the test, substituting your own values(e.g. `mc_name` and `mc_api_key`):
 
 ```shell
 bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGeneratorCorrectnessTest
