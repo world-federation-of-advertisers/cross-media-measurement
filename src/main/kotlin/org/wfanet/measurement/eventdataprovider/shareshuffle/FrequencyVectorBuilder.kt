@@ -55,9 +55,7 @@ class FrequencyVectorBuilder(
    * Add a single VID to the [FrequencyVector]. If the [vid] is not contained by the
    * VidSamplingInterval it is ignored.
    */
-  fun addVid(vid: Long) {
-    // TODO(kungfucraig): Implement this method
-  }
+ fun addVid(vid: Long) {}
 
   /**
    * Add all vids in the input Collection to the [FrequencyVector]. If any vid in the Collection is
@@ -73,7 +71,5 @@ class FrequencyVectorBuilder(
    * @throws [IllegalArgumentException] if the [VidSamplingInterval] of [other] is different from
    *   [this].
    */
-  fun addVids(other: FrequencyVectorBuilder) {
-    // TODO(kungfucraig): Implement this method
-  }
+ fun addVids(other: FrequencyVectorBuilder) {}
 }
