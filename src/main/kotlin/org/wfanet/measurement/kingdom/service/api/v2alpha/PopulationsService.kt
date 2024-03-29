@@ -39,7 +39,6 @@ import org.wfanet.measurement.api.v2alpha.listPopulationsResponse
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -86,11 +85,11 @@ class PopulationsService(private val internalClient: PopulationsCoroutineStub) :
     val createPopulationRequest = request.population.toInternal(parentKey)
     return try {
       internalClient.createPopulation(createPopulationRequest).toPopulation()
-    } catch (ex: StatusException) {
-      when (ex.status.code) {
-        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "DataProvider not found." }
-        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
-      }
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        else -> Status.UNKNOWN
+      }.toExternalStatusRuntimeException(e)
     }
   }
 
@@ -123,11 +122,11 @@ class PopulationsService(private val internalClient: PopulationsCoroutineStub) :
 
     try {
       return internalClient.getPopulation(getPopulationRequest).toPopulation()
-    } catch (ex: StatusException) {
-      when (ex.status.code) {
-        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Population not found" }
-        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception" }
-      }
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        else -> Status.UNKNOWN
+      }.toExternalStatusRuntimeException(e)
     }
   }
 
@@ -162,14 +161,11 @@ class PopulationsService(private val internalClient: PopulationsCoroutineStub) :
         internalClient
           .streamPopulations(listPopulationsPageToken.toStreamPopulationsRequest())
           .toList()
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.INVALID_ARGUMENT ->
-            failGrpc(Status.INVALID_ARGUMENT, ex) {
-              ex.message ?: "Required field unspecified or invalid"
-            }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception" }
-        }
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
 
     if (results.isEmpty()) {

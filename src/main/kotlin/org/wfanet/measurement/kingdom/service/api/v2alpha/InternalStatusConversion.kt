@@ -33,6 +33,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.ModelProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
+import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.ErrorCode
@@ -331,7 +332,18 @@ fun Status.toExternalStatusRuntimeException(
           errorMessage = "ModelShard invalid arguments."
         }
         ErrorCode.POPULATION_NOT_FOUND -> {
-          errorMessage = "Population not found."
+          val populationName =
+            PopulationKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_data_provider_id"]).toLong()
+                ),
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_population_id"]).toLong()
+                ),
+              )
+              .toName()
+          put("population", populationName)
+          errorMessage = "Population $populationName not found."
         }
         ErrorCode.UNKNOWN_ERROR -> {
           errorMessage = "Unknown exception."
