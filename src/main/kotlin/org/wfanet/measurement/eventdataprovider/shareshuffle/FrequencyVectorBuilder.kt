@@ -34,17 +34,14 @@ class FrequencyVectorBuilder(
   val vidIndexMap: VidIndexMap,
   val vidSamplingInterval: VidSamplingInterval,
 ) {
-  /**
-   * Construct a FrequencyVectorBuilder with an existing [FrequencyVector].
+ /** Construct a FrequencyVectorBuilder with an existing [FrequencyVector].
    *
-   * @throws IllegalArgumentException if the [frequencyVector] is not compatible with the
-   *   [vidSamplingInterval].
+   * @throws IllegalArgumentException if the [frequencyVector] is not compatible with
+   * the [vidSamplingInterval].
    */
-  constructor(
-    vidIndexMap: VidIndexMap,
-    vidSamplingInterval: VidSamplingInterval,
-    frequencyVector: FrequencyVector,
-  ) : this(vidIndexMap, vidSamplingInterval) {
+  constructor(vidIndexMap: VidIndexMap,
+              vidSamplingInterval: VidSamplingInterval,
+              frequencyVector: FrequencyVector) : this(vidIndexMap, vidSamplingInterval) {
     // TODO(@kungfucraig): Implement this method
   }
 
