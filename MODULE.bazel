@@ -139,6 +139,12 @@ bazel_dep(
     version = "0.61.0",
     repo_name = "wfa_measurement_proto",
 )
+# TODO(kungfucraig): DO NOT SUBMIT
+git_override(
+    module_name = "cross-media-measurement-api",
+    remote="https://github.com/world-federation-of-advertisers/cross-media-measurement-api.git",
+    commit = "7c8702ed832c51fdcc2b22917ee4a91c0fb11377"
+)
 bazel_dep(
     name = "consent-signaling-client",
     version = "0.20.0",
@@ -146,7 +152,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "any-sketch",
-    version = "0.6.0",
+    version = "0.8.0",
     repo_name = "any_sketch",
 )
 bazel_dep(
