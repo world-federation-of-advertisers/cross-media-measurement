@@ -320,7 +320,7 @@ class CreateUiReportCommand : Runnable {
 
   @CommandLine.ArgGroup(
     exclusive = false,
-    multiplicity = "3",
+    multiplicity = "2..*",
     heading = "Primitive Reporting Set request configuration\n",
   )
   private lateinit var edps: List<ReportingSetParams>
@@ -418,13 +418,35 @@ class CreateUiReportCommand : Runnable {
     return runBlocking(Dispatchers.IO) { parent.reportingSetStub.createReportingSet(request) }
   }
 
+  // Creates the nested unions for the provided EDPs.
+  private fun createUnionExpression(edpNames: List<String>): ReportingSet.SetExpression {
+    if (edpNames.size == 2) {
+      return ReportingSetKt.setExpression {
+        operation = ReportingSet.SetExpression.Operation.UNION
+        lhs = ReportingSetKt.SetExpressionKt.operand { reportingSet = edpNames[0] }
+        rhs = ReportingSetKt.SetExpressionKt.operand { reportingSet = edpNames[1] }
+      }
+    } else {
+      return ReportingSetKt.setExpression {
+        operation = ReportingSet.SetExpression.Operation.UNION
+        lhs = ReportingSetKt.SetExpressionKt.operand { reportingSet = edpNames[0] }
+        rhs = ReportingSetKt.SetExpressionKt.operand {
+          expression = createUnionExpression(edpNames.subList(1, edpNames.size))
+        }
+      }
+    }
+  }
+
   private fun createUnionReportingSet(
     edps: List<ReportingSetParams>,
     primitiveRs: List<ReportingSet>,
     measurementConsumerName: String,
   ): ReportingSet {
-    val unionName = "union-" + edps.map { it.reportingSetName }.joinToString(separator = "-")
-    val unionDisplayName = "Union (${edps.map{it.reportingSetDisplayName}.joinToString()})"
+    val edpNames = edps.map { it.reportingSetName }
+    val edpDisplayNames = edps.map{it.reportingSetDisplayName}
+    val edpFullNames = primitiveRs.map { it.name }
+    val unionName = "union-" + edpNames.joinToString(separator = "-")
+    val unionDisplayName = "Union (${edpDisplayNames.joinToString()})"
 
     val rsRequest = createReportingSetRequest {
       parent = measurementConsumerName
@@ -434,26 +456,7 @@ class CreateUiReportCommand : Runnable {
         tags.put("ui.halo-cmm.org/reporting_set_type", "union")
         composite =
           ReportingSetKt.composite {
-            expression =
-              ReportingSetKt.setExpression {
-                operation = ReportingSet.SetExpression.Operation.UNION
-                lhs = ReportingSetKt.SetExpressionKt.operand { reportingSet = primitiveRs[0].name }
-                rhs =
-                  ReportingSetKt.SetExpressionKt.operand {
-                    expression =
-                      ReportingSetKt.setExpression {
-                        operation = ReportingSet.SetExpression.Operation.UNION
-                        lhs =
-                          ReportingSetKt.SetExpressionKt.operand {
-                            reportingSet = primitiveRs[1].name
-                          }
-                        rhs =
-                          ReportingSetKt.SetExpressionKt.operand {
-                            reportingSet = primitiveRs[2].name
-                          }
-                      }
-                  }
-              }
+            expression = createUnionExpression(edpFullNames)
           }
       }
     }
