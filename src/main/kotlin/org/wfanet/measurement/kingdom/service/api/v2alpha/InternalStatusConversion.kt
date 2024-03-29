@@ -32,6 +32,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.ModelProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.ErrorCode
@@ -175,13 +176,29 @@ fun Status.toExternalStatusRuntimeException(
         }
         // TODO{@jcorilla}: Populate metadata using subsequent error codes
         ErrorCode.MODEL_PROVIDER_NOT_FOUND -> {
-          errorMessage = "ModelProvider not found."
+          val modelProviderName =
+            ModelProviderKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
+                )
+              )
+              .toName()
+          put("model_provider", modelProviderName)
+          errorMessage = "ModelProvider $modelProviderName not found."
         }
         ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS -> {
           errorMessage = "Certificate with the subject key identifier (SKID) already exists."
         }
         ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL -> {
-          errorMessage = "Certificate is in wrong State."
+          val certificateApiId =
+            externalIdToApiId(
+              checkNotNull(errorInfo.metadataMap["external_certificate_id"]).toLong()
+            )
+          val certificateRevocationState =
+            checkNotNull(errorInfo.metadataMap["certificate_revocation_state"]).toString()
+          put("external_certificate_id", certificateApiId)
+          put("certification_revocation_state", certificateRevocationState)
+          errorMessage = "Certificate is in illegal revocation state: $certificateRevocationState."
         }
         ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL -> {
           errorMessage = "ComputationParticipant state illegal."
