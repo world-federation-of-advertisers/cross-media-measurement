@@ -62,12 +62,11 @@ class ApiKeysService(private val internalApiKeysStub: ApiKeysCoroutineStub) :
     val result =
       try {
         internalApiKeysStub.createApiKey(internalCreateApiKeyRequest)
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.NOT_FOUND ->
-            failGrpc(Status.NOT_FOUND, ex) { "MeasurementConsumer not found." }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
-        }
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
 
     return result.toApiKey()
@@ -94,11 +93,11 @@ class ApiKeysService(private val internalApiKeysStub: ApiKeysCoroutineStub) :
     val result =
       try {
         internalApiKeysStub.deleteApiKey(deleteApiKeyRequest)
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { ex.message ?: "Not found." }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
-        }
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
 
     return result.toApiKey()
