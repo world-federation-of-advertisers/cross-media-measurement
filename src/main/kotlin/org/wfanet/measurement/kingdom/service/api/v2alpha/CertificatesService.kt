@@ -108,12 +108,11 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
     val internalCertificate =
       try {
         internalCertificatesStub.getCertificate(internalGetCertificateRequest)
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.INVALID_ARGUMENT ->
-            failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
-        }
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
     return internalCertificate.toCertificate()
   }
@@ -185,11 +184,9 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
         internalCertificatesStub.streamCertificates(internalRequest).toList()
       } catch (e: StatusException) {
         throw when (e.status.code) {
-            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-            else -> Status.UNKNOWN
-          }
-          .withCause(e)
-          .asRuntimeException()
+          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
 
     if (internalCertificates.isEmpty()) {
@@ -242,17 +239,13 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
     val response =
       try {
         internalCertificatesStub.createCertificate(internalCertificate)
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { ex.message ?: "Not found" }
-          Status.Code.ALREADY_EXISTS ->
-            failGrpc(Status.ALREADY_EXISTS, ex) {
-              "Certificate with the subject key identifier (SKID) already exists."
-            }
-          Status.Code.INVALID_ARGUMENT ->
-            failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
-        }
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          Status.Code.ALREADY_EXISTS -> Status.ALREADY_EXISTS
+          Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
     return response.toCertificate()
   }
@@ -294,13 +287,12 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
     val internalCertificate =
       try {
         internalCertificatesStub.revokeCertificate(internalRevokeCertificateRequest)
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { ex.message ?: "Not found" }
-          Status.Code.FAILED_PRECONDITION ->
-            failGrpc(Status.FAILED_PRECONDITION, ex) { "Certificate is in wrong State." }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
-        }
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
     return internalCertificate.toCertificate()
   }
@@ -337,13 +329,12 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
     val internalCertificate =
       try {
         internalCertificatesStub.releaseCertificateHold(internalReleaseCertificateHoldRequest)
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { ex.message ?: "Not found" }
-          Status.Code.FAILED_PRECONDITION ->
-            failGrpc(Status.FAILED_PRECONDITION, ex) { "Certificate is in wrong State." }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
-        }
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
     return internalCertificate.toCertificate()
   }
