@@ -31,8 +31,13 @@ import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.api.v2alpha.ModelOutageKey
 import org.wfanet.measurement.api.v2alpha.ModelProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
+import org.wfanet.measurement.api.v2alpha.ModelReleaseKey
+import org.wfanet.measurement.api.v2alpha.ModelShardKey
+import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.ErrorCode
@@ -292,10 +297,35 @@ fun Status.toExternalStatusRuntimeException(
           errorMessage = "Measurement is inconsistent with initial state."
         }
         ErrorCode.MODEL_SUITE_NOT_FOUND -> {
-          errorMessage = "ModelSuite not found."
+          val modelSuiteName =
+            ModelSuiteKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
+                ),
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_model_suite_id"]).toLong()
+                ),
+              )
+              .toName()
+          put("model_suite", modelSuiteName)
+          errorMessage = "ModelSuite $modelSuiteName not found."
         }
         ErrorCode.MODEL_LINE_NOT_FOUND -> {
-          errorMessage = "ModelLine not found."
+          val modelLineName =
+            ModelLineKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
+                ),
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_model_suite_id"]).toLong()
+                ),
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_model_line_id"]).toLong()
+                ),
+              )
+              .toName()
+          put("model_line", modelLineName)
+          errorMessage = "ModelLine $modelLineName not found."
         }
         ErrorCode.MODEL_LINE_TYPE_ILLEGAL -> {
           errorMessage = "ModelLine type illegal."
@@ -304,19 +334,95 @@ fun Status.toExternalStatusRuntimeException(
           errorMessage = "ModelLine invalid active times."
         }
         ErrorCode.MODEL_OUTAGE_NOT_FOUND -> {
-          errorMessage = "ModelOutage not found."
+          val modelOutageName =
+            ModelOutageKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
+                ),
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_model_suite_id"]).toLong()
+                ),
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_model_line_id"]).toLong()
+                ),
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_model_outage_id"]).toLong()
+                ),
+              )
+              .toName()
+          put("model_outage", modelOutageName)
+          errorMessage = "ModelOutage $modelOutageName not found."
         }
         ErrorCode.MODEL_OUTAGE_INVALID_ARGS -> {
-          errorMessage = "ModelOutage invalid outage intervals."
+          val modelOutageName =
+            ModelOutageKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
+                ),
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_model_suite_id"]).toLong()
+                ),
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_model_line_id"]).toLong()
+                ),
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_model_outage_id"]).toLong()
+                ),
+              )
+              .toName()
+          put("model_outage", modelOutageName)
+          errorMessage = "ModelOutage $modelOutageName invalid arguments."
         }
         ErrorCode.MODEL_OUTAGE_STATE_ILLEGAL -> {
-          errorMessage = "ModelOutage not found."
+          val modelOutageName =
+            ModelOutageKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
+                ),
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_model_suite_id"]).toLong()
+                ),
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_model_line_id"]).toLong()
+                ),
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_model_outage_id"]).toLong()
+                ),
+              )
+              .toName()
+          put("model_outage", modelOutageName)
+          errorMessage = "ModelOutage $modelOutageName not found."
         }
         ErrorCode.MODEL_SHARD_NOT_FOUND -> {
-          errorMessage = "ModelShard not found."
+          val modelShardName =
+            ModelShardKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_data_provider_id"]).toLong()
+                ),
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_model_shard_id"]).toLong()
+                ),
+              )
+              .toName()
+          put("model_shard", modelShardName)
+          errorMessage = "ModelShard $modelShardName not found."
         }
         ErrorCode.MODEL_RELEASE_NOT_FOUND -> {
-          errorMessage = "ModelRelease not found."
+          val modelReleaseName =
+            ModelReleaseKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
+                ),
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_model_suite_id"]).toLong()
+                ),
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_model_release_id"]).toLong()
+                ),
+              )
+              .toName()
+          put("model_release", modelReleaseName)
+          errorMessage = "ModelRelease $modelReleaseName not found."
         }
         ErrorCode.MODEL_ROLLOUT_INVALID_ARGS -> {
           errorMessage = "ModelRollout invalid rollout period times."
@@ -328,7 +434,27 @@ fun Status.toExternalStatusRuntimeException(
           errorMessage = "Exchange not found."
         }
         ErrorCode.MODEL_SHARD_INVALID_ARGS -> {
-          errorMessage = "ModelShard invalid arguments."
+          val modelShardName =
+            ModelShardKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_data_provider_id"]).toLong()
+                ),
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_model_shard_id"]).toLong()
+                ),
+              )
+              .toName()
+          val modelProviderName =
+            ModelProviderKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
+                )
+              )
+              .toName()
+          put("model_shard", modelShardName)
+          put("model_provider", modelProviderName)
+          errorMessage =
+            "Operation on ModelShard $modelShardName with ModelProvider $modelProviderName has invalid arguments."
         }
         ErrorCode.POPULATION_NOT_FOUND -> {
           errorMessage = "Population not found."

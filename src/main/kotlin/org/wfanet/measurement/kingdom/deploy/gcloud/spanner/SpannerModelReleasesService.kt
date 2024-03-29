@@ -28,6 +28,7 @@ import org.wfanet.measurement.internal.kingdom.GetModelReleaseRequest
 import org.wfanet.measurement.internal.kingdom.ModelRelease
 import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamModelReleasesRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelReleaseNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelSuiteNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelReleases
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelReleaseReader
@@ -54,7 +55,13 @@ class SpannerModelReleasesService(
         ExternalId(request.externalModelSuiteId),
         ExternalId(request.externalModelProviderId),
       )
-      ?.modelRelease ?: failGrpc(Status.NOT_FOUND) { "ModelRelease not found." }
+      ?.modelRelease
+      ?: throw ModelReleaseNotFoundException(
+          ExternalId(request.externalModelProviderId),
+          ExternalId(request.externalModelSuiteId),
+          ExternalId(request.externalModelReleaseId),
+        )
+        .asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelRelease not found.")
   }
 
   override fun streamModelReleases(request: StreamModelReleasesRequest): Flow<ModelRelease> {
