@@ -63,7 +63,6 @@ import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.ApiId
@@ -140,15 +139,12 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
     val internalRequisitions: List<InternalRequisition> =
       try {
         internalRequisitionStub.streamRequisitions(internalRequest).toList()
-      } catch (ex: StatusException) {
-        throw when (ex.status.code) {
-            Status.Code.INVALID_ARGUMENT ->
-              Status.INVALID_ARGUMENT.withDescription("Required field unspecified or invalid")
-            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-            else -> Status.UNKNOWN
-          }
-          .withCause(ex)
-          .asRuntimeException()
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
 
     if (internalRequisitions.isEmpty()) {
@@ -197,16 +193,14 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
     val result =
       try {
         internalRequisitionStub.refuseRequisition(refuseRequest)
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.INVALID_ARGUMENT ->
-            failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
-          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Requisition not found." }
-          Status.Code.FAILED_PRECONDITION ->
-            failGrpc(Status.FAILED_PRECONDITION, ex) { "Requisition or Measurement state illegal." }
-          Status.Code.DEADLINE_EXCEEDED -> throw ex.status.withCause(ex).asRuntimeException()
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
-        }
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
+          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
 
     return result.toRequisition()
@@ -263,17 +257,11 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
       internalRequisitionStub.fulfillRequisition(fulfillRequest)
     } catch (e: StatusException) {
       throw when (e.status.code) {
-          Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription("Requisition not found")
-          Status.Code.INVALID_ARGUMENT ->
-            Status.INVALID_ARGUMENT.withDescription("Required field unspecified or invalid")
-          Status.Code.FAILED_PRECONDITION ->
-            Status.FAILED_PRECONDITION.withDescription(
-              "Requisition or Measurement state illegal, or Duchy not found"
-            )
-          else -> Status.UNKNOWN
-        }
-        .withCause(e)
-        .asRuntimeException()
+        Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+        Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
+        else -> Status.UNKNOWN
+      }.toExternalStatusRuntimeException(e)
     }
 
     return fulfillDirectRequisitionResponse { state = State.FULFILLED }
