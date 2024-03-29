@@ -23,6 +23,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import io.grpc.protobuf.StatusProto
+import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
@@ -195,13 +196,46 @@ fun Status.toExternalStatusRuntimeException(
           errorMessage = "Requisition state illegal."
         }
         ErrorCode.ACCOUNT_NOT_FOUND -> {
-          errorMessage = "Account not found."
+          val accountName =
+            AccountKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_account_id"]).toLong()
+                )
+              )
+              .toName()
+          put("account", accountName)
+          errorMessage = "Account $accountName not found."
         }
         ErrorCode.DUPLICATE_ACCOUNT_IDENTITY -> {
-          errorMessage = "Duplicated account identity."
+          val accountName =
+            AccountKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_account_id"]).toLong()
+                )
+              )
+              .toName()
+          val issuer = checkNotNull(errorInfo.metadataMap["issuer"])
+          val subject = checkNotNull(errorInfo.metadataMap["subject"])
+          put("account", accountName)
+          put("issuer", issuer)
+          put("subject", subject)
+          errorMessage =
+            "Account $accountName with issuer: $issuer and subject: $subject pair already exists."
         }
         ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL -> {
-          errorMessage = "Account activation state illegal."
+          val accountName =
+            AccountKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_account_id"]).toLong()
+                )
+              )
+              .toName()
+          val accountActivationState =
+            checkNotNull(errorInfo.metadataMap["account_activation_state"]).toString()
+          put("account", accountName)
+          put("account_activation_state", accountActivationState)
+          errorMessage =
+            "Account $accountName is in illegal activation state: $accountActivationState."
         }
         ErrorCode.PERMISSION_DENIED -> {
           errorMessage = "Permission Denied."
