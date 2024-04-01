@@ -115,4 +115,5 @@ class InMemoryVidIndexMap(
       return Hashing.farmHashFingerprint64().hashBytes(hashInput.toByteArray()).asLong()
     }
   }
+
 }
