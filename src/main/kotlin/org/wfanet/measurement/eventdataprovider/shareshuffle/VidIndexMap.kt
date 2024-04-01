@@ -14,25 +14,68 @@
 
 package org.wfanet.measurement.eventdataprovider.shareshuffle
 
+import com.google.protobuf.ByteString
+import java.math.BigInteger
+import java.nio.ByteOrder
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.common.crypto.Hashing
+import org.wfanet.measurement.common.toByteString
 
-class VidNotFoundException(message: String) : Exception(message)
+class VidNotFoundException(message: String, vid: Long) : Exception(message)
 
 /**
  * A mapping of VIDs to [FrequencyVector] indexes for a [PopulationSpec].
  *
+ * @param [salt] If provided, this value is append to the VID before hashing it
+ * and will alter the indexes of the VIDs.
+ *
  * @constructor Creates a [VidIndexMap] for the given [PopulationSpec]
  */
-class VidIndexMap(populationSpec: PopulationSpec) {
+class VidIndexMap(
+  populationSpec: PopulationSpec,
+  private val salt : ByteString = ByteString.EMPTY) {
   /** The number of VIDs managed by this VidIndexMap */
-  val vidCount: Long = 0
+  val vidCount get() { indexMap.size }
+
+  /** A map of a VID to its index in the [Frequency Vector]. */
+  private val indexMap = hashMapOf<Long, Int>()
+
+  init {
+    // TODO(kungfucraig): Add validatioin for the PopSpec
+
+    val hashes = mutableListOf<Pair<Long, BigInteger>>()
+
+    for (subPop in populationSpec.subpopulationsList) {
+      for (range in subPop.vidRangesList) {
+        for (vid in range.startVid.. range.endVidInclusive) {
+          val hash = BigInteger(1, getVidHash(vid).toByteArray())
+          hashes.add(Pair(vid, hash))
+        }
+      }
+    }
+
+    hashes.sortBy { it.second }
+
+    for ((index, pair) in hashes.withIndex()) {
+      indexMap[pair.first] = index
+    }
+  }
 
   /**
    * Returns the index in the [FrequencyVector] for the given [vid].
    *
    * @throws VidNotFoundException if the [vid] does not exist in the map
    */
-  fun getVidIndex(vid: Long): Int {
-    return 0
+  fun getVidIndex(vid: Long): Int =
+    if (indexMap.containsKey(vid)) {
+      indexMap[vid]!!
+    } else {
+      throw VidNotFoundException("Cannot find VID $vid.", vid)
+    }
+
+  private fun getVidHash(vid: Long): ByteString {
+    val hashInput = vid.toByteString(ByteOrder.BIG_ENDIAN).concat(salt)
+    return Hashing.hashSha256(hashInput)
   }
+
 }
