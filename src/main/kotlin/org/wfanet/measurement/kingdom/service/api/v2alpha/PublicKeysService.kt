@@ -29,7 +29,6 @@ import org.wfanet.measurement.api.v2alpha.PublicKeyKey
 import org.wfanet.measurement.api.v2alpha.PublicKeysGrpcKt.PublicKeysCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.UpdatePublicKeyRequest
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -97,15 +96,13 @@ class PublicKeysService(private val internalPublicKeysStub: PublicKeysCoroutineS
     }
     try {
       internalPublicKeysStub.updatePublicKey(updateRequest)
-    } catch (ex: StatusException) {
-      when (ex.status.code) {
-        Status.Code.INVALID_ARGUMENT ->
-          failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid" }
-        Status.Code.FAILED_PRECONDITION ->
-          failGrpc(Status.FAILED_PRECONDITION, ex) { "Certificate not found." }
-        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { ex.message ?: "Not found." }
-        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
-      }
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+        Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
+        Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        else -> Status.UNKNOWN
+      }.toExternalStatusRuntimeException(e)
     }
 
     return request.publicKey

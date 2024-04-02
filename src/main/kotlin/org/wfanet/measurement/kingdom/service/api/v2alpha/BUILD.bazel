@@ -304,6 +304,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:principal_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:internal_status_conversion",
         "//src/main/proto/wfa/measurement/api/v2alpha:crypto_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:public_key_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:public_keys_service_kt_jvm_grpc_proto",
