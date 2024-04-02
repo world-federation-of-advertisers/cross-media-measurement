@@ -58,6 +58,7 @@ fun Status.toExternalStatusRuntimeException(
   var errorMessage = this.description ?: "Unknown exception."
   val metadataMap =
     buildMap<String, String> {
+      // TODO{@jcorilla}: Convert all metadata keys to lower camelcase to follow AIP-193 guidance
       when (ErrorCode.valueOf(errorInfo.reason)) {
         ErrorCode.MEASUREMENT_NOT_FOUND -> {
           val measurementName =

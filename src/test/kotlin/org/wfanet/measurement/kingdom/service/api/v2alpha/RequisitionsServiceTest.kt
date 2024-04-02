@@ -1004,8 +1004,7 @@ class RequisitionsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    assertThat(exception.errorInfo?.metadataMap)
-      .containsEntry("state", InternalState.FULFILLED.toRequisitionState().toString())
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("state", State.FULFILLED.toString())
     assertThat(exception.errorInfo?.metadataMap)
       .containsEntry("requisition_id", externalIdToApiId(EXTERNAL_REQUISITION_ID))
   }
@@ -1038,7 +1037,7 @@ class RequisitionsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception.errorInfo?.metadataMap)
-      .containsEntry("state", InternalMeasurement.State.FAILED.toString())
+      .containsEntry("state", Measurement.State.FAILED.toString())
     assertThat(exception.errorInfo?.metadataMap).containsEntry("measurement", MEASUREMENT_NAME)
   }
 
@@ -1101,8 +1100,7 @@ class RequisitionsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    assertThat(exception.errorInfo?.metadataMap)
-      .containsEntry("state", InternalState.FULFILLED.toRequisitionState().toString())
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("state", State.FULFILLED.toString())
     assertThat(exception.errorInfo?.metadataMap)
       .containsEntry("requisition_id", externalIdToApiId(EXTERNAL_REQUISITION_ID))
   }
@@ -1137,7 +1135,7 @@ class RequisitionsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception.errorInfo?.metadataMap)
-      .containsEntry("state", InternalMeasurement.State.FAILED.toString())
+      .containsEntry("state", Measurement.State.FAILED.toString())
     assertThat(exception.errorInfo?.metadataMap).containsEntry("measurement", MEASUREMENT_NAME)
   }
 

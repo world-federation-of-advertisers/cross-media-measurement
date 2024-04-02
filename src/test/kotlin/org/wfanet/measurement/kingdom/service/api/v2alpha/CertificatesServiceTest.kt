@@ -1437,8 +1437,7 @@ class CertificatesServiceTest {
     assertThat(exception.errorInfo?.metadataMap)
       .containsEntry(
         "certification_revocation_state",
-        InternalCertificate.RevocationState.REVOCATION_STATE_UNSPECIFIED.toRevocationState()
-          .toString(),
+        Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED.toString(),
       )
   }
 
@@ -1494,8 +1493,7 @@ class CertificatesServiceTest {
     assertThat(exception.errorInfo?.metadataMap)
       .containsEntry(
         "certification_revocation_state",
-        InternalCertificate.RevocationState.REVOCATION_STATE_UNSPECIFIED.toRevocationState()
-          .toString(),
+        Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED.toString(),
       )
   }
 
