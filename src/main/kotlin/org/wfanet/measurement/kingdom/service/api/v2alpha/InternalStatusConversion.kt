@@ -37,7 +37,11 @@ import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.internal.kingdom.Account as InternalAccount
+import org.wfanet.measurement.internal.kingdom.Certificate as InternalCertificate
 import org.wfanet.measurement.internal.kingdom.ErrorCode
+import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
+import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 
 /**
  * Converts this [Status] to a [StatusRuntimeException] with details from [internalApiException].
@@ -171,7 +175,12 @@ fun Status.toExternalStatusRuntimeException(
                 ),
               )
               .toName()
-          val measurementState = checkNotNull(errorInfo.metadataMap["measurement_state"]).toString()
+          val measurementState =
+            InternalMeasurement.State.valueOf(
+                checkNotNull(errorInfo.metadataMap["measurement_state"])
+              )
+              .toState()
+              .toString()
           put("measurement", measurementName)
           put("state", measurementState)
           errorMessage = "Measurement $measurementName is in illegal state: $measurementState"
@@ -197,7 +206,11 @@ fun Status.toExternalStatusRuntimeException(
               checkNotNull(errorInfo.metadataMap["external_certificate_id"]).toLong()
             )
           val certificateRevocationState =
-            checkNotNull(errorInfo.metadataMap["certificate_revocation_state"]).toString()
+            InternalCertificate.RevocationState.valueOf(
+                checkNotNull(errorInfo.metadataMap["certificate_revocation_state"])
+              )
+              .toRevocationState()
+              .toString()
           put("external_certificate_id", certificateApiId)
           put("certification_revocation_state", certificateRevocationState)
           errorMessage = "Certificate is in illegal revocation state: $certificateRevocationState."
@@ -231,7 +244,12 @@ fun Status.toExternalStatusRuntimeException(
             externalIdToApiId(
               checkNotNull(errorInfo.metadataMap["external_requisition_id"]).toLong()
             )
-          val requisitionState = checkNotNull(errorInfo.metadataMap["requisition_state"]).toString()
+          val requisitionState =
+            InternalRequisition.State.valueOf(
+                checkNotNull(errorInfo.metadataMap["requisition_state"])
+              )
+              .toRequisitionState()
+              .toString()
           put("requisition_id", requisitionApiId)
           put("state", requisitionState)
           errorMessage =
@@ -273,7 +291,11 @@ fun Status.toExternalStatusRuntimeException(
               )
               .toName()
           val accountActivationState =
-            checkNotNull(errorInfo.metadataMap["account_activation_state"]).toString()
+            InternalAccount.ActivationState.valueOf(
+                checkNotNull(errorInfo.metadataMap["account_activation_state"])
+              )
+              .toActivationState()
+              .toString()
           put("account", accountName)
           put("account_activation_state", accountActivationState)
           errorMessage =
