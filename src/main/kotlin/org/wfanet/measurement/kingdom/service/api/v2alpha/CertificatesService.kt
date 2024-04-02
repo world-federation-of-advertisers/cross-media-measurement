@@ -501,16 +501,6 @@ private fun InternalCertificate.toCertificate(): Certificate {
   }
 }
 
-/** Converts an internal [InternalRevocationState] to a public [RevocationState]. */
-private fun InternalRevocationState.toRevocationState(): RevocationState =
-  when (this) {
-    InternalRevocationState.REVOKED -> RevocationState.REVOKED
-    InternalRevocationState.HOLD -> RevocationState.HOLD
-    InternalRevocationState.UNRECOGNIZED,
-    InternalRevocationState.REVOCATION_STATE_UNSPECIFIED ->
-      RevocationState.REVOCATION_STATE_UNSPECIFIED
-  }
-
 /** Converts a public [RevocationState] to an internal [InternalRevocationState]. */
 private fun RevocationState.toInternal(): InternalRevocationState =
   when (this) {

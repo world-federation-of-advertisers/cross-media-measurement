@@ -2603,7 +2603,7 @@ class MeasurementsServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception.errorInfo?.metadataMap).containsEntry("measurement", MEASUREMENT_NAME)
     assertThat(exception.errorInfo?.metadataMap)
-      .containsEntry("state", InternalMeasurement.State.FAILED.toString())
+      .containsEntry("state", InternalMeasurement.State.FAILED.toState().toString())
   }
 
   @Test
