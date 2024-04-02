@@ -155,4 +155,18 @@ object PopulationSpecValidator {
     }
     return details
   }
+
+  /**
+   * Returns an empty [List<ValidationError>] if the range is valid. Otherwise,
+   * the list contains the reason(s) for why the range is invalid.
+   */
+  fun validateRange(vidRange: VidRange, vidIndex: Int) : List<ValidationError> {
+    val validationErrors = mutableListOf<ValidationError>()
+    if (vidRange.startVid <= 0) {
+      validationErrors.add(StartVidLessThanOrEqualToZero(vidIndex)) }
+    if (vidRange.endVidInclusive < vidRange.startVid)  {
+      validationErrors.add(EndVidInclusiveLessThanVidStart(vidIndex))
+    }
+    return validationErrors.toImmutableList();
+  }
 }
