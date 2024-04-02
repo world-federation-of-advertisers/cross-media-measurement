@@ -1018,8 +1018,11 @@ class ReportingTest {
           "--report-start=2000-01-01T00:00:00",
           "--report-end=2000-01-30",
           "--daily-frequency=true",
-          "--grouping='person.gender == 1,person.gender == 2'",
-          "--grouping='person.age_group == 1,person.age_group == 2,person.age_group == 3'",
+          "--has-group=true",
+          "--grouping='person.gender == 1'",
+          "--grouping='person.gender == 2'",
+          // "--grouping='person.gender == 1,person.gender == 2'",
+          // "--grouping='person.age_group == 1,person.age_group == 2,person.age_group == 3'",
         )
 
     val output = callCli(args)
