@@ -118,6 +118,7 @@ import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRe
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequestKt.measurementFailure
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequestKt.measurementResult
+import org.wfanet.measurement.internal.reporting.v2.BatchSetMetricsStateRequestKt
 import org.wfanet.measurement.internal.reporting.v2.CreateMetricRequest as InternalCreateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodology
 import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
@@ -139,6 +140,7 @@ import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchSetMetricsStateRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest as internalCreateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.measurement as internalMeasurement
@@ -157,8 +159,6 @@ import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchMetho
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
-import org.wfanet.measurement.internal.reporting.v2.BatchSetMetricsStateRequestKt
-import org.wfanet.measurement.internal.reporting.v2.batchSetMetricsStateRequest
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
@@ -1149,7 +1149,11 @@ class MetricsService(
       return internalMetric.toMetric(variances)
     }
 
-    return syncAndConvertInternalMetricsToPublicMetrics(mapOf(internalMetric.state to listOf(internalMetric)), principal).first()
+    return syncAndConvertInternalMetricsToPublicMetrics(
+        mapOf(internalMetric.state to listOf(internalMetric)),
+        principal,
+      )
+      .first()
   }
 
   override suspend fun batchGetMetrics(request: BatchGetMetricsRequest): BatchGetMetricsResponse {
@@ -1185,8 +1189,9 @@ class MetricsService(
       }
 
     val internalMetricsByState: Map<InternalMetric.State, List<InternalMetric>> =
-      batchGetInternalMetrics(principal.resourceKey.measurementConsumerId, metricIds)
-        .groupBy { it.state }
+      batchGetInternalMetrics(principal.resourceKey.measurementConsumerId, metricIds).groupBy {
+        it.state
+      }
 
     return batchGetMetricsResponse {
       metrics += syncAndConvertInternalMetricsToPublicMetrics(internalMetricsByState, principal)
@@ -1240,8 +1245,7 @@ class MetricsService(
       }
 
     val subResultsByState: Map<InternalMetric.State, List<InternalMetric>> =
-      results.subList(0, min(results.size, listMetricsPageToken.pageSize))
-        .groupBy { it.state }
+      results.subList(0, min(results.size, listMetricsPageToken.pageSize)).groupBy { it.state }
 
     return listMetricsResponse {
       metrics += syncAndConvertInternalMetricsToPublicMetrics(subResultsByState, principal)
@@ -1443,7 +1447,9 @@ class MetricsService(
       }
 
     val internalRunningMetrics =
-      internalMetrics.filter { internalMetric -> internalMetric.state == InternalMetric.State.RUNNING }
+      internalMetrics.filter { internalMetric ->
+        internalMetric.state == InternalMetric.State.RUNNING
+      }
     if (internalRunningMetrics.isNotEmpty()) {
       measurementSupplier.createCmmsMeasurements(internalRunningMetrics, principal)
     }
@@ -1577,11 +1583,13 @@ class MetricsService(
   /** Converts [InternalMetric]s to public [Metric]s after syncing [Measurement]s. */
   private suspend fun syncAndConvertInternalMetricsToPublicMetrics(
     metricsByState: Map<InternalMetric.State, List<InternalMetric>>,
-    principal: MeasurementConsumerPrincipal): List<Metric> {
+    principal: MeasurementConsumerPrincipal,
+  ): List<Metric> {
     // Only syncs pending measurements which can only be in metrics that are still running.
     val toBeSyncedInternalMeasurements: List<InternalMeasurement> =
       if (metricsByState.containsKey(InternalMetric.State.RUNNING)) {
-        metricsByState.getValue(InternalMetric.State.RUNNING)
+        metricsByState
+          .getValue(InternalMetric.State.RUNNING)
           .flatMap { internalMetric -> internalMetric.weightedMeasurementsList }
           .map { weightedMeasurement -> weightedMeasurement.measurement }
           .filter { internalMeasurement ->
@@ -1600,21 +1608,27 @@ class MetricsService(
 
     return buildList {
       if (anyMeasurementUpdated) {
-        val updatedInternalMetrics = batchGetInternalMetrics(principal.resourceKey.measurementConsumerId, metricsByState.getValue(InternalMetric.State.RUNNING).map { it.externalMetricId })
-        val metricIdStatePairs = buildList<Pair<String, InternalMetric.State>> {
-          for (updatedInternalMetric in updatedInternalMetrics) {
-            val newState = updatedInternalMetric.calculateState()
-            if (newState != InternalMetric.State.RUNNING) {
-              add(Pair(updatedInternalMetric.externalMetricId, newState))
+        val updatedInternalMetrics =
+          batchGetInternalMetrics(
+            principal.resourceKey.measurementConsumerId,
+            metricsByState.getValue(InternalMetric.State.RUNNING).map { it.externalMetricId },
+          )
+        val metricIdStatePairs =
+          buildList<Pair<String, InternalMetric.State>> {
+            for (updatedInternalMetric in updatedInternalMetrics) {
+              val newState = updatedInternalMetric.calculateState()
+              if (newState != InternalMetric.State.RUNNING) {
+                add(Pair(updatedInternalMetric.externalMetricId, newState))
+              }
             }
           }
-        }
         if (metricIdStatePairs.isNotEmpty()) {
-          batchSetInternalMetricsState(principal.resourceKey.measurementConsumerId, metricIdStatePairs)
+          batchSetInternalMetricsState(
+            principal.resourceKey.measurementConsumerId,
+            metricIdStatePairs,
+          )
         }
-        addAll(updatedInternalMetrics.map {
-          it.toMetric(variances)
-        })
+        addAll(updatedInternalMetrics.map { it.toMetric(variances) })
 
         for (state in metricsByState.keys) {
           if (state != InternalMetric.State.RUNNING) {
@@ -1637,10 +1651,11 @@ class MetricsService(
     val batchSetMetricsState = batchSetMetricsStateRequest {
       this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
       for (pair in metricIdStatePairs) {
-        requests += BatchSetMetricsStateRequestKt.setStateRequest {
-          externalMetricId = pair.first
-          state = pair.second
-        }
+        requests +=
+          BatchSetMetricsStateRequestKt.setStateRequest {
+            externalMetricId = pair.first
+            state = pair.second
+          }
       }
     }
 

@@ -665,7 +665,8 @@ class MetricReader(private val readContext: ReadContext) {
       val cmmsMeasurementId: String? = row["CmmsMeasurementId"]
       val measurementTimeIntervalStart: Instant = row["MeasurementsTimeIntervalStart"]
       val measurementTimeIntervalEnd: Instant = row["MeasurementsTimeIntervalEndExclusive"]
-      val measurementState: Measurement.State = row.getProtoEnum("MeasurementsState", Measurement.State::forNumber)
+      val measurementState: Measurement.State =
+        row.getProtoEnum("MeasurementsState", Measurement.State::forNumber)
       val measurementDetails: Measurement.Details =
         row.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
       val primitiveReportingSetBasisId: InternalId = row["PrimitiveReportingSetBasisId"]
