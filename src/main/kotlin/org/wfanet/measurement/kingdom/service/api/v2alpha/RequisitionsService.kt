@@ -384,17 +384,6 @@ private fun Refusal.Justification.toInternal(): InternalRefusal.Justification =
     Refusal.Justification.UNRECOGNIZED -> InternalRefusal.Justification.JUSTIFICATION_UNSPECIFIED
   }
 
-/** Converts an internal [InternalState] to a public [State]. */
-private fun InternalState.toRequisitionState(): State =
-  when (this) {
-    InternalState.PENDING_PARAMS,
-    InternalState.UNFULFILLED -> State.UNFULFILLED
-    InternalState.FULFILLED -> State.FULFILLED
-    InternalState.REFUSED -> State.REFUSED
-    InternalState.STATE_UNSPECIFIED,
-    InternalState.UNRECOGNIZED -> State.STATE_UNSPECIFIED
-  }
-
 /** Converts a public [State] to an internal [InternalState]. */
 private fun State.toInternal(): InternalState =
   when (this) {
