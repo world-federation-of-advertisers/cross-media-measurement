@@ -379,7 +379,8 @@ class CreateUiReportCommand : Runnable {
 
     @CommandLine.Option(
       names = ["--report-time-zone"],
-      description = ["IANA Time zone. If unspecified, it will use the user's default system time zone."],
+      description =
+        ["IANA Time zone. If unspecified, it will use the user's default system time zone."],
       required = false,
     )
     var timeZone: String = ZoneId.systemDefault().toString()
@@ -407,7 +408,11 @@ class CreateUiReportCommand : Runnable {
       private set
   }
 
-  @CommandLine.ArgGroup(exclusive = false, multiplicity = "0..*", heading = "Grouping Specification\n",)
+  @CommandLine.ArgGroup(
+    exclusive = false,
+    multiplicity = "0..*",
+    heading = "Grouping Specification\n",
+  )
   private lateinit var groupings: List<Grouping>
 
   private fun createPrimitiveReportingSet(
@@ -442,9 +447,10 @@ class CreateUiReportCommand : Runnable {
       return ReportingSetKt.setExpression {
         operation = ReportingSet.SetExpression.Operation.UNION
         lhs = ReportingSetKt.SetExpressionKt.operand { reportingSet = edpNames[0] }
-        rhs = ReportingSetKt.SetExpressionKt.operand {
-          expression = createUnionExpression(edpNames.subList(1, edpNames.size))
-        }
+        rhs =
+          ReportingSetKt.SetExpressionKt.operand {
+            expression = createUnionExpression(edpNames.subList(1, edpNames.size))
+          }
       }
     }
   }
@@ -455,7 +461,7 @@ class CreateUiReportCommand : Runnable {
     measurementConsumerName: String,
   ): ReportingSet {
     val edpNames = edps.map { it.reportingSetName }
-    val edpDisplayNames = edps.map{it.reportingSetDisplayName}
+    val edpDisplayNames = edps.map { it.reportingSetDisplayName }
     val edpFullNames = primitiveRs.map { it.name }
     val unionName = "union-" + edpNames.joinToString(separator = "-")
     val unionDisplayName = "Union (${edpDisplayNames.joinToString()})"
@@ -466,10 +472,7 @@ class CreateUiReportCommand : Runnable {
         name = unionName
         displayName = unionDisplayName
         tags.put("ui.halo-cmm.org/reporting_set_type", "union")
-        composite =
-          ReportingSetKt.composite {
-            expression = createUnionExpression(edpFullNames)
-          }
+        composite = ReportingSetKt.composite { expression = createUnionExpression(edpFullNames) }
       }
     }
 
@@ -672,9 +675,8 @@ class CreateUiReportCommand : Runnable {
           metricSpecs += spec
         }
         for (grouping in groupings) {
-          this.groupings +=
-            MetricCalculationSpecKt.grouping { predicates += grouping.groups }
-        }
+          this.groupings += MetricCalculationSpecKt.grouping { predicates += grouping.groups }
+       }
       }
     }
 

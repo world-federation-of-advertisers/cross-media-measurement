@@ -1118,14 +1118,18 @@ class ReportingTest {
       createMetricCalculationSpec(metricSpecCaptor.capture())
     }
 
-    val groupings = listOf(MetricCalculationSpecKt.grouping {
-      predicates += "'person.gender == 1'"
-      predicates += "'person.gender == 2'"
-    }, MetricCalculationSpecKt.grouping {
-      predicates += "'person.age == 1'"
-      predicates += "'person.age == 2'"
-      predicates += "'person.age == 3'"
-    })
+    val groupings =
+      listOf(
+        MetricCalculationSpecKt.grouping {
+          predicates += "'person.gender == 1'"
+          predicates += "'person.gender == 2'"
+        },
+        MetricCalculationSpecKt.grouping {
+          predicates += "'person.age == 1'"
+          predicates += "'person.age == 2'"
+          predicates += "'person.age == 3'"
+        },
+      )
 
     // Spec for primitives and union
     // reach & frequency and impression count
