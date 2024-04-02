@@ -260,6 +260,7 @@ kustomization_dir(
 
 kustomization_dir(
     name = "aggregator_duchy",
+    testonly = True,
     srcs = [
         "resource_requirements.yaml",
         ":aggregator_duchy_gke",
@@ -274,6 +275,7 @@ kustomization_dir(
 
 kustomization_dir(
     name = "worker1_duchy",
+    testonly = True,
     srcs = [
         "resource_requirements.yaml",
         ":worker1_duchy_gke",
@@ -288,6 +290,7 @@ kustomization_dir(
 
 kustomization_dir(
     name = "worker2_duchy",
+    testonly = True,
     srcs = [
         "resource_requirements.yaml",
         ":worker2_duchy_gke",
