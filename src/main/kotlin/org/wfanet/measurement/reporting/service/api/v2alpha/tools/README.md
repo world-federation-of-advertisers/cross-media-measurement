@@ -147,11 +147,13 @@ There currently needs to be three groups of primitive reporting sets defined by 
 
 The union and unique reporting sets are created automatically from the provided reporting sets. Ids and display names are derived.
 
+Metric Calculation Specs are automatically created in the command to generate the proper report for the UI, but there is no input by the user.
+
 The time range of the report must be specified through the start time and end (date): --report-start and --report-end as an interval time range. These are formatted as the example above and are the same as in create report. The user may optionally pass the desired time zone with --report-time-zone. If unspecified, it will use the user's default system time zone.
 
 The user must specify the interval frequency: --daily-frequency, --day-of-the-week, or --day-of-the-month. This is used in combination with the interval time range.
 
-The user must specify the grouping predicates using --grouping. Each is a comma delimited string like the example above.
+The user must specify the grouping predicates using --has-group to denote a new set and --grouping for each predicate within the set.
 
 #### list
 

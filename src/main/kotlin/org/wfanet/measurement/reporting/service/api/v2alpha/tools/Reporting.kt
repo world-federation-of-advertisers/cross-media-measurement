@@ -335,9 +335,7 @@ class CreateUiReportCommand : Runnable {
 
     @CommandLine.Option(
       names = ["--day-of-week"],
-      description = ["""
-          Day of the week for weekly frequency.
-          """],
+      description = ["""Day of the week for weekly frequency."""],
     )
     var dayOfWeek: DayOfWeek = DayOfWeek.DAY_OF_WEEK_UNSPECIFIED
       private set
@@ -381,7 +379,7 @@ class CreateUiReportCommand : Runnable {
 
     @CommandLine.Option(
       names = ["--report-time-zone"],
-      description = ["IANA Time zone"],
+      description = ["IANA Time zone. If unspecified, it will use the user's default system time zone."],
       required = false,
     )
     var timeZone: String = ZoneId.systemDefault().toString()
@@ -394,23 +392,23 @@ class CreateUiReportCommand : Runnable {
   class Grouping {
     @CommandLine.Option(
       names = ["--has-group"],
-      description = [""],
+      description = ["Boolean to indicate the start of a new grouping list."],
       required = true,
     )
-    lateinit var hasGroup: Boolean
+    var hasGroup: Boolean = false
       private set
 
     @CommandLine.Option(
       names = ["--grouping"],
-      description = [""],
+      description = ["A list of predicates for this grouping."],
       required = true,
     )
     lateinit var groups: List<String>
       private set
   }
 
-  @CommandLine.ArgGroup(heading = "Grouping Specification\n",)
-  lateinit var groupings: List<Grouping>
+  @CommandLine.ArgGroup(exclusive = false, multiplicity = "0..*", heading = "Grouping Specification\n",)
+  private lateinit var groupings: List<Grouping>
 
   private fun createPrimitiveReportingSet(
     edp: ReportingSetParams,
@@ -537,7 +535,7 @@ class CreateUiReportCommand : Runnable {
   private fun createPrimitiveMetricSpecs(
     frequencySpec: MetricFrequencySpecInput,
     measurementConsumerName: String,
-    groupings: List<String>,
+    groupings: List<Grouping>,
   ): MetricCalculationSpec {
     val baseName = "basic-metric-spec"
     val specs =
@@ -585,7 +583,7 @@ class CreateUiReportCommand : Runnable {
   private fun createCompositeMetricSpecs(
     frequencySpec: MetricFrequencySpecInput,
     measurementConsumerName: String,
-    groupings: List<String>,
+    groupings: List<Grouping>,
   ): MetricCalculationSpec {
     val baseName = "other-metric-spec"
     val specs =
@@ -629,7 +627,7 @@ class CreateUiReportCommand : Runnable {
     measurementConsumerName: String,
     specs: List<MetricSpec>,
     frequencySpec: MetricFrequencySpecInput,
-    groupings: List<String>,
+    groupings: List<Grouping>,
   ): MetricCalculationSpec {
     // Add random string to the end of the name to help with uniqueness.
     // This only helps so still need to make sure it's actually unique.
@@ -675,7 +673,7 @@ class CreateUiReportCommand : Runnable {
         }
         for (grouping in groupings) {
           this.groupings +=
-            MetricCalculationSpecKt.grouping { predicates += grouping.trim().split(',') }
+            MetricCalculationSpecKt.grouping { predicates += grouping.groups }
         }
       }
     }

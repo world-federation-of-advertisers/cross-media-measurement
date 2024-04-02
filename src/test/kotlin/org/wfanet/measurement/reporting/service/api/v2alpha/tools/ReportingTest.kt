@@ -1021,8 +1021,10 @@ class ReportingTest {
           "--has-group=true",
           "--grouping='person.gender == 1'",
           "--grouping='person.gender == 2'",
-          // "--grouping='person.gender == 1,person.gender == 2'",
-          // "--grouping='person.age_group == 1,person.age_group == 2,person.age_group == 3'",
+          "--has-group=true",
+          "--grouping='person.age == 1'",
+          "--grouping='person.age == 2'",
+          "--grouping='person.age == 3'",
         )
 
     val output = callCli(args)
@@ -1116,6 +1118,15 @@ class ReportingTest {
       createMetricCalculationSpec(metricSpecCaptor.capture())
     }
 
+    val groupings = listOf(MetricCalculationSpecKt.grouping {
+      predicates += "'person.gender == 1'"
+      predicates += "'person.gender == 2'"
+    }, MetricCalculationSpecKt.grouping {
+      predicates += "'person.age == 1'"
+      predicates += "'person.age == 2'"
+      predicates += "'person.age == 3'"
+    })
+
     // Spec for primitives and union
     // reach & frequency and impression count
     val mcs1 =
@@ -1123,6 +1134,7 @@ class ReportingTest {
         it.metricCalculationSpec.name.startsWith("basic-metric-spec-")
       }
     assertThat(mcs1.size).isEqualTo(1)
+    assertThat(mcs1[0].metricCalculationSpec.groupingsList).isEqualTo(groupings)
     val rAndFSpec =
       mcs1[0].metricCalculationSpec.metricSpecsList.filter { it.hasReachAndFrequency() }
     assertThat(rAndFSpec.size).isEqualTo(1)
@@ -1136,6 +1148,7 @@ class ReportingTest {
         it.metricCalculationSpec.name.startsWith("other-metric-spec-")
       }
     assertThat(mcs2.size).isEqualTo(1)
+    assertThat(mcs2[0].metricCalculationSpec.groupingsList).isEqualTo(groupings)
     val rSpec = mcs2[0].metricCalculationSpec.metricSpecsList.filter { it.hasReach() }
     assertThat(rSpec.size).isEqualTo(1)
     val impSpec2 = mcs2[0].metricCalculationSpec.metricSpecsList.filter { it.hasImpressionCount() }
