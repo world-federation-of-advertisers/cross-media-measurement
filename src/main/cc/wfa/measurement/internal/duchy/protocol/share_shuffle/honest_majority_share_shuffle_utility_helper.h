@@ -21,7 +21,7 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "math/distributed_noiser.h"
-#include "wfa/any_sketch/secret_share.pb.h"
+#include "wfa/frequency_count/secret_share.pb.h"
 #include "wfa/measurement/internal/duchy/protocol/honest_majority_share_shuffle_methods.pb.h"
 
 namespace wfa::measurement::internal::duchy::protocol::share_shuffle {
@@ -30,14 +30,15 @@ absl::StatusOr<std::vector<uint32_t>> GenerateNoiseRegisters(
     const ShareShuffleSketchParams& sketch_param,
     const math::DistributedNoiser& distributed_noiser);
 
-absl::StatusOr<any_sketch::PrngSeed> GetPrngSeedFromString(
+absl::StatusOr<frequency_count::PrngSeed> GetPrngSeedFromString(
     const std::string& seed_str);
 
-absl::StatusOr<any_sketch::PrngSeed> GetPrngSeedFromCharVector(
+absl::StatusOr<frequency_count::PrngSeed> GetPrngSeedFromCharVector(
     const std::vector<unsigned char>& seed_vec);
 
 absl::StatusOr<std::vector<uint32_t>> GenerateShareFromSeed(
-    const ShareShuffleSketchParams& param, const any_sketch::PrngSeed& seed);
+    const ShareShuffleSketchParams& param,
+    const frequency_count::PrngSeed& seed);
 
 absl::StatusOr<std::vector<uint32_t>> GetShareVectorFromSketchShare(
     const ShareShuffleSketchParams& sketch_params,

@@ -26,23 +26,23 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
-#include "any_sketch/crypto/shuffle.h"
 #include "common_cpp/macros/macros.h"
 #include "common_cpp/time/started_thread_cpu_timer.h"
+#include "crypto/shuffle.h"
 #include "math/distributed_noiser.h"
 #include "math/open_ssl_uniform_random_generator.h"
-#include "wfa/any_sketch/secret_share.pb.h"
+#include "wfa/frequency_count/secret_share.pb.h"
 #include "wfa/measurement/internal/duchy/protocol/common/noise_parameters_computation.h"
 #include "wfa/measurement/internal/duchy/protocol/honest_majority_share_shuffle_methods.pb.h"
 
 namespace wfa::measurement::internal::duchy::protocol::share_shuffle {
 
-using ::wfa::any_sketch::PrngSeed;
+using ::wfa::crypto::SecureShuffleWithSeed;
+using ::wfa::frequency_count::PrngSeed;
 using ::wfa::math::CreatePrngFromSeed;
 using ::wfa::math::kBytesPerAes256Iv;
 using ::wfa::math::kBytesPerAes256Key;
 using ::wfa::math::UniformPseudorandomGenerator;
-using ::wfa::measurement::common::crypto::SecureShuffleWithSeed;
 
 absl::StatusOr<std::vector<uint32_t>> GenerateNoiseRegisters(
     const ShareShuffleSketchParams& sketch_param,
@@ -102,7 +102,8 @@ absl::StatusOr<PrngSeed> GetPrngSeedFromCharVector(
 }
 
 absl::StatusOr<std::vector<uint32_t>> GenerateShareFromSeed(
-    const ShareShuffleSketchParams& param, const any_sketch::PrngSeed& seed) {
+    const ShareShuffleSketchParams& param,
+    const frequency_count::PrngSeed& seed) {
   ASSIGN_OR_RETURN(std::unique_ptr<math::UniformPseudorandomGenerator> prng,
                    math::CreatePrngFromSeed(seed));
   ASSIGN_OR_RETURN(std::vector<uint32_t> share_from_seed,
@@ -121,7 +122,7 @@ absl::StatusOr<std::vector<uint32_t>> GetShareVectorFromSketchShare(
                                  sketch_share.data().values().end());
       break;
     case CompleteShufflePhaseRequest::SketchShare::kSeed: {
-      ASSIGN_OR_RETURN(any_sketch::PrngSeed seed,
+      ASSIGN_OR_RETURN(frequency_count::PrngSeed seed,
                        GetPrngSeedFromString(sketch_share.seed()));
       ASSIGN_OR_RETURN(share_vector,
                        GenerateShareFromSeed(sketch_params, seed));
