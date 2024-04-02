@@ -34,8 +34,10 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.internal.reporting.v2.BatchSetMetricsStateRequestKt
 import org.wfanet.measurement.internal.reporting.v2.CreateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.internal.reporting.v2.Metric
 import org.wfanet.measurement.internal.reporting.v2.MetricKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
@@ -46,6 +48,7 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.Reportin
 import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.batchCreateMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchSetMetricsStateRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
@@ -178,6 +181,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
 
     assertThat(createdMetric.externalMetricId).isNotEqualTo(0)
     assertThat(createdMetric.hasCreateTime()).isTrue()
+    assertThat(createdMetric.state).isEqualTo(Metric.State.RUNNING)
     createdMetric.weightedMeasurementsList.forEach {
       assertThat(it.measurement.cmmsCreateMeasurementRequestId).isNotEmpty()
     }
@@ -281,6 +285,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
 
     assertThat(createdMetric.externalMetricId).isNotEqualTo(0)
     assertThat(createdMetric.hasCreateTime()).isTrue()
+    assertThat(createdMetric.state).isEqualTo(Metric.State.RUNNING)
     createdMetric.weightedMeasurementsList.forEach {
       assertThat(it.measurement.cmmsCreateMeasurementRequestId).isNotEmpty()
     }
@@ -379,6 +384,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
 
     assertThat(createdMetric.externalMetricId).isNotEqualTo(0)
     assertThat(createdMetric.hasCreateTime()).isTrue()
+    assertThat(createdMetric.state).isEqualTo(Metric.State.RUNNING)
     createdMetric.weightedMeasurementsList.forEach {
       assertThat(it.measurement.cmmsCreateMeasurementRequestId).isNotEmpty()
     }
@@ -477,6 +483,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
 
     assertThat(createdMetric.externalMetricId).isNotEqualTo(0)
     assertThat(createdMetric.hasCreateTime()).isTrue()
+    assertThat(createdMetric.state).isEqualTo(Metric.State.RUNNING)
     createdMetric.weightedMeasurementsList.forEach {
       assertThat(it.measurement.cmmsCreateMeasurementRequestId).isNotEmpty()
     }
@@ -527,6 +534,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
 
     assertThat(createdMetric.externalMetricId).isNotEmpty()
     assertThat(createdMetric.hasCreateTime()).isTrue()
+    assertThat(createdMetric.state).isEqualTo(Metric.State.RUNNING)
     assertThat(
         createdMetric.weightedMeasurementsList.first().measurement.cmmsCreateMeasurementRequestId
       )
@@ -594,6 +602,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
 
     assertThat(createdMetric.externalMetricId).isNotEqualTo(0)
     assertThat(createdMetric.hasCreateTime()).isTrue()
+    assertThat(createdMetric.state).isEqualTo(Metric.State.RUNNING)
     createdMetric.weightedMeasurementsList.forEach {
       assertThat(it.measurement.cmmsCreateMeasurementRequestId).isNotEmpty()
     }
@@ -697,6 +706,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       )
 
     assertThat(createdMetric.externalMetricId).isNotEqualTo(0L)
+    assertThat(createdMetric.state).isEqualTo(Metric.State.RUNNING)
 
     val sameCreatedMetric =
       service.createMetric(
@@ -1359,6 +1369,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     assertThat(batchCreateMetricsResponse.metricsList).hasSize(1)
     assertThat(createdMetric.externalMetricId).isNotEqualTo(0)
     assertThat(createdMetric.hasCreateTime()).isTrue()
+    assertThat(createdMetric.state).isEqualTo(Metric.State.RUNNING)
     createdMetric.weightedMeasurementsList.forEach {
       assertThat(it.measurement.cmmsCreateMeasurementRequestId).isNotEmpty()
     }
@@ -1442,8 +1453,10 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     assertThat(batchCreateMetricsResponse.metricsList).hasSize(2)
     assertThat(createdMetric.externalMetricId).isNotEqualTo(0)
     assertThat(createdMetric.hasCreateTime()).isTrue()
+    assertThat(createdMetric.state).isEqualTo(Metric.State.RUNNING)
     assertThat(createdMetric2.externalMetricId).isNotEqualTo(0)
     assertThat(createdMetric2.hasCreateTime()).isTrue()
+    assertThat(createdMetric2.state).isEqualTo(Metric.State.RUNNING)
     batchCreateMetricsResponse.metricsList.forEach {
       it.weightedMeasurementsList.forEach { weightedMeasurement ->
         assertThat(weightedMeasurement.measurement.cmmsCreateMeasurementRequestId).isNotEmpty()
@@ -1544,6 +1557,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       val createdMetric2 = batchCreateMetricsResponse.metricsList.last()
       assertThat(createdMetric2.externalMetricId).isNotEqualTo(0)
       assertThat(createdMetric2.hasCreateTime()).isTrue()
+      assertThat(createdMetric2.state).isEqualTo(Metric.State.RUNNING)
       createdMetric2.weightedMeasurementsList.forEach {
         assertThat(it.measurement.cmmsCreateMeasurementRequestId).isNotEmpty()
       }
@@ -2750,6 +2764,157 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       assertFailsWith<StatusRuntimeException> { service.streamMetrics(streamMetricsRequest {}) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `batchSetMetricStates sets state for a single metric`(): Unit = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+
+    val createMetricRequest =
+      createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val createdMetric = service.createMetric(createMetricRequest)
+
+    service.batchSetMetricsState(
+      batchSetMetricsStateRequest {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        requests += BatchSetMetricsStateRequestKt.setStateRequest {
+          externalMetricId = createdMetric.externalMetricId
+          state = Metric.State.SUCCEEDED
+        }
+      }
+    )
+
+    val retrievedMetrics =
+      service.batchGetMetrics(
+        batchGetMetricsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalMetricIds += createdMetric.externalMetricId
+        }
+      )
+
+    assertThat(retrievedMetrics.metricsList)
+      .ignoringRepeatedFieldOrder()
+      .containsExactly(createdMetric.copy {
+        state = Metric.State.SUCCEEDED
+      })
+  }
+
+  @Test
+  fun `batchSetMetricStates sets states for multiple metrics`(): Unit = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+
+    val createMetricRequest =
+      createCreateMetricRequest(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        reportingSetsService,
+        "externalMetricId1",
+      )
+    val createdMetricRequest2 =
+      createCreateMetricRequest(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        reportingSetsService,
+        "externalMetricId2",
+      )
+    val createdMetric = service.createMetric(createMetricRequest)
+    val createdMetric2 = service.createMetric(createdMetricRequest2)
+
+    service.batchSetMetricsState(
+      batchSetMetricsStateRequest {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        requests += BatchSetMetricsStateRequestKt.setStateRequest {
+          externalMetricId = createdMetric.externalMetricId
+          state = Metric.State.SUCCEEDED
+        }
+        requests += BatchSetMetricsStateRequestKt.setStateRequest {
+          externalMetricId = createdMetric2.externalMetricId
+          state = Metric.State.FAILED
+        }
+      }
+    )
+
+    val retrievedMetrics =
+      service.batchGetMetrics(
+        batchGetMetricsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalMetricIds += createdMetric.externalMetricId
+          externalMetricIds += createdMetric2.externalMetricId
+        }
+      )
+
+    assertThat(retrievedMetrics.metricsList)
+      .ignoringRepeatedFieldOrder()
+      .containsExactly(createdMetric.copy {
+        state = Metric.State.SUCCEEDED
+      }, createdMetric2.copy {
+        state = Metric.State.FAILED
+      })
+  }
+
+  @Test
+  fun `batchSetMetricsState throws NOT_FOUND when not all metrics found`(): Unit = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val createMetricRequest =
+      createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val createdMetric = service.createMetric(createMetricRequest)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.batchSetMetricsState(
+          batchSetMetricsStateRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            requests += BatchSetMetricsStateRequestKt.setStateRequest {
+              externalMetricId = createdMetric.externalMetricId
+              state = Metric.State.SUCCEEDED
+            }
+            requests += BatchSetMetricsStateRequestKt.setStateRequest {
+              externalMetricId = createdMetric.externalMetricId + "1"
+              state = Metric.State.FAILED
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.message).contains("not found")
+  }
+
+  @Test
+  fun `batchSetMetricsState throws INVALID_ARGUMENT when missing mc id`(): Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.batchSetMetricsState(
+          batchSetMetricsStateRequest {
+            requests += BatchSetMetricsStateRequestKt.setStateRequest {
+              externalMetricId = "1"
+              state = Metric.State.SUCCEEDED
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("CmmsMeasurementConsumerId")
+  }
+
+  @Test
+  fun `batchSetMetricsState throws INVALID_ARGUMENT when too many to update`(): Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.batchSetMetricsState(
+          batchSetMetricsStateRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            for (i in 1L..(MAX_BATCH_SIZE + 1)) {
+              requests += BatchSetMetricsStateRequestKt.setStateRequest {
+                externalMetricId = i.toString()
+                state = Metric.State.SUCCEEDED
+              }
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("Too many")
   }
 
   companion object {

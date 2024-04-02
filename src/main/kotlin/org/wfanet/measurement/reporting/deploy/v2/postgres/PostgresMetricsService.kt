@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.postgres
 
+import com.google.protobuf.Empty
 import io.grpc.Status
 import java.lang.IllegalStateException
 import kotlinx.coroutines.flow.Flow
@@ -32,6 +33,7 @@ import org.wfanet.measurement.internal.reporting.v2.BatchCreateMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchCreateMetricsResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchGetMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchGetMetricsResponse
+import org.wfanet.measurement.internal.reporting.v2.BatchSetMetricsStateRequest
 import org.wfanet.measurement.internal.reporting.v2.CreateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.Metric
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec
@@ -41,6 +43,7 @@ import org.wfanet.measurement.internal.reporting.v2.batchCreateMetricsResponse
 import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsResponse
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MetricReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateMetrics
+import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.SetMetricStates
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.MetricAlreadyExistsException
 import org.wfanet.measurement.reporting.service.internal.MetricNotFoundException
@@ -178,6 +181,26 @@ class PostgresMetricsService(
       } finally {
         readContext.close()
       }
+    }
+  }
+
+  override suspend fun batchSetMetricsState(request: BatchSetMetricsStateRequest): Empty {
+    grpcRequire(request.cmmsMeasurementConsumerId.isNotEmpty()) {
+      "CmmsMeasurementConsumerId is missing."
+    }
+
+    grpcRequire(request.requestsList.size <= MAX_BATCH_SIZE) { "Too many requests." }
+
+    try {
+      SetMetricStates(request).execute(client, idGenerator)
+      return Empty.getDefaultInstance()
+    } catch (e: MeasurementConsumerNotFoundException) {
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
+        "Measurement Consumer not found.",
+      )
+    } catch (e: MetricNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Metric not found.")
     }
   }
 }

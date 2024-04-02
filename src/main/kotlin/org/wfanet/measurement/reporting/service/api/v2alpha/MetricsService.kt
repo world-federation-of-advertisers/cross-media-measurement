@@ -157,6 +157,8 @@ import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchMetho
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
+import org.wfanet.measurement.internal.reporting.v2.BatchSetMetricsStateRequestKt
+import org.wfanet.measurement.internal.reporting.v2.batchSetMetricsStateRequest
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
@@ -1143,30 +1145,11 @@ class MetricsService(
       getInternalMetric(metricKey.cmmsMeasurementConsumerId, metricKey.metricId)
 
     // Early exit when the metric is at a terminal state.
-    if (internalMetric.state != Metric.State.RUNNING) {
+    if (internalMetric.state != InternalMetric.State.RUNNING) {
       return internalMetric.toMetric(variances)
     }
 
-    // Only syncs pending measurements which can only be in metrics that are still running.
-    val toBeSyncedInternalMeasurements: List<InternalMeasurement> =
-      internalMetric.weightedMeasurementsList
-        .map { weightedMeasurement -> weightedMeasurement.measurement }
-        .filter { internalMeasurement ->
-          internalMeasurement.state == InternalMeasurement.State.PENDING
-        }
-
-    val anyMeasurementUpdated: Boolean =
-      measurementSupplier.syncInternalMeasurements(
-        toBeSyncedInternalMeasurements,
-        principal.config.apiKey,
-        principal,
-      )
-
-    return if (anyMeasurementUpdated) {
-      getInternalMetric(metricKey.cmmsMeasurementConsumerId, metricKey.metricId).toMetric(variances)
-    } else {
-      internalMetric.toMetric(variances)
-    }
+    return syncAndConvertInternalMetricsToPublicMetrics(mapOf(internalMetric.state to listOf(internalMetric)), principal).first()
   }
 
   override suspend fun batchGetMetrics(request: BatchGetMetricsRequest): BatchGetMetricsResponse {
@@ -1201,39 +1184,12 @@ class MetricsService(
         metricKey.metricId
       }
 
-    val internalMetrics: List<InternalMetric> =
+    val internalMetricsByState: Map<InternalMetric.State, List<InternalMetric>> =
       batchGetInternalMetrics(principal.resourceKey.measurementConsumerId, metricIds)
-
-    // Only syncs pending measurements which can only be in metrics that are still running.
-    val toBeSyncedInternalMeasurements: List<InternalMeasurement> =
-      internalMetrics
-        .filter { internalMetric -> internalMetric.state == Metric.State.RUNNING }
-        .flatMap { internalMetric -> internalMetric.weightedMeasurementsList }
-        .map { weightedMeasurement -> weightedMeasurement.measurement }
-        .filter { internalMeasurement ->
-          internalMeasurement.state == InternalMeasurement.State.PENDING
-        }
-
-    val anyMeasurementUpdated: Boolean =
-      measurementSupplier.syncInternalMeasurements(
-        toBeSyncedInternalMeasurements,
-        principal.config.apiKey,
-        principal,
-      )
+        .groupBy { it.state }
 
     return batchGetMetricsResponse {
-      metrics +=
-        /**
-         * TODO(@riemanli): a potential improvement can be done by only getting the metrics whose
-         *   measurements are updated. Re-evaluate when a load-test is ready after deployment.
-         */
-        if (anyMeasurementUpdated) {
-          batchGetInternalMetrics(principal.resourceKey.measurementConsumerId, metricIds).map {
-            it.toMetric(variances)
-          }
-        } else {
-          internalMetrics.map { it.toMetric(variances) }
-        }
+      metrics += syncAndConvertInternalMetricsToPublicMetrics(internalMetricsByState, principal)
     }
   }
 
@@ -1283,45 +1239,12 @@ class MetricsService(
         null
       }
 
-    val subResults: List<InternalMetric> =
+    val subResultsByState: Map<InternalMetric.State, List<InternalMetric>> =
       results.subList(0, min(results.size, listMetricsPageToken.pageSize))
-
-    // Only syncs pending measurements which can only be in metrics that are still running.
-    val toBeSyncedInternalMeasurements: List<InternalMeasurement> =
-      subResults
-        .filter { internalMetric -> internalMetric.state == Metric.State.RUNNING }
-        .flatMap { internalMetric -> internalMetric.weightedMeasurementsList }
-        .map { weightedMeasurement -> weightedMeasurement.measurement }
-        .filter { internalMeasurement ->
-          internalMeasurement.state == InternalMeasurement.State.PENDING
-        }
-
-    val anyMeasurementUpdated: Boolean =
-      measurementSupplier.syncInternalMeasurements(
-        toBeSyncedInternalMeasurements,
-        apiAuthenticationKey,
-        principal,
-      )
-
-    /**
-     * If any measurement got updated, pull the list of the up-to-date internal metrics. Otherwise,
-     * use the original list.
-     *
-     * TODO(@riemanli): a potential improvement can be done by only getting the metrics whose
-     *   measurements are updated. Re-evaluate when a load-test is ready after deployment.
-     */
-    val internalMetrics: List<InternalMetric> =
-      if (anyMeasurementUpdated) {
-        batchGetInternalMetrics(
-          principal.resourceKey.measurementConsumerId,
-          subResults.map { internalMetric -> internalMetric.externalMetricId },
-        )
-      } else {
-        subResults
-      }
+        .groupBy { it.state }
 
     return listMetricsResponse {
-      metrics += internalMetrics.map { it.toMetric(variances) }
+      metrics += syncAndConvertInternalMetricsToPublicMetrics(subResultsByState, principal)
 
       if (nextPageToken != null) {
         this.nextPageToken = nextPageToken.toByteString().base64UrlEncode()
@@ -1413,7 +1336,7 @@ class MetricsService(
           .asRuntimeException()
       }
 
-    if (internalMetric.state == Metric.State.RUNNING) {
+    if (internalMetric.state == InternalMetric.State.RUNNING) {
       measurementSupplier.createCmmsMeasurements(listOf(internalMetric), principal)
     }
 
@@ -1520,7 +1443,7 @@ class MetricsService(
       }
 
     val internalRunningMetrics =
-      internalMetrics.filter { internalMetric -> internalMetric.state == Metric.State.RUNNING }
+      internalMetrics.filter { internalMetric -> internalMetric.state == InternalMetric.State.RUNNING }
     if (internalRunningMetrics.isNotEmpty()) {
       measurementSupplier.createCmmsMeasurements(internalRunningMetrics, principal)
     }
@@ -1651,6 +1574,83 @@ class MetricsService(
     }
   }
 
+  /** Converts [InternalMetric]s to public [Metric]s after syncing [Measurement]s. */
+  private suspend fun syncAndConvertInternalMetricsToPublicMetrics(
+    metricsByState: Map<InternalMetric.State, List<InternalMetric>>,
+    principal: MeasurementConsumerPrincipal): List<Metric> {
+    // Only syncs pending measurements which can only be in metrics that are still running.
+    val toBeSyncedInternalMeasurements: List<InternalMeasurement> =
+      if (metricsByState.containsKey(InternalMetric.State.RUNNING)) {
+        metricsByState.getValue(InternalMetric.State.RUNNING)
+          .flatMap { internalMetric -> internalMetric.weightedMeasurementsList }
+          .map { weightedMeasurement -> weightedMeasurement.measurement }
+          .filter { internalMeasurement ->
+            internalMeasurement.state == InternalMeasurement.State.PENDING
+          }
+      } else {
+        emptyList()
+      }
+
+    val anyMeasurementUpdated: Boolean =
+      measurementSupplier.syncInternalMeasurements(
+        toBeSyncedInternalMeasurements,
+        principal.config.apiKey,
+        principal,
+      )
+
+    return buildList {
+      if (anyMeasurementUpdated) {
+        val updatedInternalMetrics = batchGetInternalMetrics(principal.resourceKey.measurementConsumerId, metricsByState.getValue(InternalMetric.State.RUNNING).map { it.externalMetricId })
+        val metricIdStatePairs = buildList<Pair<String, InternalMetric.State>> {
+          for (updatedInternalMetric in updatedInternalMetrics) {
+            val newState = updatedInternalMetric.calculateState()
+            if (newState != InternalMetric.State.RUNNING) {
+              add(Pair(updatedInternalMetric.externalMetricId, newState))
+            }
+          }
+        }
+        if (metricIdStatePairs.isNotEmpty()) {
+          batchSetInternalMetricsState(principal.resourceKey.measurementConsumerId, metricIdStatePairs)
+        }
+        addAll(updatedInternalMetrics.map {
+          it.toMetric(variances)
+        })
+
+        for (state in metricsByState.keys) {
+          if (state != InternalMetric.State.RUNNING) {
+            addAll(metricsByState.getValue(state).map { it.toMetric(variances) })
+          }
+        }
+      } else {
+        for (state in metricsByState.keys) {
+          addAll(metricsByState.getValue(state).map { it.toMetric(variances) })
+        }
+      }
+    }
+  }
+
+  /** Sets [InternalMetric.State] for a batch of [InternalMetric]s. */
+  private suspend fun batchSetInternalMetricsState(
+    cmmsMeasurementConsumerId: String,
+    metricIdStatePairs: List<Pair<String, InternalMetric.State>>,
+  ) {
+    val batchSetMetricsState = batchSetMetricsStateRequest {
+      this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+      for (pair in metricIdStatePairs) {
+        requests += BatchSetMetricsStateRequestKt.setStateRequest {
+          externalMetricId = pair.first
+          state = pair.second
+        }
+      }
+    }
+
+    try {
+      internalMetricsStub.batchSetMetricsState(batchSetMetricsState)
+    } catch (e: StatusException) {
+      throw Exception("Unable to update Metrics State.", e)
+    }
+  }
+
   companion object {
     private val RESOURCE_ID_REGEX = Regex("^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$")
   }
@@ -1706,7 +1706,7 @@ private fun InternalMetric.toMetric(variances: Variances): Metric {
     timeInterval = source.timeInterval
     metricSpec = source.metricSpec.toMetricSpec()
     filters += source.details.filtersList
-    state = source.state
+    state = source.state.toPublic()
     createTime = source.createTime
     if (state == Metric.State.SUCCEEDED) {
       result = buildMetricResult(source, variances)
@@ -2622,14 +2622,13 @@ private operator fun ProtoDuration.plus(other: ProtoDuration): ProtoDuration {
   return Durations.add(this, other)
 }
 
-private val InternalMetric.state: Metric.State
-  get() {
-    val measurementStates = weightedMeasurementsList.map { it.measurement.state }
-    return if (measurementStates.all { it == InternalMeasurement.State.SUCCEEDED }) {
-      Metric.State.SUCCEEDED
-    } else if (measurementStates.any { it == InternalMeasurement.State.FAILED }) {
-      Metric.State.FAILED
-    } else {
-      Metric.State.RUNNING
-    }
+private fun InternalMetric.calculateState(): InternalMetric.State {
+  val measurementStates = weightedMeasurementsList.map { it.measurement.state }
+  return if (measurementStates.all { it == InternalMeasurement.State.SUCCEEDED }) {
+    InternalMetric.State.SUCCEEDED
+  } else if (measurementStates.any { it == InternalMeasurement.State.FAILED }) {
+    InternalMetric.State.FAILED
+  } else {
+    InternalMetric.State.RUNNING
   }
+}

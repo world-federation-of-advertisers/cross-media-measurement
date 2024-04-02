@@ -81,6 +81,7 @@ class MetricReader(private val readContext: ReadContext) {
     val metricSpec: MetricSpec,
     val weightedMeasurementInfoMap: MutableMap<MetricMeasurementKey, WeightedMeasurementInfo>,
     val details: Metric.Details,
+    val state: Metric.State,
   )
 
   private data class MetricMeasurementKey(
@@ -133,6 +134,7 @@ class MetricReader(private val readContext: ReadContext) {
       Metrics.VidSamplingIntervalWidth,
       Metrics.CreateTime,
       Metrics.MetricDetails,
+      Metrics.State as MetricsState,
       MetricMeasurements.Coefficient,
       MetricMeasurements.BinaryRepresentation,
       Measurements.MeasurementId,
@@ -140,7 +142,7 @@ class MetricReader(private val readContext: ReadContext) {
       Measurements.CmmsMeasurementId,
       Measurements.TimeIntervalStart AS MeasurementsTimeIntervalStart,
       Measurements.TimeIntervalEndExclusive AS MeasurementsTimeIntervalEndExclusive,
-      Measurements.State,
+      Measurements.State as MeasurementsState,
       Measurements.MeasurementDetails,
       PrimitiveReportingSetBases.PrimitiveReportingSetBasisId,
       PrimitiveReportingSets.ExternalReportingSetId AS PrimitiveExternalReportingSetId,
@@ -625,6 +627,7 @@ class MetricReader(private val readContext: ReadContext) {
       if (metricInfo.details != Metric.Details.getDefaultInstance()) {
         details = metricInfo.details
       }
+      state = metricInfo.state
     }
   }
 
@@ -662,12 +665,13 @@ class MetricReader(private val readContext: ReadContext) {
       val cmmsMeasurementId: String? = row["CmmsMeasurementId"]
       val measurementTimeIntervalStart: Instant = row["MeasurementsTimeIntervalStart"]
       val measurementTimeIntervalEnd: Instant = row["MeasurementsTimeIntervalEndExclusive"]
-      val measurementState: Measurement.State = Measurement.State.forNumber(row["State"])
+      val measurementState: Measurement.State = row.getProtoEnum("MeasurementsState", Measurement.State::forNumber)
       val measurementDetails: Measurement.Details =
         row.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
       val primitiveReportingSetBasisId: InternalId = row["PrimitiveReportingSetBasisId"]
       val primitiveExternalReportingSetId: String = row["PrimitiveExternalReportingSetId"]
       val primitiveReportingSetBasisFilter: String? = row["PrimitiveReportingSetBasisFilter"]
+      val metricState: Metric.State = row.getProtoEnum("MetricsState", Metric.State::forNumber)
 
       val metricInfo =
         metricInfoMap.computeIfAbsent(externalMetricId) {
@@ -767,6 +771,7 @@ class MetricReader(private val readContext: ReadContext) {
             metricSpec = metricSpec,
             details = metricDetails,
             weightedMeasurementInfoMap = mutableMapOf(),
+            state = metricState,
           )
         }
 
