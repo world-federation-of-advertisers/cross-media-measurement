@@ -29,6 +29,7 @@ import org.wfanet.measurement.internal.kingdom.Population
 import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamPopulationsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.PopulationNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamPopulations
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.PopulationReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreatePopulation
@@ -53,7 +54,12 @@ class SpannerPopulationsService(
         ExternalId(request.externalDataProviderId),
         ExternalId(request.externalPopulationId),
       )
-      ?.population ?: failGrpc(Status.NOT_FOUND) { "Population not found" }
+      ?.population
+      ?: throw PopulationNotFoundException(
+          ExternalId(request.externalDataProviderId),
+          ExternalId(request.externalPopulationId),
+        )
+        .asStatusRuntimeException(Status.Code.NOT_FOUND, "Population not found.")
   }
 
   override fun streamPopulations(request: StreamPopulationsRequest): Flow<Population> {
