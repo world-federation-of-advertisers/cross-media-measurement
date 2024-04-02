@@ -126,7 +126,6 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.79.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -322,6 +321,16 @@ archive_override(
     strip_prefix = "rules_proto-6.0.0-rc2",
     urls = [
         "https://github.com/bazelbuild/rules_proto/releases/download/6.0.0-rc2/rules_proto-6.0.0-rc2.tar.gz",
+    ],
+)
+
+# DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#241): Use version.
+archive_override(
+    module_name = "common-jvm",
+    integrity = "sha256-+oYwLs4enqVmpqK2y8Zql//98Ebqnr145OsP6g91PRM=",
+    strip_prefix = "common-jvm-29a00bd9ebb7533f10dfd2dccb7d73ac51a0880f",
+    urls = [
+        "https://github.com/world-federation-of-advertisers/common-jvm/archive/29a00bd9ebb7533f10dfd2dccb7d73ac51a0880f.tar.gz",
     ],
 )
 
