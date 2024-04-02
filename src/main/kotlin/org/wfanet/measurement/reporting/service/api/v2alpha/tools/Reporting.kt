@@ -676,7 +676,7 @@ class CreateUiReportCommand : Runnable {
         }
         for (grouping in groupings) {
           this.groupings += MetricCalculationSpecKt.grouping { predicates += grouping.groups }
-       }
+        }
       }
     }
 
