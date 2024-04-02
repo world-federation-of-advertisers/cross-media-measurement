@@ -31,8 +31,7 @@ import org.wfanet.measurement.reporting.service.internal.MetricNotFoundException
  * * [MeasurementConsumerNotFoundException] MeasurementConsumer not found.
  * * [MetricNotFoundException] Metric not found.
  */
-class SetMetricStates(private val request: BatchSetMetricsStateRequest) :
-  PostgresWriter<Unit>() {
+class SetMetricStates(private val request: BatchSetMetricsStateRequest) : PostgresWriter<Unit>() {
   override suspend fun TransactionScope.runTransaction() {
     val measurementConsumerId =
       (MeasurementConsumerReader(transactionContext).getByCmmsId(request.cmmsMeasurementConsumerId)

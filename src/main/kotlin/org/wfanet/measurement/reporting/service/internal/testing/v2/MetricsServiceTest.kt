@@ -2777,10 +2777,11 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     service.batchSetMetricsState(
       batchSetMetricsStateRequest {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        requests += BatchSetMetricsStateRequestKt.setStateRequest {
-          externalMetricId = createdMetric.externalMetricId
-          state = Metric.State.SUCCEEDED
-        }
+        requests +=
+          BatchSetMetricsStateRequestKt.setStateRequest {
+            externalMetricId = createdMetric.externalMetricId
+            state = Metric.State.SUCCEEDED
+          }
       }
     )
 
@@ -2794,9 +2795,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
 
     assertThat(retrievedMetrics.metricsList)
       .ignoringRepeatedFieldOrder()
-      .containsExactly(createdMetric.copy {
-        state = Metric.State.SUCCEEDED
-      })
+      .containsExactly(createdMetric.copy { state = Metric.State.SUCCEEDED })
   }
 
   @Test
@@ -2821,14 +2820,16 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     service.batchSetMetricsState(
       batchSetMetricsStateRequest {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        requests += BatchSetMetricsStateRequestKt.setStateRequest {
-          externalMetricId = createdMetric.externalMetricId
-          state = Metric.State.SUCCEEDED
-        }
-        requests += BatchSetMetricsStateRequestKt.setStateRequest {
-          externalMetricId = createdMetric2.externalMetricId
-          state = Metric.State.FAILED
-        }
+        requests +=
+          BatchSetMetricsStateRequestKt.setStateRequest {
+            externalMetricId = createdMetric.externalMetricId
+            state = Metric.State.SUCCEEDED
+          }
+        requests +=
+          BatchSetMetricsStateRequestKt.setStateRequest {
+            externalMetricId = createdMetric2.externalMetricId
+            state = Metric.State.FAILED
+          }
       }
     )
 
@@ -2843,11 +2844,10 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
 
     assertThat(retrievedMetrics.metricsList)
       .ignoringRepeatedFieldOrder()
-      .containsExactly(createdMetric.copy {
-        state = Metric.State.SUCCEEDED
-      }, createdMetric2.copy {
-        state = Metric.State.FAILED
-      })
+      .containsExactly(
+        createdMetric.copy { state = Metric.State.SUCCEEDED },
+        createdMetric2.copy { state = Metric.State.FAILED },
+      )
   }
 
   @Test
@@ -2862,14 +2862,16 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         service.batchSetMetricsState(
           batchSetMetricsStateRequest {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            requests += BatchSetMetricsStateRequestKt.setStateRequest {
-              externalMetricId = createdMetric.externalMetricId
-              state = Metric.State.SUCCEEDED
-            }
-            requests += BatchSetMetricsStateRequestKt.setStateRequest {
-              externalMetricId = createdMetric.externalMetricId + "1"
-              state = Metric.State.FAILED
-            }
+            requests +=
+              BatchSetMetricsStateRequestKt.setStateRequest {
+                externalMetricId = createdMetric.externalMetricId
+                state = Metric.State.SUCCEEDED
+              }
+            requests +=
+              BatchSetMetricsStateRequestKt.setStateRequest {
+                externalMetricId = createdMetric.externalMetricId + "1"
+                state = Metric.State.FAILED
+              }
           }
         )
       }
@@ -2884,10 +2886,11 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       assertFailsWith<StatusRuntimeException> {
         service.batchSetMetricsState(
           batchSetMetricsStateRequest {
-            requests += BatchSetMetricsStateRequestKt.setStateRequest {
-              externalMetricId = "1"
-              state = Metric.State.SUCCEEDED
-            }
+            requests +=
+              BatchSetMetricsStateRequestKt.setStateRequest {
+                externalMetricId = "1"
+                state = Metric.State.SUCCEEDED
+              }
           }
         )
       }
@@ -2904,10 +2907,11 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           batchSetMetricsStateRequest {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             for (i in 1L..(MAX_BATCH_SIZE + 1)) {
-              requests += BatchSetMetricsStateRequestKt.setStateRequest {
-                externalMetricId = i.toString()
-                state = Metric.State.SUCCEEDED
-              }
+              requests +=
+                BatchSetMetricsStateRequestKt.setStateRequest {
+                  externalMetricId = i.toString()
+                  state = Metric.State.SUCCEEDED
+                }
             }
           }
         )

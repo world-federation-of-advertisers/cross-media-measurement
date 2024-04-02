@@ -153,6 +153,8 @@ import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresR
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequestKt.measurementFailure
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequestKt.measurementResult
+import org.wfanet.measurement.internal.reporting.v2.BatchSetMetricsStateRequest
+import org.wfanet.measurement.internal.reporting.v2.BatchSetMetricsStateRequestKt
 import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodology as InternalCustomDirectMethodology
 import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodologyKt as InternalCustomDirectMethodologyKt
 import org.wfanet.measurement.internal.reporting.v2.DeterministicCount as InternalDeterministicCount
@@ -186,6 +188,7 @@ import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRespons
 import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchSetMetricsStateRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest as internalCreateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.customDirectMethodology as internalCustomDirectMethodology
@@ -197,9 +200,6 @@ import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetric
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsSketchParams as internalReachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
-import org.wfanet.measurement.internal.reporting.v2.BatchSetMetricsStateRequest
-import org.wfanet.measurement.internal.reporting.v2.BatchSetMetricsStateRequestKt
-import org.wfanet.measurement.internal.reporting.v2.batchSetMetricsStateRequest
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMetricVarianceParams
@@ -2093,8 +2093,7 @@ class MetricsServiceTest {
           metrics += INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
         }
       )
-    onBlocking { batchSetMetricsState(any()) }
-      .thenReturn(Empty.getDefaultInstance())
+    onBlocking { batchSetMetricsState(any()) }.thenReturn(Empty.getDefaultInstance())
   }
 
   private val internalReportingSetsMock:
@@ -4833,10 +4832,11 @@ class MetricsServiceTest {
       .isEqualTo(
         batchSetMetricsStateRequest {
           cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-          requests += BatchSetMetricsStateRequestKt.setStateRequest {
-            externalMetricId = INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId
-            state = InternalMetric.State.SUCCEEDED
-          }
+          requests +=
+            BatchSetMetricsStateRequestKt.setStateRequest {
+              externalMetricId = INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId
+              state = InternalMetric.State.SUCCEEDED
+            }
         }
       )
 
@@ -4904,8 +4904,7 @@ class MetricsServiceTest {
     }
 
     // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricsState
-    val batchSetMetricsStateCaptor: KArgumentCaptor<BatchSetMetricsStateRequest> =
-      argumentCaptor()
+    val batchSetMetricsStateCaptor: KArgumentCaptor<BatchSetMetricsStateRequest> = argumentCaptor()
     verifyBlocking(internalMetricsMock, never()) {
       batchSetMetricsState(batchSetMetricsStateCaptor.capture())
     }
@@ -5021,10 +5020,12 @@ class MetricsServiceTest {
       .isEqualTo(
         batchSetMetricsStateRequest {
           cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-          requests += BatchSetMetricsStateRequestKt.setStateRequest {
-            externalMetricId = INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
-            state = InternalMetric.State.FAILED
-          }
+          requests +=
+            BatchSetMetricsStateRequestKt.setStateRequest {
+              externalMetricId =
+                INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
+              state = InternalMetric.State.FAILED
+            }
         }
       )
 
@@ -6142,8 +6143,7 @@ class MetricsServiceTest {
     }
 
     // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricsState
-    val batchSetMetricsStateCaptor: KArgumentCaptor<BatchSetMetricsStateRequest> =
-      argumentCaptor()
+    val batchSetMetricsStateCaptor: KArgumentCaptor<BatchSetMetricsStateRequest> = argumentCaptor()
     verifyBlocking(internalMetricsMock, never()) {
       batchSetMetricsState(batchSetMetricsStateCaptor.capture())
     }
@@ -6280,10 +6280,12 @@ class MetricsServiceTest {
         .isEqualTo(
           batchSetMetricsStateRequest {
             cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-            requests += BatchSetMetricsStateRequestKt.setStateRequest {
-              externalMetricId = INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.externalMetricId
-              state = InternalMetric.State.SUCCEEDED
-            }
+            requests +=
+              BatchSetMetricsStateRequestKt.setStateRequest {
+                externalMetricId =
+                  INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.externalMetricId
+                state = InternalMetric.State.SUCCEEDED
+              }
           }
         )
 
@@ -6829,10 +6831,12 @@ class MetricsServiceTest {
         .isEqualTo(
           batchSetMetricsStateRequest {
             cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-            requests += BatchSetMetricsStateRequestKt.setStateRequest {
-              externalMetricId = INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.externalMetricId
-              state = InternalMetric.State.SUCCEEDED
-            }
+            requests +=
+              BatchSetMetricsStateRequestKt.setStateRequest {
+                externalMetricId =
+                  INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.externalMetricId
+                state = InternalMetric.State.SUCCEEDED
+              }
           }
         )
 
@@ -6919,10 +6923,12 @@ class MetricsServiceTest {
         .isEqualTo(
           batchSetMetricsStateRequest {
             cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-            requests += BatchSetMetricsStateRequestKt.setStateRequest {
-              externalMetricId = INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
-              state = InternalMetric.State.SUCCEEDED
-            }
+            requests +=
+              BatchSetMetricsStateRequestKt.setStateRequest {
+                externalMetricId =
+                  INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
+                state = InternalMetric.State.SUCCEEDED
+              }
           }
         )
 
@@ -7012,10 +7018,12 @@ class MetricsServiceTest {
         .isEqualTo(
           batchSetMetricsStateRequest {
             cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-            requests += BatchSetMetricsStateRequestKt.setStateRequest {
-              externalMetricId = INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
-              state = InternalMetric.State.SUCCEEDED
-            }
+            requests +=
+              BatchSetMetricsStateRequestKt.setStateRequest {
+                externalMetricId =
+                  INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
+                state = InternalMetric.State.SUCCEEDED
+              }
           }
         )
 
@@ -7111,10 +7119,12 @@ class MetricsServiceTest {
         .isEqualTo(
           batchSetMetricsStateRequest {
             cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-            requests += BatchSetMetricsStateRequestKt.setStateRequest {
-              externalMetricId = INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
-              state = InternalMetric.State.FAILED
-            }
+            requests +=
+              BatchSetMetricsStateRequestKt.setStateRequest {
+                externalMetricId =
+                  INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
+                state = InternalMetric.State.FAILED
+              }
           }
         )
 
