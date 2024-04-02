@@ -391,12 +391,26 @@ class CreateUiReportCommand : Runnable {
   @CommandLine.ArgGroup(exclusive = false, multiplicity = "1", heading = "Time intervals\n")
   private lateinit var interval: ReportingIntervalInput
 
-  @CommandLine.Option(
-    names = ["--grouping"],
-    description = ["Each grouping is a list of comma-separated predicates"],
-    required = true,
-  )
-  lateinit var groupings: List<String>
+  class Grouping {
+    @CommandLine.Option(
+      names = ["--has-group"],
+      description = [""],
+      required = true,
+    )
+    lateinit var hasGroup: Boolean
+      private set
+
+    @CommandLine.Option(
+      names = ["--grouping"],
+      description = [""],
+      required = true,
+    )
+    lateinit var groups: List<String>
+      private set
+  }
+
+  @CommandLine.ArgGroup(heading = "Grouping Specification\n",)
+  lateinit var groupings: List<Grouping>
 
   private fun createPrimitiveReportingSet(
     edp: ReportingSetParams,
