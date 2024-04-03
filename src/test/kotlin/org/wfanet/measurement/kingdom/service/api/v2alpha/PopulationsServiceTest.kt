@@ -31,6 +31,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.stub
 import org.mockito.kotlin.verify
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ListPopulationsPageTokenKt.previousPageEnd
@@ -49,9 +50,11 @@ import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
@@ -68,6 +71,8 @@ import org.wfanet.measurement.internal.kingdom.eventTemplate as internalEventTem
 import org.wfanet.measurement.internal.kingdom.getPopulationRequest as internalGetPopulationRequest
 import org.wfanet.measurement.internal.kingdom.population as internalPopulation
 import org.wfanet.measurement.internal.kingdom.streamPopulationsRequest as internalStreamPopulationsRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.PopulationNotFoundException
 
 private const val DEFAULT_LIMIT = 50
 
@@ -515,5 +520,70 @@ class PopulationsServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> { runBlocking { service.listPopulations(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `createPopulation throws NOT_FOUND with data provider name when data provider not fonud`() {
+    internalPopulationsMock.stub {
+      onBlocking { createPopulation(any()) }
+        .thenThrow(
+          DataProviderNotFoundException(ExternalId(EXTERNAL_DATA_PROVIDER_ID))
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.createPopulation(
+              createPopulationRequest {
+                parent = DATA_PROVIDER_NAME
+                population = POPULATION
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("data_provider", DATA_PROVIDER_NAME)
+  }
+
+  @Test
+  fun `getPopulation throws NOT_FOUND with population name when population not found`() {
+    internalPopulationsMock.stub {
+      onBlocking { getPopulation(any()) }
+        .thenThrow(
+          PopulationNotFoundException(
+              ExternalId(EXTERNAL_DATA_PROVIDER_ID),
+              ExternalId(EXTERNAL_POPULATION_ID),
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "Population not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.getPopulation(getPopulationRequest { name = POPULATION_NAME }) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("population", POPULATION_NAME)
+  }
+
+  @Test
+  fun `listPopulations throws INVALID_ARGUMENT when fields missing`() {
+    internalPopulationsMock.stub {
+      onBlocking { streamPopulations(any()) }
+        .thenThrow(Status.INVALID_ARGUMENT.withDescription("Missing fields").asRuntimeException())
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.listPopulations(listPopulationsRequest { parent = DATA_PROVIDER_NAME })
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 }

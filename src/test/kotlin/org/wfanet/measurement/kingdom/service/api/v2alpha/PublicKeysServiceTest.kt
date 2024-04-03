@@ -27,9 +27,12 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.stub
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.PublicKey
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
@@ -38,27 +41,38 @@ import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.api.v2alpha.updatePublicKeyRequest
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.kingdom.PublicKeysGrpcKt
 import org.wfanet.measurement.internal.kingdom.UpdatePublicKeyResponse
 import org.wfanet.measurement.internal.kingdom.updatePublicKeyRequest as internalUpdatePublicKeyRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 
-private const val DATA_PROVIDERS_NAME = "dataProviders/AAAAAAAAAHs"
-private const val DATA_PROVIDERS_NAME_2 = "dataProviders/BBBBBBBBBHs"
-private const val DATA_PROVIDERS_PUBLIC_KEY_NAME = "$DATA_PROVIDERS_NAME/publicKey"
-private const val DATA_PROVIDERS_PUBLIC_KEY_NAME_2 = "$DATA_PROVIDERS_NAME_2/publicKey"
-private const val DATA_PROVIDERS_CERTIFICATE_NAME = "$DATA_PROVIDERS_NAME/certificates/AAAAAAAAAHs"
-private const val DATA_PROVIDERS_CERTIFICATE_NAME_2 =
-  "$DATA_PROVIDERS_NAME_2/certificates/AAAAAAAAAHs"
-private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
-private const val MEASUREMENT_CONSUMER_PUBLIC_KEY_NAME = "$MEASUREMENT_CONSUMER_NAME/publicKey"
+private const val EXTERNAL_DATA_PROVIDER_ID = 123L
+private const val EXTERNAL_DATA_PROVIDER_ID_2 = 456L
+private val DATA_PROVIDERS_NAME =
+  DataProviderKey(externalIdToApiId(EXTERNAL_DATA_PROVIDER_ID)).toName()
+private val DATA_PROVIDERS_NAME_2 =
+  DataProviderKey(externalIdToApiId(EXTERNAL_DATA_PROVIDER_ID_2)).toName()
+private val DATA_PROVIDERS_PUBLIC_KEY_NAME = "$DATA_PROVIDERS_NAME/publicKey"
+private val DATA_PROVIDERS_PUBLIC_KEY_NAME_2 = "$DATA_PROVIDERS_NAME_2/publicKey"
+private val DATA_PROVIDERS_CERTIFICATE_NAME = "$DATA_PROVIDERS_NAME/certificates/AAAAAAAAAHs"
+private val DATA_PROVIDERS_CERTIFICATE_NAME_2 = "$DATA_PROVIDERS_NAME_2/certificates/AAAAAAAAAHs"
+private const val EXTERNAL_MEASUREMENT_CONSUMER_ID = 123L
+private val MEASUREMENT_CONSUMER_NAME =
+  MeasurementConsumerKey(externalIdToApiId(EXTERNAL_MEASUREMENT_CONSUMER_ID)).toName()
+private val MEASUREMENT_CONSUMER_PUBLIC_KEY_NAME = "$MEASUREMENT_CONSUMER_NAME/publicKey"
 private const val MEASUREMENT_CONSUMER_PUBLIC_KEY_NAME_2 =
   "measurementConsumers/BBBBBBBBBHs/publicKey"
-private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
+private val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
   "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAHs"
 
 @RunWith(JUnit4::class)
@@ -300,6 +314,88 @@ class PublicKeysServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `updatePublicKey throws FAILED_PRECONDITION with measurement consumer certificate name when certificate is not found`() {
+    internalPublicKeysMock.stub {
+      onBlocking { updatePublicKey(any()) }
+        .thenThrow(
+          MeasurementConsumerCertificateNotFoundException(
+              ExternalId(EXTERNAL_MEASUREMENT_CONSUMER_ID),
+              ExternalId(
+                apiIdToExternalId(
+                  MeasurementConsumerCertificateKey.fromName(
+                      MEASUREMENT_CONSUMER_PUBLIC_KEY.certificate
+                    )!!
+                    .certificateId
+                )
+              ),
+            )
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Certificate not found.")
+        )
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.updatePublicKey(
+              updatePublicKeyRequest { publicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("measurement_consumer_certificate", MEASUREMENT_CONSUMER_CERTIFICATE_NAME)
+  }
+
+  @Test
+  fun `updatePublicKey throws NOT_FOUND with data provider name when data provider not found`() {
+    internalPublicKeysMock.stub {
+      onBlocking { updatePublicKey(any()) }
+        .thenThrow(
+          DataProviderNotFoundException(ExternalId(EXTERNAL_DATA_PROVIDER_ID))
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
+        )
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDERS_NAME) {
+          runBlocking {
+            service.updatePublicKey(updatePublicKeyRequest { publicKey = DATA_PROVIDER_PUBLIC_KEY })
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("data_provider", DATA_PROVIDERS_NAME)
+  }
+
+  @Test
+  fun `updatePublicKey throws NOT_FOUND with measurement consumer name when mmeasurement consumer not found`() {
+    internalPublicKeysMock.stub {
+      onBlocking { updatePublicKey(any()) }
+        .thenThrow(
+          MeasurementConsumerNotFoundException(ExternalId(EXTERNAL_MEASUREMENT_CONSUMER_ID))
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found.")
+        )
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.updatePublicKey(
+              updatePublicKeyRequest { publicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("measurement_consumer", MEASUREMENT_CONSUMER_NAME)
   }
 
   companion object {
