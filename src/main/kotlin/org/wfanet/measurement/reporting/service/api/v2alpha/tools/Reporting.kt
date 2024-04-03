@@ -335,7 +335,7 @@ class CreateUiReportCommand : Runnable {
 
     @CommandLine.Option(
       names = ["--day-of-week"],
-      description = ["""Day of the week for weekly frequency."""],
+      description = ["Day of the week for weekly frequency."],
     )
     var dayOfWeek: DayOfWeek = DayOfWeek.DAY_OF_WEEK_UNSPECIFIED
       private set
@@ -392,19 +392,19 @@ class CreateUiReportCommand : Runnable {
 
   class Grouping {
     @CommandLine.Option(
-      names = ["--has-group"],
+      names = ["--grouping"],
       description = ["Boolean to indicate the start of a new grouping list."],
       required = true,
     )
-    var hasGroup: Boolean = false
+    var grouping: Boolean = false
       private set
 
     @CommandLine.Option(
-      names = ["--grouping"],
+      names = ["--predicate"],
       description = ["A list of predicates for this grouping."],
       required = true,
     )
-    lateinit var groups: List<String>
+    lateinit var predicates: List<String>
       private set
   }
 
@@ -675,7 +675,7 @@ class CreateUiReportCommand : Runnable {
           metricSpecs += spec
         }
         for (grouping in groupings) {
-          this.groupings += MetricCalculationSpecKt.grouping { predicates += grouping.groups }
+          this.groupings += MetricCalculationSpecKt.grouping { predicates += grouping.predicates }
         }
       }
     }

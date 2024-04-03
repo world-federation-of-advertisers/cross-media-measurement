@@ -139,13 +139,13 @@ Reporting \
   --report-start='2000-01-01T00:00:00' \
   --report-end='2000-01-30' \
   --daily-frequency=true \
-  --has-group=true \
-  --grouping='person.gender == 1' \
-  --grouping='person.gender == 2' \
-  --has-group=true \
-  --grouping='person.age == 1' \
-  --grouping='person.age == 2' \
-  --grouping='person.age == 3'
+  --grouping \
+  --predicate='person.gender == 1' \
+  --predicate='person.gender == 2' \
+  --grouping \
+  --predicate='person.age == 1' \
+  --predicate='person.age == 2' \
+  --predicate='person.age == 3'
 ```
 
 There currently needs to be three groups of primitive reporting sets defined by the arg group: --cmms-event-group, --reporting-set-id, and --reporting-set-display-name. You can pass in multiple event groups, but be sure to specify them first. There is a parsing issue if they are specified later in the arg group. This is similar to creating a reporting set.
