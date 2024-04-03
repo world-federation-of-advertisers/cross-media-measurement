@@ -42,13 +42,10 @@ class ShareShuffleSketchGenerator(
   fun generate(eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>): IntArray {
     require(vidUniverse.isNotEmpty()) { "The vid universe size must be positive." }
 
-    var samplingIntervalEnd = (vidSamplingInterval.start + vidSamplingInterval.width).toDouble()
-
-    val isWrappedAround = (samplingIntervalEnd > 1.0)
-
-    if (isWrappedAround) {
-      samplingIntervalEnd -= 1.0
-    }
+    val isWrappedAround = (vidSamplingInterval.start + vidSamplingInterval.width > 1.0)
+    val samplingIntervalEnd =
+      if (isWrappedAround) (vidSamplingInterval.start + vidSamplingInterval.width - 1).toDouble()
+      else (vidSamplingInterval.start + vidSamplingInterval.width).toDouble()
 
     val startIndex = lowerBound(sortedNormalizedHashValues, vidSamplingInterval.start.toDouble())
     val endIndexExclusive = upperBound(sortedNormalizedHashValues, samplingIntervalEnd)
