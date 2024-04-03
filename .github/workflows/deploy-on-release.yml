@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: Deploy to dev environment
+name: Deploy on release
 
 on:
   release:
@@ -23,5 +23,5 @@ jobs:
     uses: ./.github/workflows/update-cmms.yml
     secrets: inherit
     with:
-      environment: dev
+      environment: qa
       apply: true
