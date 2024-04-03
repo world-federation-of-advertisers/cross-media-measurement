@@ -23,10 +23,12 @@ on:
   workflow_dispatch:
     inputs:
       environment:
+        description: "GitHub-managed environment"
         required: true
         type: choice
         options:
         - dev
+        - qa
 
 permissions:
   id-token: write

@@ -19,6 +19,9 @@ _duchyProtocolsSetupConfig:    string @tag("duchy_protocols_setup_config")
 _secretName:                   string @tag("secret_name")
 _certificateId:                string @tag("certificate_id")
 _computationControlServerEips: string @tag("computation_control_server_eips")
+_aggregatorSystemApiTarget:    string @tag("aggregator_system_api_target")
+_worker1SystemApiTarget:       string @tag("worker1_system_api_target")
+_worker2SystemApiTarget:       string @tag("worker2_system_api_target")
 
 _duchyCertName: "duchies/\(_duchyName)/certificates/\(_certificateId)"
 
@@ -71,9 +74,9 @@ duchy: #PostgresDuchy & {
 	}
 	_duchy_secret_name: _secretName
 	_computation_control_targets: {
-		"aggregator": "system.aggregator.dev.halo-cmm.org:8443"
-		"worker1":    "system.worker1.dev.halo-cmm.org:8443"
-		"worker2":    "v1alpha.system.aws.worker2.dev.halo-cmm.org:8443"
+		"aggregator": _aggregatorSystemApiTarget
+		"worker1":    _worker1SystemApiTarget
+		"worker2":    _worker2SystemApiTarget
 	}
 	_kingdom_system_api_target: #KingdomSystemApiTarget
 	_blob_storage_flags:        #AwsS3Config.flags
