@@ -102,8 +102,14 @@ import "encoding/yaml"
 			spec: {
 				env: [
 					{
+						name:  "OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT"
+						value: "256"
+					}, {
 						name:  "OTEL_TRACES_EXPORTER"
-						value: "none"
+						value: "otlp"
+					}, {
+						name:  "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"
+						value: "grpc"
 					}, {
 						name:  "OTEL_EXPORTER_OTLP_ENDPOINT"
 						value: #OpenTelemetryCollectorEndpoint
