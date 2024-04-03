@@ -88,15 +88,12 @@ class AccountsService(
     val result =
       try {
         internalAccountsStub.createAccount(internalCreateAccountRequest)
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Creator's Account not found." }
-          Status.Code.PERMISSION_DENIED ->
-            failGrpc(Status.PERMISSION_DENIED, ex) {
-              "Caller does not own the owned measurement consumer."
-            }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
-        }
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          Status.Code.PERMISSION_DENIED -> Status.PERMISSION_DENIED
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
 
     return result.toAccount()
@@ -135,18 +132,13 @@ class AccountsService(
     val result =
       try {
         internalAccountsStub.activateAccount(internalActivateAccountRequest)
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.PERMISSION_DENIED ->
-            failGrpc(Status.PERMISSION_DENIED, ex) {
-              "Activation token is not valid for this account."
-            }
-          Status.Code.FAILED_PRECONDITION ->
-            failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition." }
-          Status.Code.NOT_FOUND ->
-            failGrpc(Status.NOT_FOUND, ex) { "Account to activate has not been found." }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
-        }
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.PERMISSION_DENIED -> Status.PERMISSION_DENIED
+          Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
 
     // method only returns the basic account view so some fields are cleared
@@ -182,13 +174,12 @@ class AccountsService(
     val result =
       try {
         internalAccountsStub.replaceAccountIdentity(internalReplaceAccountIdentityRequest)
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.FAILED_PRECONDITION ->
-            failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition." }
-          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Account was not found." }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
-        }
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
 
     // method only returns the basic account view so some fields are cleared
