@@ -528,8 +528,12 @@ kustomization_dir(
 cue_dump(
     name = "open_telemetry_gke",
     srcs = ["open_telemetry_gke.cue"],
+    cue_tags = {
+        "google_cloud_project": GCLOUD_SETTINGS.project,
+    },
     tags = ["manual"],
     deps = [
+        ":config_gke",
         "//src/main/k8s:open_telemetry",
     ],
 )
