@@ -1,0 +1,16 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = ["//visibility:public"])
+
+kt_jvm_library(
+    name = "honest_majority_share_shuffle_cryptor",
+    srcs = [
+        "HonestMajorityShareShuffleCryptor.kt",
+        "JniHonestMajorityShareShuffleCryptor.kt",
+    ],
+    deps = [
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:honest_majority_share_shuffle_methods_kt_jvm_proto",
+        "//src/main/swig/protocol/shareshuffle:honest_majority_share_shuffle_utility",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+    ],
+)
