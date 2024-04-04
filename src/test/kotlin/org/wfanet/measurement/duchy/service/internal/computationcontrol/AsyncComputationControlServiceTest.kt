@@ -488,7 +488,6 @@ class AsyncComputationControlServiceTest {
           this.token = updatedToken
           nextComputationStage = HmssStage.SHUFFLE_PHASE.toProtocolStage()
           inputBlobs += BLOB_KEY
-          outputBlobs = 1
           stageDetails = ComputationStageDetails.getDefaultInstance()
           afterTransition = AfterTransition.ADD_UNCLAIMED_TO_QUEUE
         }
@@ -539,7 +538,6 @@ class AsyncComputationControlServiceTest {
             nextComputationStage = HmssStage.AGGREGATION_PHASE.toProtocolStage()
             inputBlobs += AGGREGATION_BLOB_PATH_1
             inputBlobs += AGGREGATION_BLOB_PATH_2
-            outputBlobs = 1
             stageDetails = ComputationStageDetails.getDefaultInstance()
             afterTransition = AfterTransition.ADD_UNCLAIMED_TO_QUEUE
           }

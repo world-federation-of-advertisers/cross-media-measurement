@@ -32,6 +32,21 @@ message RequisitionDetails {
 
   // Public api version of the fulfillment.
   string public_api_version = 4;
+
+  // HonestMajorityShareShuffle protocol specific requisition details.
+  message HonestMajorityShareShuffleDetails {
+    // The number of registers in the sketch.
+    int64 register_count = 1;
+
+    // Resource name of the `Certificate` belonging to the parent
+    // `DataProvider` used to verify the secret_seed signature.
+    string data_provider_certificate = 2;
+  }
+
+  // Protocol specific details.
+  oneof protocol {
+    HonestMajorityShareShuffleDetails honest_majority_share_shuffle = 5;
+  }
 }
 
 // Lookup key for Requisition by external ID.

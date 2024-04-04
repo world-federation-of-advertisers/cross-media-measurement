@@ -169,16 +169,30 @@ message HonestMajorityShareShuffle {
     // Random seed in bytes.
     bytes peer_random_seed = 1;
 
-    // The requisition data in format of a secret seed. It is ciphertext
-    // containing a serialized `SignedMessage` message from the CMMS public API.
+    // The requisition data in format of a secret seed.
     message SecretSeed {
-      string external_data_provider_id = 1;
+      // Requisition id from the public api.
+      string requisition_id = 1;
 
       // Ciphertext containing a serialized `SignedMessage` message from the
       // CMMS public API.
       bytes secret_seed_ciphertext = 2;
+
+      // The number of registers in the sketch.
+      int64 register_count = 3;
+
+      // Resource name of the `Certificate` from the public api belonging to the
+      // parent `DataProvider` used to verify the secret_seed signature. The
+      // public api version is in requisition details.
+      string data_provider_certificate = 4;
     }
     repeated SecretSeed secret_seeds = 2;
+  }
+
+  // The input message of aggregation phase.
+  message AggregationPhaseInput {
+    // Combined sketches from non-aggregators.
+    repeated uint32 combined_sketch = 1;
   }
 
   // Details about a particular attempt of running a stage of the
