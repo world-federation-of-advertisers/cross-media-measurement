@@ -49,10 +49,8 @@ object VidToIndexMapGenerator {
       hashes.add(Pair(vid, hash))
     }
 
-    // Sorts by the hash values. There is negligible chance that collisions happen due to the use of
-    // a secure cryptography hash. Let n be the number of items, the chance to have at least 1
-    // collision is at most 2^{2log(n) - 256}.
-    hashes.sortBy { it.second }
+    // Sorts by the hash values and uses vid to break tie in case of collision.
+    hashes.sortWith(compareBy<Pair<Long, BigInteger>> { it.second }.thenBy { it.first })
 
     // Maps the hash values to the unit interval and generates the vid to index and normalized hash
     // value map.
