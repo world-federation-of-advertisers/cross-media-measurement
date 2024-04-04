@@ -78,10 +78,11 @@ class SetMeasurementResults(private val request: BatchSetMeasurementResultsReque
 
     // Read all metrics tied to Measurements that were updated and determine any state changes.
     val metricIds: List<InternalId> = buildList {
-      MetricReader(transactionContext).readMetricsByCmmsMeasurementId(
-        measurementConsumerId,
-        request.measurementResultsList.map { it.cmmsMeasurementId }
-      )
+      MetricReader(transactionContext)
+        .readMetricsByCmmsMeasurementId(
+          measurementConsumerId,
+          request.measurementResultsList.map { it.cmmsMeasurementId },
+        )
         .collect { metricReaderResult ->
           if (metricReaderResult.metric.state == Metric.State.RUNNING) {
             val measurementStates =
@@ -107,11 +108,7 @@ class SetMeasurementResults(private val request: BatchSetMeasurementResultsReque
         ) {
           bind("$1", Metric.State.SUCCEEDED)
           bind("$2", measurementConsumerId)
-          metricIds.forEach {
-            addValuesBinding {
-              bindValuesParam(0, it)
-            }
-          }
+          metricIds.forEach { addValuesBinding { bindValuesParam(0, it) } }
         }
 
       transactionContext.executeStatement(metricStateUpdateStatement)

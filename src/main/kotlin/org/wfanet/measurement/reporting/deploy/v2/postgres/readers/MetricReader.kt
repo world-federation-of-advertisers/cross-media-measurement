@@ -191,17 +191,9 @@ class MetricReader(private val readContext: ReadContext) {
       )
 
     val statement =
-      valuesListBoundStatement(
-        valuesStartIndex = 1,
-        paramCount = 1,
-        sql.toString(),
-      ) {
+      valuesListBoundStatement(valuesStartIndex = 1, paramCount = 1, sql.toString()) {
         bind("$1", measurementConsumerId)
-        createMetricRequestIds.forEach {
-          addValuesBinding {
-            bindValuesParam(0, it)
-          }
-        }
+        createMetricRequestIds.forEach { addValuesBinding { bindValuesParam(0, it) } }
       }
 
     return flow {
@@ -248,17 +240,9 @@ class MetricReader(private val readContext: ReadContext) {
       )
 
     val statement =
-      valuesListBoundStatement(
-        valuesStartIndex = 1,
-        paramCount = 1,
-        sql.toString(),
-      ) {
+      valuesListBoundStatement(valuesStartIndex = 1, paramCount = 1, sql.toString()) {
         bind("$1", measurementConsumerId)
-        cmmsMeasurementIds.forEach {
-          addValuesBinding {
-            bindValuesParam(0, it)
-          }
-        }
+        cmmsMeasurementIds.forEach { addValuesBinding { bindValuesParam(0, it) } }
       }
 
     return flow {

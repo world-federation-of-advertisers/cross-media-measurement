@@ -78,12 +78,12 @@ class SetMeasurementFailures(private val request: BatchSetMeasurementFailuresReq
 
     // Read all metrics tied to Measurements that were updated.
     val metricIds: List<InternalId> = buildList {
-      MetricReader(transactionContext).readMetricsByCmmsMeasurementId(
-        measurementConsumerId,
-        request.measurementFailuresList.map { it.cmmsMeasurementId })
-        .collect { metricReaderResult ->
-          add(metricReaderResult.metricId)
-        }
+      MetricReader(transactionContext)
+        .readMetricsByCmmsMeasurementId(
+          measurementConsumerId,
+          request.measurementFailuresList.map { it.cmmsMeasurementId },
+        )
+        .collect { metricReaderResult -> add(metricReaderResult.metricId) }
     }
 
     if (metricIds.isNotEmpty()) {
@@ -100,11 +100,7 @@ class SetMeasurementFailures(private val request: BatchSetMeasurementFailuresReq
         ) {
           bind("$1", Metric.State.FAILED)
           bind("$2", measurementConsumerId)
-          metricIds.forEach {
-            addValuesBinding {
-              bindValuesParam(0, it)
-            }
-          }
+          metricIds.forEach { addValuesBinding { bindValuesParam(0, it) } }
         }
 
       transactionContext.executeStatement(metricStateUpdateStatement)
