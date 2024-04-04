@@ -31,10 +31,12 @@ on:
   workflow_dispatch:
     inputs:
       environment:
+        description: "GitHub-managed environment"
         required: true
         type: choice
         options:
         - dev
+        - qa
       image-tag:
         description: "Tag of container images"
         type: string
@@ -87,7 +89,7 @@ jobs:
       run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
 
     - name: Get GKE cluster credentials
-      uses: google-github-actions/get-gke-credentials@v1
+      uses: google-github-actions/get-gke-credentials@v2
       with:
         cluster_name: reporting
         location: ${{ vars.GCLOUD_ZONE }}
