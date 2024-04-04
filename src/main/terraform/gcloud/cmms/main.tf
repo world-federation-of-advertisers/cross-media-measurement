@@ -82,3 +82,17 @@ provider "postgresql" {
   username = google_sql_user.postgres.name
   password = google_sql_user.postgres.password
 }
+
+module "open_telemetry" {
+  source = "../modules/workload-identity-user"
+
+  k8s_service_account_name        = "open-telemetry"
+  iam_service_account_name        = "open-telemetry"
+  iam_service_account_description = "Open Telemetry Collector."
+}
+
+resource "google_project_iam_member" "cloud_traces_agent" {
+  project = "halo-cmm-dev"
+  role    = "roles/cloudtrace.agent"
+  member  = module.open_telemetry.iam_service_account.member
+}
