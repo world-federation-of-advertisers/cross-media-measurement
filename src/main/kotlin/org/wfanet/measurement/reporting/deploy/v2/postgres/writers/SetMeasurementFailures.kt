@@ -19,11 +19,14 @@ package org.wfanet.measurement.reporting.deploy.v2.postgres.writers
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.common.db.r2dbc.postgres.ValuesListBoundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.valuesListBoundStatement
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequest
 import org.wfanet.measurement.internal.reporting.v2.Measurement
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt
+import org.wfanet.measurement.internal.reporting.v2.Metric
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MeasurementConsumerReader
+import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MetricReader
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.MeasurementNotFoundException
 
@@ -71,6 +74,40 @@ class SetMeasurementFailures(private val request: BatchSetMeasurementFailuresReq
     val result = transactionContext.executeStatement(statement)
     if (result.numRowsUpdated < request.measurementFailuresList.size) {
       throw MeasurementNotFoundException()
+    }
+
+    // Read all metrics tied to Measurements that were updated.
+    val metricIds: List<InternalId> = buildList {
+      MetricReader(transactionContext).readMetricsByCmmsMeasurementId(
+        measurementConsumerId,
+        request.measurementFailuresList.map { it.cmmsMeasurementId })
+        .collect { metricReaderResult ->
+          add(metricReaderResult.metricId)
+        }
+    }
+
+    if (metricIds.isNotEmpty()) {
+      val metricStateUpdateStatement =
+        valuesListBoundStatement(
+          valuesStartIndex = 2,
+          paramCount = 1,
+          """
+        UPDATE Metrics AS m SET State = $1
+        FROM (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
+        AS c(MetricId)
+        WHERE MeasurementConsumerId = $2 AND m.MetricId = c.MetricId
+        """,
+        ) {
+          bind("$1", Metric.State.FAILED)
+          bind("$2", measurementConsumerId)
+          metricIds.forEach {
+            addValuesBinding {
+              bindValuesParam(0, it)
+            }
+          }
+        }
+
+      transactionContext.executeStatement(metricStateUpdateStatement)
     }
   }
 }

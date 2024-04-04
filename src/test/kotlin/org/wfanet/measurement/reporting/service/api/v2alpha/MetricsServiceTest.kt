@@ -153,8 +153,6 @@ import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresR
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequestKt.measurementFailure
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequestKt.measurementResult
-import org.wfanet.measurement.internal.reporting.v2.BatchSetMetricsStateRequest
-import org.wfanet.measurement.internal.reporting.v2.BatchSetMetricsStateRequestKt
 import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodology as InternalCustomDirectMethodology
 import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodologyKt as InternalCustomDirectMethodologyKt
 import org.wfanet.measurement.internal.reporting.v2.DeterministicCount as InternalDeterministicCount
@@ -188,7 +186,6 @@ import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRespons
 import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsRequest
-import org.wfanet.measurement.internal.reporting.v2.batchSetMetricsStateRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest as internalCreateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.customDirectMethodology as internalCustomDirectMethodology
@@ -1451,6 +1448,7 @@ private val INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC =
   INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC.copy {
     externalMetricId = "331L"
     createTime = Instant.now().toProtoTime()
+    state = InternalMetric.State.RUNNING
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
@@ -1465,7 +1463,6 @@ private val INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC =
           clearCmmsMeasurementId()
         }
     }
-    state = InternalMetric.State.RUNNING
   }
 
 private val INTERNAL_PENDING_INCREMENTAL_REACH_METRIC =
@@ -1485,6 +1482,7 @@ private val INTERNAL_PENDING_INCREMENTAL_REACH_METRIC =
 
 private val INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC =
   INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.copy {
+    state = InternalMetric.State.SUCCEEDED
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
@@ -1496,7 +1494,6 @@ private val INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC =
       binaryRepresentation = 2
       measurement = INTERNAL_SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
     }
-    state = InternalMetric.State.SUCCEEDED
   }
 
 // Internal Single publisher reach-frequency metrics
@@ -1542,6 +1539,7 @@ private val INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC =
   INTERNAL_REQUESTING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
     externalMetricId = "332L"
     createTime = Instant.now().toProtoTime()
+    state = InternalMetric.State.RUNNING
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
@@ -1551,7 +1549,6 @@ private val INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC =
           clearCmmsMeasurementId()
         }
     }
-    state = InternalMetric.State.RUNNING
   }
 
 private val INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC =
@@ -1566,13 +1563,13 @@ private val INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC =
 
 private val INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC =
   INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
+    state = InternalMetric.State.SUCCEEDED
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
       binaryRepresentation = 1
       measurement = INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT
     }
-    state = InternalMetric.State.SUCCEEDED
   }
 
 // Internal Single publisher impression metrics
@@ -1613,6 +1610,7 @@ private val INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC =
   INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
     externalMetricId = "333L"
     createTime = Instant.now().toProtoTime()
+    state = InternalMetric.State.RUNNING
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
@@ -1620,7 +1618,6 @@ private val INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC =
       measurement =
         INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy { clearCmmsMeasurementId() }
     }
-    state = InternalMetric.State.RUNNING
   }
 
 private val INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC =
@@ -1635,35 +1632,35 @@ private val INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC =
 
 private val INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC =
   INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+    state = InternalMetric.State.FAILED
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
       binaryRepresentation = 1
       measurement = INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
     }
-    state = InternalMetric.State.FAILED
   }
 
 private val INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC =
   INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+    state = InternalMetric.State.SUCCEEDED
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
       binaryRepresentation = 1
       measurement = INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
     }
-    state = InternalMetric.State.SUCCEEDED
   }
 
 private val INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC_CUSTOM_CAP =
   INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+    state = InternalMetric.State.SUCCEEDED
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
       binaryRepresentation = 1
       measurement = INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_CUSTOM_CAP
     }
-    state = InternalMetric.State.SUCCEEDED
   }
 
 // Internal Cross Publisher Watch Duration Metrics
@@ -1699,13 +1696,14 @@ private val INTERNAL_PENDING_INITIAL_CROSS_PUBLISHER_WATCH_DURATION_METRIC =
   INTERNAL_REQUESTING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
     externalMetricId = "334L"
     createTime = Instant.now().toProtoTime()
+    state = InternalMetric.State.RUNNING
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
       binaryRepresentation = 1
       measurement = INTERNAL_PENDING_NOT_CREATED_UNION_ALL_WATCH_DURATION_MEASUREMENT
     }
-    state = InternalMetric.State.RUNNING
+
   }
 
 private val INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC =
@@ -1720,13 +1718,13 @@ private val INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC =
 
 private val INTERNAL_SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC =
   INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
+    state = InternalMetric.State.SUCCEEDED
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
       binaryRepresentation = 1
       measurement = INTERNAL_SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT
     }
-    state = InternalMetric.State.SUCCEEDED
   }
 
 // Internal population metric
@@ -1755,6 +1753,7 @@ private val INTERNAL_PENDING_INITIAL_POPULATION_METRIC =
   INTERNAL_REQUESTING_POPULATION_METRIC.copy {
     externalMetricId = "331L"
     createTime = Instant.now().toProtoTime()
+    state = InternalMetric.State.RUNNING
     weightedMeasurements.clear()
 
     weightedMeasurements += weightedMeasurement {
@@ -1762,7 +1761,6 @@ private val INTERNAL_PENDING_INITIAL_POPULATION_METRIC =
       binaryRepresentation = 1
       measurement = INTERNAL_PENDING_POPULATION_MEASUREMENT.copy { clearCmmsMeasurementId() }
     }
-    state = InternalMetric.State.RUNNING
   }
 
 val INTERNAL_PENDING_POPULATION_METRIC =
@@ -1773,18 +1771,17 @@ val INTERNAL_PENDING_POPULATION_METRIC =
       binaryRepresentation = 1
       measurement = INTERNAL_PENDING_POPULATION_MEASUREMENT
     }
-    state = InternalMetric.State.RUNNING
   }
 
 val INTERNAL_SUCCEEDED_POPULATION_METRIC =
   INTERNAL_PENDING_POPULATION_METRIC.copy {
+    state = InternalMetric.State.SUCCEEDED
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
       binaryRepresentation = 1
       measurement = INTERNAL_SUCCEEDED_POPULATION_MEASUREMENT
     }
-    state = InternalMetric.State.SUCCEEDED
   }
 
 // Public Metrics
@@ -2093,7 +2090,6 @@ class MetricsServiceTest {
           metrics += INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
         }
       )
-    onBlocking { batchSetMetricsState(any()) }.thenReturn(Empty.getDefaultInstance())
   }
 
   private val internalReportingSetsMock:
@@ -4755,6 +4751,7 @@ class MetricsServiceTest {
         internalBatchGetMetricsResponse {
           metrics +=
             INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.copy {
+              state = InternalMetric.State.SUCCEEDED
               weightedMeasurements.clear()
               weightedMeasurements += weightedMeasurement {
                 weight = 1
@@ -4766,7 +4763,6 @@ class MetricsServiceTest {
                 binaryRepresentation = 2
                 measurement = INTERNAL_SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
               }
-              state = InternalMetric.State.SUCCEEDED
             }
           metrics += INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
         }
@@ -4826,19 +4822,6 @@ class MetricsServiceTest {
     verifyBlocking(internalMeasurementsMock, never()) {
       batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
     }
-
-    // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricsState
-    verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::batchSetMetricsState)
-      .isEqualTo(
-        batchSetMetricsStateRequest {
-          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-          requests +=
-            BatchSetMetricsStateRequestKt.setStateRequest {
-              externalMetricId = INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId
-              state = InternalMetric.State.SUCCEEDED
-            }
-        }
-      )
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
@@ -4903,12 +4886,6 @@ class MetricsServiceTest {
       batchGetMetrics(batchGetMetricsCaptor.capture())
     }
 
-    // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricsState
-    val batchSetMetricsStateCaptor: KArgumentCaptor<BatchSetMetricsStateRequest> = argumentCaptor()
-    verifyBlocking(internalMetricsMock, never()) {
-      batchSetMetricsState(batchSetMetricsStateCaptor.capture())
-    }
-
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
 
@@ -4954,13 +4931,13 @@ class MetricsServiceTest {
           metrics += INTERNAL_PENDING_INCREMENTAL_REACH_METRIC
           metrics +=
             INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+              state = InternalMetric.State.FAILED
               weightedMeasurements.clear()
               weightedMeasurements += weightedMeasurement {
                 weight = 1
                 binaryRepresentation = 1
                 measurement = INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
               }
-              state = InternalMetric.State.FAILED
             }
         }
       )
@@ -5012,20 +4989,6 @@ class MetricsServiceTest {
               INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementId
             this.failure = INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.details.failure
           }
-        }
-      )
-
-    // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricsState
-    verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::batchSetMetricsState)
-      .isEqualTo(
-        batchSetMetricsStateRequest {
-          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-          requests +=
-            BatchSetMetricsStateRequestKt.setStateRequest {
-              externalMetricId =
-                INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
-              state = InternalMetric.State.FAILED
-            }
         }
       )
 
@@ -5357,13 +5320,6 @@ class MetricsServiceTest {
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
         batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
-      }
-
-      // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricsState
-      val batchSetMetricsStateCaptor: KArgumentCaptor<BatchSetMetricsStateRequest> =
-        argumentCaptor()
-      verifyBlocking(internalMetricsMock, never()) {
-        batchSetMetricsState(batchSetMetricsStateCaptor.capture())
       }
 
       assertThat(result).isEqualTo(SUCCEEDED_INCREMENTAL_REACH_METRIC)
@@ -6142,12 +6098,6 @@ class MetricsServiceTest {
       batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
     }
 
-    // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricsState
-    val batchSetMetricsStateCaptor: KArgumentCaptor<BatchSetMetricsStateRequest> = argumentCaptor()
-    verifyBlocking(internalMetricsMock, never()) {
-      batchSetMetricsState(batchSetMetricsStateCaptor.capture())
-    }
-
     assertThat(result).isEqualTo(FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC)
   }
 
@@ -6274,20 +6224,6 @@ class MetricsServiceTest {
       verifyBlocking(internalMeasurementsMock, never()) {
         batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
       }
-
-      // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricsState
-      verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::batchSetMetricsState)
-        .isEqualTo(
-          batchSetMetricsStateRequest {
-            cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-            requests +=
-              BatchSetMetricsStateRequestKt.setStateRequest {
-                externalMetricId =
-                  INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.externalMetricId
-                state = InternalMetric.State.SUCCEEDED
-              }
-          }
-        )
 
       assertThat(result).isEqualTo(SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC)
     }
@@ -6826,20 +6762,6 @@ class MetricsServiceTest {
         batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
       }
 
-      // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricsState
-      verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::batchSetMetricsState)
-        .isEqualTo(
-          batchSetMetricsStateRequest {
-            cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-            requests +=
-              BatchSetMetricsStateRequestKt.setStateRequest {
-                externalMetricId =
-                  INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.externalMetricId
-                state = InternalMetric.State.SUCCEEDED
-              }
-          }
-        )
-
       assertThat(result).isEqualTo(SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC)
     }
 
@@ -6917,20 +6839,6 @@ class MetricsServiceTest {
       verifyBlocking(internalMeasurementsMock, never()) {
         batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
       }
-
-      // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricsState
-      verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::batchSetMetricsState)
-        .isEqualTo(
-          batchSetMetricsStateRequest {
-            cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-            requests +=
-              BatchSetMetricsStateRequestKt.setStateRequest {
-                externalMetricId =
-                  INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
-                state = InternalMetric.State.SUCCEEDED
-              }
-          }
-        )
 
       assertThat(result).isEqualTo(SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC)
     }
@@ -7012,20 +6920,6 @@ class MetricsServiceTest {
       verifyBlocking(internalMeasurementsMock, never()) {
         batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
       }
-
-      // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricsState
-      verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::batchSetMetricsState)
-        .isEqualTo(
-          batchSetMetricsStateRequest {
-            cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-            requests +=
-              BatchSetMetricsStateRequestKt.setStateRequest {
-                externalMetricId =
-                  INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
-                state = InternalMetric.State.SUCCEEDED
-              }
-          }
-        )
 
       assertThat(result).isEqualTo(SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC)
     }
@@ -7114,20 +7008,6 @@ class MetricsServiceTest {
           }
         )
 
-      // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricsState
-      verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::batchSetMetricsState)
-        .isEqualTo(
-          batchSetMetricsStateRequest {
-            cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-            requests +=
-              BatchSetMetricsStateRequestKt.setStateRequest {
-                externalMetricId =
-                  INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
-                state = InternalMetric.State.FAILED
-              }
-          }
-        )
-
       assertThat(result).isEqualTo(FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC)
     }
 
@@ -7185,13 +7065,6 @@ class MetricsServiceTest {
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
         batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
-      }
-
-      // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricsState
-      val batchSetMetricsStateCaptor: KArgumentCaptor<BatchSetMetricsStateRequest> =
-        argumentCaptor()
-      verifyBlocking(internalMetricsMock, never()) {
-        batchSetMetricsState(batchSetMetricsStateCaptor.capture())
       }
 
       assertThat(result).isEqualTo(SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC)
@@ -7542,13 +7415,6 @@ class MetricsServiceTest {
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
         batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
-      }
-
-      // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricsState
-      val batchSetMetricsStateCaptor: KArgumentCaptor<BatchSetMetricsStateRequest> =
-        argumentCaptor()
-      verifyBlocking(internalMetricsMock, never()) {
-        batchSetMetricsState(batchSetMetricsStateCaptor.capture())
       }
 
       assertThat(result).isEqualTo(SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC)
@@ -8026,13 +7892,6 @@ class MetricsServiceTest {
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
         batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
-      }
-
-      // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricsState
-      val batchSetMetricsStateCaptor: KArgumentCaptor<BatchSetMetricsStateRequest> =
-        argumentCaptor()
-      verifyBlocking(internalMetricsMock, never()) {
-        batchSetMetricsState(batchSetMetricsStateCaptor.capture())
       }
 
       assertThat(result)

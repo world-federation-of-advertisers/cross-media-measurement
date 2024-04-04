@@ -16,7 +16,6 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.v2;
 
-import "google/protobuf/empty.proto";
 import "wfa/measurement/internal/reporting/v2/metric.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
@@ -33,9 +32,6 @@ service Metrics {
 
   // Ordered by (cmms_measurement_consumer_id, external_metric_id).
   rpc StreamMetrics(StreamMetricsRequest) returns (stream Metric);
-
-  rpc BatchSetMetricsState(BatchSetMetricsStateRequest)
-      returns (google.protobuf.Empty);
 }
 
 message CreateMetricRequest {
@@ -78,17 +74,4 @@ message StreamMetricsRequest {
   Filter filter = 1;
 
   int32 limit = 2;
-}
-
-message BatchSetMetricsStateRequest {
-  // `MeasurementConsumer` ID from the CMMS public API.
-  string cmms_measurement_consumer_id = 1;
-
-  message SetStateRequest {
-    string external_metric_id = 1;
-    Metric.State state = 2;
-  }
-
-  // Maximum is 5000.
-  repeated SetStateRequest requests = 2;
 }

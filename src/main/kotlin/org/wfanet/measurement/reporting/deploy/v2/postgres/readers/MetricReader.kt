@@ -30,6 +30,8 @@ import org.wfanet.measurement.common.db.r2dbc.BoundStatement
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
+import org.wfanet.measurement.common.db.r2dbc.postgres.ValuesListBoundStatement
+import org.wfanet.measurement.common.db.r2dbc.postgres.valuesListBoundStatement
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDuration
@@ -183,26 +185,80 @@ class MetricReader(private val readContext: ReadContext) {
             JOIN Metrics USING(MeasurementConsumerId)
             $baseSqlJoins
           WHERE Metrics.MeasurementConsumerId = $1
-            AND CreateMetricRequestId IN
+            AND CreateMetricRequestId IN (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
         """
           .trimIndent()
       )
 
-    var i = 2
-    val bindingMap = mutableMapOf<String, String>()
-    val inList =
-      createMetricRequestIds.joinToString(separator = ",", prefix = "(", postfix = ")") {
-        val index = "$$i"
-        bindingMap[it] = index
-        i++
-        index
+    val statement =
+      valuesListBoundStatement(
+        valuesStartIndex = 1,
+        paramCount = 1,
+        sql.toString(),
+      ) {
+        bind("$1", measurementConsumerId)
+        createMetricRequestIds.forEach {
+          addValuesBinding {
+            bindValuesParam(0, it)
+          }
+        }
       }
-    sql.append(inList)
+
+    return flow {
+      val metricInfoMap = buildResultMap(statement)
+
+      for (entry in metricInfoMap) {
+        val metricInfo = entry.value
+
+        val metric = metricInfo.buildMetric()
+
+        val createMetricRequestId = metricInfo.createMetricRequestId ?: ""
+        emit(
+          Result(
+            measurementConsumerId = metricInfo.measurementConsumerId,
+            metricId = metricInfo.metricId,
+            createMetricRequestId = createMetricRequestId,
+            metric = metric,
+          )
+        )
+      }
+    }
+  }
+
+  fun readMetricsByCmmsMeasurementId(
+    measurementConsumerId: InternalId,
+    cmmsMeasurementIds: Collection<String>,
+  ): Flow<Result> {
+    if (cmmsMeasurementIds.isEmpty()) {
+      return emptyFlow()
+    }
+
+    val sql =
+      StringBuilder(
+        """
+          $baseSqlSelect
+          FROM
+            MeasurementConsumers
+            JOIN Metrics USING(MeasurementConsumerId)
+            $baseSqlJoins
+          WHERE Metrics.MeasurementConsumerId = $1
+            AND CmmsMeasurementId IN (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
+        """
+          .trimIndent()
+      )
 
     val statement =
-      boundStatement(sql.toString()) {
+      valuesListBoundStatement(
+        valuesStartIndex = 1,
+        paramCount = 1,
+        sql.toString(),
+      ) {
         bind("$1", measurementConsumerId)
-        createMetricRequestIds.forEach { bind(bindingMap.getValue(it), it) }
+        cmmsMeasurementIds.forEach {
+          addValuesBinding {
+            bindValuesParam(0, it)
+          }
+        }
       }
 
     return flow {

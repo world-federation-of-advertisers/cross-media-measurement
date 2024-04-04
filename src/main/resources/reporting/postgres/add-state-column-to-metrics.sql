@@ -37,4 +37,4 @@
 --           └── MetricCalculationSpecReportingMetrics
 
 -- changeset tristanvuong2021:add-state-column-metrics-table dbms:postgresql
-ALTER TABLE Metrics ADD COLUMN State integer NOT NULL DEFAULT 1;
+ALTER TABLE Metrics ADD COLUMN State integer NOT NULL DEFAULT 0;

@@ -118,7 +118,6 @@ import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRe
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequestKt.measurementFailure
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequestKt.measurementResult
-import org.wfanet.measurement.internal.reporting.v2.BatchSetMetricsStateRequestKt
 import org.wfanet.measurement.internal.reporting.v2.CreateMetricRequest as InternalCreateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodology
 import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
@@ -140,7 +139,6 @@ import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsRequest
-import org.wfanet.measurement.internal.reporting.v2.batchSetMetricsStateRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest as internalCreateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.measurement as internalMeasurement
@@ -1613,21 +1611,6 @@ class MetricsService(
             principal.resourceKey.measurementConsumerId,
             metricsByState.getValue(InternalMetric.State.RUNNING).map { it.externalMetricId },
           )
-        val metricIdStatePairs =
-          buildList<Pair<String, InternalMetric.State>> {
-            for (updatedInternalMetric in updatedInternalMetrics) {
-              val newState = updatedInternalMetric.calculateState()
-              if (newState != InternalMetric.State.RUNNING) {
-                add(Pair(updatedInternalMetric.externalMetricId, newState))
-              }
-            }
-          }
-        if (metricIdStatePairs.isNotEmpty()) {
-          batchSetInternalMetricsState(
-            principal.resourceKey.measurementConsumerId,
-            metricIdStatePairs,
-          )
-        }
         addAll(updatedInternalMetrics.map { it.toMetric(variances) })
 
         for (state in metricsByState.keys) {
@@ -1640,29 +1623,6 @@ class MetricsService(
           addAll(metricsByState.getValue(state).map { it.toMetric(variances) })
         }
       }
-    }
-  }
-
-  /** Sets [InternalMetric.State] for a batch of [InternalMetric]s. */
-  private suspend fun batchSetInternalMetricsState(
-    cmmsMeasurementConsumerId: String,
-    metricIdStatePairs: List<Pair<String, InternalMetric.State>>,
-  ) {
-    val batchSetMetricsState = batchSetMetricsStateRequest {
-      this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-      for (pair in metricIdStatePairs) {
-        requests +=
-          BatchSetMetricsStateRequestKt.setStateRequest {
-            externalMetricId = pair.first
-            state = pair.second
-          }
-      }
-    }
-
-    try {
-      internalMetricsStub.batchSetMetricsState(batchSetMetricsState)
-    } catch (e: StatusException) {
-      throw Exception("Unable to update Metrics State.", e)
     }
   }
 
@@ -2635,15 +2595,4 @@ private operator fun ProtoDuration.times(weight: Int): ProtoDuration {
 
 private operator fun ProtoDuration.plus(other: ProtoDuration): ProtoDuration {
   return Durations.add(this, other)
-}
-
-private fun InternalMetric.calculateState(): InternalMetric.State {
-  val measurementStates = weightedMeasurementsList.map { it.measurement.state }
-  return if (measurementStates.all { it == InternalMeasurement.State.SUCCEEDED }) {
-    InternalMetric.State.SUCCEEDED
-  } else if (measurementStates.any { it == InternalMeasurement.State.FAILED }) {
-    InternalMetric.State.FAILED
-  } else {
-    InternalMetric.State.RUNNING
-  }
 }
