@@ -1,0 +1,104 @@
+# Copyright 2024 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Scan container images
+
+on:
+  workflow_call:
+    inputs:
+      container-registry:
+        description: Container registry to pull images from
+        type: string
+        required: true
+      image-repo-prefix:
+        description: Common prefix of the image repository
+        type: string
+        required: true
+      image-tag:
+        description: Tag of container images
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      container-registry:
+        description: Container registry to pull images from
+        type: string
+        required: true
+      image-repo-prefix:
+        description: Common prefix of the image repository
+        type: string
+        required: true
+      image-tag:
+        description: Tag of container images
+        type: string
+        required: true
+
+jobs:
+  scan-images:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # List of images from https://github.com/orgs/world-federation-of-advertisers/packages?repo_name=cross-media-measurement
+        image:
+          - duchy/computations-cleaner
+          - kingdom/completed-measurements-deletion
+          - duchy/spanner-update-schema
+          - kingdom/spanner-update-schema
+          - duchy/requisition-fulfillment
+          - duchy/computation-control
+          - kingdom/data-server
+          - kingdom/v2alpha-public-api
+          - duchy/liquid-legions-v2-mill
+          - duchy/async-computation-control
+          - kingdom/system-api
+          - duchy/herald
+          - duchy/spanner-computations
+          - reporting/postgres-data-server
+          - kingdom/exchanges-deletion
+          - reporting/v1alpha-public-api
+          - reporting/postgres-update-schema
+          - reporting/v2/v2alpha-public-api
+          - reporting/v2/postgres-update-schema
+          - panel-exchange/gcloud-example-daemon
+          - panel-exchange/aws-example-daemon
+          - simulator/synthetic-generator-edp
+          - simulator/bigquery-edp
+          - reporting/v2/postgres-internal-server
+          - duchy/postgres-update-schema
+          - duchy/gcloud-postgres-update-schema
+          - duchy/postgres-internal-server
+          - duchy/aws-liquid-legions-v2-mill
+          - duchy/aws-postgres-update-schema
+          - duchy/aws-computation-control
+          - duchy/aws-requisition-fulfillment
+          - duchy/aws-postgres-internal-server
+          - panel-exchange/forwarded-storage-daemon
+    steps:
+      - name: Get SARIF file path
+        id: get-sarif-file-path
+        env:
+          IMAGE: ${{ matrix.image }}
+        run:
+          echo "path=${IMAGE//\//_}.sarif" >> $GITHUB_OUTPUT
+      - name: Run Trivy image scanner
+        uses: aquasecurity/trivy-action@0.19.0
+        with:
+          image-ref: ${{ inputs.container-registry }}/${{ inputs.image-repo-prefix }}/${{ matrix.image }}:${{ inputs.image-tag }}
+          format: sarif
+          output: ${{ steps.get-sarif-file-path.outputs.path }}
+      - name: Upload scan results to GitHub
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: ${{ steps.get-sarif-file-path.outputs.path }}
+          category: trivy-${{ matrix.image }}
