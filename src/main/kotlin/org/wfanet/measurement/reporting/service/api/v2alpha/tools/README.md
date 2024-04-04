@@ -148,7 +148,7 @@ Reporting \
   --predicate='person.age == 3'
 ```
 
-There currently needs to be at least two groups of primitive reporting sets defined by the arg group: --cmms-event-group, --reporting-set-id, and --reporting-set-display-name. You can pass in multiple event groups, but be sure to specify the display name or id first. There is a parsing issue if the event groups are specified later in the arg group. This is similar to creating a reporting set.
+There currently needs to be at least two groups of primitive reporting sets defined by the arg group: --cmms-event-group, --reporting-set-id, and --reporting-set-display-name. You can pass in multiple event groups, but be sure to specify the display name or id first. There is a parsing issue if the id and display name are specified later in the arg group. This is similar to creating a reporting set.
 
 The union and unique reporting sets are created automatically from the provided reporting sets. Ids and display names are derived.
 
