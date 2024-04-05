@@ -141,7 +141,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "consent-signaling-client",
-    version = "0.20.0",
+    version = "0.21.0",
     repo_name = "wfa_consent_signaling_client",
 )
 bazel_dep(
