@@ -1,0 +1,16 @@
+load("@wfa_rules_swig//java:defs.bzl", "java_wrap_cc")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
+])
+
+java_wrap_cc(
+    name = "honest_majority_share_shuffle_utility",
+    src = "honest_majority_share_shuffle_utility.swig",
+    module = "HonestMajorityShareShuffleUtility",
+    package = "org.wfanet.measurement.internal.duchy.protocol.shareshuffle",
+    deps = [
+        "//src/main/cc/wfa/measurement/internal/duchy/protocol/share_shuffle:honest_majority_share_shuffle_utility_wrapper",
+    ],
+)

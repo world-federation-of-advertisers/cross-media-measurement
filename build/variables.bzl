@@ -91,6 +91,9 @@ DUCHY_K8S_SETTINGS = struct(
     certificate_id = "$(duchy_cert_id)",
     storage_bucket = "$(duchy_storage_bucket)",
     public_api_target = "$(duchy_public_api_target)",
+    aggregator_system_api_target = "$(aggregator_system_api_target)",
+    worker1_system_api_target = "$(worker1_system_api_target)",
+    worker2_system_api_target = "$(worker2_system_api_target)",
 )
 
 # Settings for simulator Kubernetes deployments.
