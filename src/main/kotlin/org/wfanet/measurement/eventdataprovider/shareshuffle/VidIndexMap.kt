@@ -18,10 +18,12 @@ import com.google.protobuf.ByteString
 import java.math.BigInteger
 import java.nio.ByteOrder
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator
+import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.toByteString
 
-class VidNotFoundException(message: String, vid: Long) : Exception(message)
+class VidNotFoundException(vid: Long) : Exception("Failed to find VID $vid.")
 
 /**
  * A mapping of VIDs to [FrequencyVector] indexes for a [PopulationSpec].
@@ -35,13 +37,13 @@ class VidIndexMap(
   populationSpec: PopulationSpec,
   private val salt : ByteString = ByteString.EMPTY) {
   /** The number of VIDs managed by this VidIndexMap */
-  val vidCount get() { indexMap.size }
+  val vidCount get()=indexMap.size
 
   /** A map of a VID to its index in the [Frequency Vector]. */
   private val indexMap = hashMapOf<Long, Int>()
 
   init {
-    // TODO(kungfucraig): Add validatioin for the PopSpec
+    PopulationSpecValidator.validateVidRangesList(populationSpec)
 
     val hashes = mutableListOf<Pair<Long, BigInteger>>()
 
@@ -54,7 +56,7 @@ class VidIndexMap(
       }
     }
 
-    hashes.sortBy { it.second }
+    hashes.sortWith(compareBy<Pair<Long, BigInteger>> { it.second }.thenBy { it.first })
 
     for ((index, pair) in hashes.withIndex()) {
       indexMap[pair.first] = index
@@ -70,7 +72,7 @@ class VidIndexMap(
     if (indexMap.containsKey(vid)) {
       indexMap[vid]!!
     } else {
-      throw VidNotFoundException("Cannot find VID $vid.", vid)
+      throw VidNotFoundException(vid)
     }
 
   private fun getVidHash(vid: Long): ByteString {
