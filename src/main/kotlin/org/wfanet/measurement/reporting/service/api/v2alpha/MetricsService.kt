@@ -1601,9 +1601,10 @@ class MetricsService(
 
     return buildList {
       for (state in metricsByState.keys) {
-        when(state) {
+        when (state) {
           InternalMetric.State.SUCCEEDED,
-          InternalMetric.State.FAILED ->  addAll(metricsByState.getValue(state).map { it.toMetric(variances) })
+          InternalMetric.State.FAILED ->
+            addAll(metricsByState.getValue(state).map { it.toMetric(variances) })
           InternalMetric.State.RUNNING -> {
             if (anyMeasurementUpdated) {
               val updatedInternalMetrics =
@@ -1617,11 +1618,13 @@ class MetricsService(
             }
           }
           InternalMetric.State.STATE_UNSPECIFIED -> {
-            addAll(metricsByState.getValue(state).map {internalMetric ->
-              internalMetric.copy {
-                this.state = internalMetric.calculateState()
-              }.toMetric(variances)
-            })
+            addAll(
+              metricsByState.getValue(state).map { internalMetric ->
+                internalMetric
+                  .copy { this.state = internalMetric.calculateState() }
+                  .toMetric(variances)
+              }
+            )
           }
           InternalMetric.State.UNRECOGNIZED -> error("Invalid Metric State")
         }

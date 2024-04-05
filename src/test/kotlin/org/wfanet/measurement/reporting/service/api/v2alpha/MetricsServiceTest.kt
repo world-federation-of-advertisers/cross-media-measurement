@@ -5280,9 +5280,9 @@ class MetricsServiceTest {
     runBlocking {
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
-          internalBatchGetMetricsResponse { metrics += INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
-            clearState()
-          } }
+          internalBatchGetMetricsResponse {
+            metrics += INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.copy { clearState() }
+          }
         )
 
       val request = getMetricRequest { name = SUCCEEDED_INCREMENTAL_REACH_METRIC.name }
