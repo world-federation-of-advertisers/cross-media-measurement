@@ -1618,6 +1618,8 @@ class MetricsService(
             }
           }
           InternalMetric.State.STATE_UNSPECIFIED -> {
+            // Metrics created before state was tracked in the database will have the state be
+            // unspecified. This calculates the correct state for those metrics.
             addAll(
               metricsByState.getValue(state).map { internalMetric ->
                 internalMetric
