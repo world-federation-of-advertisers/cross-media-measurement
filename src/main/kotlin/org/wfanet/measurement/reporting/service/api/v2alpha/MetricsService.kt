@@ -1142,16 +1142,11 @@ class MetricsService(
     val internalMetric: InternalMetric =
       getInternalMetric(metricKey.cmmsMeasurementConsumerId, metricKey.metricId)
 
-    // Early exit when the metric is at a terminal state.
-    if (internalMetric.state != InternalMetric.State.RUNNING) {
-      return internalMetric.toMetric(variances)
-    }
-
     return syncAndConvertInternalMetricsToPublicMetrics(
         mapOf(internalMetric.state to listOf(internalMetric)),
         principal,
       )
-      .first()
+      .single()
   }
 
   override suspend fun batchGetMetrics(request: BatchGetMetricsRequest): BatchGetMetricsResponse {
@@ -1314,7 +1309,7 @@ class MetricsService(
       buildInternalCreateMetricRequest(
         principal.resourceKey.measurementConsumerId,
         request,
-        batchGetReportingSetsResponse.reportingSetsList.first(),
+        batchGetReportingSetsResponse.reportingSetsList.single(),
       )
 
     val internalMetric =
@@ -1605,22 +1600,30 @@ class MetricsService(
       )
 
     return buildList {
-      if (anyMeasurementUpdated) {
-        val updatedInternalMetrics =
-          batchGetInternalMetrics(
-            principal.resourceKey.measurementConsumerId,
-            metricsByState.getValue(InternalMetric.State.RUNNING).map { it.externalMetricId },
-          )
-        addAll(updatedInternalMetrics.map { it.toMetric(variances) })
-
-        for (state in metricsByState.keys) {
-          if (state != InternalMetric.State.RUNNING) {
-            addAll(metricsByState.getValue(state).map { it.toMetric(variances) })
+      for (state in metricsByState.keys) {
+        when(state) {
+          InternalMetric.State.SUCCEEDED,
+          InternalMetric.State.FAILED ->  addAll(metricsByState.getValue(state).map { it.toMetric(variances) })
+          InternalMetric.State.RUNNING -> {
+            if (anyMeasurementUpdated) {
+              val updatedInternalMetrics =
+                batchGetInternalMetrics(
+                  principal.resourceKey.measurementConsumerId,
+                  metricsByState.getValue(InternalMetric.State.RUNNING).map { it.externalMetricId },
+                )
+              addAll(updatedInternalMetrics.map { it.toMetric(variances) })
+            } else {
+              addAll(metricsByState.getValue(state).map { it.toMetric(variances) })
+            }
           }
-        }
-      } else {
-        for (state in metricsByState.keys) {
-          addAll(metricsByState.getValue(state).map { it.toMetric(variances) })
+          InternalMetric.State.STATE_UNSPECIFIED -> {
+            addAll(metricsByState.getValue(state).map {internalMetric ->
+              internalMetric.copy {
+                this.state = internalMetric.calculateState()
+              }.toMetric(variances)
+            })
+          }
+          InternalMetric.State.UNRECOGNIZED -> error("Invalid Metric State")
         }
       }
     }
@@ -1846,7 +1849,7 @@ private fun calculateWatchDurationResult(
 
     // Only compute univariate statistics for union-only operations, i.e. single source measurement.
     if (weightedMeasurements.size == 1) {
-      val weightedMeasurement = weightedMeasurements.first()
+      val weightedMeasurement = weightedMeasurements.single()
       val weightedMeasurementVarianceParamsList:
         List<WeightedWatchDurationMeasurementVarianceParams?> =
         buildWeightedWatchDurationMeasurementVarianceParamsPerResult(
@@ -2026,7 +2029,7 @@ private fun calculateImpressionResult(
 
     // Only compute univariate statistics for union-only operations, i.e. single source measurement.
     if (weightedMeasurements.size == 1) {
-      val weightedMeasurement = weightedMeasurements.first()
+      val weightedMeasurement = weightedMeasurements.single()
       val weightedMeasurementVarianceParamsList:
         List<WeightedImpressionMeasurementVarianceParams?> =
         buildWeightedImpressionMeasurementVarianceParamsPerResult(weightedMeasurement, metricSpec)
@@ -2294,7 +2297,7 @@ fun buildWeightedFrequencyMeasurementVarianceParams(
 
   val frequencyResult: InternalMeasurement.Result.Frequency =
     if (weightedMeasurement.measurement.details.resultsList.size == 1) {
-      weightedMeasurement.measurement.details.resultsList.first().frequency
+      weightedMeasurement.measurement.details.resultsList.single().frequency
     } else if (weightedMeasurement.measurement.details.resultsList.size > 1) {
       failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
         "No supported methodology generates more than one frequency result."
@@ -2595,4 +2598,15 @@ private operator fun ProtoDuration.times(weight: Int): ProtoDuration {
 
 private operator fun ProtoDuration.plus(other: ProtoDuration): ProtoDuration {
   return Durations.add(this, other)
+}
+
+private fun InternalMetric.calculateState(): InternalMetric.State {
+  val measurementStates = weightedMeasurementsList.map { it.measurement.state }
+  return if (measurementStates.all { it == InternalMeasurement.State.SUCCEEDED }) {
+    InternalMetric.State.SUCCEEDED
+  } else if (measurementStates.any { it == InternalMeasurement.State.FAILED }) {
+    InternalMetric.State.FAILED
+  } else {
+    InternalMetric.State.RUNNING
+  }
 }
