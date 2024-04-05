@@ -74,24 +74,19 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
     val existingMeasurementsMap = findExistingMeasurements(requests, measurementConsumerId)
 
     val externalMeasurementConsumerCertificateIds: Set<ExternalId> = buildSet {
-      requests.forEach {
-        add(ExternalId(it.measurement.externalMeasurementConsumerCertificateId))
-      }
+      requests.forEach { add(ExternalId(it.measurement.externalMeasurementConsumerCertificateId)) }
     }
 
     val reader =
       CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
         .bindWhereClause(measurementConsumerId, externalMeasurementConsumerCertificateIds)
 
-    val measurementConsumerCertificateIdsMap: Map<Long, InternalId> =
-      buildMap {
-        reader.execute(transactionContext)
-          .toList()
-          .forEach {
-            validateCertificate(it)
-            put(it.certificate.externalCertificateId, it.certificateId)
-          }
+    val measurementConsumerCertificateIdsMap: Map<Long, InternalId> = buildMap {
+      reader.execute(transactionContext).toList().forEach {
+        validateCertificate(it)
+        put(it.certificate.externalCertificateId, it.certificateId)
       }
+    }
 
     val externalDataProviderIdsSet = buildSet {
       requests.map { request ->
@@ -122,18 +117,19 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       if (existingMeasurementsMap.containsKey(it.requestId)) {
         existingMeasurementsMap.getValue(it.requestId)
       } else {
-        val certificateId = measurementConsumerCertificateIdsMap[it.measurement.externalMeasurementConsumerCertificateId]
-          ?: throw MeasurementConsumerCertificateNotFoundException(
-            ExternalId(it.measurement.externalMeasurementConsumerId),
-            ExternalId(it.measurement.externalMeasurementId),
-          )
+        val certificateId =
+          measurementConsumerCertificateIdsMap[
+            it.measurement.externalMeasurementConsumerCertificateId]
+            ?: throw MeasurementConsumerCertificateNotFoundException(
+              ExternalId(it.measurement.externalMeasurementConsumerId),
+              ExternalId(it.measurement.externalMeasurementId),
+            )
 
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields are never null.
         when (it.measurement.details.protocolConfig.protocolCase) {
           ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2,
           ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2,
-          ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE
-          -> {
+          ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
             createComputedMeasurement(
               createMeasurementRequest = it,
               measurementConsumerId = measurementConsumerId,
@@ -141,7 +137,6 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
               dataProvideReaderResultsMap = dataProvideReaderResultsMap,
             )
           }
-
           ProtocolConfig.ProtocolCase.DIRECT ->
             createDirectMeasurement(
               createMeasurementRequest = it,
@@ -149,7 +144,6 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
               measurementConsumerCertificateId = certificateId,
               dataProvideReaderResultsMap = dataProvideReaderResultsMap,
             )
-
           ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Protocol is not set.")
         }
       }
