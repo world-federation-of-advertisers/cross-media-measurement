@@ -3,6 +3,13 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library")
 package(default_visibility = ["//visibility:public"])
 
 kt_jvm_proto_library(
+    name = "frequency_vector_kt_jvm_proto",
+    deps = [
+        "@any_sketch//src/main/proto/wfa/frequency_count:frequency_vector_proto",
+    ],
+)
+
+kt_jvm_proto_library(
     name = "sketch_kt_jvm_proto",
     deps = ["@any_sketch//src/main/proto/wfa/any_sketch:sketch_proto"],
 )

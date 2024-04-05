@@ -273,6 +273,13 @@ kt_jvm_proto_library(
 )
 
 kt_jvm_proto_library(
+    name = "population_spec_kt_jvm_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:population_spec_proto",
+    ],
+)
+
+kt_jvm_proto_library(
     name = "public_key_kt_jvm_proto",
     deps = [
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:public_key_proto",
