@@ -101,7 +101,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       DataProviderReader()
         .readByExternalDataProviderIds(transactionContext, externalDataProviderIdsSet)
         .associateBy {
-          if (!it.isValid) {
+          if (!it.certificateValid) {
             throw CertificateIsInvalidException()
           }
           it.dataProvider.externalDataProviderId

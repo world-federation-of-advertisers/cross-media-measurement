@@ -34,7 +34,7 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
     val dataProvider: DataProvider,
     val dataProviderId: Long,
     val certificateId: Long,
-    val isValid: Boolean,
+    val certificateValid: Boolean,
   )
 
   override val baseSql: String =
