@@ -288,14 +288,14 @@ class PdpSimulatorTest {
     val simulator =
       PdpSimulator(
         PDP_DATA,
-        MC_NAME,
         certificatesStub,
         dataProvidersStub,
-        modelRolloutsStub,
-        modelReleasesStub,
         requisitionsStub,
         dummyThrottler,
         TRUSTED_CERTIFICATES,
+        MC_NAME,
+        modelRolloutsStub,
+        modelReleasesStub,
         POPULATION_BUCKETS_LIST,
       )
 
@@ -342,14 +342,14 @@ class PdpSimulatorTest {
     val simulator =
       PdpSimulator(
         PDP_DATA,
-        MC_NAME,
         certificatesStub,
         dataProvidersStub,
-        modelRolloutsStub,
-        modelReleasesStub,
         requisitionsStub,
         dummyThrottler,
         TRUSTED_CERTIFICATES,
+        MC_NAME,
+        modelRolloutsStub,
+        modelReleasesStub,
         POPULATION_BUCKETS_LIST,
       )
 
@@ -396,14 +396,14 @@ class PdpSimulatorTest {
     val simulator =
       PdpSimulator(
         PDP_DATA,
-        MC_NAME,
         certificatesStub,
         dataProvidersStub,
-        modelRolloutsStub,
-        modelReleasesStub,
         requisitionsStub,
         dummyThrottler,
         TRUSTED_CERTIFICATES,
+        MC_NAME,
+        modelRolloutsStub,
+        modelReleasesStub,
         POPULATION_BUCKETS_LIST,
       )
 
@@ -454,14 +454,14 @@ class PdpSimulatorTest {
     val simulator =
       PdpSimulator(
         PDP_DATA,
-        MC_NAME,
         certificatesStub,
         dataProvidersStub,
-        modelRolloutsStub,
-        modelReleasesStub,
         requisitionsStub,
         dummyThrottler,
         TRUSTED_CERTIFICATES,
+        MC_NAME,
+        modelRolloutsStub,
+        modelReleasesStub,
         POPULATION_BUCKETS_LIST,
       )
 
@@ -504,7 +504,7 @@ class PdpSimulatorTest {
       subjectKeyIdentifier = PDP_RESULT_SIGNING_KEY.certificate.subjectKeyIdentifier!!
     }
     private val PDP_DATA =
-      PdpData(
+      DataProviderData(
         PDP_NAME,
         PDP_DISPLAY_NAME,
         loadEncryptionPrivateKey("${PDP_DISPLAY_NAME}_enc_private.tink"),

@@ -83,7 +83,7 @@ abstract class EdpSimulatorRunner : Runnable {
     val certificateKey =
       DataProviderCertificateKey.fromName(flags.dataProviderCertificateResourceName)!!
     val edpData =
-      EdpData(
+      DataProviderData(
         flags.dataProviderResourceName,
         flags.dataProviderDisplayName,
         loadPrivateKey(flags.edpEncryptionPrivateKeyset),

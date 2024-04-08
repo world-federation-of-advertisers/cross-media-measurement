@@ -2538,7 +2538,7 @@ class EdpSimulatorTest {
       subjectKeyIdentifier = EDP_RESULT_SIGNING_KEY.certificate.subjectKeyIdentifier!!
     }
     private val EDP_DATA =
-      EdpData(
+      DataProviderData(
         EDP_NAME,
         EDP_DISPLAY_NAME,
         loadEncryptionPrivateKey("${EDP_DISPLAY_NAME}_enc_private.tink"),

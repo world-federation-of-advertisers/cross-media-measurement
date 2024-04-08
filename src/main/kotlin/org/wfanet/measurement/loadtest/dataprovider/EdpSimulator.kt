@@ -19,15 +19,11 @@ import com.google.protobuf.Descriptors
 import com.google.protobuf.Message
 import com.google.protobuf.duration
 import com.google.protobuf.kotlin.unpack
-import com.google.protobuf.timestamp
-import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
-import java.security.GeneralSecurityException
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
-import java.time.Instant
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.math.log2
@@ -47,7 +43,6 @@ import org.wfanet.anysketch.crypto.elGamalPublicKey as anySketchElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt.variance
-import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DeterministicCount
@@ -56,7 +51,6 @@ import org.wfanet.measurement.api.v2alpha.DeterministicDistribution
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EncryptedMessage
-import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
@@ -69,7 +63,6 @@ import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
-import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
@@ -86,7 +79,6 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.Requisition.DuchyEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
-import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedMessage
@@ -96,39 +88,23 @@ import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.customDirectMethodology
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
-import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
-import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
-import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
-import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
-import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.v2alpha.updateEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.asBufferedFlow
-import org.wfanet.measurement.common.crypto.PrivateKeyHandle
-import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.throttler.Throttler
-import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.consent.client.common.NonceMismatchException
-import org.wfanet.measurement.consent.client.common.PublicKeyMismatchException
-import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
-import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
-import org.wfanet.measurement.consent.client.dataprovider.encryptResult
-import org.wfanet.measurement.consent.client.dataprovider.signResult
 import org.wfanet.measurement.consent.client.dataprovider.verifyElGamalPublicKey
-import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
-import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptionPublicKey
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
 import org.wfanet.measurement.eventdataprovider.noiser.AbstractNoiser
@@ -146,32 +122,19 @@ import org.wfanet.measurement.loadtest.common.sampleVids
 import org.wfanet.measurement.loadtest.config.TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
 import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults.computeImpression
 
-data class EdpData(
-  /** The EDP's public API resource name. */
-  val name: String,
-  /** The EDP's display name. */
-  val displayName: String,
-  /** The EDP's decryption key. */
-  val privateEncryptionKey: PrivateKeyHandle,
-  /** The EDP's consent signaling signing key. */
-  val signingKeyHandle: SigningKeyHandle,
-  /** The CertificateKey to use for result signing. */
-  val certificateKey: DataProviderCertificateKey,
-)
-
 /** A simulator handling EDP businesses. */
 class EdpSimulator(
-  private val edpData: EdpData,
-  private val measurementConsumerName: String,
+  private val edpData: DataProviderData,
+  measurementConsumerName: String,
   private val measurementConsumersStub: MeasurementConsumersCoroutineStub,
   private val certificatesStub: CertificatesCoroutineStub,
-  private val dataProvidersStub: DataProvidersCoroutineStub,
+  dataProvidersStub: DataProvidersCoroutineStub,
   private val eventGroupsStub: EventGroupsCoroutineStub,
   private val eventGroupMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub,
   private val requisitionsStub: RequisitionsCoroutineStub,
   private val requisitionFulfillmentStub: RequisitionFulfillmentCoroutineStub,
   private val eventQuery: EventQuery<Message>,
-  private val throttler: Throttler,
+  throttler: Throttler,
   private val privacyBudgetManager: PrivacyBudgetManager,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   /**
@@ -184,24 +147,17 @@ class EdpSimulator(
   private val sketchEncrypter: SketchEncrypter = SketchEncrypter.Default,
   private val random: Random = Random,
   private val logSketchDetails: Boolean = false,
-) {
+) :
+  DataProviderSimulator(
+    edpData,
+    certificatesStub,
+    dataProvidersStub,
+    requisitionsStub,
+    throttler,
+    trustedCertificates,
+    measurementConsumerName
+  ) {
   val eventGroupReferenceIdPrefix = getEventGroupReferenceIdPrefix(edpData.displayName)
-
-  /** A sequence of operations done in the simulator. */
-  suspend fun run() {
-    dataProvidersStub.replaceDataAvailabilityInterval(
-      replaceDataAvailabilityIntervalRequest {
-        name = edpData.name
-        dataAvailabilityInterval = interval {
-          startTime = timestamp {
-            seconds = 1577865600 // January 1, 2020 12:00:00 AM, America/Los_Angeles
-          }
-          endTime = Instant.now().toProtoTime()
-        }
-      }
-    )
-    throttler.loopOnReady { executeRequisitionFulfillingWorkflow() }
-  }
 
   /**
    * Ensures that an appropriate [EventGroup] with appropriate [EventGroupMetadataDescriptor] exists
@@ -384,87 +340,6 @@ class EdpSimulator(
     }
   }
 
-  private data class Specifications(
-    val measurementSpec: MeasurementSpec,
-    val requisitionSpec: RequisitionSpec,
-  )
-
-  private class RequisitionRefusalException(
-    val justification: Requisition.Refusal.Justification,
-    message: String,
-  ) : Exception(message)
-
-  private class InvalidConsentSignalException(message: String? = null, cause: Throwable? = null) :
-    GeneralSecurityException(message, cause)
-
-  private class InvalidSpecException(message: String, cause: Throwable? = null) :
-    Exception(message, cause)
-
-  private fun verifySpecifications(
-    requisition: Requisition,
-    measurementConsumerCertificate: Certificate,
-  ): Specifications {
-    val x509Certificate = readCertificate(measurementConsumerCertificate.x509Der)
-    // Look up the trusted issuer certificate for this MC certificate. Note that this doesn't
-    // confirm that this is the trusted issuer for the right MC. In a production environment,
-    // consider having a mapping of MC to root/CA cert.
-    val trustedIssuer =
-      trustedCertificates[checkNotNull(x509Certificate.authorityKeyIdentifier)]
-        ?: throw InvalidConsentSignalException(
-          "Issuer of ${measurementConsumerCertificate.name} is not trusted"
-        )
-
-    try {
-      verifyMeasurementSpec(requisition.measurementSpec, x509Certificate, trustedIssuer)
-    } catch (e: CertPathValidatorException) {
-      throw InvalidConsentSignalException(
-        "Certificate path for ${measurementConsumerCertificate.name} is invalid",
-        e,
-      )
-    } catch (e: SignatureException) {
-      throw InvalidConsentSignalException("MeasurementSpec signature is invalid", e)
-    }
-
-    val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
-
-    val publicKey = requisition.dataProviderPublicKey.unpack(EncryptionPublicKey::class.java)!!
-    check(publicKey == edpData.privateEncryptionKey.publicKey.toEncryptionPublicKey()) {
-      "Unable to decrypt for this public key"
-    }
-    val signedRequisitionSpec: SignedMessage =
-      try {
-        decryptRequisitionSpec(requisition.encryptedRequisitionSpec, edpData.privateEncryptionKey)
-      } catch (e: GeneralSecurityException) {
-        throw InvalidConsentSignalException("RequisitionSpec decryption failed", e)
-      }
-    val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
-
-    try {
-      verifyRequisitionSpec(
-        signedRequisitionSpec,
-        requisitionSpec,
-        measurementSpec,
-        x509Certificate,
-        trustedIssuer,
-      )
-    } catch (e: CertPathValidatorException) {
-      throw InvalidConsentSignalException(
-        "Certificate path for ${measurementConsumerCertificate.name} is invalid",
-        e,
-      )
-    } catch (e: SignatureException) {
-      throw InvalidConsentSignalException("RequisitionSpec signature is invalid", e)
-    } catch (e: NonceMismatchException) {
-      throw InvalidConsentSignalException(e.message, e)
-    } catch (e: PublicKeyMismatchException) {
-      throw InvalidConsentSignalException(e.message, e)
-    }
-
-    // TODO(@uakyol): Validate that collection interval is not outside of privacy landscape.
-
-    return Specifications(measurementSpec, requisitionSpec)
-  }
-
   private fun verifyDuchyEntry(
     duchyEntry: DuchyEntry,
     duchyCertificate: Certificate,
@@ -562,16 +437,8 @@ class EdpSimulator(
     }
   }
 
-  private suspend fun getCertificate(resourceName: String): Certificate {
-    return try {
-      certificatesStub.getCertificate(getCertificateRequest { name = resourceName })
-    } catch (e: StatusException) {
-      throw Exception("Error fetching certificate $resourceName", e)
-    }
-  }
-
   /** Executes the requisition fulfillment workflow. */
-  suspend fun executeRequisitionFulfillingWorkflow() {
+  override suspend fun executeRequisitionFulfillingWorkflow() {
     logger.info("Executing requisitionFulfillingWorkflow...")
     val requisitions =
       getRequisitions().filter {
@@ -815,26 +682,6 @@ class EdpSimulator(
       }
 
       EventQuery.EventGroupSpec(eventGroup, it.value)
-    }
-  }
-
-  private suspend fun refuseRequisition(
-    requisitionName: String,
-    justification: Requisition.Refusal.Justification,
-    message: String,
-  ): Requisition {
-    try {
-      return requisitionsStub.refuseRequisition(
-        refuseRequisitionRequest {
-          name = requisitionName
-          refusal = refusal {
-            this.justification = justification
-            this.message = message
-          }
-        }
-      )
-    } catch (e: StatusException) {
-      throw Exception("Error refusing requisition $requisitionName", e)
     }
   }
 
@@ -1162,22 +1009,6 @@ class EdpSimulator(
       }
 
     return SketchEncrypter.combineElGamalPublicKeys(curveId, elGamalPublicKeys)
-  }
-
-  private suspend fun getRequisitions(): List<Requisition> {
-    val request = listRequisitionsRequest {
-      parent = edpData.name
-      filter = filter {
-        states += Requisition.State.UNFULFILLED
-        measurementStates += Measurement.State.AWAITING_REQUISITION_FULFILLMENT
-      }
-    }
-
-    try {
-      return requisitionsStub.listRequisitions(request).requisitionsList
-    } catch (e: StatusException) {
-      throw Exception("Error listing requisitions", e)
-    }
   }
 
   /**
@@ -1569,45 +1400,6 @@ class EdpSimulator(
       buildDirectMeasurementResult(directProtocol, measurementSpec, listOf<Long>().asIterable())
 
     fulfillDirectMeasurement(requisition, measurementSpec, requisitionSpec.nonce, measurementResult)
-  }
-
-  private suspend fun fulfillDirectMeasurement(
-    requisition: Requisition,
-    measurementSpec: MeasurementSpec,
-    nonce: Long,
-    measurementResult: Measurement.Result,
-  ) {
-    logger.log(Level.INFO, "Direct MeasurementSpec:\n$measurementSpec")
-    logger.log(Level.INFO, "Direct MeasurementResult:\n$measurementResult")
-
-    DataProviderCertificateKey.fromName(requisition.dataProviderCertificate)
-      ?: throw RequisitionRefusalException(
-        Requisition.Refusal.Justification.UNFULFILLABLE,
-        "Invalid data provider certificate",
-      )
-    val measurementEncryptionPublicKey: EncryptionPublicKey =
-      if (measurementSpec.hasMeasurementPublicKey()) {
-        measurementSpec.measurementPublicKey.unpack()
-      } else {
-        @Suppress("DEPRECATION") // Handle legacy resources.
-        EncryptionPublicKey.parseFrom(measurementSpec.serializedMeasurementPublicKey)
-      }
-    val signedResult: SignedMessage = signResult(measurementResult, edpData.signingKeyHandle)
-    val encryptedResult: EncryptedMessage =
-      encryptResult(signedResult, measurementEncryptionPublicKey)
-
-    try {
-      requisitionsStub.fulfillDirectRequisition(
-        fulfillDirectRequisitionRequest {
-          name = requisition.name
-          this.encryptedResult = encryptedResult
-          this.nonce = nonce
-          this.certificate = edpData.certificateKey.toName()
-        }
-      )
-    } catch (e: StatusException) {
-      throw Exception("Error fulfilling direct requisition ${requisition.name}", e)
-    }
   }
 
   companion object {
