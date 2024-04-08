@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Struct
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.singleOrNullIfEmpty
@@ -25,6 +26,7 @@ import org.wfanet.measurement.gcloud.spanner.getInternalId
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 
 class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
   data class Result(val dataProvider: DataProvider, val dataProviderId: Long)
@@ -46,8 +48,9 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
         SELECT AS STRUCT
           DataProviderRequiredDuchies.DuchyId
         FROM
-          DataProviders
-          JOIN DataProviderRequiredDuchies USING (DataProviderId)
+          DataProviderRequiredDuchies
+        WHERE
+          DataProviderRequiredDuchies.DataProviderId = DataProviders.DataProviderId
       ) AS DataProviderRequiredDuchies,
     FROM DataProviders
     JOIN DataProviderCertificates ON (
@@ -71,6 +74,31 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
       }
       .execute(readContext)
       .singleOrNullIfEmpty()
+  }
+
+  /**
+   * Reads the [DataProvider]s by [externalDataProviderIds].
+   *
+   * @return list of [Result] in the same iteration order as [externalDataProviderIds]
+   * @throws DataProviderNotFoundException if no [DataProvider] is found for a specified external ID
+   */
+  suspend fun readByExternalDataProviderIds(
+    readContext: AsyncDatabaseClient.ReadContext,
+    externalDataProviderIds: Iterable<ExternalId>,
+  ): List<Result> {
+    val resultsByExternalId: Map<ExternalId, Result> =
+      fillStatementBuilder {
+          appendClause("WHERE ExternalDataProviderId IN UNNEST(@externalDataProviderIds)")
+          bind("externalDataProviderIds")
+            .toInt64Array(externalDataProviderIds.map(ExternalId::value))
+        }
+        .execute(readContext)
+        .toList()
+        .associateBy { ExternalId(it.dataProvider.externalDataProviderId) }
+
+    return externalDataProviderIds.map {
+      resultsByExternalId[it] ?: throw DataProviderNotFoundException(it)
+    }
   }
 
   private fun buildDataProvider(struct: Struct): DataProvider =

@@ -19,12 +19,14 @@ package org.wfanet.measurement.reporting.deploy.v2.postgres.writers
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.common.db.r2dbc.postgres.ValuesListBoundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.valuesListBoundStatement
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.Measurement
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt
+import org.wfanet.measurement.internal.reporting.v2.Metric
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MeasurementConsumerReader
-import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MeasurementReader
+import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MetricReader
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.MeasurementNotFoundException
 
@@ -36,8 +38,8 @@ import org.wfanet.measurement.reporting.service.internal.MeasurementNotFoundExce
  * * [MeasurementNotFoundException] Measurement not found.
  */
 class SetMeasurementResults(private val request: BatchSetMeasurementResultsRequest) :
-  PostgresWriter<List<Measurement>>() {
-  override suspend fun TransactionScope.runTransaction(): List<Measurement> {
+  PostgresWriter<Unit>() {
+  override suspend fun TransactionScope.runTransaction() {
     val measurementConsumerId =
       (MeasurementConsumerReader(transactionContext).getByCmmsId(request.cmmsMeasurementConsumerId)
           ?: throw MeasurementConsumerNotFoundException())
@@ -74,20 +76,42 @@ class SetMeasurementResults(private val request: BatchSetMeasurementResultsReque
       throw MeasurementNotFoundException()
     }
 
-    val idMap = mutableMapOf<String, Measurement>()
-    MeasurementReader(transactionContext)
-      .readMeasurementsByCmmsId(
-        measurementConsumerId,
-        request.measurementResultsList.map { it.cmmsMeasurementId },
-      )
-      .collect {
-        val measurement = it.measurement
-        idMap.computeIfAbsent(measurement.cmmsMeasurementId) { measurement }
-      }
+    // Read all metrics tied to Measurements that were updated and determine any state changes.
+    val metricIds: List<InternalId> = buildList {
+      MetricReader(transactionContext)
+        .readMetricsByCmmsMeasurementId(
+          measurementConsumerId,
+          request.measurementResultsList.map { it.cmmsMeasurementId },
+        )
+        .collect { metricReaderResult ->
+          if (metricReaderResult.metric.state == Metric.State.RUNNING) {
+            val measurementStates =
+              metricReaderResult.metric.weightedMeasurementsList.map { it.measurement.state }
+            if (measurementStates.all { it == Measurement.State.SUCCEEDED }) {
+              add(metricReaderResult.metricId)
+            }
+          }
+        }
+    }
 
-    val measurements = mutableListOf<Measurement>()
-    request.measurementResultsList.forEach { measurements.add(idMap[it.cmmsMeasurementId]!!) }
+    if (metricIds.isNotEmpty()) {
+      val metricStateUpdateStatement =
+        valuesListBoundStatement(
+          valuesStartIndex = 2,
+          paramCount = 1,
+          """
+        UPDATE Metrics AS m SET State = $1
+        FROM (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
+        AS c(MetricId)
+        WHERE MeasurementConsumerId = $2 AND m.MetricId = c.MetricId
+        """,
+        ) {
+          bind("$1", Metric.State.SUCCEEDED)
+          bind("$2", measurementConsumerId)
+          metricIds.forEach { addValuesBinding { bindValuesParam(0, it) } }
+        }
 
-    return measurements
+      transactionContext.executeStatement(metricStateUpdateStatement)
+    }
   }
 }

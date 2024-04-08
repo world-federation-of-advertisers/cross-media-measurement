@@ -31,6 +31,7 @@ on:
         type: choice
         options:
         - dev
+        - qa
       apply:
         description: "Apply the new configuration"
         type: boolean
@@ -41,7 +42,7 @@ permissions:
 
 jobs:
   terraform:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     environment: ${{ inputs.environment }}
     env:
       GCLOUD_MODULE_PATH: src/main/terraform/gcloud/cmms
@@ -115,12 +116,16 @@ jobs:
     - name: terraform plan - aws
       env:
         POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
+        AWS_S3_BUCKET: ${{ vars.AWS_S3_BUCKET }}
+        ENVIRONMENT: ${{ inputs.environment }}
       working-directory: ${{ env.AWS_MODULE_PATH }}
       run: >
         terraform plan
         -input=false
         -var="aws_region=$AWS_REGION"
         -var="postgres_instance_name=$POSTGRES_INSTANCE"
+        -var="aws_project_env=halo-cmm-$ENVIRONMENT"
+        -var="aws_s3_bucket=$AWS_S3_BUCKET"
         -out=tfplan
 
     - name: terraform apply - aws

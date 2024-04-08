@@ -28,10 +28,16 @@ service DataProviders {
 
   rpc GetDataProvider(GetDataProviderRequest) returns (DataProvider);
 
+  rpc BatchGetDataProviders(BatchGetDataProvidersRequest)
+      returns (BatchGetDataProvidersResponse);
+
   rpc ReplaceDataProviderRequiredDuchies(
       ReplaceDataProviderRequiredDuchiesRequest) returns (DataProvider);
 
   rpc ReplaceDataAvailabilityInterval(ReplaceDataAvailabilityIntervalRequest)
+      returns (DataProvider);
+
+  rpc ReplaceDataProviderCapabilities(ReplaceDataProviderCapabilitiesRequest)
       returns (DataProvider);
 }
 
@@ -44,7 +50,22 @@ message GetDataProviderRequest {
   fixed64 external_data_provider_id = 1;
 }
 
+message BatchGetDataProvidersRequest {
+  repeated fixed64 external_data_provider_ids = 1;
+}
+
+message BatchGetDataProvidersResponse {
+  repeated DataProvider data_providers = 1;
+}
+
 message ReplaceDataAvailabilityIntervalRequest {
   fixed64 external_data_provider_id = 1;
   google.type.Interval data_availability_interval = 2;
+}
+
+message ReplaceDataProviderCapabilitiesRequest {
+  fixed64 external_data_provider_id = 1;
+
+  // New value for `capabilities`.
+  DataProvider.Capabilities capabilities = 2;
 }

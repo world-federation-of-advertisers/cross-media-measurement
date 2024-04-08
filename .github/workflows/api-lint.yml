@@ -28,17 +28,33 @@ concurrency:
 jobs:
   lint:
     name: API lint
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
+    permissions:
+      id-token: write
     defaults:
       run:
         shell: bash
     steps:
-    - uses: actions/checkout@v3
-
+    - uses: actions/checkout@v4
+      
     - uses: world-federation-of-advertisers/actions/setup-api-linter@v2
       with:
         version: 1.52.0
         sha256: 89ec88aa07974e4476f1d5a1bb626b05a65cdc76b64c7e73e15ebb77ebdb9aaf
+        
+    # Authenticate to Google Cloud for access to remote cache.
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        workload_identity_provider: ${{ vars.BAZEL_BUILD_WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ vars.BAZEL_BUILD_SERVICE_ACCOUNT }}
+
+    - name: Write ~/.bazelrc
+      run: |
+        cat << EOF > ~/.bazelrc
+        common --config=ci
+        common --config=remote-cache
+        EOF
 
     - env:
         BAZEL: bazelisk

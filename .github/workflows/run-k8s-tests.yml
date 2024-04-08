@@ -23,17 +23,19 @@ on:
   workflow_dispatch:
     inputs:
       environment:
+        description: "GitHub-managed environment"
         required: true
         type: choice
         options:
         - dev
+        - qa
 
 permissions:
   id-token: write
 
 jobs:
   run-tests:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     environment: ${{ inputs.environment }}
     steps:
     - uses: actions/checkout@v4

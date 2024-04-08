@@ -20,6 +20,7 @@ import io.r2dbc.postgresql.codec.Interval as PostgresInterval
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
@@ -192,7 +193,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
     val statement =
       valuesListBoundStatement(
         valuesStartIndex = 0,
-        paramCount = 20,
+        paramCount = 21,
         """
       INSERT INTO Metrics
         (
@@ -215,11 +216,13 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
           VidSamplingIntervalWidth,
           CreateTime,
           MetricDetails,
-          MetricDetailsJson
+          MetricDetailsJson,
+          State
         )
         VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER}
          """,
       ) {
+        val createTime = Instant.now().atOffset(ZoneOffset.UTC).truncatedTo(ChronoUnit.MICROS)
         requests.forEach {
           val existingMetric: Metric? = existingMetricsMap[it.requestId]
           if (existingMetric != null) {
@@ -228,7 +231,6 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
             val metricId = idGenerator.generateInternalId()
             val externalMetricId: String = it.externalMetricId
             val reportingSetId: InternalId? = reportingSetMap[it.metric.externalReportingSetId]
-            val createTime = Instant.now().atOffset(ZoneOffset.UTC)
             val vidSamplingIntervalStart =
               if (it.metric.metricSpec.typeCase == MetricSpec.TypeCase.POPULATION_COUNT) 0
               else it.metric.metricSpec.vidSamplingInterval.start
@@ -316,6 +318,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
               bindValuesParam(17, createTime)
               bindValuesParam(18, it.metric.details)
               bindValuesParam(19, it.metric.details.toJson())
+              bindValuesParam(20, Metric.State.RUNNING)
             }
 
             if (it.requestId.isNotEmpty()) {
@@ -350,6 +353,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                 weightedMeasurements.clear()
                 weightedMeasurements.addAll(weightedMeasurementsAndInsertData.weightedMeasurements)
                 this.createTime = createTime.toInstant().toProtoTime()
+                state = Metric.State.RUNNING
               }
             )
 

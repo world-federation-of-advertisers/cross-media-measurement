@@ -18,6 +18,7 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.Empty
 import com.google.protobuf.duration
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
@@ -28,13 +29,13 @@ import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.nio.file.Paths
-import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.time.Duration
 import java.time.Instant
 import kotlin.math.ceil
 import kotlin.math.pow
 import kotlin.math.sqrt
+import kotlin.random.Random
 import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
@@ -161,6 +162,7 @@ import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasu
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt as InternalMeasurementsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as InternalMeasurementsCoroutineImplBase
+import org.wfanet.measurement.internal.reporting.v2.Metric as InternalMetric
 import org.wfanet.measurement.internal.reporting.v2.MetricKt as InternalMetricKt
 import org.wfanet.measurement.internal.reporting.v2.MetricKt.weightedMeasurement
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec as InternalMetricSpec
@@ -181,10 +183,7 @@ import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsRequest as in
 import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsResponse as internalBatchGetMetricsResponse
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsResponse
-import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementFailuresResponse
 import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsRequest
-import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsResponse
-import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
@@ -269,8 +268,8 @@ private val MAXIMUM_WATCH_DURATION_PER_USER = Durations.fromSeconds(4000)
 
 private const val DIFFERENTIAL_PRIVACY_DELTA = 1e-12
 
-private const val SECURE_RANDOM_OUTPUT_INT = 0
-private const val SECURE_RANDOM_OUTPUT_LONG = 0L
+private const val RANDOM_OUTPUT_INT = 0
+private const val RANDOM_OUTPUT_LONG = 0L
 
 private val METRIC_SPEC_CONFIG = metricSpecConfig {
   reachParams =
@@ -620,7 +619,7 @@ private val REQUISITION_SPECS: Map<DataProviderKey, RequisitionSpec> =
       requisitionSpec {
         events = RequisitionSpecKt.events { eventGroups += it.value }
         measurementPublicKey = MEASUREMENT_CONSUMERS.values.first().publicKey.message
-        nonce = SECURE_RANDOM_OUTPUT_LONG
+        nonce = RANDOM_OUTPUT_LONG
       }
     }
 
@@ -924,10 +923,7 @@ private val UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC = measurementSpe
   measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
 
   nonceHashes +=
-    listOf(
-      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG),
-      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG),
-    )
+    listOf(Hashing.hashSha256(RANDOM_OUTPUT_LONG), Hashing.hashSha256(RANDOM_OUTPUT_LONG))
 
   reach =
     MeasurementSpecKt.reach {
@@ -965,7 +961,7 @@ private val REQUESTING_UNION_ALL_REACH_MEASUREMENT =
     measurementSpec =
       signMeasurementSpec(
         UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC.copy {
-          nonceHashes += Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG)
+          nonceHashes += Hashing.hashSha256(RANDOM_OUTPUT_LONG)
         },
         MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE,
       )
@@ -1041,7 +1037,7 @@ private val SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
 private val SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT_SPEC = measurementSpec {
   measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
 
-  nonceHashes.add(Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG))
+  nonceHashes.add(Hashing.hashSha256(RANDOM_OUTPUT_LONG))
 
   reachAndFrequency =
     MeasurementSpecKt.reachAndFrequency {
@@ -1139,7 +1135,7 @@ private val SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT =
 private val SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC = measurementSpec {
   measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
 
-  nonceHashes.add(Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG))
+  nonceHashes.add(Hashing.hashSha256(RANDOM_OUTPUT_LONG))
 
   impression =
     MeasurementSpecKt.impression {
@@ -1244,9 +1240,9 @@ private val UNION_ALL_WATCH_DURATION_MEASUREMENT_SPEC = measurementSpec {
 
   nonceHashes +=
     listOf(
-      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG),
-      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG),
-      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG),
+      Hashing.hashSha256(RANDOM_OUTPUT_LONG),
+      Hashing.hashSha256(RANDOM_OUTPUT_LONG),
+      Hashing.hashSha256(RANDOM_OUTPUT_LONG),
     )
 
   duration =
@@ -1292,7 +1288,7 @@ private val REQUESTING_UNION_ALL_WATCH_DURATION_MEASUREMENT =
     measurementSpec =
       signMeasurementSpec(
         UNION_ALL_WATCH_DURATION_MEASUREMENT_SPEC.copy {
-          nonceHashes += Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG)
+          nonceHashes += Hashing.hashSha256(RANDOM_OUTPUT_LONG)
         },
         MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE,
       )
@@ -1343,9 +1339,9 @@ private val POPULATION_MEASUREMENT_SPEC = measurementSpec {
 
   nonceHashes +=
     listOf(
-      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG),
-      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG),
-      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG),
+      Hashing.hashSha256(RANDOM_OUTPUT_LONG),
+      Hashing.hashSha256(RANDOM_OUTPUT_LONG),
+      Hashing.hashSha256(RANDOM_OUTPUT_LONG),
     )
 
   population = MeasurementSpec.Population.getDefaultInstance()
@@ -1452,6 +1448,7 @@ private val INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC =
   INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC.copy {
     externalMetricId = "331L"
     createTime = Instant.now().toProtoTime()
+    state = InternalMetric.State.RUNNING
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
@@ -1485,6 +1482,7 @@ private val INTERNAL_PENDING_INCREMENTAL_REACH_METRIC =
 
 private val INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC =
   INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.copy {
+    state = InternalMetric.State.SUCCEEDED
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
@@ -1541,6 +1539,7 @@ private val INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC =
   INTERNAL_REQUESTING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
     externalMetricId = "332L"
     createTime = Instant.now().toProtoTime()
+    state = InternalMetric.State.RUNNING
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
@@ -1564,6 +1563,7 @@ private val INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC =
 
 private val INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC =
   INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
+    state = InternalMetric.State.SUCCEEDED
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
@@ -1610,6 +1610,7 @@ private val INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC =
   INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
     externalMetricId = "333L"
     createTime = Instant.now().toProtoTime()
+    state = InternalMetric.State.RUNNING
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
@@ -1631,6 +1632,7 @@ private val INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC =
 
 private val INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC =
   INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+    state = InternalMetric.State.FAILED
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
@@ -1641,6 +1643,7 @@ private val INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC =
 
 private val INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC =
   INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+    state = InternalMetric.State.SUCCEEDED
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
@@ -1651,6 +1654,7 @@ private val INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC =
 
 private val INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC_CUSTOM_CAP =
   INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+    state = InternalMetric.State.SUCCEEDED
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
@@ -1692,6 +1696,7 @@ private val INTERNAL_PENDING_INITIAL_CROSS_PUBLISHER_WATCH_DURATION_METRIC =
   INTERNAL_REQUESTING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
     externalMetricId = "334L"
     createTime = Instant.now().toProtoTime()
+    state = InternalMetric.State.RUNNING
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
@@ -1712,6 +1717,7 @@ private val INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC =
 
 private val INTERNAL_SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC =
   INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
+    state = InternalMetric.State.SUCCEEDED
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
@@ -1746,6 +1752,7 @@ private val INTERNAL_PENDING_INITIAL_POPULATION_METRIC =
   INTERNAL_REQUESTING_POPULATION_METRIC.copy {
     externalMetricId = "331L"
     createTime = Instant.now().toProtoTime()
+    state = InternalMetric.State.RUNNING
     weightedMeasurements.clear()
 
     weightedMeasurements += weightedMeasurement {
@@ -1767,6 +1774,7 @@ val INTERNAL_PENDING_POPULATION_METRIC =
 
 val INTERNAL_SUCCEEDED_POPULATION_METRIC =
   INTERNAL_PENDING_POPULATION_METRIC.copy {
+    state = InternalMetric.State.SUCCEEDED
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
@@ -2112,25 +2120,9 @@ class MetricsServiceTest {
     }
 
   private val internalMeasurementsMock: InternalMeasurementsCoroutineImplBase = mockService {
-    onBlocking { batchSetCmmsMeasurementIds(any()) }
-      .thenReturn(
-        batchSetCmmsMeasurementIdsResponse {
-          measurements += INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT
-          measurements += INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
-        }
-      )
-    onBlocking { batchSetMeasurementResults(any()) }
-      .thenReturn(
-        batchSetCmmsMeasurementResultsResponse {
-          measurements += INTERNAL_SUCCEEDED_UNION_ALL_REACH_MEASUREMENT
-        }
-      )
-    onBlocking { batchSetMeasurementFailures(any()) }
-      .thenReturn(
-        batchSetCmmsMeasurementFailuresResponse {
-          measurements += INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
-        }
-      )
+    onBlocking { batchSetCmmsMeasurementIds(any()) }.thenReturn(Empty.getDefaultInstance())
+    onBlocking { batchSetMeasurementResults(any()) }.thenReturn(Empty.getDefaultInstance())
+    onBlocking { batchSetMeasurementFailures(any()) }.thenReturn(Empty.getDefaultInstance())
   }
 
   private val measurementsMock: MeasurementsCoroutineImplBase = mockService {
@@ -2221,7 +2213,7 @@ class MetricsServiceTest {
     }
   }
 
-  private val secureRandomMock: SecureRandom = mock()
+  private val randomMock: Random = mock()
 
   private object VariancesMock : Variances {
     override fun computeMetricVariance(params: ReachMetricVarianceParams): Double = VARIANCE_VALUE
@@ -2271,9 +2263,9 @@ class MetricsServiceTest {
 
   @Before
   fun initService() {
-    secureRandomMock.stub {
-      on { nextInt(any()) } doReturn SECURE_RANDOM_OUTPUT_INT
-      on { nextLong() } doReturn SECURE_RANDOM_OUTPUT_LONG
+    randomMock.stub {
+      on { nextInt(any()) } doReturn RANDOM_OUTPUT_INT
+      on { nextLong() } doReturn RANDOM_OUTPUT_LONG
     }
 
     service =
@@ -2288,7 +2280,7 @@ class MetricsServiceTest {
         CertificatesGrpcKt.CertificatesCoroutineStub(grpcTestServerRule.channel),
         MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(grpcTestServerRule.channel),
         ENCRYPTION_KEY_PAIR_STORE,
-        secureRandomMock,
+        randomMock,
         SECRETS_DIR,
         listOf(AGGREGATOR_ROOT_CERTIFICATE, DATA_PROVIDER_ROOT_CERTIFICATE).associateBy {
           it.subjectKeyIdentifier!!
@@ -2364,8 +2356,7 @@ class MetricsServiceTest {
         .isEqualTo(
           UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC.copy {
             nonceHashes.clear()
-            nonceHashes +=
-              List(dataProvidersList.size) { Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG) }
+            nonceHashes += List(dataProvidersList.size) { Hashing.hashSha256(RANDOM_OUTPUT_LONG) }
           }
         )
 
@@ -2905,8 +2896,7 @@ class MetricsServiceTest {
         .isEqualTo(
           UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC.copy {
             nonceHashes.clear()
-            nonceHashes +=
-              List(dataProvidersList.size) { Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG) }
+            nonceHashes += List(dataProvidersList.size) { Hashing.hashSha256(RANDOM_OUTPUT_LONG) }
           }
         )
 
@@ -4148,8 +4138,7 @@ class MetricsServiceTest {
           else
             UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC.copy {
               nonceHashes.clear()
-              nonceHashes +=
-                List(dataProvidersList.size) { Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG) }
+              nonceHashes += List(dataProvidersList.size) { Hashing.hashSha256(RANDOM_OUTPUT_LONG) }
             }
         )
 
@@ -4761,6 +4750,7 @@ class MetricsServiceTest {
         internalBatchGetMetricsResponse {
           metrics +=
             INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.copy {
+              state = InternalMetric.State.SUCCEEDED
               weightedMeasurements.clear()
               weightedMeasurements += weightedMeasurement {
                 weight = 1
@@ -4940,6 +4930,7 @@ class MetricsServiceTest {
           metrics += INTERNAL_PENDING_INCREMENTAL_REACH_METRIC
           metrics +=
             INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+              state = InternalMetric.State.FAILED
               weightedMeasurements.clear()
               weightedMeasurements += weightedMeasurement {
                 weight = 1
@@ -5283,6 +5274,57 @@ class MetricsServiceTest {
 
     assertThat(exception).hasMessageThat().contains(AGGREGATOR_CERTIFICATE.name)
   }
+
+  @Test
+  fun `getMetric returns the metric with SUCCEEDED when the metric has state STATE_UNSPECIFIED`() =
+    runBlocking {
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics += INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.copy { clearState() }
+          }
+        )
+
+      val request = getMetricRequest { name = SUCCEEDED_INCREMENTAL_REACH_METRIC.name }
+
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+
+      // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
+      val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMetricsMock, times(1)) {
+        batchGetMetrics(batchGetInternalMetricsCaptor.capture())
+      }
+      val capturedInternalGetMetricRequests = batchGetInternalMetricsCaptor.allValues
+      assertThat(capturedInternalGetMetricRequests)
+        .containsExactly(
+          internalBatchGetMetricsRequest {
+            cmmsMeasurementConsumerId =
+              INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.cmmsMeasurementConsumerId
+            externalMetricIds += INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.externalMetricId
+          }
+        )
+
+      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMeasurementsMock, never()) {
+        batchSetMeasurementResults(batchSetMeasurementResultsCaptor.capture())
+      }
+
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementFailures
+      val batchSetMeasurementFailuresCaptor: KArgumentCaptor<BatchSetMeasurementFailuresRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMeasurementsMock, never()) {
+        batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
+      }
+
+      assertThat(result).isEqualTo(SUCCEEDED_INCREMENTAL_REACH_METRIC)
+    }
 
   @Test
   fun `getMetric returns the metric with SUCCEEDED when the metric is already succeeded`() =
@@ -6195,11 +6237,7 @@ class MetricsServiceTest {
       }
 
       whenever(internalMeasurementsMock.batchSetMeasurementResults(any()))
-        .thenReturn(
-          batchSetCmmsMeasurementResultsResponse {
-            measurements += INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT
-          }
-        )
+        .thenReturn(Empty.getDefaultInstance())
 
       val request = getMetricRequest { name = PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.name }
 
@@ -6737,11 +6775,7 @@ class MetricsServiceTest {
         }
       }
       whenever(internalMeasurementsMock.batchSetMeasurementResults(any()))
-        .thenReturn(
-          batchSetCmmsMeasurementResultsResponse {
-            measurements += INTERNAL_SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT
-          }
-        )
+        .thenReturn(Empty.getDefaultInstance())
 
       val request = getMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
 
@@ -6819,11 +6853,7 @@ class MetricsServiceTest {
       }
 
       whenever(internalMeasurementsMock.batchSetMeasurementResults(any()))
-        .thenReturn(
-          batchSetCmmsMeasurementResultsResponse {
-            measurements += INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
-          }
-        )
+        .thenReturn(Empty.getDefaultInstance())
 
       val request = getMetricRequest { name = PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
 
@@ -6901,11 +6931,7 @@ class MetricsServiceTest {
       }
 
       whenever(internalMeasurementsMock.batchSetMeasurementResults(any()))
-        .thenReturn(
-          batchSetCmmsMeasurementResultsResponse {
-            measurements += INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_CUSTOM_CAP
-          }
-        )
+        .thenReturn(Empty.getDefaultInstance())
 
       val request = getMetricRequest { name = PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
 
@@ -6996,11 +7022,7 @@ class MetricsServiceTest {
       }
 
       whenever(internalMeasurementsMock.batchSetMeasurementFailures(any()))
-        .thenReturn(
-          batchSetCmmsMeasurementFailuresResponse {
-            measurements += INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
-          }
-        )
+        .thenReturn(Empty.getDefaultInstance())
 
       val request = getMetricRequest { name = PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
 
@@ -8073,8 +8095,7 @@ class MetricsServiceTest {
       .isEqualTo(
         POPULATION_MEASUREMENT_SPEC.copy {
           nonceHashes.clear()
-          nonceHashes +=
-            List(dataProvidersList.size) { Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG) }
+          nonceHashes += List(dataProvidersList.size) { Hashing.hashSha256(RANDOM_OUTPUT_LONG) }
         }
       )
 

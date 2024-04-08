@@ -35,10 +35,12 @@ on:
   workflow_dispatch:
     inputs:
       environment:
+        description: "GitHub-managed environment"
         required: true
         type: choice
         options:
         - dev
+        - qa
       image-tag:
         description: "Tag of container images"
         type: string
@@ -63,10 +65,10 @@ env:
 
 jobs:
   update-duchy:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     environment: ${{ inputs.environment }}
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     # Authenticate to AWS Cloud. This will export some environment
     # e.g. AWS_REGION, AWS_SESSION_TOKEN ...
@@ -90,6 +92,9 @@ jobs:
         POSTGRES_HOST: ${{ vars.AWS_POSTGRES_HOST }}
         POSTGRES_CRED_SECRET_NAME: ${{ vars.AWS_POSTGRES_CRED_SECRET_NAME }}
         KINGDOM_SYSTEM_API_TARGET: ${{ vars.KINGDOM_SYSTEM_API_TARGET }}
+        AGGREGATOR_SYSTEM_API_TARGET: ${{ vars.AGGREGATOR_SYSTEM_API_TARGET }}
+        WORKER1_SYSTEM_API_TARGET: ${{ vars.WORKER1_SYSTEM_API_TARGET }}
+        WORKER2_SYSTEM_API_TARGET: ${{ vars.WORKER2_SYSTEM_API_TARGET }}
         COMPUTATION_CONTROL_SERVER_EIPS: ${{ vars.AWS_COMPUTATION_CONTROL_SERVER_EIPS }}
         S3_BUCKET: ${{ vars.AWS_S3_BUCKET }}
       run: |
@@ -98,6 +103,9 @@ jobs:
         common --config=ghcr
         build --define image_tag=$IMAGE_TAG
         build --define kingdom_system_api_target=$KINGDOM_SYSTEM_API_TARGET
+        build --define aggregator_system_api_target=$AGGREGATOR_SYSTEM_API_TARGET
+        build --define worker1_system_api_target=$WORKER1_SYSTEM_API_TARGET
+        build --define worker2_system_api_target=$WORKER2_SYSTEM_API_TARGET
         build --define s3_bucket=$S3_BUCKET
         build --define s3_region=$AWS_REGION
         build --define duchy_cert_id=$DUCHY_CERT_ID

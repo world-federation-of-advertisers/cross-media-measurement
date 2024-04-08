@@ -19,6 +19,9 @@ _duchy_protocols_setup_config: string @tag("duchy_protocols_setup_config")
 _secret_name:                  string @tag("secret_name")
 _cloudStorageBucket:           string @tag("cloud_storage_bucket")
 _certificateId:                string @tag("certificate_id")
+_aggregatorSystemApiTarget:    string @tag("aggregator_system_api_target")
+_worker1SystemApiTarget:       string @tag("worker1_system_api_target")
+_worker2SystemApiTarget:       string @tag("worker2_system_api_target")
 
 _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 
@@ -70,9 +73,9 @@ duchy: #SpannerDuchy & {
 	}
 	_duchy_secret_name: _secret_name
 	_computation_control_targets: {
-		"aggregator": "system.aggregator.dev.halo-cmm.org:8443"
-		"worker1":    "system.worker1.dev.halo-cmm.org:8443"
-		"worker2":    "v1alpha.system.aws.worker2.dev.halo-cmm.org:8443"
+		"aggregator": _aggregatorSystemApiTarget
+		"worker1":    _worker1SystemApiTarget
+		"worker2":    _worker2SystemApiTarget
 	}
 	_kingdom_system_api_target: #KingdomSystemApiTarget
 	_blob_storage_flags:        _cloudStorageConfig.flags

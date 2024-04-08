@@ -17,6 +17,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
@@ -93,6 +94,7 @@ import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.ExternalId
@@ -102,6 +104,10 @@ import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.kingdom.BatchGetDataProvidersRequest
+import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
+import org.wfanet.measurement.internal.kingdom.DataProviderKt as InternalDataProviderKt
+import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.State as InternalState
@@ -116,11 +122,13 @@ import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.batchCreateMeasurementsRequest as internalBatchCreateMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.batchCreateMeasurementsResponse as internalBatchCreateMeasurementsResponse
+import org.wfanet.measurement.internal.kingdom.batchGetDataProvidersResponse as internalBatchGetDataProvidersResponse
 import org.wfanet.measurement.internal.kingdom.batchGetMeasurementsRequest as internalBatchGetMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.batchGetMeasurementsResponse as internalBatchGetMeasurementsResponse
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest as internalCancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.createMeasurementRequest as internalCreateMeasurementRequest
+import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
 import org.wfanet.measurement.internal.kingdom.differentialPrivacyParams as internalDifferentialPrivacyParams
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest as internalGetMeasurementRequest
@@ -129,12 +137,17 @@ import org.wfanet.measurement.internal.kingdom.measurement as internalMeasuremen
 import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
+import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByMeasurementConsumerException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
 
 private const val DEFAULT_LIMIT = 50
-private const val DATA_PROVIDERS_CERTIFICATE_NAME =
-  "dataProviders/AAAAAAAAAHs/certificates/AAAAAAAAAHs"
 private const val DATA_PROVIDERS_RESULT_CERTIFICATE_NAME =
   "dataProviders/AAAAAAAAALs/certificates/AAAAAAAAALs"
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
@@ -161,7 +174,8 @@ private val ENCRYPTED_RESULT = encryptedMessage {
   ciphertext = ENCRYPTED_DATA
   typeUrl = ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
 }
-private const val DUCHY_CERTIFICATE_NAME = "duchies/AAAAAAAAAHs/certificates/AAAAAAAAAHs"
+private const val DUCHY_NAME = "duchies/AAAAAAAAAHs"
+private const val DUCHY_CERTIFICATE_NAME = "$DUCHY_NAME/certificates/AAAAAAAAAHs"
 private val DATA_PROVIDER_NONCE_HASH: ByteString =
   HexString("97F76220FEB39EE6F262B1F0C8D40F221285EEDE105748AE98F7DC241198D69F").bytes
 private val UPDATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
@@ -198,8 +212,24 @@ class MeasurementsServiceTest {
           }
         )
     }
+  private val internalDataProvidersMock: DataProvidersGrpcKt.DataProvidersCoroutineImplBase =
+    mockService {
+      onBlocking { batchGetDataProviders(any()) }
+        .thenAnswer { invocation ->
+          val request: BatchGetDataProvidersRequest = invocation.getArgument(0)
+          val internalDataProviders: List<InternalDataProvider> =
+            request.externalDataProviderIdsList.map {
+              internalDataProvider { externalDataProviderId = it }
+            }
+          internalBatchGetDataProvidersResponse { dataProviders.addAll(internalDataProviders) }
+        }
+    }
 
-  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalMeasurementsMock) }
+  @get:Rule
+  val grpcTestServerRule = GrpcTestServerRule {
+    addService(internalMeasurementsMock)
+    addService(internalDataProvidersMock)
+  }
 
   private lateinit var service: MeasurementsService
 
@@ -208,8 +238,10 @@ class MeasurementsServiceTest {
     service =
       MeasurementsService(
         MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
+        DataProvidersGrpcKt.DataProvidersCoroutineStub(grpcTestServerRule.channel),
         NOISE_MECHANISMS,
         reachOnlyLlV2Enabled = true,
+        hmssEnabled = true,
       )
   }
 
@@ -739,6 +771,66 @@ class MeasurementsServiceTest {
   }
 
   @Test
+  fun `createMeasurement with HMSS enabled and EDPs capable specifies HMSS protocol`() {
+    internalDataProvidersMock.stub {
+      onBlocking { batchGetDataProviders(any()) }
+        .thenReturn(
+          internalBatchGetDataProvidersResponse {
+            for (externalDataProviderId in EXTERNAL_DATA_PROVIDER_IDS) {
+              dataProviders += internalDataProvider {
+                this.externalDataProviderId = externalDataProviderId.value
+                details =
+                  details.copy {
+                    capabilities =
+                      InternalDataProviderKt.capabilities {
+                        honestMajorityShareShuffleSupported = true
+                      }
+                  }
+              }
+            }
+          }
+        )
+    }
+    val measurement =
+      MEASUREMENT.copy {
+        clearFailure()
+        results.clear()
+        clearProtocolConfig()
+      }
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      this.measurement = measurement
+      requestId = "foo"
+    }
+
+    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+      runBlocking { service.createMeasurement(request) }
+    }
+
+    verifyProtoArgument(
+        internalMeasurementsMock,
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement,
+      )
+      .isEqualTo(
+        internalCreateMeasurementRequest {
+          this.measurement =
+            INTERNAL_MEASUREMENT.copy {
+              clearExternalMeasurementId()
+              clearUpdateTime()
+              results.clear()
+              details =
+                details.copy {
+                  clearFailure()
+                  protocolConfig = HMSS_INTERNAL_PROTOCOL_CONFIG
+                  clearDuchyProtocolConfig()
+                }
+            }
+          requestId = request.requestId
+        }
+      )
+  }
+
+  @Test
   fun `createMeasurement throws INVALID_ARGUMENT when model line is missing for POPULATION measurement`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -809,11 +901,19 @@ class MeasurementsServiceTest {
       assertFailsWith<StatusRuntimeException> {
         withDataProviderPrincipal(DATA_PROVIDERS_NAME) {
           runBlocking {
-            service.createMeasurement(createMeasurementRequest { measurement = MEASUREMENT })
+            service.createMeasurement(
+              createMeasurementRequest {
+                parent = MEASUREMENT_CONSUMER_NAME
+                measurement = MEASUREMENT
+              }
+            )
           }
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+
+    assertWithMessage(exception.toString())
+      .that(exception.status.code)
+      .isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
@@ -824,7 +924,9 @@ class MeasurementsServiceTest {
           service.createMeasurement(createMeasurementRequest { measurement = MEASUREMENT })
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertWithMessage(exception.toString())
+      .that(exception.status.code)
+      .isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 
   @Test
@@ -1968,6 +2070,7 @@ class MeasurementsServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
+  @Test
   fun `batchCreateMeasurements throws INVALID_ARGUMENT when child parent doesn't match`() {
     val createMeasurementRequest = createMeasurementRequest {
       parent = MEASUREMENT_CONSUMER_NAME_2
@@ -2320,6 +2423,274 @@ class MeasurementsServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 
+  @Test
+  fun `getMeasurement throws NOT_FOUND with measurement name when measurement not found`() {
+    internalMeasurementsMock.stub {
+      onBlocking { getMeasurement(any()) }
+        .thenThrow(
+          MeasurementNotFoundByMeasurementConsumerException(
+              ExternalId(EXTERNAL_MEASUREMENT_CONSUMER_ID),
+              ExternalId(EXTERNAL_MEASUREMENT_ID),
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "Measurement not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.getMeasurement(getMeasurementRequest { name = MEASUREMENT_NAME }) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("measurement", MEASUREMENT_NAME)
+  }
+
+  @Test
+  fun `createMeasurement throws FAILED_PRECONDITION when certificate is invalid`() {
+    internalMeasurementsMock.stub {
+      onBlocking { createMeasurement(any()) }
+        .thenThrow(
+          CertificateIsInvalidException()
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Certificate is invalid.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                parent = MEASUREMENT_CONSUMER_NAME
+                this.measurement = MEASUREMENT
+                requestId = "foo"
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `createMeasurement throws FAILED_PRECONDITION with data provider name when data provider not found`() {
+    internalMeasurementsMock.stub {
+      onBlocking { createMeasurement(any()) }
+        .thenThrow(
+          DataProviderNotFoundException(EXTERNAL_DATA_PROVIDER_IDS.first())
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "DataProvider not found.")
+        )
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                parent = MEASUREMENT_CONSUMER_NAME
+                this.measurement = MEASUREMENT
+                requestId = "foo"
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("data_provider", DATA_PROVIDERS_NAME)
+  }
+
+  @Test
+  fun `createMeasurement throws FAILED_PRECONDITION with duchy name when duchy not found`() {
+    val duchyId = DuchyCertificateKey.fromName(DUCHY_CERTIFICATE_NAME)!!.duchyId
+    internalMeasurementsMock.stub {
+      onBlocking { createMeasurement(any()) }
+        .thenThrow(
+          DuchyNotFoundException(duchyId)
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Duchy not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                parent = MEASUREMENT_CONSUMER_NAME
+                this.measurement = MEASUREMENT
+                requestId = "foo"
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("duchy", DUCHY_NAME)
+  }
+
+  @Test
+  fun `createMeasurement throws NOT_FOUND with measurement consumer name when measurement consumer not found`() {
+    internalMeasurementsMock.stub {
+      onBlocking { createMeasurement(any()) }
+        .thenThrow(
+          MeasurementConsumerNotFoundException(ExternalId(EXTERNAL_MEASUREMENT_CONSUMER_ID))
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                parent = MEASUREMENT_CONSUMER_NAME
+                this.measurement = MEASUREMENT
+                requestId = "foo"
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("measurement_consumer", MEASUREMENT_CONSUMER_NAME)
+  }
+
+  @Test
+  fun `cancelMeasurement throws NOT_FOUND with measurement name when measurement not found`() {
+    internalMeasurementsMock.stub {
+      onBlocking { cancelMeasurement(any()) }
+        .thenThrow(
+          MeasurementNotFoundByMeasurementConsumerException(
+              ExternalId(EXTERNAL_MEASUREMENT_CONSUMER_ID),
+              ExternalId(EXTERNAL_MEASUREMENT_ID),
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "Measurement not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.cancelMeasurement(cancelMeasurementRequest { name = MEASUREMENT_NAME })
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("measurement", MEASUREMENT_NAME)
+  }
+
+  @Test
+  fun `cancelMeasurement throws FAILED_PRECONDITION with measurement state and name when measurement state illegal`() {
+    internalMeasurementsMock.stub {
+      onBlocking { cancelMeasurement(any()) }
+        .thenThrow(
+          MeasurementStateIllegalException(
+              ExternalId(EXTERNAL_MEASUREMENT_CONSUMER_ID),
+              ExternalId(EXTERNAL_MEASUREMENT_ID),
+              InternalMeasurement.State.FAILED,
+            )
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Measurement state illegal.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.cancelMeasurement(cancelMeasurementRequest { name = MEASUREMENT_NAME })
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("measurement", MEASUREMENT_NAME)
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("state", InternalMeasurement.State.FAILED.toString())
+  }
+
+  @Test
+  fun `batchCreateMeasurement throws FAILED_PRECONDITION with data provider name when data provider not found`() {
+    internalMeasurementsMock.stub {
+      onBlocking { batchCreateMeasurements(any()) }
+        .thenThrow(
+          DataProviderNotFoundException(EXTERNAL_DATA_PROVIDER_IDS.first())
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "DataProvider not found.")
+        )
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.batchCreateMeasurements(
+              batchCreateMeasurementsRequest {
+                parent = MEASUREMENT_CONSUMER_NAME
+                requests += createMeasurementRequest {
+                  parent = MEASUREMENT_CONSUMER_NAME
+                  this.measurement = MEASUREMENT
+                  requestId = "foo"
+                }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("data_provider", DATA_PROVIDERS_NAME)
+  }
+
+  @Test
+  fun `batchCreateMeasurement throws NOT_FOUND with measurement consumer name when measurment consumer not found`() {
+    internalMeasurementsMock.stub {
+      onBlocking { batchCreateMeasurements(any()) }
+        .thenThrow(
+          MeasurementConsumerNotFoundException(ExternalId(EXTERNAL_MEASUREMENT_CONSUMER_ID))
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found.")
+        )
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.batchCreateMeasurements(
+              batchCreateMeasurementsRequest {
+                parent = MEASUREMENT_CONSUMER_NAME
+                requests += createMeasurementRequest {
+                  parent = MEASUREMENT_CONSUMER_NAME
+                  this.measurement = MEASUREMENT
+                  requestId = "foo"
+                }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("measurement_consumer", MEASUREMENT_CONSUMER_NAME)
+  }
+
+  @Test
+  fun `batchGetMeasurements throws NOT_FOUND when a measurement not found`() {
+    internalMeasurementsMock.stub {
+      onBlocking { batchGetMeasurements(any()) }
+        .thenThrow(Status.NOT_FOUND.withDescription("Measurement not found").asRuntimeException())
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.batchGetMeasurements(
+              batchGetMeasurementsRequest {
+                parent = MEASUREMENT_CONSUMER_NAME
+                names += MEASUREMENT_NAME
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
   companion object {
     @BeforeClass
     @JvmStatic
@@ -2335,6 +2706,10 @@ class MeasurementsServiceTest {
         RO_LLV2_DUCHY_PROTOCOL_CONFIG.reachOnlyLiquidLegionsV2,
         setOf("aggregator"),
         2,
+      )
+      HmssProtocolConfig.setForTest(
+        HMSS_INTERNAL_PROTOCOL_CONFIG.honestMajorityShareShuffle,
+        setOf("aggregator", "worker1", "worker2"),
       )
     }
 
@@ -2429,6 +2804,11 @@ class MeasurementsServiceTest {
 
     private val RO_LLV2_DUCHY_PROTOCOL_CONFIG = duchyProtocolConfig {
       reachOnlyLiquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
+    }
+
+    private val HMSS_INTERNAL_PROTOCOL_CONFIG = internalProtocolConfig {
+      externalProtocolConfigId = "hmss"
+      honestMajorityShareShuffle = InternalProtocolConfigKt.honestMajorityShareShuffle {}
     }
 
     private val DATA_PROVIDER_PUBLIC_KEY = encryptionPublicKey { data = UPDATE_TIME.toByteString() }
@@ -2652,7 +3032,10 @@ class MeasurementsServiceTest {
       }
 
     private val DEFAULT_INTERNAL_DIRECT_POPULATION_PROTOCOL_CONFIG: InternalProtocolConfig.Direct =
-      InternalProtocolConfig.Direct.getDefaultInstance()
+      direct {
+        noiseMechanisms += DEFAULT_INTERNAL_DIRECT_NOISE_MECHANISMS
+        deterministicCount = InternalProtocolConfig.Direct.DeterministicCount.getDefaultInstance()
+      }
 
     private const val BATCH_LIMIT = 50
   }

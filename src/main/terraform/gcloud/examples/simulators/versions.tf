@@ -12,16 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: Deploy to dev environment
-
-on:
-  release:
-    types: [published]
-
-jobs:
-  update-cmms:
-    uses: ./.github/workflows/update-cmms.yml
-    secrets: inherit
-    with:
-      environment: dev
-      apply: true
+terraform {
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 5.4.0"
+    }
+  }
+}
