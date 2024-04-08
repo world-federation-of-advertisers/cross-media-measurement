@@ -89,4 +89,12 @@ message Metric {
     repeated string filters = 1;
   }
   Details details = 8;
+
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    RUNNING = 1;
+    SUCCEEDED = 2;
+    FAILED = 3;
+  }
+  State state = 9;
 }

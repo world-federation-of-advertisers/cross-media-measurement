@@ -51,6 +51,7 @@ import org.wfanet.measurement.internal.reporting.v2.LiquidLegionsDistribution as
 import org.wfanet.measurement.internal.reporting.v2.LiquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
+import org.wfanet.measurement.internal.reporting.v2.Metric as InternalMetric
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec as InternalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt as InternalMetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.NoiseMechanism as InternalNoiseMechanism
@@ -86,6 +87,7 @@ import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageToken
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsPageToken
 import org.wfanet.measurement.reporting.v2alpha.ListReportsPageToken
+import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.Report
@@ -366,6 +368,20 @@ fun InternalMetricSpec.WatchDurationParams.toDuration(): MeasurementSpec.Duratio
   return MeasurementSpecKt.duration {
     privacyParams = source.privacyParams.toCmmsPrivacyParams()
     maximumWatchDurationPerUser = source.maximumWatchDurationPerUser
+  }
+}
+
+/** Converts an internal [InternalMetric.State] to a public [Metric.State]. */
+fun InternalMetric.State.toPublic(): Metric.State {
+  return when (this) {
+    InternalMetric.State.RUNNING -> Metric.State.RUNNING
+    InternalMetric.State.SUCCEEDED -> Metric.State.SUCCEEDED
+    InternalMetric.State.FAILED -> Metric.State.FAILED
+    InternalMetric.State.STATE_UNSPECIFIED -> Metric.State.STATE_UNSPECIFIED
+    InternalMetric.State.UNRECOGNIZED ->
+      // State is set by the system so if this is reached, something went wrong.
+      throw Status.UNKNOWN.withDescription("There is an unknown problem with the Metric")
+        .asRuntimeException()
   }
 }
 
