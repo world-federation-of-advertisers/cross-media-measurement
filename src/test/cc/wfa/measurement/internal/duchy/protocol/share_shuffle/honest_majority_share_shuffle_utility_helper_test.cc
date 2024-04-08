@@ -26,17 +26,17 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
-#include "any_sketch/crypto/secret_share_generator.h"
 #include "common_cpp/macros/macros.h"
 #include "common_cpp/testing/status_macros.h"
 #include "common_cpp/testing/status_matchers.h"
+#include "frequency_count/generate_secret_shares.h"
 #include "glog/logging.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "math/distributed_noiser.h"
 #include "math/open_ssl_uniform_random_generator.h"
 #include "openssl/obj_mac.h"
-#include "wfa/any_sketch/secret_share.pb.h"
+#include "wfa/frequency_count/secret_share.pb.h"
 #include "wfa/measurement/internal/duchy/noise_mechanism.pb.h"
 #include "wfa/measurement/internal/duchy/protocol/common/noise_parameters_computation.h"
 #include "wfa/measurement/internal/duchy/protocol/honest_majority_share_shuffle_methods.pb.h"
@@ -45,7 +45,7 @@ namespace wfa::measurement::internal::duchy::protocol::share_shuffle {
 namespace {
 
 using ::testing::SizeIs;
-using ::wfa::any_sketch::PrngSeed;
+using ::wfa::frequency_count::PrngSeed;
 using ::wfa::math::kBytesPerAes256Iv;
 using ::wfa::math::kBytesPerAes256Key;
 using ::wfa::measurement::internal::duchy::protocol::common::
