@@ -224,6 +224,9 @@ class PdpSimulator(
       try {
         logger.info("Processing requisition ${requisition.name}...")
 
+        // TODO(@SanjayVas): Verify that DataProvider public key in Requisition matches private key
+        // in pdpData. A real PDP would look up the matching private key.
+
         val measurementConsumerCertificate: Certificate =
           getCertificate(requisition.measurementConsumerCertificate)
 
@@ -319,8 +322,7 @@ class PdpSimulator(
     modelRelease: ModelRelease,
     filterExpression: String,
   ) {
-    // Calculates total sum by running the populationBucketsList through a program that will sum
-    // matching populations.
+    // Filters populationBucketsList through a CEL program and sums the result.
     val populationSum =
       getTotalPopulation(requisitionSpec, populationBucketsList, modelRelease, filterExpression)
 
