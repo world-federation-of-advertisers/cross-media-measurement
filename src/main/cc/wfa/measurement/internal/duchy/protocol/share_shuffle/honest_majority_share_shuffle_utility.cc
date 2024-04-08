@@ -26,14 +26,14 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
-#include "any_sketch/crypto/shuffle.h"
 #include "common_cpp/macros/macros.h"
 #include "common_cpp/time/started_thread_cpu_timer.h"
+#include "crypto/shuffle.h"
 #include "google/protobuf/duration.pb.h"
 #include "google/protobuf/util/time_util.h"
 #include "math/distributed_noiser.h"
 #include "math/open_ssl_uniform_random_generator.h"
-#include "wfa/any_sketch/secret_share.pb.h"
+#include "wfa/frequency_count/secret_share.pb.h"
 #include "wfa/measurement/internal/duchy/protocol/common/noise_parameters_computation.h"
 #include "wfa/measurement/internal/duchy/protocol/honest_majority_share_shuffle_methods.pb.h"
 #include "wfa/measurement/internal/duchy/protocol/share_shuffle/honest_majority_share_shuffle_utility_helper.h"
@@ -42,12 +42,12 @@ namespace wfa::measurement::internal::duchy::protocol::share_shuffle {
 
 namespace {
 
-using ::wfa::any_sketch::PrngSeed;
+using ::wfa::crypto::SecureShuffleWithSeed;
+using ::wfa::frequency_count::PrngSeed;
 using ::wfa::math::CreatePrngFromSeed;
 using ::wfa::math::kBytesPerAes256Iv;
 using ::wfa::math::kBytesPerAes256Key;
 using ::wfa::math::UniformPseudorandomGenerator;
-using ::wfa::measurement::common::crypto::SecureShuffleWithSeed;
 using ::wfa::measurement::internal::duchy::protocol::common::
     GetBlindHistogramNoiser;
 
