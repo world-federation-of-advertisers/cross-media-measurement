@@ -491,9 +491,9 @@ class MeasurementsService(
               }
           }
         } else {
-          if (
-            reachOnlyHmssEnabled &&
-              dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
+          if (reachOnlyHmssEnabled
+          //            reachOnlyHmssEnabled &&
+          //              dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
           ) {
             protocolConfig {
               externalProtocolConfigId = HmssProtocolConfig.name
@@ -531,9 +531,9 @@ class MeasurementsService(
               }
           }
         } else {
-          if (
-            reachAndFrequencyHmssEnabled &&
-              dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
+          if (reachAndFrequencyHmssEnabled
+          //            reachAndFrequencyHmssEnabled &&
+          //              dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
           ) {
             protocolConfig {
               externalProtocolConfigId = HmssProtocolConfig.name

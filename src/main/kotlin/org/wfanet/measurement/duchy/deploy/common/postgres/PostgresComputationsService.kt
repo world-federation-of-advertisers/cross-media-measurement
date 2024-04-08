@@ -144,6 +144,7 @@ class PostgresComputationsService(
             protocolStagesEnumHelper.getValidInitialStage(request.computationType).first(),
             request.stageDetails,
             request.computationDetails,
+            request.afterCreation,
             request.requisitionsList,
             clock,
             computationTypeEnumHelper,

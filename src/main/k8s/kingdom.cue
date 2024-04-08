@@ -60,6 +60,8 @@ import ("strings")
 	_llv2_protocol_config_config:            "--llv2-protocol-config-config=/var/run/secrets/files/llv2_protocol_config_config.textproto"
 	_ro_llv2_protocol_config_config:         "--ro-llv2-protocol-config-config=/var/run/secrets/files/ro_llv2_protocol_config_config.textproto"
 	_ro_llv2_enable_flag:                    "--enable-ro-llv2-protocol"
+	_hmssRfEnableFlag: 	    								 "--enable-hmss-for-rf"
+	_hmssReachEnableFlag:                    "--enable-hmss-for-reach"
 	_hmssProtocolConfigConfig:               "--hmss-protocol-config-config=/var/run/secrets/files/hmss_protocol_config_config.textproto"
 	_kingdom_tls_cert_file_flag:             "--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem"
 	_kingdom_tls_key_file_flag:              "--tls-key-file=/var/run/secrets/files/kingdom_tls.key"
@@ -174,7 +176,8 @@ import ("strings")
 					_debug_verbose_grpc_server_logging_flag,
 					_llv2_protocol_config_config,
 					_ro_llv2_protocol_config_config,
-					_ro_llv2_enable_flag,
+					_hmssRfEnableFlag,
+					_hmssReachEnableFlag,
 					_hmssProtocolConfigConfig,
 					_kingdom_tls_cert_file_flag,
 					_kingdom_tls_key_file_flag,

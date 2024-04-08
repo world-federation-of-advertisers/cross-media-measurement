@@ -878,7 +878,9 @@ class GetMeasurement : Runnable {
           .getMeasurement(getMeasurementRequest { name = measurementName })
       }
 
-    Measurements.printState(measurement)
+    //    Measurements.printState(measurement)
+    println(measurement)
+
     if (measurement.state == Measurement.State.SUCCEEDED) {
       measurement.resultsList.forEach {
         val result = getMeasurementResult(it)

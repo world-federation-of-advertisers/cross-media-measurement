@@ -179,5 +179,5 @@ message ShareShuffleSketchParams {
   int32 bytes_per_register = 1;
 
   // Secret share modulus.
-  uint32 ring_modulus = 2;
+  int32 ring_modulus = 2;
 }

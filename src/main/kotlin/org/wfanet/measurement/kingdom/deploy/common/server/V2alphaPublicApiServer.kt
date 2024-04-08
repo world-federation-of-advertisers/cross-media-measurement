@@ -156,7 +156,9 @@ private fun run(
           InternalMeasurementsCoroutineStub(channel),
           internalDataProvidersStub,
           v2alphaFlags.directNoiseMechanisms,
-          v2alphaFlags.reachOnlyLlV2Enabled,
+          reachOnlyLlV2Enabled = v2alphaFlags.reachOnlyLlV2Enabled,
+          reachOnlyHmssEnabled = v2alphaFlags.hmssForReachEnabled,
+          reachAndFrequencyHmssEnabled = v2alphaFlags.hmssForRfEnabled,
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),

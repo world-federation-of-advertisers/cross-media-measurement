@@ -33,6 +33,7 @@ import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt
+import org.wfanet.measurement.internal.duchy.CreateComputationRequest.AfterCreation
 import org.wfanet.measurement.internal.duchy.EncryptionPublicKey
 import org.wfanet.measurement.internal.duchy.NoiseMechanism
 import org.wfanet.measurement.internal.duchy.computationDetails
@@ -63,7 +64,7 @@ object HonestMajorityShareShuffleStarter {
     systemComputation: Computation,
     honestMajorityShareShuffleSetupConfig: HonestMajorityShareShuffleSetupConfig,
     blobStorageBucket: String,
-    privateKeyStore: PrivateKeyStore<TinkKeyId, TinkPrivateKeyHandle>,
+    privateKeyStore: PrivateKeyStore<TinkKeyId, TinkPrivateKeyHandle>? = null,
   ) {
     require(systemComputation.name.isNotEmpty()) { "Resource name not specified" }
     val globalId: String = systemComputation.key.computationId
@@ -81,6 +82,7 @@ object HonestMajorityShareShuffleStarter {
             randomSeed = generateRandomSeed()
 
             val privateKeyHandle = TinkPrivateKeyHandle.generateHpke()
+            requireNotNull(privateKeyStore) { "privateKeyStore cannot be null." }
             val privateKeyId = storePrivateKey(privateKeyStore, privateKeyHandle)
             encryptionKeyPair = encryptionKeyPair {
               this.privateKeyId = privateKeyId
@@ -96,26 +98,29 @@ object HonestMajorityShareShuffleStarter {
     val requisitions =
       systemComputation.requisitionsList.toRequisitionEntries(systemComputation.measurementSpec)
 
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
-    val initialStage =
+    val request = createComputationRequest {
+      computationType = ComputationTypeEnum.ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE
+      globalComputationId = globalId
+      computationDetails = initialComputationDetails
+      this.requisitions += requisitions
+
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (role) {
         RoleInComputation.FIRST_NON_AGGREGATOR,
-        RoleInComputation.SECOND_NON_AGGREGATOR -> Stage.INITIALIZED.toProtocolStage()
-        RoleInComputation.AGGREGATOR -> Stage.WAIT_ON_AGGREGATION_INPUT.toProtocolStage()
+        RoleInComputation.SECOND_NON_AGGREGATOR -> {
+          computationStage = Stage.INITIALIZED.toProtocolStage()
+          afterCreation = AfterCreation.ADD_UNCLAIMED_TO_QUEUE
+        }
+        RoleInComputation.AGGREGATOR -> {
+          computationStage = Stage.WAIT_ON_AGGREGATION_INPUT.toProtocolStage()
+          afterCreation = AfterCreation.DO_NOT_ADD_TO_QUEUE
+        }
         RoleInComputation.NON_AGGREGATOR,
         RoleInComputation.UNRECOGNIZED,
         RoleInComputation.ROLE_IN_COMPUTATION_UNSPECIFIED -> error("Invalid role $role")
       }
-
-    computationStorageClient.createComputation(
-      createComputationRequest {
-        computationType = ComputationTypeEnum.ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE
-        globalComputationId = globalId
-        computationStage = initialStage
-        computationDetails = initialComputationDetails
-        this.requisitions += requisitions
-      }
-    )
+    }
+    computationStorageClient.createComputation(request)
   }
 
   suspend fun startComputation(

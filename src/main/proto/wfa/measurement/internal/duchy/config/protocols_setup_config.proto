@@ -79,9 +79,12 @@ message HonestMajorityShareShuffleSetupConfig {
   // Role of duchy in Computations.
   RoleInComputation role = 1;
 
-  // The external id of the aggregator duchy.
-  string external_aggregator_duchy_id = 2;
+  // The external id of the first non-aggregator duchy.
+  string first_non_aggregator_duchy_id = 2;
 
-  // The external id of the peer non-aggregator duchy.
-  string external_peer_non_aggregator_duchy_id = 3;
+  // The external id of the second non-aggregator duchy.
+  string second_non_aggregator_duchy_id = 3;
+
+  // The external id of the aggregator duchy.
+  string aggregator_duchy_id = 4;
 }

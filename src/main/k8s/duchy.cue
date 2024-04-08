@@ -30,23 +30,26 @@ import ("strings")
 	_computationsTimeToLive:     string | *"180d"
 	_duchyMillParallelism:       uint | *2
 	_kingdom_system_api_target:  string
+	_kingdom_public_api_target:  string
 	_blob_storage_flags: [...string]
 	_verbose_grpc_logging: "true" | "false"
 
 	_name:                   _duchy.name
 	_protocols_setup_config: _duchy.protocols_setup_config
 	_cs_cert_resource_name:  _duchy.cs_cert_resource_name
+	_duchyKeyEncryptionKeyFile: _duchy.duchyKeyEncryptionKeyFile
 
 	_object_prefix: "\(_name)-"
 
 	_imageSuffixes: [string]: string
 	_imageSuffixes: {
-		"async-computation-control-server": string | *"duchy/async-computation-control"
-		"computation-control-server":       string | *"duchy/computation-control"
-		"herald-daemon":                    string | *"duchy/herald"
-		"liquid-legions-v2-mill-daemon":    string | *"duchy/liquid-legions-v2-mill"
-		"requisition-fulfillment-server":   string | *"duchy/requisition-fulfillment"
-		"computations-cleaner":             string | *"duchy/computations-cleaner"
+		"async-computation-control-server":          string | *"duchy/async-computation-control"
+		"computation-control-server":                string | *"duchy/computation-control"
+		"herald-daemon":                             string | *"duchy/herald"
+		"liquid-legions-v2-mill-daemon":             string | *"duchy/liquid-legions-v2-mill"
+		"honest-majority-share-shuffle-mill-daemon": string | *"duchy/honest-majority-share-shuffle-mill"
+		"requisition-fulfillment-server":            string | *"duchy/requisition-fulfillment"
+		"computations-cleaner":                      string | *"duchy/computations-cleaner"
 	}
 	_imageConfigs: [string]: #ImageConfig
 	_imageConfigs: {
@@ -72,6 +75,7 @@ import ("strings")
 	_duchy_tls_cert_file_flag:                          "--tls-cert-file=/var/run/secrets/files/\(_name)_tls.pem"
 	_duchy_tls_key_file_flag:                           "--tls-key-file=/var/run/secrets/files/\(_name)_tls.key"
 	_duchy_cert_collection_file_flag:                   "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
+	_duchyKeyEncryptionKeyFileFlag:                     "--key-encryption-key-file=/var/run/secrets/files/\(_duchyKeyEncryptionKeyFile)"
 	_duchyInternalApiTargetFlag:                        "--computations-service-target=" + (#Target & {name: "\(_name)-internal-api-server"}).target
 	_duchyInternalApiCertHostFlag:                      "--computations-service-cert-host=localhost"
 	_duchyComputationsTimeToLiveFlag:                   "--computations-time-to-live=\(_computationsTimeToLive)"
@@ -83,6 +87,8 @@ import ("strings")
 	_duchyDeletableStatesFlag: [ for state in _deletableComputationStates {"--deletable-computation-state=\(state)"}]
 	_kingdom_system_api_target_flag:         "--kingdom-system-api-target=\(_kingdom_system_api_target)"
 	_kingdom_system_api_cert_host_flag:      "--kingdom-system-api-cert-host=localhost"
+	_kingdom_public_api_target_flag:         "--kingdom-public-api-target=\(_kingdom_public_api_target)"
+	_kingdom_public_api_cert_host_flag:      "--kingdom-public-api-cert-host=localhost"
 	_debug_verbose_grpc_client_logging_flag: "--debug-verbose-grpc-client-logging=\(_verbose_grpc_logging)"
 	_debug_verbose_grpc_server_logging_flag: "--debug-verbose-grpc-server-logging=\(_verbose_grpc_logging)"
 	_computation_control_target_flags: [ for duchyId, target in _computation_control_targets {"--duchy-computation-control-target=\(duchyId)=\(target)"}]
@@ -121,8 +127,9 @@ import ("strings")
 						_duchy_protocols_setup_config_flag,
 						_kingdom_system_api_target_flag,
 						_kingdom_system_api_cert_host_flag,
+						if (_duchyKeyEncryptionKeyFile != _|_) {_duchyKeyEncryptionKeyFileFlag},
 						_debug_verbose_grpc_client_logging_flag,
-			] + _duchyDeletableStatesFlag
+			] + _blob_storage_flags + _duchyDeletableStatesFlag
 			spec: template: spec: _dependencies: [
 				"\(_name)-internal-api-server",
 			]
@@ -143,6 +150,34 @@ import ("strings")
 						_duchy_cs_cert_rename_name_flag,
 						_kingdom_system_api_target_flag,
 						_kingdom_system_api_cert_host_flag,
+						if (_millPollingInterval != _|_) {"--polling-interval=\(_millPollingInterval)"},
+						if (_workLockDuration != _|_) {"--work-lock-duration=\(_workLockDuration)"},
+						_otlpEndpoint,
+						"--otel-service-name=\(Deployment.metadata.name)",
+			] + _blob_storage_flags + _computation_control_target_flags
+			spec: template: spec: _dependencies: [
+				"\(_name)-internal-api-server", "\(_name)-computation-control-server",
+			]
+		}
+		"honest-majority-share-shuffle-mill-daemon-deployment": Deployment={
+			_workLockDuration?: string
+			_container: args: [
+						_duchyInternalApiTargetFlag,
+						_duchyInternalApiCertHostFlag,
+						_duchy_name_flag,
+						_duchy_info_config_flag,
+						_duchy_tls_cert_file_flag,
+						_duchy_tls_key_file_flag,
+						_duchy_cert_collection_file_flag,
+						_duchy_cs_cert_file_flag,
+						_duchy_cs_key_file_flag,
+						_duchy_cs_cert_rename_name_flag,
+						_duchy_protocols_setup_config_flag,
+						_kingdom_system_api_target_flag,
+						_kingdom_system_api_cert_host_flag,
+						_kingdom_public_api_target_flag,
+						_kingdom_public_api_cert_host_flag,
+						if (_duchyKeyEncryptionKeyFile != _|_) {_duchyKeyEncryptionKeyFileFlag},
 						if (_millPollingInterval != _|_) {"--polling-interval=\(_millPollingInterval)"},
 						if (_workLockDuration != _|_) {"--work-lock-duration=\(_workLockDuration)"},
 						_otlpEndpoint,

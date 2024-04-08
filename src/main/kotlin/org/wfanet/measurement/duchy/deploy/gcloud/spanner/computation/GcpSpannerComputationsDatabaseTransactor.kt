@@ -48,6 +48,7 @@ import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
+import org.wfanet.measurement.internal.duchy.CreateComputationRequest.AfterCreation
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
 import org.wfanet.measurement.internal.duchy.RequisitionDetails
 import org.wfanet.measurement.internal.duchy.RequisitionEntry
@@ -75,6 +76,7 @@ class GcpSpannerComputationsDatabaseTransactor<
     stageDetails: StageDT,
     computationDetails: ComputationDT,
     requisitions: List<RequisitionEntry>,
+    afterCreation: AfterCreation,
   ) {
     require(computationMutations.validInitialStage(protocol, initialStage)) {
       "Invalid initial stage $initialStage"
@@ -83,6 +85,7 @@ class GcpSpannerComputationsDatabaseTransactor<
     val localId: Long = localComputationIdGenerator.localId(globalId)
 
     val writeTimestamp = clock.gcloudTimestamp()
+
     val computationRow =
       computationMutations.insertComputation(
         localId,
@@ -90,7 +93,12 @@ class GcpSpannerComputationsDatabaseTransactor<
         updateTime = writeTimestamp,
         globalId = globalId,
         lockOwner = WRITE_NULL_STRING,
-        lockExpirationTime = writeTimestamp,
+        lockExpirationTime =
+          if (afterCreation == AfterCreation.ADD_UNCLAIMED_TO_QUEUE) {
+            writeTimestamp
+          } else {
+            WRITE_NULL_TIMESTAMP
+          },
         details = computationDetails,
         protocol = protocol,
         stage = initialStage,

@@ -458,6 +458,7 @@ private fun buildMpcProtocolConfig(
           sketchParams = shareShuffleSketchParams {
             bytesPerRegister =
               protocolConfig.honestMajorityShareShuffle.sketchParams.bytesPerRegister
+            ringModulus = protocolConfig.honestMajorityShareShuffle.sketchParams.ringModulus
           }
           noiseMechanism =
             protocolConfig.honestMajorityShareShuffle.noiseMechanism.toNoiseMechanism()

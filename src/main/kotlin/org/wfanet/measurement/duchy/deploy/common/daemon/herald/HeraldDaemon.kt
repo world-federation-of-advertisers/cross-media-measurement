@@ -15,7 +15,8 @@
 package org.wfanet.measurement.duchy.deploy.common.daemon.herald
 
 import com.google.crypto.tink.Aead
-import com.google.crypto.tink.KeyTemplates
+import com.google.crypto.tink.BinaryKeysetReader
+import com.google.crypto.tink.CleartextKeysetHandle
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.aead.AeadConfig
 import io.grpc.Channel
@@ -24,7 +25,6 @@ import java.time.Clock
 import java.time.Duration
 import kotlin.properties.Delegates
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.tink.TinkKeyStorageProvider
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
@@ -44,13 +44,13 @@ import org.wfanet.measurement.duchy.storage.TinkKeyStore
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineStub
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
-import org.wfanet.measurement.storage.testing.InMemoryStorageClient
+import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
 import picocli.CommandLine
 
-private class Flags {
+class HeraldFlags {
   @CommandLine.Mixin
   lateinit var duchy: CommonDuchyFlags
     private set
@@ -84,6 +84,12 @@ private class Flags {
     private set
 
   @CommandLine.Option(
+    names = ["--key-encryption-key-file"],
+    description = ["The key encryption key file (binary format) used for private key store."],
+  )
+  var keyEncryptionKeyTinkFile: File? = null
+
+  @CommandLine.Option(
     names = ["--deletable-computation-state"],
     description =
       [
@@ -104,72 +110,81 @@ private class Flags {
     private set
 }
 
-@CommandLine.Command(
-  name = "HeraldDaemon",
-  mixinStandardHelpOptions = true,
-  showDefaultValues = true,
-)
-private fun run(@CommandLine.Mixin flags: Flags) {
-  val clientCerts =
-    SigningCerts.fromPemFiles(
-      certificateFile = flags.tlsFlags.certFile,
-      privateKeyFile = flags.tlsFlags.privateKeyFile,
-      trustedCertCollectionFile = flags.tlsFlags.certCollectionFile,
-    )
+abstract class HeraldDaemon : Runnable {
+  @CommandLine.Mixin
+  protected lateinit var flags: HeraldFlags
+    private set
 
-  val systemServiceChannel =
-    buildMutualTlsChannel(flags.systemApiFlags.target, clientCerts, flags.systemApiFlags.certHost)
-      .withShutdownTimeout(flags.channelShutdownTimeout)
-      .withVerboseLogging(flags.verboseGrpcClientLogging)
-  val systemComputationsClient =
-    SystemComputationsCoroutineStub(systemServiceChannel).withDuchyId(flags.duchy.duchyName)
-  val systemComputationParticipantsClient =
-    SystemComputationParticipantsCoroutineStub(systemServiceChannel)
-      .withDuchyId(flags.duchy.duchyName)
-
-  val internalComputationsChannel: Channel =
-    buildMutualTlsChannel(
-        flags.computationsServiceFlags.target,
-        clientCerts,
-        flags.computationsServiceFlags.certHost,
+  @CommandLine.Command(
+    name = "HeraldDaemon",
+    mixinStandardHelpOptions = true,
+    showDefaultValues = true,
+  )
+  protected fun run(storageClient: StorageClient) {
+    val clientCerts =
+      SigningCerts.fromPemFiles(
+        certificateFile = flags.tlsFlags.certFile,
+        privateKeyFile = flags.tlsFlags.privateKeyFile,
+        trustedCertCollectionFile = flags.tlsFlags.certCollectionFile,
       )
-      .withShutdownTimeout(flags.channelShutdownTimeout)
-      .withDefaultDeadline(flags.computationsServiceFlags.defaultDeadlineDuration)
-      .withVerboseLogging(flags.verboseGrpcClientLogging)
-  val internalComputationsClient = ComputationsCoroutineStub(internalComputationsChannel)
 
-  val continuationTokenClient = ContinuationTokensCoroutineStub(internalComputationsChannel)
-  val continuationTokenManager = ContinuationTokenManager(continuationTokenClient)
-  // This will be the name of the pod when deployed to Kubernetes.
-  val heraldId = System.getenv("HOSTNAME")
+    val systemServiceChannel =
+      buildMutualTlsChannel(flags.systemApiFlags.target, clientCerts, flags.systemApiFlags.certHost)
+        .withShutdownTimeout(flags.channelShutdownTimeout)
+        .withVerboseLogging(flags.verboseGrpcClientLogging)
+    val systemComputationsClient =
+      SystemComputationsCoroutineStub(systemServiceChannel).withDuchyId(flags.duchy.duchyName)
+    val systemComputationParticipantsClient =
+      SystemComputationParticipantsCoroutineStub(systemServiceChannel)
+        .withDuchyId(flags.duchy.duchyName)
 
-  // TODO(@renjiez): Use real PrivateKeyStore when enabling HMSS.
-  AeadConfig.register()
-  val keyUri = "fake-kms://kek"
-  val privateKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-  val aead = privateKeyHandle.getPrimitive(Aead::class.java)
-  val fakeKmsClient = FakeKmsClient().also { it.setAead(keyUri, aead) }
-  val privateKeyStore =
-    TinkKeyStorageProvider(fakeKmsClient)
-      .makeKmsPrivateKeyStore(TinkKeyStore(InMemoryStorageClient()), keyUri)
+    val internalComputationsChannel: Channel =
+      buildMutualTlsChannel(
+          flags.computationsServiceFlags.target,
+          clientCerts,
+          flags.computationsServiceFlags.certHost,
+        )
+        .withShutdownTimeout(flags.channelShutdownTimeout)
+        .withDefaultDeadline(flags.computationsServiceFlags.defaultDeadlineDuration)
+        .withVerboseLogging(flags.verboseGrpcClientLogging)
+    val internalComputationsClient = ComputationsCoroutineStub(internalComputationsChannel)
 
-  val herald =
-    Herald(
-      heraldId = heraldId,
-      duchyId = flags.duchy.duchyName,
-      internalComputationsClient = internalComputationsClient,
-      systemComputationsClient = systemComputationsClient,
-      systemComputationParticipantClient = systemComputationParticipantsClient,
-      privateKeyStore = privateKeyStore,
-      continuationTokenManager = continuationTokenManager,
-      protocolsSetupConfig =
-        flags.protocolsSetupConfig.reader().use {
-          parseTextProto(it, ProtocolsSetupConfig.getDefaultInstance())
-        },
-      clock = Clock.systemUTC(),
-      deletableComputationStates = flags.deletableComputationStates,
-    )
-  runBlocking { herald.continuallySyncStatuses() }
+    val continuationTokenClient = ContinuationTokensCoroutineStub(internalComputationsChannel)
+    val continuationTokenManager = ContinuationTokenManager(continuationTokenClient)
+    // This will be the name of the pod when deployed to Kubernetes.
+    val heraldId = System.getenv("HOSTNAME")
+
+    val privateKeyStore =
+      flags.keyEncryptionKeyTinkFile?.let { file ->
+        val keyUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+
+        val keysetHandle: KeysetHandle =
+          file.inputStream().use { input ->
+            CleartextKeysetHandle.read(BinaryKeysetReader.withInputStream(input))
+          }
+        AeadConfig.register()
+        val aead = keysetHandle.getPrimitive(Aead::class.java)
+        val fakeKmsClient = FakeKmsClient().also { it.setAead(keyUri, aead) }
+        TinkKeyStorageProvider(fakeKmsClient)
+          .makeKmsPrivateKeyStore(TinkKeyStore(storageClient), keyUri)
+      }
+
+    val herald =
+      Herald(
+        heraldId = heraldId,
+        duchyId = flags.duchy.duchyName,
+        internalComputationsClient = internalComputationsClient,
+        systemComputationsClient = systemComputationsClient,
+        systemComputationParticipantClient = systemComputationParticipantsClient,
+        privateKeyStore = privateKeyStore,
+        continuationTokenManager = continuationTokenManager,
+        protocolsSetupConfig =
+          flags.protocolsSetupConfig.reader().use {
+            parseTextProto(it, ProtocolsSetupConfig.getDefaultInstance())
+          },
+        clock = Clock.systemUTC(),
+        deletableComputationStates = flags.deletableComputationStates,
+      )
+    runBlocking { herald.continuallySyncStatuses() }
+  }
 }
-
-fun main(args: Array<String>) = commandLineMain(::run, args)

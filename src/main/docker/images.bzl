@@ -27,11 +27,6 @@ COMMON_IMAGES = [
         repository = _PREFIX + "/duchy/async-computation-control",
     ),
     struct(
-        name = "duchy_herald_daemon_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/herald:herald_daemon_image",
-        repository = _PREFIX + "/duchy/herald",
-    ),
-    struct(
         name = "duchy_spanner_update_schema_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/tools:update_schema_image",
         repository = _PREFIX + "/duchy/spanner-update-schema",
@@ -176,9 +171,19 @@ EKS_IMAGES = [
 # List of image build rules that are only used locally (e.g. in Kind).
 LOCAL_IMAGES = [
     struct(
+        name = "forwarded_storage_herald_daemon_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/herald:forwarded_storage_herald_daemon_image",
+        repository = _PREFIX + "/duchy/local-herald",
+    ),
+    struct(
         name = "forwarded_storage_liquid_legions_v2_mill_daemon_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/mill/liquidlegionsv2:forwarded_storage_liquid_legions_v2_mill_daemon_image",
         repository = _PREFIX + "/duchy/local-liquid-legions-v2-mill",
+    ),
+    struct(
+        name = "forwarded_storage_honest_majority_share_shuffle_mill_daemon_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/mill/shareshuffle:forwarded_storage_honest_majority_share_shuffle_mill_daemon_image",
+        repository = _PREFIX + "/duchy/local-honest-majority-share-shuffle-mill",
     ),
     struct(
         name = "forwarded_storage_computation_control_server_image",
