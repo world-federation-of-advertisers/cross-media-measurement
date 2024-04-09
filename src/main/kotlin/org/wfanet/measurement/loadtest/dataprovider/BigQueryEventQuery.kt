@@ -37,13 +37,14 @@ import org.wfanet.measurement.common.toRange
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.measurement.gcloud.common.toInstant
 
-private const val VID_VALUE_UPPER_BOUND = 100000000 // 100 million
+private const val DEFAULT_VID_VALUE_UPPER_BOUND = 100000000L // 100 million
 
 /** Fulfill the query by querying the specified BigQuery table. */
 abstract class BigQueryEventQuery(
   private val bigQuery: BigQuery,
   private val datasetName: String,
   private val tableName: String,
+  private val vidValueUpperBound: Long = DEFAULT_VID_VALUE_UPPER_BOUND,
 ) : EventQuery<Event> {
   protected abstract fun getPublisherId(eventGroup: EventGroup): Int
 
@@ -173,7 +174,7 @@ abstract class BigQueryEventQuery(
   }
 
   override fun getUserVirtualIdUniverse(): Sequence<Long> {
-    return (0L until VID_VALUE_UPPER_BOUND).asSequence()
+    return (1L until vidValueUpperBound).asSequence()
   }
 
   companion object {
@@ -186,7 +187,8 @@ class SinglePublisherBigQueryEventQuery(
   datasetName: String,
   tableName: String,
   private val publisherId: Int,
-) : BigQueryEventQuery(bigQuery, datasetName, tableName) {
+  vidValueUpperBound: Long = DEFAULT_VID_VALUE_UPPER_BOUND,
+) : BigQueryEventQuery(bigQuery, datasetName, tableName, vidValueUpperBound) {
   override fun getPublisherId(eventGroup: EventGroup): Int {
     return publisherId
   }

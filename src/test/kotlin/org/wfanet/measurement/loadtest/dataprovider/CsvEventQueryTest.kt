@@ -144,7 +144,7 @@ class CsvEventQueryTest {
   @Test
   fun `getUserVirtualIdUniverse returns VID universe sequence`() {
     val universe = eventQuery.getUserVirtualIdUniverse()
-    assertThat(universe.toList().size).isEqualTo(10000000)
+    assertThat(universe.toList().size).isEqualTo(10000000 - 1)
   }
 
   companion object {

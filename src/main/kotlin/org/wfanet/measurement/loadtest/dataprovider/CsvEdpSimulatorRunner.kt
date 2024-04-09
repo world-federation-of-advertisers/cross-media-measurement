@@ -47,8 +47,16 @@ class CsvEdpSimulatorRunner : EdpSimulatorRunner() {
   var publisherId by Delegates.notNull<Int>()
     private set
 
+  @set:CommandLine.Option(
+    names = ["--vid-upper-bound"],
+    description = ["Upper bound (exclusive) of vid values."],
+    defaultValue = "10000000", // 10 million,
+  )
+  var vidUpperBound by Delegates.notNull<Long>()
+    private set
+
   override fun run() {
-    val eventQuery = CsvEventQuery(publisherId, eventsCsv)
+    val eventQuery = CsvEventQuery(publisherId, eventsCsv, vidUpperBound)
     run(
       eventQuery,
       EdpSimulator.buildEventTemplates(TestEvent.getDescriptor()),

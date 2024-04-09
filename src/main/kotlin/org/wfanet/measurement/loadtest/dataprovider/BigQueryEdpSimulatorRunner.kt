@@ -62,6 +62,14 @@ class BigQueryEdpSimulatorRunner : EdpSimulatorRunner() {
   lateinit var bigQueryTableName: String
     private set
 
+  @set:CommandLine.Option(
+    names = ["--big-query-vid-upper-bound"],
+    description = ["Upper bound (exclusive) of vid values."],
+    defaultValue = "100000000", // 100 million,
+  )
+  var bigQueryVidUpperBound by Delegates.notNull<Long>()
+    private set
+
   override fun run() {
     val bigQuery: BigQuery =
       BigQueryOptions.newBuilder().apply { setProjectId(bigQueryProjectName) }.build().service
@@ -71,6 +79,7 @@ class BigQueryEdpSimulatorRunner : EdpSimulatorRunner() {
         bigQueryDatasetName,
         bigQueryTableName,
         publisherId,
+        bigQueryVidUpperBound,
       )
 
     run(

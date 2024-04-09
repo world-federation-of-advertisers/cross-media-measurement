@@ -34,10 +34,14 @@ private const val SOCIAL_GRADE_INDEX = 4
 private const val DATE_INDEX = 5
 private const val COMPLETE_INDEX = 6
 private const val VID_INDEX = 7
+private const val DEFAULT_VID_VALUE_UPPER_BOUND = 10000000L // 10 million
 
 /** Fulfill the query with VIDs imported from CSV file. */
-class CsvEventQuery(publisherId: Int, file: File) :
-  InMemoryEventQuery(readCsvFile(publisherId, file)) {
+class CsvEventQuery(
+  publisherId: Int,
+  file: File,
+  vidValueUpperBound: Long = DEFAULT_VID_VALUE_UPPER_BOUND,
+) : InMemoryEventQuery(readCsvFile(publisherId, file), vidValueUpperBound) {
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
