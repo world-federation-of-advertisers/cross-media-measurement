@@ -43,3 +43,6 @@ databaseChangeLog:
 - include:
     file: add-index-on-metric-calculation-spec-reporting-metrics-table-for-update.sql
     relativeToChangeLogFile: true
+- include:
+    file: drop-reporting-set-id-from-metric-calculation-spec-reporting-metrics-table-primary-key.sql
+    relativeToChangeLogFile: true
