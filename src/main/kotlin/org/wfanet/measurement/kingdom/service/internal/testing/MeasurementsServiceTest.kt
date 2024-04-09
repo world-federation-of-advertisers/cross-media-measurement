@@ -2395,7 +2395,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       val measurement2 =
         REACH_ONLY_MEASUREMENT.copy {
           externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          externalMeasurementConsumerCertificateId = measurementConsumerCertificate2.externalCertificateId
+          externalMeasurementConsumerCertificateId =
+            measurementConsumerCertificate2.externalCertificateId
           dataProviders[dataProvider2.externalDataProviderId] = dataProvider2.toDataProviderValue()
         }
       val createMeasurementRequest2 = createMeasurementRequest { this.measurement = measurement2 }
@@ -2459,7 +2460,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           Measurement.EXTERNAL_MEASUREMENT_ID_FIELD_NUMBER,
           Measurement.EXTERNAL_COMPUTATION_ID_FIELD_NUMBER,
           Measurement.STATE_FIELD_NUMBER,
-          Measurement.ETAG_FIELD_NUMBER
+          Measurement.ETAG_FIELD_NUMBER,
         )
         .ignoringRepeatedFieldOrder()
         .containsExactly(measurement, measurement2)

@@ -128,8 +128,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         when (it.measurement.details.protocolConfig.protocolCase) {
           ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2,
           ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2,
-          ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE
-          -> {
+          ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
             createComputedMeasurement(
               createMeasurementRequest = it,
               measurementConsumerId = measurementConsumerId,
@@ -137,7 +136,6 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
               dataProvideReaderResultsMap = dataProvideReaderResultsMap,
             )
           }
-
           ProtocolConfig.ProtocolCase.DIRECT ->
             createDirectMeasurement(
               createMeasurementRequest = it,
@@ -145,7 +143,6 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
               measurementConsumerCertificateId = certificateId,
               dataProvideReaderResultsMap = dataProvideReaderResultsMap,
             )
-
           ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Protocol is not set.")
         }
       }
@@ -166,13 +163,10 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2 -> Llv2ProtocolConfig.requiredExternalDuchyIds
         ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
           RoLlv2ProtocolConfig.requiredExternalDuchyIds
-
         ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
           HmssProtocolConfig.requiredExternalDuchyIds
-
         ProtocolConfig.ProtocolCase.DIRECT,
-        ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
-        -> error("Invalid protocol.")
+        ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid protocol.")
       }
     val requiredDuchyIds: Set<String> =
       requiredExternalDuchyIds +
@@ -191,16 +185,12 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       when (createMeasurementRequest.measurement.details.protocolConfig.protocolCase) {
         ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2 ->
           Llv2ProtocolConfig.minimumNumberOfRequiredDuchies
-
         ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
           RoLlv2ProtocolConfig.minimumNumberOfRequiredDuchies
-
         ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
           HmssProtocolConfig.requiredExternalDuchyIds.size
-
         ProtocolConfig.ProtocolCase.DIRECT,
-        ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
-        -> error("Invalid protocol.")
+        ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid protocol.")
       }
 
     val includedDuchyEntries =
@@ -241,8 +231,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields are never null.
     when (createMeasurementRequest.measurement.details.protocolConfig.protocolCase) {
       ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2,
-      ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2
-      -> {
+      ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
         // For each EDP, insert a Requisition.
         insertRequisitions(
           measurementConsumerId = measurementConsumerId,
@@ -252,7 +241,6 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
           initialRequisitionState = Requisition.State.PENDING_PARAMS,
         )
       }
-
       ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
         // For each EDP, insert a Requisition for each non-aggregator Duchy.
         insertRequisitions(
@@ -264,10 +252,8 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
           fulfillingDuchies = includedDuchyEntries.drop(1),
         )
       }
-
       ProtocolConfig.ProtocolCase.DIRECT,
-      ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
-      -> error("Invalid protocol,")
+      ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid protocol,")
     }
 
     return createMeasurementRequest.measurement.copy {
@@ -450,7 +436,8 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         .fillStatementBuilder {
           appendClause(whereClause)
           bind(params.MEASUREMENT_CONSUMER_ID to measurementConsumerId)
-          bind(params.CREATE_REQUEST_ID).toStringArray(createMeasurementRequests.map { it.requestId })
+          bind(params.CREATE_REQUEST_ID)
+            .toStringArray(createMeasurementRequests.map { it.requestId })
         }
         .execute(transactionContext)
         .collect { put(it.createRequestId, it.measurement) }
