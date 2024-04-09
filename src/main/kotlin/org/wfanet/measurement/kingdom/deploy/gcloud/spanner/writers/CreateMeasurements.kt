@@ -121,7 +121,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
             it.measurement.externalMeasurementConsumerCertificateId]
             ?: throw MeasurementConsumerCertificateNotFoundException(
               ExternalId(it.measurement.externalMeasurementConsumerId),
-              ExternalId(it.measurement.externalMeasurementId),
+              ExternalId(it.measurement.externalMeasurementConsumerCertificateId),
             )
 
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields are never null.
