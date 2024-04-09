@@ -37,6 +37,8 @@ import org.wfanet.measurement.common.toRange
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.measurement.gcloud.common.toInstant
 
+private const val MAX_VID_VALUE = 100000000 // 100 million
+
 /** Fulfill the query by querying the specified BigQuery table. */
 abstract class BigQueryEventQuery(
   private val bigQuery: BigQuery,
@@ -168,6 +170,10 @@ abstract class BigQueryEventQuery(
       get("vid").longValue,
       message,
     )
+  }
+
+  override fun getUserVirtualIdUniverse(): Sequence<Long> {
+    return (0L..MAX_VID_VALUE).asSequence()
   }
 
   companion object {

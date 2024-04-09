@@ -48,6 +48,9 @@ interface EventQuery<out T : Message> {
     return getLabeledEvents(eventGroupSpec).map { it.vid }
   }
 
+  /** Returns the virtual person ID universe represented by the [Sequence]. */
+  fun getUserVirtualIdUniverse(): Sequence<Long>
+
   companion object {
     private val TRUE_EVAL_RESULT = Program.newEvalResult(BoolT.True, null)
 

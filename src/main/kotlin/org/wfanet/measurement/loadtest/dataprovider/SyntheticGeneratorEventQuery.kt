@@ -63,4 +63,9 @@ abstract class SyntheticGeneratorEventQuery(
       )
       .filter { EventFilters.matches(it.message, program) }
   }
+
+  override fun getUserVirtualIdUniverse(): Sequence<Long> {
+    val vidRange = populationSpec.vidRange
+    return (vidRange.start until vidRange.endExclusive).asSequence()
+  }
 }
