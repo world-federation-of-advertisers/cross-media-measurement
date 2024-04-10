@@ -53,7 +53,10 @@ class InMemoryVidIndexMap(
   val size
     get() = indexMap.size
 
-  /** A map of a VID to its index in the [Frequency Vector]. */
+  /** The number of VIDs managed by this VidIndexMap */
+  val size get()=indexMap.size
+
+ /** A map of a VID to its index in the [Frequency Vector]. */
   private val indexMap = hashMapOf<Long, Int>()
 
   /**

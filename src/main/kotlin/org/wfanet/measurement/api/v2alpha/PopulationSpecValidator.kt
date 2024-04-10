@@ -165,12 +165,12 @@ object PopulationSpecValidator {
    * @param [indexMessage] is the message included in any validation error
    */
   private fun isVidRangeValid(vidRange: VidRange, indexMessage: String = "") : Boolean {
-    val errorCount = validationErrors.size
+    val errorCount = validationErrorsInternal.size
     if (vidRange.startVid <= 0) {
-      validationErrors.add(StartVidLessThanOrEqualToZeroError(indexMessage)) }
+      validationErrorsInternal.add(StartVidLessThanOrEqualToZeroError(indexMessage)) }
     if (vidRange.endVidInclusive < vidRange.startVid)  {
-      validationErrors.add(EndVidInclusiveLessThanVidStartError(indexMessage))
+      validationErrorsInternal.add(EndVidInclusiveLessThanVidStartError(indexMessage))
     }
-    return errorCount == validationErrors.size
+    return errorCount == validationErrorsInternal.size
   }
 }
