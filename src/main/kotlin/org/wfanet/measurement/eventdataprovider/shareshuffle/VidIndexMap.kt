@@ -75,11 +75,7 @@ class VidIndexMap(
    * @throws VidNotFoundException if the [vid] does not exist in the map
    */
   operator fun get(vid: Long): Int =
-    if (indexMap.containsKey(vid)) {
-      indexMap[vid]!!
-    } else {
-      throw VidNotFoundException(vid)
-    }
+    indexMap.getOrElse(vid) { throw VidNotFoundException(vid) }
 
   companion object {
     /** Hash a VID with SHA256 */
