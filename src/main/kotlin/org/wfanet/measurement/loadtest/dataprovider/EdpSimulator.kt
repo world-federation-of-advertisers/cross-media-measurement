@@ -825,6 +825,40 @@ class EdpSimulator(
     return sketch
   }
 
+  private fun logShareShuffleSketchDetails(sketch: IntArray) {
+    for (register in sketch) {
+      logger.log(Level.INFO) { "${register}" }
+    }
+  }
+
+  private fun generateShareShuffleSketch(
+    vidUniverse: List<Long>,
+    salt: ByteString,
+    vidToIndexMap: Map<Long, IndexedValue>,
+    measurementSpec: MeasurementSpec,
+    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
+  ): IntArray {
+
+    logger.info("Generating HMSS Sketch...")
+    val sketch =
+      ShareShuffleSketchGenerator(
+          vidUniverse,
+          salt,
+          vidToIndexMap,
+          eventQuery,
+          measurementSpec.vidSamplingInterval,
+        )
+        .generate(eventGroupSpecs)
+
+    logger.log(Level.INFO) { "Registers Size:\n${sketch.size}" }
+
+    if (logSketchDetails) {
+      logShareShuffleSketchDetails(sketch)
+    }
+
+    return sketch
+  }
+
   private fun encryptLiquidLegionsV2Sketch(
     sketch: Sketch,
     ellipticCurveId: Int,

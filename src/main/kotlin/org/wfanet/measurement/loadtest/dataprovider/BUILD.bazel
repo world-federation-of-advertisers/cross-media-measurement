@@ -140,6 +140,8 @@ kt_jvm_library(
     deps = [
         ":data_provider_simulator",
         ":event_query",
+        ":measurement_results",
+        ":share_shuffle_sketch_generator",
         ":sketch_encrypter",
         ":sketch_generator",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
@@ -296,6 +298,25 @@ java_image(
 )
 
 kt_jvm_library(
+    name = "vid_to_index_map_generator",
+    srcs = ["VidToIndexMapGenerator.kt"],
+    deps = [
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
+    ],
+)
+
+kt_jvm_library(
+    name = "share_shuffle_sketch_generator",
+    srcs = ["ShareShuffleSketchGenerator.kt"],
+    deps = [
+        ":event_query",
+        ":vid_to_index_map_generator",
+        "//src/main/kotlin/org/wfanet/measurement/common:sorted_lists",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
+    ],
+)
+      
+kt_jvm_library(
     name = "data_provider_simulator",
     srcs = ["DataProviderSimulator.kt"],
     deps = [
@@ -335,3 +356,4 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha/populations/testing:population_bucket_kt_jvm_proto",
     ],
 )
+

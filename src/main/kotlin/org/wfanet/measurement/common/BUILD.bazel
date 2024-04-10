@@ -12,3 +12,21 @@ kt_jvm_library(
     srcs = ["Flows.kt"],
     deps = ["@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core"],
 )
+
+kt_jvm_library(
+    name = "sorted_lists",
+    srcs = ["SortedLists.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
+    ],
+)
+
+kt_jvm_library(
+    name = "bitwise_operations",
+    srcs = ["BitwiseOperations.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
+    ],
+)
