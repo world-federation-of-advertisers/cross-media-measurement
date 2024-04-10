@@ -63,11 +63,11 @@ class BigQueryEdpSimulatorRunner : EdpSimulatorRunner() {
     private set
 
   @set:CommandLine.Option(
-    names = ["--vid-upper-bound"],
-    description = ["Upper bound (exclusive) of VID values."],
+    names = ["--max-vid-value"],
+    description = ["Max value (inclusive) of VIDs"],
     defaultValue = "100000000", // 100 million,
   )
-  var bigQueryVidUpperBound by Delegates.notNull<Long>()
+  var maxVidValue by Delegates.notNull<Long>()
     private set
 
   override fun run() {
@@ -79,7 +79,7 @@ class BigQueryEdpSimulatorRunner : EdpSimulatorRunner() {
         bigQueryDatasetName,
         bigQueryTableName,
         publisherId,
-        bigQueryVidUpperBound,
+        maxVidValue,
       )
 
     run(

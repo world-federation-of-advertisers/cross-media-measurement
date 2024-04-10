@@ -21,12 +21,12 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 typealias LabeledTestEvent = LabeledEvent<TestEvent>
 
-private const val DEFAULT_VID_VALUE_UPPER_BOUND = 10_000_000L
+private const val DEFAULT_MAX_VID_VALUE = 10_000_000L
 
 /** Fulfills the query with matching events using filters. */
 open class InMemoryEventQuery(
   private val labeledEvents: List<LabeledTestEvent>,
-  private val vidValueUpperBound: Long = DEFAULT_VID_VALUE_UPPER_BOUND,
+  private val maxVidValue: Long = DEFAULT_MAX_VID_VALUE,
 ) : EventQuery<TestEvent> {
   override fun getLabeledEvents(
     eventGroupSpec: EventQuery.EventGroupSpec
@@ -41,6 +41,6 @@ open class InMemoryEventQuery(
   }
 
   override fun getUserVirtualIdUniverse(): Sequence<Long> {
-    return (1L until vidValueUpperBound).asSequence()
+    return (1L..maxVidValue).asSequence()
   }
 }

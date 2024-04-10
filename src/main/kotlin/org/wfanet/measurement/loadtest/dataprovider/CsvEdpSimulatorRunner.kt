@@ -48,15 +48,15 @@ class CsvEdpSimulatorRunner : EdpSimulatorRunner() {
     private set
 
   @set:CommandLine.Option(
-    names = ["--vid-upper-bound"],
-    description = ["Upper bound (exclusive) of vid values."],
+    names = ["--max-vid-value"],
+    description = ["Max value (inclusive) of VIDs."],
     defaultValue = "10000000", // 10 million,
   )
-  var vidUpperBound by Delegates.notNull<Long>()
+  var maxVidValue by Delegates.notNull<Long>()
     private set
 
   override fun run() {
-    val eventQuery = CsvEventQuery(publisherId, eventsCsv, vidUpperBound)
+    val eventQuery = CsvEventQuery(publisherId, eventsCsv, maxVidValue)
     run(
       eventQuery,
       EdpSimulator.buildEventTemplates(TestEvent.getDescriptor()),
