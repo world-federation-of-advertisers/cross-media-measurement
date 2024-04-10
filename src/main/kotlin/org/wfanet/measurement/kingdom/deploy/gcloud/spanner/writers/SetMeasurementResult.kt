@@ -49,7 +49,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
   SpannerWriter<Measurement, Measurement>() {
 
   override suspend fun TransactionScope.runTransaction(): Measurement {
-    val (measurementConsumerId, measurementId, measurement) =
+    val (measurementConsumerId, measurementId, _, measurement) =
       MeasurementReader(Measurement.View.DEFAULT)
         .readByExternalComputationId(transactionContext, ExternalId(request.externalComputationId))
         ?: throw MeasurementNotFoundByComputationException(
