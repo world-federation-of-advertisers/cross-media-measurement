@@ -54,9 +54,10 @@ class InMemoryVidIndexMap(
     get() = indexMap.size
 
   /** The number of VIDs managed by this VidIndexMap */
-  val size get()=indexMap.size
+  val size
+    get() = indexMap.size
 
- /** A map of a VID to its index in the [Frequency Vector]. */
+  /** A map of a VID to its index in the [Frequency Vector]. */
   private val indexMap = hashMapOf<Long, Int>()
 
   /**
@@ -118,5 +119,4 @@ class InMemoryVidIndexMap(
       return Hashing.farmHashFingerprint64().hashBytes(hashInput.toByteArray()).asLong()
     }
   }
-
 }
