@@ -15,18 +15,16 @@ package org.wfanet.measurement.eventdataprovider.shareshuffle
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
-import java.math.BigInteger
 import java.nio.ByteOrder
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException
+import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.toByteString
-import org.wfanet.measurement.common.toLong
 
 @RunWith(JUnit4::class)
 class VidIndexMapTest {
@@ -42,16 +40,16 @@ class VidIndexMapTest {
         }
       }
     }
-    val exception = assertFailsWith<PopulationSpecValidationException>(
-      message = "Expected exception",
-      block = {
-        VidIndexMap(testPopulationSpec)
-      }
-    )
-    assertThat(exception.toString()).contains(
-    "The endVidInclusive of the range at 'SubpopulationIndex: 0 VidRangeIndex: 0' "
-    + "must be greater than or equal to the startVid.")
-
+    val exception =
+      assertFailsWith<PopulationSpecValidationException>(
+        message = "Expected exception",
+        block = { VidIndexMap(testPopulationSpec) },
+      )
+    assertThat(exception.toString())
+      .contains(
+        "The endVidInclusive of the range at 'SubpopulationIndex: 0 VidRangeIndex: 0' " +
+          "must be greater than or equal to the startVid."
+      )
   }
 
   @Test
@@ -98,15 +96,16 @@ class VidIndexMapTest {
     val salt = 100L
     val hashFunction = { vid: Long, localSalt: ByteString ->
       assertThat(localSalt).isEqualTo(salt.toByteString(ByteOrder.BIG_ENDIAN))
-      vid.toByteString(ByteOrder.BIG_ENDIAN)}
+      vid.toByteString(ByteOrder.BIG_ENDIAN)
+    }
 
-    val vidIndexMap = VidIndexMap(
-      testPopulationSpec, salt.toByteString(ByteOrder.BIG_ENDIAN), hashFunction)
+    val vidIndexMap =
+      VidIndexMap(testPopulationSpec, salt.toByteString(ByteOrder.BIG_ENDIAN), hashFunction)
 
     val vidCount = 10L
     assertThat(vidIndexMap.size).isEqualTo(vidCount)
     for (i in 1..vidCount) {
-      assertThat(vidIndexMap[i]).isEqualTo(i-1)
+      assertThat(vidIndexMap[i]).isEqualTo(i - 1)
     }
   }
 }
