@@ -27,21 +27,22 @@ class VidNotFoundException(vid: Long) : Exception("Failed to find VID $vid.")
 /**
  * A mapping of VIDs to [FrequencyVector] indexes for a [PopulationSpec].
  *
- * @param [salt] If provided, this value is append to the VID before hashing it
- * and will alter the indexes of the VIDs.
+ * @param [salt] If provided, this value is append to the VID before hashing it and will alter the
+ *   indexes of the VIDs.
  * @param [hashFunction] The hash function to use for hashing VIDs. Default is recommended.
- *
  * @constructor Creates a [VidIndexMap] for the given [PopulationSpec]
  */
 class VidIndexMap(
   populationSpec: PopulationSpec,
-  private val salt : ByteString = ByteString.EMPTY,
-  private val hashFunction : (Long, ByteString) -> ByteString = ::hashVidSha256) {
+  private val salt: ByteString = ByteString.EMPTY,
+  private val hashFunction: (Long, ByteString) -> ByteString = ::hashVidSha256,
+) {
 
   /** The number of VIDs managed by this VidIndexMap */
-  val size get()=indexMap.size
+  val size
+    get() = indexMap.size
 
- /** A map of a VID to its index in the [Frequency Vector]. */
+  /** A map of a VID to its index in the [Frequency Vector]. */
   private val indexMap = hashMapOf<Long, Int>()
 
   init {
@@ -51,7 +52,7 @@ class VidIndexMap(
 
     for (subPop in populationSpec.subpopulationsList) {
       for (range in subPop.vidRangesList) {
-        for (vid in range.startVid.. range.endVidInclusive) {
+        for (vid in range.startVid..range.endVidInclusive) {
           val hash = BigInteger(1, hashFunction(vid, salt).toByteArray())
           hashes.add(Pair(vid, hash))
         }
@@ -70,23 +71,18 @@ class VidIndexMap(
    *
    * @throws VidNotFoundException if the [vid] does not exist in the map
    */
-  operator fun get(vid: Long) : Int =
+  operator fun get(vid: Long): Int =
     if (indexMap.containsKey(vid)) {
       indexMap[vid]!!
     } else {
       throw VidNotFoundException(vid)
     }
 
-
-
   companion object {
-    /**
-     * Hash a VID with SHA256
-     */
-    fun hashVidSha256(vid: Long, salt: ByteString=ByteString.EMPTY): ByteString {
+    /** Hash a VID with SHA256 */
+    fun hashVidSha256(vid: Long, salt: ByteString = ByteString.EMPTY): ByteString {
       val hashInput = vid.toByteString(ByteOrder.BIG_ENDIAN).concat(salt)
       return Hashing.hashSha256(hashInput)
     }
   }
-
 }
