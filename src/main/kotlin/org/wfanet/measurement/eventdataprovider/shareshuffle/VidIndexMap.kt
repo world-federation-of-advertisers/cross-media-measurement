@@ -18,7 +18,9 @@ import com.google.protobuf.ByteString
 import java.math.BigInteger
 import java.nio.ByteOrder
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator
+import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator.validateVidRangesList
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.toByteString
 
@@ -47,7 +49,7 @@ class VidIndexMap(
   private val indexMap = hashMapOf<Long, Int>()
 
   init {
-    PopulationSpecValidator.validateVidRangesList(populationSpec)
+    validateVidRangesList(populationSpec).getOrThrow()
 
     val hashes = mutableListOf<Pair<Long, BigInteger>>()
 
