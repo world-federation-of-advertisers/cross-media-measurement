@@ -157,21 +157,19 @@ object PopulationSpecValidator {
   }
 
   /**
-   * Returns true if the range is valid.
-   *
-   * Any [PopulationSpecValidationError]s are appended to [validationErrors].
+   * Validate a [VidRange]
    *
    * @param [vidRange] is the range to validate
-   * @param [indexMessage] is the message included in any validation error
+   * @return If invalid, a non-empty [List<Error>], or an empty list if valid.
    */
-  private fun isVidRangeValid(vidRange: VidRange, indexMessage: String = ""): Boolean {
-    val errorCount = validationErrorsInternal.size
+  private fun validateVidRange(vidRange: VidRange, indexMessage: String = ""): List<Error> {
+    val errors = mutableListOf<Error>()
     if (vidRange.startVid <= 0) {
-      validationErrorsInternal.add(StartVidLessThanOrEqualToZeroError(indexMessage))
+      errors.add(StartVidNotPositiveError(indexMessage))
     }
     if (vidRange.endVidInclusive < vidRange.startVid) {
-      validationErrorsInternal.add(EndVidInclusiveLessThanVidStartError(indexMessage))
+      errors.add(EndVidInclusiveLessThanVidStartError(indexMessage))
     }
-    return errorCount == validationErrorsInternal.size
+    return errors
   }
 }
