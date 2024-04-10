@@ -33,10 +33,11 @@ class PopulationSpecValidatorTest {
         }
       }
     }
-    val validator = PopulationSpecValidator(testPopulationSpec)
-    assertThat(validator.isVidRangesListValid()).isFalse()
-    assertThat(validator.validationErrors.size).isEqualTo(1)
-    assertThat(validator.validationErrors[0].toString())
+    val result = PopulationSpecValidator.validateVidRangesList(testPopulationSpec)
+    val exception = result.exceptionOrNull() as PopulationSpecValidationException
+    assertThat(exception).isNotNull()
+    assertThat(exception.errors.size).isEqualTo(1)
+    assertThat(exception.errors[0].toString())
       .isEqualTo(
         "The endVidInclusive of the range at 'SubpopulationIndex: 0 VidRangeIndex: 0' " +
           "must be greater than or equal to the startVid."
@@ -53,10 +54,11 @@ class PopulationSpecValidatorTest {
         }
       }
     }
-    val validator = PopulationSpecValidator(testPopulationSpec)
-    assertThat(validator.isVidRangesListValid()).isFalse()
-    assertThat(validator.validationErrors.size).isEqualTo(1)
-    assertThat(validator.validationErrors[0].toString())
+    val result = PopulationSpecValidator.validateVidRangesList(testPopulationSpec)
+    val exception = result.exceptionOrNull() as PopulationSpecValidationException
+    assertThat(exception).isNotNull()
+    assertThat(exception.errors.size).isEqualTo(1)
+    assertThat(exception.errors[0].toString())
       .isEqualTo(
         "The startVid of the range at 'SubpopulationIndex: 0 VidRangeIndex: 0' " +
           "must be greater than zero."
@@ -79,10 +81,11 @@ class PopulationSpecValidatorTest {
         }
       }
     }
-    val validator = PopulationSpecValidator(testPopulationSpec)
-    assertThat(validator.isVidRangesListValid()).isFalse()
-    assertThat(validator.validationErrors.size).isEqualTo(1)
-    assertThat(validator.validationErrors[0].toString())
+    val result = PopulationSpecValidator.validateVidRangesList(testPopulationSpec)
+    val exception = result.exceptionOrNull() as PopulationSpecValidationException
+    assertThat(exception).isNotNull()
+    assertThat(exception.errors.size).isEqualTo(1)
+    assertThat(exception.errors[0].toString())
       .isEqualTo(
         "The ranges at 'SubpopulationIndex: 0 VidRangeIndex: 0' and 'SubpopulationIndex: 1 " +
           "VidRangeIndex: 0' must be disjoint."
@@ -117,46 +120,23 @@ class PopulationSpecValidatorTest {
         }
       }
     }
-    val validator = PopulationSpecValidator(testPopulationSpec)
-    assertThat(validator.isVidRangesListValid()).isFalse()
-    assertThat(validator.validationErrors.size).isEqualTo(2)
-    assertThat(validator.validationErrors[0].toString())
+    val result = PopulationSpecValidator.validateVidRangesList(testPopulationSpec)
+    val exception = result.exceptionOrNull() as PopulationSpecValidationException
+    assertThat(exception).isNotNull()
+    assertThat(exception.errors.size).isEqualTo(2)
+    assertThat(exception.errors[0].toString())
       .isEqualTo(
         "The startVid of the range at 'SubpopulationIndex: 0 VidRangeIndex: 0' " +
           "must be greater than zero."
       )
-    assertThat(validator.validationErrors[1].toString())
+    assertThat(exception.errors[1].toString())
       .isEqualTo(
         "The ranges at 'SubpopulationIndex: 0 VidRangeIndex: 1' and 'SubpopulationIndex: " +
           "1 VidRangeIndex: 0' must be disjoint."
       )
   }
 
-  @Test
-  fun `validatePopulationSpec throws on validation error`() {
-    val testPopulationSpec = populationSpec {
-      subpopulations += subPopulation {
-        vidRanges += vidRange {
-          startVid = 2
-          endVidInclusive = 1
-        }
-      }
-    }
-    val exception =
-      assertFailsWith<PopulationSpecValidationException>(
-        message = "Expected exception",
-        block = { PopulationSpecValidator.validateVidRangesList(testPopulationSpec) },
-      )
-    assertThat(exception.errors.size).isEqualTo(1)
-    assertThat(exception.toString()).contains("Invalid PopulationSpec.")
-    assertThat(exception.toString())
-      .contains(
-        "The endVidInclusive of the range at 'SubpopulationIndex: 0 VidRangeIndex: 0' " +
-          "must be greater than or equal to the startVid."
-      )
-  }
-
-  @Test
+ @Test
   fun `valid vidRange is valid`() {
     val testPopulationSpec = populationSpec {
       subpopulations += subPopulation {
@@ -176,10 +156,6 @@ class PopulationSpecValidatorTest {
         }
       }
     }
-    val validator = PopulationSpecValidator(testPopulationSpec)
-    assertThat(validator.isVidRangesListValid()).isTrue()
-
-    // Additionally this method should not throw anything.
-    PopulationSpecValidator.validateVidRangesList(testPopulationSpec)
+    assertThat(PopulationSpecValidator.validateVidRangesList(testPopulationSpec).getOrNull()).isTrue()
   }
 }
