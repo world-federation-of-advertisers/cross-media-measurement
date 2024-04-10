@@ -14,7 +14,6 @@
 package org.wfanet.measurement.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
-import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -136,7 +135,7 @@ class PopulationSpecValidatorTest {
       )
   }
 
- @Test
+  @Test
   fun `valid vidRange is valid`() {
     val testPopulationSpec = populationSpec {
       subpopulations += subPopulation {
@@ -156,6 +155,7 @@ class PopulationSpecValidatorTest {
         }
       }
     }
-    assertThat(PopulationSpecValidator.validateVidRangesList(testPopulationSpec).getOrNull()).isTrue()
+    assertThat(PopulationSpecValidator.validateVidRangesList(testPopulationSpec).getOrNull())
+      .isTrue()
   }
 }
