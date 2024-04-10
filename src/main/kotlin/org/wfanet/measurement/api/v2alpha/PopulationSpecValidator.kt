@@ -14,7 +14,7 @@
 
 package org.wfanet.measurement.api.v2alpha
 
-import java.util.*
+import java.util.Collections
 import org.wfanet.measurement.api.v2alpha.PopulationSpec.VidRange
 
 /** An exception that encapsulates a list of validation errors. */
@@ -32,8 +32,8 @@ class PopulationSpecValidationException(
   }
 }
 
-/** Base class for the errors reported by the [PopulationSpecValidator] */
-abstract class PopulationSpecValidationError
+/** Common interface for the errors reported by the [PopulationSpecValidator] */
+interface PopulationSpecValidationError
 
 /**
  * Indicates that a pair of [VidRange]s are not disjoint.
@@ -44,29 +44,29 @@ abstract class PopulationSpecValidationError
 data class VidRangesNotDisjointError(
   val firstIndexMessage: String,
   val secondIndexMessage: String,
-) : PopulationSpecValidationError() {
+) : PopulationSpecValidationError {
   override fun toString(): String {
     return "The ranges at '$firstIndexMessage' and '$secondIndexMessage' must be disjoint."
   }
 }
 
 /**
- * Indicates that the [VidRange.startVid] of the [VidRange] described by indexMessage is less than
+ * Indicates that the [VidRange.startVid] described by indexMessage is less than
  * or equal to zero.
  */
 data class StartVidLessThanOrEqualToZeroError(val indexMessage: String) :
-  PopulationSpecValidationError() {
+  PopulationSpecValidationError {
   override fun toString(): String {
     return "The startVid of the range at '$indexMessage' must be greater than zero."
   }
 }
 
 /**
- * Indicates that the [VidRange.startVid] of the [VidRange] described by the indexMessage is less
- * than or equal to zero.
+ * Indicates that [VidRange.endVidInclusive] is less than [VidRange.startVid] for the [VidRange]
+ * described by the indexMessage.
  */
 data class EndVidInclusiveLessThanVidStartError(val indexMessage: String) :
-  PopulationSpecValidationError() {
+  PopulationSpecValidationError {
   override fun toString(): String {
     return "The endVidInclusive of the range at '$indexMessage' must be greater than or equal to the startVid."
   }
@@ -107,14 +107,13 @@ class PopulationSpecValidator(val populationSpec: PopulationSpec) {
    * Any [PopulationSpecValidationError]s are appended to [validationErrors].
    *
    * @return [true] if the ranges in the [PopulationSpec] are valid.
-   * @throws
    */
   fun isVidRangesListValid(): Boolean {
     val errorCount = validationErrorsInternal.size
     val validVidRanges = mutableListOf<Pair<VidRange, String>>()
 
     // Validate ranges individually and make a list of the valid ones including an
-    // index message. This is required both in and of itself and for checking disjointness.
+    // index message. Invalid ranges are omitted from the disjointness check.
     for ((subpopulationIndex, subpopulation) in populationSpec.subpopulationsList.withIndex()) {
       for ((vidRangeIndex, vidRange) in subpopulation.vidRangesList.withIndex()) {
         val indexMessage = "SubpopulationIndex: $subpopulationIndex VidRangeIndex: $vidRangeIndex"
