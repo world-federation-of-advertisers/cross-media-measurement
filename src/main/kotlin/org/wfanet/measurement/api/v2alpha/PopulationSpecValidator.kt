@@ -14,14 +14,11 @@
 
 package org.wfanet.measurement.api.v2alpha
 
-import java.util.Collections
 import org.wfanet.measurement.api.v2alpha.PopulationSpec.VidRange
 
 /** An exception that encapsulates a list of validation errors. */
-class PopulationSpecValidationException(
-  message: String,
-  val errors: List<Error>,
-) : Exception(message) {
+class PopulationSpecValidationException(message: String, val errors: List<Error>) :
+  Exception(message) {
   override fun toString(): String {
     return buildString {
       appendLine(super.toString())
@@ -50,8 +47,7 @@ data class VidRangesNotDisjointError(
 /**
  * Indicates that the [VidRange.startVid] described by indexMessage is less than or equal to zero.
  */
-data class StartVidNotPositiveError(val indexMessage: String) :
-  Error() {
+data class StartVidNotPositiveError(val indexMessage: String) : Error() {
   override fun toString(): String {
     return "The startVid of the range at '$indexMessage' must be greater than zero."
   }
@@ -61,8 +57,7 @@ data class StartVidNotPositiveError(val indexMessage: String) :
  * Indicates that [VidRange.endVidInclusive] is less than [VidRange.startVid] for the [VidRange]
  * described by the indexMessage.
  */
-data class EndVidInclusiveLessThanVidStartError(val indexMessage: String) :
-  Error() {
+data class EndVidInclusiveLessThanVidStartError(val indexMessage: String) : Error() {
   override fun toString(): String {
     return "The endVidInclusive of the range at '$indexMessage' must be greater than or equal to the startVid."
   }
@@ -76,7 +71,7 @@ object PopulationSpecValidator {
    * the [VidRange]s are disjoint.
    *
    * @return Result<Boolean> that is true upon success or contains a
-   * [PopulationSpecValidationException] on failure.
+   *   [PopulationSpecValidationException] on failure.
    */
   fun validateVidRangesList(populationSpec: PopulationSpec): Result<Boolean> {
     val errors = mutableListOf<Error>()
@@ -102,17 +97,15 @@ object PopulationSpecValidator {
       for ((currentVidRange, currentIndexMessage) in
         validVidRanges.slice(1..validVidRanges.lastIndex)) {
         if (previousVidRange.endVidInclusive >= currentVidRange.startVid) {
-          errors.add(
-            VidRangesNotDisjointError(previousIndexMessage, currentIndexMessage)
-          )
+          errors.add(VidRangesNotDisjointError(previousIndexMessage, currentIndexMessage))
         }
         previousVidRange = currentVidRange
         previousIndexMessage = currentIndexMessage
       }
     }
     return when (errors.isEmpty()) {
-      true->Result.success(true)
-      false->Result.failure(PopulationSpecValidationException("Invalid Population Spec.", errors))
+      true -> Result.success(true)
+      false -> Result.failure(PopulationSpecValidationException("Invalid Population Spec.", errors))
     }
   }
 

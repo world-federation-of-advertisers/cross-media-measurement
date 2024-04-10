@@ -19,7 +19,6 @@ import java.math.BigInteger
 import java.nio.ByteOrder
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException
-import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator.validateVidRangesList
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.toByteString
@@ -74,8 +73,7 @@ class VidIndexMap(
    *
    * @throws VidNotFoundException if the [vid] does not exist in the map
    */
-  operator fun get(vid: Long): Int =
-    indexMap.getOrElse(vid) { throw VidNotFoundException(vid) }
+  operator fun get(vid: Long): Int = indexMap.getOrElse(vid) { throw VidNotFoundException(vid) }
 
   companion object {
     /** Hash a VID with SHA256 */
