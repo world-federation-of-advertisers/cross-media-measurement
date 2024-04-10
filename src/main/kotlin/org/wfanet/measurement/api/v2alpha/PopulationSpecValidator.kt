@@ -51,8 +51,7 @@ data class VidRangesNotDisjointError(
 }
 
 /**
- * Indicates that the [VidRange.startVid] described by indexMessage is less than
- * or equal to zero.
+ * Indicates that the [VidRange.startVid] described by indexMessage is less than or equal to zero.
  */
 data class StartVidLessThanOrEqualToZeroError(val indexMessage: String) :
   PopulationSpecValidationError {
