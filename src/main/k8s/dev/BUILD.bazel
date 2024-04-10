@@ -120,6 +120,9 @@ cue_dump(
         "google_cloud_project": GCLOUD_SETTINGS.project,
         "spanner_instance": GCLOUD_SETTINGS.spanner_instance,
         "kingdom_system_api_target": KINGDOM_K8S_SETTINGS.system_api_target,
+        "aggregator_system_api_target": DUCHY_K8S_SETTINGS.aggregator_system_api_target,
+        "worker1_system_api_target": DUCHY_K8S_SETTINGS.worker1_system_api_target,
+        "worker2_system_api_target": DUCHY_K8S_SETTINGS.worker2_system_api_target,
     },
     tags = ["manual"],
     deps = [
@@ -145,6 +148,9 @@ cue_dump(
         "google_cloud_project": GCLOUD_SETTINGS.project,
         "spanner_instance": GCLOUD_SETTINGS.spanner_instance,
         "kingdom_system_api_target": KINGDOM_K8S_SETTINGS.system_api_target,
+        "aggregator_system_api_target": DUCHY_K8S_SETTINGS.aggregator_system_api_target,
+        "worker1_system_api_target": DUCHY_K8S_SETTINGS.worker1_system_api_target,
+        "worker2_system_api_target": DUCHY_K8S_SETTINGS.worker2_system_api_target,
     },
     tags = ["manual"],
     deps = [
@@ -170,6 +176,9 @@ cue_dump(
         "google_cloud_project": GCLOUD_SETTINGS.project,
         "spanner_instance": GCLOUD_SETTINGS.spanner_instance,
         "kingdom_system_api_target": KINGDOM_K8S_SETTINGS.system_api_target,
+        "aggregator_system_api_target": DUCHY_K8S_SETTINGS.aggregator_system_api_target,
+        "worker1_system_api_target": DUCHY_K8S_SETTINGS.worker1_system_api_target,
+        "worker2_system_api_target": DUCHY_K8S_SETTINGS.worker2_system_api_target,
     },
     tags = ["manual"],
     deps = [
@@ -199,6 +208,9 @@ cue_dump(
         "s3_region": AWS_SETTINGS.s3_region,
         "computation_control_server_eips": AWS_SETTINGS.computation_control_server_eips,
         "kingdom_system_api_target": KINGDOM_K8S_SETTINGS.system_api_target,
+        "aggregator_system_api_target": DUCHY_K8S_SETTINGS.aggregator_system_api_target,
+        "worker1_system_api_target": DUCHY_K8S_SETTINGS.worker1_system_api_target,
+        "worker2_system_api_target": DUCHY_K8S_SETTINGS.worker2_system_api_target,
     },
     tags = ["manual"],
     deps = [
@@ -260,6 +272,7 @@ kustomization_dir(
 
 kustomization_dir(
     name = "aggregator_duchy",
+    testonly = True,
     srcs = [
         "resource_requirements.yaml",
         ":aggregator_duchy_gke",
@@ -274,6 +287,7 @@ kustomization_dir(
 
 kustomization_dir(
     name = "worker1_duchy",
+    testonly = True,
     srcs = [
         "resource_requirements.yaml",
         ":worker1_duchy_gke",
@@ -288,6 +302,7 @@ kustomization_dir(
 
 kustomization_dir(
     name = "worker2_duchy",
+    testonly = True,
     srcs = [
         "resource_requirements.yaml",
         ":worker2_duchy_gke",
@@ -302,6 +317,7 @@ kustomization_dir(
 
 kustomization_dir(
     name = "worker2_duchy_aws",
+    testonly = True,
     srcs = [
         "resource_requirements.yaml",
         ":worker2_duchy_eks",
@@ -512,8 +528,12 @@ kustomization_dir(
 cue_dump(
     name = "open_telemetry_gke",
     srcs = ["open_telemetry_gke.cue"],
+    cue_tags = {
+        "google_cloud_project": GCLOUD_SETTINGS.project,
+    },
     tags = ["manual"],
     deps = [
+        ":config_gke",
         "//src/main/k8s:open_telemetry",
     ],
 )
