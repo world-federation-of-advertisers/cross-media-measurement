@@ -21,7 +21,7 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 typealias LabeledTestEvent = LabeledEvent<TestEvent>
 
-private const val DEFAULT_VID_VALUE_UPPER_BOUND = 10000000L // 10 million
+private const val DEFAULT_VID_VALUE_UPPER_BOUND = 10_000_000L
 
 /** Fulfills the query with matching events using filters. */
 open class InMemoryEventQuery(

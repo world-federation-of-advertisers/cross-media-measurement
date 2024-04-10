@@ -37,7 +37,7 @@ import org.wfanet.measurement.common.toRange
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.measurement.gcloud.common.toInstant
 
-private const val DEFAULT_VID_VALUE_UPPER_BOUND = 100000000L // 100 million
+private const val DEFAULT_VID_VALUE_UPPER_BOUND = 100_000_000L
 
 /** Fulfill the query by querying the specified BigQuery table. */
 abstract class BigQueryEventQuery(

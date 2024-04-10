@@ -63,8 +63,8 @@ class BigQueryEdpSimulatorRunner : EdpSimulatorRunner() {
     private set
 
   @set:CommandLine.Option(
-    names = ["--big-query-vid-upper-bound"],
-    description = ["Upper bound (exclusive) of vid values."],
+    names = ["--vid-upper-bound"],
+    description = ["Upper bound (exclusive) of VID values."],
     defaultValue = "100000000", // 100 million,
   )
   var bigQueryVidUpperBound by Delegates.notNull<Long>()
