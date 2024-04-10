@@ -28,7 +28,6 @@ import com.google.type.timeZone
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
-import java.util.UUID
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.toList
@@ -817,7 +816,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         val reportingSet = createdReportingSetsByExternalId.getValue(entry.key)
 
         entry.value.metricCalculationSpecReportingMetricsList.flatMap {
-            metricCalculationSpecReportingMetrics ->
+          metricCalculationSpecReportingMetrics ->
           val metricCalculationSpecFilter =
             createdMetricCalculationSpecsByExternalId
               .getValue(metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId)
@@ -837,22 +836,27 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         }
       }
 
-    val metrics = metricsService.batchCreateMetrics(
-      batchCreateMetricsRequest {
-        cmmsMeasurementConsumerId = createdReport.cmmsMeasurementConsumerId
-        requests += createMetricsRequests
-      }
-    ).metricsList
+    val metrics =
+      metricsService
+        .batchCreateMetrics(
+          batchCreateMetricsRequest {
+            cmmsMeasurementConsumerId = createdReport.cmmsMeasurementConsumerId
+            requests += createMetricsRequests
+          }
+        )
+        .metricsList
 
     var i = 0
     val batchSetCmmsMeasurementIdsRequest = batchSetCmmsMeasurementIdsRequest {
       cmmsMeasurementConsumerId = createdReport.cmmsMeasurementConsumerId
       for (metric in metrics) {
         for (weightedMeasurement in metric.weightedMeasurementsList) {
-          measurementIds += BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-            cmmsCreateMeasurementRequestId = weightedMeasurement.measurement.cmmsCreateMeasurementRequestId
-            cmmsMeasurementId = "${i++}"
-          }
+          measurementIds +=
+            BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+              cmmsCreateMeasurementRequestId =
+                weightedMeasurement.measurement.cmmsCreateMeasurementRequestId
+              cmmsMeasurementId = "${i++}"
+            }
         }
       }
     }
@@ -863,12 +867,11 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       cmmsMeasurementConsumerId = createdReport.cmmsMeasurementConsumerId
       for (metric in metrics) {
         for (weightedMeasurement in metric.weightedMeasurementsList) {
-          measurementFailures += BatchSetMeasurementFailuresRequestKt.measurementFailure {
-            cmmsMeasurementId = "${i++}"
-            failure = MeasurementKt.failure {
-              message = "failed"
+          measurementFailures +=
+            BatchSetMeasurementFailuresRequestKt.measurementFailure {
+              cmmsMeasurementId = "${i++}"
+              failure = MeasurementKt.failure { message = "failed" }
             }
-          }
         }
       }
     }
@@ -884,7 +887,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
 
     for (entry in report2.reportingMetricEntriesMap.entries) {
       for (metricCalculationSpecReportingMetrics in
-      entry.value.metricCalculationSpecReportingMetricsList) {
+        entry.value.metricCalculationSpecReportingMetricsList) {
         for (reportingMetric in metricCalculationSpecReportingMetrics.reportingMetricsList) {
           assertThat(reportingMetric.externalMetricId).isEmpty()
         }

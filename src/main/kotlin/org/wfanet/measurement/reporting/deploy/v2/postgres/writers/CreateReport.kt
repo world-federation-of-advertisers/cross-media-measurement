@@ -173,23 +173,24 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
     // Retrieve existing metrics and group by `MetricCalculationSpecReportingMetricKey`
     val reportingMetricMap:
       Map<MetricCalculationSpecReportingMetricKey, MetricReader.ReportingMetric> =
-        buildMap {
-          MetricReader(transactionContext)
-            .readReportingMetricsByReportingMetricKey(measurementConsumerId, reportingMetricKeys)
-            .collect {
-              val key = MetricCalculationSpecReportingMetricKey(
+      buildMap {
+        MetricReader(transactionContext)
+          .readReportingMetricsByReportingMetricKey(measurementConsumerId, reportingMetricKeys)
+          .collect {
+            val key =
+              MetricCalculationSpecReportingMetricKey(
                 it.reportingMetricKey.reportingSetId,
                 it.reportingMetricKey.timeInterval,
                 it.reportingMetricKey.metricCalculationSpecId,
                 it.metricSpec,
                 it.metricDetails,
               )
-              val oldValue: MetricReader.ReportingMetric? = get(key)
-              if (oldValue == null || it.createTime.isAfter(oldValue.createTime)) {
-                put(key, it)
-              }
+            val oldValue: MetricReader.ReportingMetric? = get(key)
+            if (oldValue == null || it.createTime.isAfter(oldValue.createTime)) {
+              put(key, it)
             }
-        }
+          }
+      }
 
     val reportId = idGenerator.generateInternalId()
     val externalReportId = request.externalReportId
@@ -309,8 +310,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
     report: Report,
     reportingSetIdsByExternalId: Map<String, InternalId>,
     metricCalculationSpecsByExternalId: Map<String, MetricCalculationSpecReader.Result>,
-    reportingMetricMap:
-      Map<MetricCalculationSpecReportingMetricKey, MetricReader.ReportingMetric>,
+    reportingMetricMap: Map<MetricCalculationSpecReportingMetricKey, MetricReader.ReportingMetric>,
   ): ReportingMetricEntriesAndStatement {
     val updatedReportingMetricEntries =
       mutableMapOf<String, Report.ReportingMetricCalculationSpec>()
@@ -356,11 +356,15 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
                   metricCalculationSpecResult.metricCalculationSpecId,
                   it.details.metricSpec,
                   MetricKt.details {
-                    filters += (it.details.groupingPredicatesList + metricCalculationSpecResult.metricCalculationSpec.details.filter).filter { filter -> filter.isNotBlank() }
-                  }
+                    filters +=
+                      (it.details.groupingPredicatesList +
+                          metricCalculationSpecResult.metricCalculationSpec.details.filter)
+                        .filter { filter -> filter.isNotBlank() }
+                  },
                 )
 
-              val existingReportingMetric: MetricReader.ReportingMetric? = reportingMetricMap[metricCalculationSpecReportingMetricKey]
+              val existingReportingMetric: MetricReader.ReportingMetric? =
+                reportingMetricMap[metricCalculationSpecReportingMetricKey]
 
               val metricId: InternalId?
               val createMetricRequestId =
