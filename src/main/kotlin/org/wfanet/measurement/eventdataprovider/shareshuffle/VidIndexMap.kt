@@ -27,12 +27,11 @@ class VidNotFoundException(vid: Long) : Exception("Failed to find VID $vid.")
 /**
  * A mapping of VIDs to [FrequencyVector] indexes for a [PopulationSpec].
  *
- * @constructor Creates a [VidIndexMap] for the given [PopulationSpec]
  * @param[populationSpec] The [PopulationSpec] to build the map for.
  * @param [salt] If provided, this value is appended to the VID before hashing.
  * @param [hashFunction] The hash function to use for hashing VIDs. Default is recommended.
+ * @constructor Creates a [VidIndexMap] for the given [PopulationSpec]
  * @throws [PopulationSpecValidationException] if the [populationSpec] is invalid
- *
  */
 class VidIndexMap(
   populationSpec: PopulationSpec,
