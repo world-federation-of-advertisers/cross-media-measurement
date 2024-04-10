@@ -43,3 +43,6 @@ databaseChangeLog:
 - include:
     file: add-state-column-to-metrics.sql
     relativeToChangeLogFile: true
+- include:
+    file: add-indexes-for-metric-reuse.sql
+    relativeToChangeLogFile: true
