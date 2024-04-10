@@ -37,6 +37,6 @@
 --           └── MetricCalculationSpecReportingMetrics
 
 -- changeset tristanvuong2021:add-metric-calculation-spec-reporting-metrics-update-index dbms:postgresl
--- comment index is for updating the rows in the table when inserting rows in Metrics
+-- comment: index is for updating the rows in the table when inserting rows in Metrics
 CREATE INDEX metric_calculation_spec_reporting_metrics_create_metric_request_id
   ON MetricCalculationSpecReportingMetrics (MeasurementConsumerId, CreateMetricRequestId);
