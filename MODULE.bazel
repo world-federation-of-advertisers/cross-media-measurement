@@ -3,6 +3,8 @@ module(
     repo_name = "wfa_measurement_system",
 )
 
+PROTOBUF_JAVA_VERSION = "3.23.4"
+
 OPENTELEMETRY_JAVA_VERSION = "1.32.0"
 
 PROJECTNESSIE_CEL_VERSION = "0.3.11"
@@ -106,11 +108,6 @@ bazel_dep(
 bazel_dep(
     name = "bazel_jar_jar",
     version = "0.1.0",
-)
-bazel_dep(
-    name = "grpc-java",
-    version = "1.62.2",
-    repo_name = "io_grpc_grpc_java",
 )
 
 # WFA registry modules.
@@ -228,13 +225,31 @@ maven.install(
         "org.projectnessie.cel:cel-generated-pb:" + PROJECTNESSIE_CEL_VERSION,
         "org.slf4j:slf4j-simple:1.7.32",
         "software.amazon.awssdk:acmpca:2.17.258",
+        "com.google.protobuf:protobuf-java:" + PROTOBUF_JAVA_VERSION,
+        "com.google.protobuf:protobuf-kotlin:" + PROTOBUF_JAVA_VERSION,
+        "com.google.guava:failureaccess:1.0.2",
+        "com.google.guava:guava:33.0.0-jre",
+        "org.apache.tomcat:annotations-api:6.0.53",
+        "com.google.api.grpc:proto-google-common-protos:2.34.0",
     ],
+    generate_compat_repositories = True,
     fail_if_repin_required = True,
     fetch_sources = True,  # For IDE integration.
     lock_file = "//:maven_install.json",
     strict_visibility = True,
 )
-use_repo(maven, "maven", "unpinned_maven")
+use_repo(
+    maven,
+    "com_google_guava_guava",
+    "com_google_api_grpc_proto_google_common_protos",
+    "com_google_j2objc_j2objc_annotations",
+    "com_google_guava_failureaccess",
+    "com_google_code_findbugs_jsr305",
+    "com_google_errorprone_error_prone_annotations",
+    "org_apache_tomcat_annotations_api",
+    "maven",
+
+)
 
 npm = use_extension("@aspect_rules_js//npm:extensions.bzl", "npm")
 npm.npm_translate_lock(
