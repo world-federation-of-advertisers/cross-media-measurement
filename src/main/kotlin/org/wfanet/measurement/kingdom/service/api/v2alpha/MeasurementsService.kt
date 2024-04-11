@@ -673,7 +673,9 @@ private fun MeasurementSpec.validate() {
         "Reach privacy params are invalid"
       }
 
-      grpcRequire(vidSamplingInterval.width > 0) { "Vid sampling interval is unspecified" }
+      grpcRequire(vidSamplingInterval.width > 0 && vidSamplingInterval.width <= 1.0) {
+        "Vid sampling interval is invalid"
+      }
     }
     MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
       grpcRequire(reachAndFrequency.reachPrivacyParams.hasValidEpsilonAndDelta()) {
@@ -687,7 +689,9 @@ private fun MeasurementSpec.validate() {
         "maximum_frequency must be greater than 1"
       }
 
-      grpcRequire(vidSamplingInterval.width > 0) { "Vid sampling interval is unspecified" }
+      grpcRequire(vidSamplingInterval.width > 0 && vidSamplingInterval.width <= 1.0) {
+        "Vid sampling interval is invalid"
+      }
     }
     MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
       grpcRequire(impression.privacyParams.hasValidEpsilonAndDelta()) {

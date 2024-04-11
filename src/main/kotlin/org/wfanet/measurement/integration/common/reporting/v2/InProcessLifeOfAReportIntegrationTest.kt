@@ -1738,8 +1738,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     private val VID_SAMPLING_INTERVAL =
       MetricSpecKt.vidSamplingInterval {
-        start = 0.0f
-        width = 1.0f
+        start = 0.8f
+        width = 0.5f
       }
 
     // For a 99.9% Confidence Interval.
