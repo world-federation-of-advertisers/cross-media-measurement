@@ -17,49 +17,54 @@ package org.wfanet.measurement.api.v2alpha
 import org.wfanet.measurement.api.v2alpha.PopulationSpec.VidRange
 
 /** An exception that encapsulates a list of validation errors. */
-class PopulationSpecValidationException(message: String, val errors: List<Error>) :
+class PopulationSpecValidationException(message: String, val details: List<Detail>) :
   Exception(message) {
   override fun toString(): String {
     return buildString {
       appendLine(super.toString())
-      for (error in errors) {
-        appendLine("  $error")
+      for (detail in details) {
+        appendLine("  $detail")
       }
     }
   }
-}
 
-/**
- * Indicates that a pair of [VidRange]s are not disjoint.
- *
- * @param [firstIndexMessage] describe the index of the first range in a [PopulationSpec]
- * @param [secondIndexMessage] describe the index of the second range in a [PopulationSpec]
- */
-data class VidRangesNotDisjointError(
-  val firstIndexMessage: String,
-  val secondIndexMessage: String,
-) : Error() {
-  override fun toString(): String {
-    return "The ranges at '$firstIndexMessage' and '$secondIndexMessage' must be disjoint."
+  /**
+   * A common interface for the set of Details associated with this exception
+   */
+  interface Detail
+
+  /**
+   * Indicates that a pair of [VidRange]s are not disjoint.
+   *
+   * @param [firstIndexMessage] describe the index of the first range in a [PopulationSpec]
+   * @param [secondIndexMessage] describe the index of the second range in a [PopulationSpec]
+   */
+  data class VidRangesNotDisjointDetail(
+    val firstIndexMessage: String,
+    val secondIndexMessage: String,
+  ) : Detail {
+    override fun toString(): String {
+      return "The ranges at '$firstIndexMessage' and '$secondIndexMessage' must be disjoint."
+    }
   }
-}
 
-/**
- * Indicates that the [VidRange.startVid] described by indexMessage is less than or equal to zero.
- */
-data class StartVidNotPositiveError(val indexMessage: String) : Error() {
-  override fun toString(): String {
-    return "The startVid of the range at '$indexMessage' must be greater than zero."
+  /**
+   * Indicates that the [VidRange.startVid] described by indexMessage is less than or equal to zero.
+   */
+  data class StartVidNotPositiveDetail(val indexMessage: String) : Detail {
+    override fun toString(): String {
+      return "The startVid of the range at '$indexMessage' must be greater than zero."
+    }
   }
-}
 
-/**
- * Indicates that [VidRange.endVidInclusive] is less than [VidRange.startVid] for the [VidRange]
- * described by the indexMessage.
- */
-data class EndVidInclusiveLessThanVidStartError(val indexMessage: String) : Error() {
-  override fun toString(): String {
-    return "The endVidInclusive of the range at '$indexMessage' must be greater than or equal to the startVid."
+  /**
+   * Indicates that [VidRange.endVidInclusive] is less than [VidRange.startVid] for the [VidRange]
+   * described by the indexMessage.
+   */
+  data class EndVidInclusiveLessThanVidStartDetail(val indexMessage: String) : Detail {
+    override fun toString(): String {
+      return "The endVidInclusive of the range at '$indexMessage' must be greater than or equal to the startVid."
+    }
   }
 }
 
@@ -74,7 +79,7 @@ object PopulationSpecValidator {
    *   [PopulationSpecValidationException] on failure.
    */
   fun validateVidRangesList(populationSpec: PopulationSpec): Result<Boolean> {
-    val errors = mutableListOf<Error>()
+    val details = mutableListOf<PopulationSpecValidationException.Detail>()
     val validVidRanges = mutableListOf<Pair<VidRange, String>>()
 
     // Validate ranges individually and make a list of the valid ones including an
@@ -82,9 +87,9 @@ object PopulationSpecValidator {
     for ((subpopulationIndex, subpopulation) in populationSpec.subpopulationsList.withIndex()) {
       for ((vidRangeIndex, vidRange) in subpopulation.vidRangesList.withIndex()) {
         val indexMessage = "SubpopulationIndex: $subpopulationIndex VidRangeIndex: $vidRangeIndex"
-        val rangeErrors = validateVidRange(vidRange, indexMessage)
-        errors.addAll(rangeErrors)
-        if (rangeErrors.isEmpty()) {
+        val validationDetails = validateVidRange(vidRange, indexMessage)
+        details.addAll(validationDetails)
+        if (validationDetails.isEmpty()) {
           validVidRanges.add(Pair(vidRange, indexMessage))
         }
       }
@@ -97,15 +102,20 @@ object PopulationSpecValidator {
       for ((currentVidRange, currentIndexMessage) in
         validVidRanges.slice(1..validVidRanges.lastIndex)) {
         if (previousVidRange.endVidInclusive >= currentVidRange.startVid) {
-          errors.add(VidRangesNotDisjointError(previousIndexMessage, currentIndexMessage))
+          details.add(
+            PopulationSpecValidationException.VidRangesNotDisjointDetail(
+              previousIndexMessage,
+              currentIndexMessage
+            )
+          )
         }
         previousVidRange = currentVidRange
         previousIndexMessage = currentIndexMessage
       }
     }
-    return when (errors.isEmpty()) {
+    return when (details.isEmpty()) {
       true -> Result.success(true)
-      false -> Result.failure(PopulationSpecValidationException("Invalid Population Spec.", errors))
+      false -> Result.failure(PopulationSpecValidationException("Invalid Population Spec.", details))
     }
   }
 
@@ -115,14 +125,18 @@ object PopulationSpecValidator {
    * @param [vidRange] is the range to validate
    * @return If invalid, a non-empty [List<Error>], or an empty list if valid.
    */
-  private fun validateVidRange(vidRange: VidRange, indexMessage: String = ""): List<Error> {
-    val errors = mutableListOf<Error>()
+  private fun validateVidRange(vidRange: VidRange, indexMessage: String = ""): List<PopulationSpecValidationException.Detail> {
+    val details = mutableListOf<PopulationSpecValidationException.Detail>()
     if (vidRange.startVid <= 0) {
-      errors.add(StartVidNotPositiveError(indexMessage))
+      details.add(PopulationSpecValidationException.StartVidNotPositiveDetail(indexMessage))
     }
     if (vidRange.endVidInclusive < vidRange.startVid) {
-      errors.add(EndVidInclusiveLessThanVidStartError(indexMessage))
+      details.add(
+        PopulationSpecValidationException.EndVidInclusiveLessThanVidStartDetail(
+          indexMessage
+        )
+      )
     }
-    return errors
+    return details
   }
 }
