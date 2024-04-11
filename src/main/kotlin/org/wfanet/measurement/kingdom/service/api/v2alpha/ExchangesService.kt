@@ -65,12 +65,10 @@ class ExchangesService(
         )
       } catch (e: StatusException) {
         throw when (e.status.code) {
-            Status.Code.NOT_FOUND -> permissionDeniedStatus()
-            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-            else -> Status.UNKNOWN
-          }
-          .withCause(e)
-          .asRuntimeException()
+          Status.Code.NOT_FOUND -> Status.PERMISSION_DENIED
+          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
 
     when (authenticatedPrincipal) {
@@ -107,12 +105,10 @@ class ExchangesService(
         )
       } catch (e: StatusException) {
         throw when (e.status.code) {
-            Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription("Exchange not found")
-            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-            else -> Status.UNKNOWN
-          }
-          .withCause(e)
-          .asRuntimeException()
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
 
     return internalExchange.toExchange()

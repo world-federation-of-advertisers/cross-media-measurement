@@ -24,6 +24,8 @@ import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import io.grpc.protobuf.StatusProto
 import org.wfanet.measurement.api.v2alpha.AccountKey
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeKey
+import org.wfanet.measurement.api.v2alpha.CanonicalRecurringExchangeKey
 import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -325,7 +327,15 @@ fun Status.toExternalStatusRuntimeException(
           errorMessage = "EventGroupMetadataDescriptor with same type already exists."
         }
         ErrorCode.RECURRING_EXCHANGE_NOT_FOUND -> {
-          errorMessage = "RecurringExchange not found."
+          val recurringExchangeName =
+            CanonicalRecurringExchangeKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_recurring_exchange_id"]).toLong()
+                )
+              )
+              .toName()
+          put("recurring_exchange", recurringExchangeName)
+          errorMessage = "RecurringExchange $recurringExchangeName not found."
         }
         ErrorCode.EXCHANGE_STEP_NOT_FOUND -> {
           errorMessage = "ExchangeStep not found."
@@ -373,7 +383,16 @@ fun Status.toExternalStatusRuntimeException(
           errorMessage = "ModelRollout not found."
         }
         ErrorCode.EXCHANGE_NOT_FOUND -> {
-          errorMessage = "Exchange not found."
+          val exchangeName =
+            CanonicalExchangeKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_recurring_exchange_id"]).toLong()
+                ),
+                checkNotNull(errorInfo.metadataMap["date"]),
+              )
+              .toName()
+          put("exchange", exchangeName)
+          errorMessage = "Exchange $exchangeName not found."
         }
         ErrorCode.MODEL_SHARD_INVALID_ARGS -> {
           errorMessage = "ModelShard invalid arguments."
