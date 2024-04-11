@@ -35,8 +35,8 @@ class PopulationSpecValidatorTest {
     val result = PopulationSpecValidator.validateVidRangesList(testPopulationSpec)
     val exception = result.exceptionOrNull() as PopulationSpecValidationException
     assertThat(exception).isNotNull()
-    assertThat(exception.errors.size).isEqualTo(1)
-    assertThat(exception.errors[0].toString())
+    assertThat(exception.details.size).isEqualTo(1)
+    assertThat(exception.details[0].toString())
       .isEqualTo(
         "The endVidInclusive of the range at 'SubpopulationIndex: 0 VidRangeIndex: 0' " +
           "must be greater than or equal to the startVid."
@@ -56,8 +56,8 @@ class PopulationSpecValidatorTest {
     val result = PopulationSpecValidator.validateVidRangesList(testPopulationSpec)
     val exception = result.exceptionOrNull() as PopulationSpecValidationException
     assertThat(exception).isNotNull()
-    assertThat(exception.errors.size).isEqualTo(1)
-    assertThat(exception.errors[0].toString())
+    assertThat(exception.details.size).isEqualTo(1)
+    assertThat(exception.details[0].toString())
       .isEqualTo(
         "The startVid of the range at 'SubpopulationIndex: 0 VidRangeIndex: 0' " +
           "must be greater than zero."
@@ -83,8 +83,8 @@ class PopulationSpecValidatorTest {
     val result = PopulationSpecValidator.validateVidRangesList(testPopulationSpec)
     val exception = result.exceptionOrNull() as PopulationSpecValidationException
     assertThat(exception).isNotNull()
-    assertThat(exception.errors.size).isEqualTo(1)
-    assertThat(exception.errors[0].toString())
+    assertThat(exception.details.size).isEqualTo(1)
+    assertThat(exception.details[0].toString())
       .isEqualTo(
         "The ranges at 'SubpopulationIndex: 0 VidRangeIndex: 0' and 'SubpopulationIndex: 1 " +
           "VidRangeIndex: 0' must be disjoint."
@@ -122,13 +122,13 @@ class PopulationSpecValidatorTest {
     val result = PopulationSpecValidator.validateVidRangesList(testPopulationSpec)
     val exception = result.exceptionOrNull() as PopulationSpecValidationException
     assertThat(exception).isNotNull()
-    assertThat(exception.errors.size).isEqualTo(2)
-    assertThat(exception.errors[0].toString())
+    assertThat(exception.details.size).isEqualTo(2)
+    assertThat(exception.details[0].toString())
       .isEqualTo(
         "The startVid of the range at 'SubpopulationIndex: 0 VidRangeIndex: 0' " +
           "must be greater than zero."
       )
-    assertThat(exception.errors[1].toString())
+    assertThat(exception.details[1].toString())
       .isEqualTo(
         "The ranges at 'SubpopulationIndex: 0 VidRangeIndex: 1' and 'SubpopulationIndex: " +
           "1 VidRangeIndex: 0' must be disjoint."
