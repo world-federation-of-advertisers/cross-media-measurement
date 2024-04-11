@@ -19,8 +19,8 @@ import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -65,7 +65,12 @@ class SpannerExchangesService(
       }
       .execute(client.singleUse())
       .singleOrNull()
-      ?.exchange ?: failGrpc(Status.NOT_FOUND) { "Exchange not found" }
+      ?.exchange
+      ?: throw ExchangeNotFoundException(
+          ExternalId(request.externalRecurringExchangeId),
+          request.date,
+        )
+        .asStatusRuntimeException(Status.Code.NOT_FOUND, "Exchange not found")
   }
 
   override fun streamExchanges(request: StreamExchangesRequest): Flow<Exchange> {

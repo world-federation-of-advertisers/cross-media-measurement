@@ -16,7 +16,6 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
 import org.wfanet.measurement.api.Version
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -25,6 +24,7 @@ import org.wfanet.measurement.internal.kingdom.CreateRecurringExchangeRequest
 import org.wfanet.measurement.internal.kingdom.GetRecurringExchangeRequest
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RecurringExchangeNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RecurringExchangeReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateRecurringExchange
 
@@ -49,6 +49,8 @@ class SpannerRecurringExchangesService(
         client.singleUse(),
         ExternalId(request.externalRecurringExchangeId),
       )
-      ?.recurringExchange ?: failGrpc(Status.NOT_FOUND) { "RecurringExchange not found" }
+      ?.recurringExchange
+      ?: throw RecurringExchangeNotFoundException(ExternalId(request.externalRecurringExchangeId))
+        .asStatusRuntimeException(Status.Code.NOT_FOUND, "RecurringExchange not found")
   }
 }
