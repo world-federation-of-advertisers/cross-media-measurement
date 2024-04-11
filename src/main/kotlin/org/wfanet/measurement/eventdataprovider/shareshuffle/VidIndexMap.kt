@@ -76,7 +76,8 @@ class VidIndexMap(
   operator fun get(vid: Long): Int = indexMap[vid] ?: throw VidNotFoundException(vid)
 
   companion object {
-    /** Hash a VID with SHA256
+    /**
+     * Hash a VID with SHA256
      *
      * @param [vid] the vid to hash
      * @param [salt] Appended to the big endian representation of the vid before hashing
