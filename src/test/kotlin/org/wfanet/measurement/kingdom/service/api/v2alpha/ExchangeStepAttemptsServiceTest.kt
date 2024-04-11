@@ -31,12 +31,15 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.stub
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepKey
+import org.wfanet.measurement.api.v2alpha.CanonicalRecurringExchangeKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.appendExchangeStepAttemptLogEntryRequest
 import org.wfanet.measurement.api.v2alpha.finishExchangeStepAttemptRequest
 import org.wfanet.measurement.api.v2alpha.withPrincipal
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.ExternalId
@@ -51,6 +54,9 @@ import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeSteps
 import org.wfanet.measurement.internal.kingdom.exchangeStep as internalExchangeStep
 import org.wfanet.measurement.internal.kingdom.finishExchangeStepAttemptRequest as internalFinishExchangeStepAttemptRequest
 import org.wfanet.measurement.internal.kingdom.getExchangeStepRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ExchangeStepAttemptNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ExchangeStepNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RecurringExchangeNotFoundException
 
 private const val RECURRING_EXCHANGE_ID = 1L
 private const val STEP_INDEX = 1
@@ -64,6 +70,23 @@ private const val DEBUG_LOG_2_MESSAGE = "some other message"
 
 private val DATE = Date.newBuilder().setYear(2021).setMonth(3).setDay(14).build()
 private const val EXCHANGE_ID = "2021-03-14"
+private val EXTERNAL_DATA_PROVIDER_ID = ExternalId(12345L)
+private val DATA_PROVIDER_KEY = DataProviderKey(EXTERNAL_DATA_PROVIDER_ID.apiId.value)
+private val RECURRING_EXCHANGE_KEY =
+  CanonicalRecurringExchangeKey(ExternalId(RECURRING_EXCHANGE_ID).apiId.value)
+private val EXCHANGE_STEP_KEY =
+  CanonicalExchangeStepKey(
+    recurringExchangeId = RECURRING_EXCHANGE_KEY.recurringExchangeId,
+    exchangeId = EXCHANGE_ID,
+    exchangeStepId = STEP_INDEX.toString(),
+  )
+private val EXCHANGE_STEP_ATTEMPT_KEY =
+  CanonicalExchangeStepAttemptKey(
+    recurringExchangeId = RECURRING_EXCHANGE_KEY.recurringExchangeId,
+    exchangeId = EXCHANGE_ID,
+    exchangeStepId = STEP_INDEX.toString(),
+    exchangeStepAttemptId = ATTEMPT_NUMBER.toString(),
+  )
 
 private val INTERNAL_EXCHANGE_STEP_ATTEMPT: InternalExchangeStepAttempt =
   InternalExchangeStepAttempt.newBuilder()
@@ -284,5 +307,106 @@ class ExchangeStepAttemptsServiceTest {
           debugLogEntries += INTERNAL_EXCHANGE_STEP_ATTEMPT.details.debugLogEntriesList
         }
       )
+  }
+
+  @Test
+  fun `finishExchangeStepAttempt throws NOT_FOUND with recurring exchange name when recurring exchange not found`() {
+    internalExchangeSteps.stub {
+      onBlocking { getExchangeStep(any()) }
+        .thenReturn(
+          internalExchangeStep { this.externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID.value }
+        )
+    }
+    internalExchangeStepAttempts.stub {
+      onBlocking { finishExchangeStepAttempt(any()) }
+        .thenThrow(
+          RecurringExchangeNotFoundException(ExternalId(RECURRING_EXCHANGE_ID))
+            .asStatusRuntimeException(Status.Code.NOT_FOUND)
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipal(DataProviderPrincipal(DATA_PROVIDER_KEY)) {
+          runBlocking {
+            service.finishExchangeStepAttempt(
+              finishExchangeStepAttemptRequest {
+                name = EXCHANGE_STEP_ATTEMPT.name
+                finalState = ExchangeStepAttempt.State.FAILED
+                logEntries += EXCHANGE_STEP_ATTEMPT.debugLogEntriesList
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("recurringExchange", RECURRING_EXCHANGE_KEY.toName())
+  }
+
+  @Test
+  fun `finishExchangeStepAttempt throws PERMISSION_DENIED with exchange step name when exchange step not found`() {
+    internalExchangeSteps.stub {
+      onBlocking { getExchangeStep(any()) }
+        .thenThrow(
+          ExchangeStepNotFoundException(ExternalId(RECURRING_EXCHANGE_ID), DATE, STEP_INDEX)
+            .asStatusRuntimeException(Status.Code.NOT_FOUND)
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipal(DataProviderPrincipal(DATA_PROVIDER_KEY)) {
+          runBlocking {
+            service.finishExchangeStepAttempt(
+              finishExchangeStepAttemptRequest {
+                name = EXCHANGE_STEP_ATTEMPT.name
+                finalState = ExchangeStepAttempt.State.FAILED
+                logEntries += EXCHANGE_STEP_ATTEMPT.debugLogEntriesList
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("exchangeStep", EXCHANGE_STEP_KEY.toName())
+  }
+
+  @Test
+  fun `finishExchangeStepAttempt throws NOT_FOUND with exchange step attempt name when exchange step attempt not found`() {
+    internalExchangeSteps.stub {
+      onBlocking { getExchangeStep(any()) }
+        .thenReturn(
+          internalExchangeStep { this.externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID.value }
+        )
+    }
+    internalExchangeStepAttempts.stub {
+      onBlocking { finishExchangeStepAttempt(any()) }
+        .thenThrow(
+          ExchangeStepAttemptNotFoundException(
+              ExternalId(RECURRING_EXCHANGE_ID),
+              DATE,
+              STEP_INDEX,
+              ATTEMPT_NUMBER,
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND)
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipal(DataProviderPrincipal(DATA_PROVIDER_KEY)) {
+          runBlocking {
+            service.finishExchangeStepAttempt(
+              finishExchangeStepAttemptRequest {
+                name = EXCHANGE_STEP_ATTEMPT.name
+                finalState = ExchangeStepAttempt.State.FAILED
+                logEntries += EXCHANGE_STEP_ATTEMPT.debugLogEntriesList
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("exchangeStepAttempt", EXCHANGE_STEP_ATTEMPT_KEY.toName())
   }
 }
