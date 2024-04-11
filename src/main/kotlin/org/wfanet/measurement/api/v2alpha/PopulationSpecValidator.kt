@@ -28,9 +28,7 @@ class PopulationSpecValidationException(message: String, val details: List<Detai
     }
   }
 
-  /**
-   * A common interface for the set of Details associated with this exception
-   */
+  /** A common interface for the set of Details associated with this exception */
   interface Detail
 
   /**
@@ -105,7 +103,7 @@ object PopulationSpecValidator {
           details.add(
             PopulationSpecValidationException.VidRangesNotDisjointDetail(
               previousIndexMessage,
-              currentIndexMessage
+              currentIndexMessage,
             )
           )
         }
@@ -115,7 +113,8 @@ object PopulationSpecValidator {
     }
     return when (details.isEmpty()) {
       true -> Result.success(true)
-      false -> Result.failure(PopulationSpecValidationException("Invalid Population Spec.", details))
+      false ->
+        Result.failure(PopulationSpecValidationException("Invalid Population Spec.", details))
     }
   }
 
@@ -125,16 +124,17 @@ object PopulationSpecValidator {
    * @param [vidRange] is the range to validate
    * @return If invalid, a non-empty [List<Error>], or an empty list if valid.
    */
-  private fun validateVidRange(vidRange: VidRange, indexMessage: String = ""): List<PopulationSpecValidationException.Detail> {
+  private fun validateVidRange(
+    vidRange: VidRange,
+    indexMessage: String = "",
+  ): List<PopulationSpecValidationException.Detail> {
     val details = mutableListOf<PopulationSpecValidationException.Detail>()
     if (vidRange.startVid <= 0) {
       details.add(PopulationSpecValidationException.StartVidNotPositiveDetail(indexMessage))
     }
     if (vidRange.endVidInclusive < vidRange.startVid) {
       details.add(
-        PopulationSpecValidationException.EndVidInclusiveLessThanVidStartDetail(
-          indexMessage
-        )
+        PopulationSpecValidationException.EndVidInclusiveLessThanVidStartDetail(indexMessage)
       )
     }
     return details
