@@ -165,11 +165,15 @@ object PopulationSpecValidator {
   private fun validateVidRange(vidRange: VidRange, indexMessage: String = ""): List<Error> {
     val errors = mutableListOf<Error>()
     if (vidRange.startVid <= 0) {
-      errors.add(StartVidNotPositiveError(indexMessage))
+      details.add(PopulationSpecValidationException.StartVidNotPositiveDetail(indexMessage))
     }
     if (vidRange.endVidInclusive < vidRange.startVid) {
-      errors.add(EndVidInclusiveLessThanVidStartError(indexMessage))
+      details.add(
+        PopulationSpecValidationException.EndVidInclusiveLessThanVidStartDetail(
+          indexMessage
+        )
+      )
     }
-    return errors
+    return details
   }
 }
