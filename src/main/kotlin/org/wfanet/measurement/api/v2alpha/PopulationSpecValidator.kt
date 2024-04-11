@@ -169,9 +169,7 @@ object PopulationSpecValidator {
     }
     if (vidRange.endVidInclusive < vidRange.startVid) {
       details.add(
-        PopulationSpecValidationException.EndVidInclusiveLessThanVidStartDetail(
-          indexMessage
-        )
+        PopulationSpecValidationException.EndVidInclusiveLessThanVidStartDetail(indexMessage)
       )
     }
     return details
