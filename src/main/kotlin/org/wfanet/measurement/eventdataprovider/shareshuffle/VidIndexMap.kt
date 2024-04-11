@@ -73,10 +73,14 @@ class VidIndexMap(
    *
    * @throws VidNotFoundException if the [vid] does not exist in the map
    */
-  operator fun get(vid: Long): Int = indexMap.getOrElse(vid) { throw VidNotFoundException(vid) }
+  operator fun get(vid: Long): Int = indexMap[vid] ?: throw VidNotFoundException(vid)
 
   companion object {
-    /** Hash a VID with SHA256 */
+    /** Hash a VID with SHA256
+     *
+     * @param [vid] the vid to hash
+     * @param [salt] Appended to the big endian representation of the vid before hashing
+     */
     fun hashVidSha256(vid: Long, salt: ByteString = ByteString.EMPTY): ByteString {
       val hashInput = vid.toByteString(ByteOrder.BIG_ENDIAN).concat(salt)
       return Hashing.hashSha256(hashInput)
