@@ -19,9 +19,11 @@ import com.google.protobuf.util.Timestamps
 import com.google.type.interval
 import java.time.ZoneOffset
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.Account
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeKey
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepKey
+import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
@@ -70,6 +72,7 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.honestMajorityShareSh
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.protocol
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.reachOnlyLiquidLegionsV2
+import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.dateInterval
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
@@ -101,6 +104,8 @@ import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.kingdom.Account as InternalAccount
+import org.wfanet.measurement.internal.kingdom.Certificate as InternalCertificate
 import org.wfanet.measurement.internal.kingdom.DifferentialPrivacyParams as InternalDifferentialPrivacyParams
 import org.wfanet.measurement.internal.kingdom.EventGroup as InternalEventGroup
 import org.wfanet.measurement.internal.kingdom.Exchange as InternalExchange
@@ -123,6 +128,7 @@ import org.wfanet.measurement.internal.kingdom.Population as InternalPopulation
 import org.wfanet.measurement.internal.kingdom.PopulationKt.populationBlob as internalPopulationBlob
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig.NoiseMechanism as InternalNoiseMechanism
+import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.eventTemplate as internalEventTemplate
 import org.wfanet.measurement.internal.kingdom.exchangeWorkflow
@@ -1234,3 +1240,37 @@ fun InternalEventGroup.State.toV2Alpha(): EventGroup.State {
     InternalEventGroup.State.UNRECOGNIZED -> error("Invalid InternalEventGroup state: $this")
   }
 }
+
+/** Converts an internal [InternalRequisition.State] to a public [Requisition.State]. */
+fun InternalRequisition.State.toRequisitionState(): Requisition.State =
+  when (this) {
+    InternalRequisition.State.PENDING_PARAMS,
+    InternalRequisition.State.UNFULFILLED -> Requisition.State.UNFULFILLED
+    InternalRequisition.State.FULFILLED -> Requisition.State.FULFILLED
+    InternalRequisition.State.REFUSED -> Requisition.State.REFUSED
+    InternalRequisition.State.STATE_UNSPECIFIED,
+    InternalRequisition.State.UNRECOGNIZED -> Requisition.State.STATE_UNSPECIFIED
+  }
+
+/** Converts an internal [InternalAccount.ActivationState] to a public [Account.ActivationState]. */
+fun InternalAccount.ActivationState.toActivationState(): Account.ActivationState =
+  when (this) {
+    InternalAccount.ActivationState.ACTIVATED -> Account.ActivationState.ACTIVATED
+    InternalAccount.ActivationState.UNACTIVATED -> Account.ActivationState.UNACTIVATED
+    InternalAccount.ActivationState.UNRECOGNIZED,
+    InternalAccount.ActivationState.ACTIVATION_STATE_UNSPECIFIED ->
+      Account.ActivationState.ACTIVATION_STATE_UNSPECIFIED
+  }
+
+/**
+ * Converts an internal [InternalCertificate.RevocationState] to a public
+ * [Certificate.RevocationState].
+ */
+fun InternalCertificate.RevocationState.toRevocationState(): Certificate.RevocationState =
+  when (this) {
+    InternalCertificate.RevocationState.REVOKED -> Certificate.RevocationState.REVOKED
+    InternalCertificate.RevocationState.HOLD -> Certificate.RevocationState.HOLD
+    InternalCertificate.RevocationState.UNRECOGNIZED,
+    InternalCertificate.RevocationState.REVOCATION_STATE_UNSPECIFIED ->
+      Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED
+  }
