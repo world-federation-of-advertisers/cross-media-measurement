@@ -62,6 +62,14 @@ class BigQueryEdpSimulatorRunner : EdpSimulatorRunner() {
   lateinit var bigQueryTableName: String
     private set
 
+  @set:CommandLine.Option(
+    names = ["--max-vid-value"],
+    description = ["Max value (inclusive) of VIDs"],
+    defaultValue = "100000000", // 100 million,
+  )
+  var maxVidValue by Delegates.notNull<Long>()
+    private set
+
   override fun run() {
     val bigQuery: BigQuery =
       BigQueryOptions.newBuilder().apply { setProjectId(bigQueryProjectName) }.build().service
@@ -71,6 +79,7 @@ class BigQueryEdpSimulatorRunner : EdpSimulatorRunner() {
         bigQueryDatasetName,
         bigQueryTableName,
         publisherId,
+        maxVidValue,
       )
 
     run(
