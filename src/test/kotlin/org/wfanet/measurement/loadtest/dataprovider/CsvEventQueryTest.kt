@@ -141,6 +141,12 @@ class CsvEventQueryTest {
     assertThat(vids.toList()).containsExactlyElementsIn(ALL_VIDS)
   }
 
+  @Test
+  fun `getUserVirtualIdUniverse returns VID universe sequence`() {
+    val universe = eventQuery.getUserVirtualIdUniverse()
+    assertThat(universe.toList().size).isEqualTo(10000000)
+  }
+
   companion object {
     private val EVENT_GROUP = eventGroup {
       name = "dataProviders/foo123/eventGroups/bar456"
