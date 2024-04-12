@@ -23,6 +23,7 @@ import io.grpc.StatusRuntimeException
 import io.grpc.protobuf.StatusProto
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
@@ -724,7 +725,7 @@ class ExchangeNotFoundException(
     get() =
       mapOf(
         "external_recurring_exchange_id" to externalRecurringExchangeId.value.toString(),
-        "date" to date.toString(),
+        "date" to date.toLocalDate().toString(),
       )
 }
 
