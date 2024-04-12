@@ -26,6 +26,7 @@ import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
@@ -88,7 +89,11 @@ class InProcessCmmsComponents(
         certificateKey = certificateKey,
         mcResourceName = mcResourceName,
         kingdomPublicApiChannel = kingdom.publicApiChannel,
-        duchyPublicApiChannel = duchies[1].publicApiChannel,
+        duchyPublicApiChannelMap =
+          mapOf(
+            DuchyKey(duchies[1].externalDuchyId).toName() to duchies[1].publicApiChannel,
+            DuchyKey(duchies[2].externalDuchyId).toName() to duchies[2].publicApiChannel
+          ),
         trustedCertificates = TRUSTED_CERTIFICATES,
         syntheticDataSpec = syntheticEventGroupSpecs[specIndex],
       )

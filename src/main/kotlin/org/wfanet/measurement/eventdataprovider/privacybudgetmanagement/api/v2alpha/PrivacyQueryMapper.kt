@@ -59,6 +59,70 @@ object PrivacyQueryMapper {
           )
         }
         MeasurementTypeCase.REACH_AND_FREQUENCY -> {
+          // TODO(@ple13): Optimize the pbm charge by computing the Acdp charge separately for
+          // reach and for frequency, then add them up.
+          val dpParams =
+            DpParams(
+              measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon +
+                measurementSpec.reachAndFrequency.frequencyPrivacyParams.epsilon,
+              measurementSpec.reachAndFrequency.reachPrivacyParams.delta +
+                measurementSpec.reachAndFrequency.frequencyPrivacyParams.delta,
+            )
+
+          AcdpParamsConverter.getLlv2AcdpCharge(dpParams, contributorCount)
+        }
+        else ->
+          throw IllegalArgumentException(
+            "Measurement type ${measurementSpec.measurementTypeCase} is not supported in getMpcAcdpQuery()"
+          )
+      }
+
+    return AcdpQuery(
+      reference,
+      LandscapeMask(
+        eventSpecs.map { EventGroupSpec(it.filter.expression, it.collectionInterval.toRange()) },
+        measurementSpec.vidSamplingInterval.start,
+        measurementSpec.vidSamplingInterval.width,
+      ),
+      acdpCharge,
+    )
+  }
+
+  /**
+   * Constructs a pbm specific [AcdpQuery] from given proto messages for Hmss protocol.
+   *
+   * @param reference representing the reference key and if the charge is a refund.
+   * @param measurementSpec The measurementSpec protobuf that is associated with the query. The VID
+   *   sampling interval is obtained from this.
+   * @param eventSpecs event specs from the Requisition. The date range and demo groups are obtained
+   *   from this.
+   * @param contributorCount number of Duchies
+   * @throws
+   *   org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
+   *   if an error occurs in handling this request. Possible exceptions could include running out of
+   *   privacy budget or a failure to commit the transaction to the database.
+   */
+  fun getHmssAcdpQuery(
+    reference: Reference,
+    measurementSpec: MeasurementSpec,
+    eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>,
+    contributorCount: Int,
+  ): AcdpQuery {
+    val acdpCharge =
+      when (measurementSpec.measurementTypeCase) {
+        // TODO(@ple13): Extend support for the reach only protocol.
+        MeasurementTypeCase.REACH_AND_FREQUENCY -> {
+          // TODO(@ple13): Support different privacy parameters for reach and frequency.
+          require(
+            (measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon ==
+              measurementSpec.reachAndFrequency.frequencyPrivacyParams.epsilon) &&
+              (measurementSpec.reachAndFrequency.reachPrivacyParams.delta ==
+                measurementSpec.reachAndFrequency.frequencyPrivacyParams.delta)
+          ) {
+            "Reach and Frequency must use the same privacy parameters."
+          }
+          // TODO(@ple13): Optimize the pbm charge by computing the Acdp charge separately for
+          // reach and for frequency, then add them up.
           val dpParams =
             DpParams(
               measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon +

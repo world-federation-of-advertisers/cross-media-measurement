@@ -23,6 +23,7 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
@@ -78,6 +79,13 @@ abstract class EdpSimulatorRunner : Runnable {
           flags.requisitionFulfillmentServiceFlags.certHost,
         )
       )
+    // TODO(@ple13): Update the requisition fulfillment stub map when multiple fulfillment targets
+    // are supported.
+    val requisitionFulfillmentStubMap =
+      mapOf(
+        DuchyKey("worker1").toName() to requisitionFulfillmentStub,
+        DuchyKey("worker2").toName() to requisitionFulfillmentStub
+      )
     val signingKeyHandle =
       loadSigningKey(flags.edpCsCertificateDerFile, flags.edpCsPrivateKeyDerFile)
     val certificateKey =
@@ -109,7 +117,7 @@ abstract class EdpSimulatorRunner : Runnable {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         eventQuery,
         MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval),
         createNoOpPrivacyBudgetManager(),

@@ -15,6 +15,7 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2a
 
 import com.google.common.truth.Truth.assertThat
 import com.google.type.interval
+import kotlin.test.assertFailsWith
 import java.time.LocalDate
 import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
@@ -37,9 +38,88 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.EventGro
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.LandscapeMask
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getDirectAcdpQuery
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getHmssAcdpQuery
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getLiquidLegionsV2AcdpQuery
 
 class PrivacyQueryMapperTest {
+
+  @Test
+  fun `getHmssAcdpQuery throws IllegalArgumentException when converting hmss reach only measurement to AcdpQuery`() {
+    val referenceId = "RequisitionId1"
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        getHmssAcdpQuery(
+          Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
+          REACH_MEASUREMENT_SPEC,
+          REQUISITION_SPEC.events.eventGroupsList.map { it.value },
+          HMSS_CONTRIBUTOR_COUNT,
+        )
+      }
+    assertThat(exception).hasMessageThat().contains("not supported")
+  }
+
+  fun `getHmssAcdpQuery throws IllegalArgumentException when using different privacy parameters for reach and frequency`() {
+    val referenceId = "RequisitionId1"
+
+    val measurementSpec = measurementSpec {
+      reachAndFrequency = reachAndFrequency {
+        reachPrivacyParams = differentialPrivacyParams {
+          epsilon = 0.3
+          delta = 0.01
+        }
+
+        frequencyPrivacyParams = differentialPrivacyParams {
+          epsilon = 0.4
+          delta = 0.01
+        }
+      }
+      vidSamplingInterval = vidSamplingInterval {
+        start = 0.01f
+        width = 0.02f
+      }
+    }
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        getHmssAcdpQuery(
+          Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
+          measurementSpec,
+          REQUISITION_SPEC.events.eventGroupsList.map { it.value },
+          HMSS_CONTRIBUTOR_COUNT,
+        )
+      }
+    assertThat(exception).hasMessageThat().contains("same")
+  }
+
+  @Test
+  fun `converts hmss reach and frequency measurement to AcdpQuery`() {
+    val referenceId = "RequisitionId1"
+    val dpParams =
+      DpParams(
+        REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.reachPrivacyParams.epsilon +
+          REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.frequencyPrivacyParams.epsilon,
+        REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.reachPrivacyParams.delta +
+          REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.frequencyPrivacyParams.delta,
+      )
+    val expectedAcdpCharge = AcdpParamsConverter.getLlv2AcdpCharge(dpParams, CONTRIBUTOR_COUNT)
+
+    assertThat(
+      getHmssAcdpQuery(
+        Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
+        REACH_AND_FREQ_MEASUREMENT_SPEC,
+        REQUISITION_SPEC.events.eventGroupsList.map { it.value },
+        CONTRIBUTOR_COUNT,
+      )
+    )
+      .isEqualTo(
+        AcdpQuery(
+          Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
+          LandscapeMask(listOf(EventGroupSpec(FILTER_EXPRESSION, TIME_RANGE)), 0.01f, 0.02f),
+          expectedAcdpCharge,
+        )
+      )
+  }
 
   @Test
   fun `converts llv2 reach and frequency measurement to AcdpQuery`() {
@@ -231,6 +311,7 @@ class PrivacyQueryMapperTest {
     private const val FILTER_EXPRESSION =
       "person.gender==0 && person.age_group==0 && banner_ad.gender == 1"
     private const val CONTRIBUTOR_COUNT = 3
+    private const val HMSS_CONTRIBUTOR_COUNT = 2
     private const val SENSITIVITY = 1.0
 
     private val REQUISITION_SPEC = requisitionSpec {
