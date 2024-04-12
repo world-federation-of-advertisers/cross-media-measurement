@@ -15,8 +15,8 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2a
 
 import com.google.common.truth.Truth.assertThat
 import com.google.type.interval
-import kotlin.test.assertFailsWith
 import java.time.LocalDate
+import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
@@ -105,13 +105,13 @@ class PrivacyQueryMapperTest {
     val expectedAcdpCharge = AcdpParamsConverter.getLlv2AcdpCharge(dpParams, CONTRIBUTOR_COUNT)
 
     assertThat(
-      getHmssAcdpQuery(
-        Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
-        REACH_AND_FREQ_MEASUREMENT_SPEC,
-        REQUISITION_SPEC.events.eventGroupsList.map { it.value },
-        CONTRIBUTOR_COUNT,
+        getHmssAcdpQuery(
+          Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
+          REACH_AND_FREQ_MEASUREMENT_SPEC,
+          REQUISITION_SPEC.events.eventGroupsList.map { it.value },
+          CONTRIBUTOR_COUNT,
+        )
       )
-    )
       .isEqualTo(
         AcdpQuery(
           Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),

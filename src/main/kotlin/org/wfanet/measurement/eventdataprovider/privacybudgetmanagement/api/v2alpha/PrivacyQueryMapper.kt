@@ -110,7 +110,6 @@ object PrivacyQueryMapper {
   ): AcdpQuery {
     val acdpCharge =
       when (measurementSpec.measurementTypeCase) {
-        // TODO(@ple13): Extend support for the reach only protocol.
         MeasurementTypeCase.REACH_AND_FREQUENCY -> {
           // TODO(@ple13): Support different privacy parameters for reach and frequency.
           require(
@@ -119,7 +118,7 @@ object PrivacyQueryMapper {
               (measurementSpec.reachAndFrequency.reachPrivacyParams.delta ==
                 measurementSpec.reachAndFrequency.frequencyPrivacyParams.delta)
           ) {
-            "Reach and Frequency must use the same privacy parameters."
+            "Different privacy parameters for reach and for frequency have not been support yet."
           }
           // TODO(@ple13): Optimize the pbm charge by computing the Acdp charge separately for
           // reach and for frequency, then add them up.
@@ -135,7 +134,7 @@ object PrivacyQueryMapper {
         }
         else ->
           throw IllegalArgumentException(
-            "Measurement type ${measurementSpec.measurementTypeCase} is not supported in getMpcAcdpQuery()"
+            "Measurement type ${measurementSpec.measurementTypeCase} is not supported in getHmssAcdpQuery()"
           )
       }
 

@@ -44,11 +44,11 @@ import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
 import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
 import org.wfanet.anysketch.crypto.elGamalPublicKey as anySketchElGamalPublicKey
+import org.wfanet.frequencycount.FrequencyVector
 import org.wfanet.frequencycount.SecretShare
 import org.wfanet.frequencycount.SecretShareGeneratorAdapter
 import org.wfanet.frequencycount.SecretShareGeneratorRequest
 import org.wfanet.frequencycount.frequencyVector
-import org.wfanet.frequencycount.FrequencyVector
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt.variance
@@ -1372,12 +1372,9 @@ class EdpSimulator(
     val shareSeed = randomSeed { data = secretShare.shareSeed.key.concat(secretShare.shareSeed.iv) }
     val signedShareSeed =
       signRandomSeed(shareSeed, edpData.signingKeyHandle, edpData.signingKeyHandle.defaultAlgorithm)
-    val publicKey = EncryptionPublicKey.parseFrom(getEncryptionKeyForShareSeed(requisition).message.value)
-    val shareSeedCiphertext =
-      encryptRandomSeed(
-        signedShareSeed,
-        publicKey
-      )
+    val publicKey =
+      EncryptionPublicKey.parseFrom(getEncryptionKeyForShareSeed(requisition).message.value)
+    val shareSeedCiphertext = encryptRandomSeed(signedShareSeed, publicKey)
 
     val shareVector = frequencyVector { data += secretShare.shareVectorList }
 
