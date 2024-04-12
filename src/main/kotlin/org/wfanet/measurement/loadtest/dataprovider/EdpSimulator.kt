@@ -1294,23 +1294,29 @@ class EdpSimulator(
   }
 
   private fun getEncryptionKeyForShareSeed(requisition: Requisition): SignedMessage {
-    for (duchyEntry in requisition.duchiesList) {
-      if (duchyEntry.value.honestMajorityShareShuffle.hasPublicKey()) {
-        return duchyEntry.value.honestMajorityShareShuffle.publicKey
-      }
+    require(requisition.duchiesList.size == 2) { "There must be exactly 2 duchy entries." }
+    val publicKeyList =
+      requisition.duchiesList
+        .filter { it.value.honestMajorityShareShuffle.hasPublicKey() }
+        .map { it.value.honestMajorityShareShuffle.publicKey }
+    require(publicKeyList.size == 1) {
+      "There must be exactly one duchy entry that contains an encryption public key."
     }
 
-    return SignedMessage.getDefaultInstance()
+    return publicKeyList.first()
   }
 
   private suspend fun getDuchyWithoutPublicKey(requisition: Requisition): String {
-    for (duchyEntry in requisition.duchiesList) {
-      if (!duchyEntry.value.honestMajorityShareShuffle.hasPublicKey()) {
-        return duchyEntry.key
-      }
+    require(requisition.duchiesList.size == 2) { "There must be exactly 2 duchy entries." }
+    val duchyKeyList =
+      requisition.duchiesList
+        .filter { !it.value.honestMajorityShareShuffle.hasPublicKey() }
+        .map { it.key }
+    require(duchyKeyList.size == 1) {
+      "There must be exactly one duchy entry that does not contain an encryption public key."
     }
 
-    return ""
+    return duchyKeyList.first()
   }
 
   /** Fulfill Honest Majority Share Shuffle Measurement's Requisition. */

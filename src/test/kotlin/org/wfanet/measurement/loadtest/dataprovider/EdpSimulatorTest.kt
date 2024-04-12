@@ -806,7 +806,7 @@ class EdpSimulatorTest {
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
         requisitionFulfillmentStubMap,
-        InMemoryEventQuery(allEvents),
+        InMemoryEventQuery(allEvents, 10000),
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
