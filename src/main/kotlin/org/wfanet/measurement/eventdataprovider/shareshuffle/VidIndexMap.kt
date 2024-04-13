@@ -49,7 +49,8 @@ class VidIndexMap(
   /** A data class for a VID and its hash value. */
   data class VidAndHash(val vid: Long, val hash: ByteString) : Comparable<VidAndHash> {
     private val byteStringComparator = ByteString.unsignedLexicographicalComparator()
-    override operator fun compareTo(other: VidAndHash) : Int {
+
+    override operator fun compareTo(other: VidAndHash): Int {
       return byteStringComparator.compare(this.hash, other.hash)
     }
   }
@@ -66,7 +67,7 @@ class VidIndexMap(
       }
     }
 
-    hashes.sortWith(compareBy<VidAndHash>(){ it })
+    hashes.sortWith(compareBy<VidAndHash>() { it })
 
     for ((index, vidAndHash) in hashes.withIndex()) {
       indexMap[vidAndHash.vid] = index

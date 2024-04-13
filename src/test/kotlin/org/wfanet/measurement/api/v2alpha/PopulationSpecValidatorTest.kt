@@ -19,9 +19,9 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
-import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.VidRangeIndex
-import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.StartVidNotPositiveDetail
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.EndVidInclusiveLessThanVidStartDetail
+import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.StartVidNotPositiveDetail
+import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.VidRangeIndex
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.VidRangesNotDisjointDetail
 
 @RunWith(JUnit4::class)

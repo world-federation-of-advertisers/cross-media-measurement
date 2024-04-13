@@ -17,29 +17,28 @@ package org.wfanet.measurement.api.v2alpha
 import org.wfanet.measurement.api.v2alpha.PopulationSpec.VidRange
 
 /** An exception that encapsulates a list of validation errors. */
-class PopulationSpecValidationException(message : String, val details: List<Detail>) :
+class PopulationSpecValidationException(message: String, val details: List<Detail>) :
   Exception(buildMessage(message, details)) {
 
- companion object {
-   private fun buildMessage(baseMessage: String, details: List<Detail>): String {
-     return buildString {
-       appendLine(baseMessage)
-       for (detail in details) {
-         appendLine("  $detail")
-       }
-     }
-   }
- }
+  companion object {
+    private fun buildMessage(baseMessage: String, details: List<Detail>): String {
+      return buildString {
+        appendLine(baseMessage)
+        for (detail in details) {
+          appendLine("  $detail")
+        }
+      }
+    }
+  }
 
   /** A common interface for the set of Details associated with this exception */
   interface Detail
 
-  /**
-   * A class that represents a VidRangeIndex within a [PopulationSpec]
-   */
+  /** A class that represents a VidRangeIndex within a [PopulationSpec] */
   data class VidRangeIndex(val subPopulationIndex: Int, val vidRangeIndex: Int) {
     operator fun compareTo(other: VidRangeIndex): Int =
-      compareValuesBy(this, other, {it.subPopulationIndex}, {it.vidRangeIndex})
+      compareValuesBy(this, other, { it.subPopulationIndex }, { it.vidRangeIndex })
+
     override fun toString(): String {
       return "SubpopulationIndex: $subPopulationIndex VidRangeIndex: $vidRangeIndex"
     }
@@ -53,7 +52,7 @@ class PopulationSpecValidationException(message : String, val details: List<Deta
    */
   data class VidRangesNotDisjointDetail(
     val firstIndex: VidRangeIndex,
-    val secondIndex: VidRangeIndex
+    val secondIndex: VidRangeIndex,
   ) : Detail {
     override fun toString(): String {
       return "The VidRanges at $firstIndex and $secondIndex must be disjoint"
@@ -93,7 +92,8 @@ object PopulationSpecValidator {
    */
   fun validateVidRangesList(populationSpec: PopulationSpec): Result<Boolean> {
     val details = mutableListOf<PopulationSpecValidationException.Detail>()
-    val validVidRanges = mutableListOf<Pair<VidRange, PopulationSpecValidationException.VidRangeIndex>>()
+    val validVidRanges =
+      mutableListOf<Pair<VidRange, PopulationSpecValidationException.VidRangeIndex>>()
 
     // Validate ranges individually and make a list of the valid ones including an
     // index message. Invalid ranges are omitted from the disjointness check.
@@ -142,8 +142,8 @@ object PopulationSpecValidator {
    */
   private fun validateVidRange(
     vidRange: VidRange,
-    vidRangeIndex: PopulationSpecValidationException.VidRangeIndex)
-  : List<PopulationSpecValidationException.Detail> {
+    vidRangeIndex: PopulationSpecValidationException.VidRangeIndex,
+  ): List<PopulationSpecValidationException.Detail> {
     val details = mutableListOf<PopulationSpecValidationException.Detail>()
     if (vidRange.startVid <= 0) {
       details.add(PopulationSpecValidationException.StartVidNotPositiveDetail(vidRangeIndex))
