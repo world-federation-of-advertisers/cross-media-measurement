@@ -20,14 +20,11 @@ import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.ArgumentCaptor
-import org.mockito.Mockito.mock
-import org.mockito.kotlin.argumentCaptor
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException
-import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.VidRangeIndex
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.EndVidInclusiveLessThanVidStartDetail
+import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.VidRangeIndex
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.common.toLong
@@ -48,7 +45,8 @@ class VidIndexMapTest {
     }
     val exception =
       assertFailsWith<PopulationSpecValidationException>("Expected exception") {
-        VidIndexMap(testPopulationSpec) }
+        VidIndexMap(testPopulationSpec)
+      }
     val details = exception.details[0] as EndVidInclusiveLessThanVidStartDetail
     assertThat(details.index).isEqualTo(VidRangeIndex(0, 0))
   }
@@ -103,13 +101,13 @@ class VidIndexMapTest {
     // processed correct that a custom hash function is called, and that the
     // salt is passed the the hash function correctly.
     val hashFunction = { vid: Long, localSalt: ByteString ->
-      (vid*localSalt.toLong(ByteOrder.BIG_ENDIAN)).toByteString(ByteOrder.BIG_ENDIAN)
+      (vid * localSalt.toLong(ByteOrder.BIG_ENDIAN)).toByteString(ByteOrder.BIG_ENDIAN)
     }
     val vidIndexMap = VidIndexMap(testPopulationSpec, salt, hashFunction)
 
     assertThat(vidIndexMap.size).isEqualTo(vidCount)
     for (i in 1..vidCount) {
-      assertThat(vidIndexMap[i]).isEqualTo(vidCount-i)
+      assertThat(vidIndexMap[i]).isEqualTo(vidCount - i)
     }
   }
 }
