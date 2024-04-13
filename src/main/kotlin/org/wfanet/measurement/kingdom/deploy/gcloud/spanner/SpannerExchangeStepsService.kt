@@ -48,16 +48,17 @@ class SpannerExchangeStepsService(
 ) : ExchangeStepsCoroutineImplBase() {
 
   override suspend fun getExchangeStep(request: GetExchangeStepRequest): ExchangeStep {
+    val externalRecurringExchangeId = ExternalId(request.externalRecurringExchangeId)
     val exchangeStepResult =
       ExchangeStepReader()
         .readByExternalIds(
           client.singleUse(),
-          ExternalId(request.externalRecurringExchangeId),
+          externalRecurringExchangeId,
           request.date,
           request.stepIndex,
         )
         ?: throw ExchangeStepNotFoundException(
-            ExternalId(request.externalRecurringExchangeId),
+          externalRecurringExchangeId,
             request.date,
             request.stepIndex,
           )
