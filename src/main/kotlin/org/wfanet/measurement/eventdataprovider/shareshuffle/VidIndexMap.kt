@@ -49,14 +49,8 @@ class VidIndexMap(
 
   /** A data class for a VID and its hash value. */
   data class VidAndHash(val vid: Long, val hash: Long) : Comparable<VidAndHash> {
-    override operator fun compareTo(other: VidAndHash): Int {
-      val hashComparison = compareValues(this.hash, other.hash)
-      return if (hashComparison == 0) {
-        compareValues(this.vid, other.vid)
-      } else {
-        hashComparison
-      }
-    }
+    override operator fun compareTo(other: VidAndHash): Int =
+      compareValuesBy(this, other, { it.hash }, { it.vid })
   }
 
   init {
