@@ -44,12 +44,11 @@ class PopulationSpecValidationException(message: String, val details: List<Detai
   /** A common interface for the set of Details associated with this exception */
   interface Detail
 
-  /**
-   * A class that represents a VidRangeIndex within a [PopulationSpec]
-   */
+  /** A class that represents a VidRangeIndex within a [PopulationSpec] */
   data class VidRangeIndex(val subPopulationIndex: Int, val vidRangeIndex: Int) {
     operator fun compareTo(other: VidRangeIndex): Int =
-      compareValuesBy(this, other, {it.subPopulationIndex}, {it.vidRangeIndex})
+      compareValuesBy(this, other, { it.subPopulationIndex }, { it.vidRangeIndex })
+
     override fun toString(): String {
       return "SubpopulationIndex: $subPopulationIndex VidRangeIndex: $vidRangeIndex"
     }
