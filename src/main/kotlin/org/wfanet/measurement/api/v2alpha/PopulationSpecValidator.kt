@@ -45,6 +45,17 @@ class PopulationSpecValidationException(message: String, val details: List<Detai
   interface Detail
 
   /**
+   * A class that represents a VidRangeIndex within a [PopulationSpec]
+   */
+  data class VidRangeIndex(val subPopulationIndex: Int, val vidRangeIndex: Int) {
+    operator fun compareTo(other: VidRangeIndex): Int =
+      compareValuesBy(this, other, {it.subPopulationIndex}, {it.vidRangeIndex})
+    override fun toString(): String {
+      return "SubpopulationIndex: $subPopulationIndex VidRangeIndex: $vidRangeIndex"
+    }
+  }
+
+  /**
    * Indicates that a pair of [VidRange]s are not disjoint.
    *
    * @param [firstIndexMessage] describe the index of the first range in a [PopulationSpec]
@@ -169,7 +180,7 @@ object PopulationSpecValidator {
     }
     if (vidRange.endVidInclusive < vidRange.startVid) {
       details.add(
-        PopulationSpecValidationException.EndVidInclusiveLessThanVidStartDetail(indexMessage)
+        PopulationSpecValidationException.EndVidInclusiveLessThanVidStartDetail(vidRangeIndex)
       )
     }
     return details
