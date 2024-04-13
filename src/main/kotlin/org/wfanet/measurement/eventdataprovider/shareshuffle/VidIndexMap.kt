@@ -15,7 +15,6 @@
 package org.wfanet.measurement.eventdataprovider.shareshuffle
 
 import com.google.protobuf.ByteString
-import java.math.BigInteger
 import java.nio.ByteOrder
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException
@@ -47,24 +46,30 @@ class VidIndexMap(
   /** A map of a VID to its index in the [Frequency Vector]. */
   private val indexMap = hashMapOf<Long, Int>()
 
+  /** A data class for a VID and its hash value. */
+  data class VidAndHash(val vid: Long, val hash: ByteString) : Comparable<VidAndHash> {
+    private val byteStringComparator = ByteString.unsignedLexicographicalComparator()
+    override operator fun compareTo(other: VidAndHash) : Int {
+      return byteStringComparator.compare(this.hash, other.hash)
+    }
+  }
+
   init {
     validateVidRangesList(populationSpec).getOrThrow()
 
-    val hashes = mutableListOf<Pair<Long, BigInteger>>()
-
+    val hashes = mutableListOf<VidAndHash>()
     for (subPop in populationSpec.subpopulationsList) {
       for (range in subPop.vidRangesList) {
         for (vid in range.startVid..range.endVidInclusive) {
-          val hash = BigInteger(1, hashFunction(vid, salt).toByteArray())
-          hashes.add(Pair(vid, hash))
+          hashes.add(VidAndHash(vid, hashFunction(vid, salt)))
         }
       }
     }
 
-    hashes.sortWith(compareBy<Pair<Long, BigInteger>> { it.second }.thenBy { it.first })
+    hashes.sortWith(compareBy<VidAndHash>(){ it })
 
-    for ((index, pair) in hashes.withIndex()) {
-      indexMap[pair.first] = index
+    for ((index, vidAndHash) in hashes.withIndex()) {
+      indexMap[vidAndHash.vid] = index
     }
   }
 
