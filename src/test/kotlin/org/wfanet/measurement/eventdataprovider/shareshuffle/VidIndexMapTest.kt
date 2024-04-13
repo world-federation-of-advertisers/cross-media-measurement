@@ -20,16 +20,22 @@ import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.ArgumentCaptor
+import org.mockito.Mockito.mock
+import org.mockito.kotlin.argumentCaptor
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException
+import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.VidRangeIndex
+import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.EndVidInclusiveLessThanVidStartDetail
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.toByteString
+import org.wfanet.measurement.common.toLong
 
 @RunWith(JUnit4::class)
 class VidIndexMapTest {
   @Test
-  fun `throws when PopulationSpec contains a VidRange with startVid greater than endVidInclusive`() {
+  fun `construction throws when PopulationSpec has a VidRange with start greater than end`() {
     // The intent isn't to test the validator here, but to just ensure that any validation
     // error results in an exception being thrown.
     val testPopulationSpec = populationSpec {
@@ -41,15 +47,10 @@ class VidIndexMapTest {
       }
     }
     val exception =
-      assertFailsWith<PopulationSpecValidationException>(
-        message = "Expected exception",
-        block = { VidIndexMap(testPopulationSpec) },
-      )
-    assertThat(exception.toString())
-      .contains(
-        "The endVidInclusive of the range at 'SubpopulationIndex: 0 VidRangeIndex: 0' " +
-          "must be greater than or equal to the startVid."
-      )
+      assertFailsWith<PopulationSpecValidationException>("Expected exception") {
+        VidIndexMap(testPopulationSpec) }
+    val details = exception.details[0] as EndVidInclusiveLessThanVidStartDetail
+    assertThat(details.index).isEqualTo(VidRangeIndex(0, 0))
   }
 
   @Test
@@ -75,7 +76,8 @@ class VidIndexMapTest {
   }
 
   @Test
-  fun `create a VidIndexMap with multiple subpopulations`() {
+  fun `create a VidIndexMap with a custom hash function and multiple subpopulations`() {
+    val vidCount = 10L
     val testPopulationSpec = populationSpec {
       subpopulations += subPopulation {
         vidRanges += vidRange {
@@ -86,26 +88,28 @@ class VidIndexMapTest {
       subpopulations += subPopulation {
         vidRanges += vidRange {
           startVid = 2
-          endVidInclusive = 10
+          endVidInclusive = vidCount
         }
       }
     }
 
     // We'll pass a salt which we'll confirm is the value we expect.
     // The output of the hash is just the VID.
-    val salt = 100L
+    val salt = (-1L).toByteString(ByteOrder.BIG_ENDIAN)
+
+    // Note that this hash function uses the salt to have the indexes of the
+    // VIDs be the reverse ordering of the VIDs themselves.
+    // Thus, the tests in the for loop below test that the subpopulations are
+    // processed correct that a custom hash function is called, and that the
+    // salt is passed the the hash function correctly.
     val hashFunction = { vid: Long, localSalt: ByteString ->
-      assertThat(localSalt).isEqualTo(salt.toByteString(ByteOrder.BIG_ENDIAN))
-      vid.toByteString(ByteOrder.BIG_ENDIAN)
+      (vid*localSalt.toLong(ByteOrder.BIG_ENDIAN)).toByteString(ByteOrder.BIG_ENDIAN)
     }
+    val vidIndexMap = VidIndexMap(testPopulationSpec, salt, hashFunction)
 
-    val vidIndexMap =
-      VidIndexMap(testPopulationSpec, salt.toByteString(ByteOrder.BIG_ENDIAN), hashFunction)
-
-    val vidCount = 10L
     assertThat(vidIndexMap.size).isEqualTo(vidCount)
     for (i in 1..vidCount) {
-      assertThat(vidIndexMap[i]).isEqualTo(i - 1)
+      assertThat(vidIndexMap[i]).isEqualTo(vidCount-i)
     }
   }
 }
