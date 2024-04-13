@@ -19,11 +19,15 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
+import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.VidRangeIndex
+import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.StartVidNotPositiveDetail
+import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.EndVidInclusiveLessThanVidStartDetail
+import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.VidRangesNotDisjointDetail
 
 @RunWith(JUnit4::class)
 class PopulationSpecValidatorTest {
   @Test
-  fun `vidRange invalid with start greater than end`() {
+  fun `validateVidRangesList returns exception when vidRange start greater than end`() {
     val testPopulationSpec = populationSpec {
       subpopulations += subPopulation {
         vidRanges += vidRange {
@@ -36,15 +40,12 @@ class PopulationSpecValidatorTest {
     val exception = result.exceptionOrNull() as PopulationSpecValidationException
     assertThat(exception).isNotNull()
     assertThat(exception.details.size).isEqualTo(1)
-    assertThat(exception.details[0].toString())
-      .isEqualTo(
-        "The endVidInclusive of the range at 'SubpopulationIndex: 0 VidRangeIndex: 0' " +
-          "must be greater than or equal to the startVid."
-      )
+    val details = exception.details[0] as EndVidInclusiveLessThanVidStartDetail
+    assertThat(details.index).isEqualTo(VidRangeIndex(0, 0))
   }
 
   @Test
-  fun `vidRange invalid with start non-positive`() {
+  fun `validateVidRangesList returns exception when vidRange has non-positive start`() {
     val testPopulationSpec = populationSpec {
       subpopulations += subPopulation {
         vidRanges += vidRange {
@@ -57,15 +58,12 @@ class PopulationSpecValidatorTest {
     val exception = result.exceptionOrNull() as PopulationSpecValidationException
     assertThat(exception).isNotNull()
     assertThat(exception.details.size).isEqualTo(1)
-    assertThat(exception.details[0].toString())
-      .isEqualTo(
-        "The startVid of the range at 'SubpopulationIndex: 0 VidRangeIndex: 0' " +
-          "must be greater than zero."
-      )
+    val details = exception.details[0] as StartVidNotPositiveDetail
+    assertThat(details.index).isEqualTo(VidRangeIndex(0, 0))
   }
 
   @Test
-  fun `two vidRanges across subpopulation non-disjoint`() {
+  fun `validateVidRangesList returns exception when vidRange has non-disjoint vidRanges`() {
     val testPopulationSpec = populationSpec {
       subpopulations += subPopulation {
         vidRanges += vidRange {
@@ -84,15 +82,13 @@ class PopulationSpecValidatorTest {
     val exception = result.exceptionOrNull() as PopulationSpecValidationException
     assertThat(exception).isNotNull()
     assertThat(exception.details.size).isEqualTo(1)
-    assertThat(exception.details[0].toString())
-      .isEqualTo(
-        "The ranges at 'SubpopulationIndex: 0 VidRangeIndex: 0' and 'SubpopulationIndex: 1 " +
-          "VidRangeIndex: 0' must be disjoint."
-      )
+    val details = exception.details[0] as VidRangesNotDisjointDetail
+    assertThat(details.firstIndex).isEqualTo(VidRangeIndex(0, 0))
+    assertThat(details.secondIndex).isEqualTo(VidRangeIndex(1, 0))
   }
 
   @Test
-  fun `two error accumulation single range invalid and vidRanges are non-disjoint`() {
+  fun `validateVidRangesList returns exception with two details`() {
     val testPopulationSpec = populationSpec {
       subpopulations += subPopulation {
         // This range is invalid.
@@ -123,16 +119,13 @@ class PopulationSpecValidatorTest {
     val exception = result.exceptionOrNull() as PopulationSpecValidationException
     assertThat(exception).isNotNull()
     assertThat(exception.details.size).isEqualTo(2)
-    assertThat(exception.details[0].toString())
-      .isEqualTo(
-        "The startVid of the range at 'SubpopulationIndex: 0 VidRangeIndex: 0' " +
-          "must be greater than zero."
-      )
-    assertThat(exception.details[1].toString())
-      .isEqualTo(
-        "The ranges at 'SubpopulationIndex: 0 VidRangeIndex: 1' and 'SubpopulationIndex: " +
-          "1 VidRangeIndex: 0' must be disjoint."
-      )
+
+    val details0 = exception.details[0] as StartVidNotPositiveDetail
+    assertThat(details0.index).isEqualTo(VidRangeIndex(0, 0))
+
+    val details1 = exception.details[1] as VidRangesNotDisjointDetail
+    assertThat(details1.firstIndex).isEqualTo(VidRangeIndex(0, 1))
+    assertThat(details1.secondIndex).isEqualTo(VidRangeIndex(1, 0))
   }
 
   @Test
