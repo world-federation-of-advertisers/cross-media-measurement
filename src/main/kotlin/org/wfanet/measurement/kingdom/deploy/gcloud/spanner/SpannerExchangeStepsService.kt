@@ -58,7 +58,7 @@ class SpannerExchangeStepsService(
           request.stepIndex,
         )
         ?: throw ExchangeStepNotFoundException(
-          externalRecurringExchangeId,
+            externalRecurringExchangeId,
             request.date,
             request.stepIndex,
           )
