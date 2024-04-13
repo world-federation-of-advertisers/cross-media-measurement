@@ -54,6 +54,9 @@ class PopulationSpecValidationException(message: String, val details: List<Detai
     }
   }
 
+  /** A common interface for the set of Details associated with this exception */
+  interface Detail
+
   /**
    * Indicates that a pair of [VidRange]s are not disjoint.
    *
