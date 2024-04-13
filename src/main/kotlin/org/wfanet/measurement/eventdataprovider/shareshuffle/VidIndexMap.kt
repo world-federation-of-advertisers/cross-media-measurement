@@ -36,8 +36,9 @@ class VidNotFoundException(vid: Long) : Exception("Failed to find VID $vid.")
 class VidIndexMap(
   populationSpec: PopulationSpec,
   private val salt: ByteString = ByteString.EMPTY,
-  private val hashFunction: (Long, ByteString) -> ByteString = ::hashVidSha256,
+  private val hashFunction: (Long, ByteString) -> Long = ::hashVidSha256,
 ) {
+  // TODO(@kungfucraig): Provide a constructor that reads the vid->index map from a file.
 
   /** The number of VIDs managed by this VidIndexMap */
   val size
@@ -47,11 +48,14 @@ class VidIndexMap(
   private val indexMap = hashMapOf<Long, Int>()
 
   /** A data class for a VID and its hash value. */
-  data class VidAndHash(val vid: Long, val hash: ByteString) : Comparable<VidAndHash> {
-    private val byteStringComparator = ByteString.unsignedLexicographicalComparator()
-
+  data class VidAndHash(val vid: Long, val hash: Long) : Comparable<VidAndHash> {
     override operator fun compareTo(other: VidAndHash): Int {
-      return byteStringComparator.compare(this.hash, other.hash)
+      val hashComparison = compareValues(this.hash, other.hash)
+      return if (hashComparison == 0) {
+        compareValues(this.vid, other.vid)
+      } else {
+        hashComparison
+      }
     }
   }
 
@@ -88,9 +92,12 @@ class VidIndexMap(
      * @param [vid] the vid to hash
      * @param [salt] Appended to the big endian representation of the vid before hashing
      */
-    fun hashVidSha256(vid: Long, salt: ByteString = ByteString.EMPTY): ByteString {
+    fun hashVidSha256(vid: Long, salt: ByteString = ByteString.EMPTY): Long {
       val hashInput = vid.toByteString(ByteOrder.BIG_ENDIAN).concat(salt)
       return Hashing.hashSha256(hashInput)
+        .asReadOnlyByteBuffer()
+        .order(ByteOrder.BIG_ENDIAN)
+        .getLong(0)
     }
   }
 }

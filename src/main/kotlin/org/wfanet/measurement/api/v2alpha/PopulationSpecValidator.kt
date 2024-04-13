@@ -31,9 +31,6 @@ class PopulationSpecValidationException(message: String, val details: List<Detai
     }
   }
 
-  /** A common interface for the set of Details associated with this exception */
-  interface Detail
-
   /** A class that represents a VidRangeIndex within a [PopulationSpec] */
   data class VidRangeIndex(val subPopulationIndex: Int, val vidRangeIndex: Int) {
     operator fun compareTo(other: VidRangeIndex): Int =
@@ -43,6 +40,9 @@ class PopulationSpecValidationException(message: String, val details: List<Detai
       return "SubpopulationIndex: $subPopulationIndex VidRangeIndex: $vidRangeIndex"
     }
   }
+
+  /** A common interface for the set of Details associated with this exception */
+  interface Detail
 
   /**
    * Indicates that a pair of [VidRange]s are not disjoint.
