@@ -2496,7 +2496,7 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    assertThat(exception.errorInfo?.metadataMap).containsEntry("data_provider", DATA_PROVIDERS_NAME)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("dataProvider", DATA_PROVIDERS_NAME)
   }
 
   @Test
@@ -2552,7 +2552,7 @@ class MeasurementsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception.errorInfo?.metadataMap)
-      .containsEntry("measurement_consumer", MEASUREMENT_CONSUMER_NAME)
+      .containsEntry("measurementConsumer", MEASUREMENT_CONSUMER_NAME)
   }
 
   @Test
@@ -2633,7 +2633,7 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    assertThat(exception.errorInfo?.metadataMap).containsEntry("data_provider", DATA_PROVIDERS_NAME)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("dataProvider", DATA_PROVIDERS_NAME)
   }
 
   @Test
@@ -2665,7 +2665,7 @@ class MeasurementsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception.errorInfo?.metadataMap)
-      .containsEntry("measurement_consumer", MEASUREMENT_CONSUMER_NAME)
+      .containsEntry("measurementConsumer", MEASUREMENT_CONSUMER_NAME)
   }
 
   @Test

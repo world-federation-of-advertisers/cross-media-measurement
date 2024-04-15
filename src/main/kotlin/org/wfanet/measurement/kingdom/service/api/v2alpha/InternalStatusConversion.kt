@@ -33,7 +33,10 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyKey
+import org.wfanet.measurement.api.v2alpha.EventGroupKey
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerEventGroupKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.ModelProviderCertificateKey
@@ -86,7 +89,7 @@ fun Status.toExternalStatusRuntimeException(
                 )
               )
               .toName()
-          put("measurement_consumer", measurementConsumerName)
+          put("measurementConsumer", measurementConsumerName)
           errorMessage = "MeasurementConsumer $measurementConsumerName not found."
         }
         ErrorCode.DATA_PROVIDER_NOT_FOUND -> {
@@ -97,7 +100,7 @@ fun Status.toExternalStatusRuntimeException(
                 )
               )
               .toName()
-          put("data_provider", dataProviderName)
+          put("dataProvider", dataProviderName)
           errorMessage = "DataProvider $dataProviderName not found."
         }
         ErrorCode.DUCHY_NOT_FOUND -> {
@@ -317,13 +320,71 @@ fun Status.toExternalStatusRuntimeException(
           errorMessage = "ApiKey not found."
         }
         ErrorCode.EVENT_GROUP_NOT_FOUND -> {
-          errorMessage = "EventGroup not found."
+          if (errorInfo.metadataMap.containsKey("external_data_provider_id")) {
+            val eventGroupName =
+              EventGroupKey(
+                  externalIdToApiId(
+                    checkNotNull(errorInfo.metadataMap["external_data_provider_id"]).toLong()
+                  ),
+                  externalIdToApiId(
+                    checkNotNull(errorInfo.metadataMap["external_event_group_id"]).toLong()
+                  ),
+                )
+                .toName()
+            put("eventGroup", eventGroupName)
+            errorMessage = "EventGroup $eventGroupName not found."
+          } else if (errorInfo.metadataMap.containsKey("external_measurement_consumer_id")) {
+            val eventGroupName =
+              MeasurementConsumerEventGroupKey(
+                  externalIdToApiId(
+                    checkNotNull(errorInfo.metadataMap["external_measurement_consumer_id"]).toLong()
+                  ),
+                  externalIdToApiId(
+                    checkNotNull(errorInfo.metadataMap["external_event_group_id"]).toLong()
+                  ),
+                )
+                .toName()
+            put("eventGroup", eventGroupName)
+            errorMessage = "EventGroup $eventGroupName not found."
+          } else {
+            errorMessage = "EventGroup not found."
+          }
         }
         ErrorCode.EVENT_GROUP_INVALID_ARGS -> {
-          errorMessage = "EventGroup invalid arguments."
+          val originalMeasurementConsumerName =
+            MeasurementConsumerKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["original_external_measurement_id"]).toLong()
+                )
+              )
+              .toName()
+          val providedMeasurementConsumerName =
+            MeasurementConsumerKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["provided_external_measurement_id"]).toLong()
+                )
+              )
+              .toName()
+          put("originalMeasurementConsumer", originalMeasurementConsumerName)
+          put("providedMeasurementConsumer", providedMeasurementConsumerName)
+          errorMessage =
+            "EventGroup operation arguments original measurement: $originalMeasurementConsumerName and provided measurement: $providedMeasurementConsumerName invalid."
         }
         ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND -> {
-          errorMessage = "EventGroup metadata descriptor not found."
+          val eventGroupMetadataDescriptorName =
+            EventGroupMetadataDescriptorKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_data_provider_id"]).toLong()
+                ),
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_event_group_metadata_descriptor_id"])
+                    .toLong()
+                ),
+              )
+              .toName()
+          put("eventGroupMetadataDescriptor", eventGroupMetadataDescriptorName)
+          errorMessage =
+            "EventGroup metadata descriptor $eventGroupMetadataDescriptorName not found."
         }
         ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_ALREADY_EXISTS_WITH_TYPE -> {
           errorMessage = "EventGroupMetadataDescriptor with same type already exists."
@@ -367,7 +428,18 @@ fun Status.toExternalStatusRuntimeException(
           errorMessage = "ExchangeStepAttempt $exchangeStepAttemptName not found."
         }
         ErrorCode.EVENT_GROUP_STATE_ILLEGAL -> {
-          errorMessage = "EventGroup not found."
+          val eventGroupName =
+            EventGroupKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_data_provider_id"]).toLong()
+                ),
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_event_group_id"]).toLong()
+                ),
+              )
+              .toName()
+          put("eventGroup", eventGroupName)
+          errorMessage = "EventGroup $eventGroupName not found."
         }
         ErrorCode.MEASUREMENT_ETAG_MISMATCH -> {
           errorMessage = "Measurement is inconsistent with initial state."

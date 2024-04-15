@@ -56,7 +56,6 @@ import org.wfanet.measurement.common.api.ChildResourceKey
 import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.ApiId
@@ -136,17 +135,15 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
         internalEventGroupsStub.getEventGroup(internalRequest)
       } catch (e: StatusException) {
         throw when (e.status.code) {
-            Status.Code.NOT_FOUND ->
-              if (key.parentKey == principal.resourceKey) {
-                Status.NOT_FOUND
-              } else {
-                permissionDeniedStatus()
-              }
-            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-            else -> Status.UNKNOWN
-          }
-          .withCause(e)
-          .asRuntimeException()
+          Status.Code.NOT_FOUND ->
+            if (key.parentKey == principal.resourceKey) {
+              Status.NOT_FOUND
+            } else {
+              permissionDeniedStatus()
+            }
+          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
 
     when (principal) {
@@ -191,14 +188,13 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
     }
     return try {
       internalEventGroupsStub.createEventGroup(internalRequest).toEventGroup()
-    } catch (ex: StatusException) {
-      when (ex.status.code) {
-        Status.Code.DEADLINE_EXCEEDED -> throw Status.DEADLINE_EXCEEDED.asRuntimeException()
-        Status.Code.FAILED_PRECONDITION ->
-          failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition" }
-        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "DataProvider not found." }
-        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
-      }
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+        Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
+        Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        else -> Status.UNKNOWN
+      }.toExternalStatusRuntimeException(e)
     }
   }
 
@@ -221,15 +217,13 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
     }
     return try {
       internalEventGroupsStub.updateEventGroup(updateRequest).toEventGroup()
-    } catch (ex: StatusException) {
-      when (ex.status.code) {
-        Status.Code.INVALID_ARGUMENT ->
-          failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
-        Status.Code.FAILED_PRECONDITION ->
-          failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition." }
-        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "EventGroup not found." }
-        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
-      }
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+        Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
+        Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        else -> Status.UNKNOWN
+      }.toExternalStatusRuntimeException(e)
     }
   }
 
@@ -297,15 +291,13 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
 
     return try {
       internalEventGroupsStub.deleteEventGroup(deleteRequest).toEventGroup()
-    } catch (ex: StatusException) {
-      when (ex.status.code) {
-        Status.Code.INVALID_ARGUMENT ->
-          failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
-        Status.Code.FAILED_PRECONDITION ->
-          failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition." }
-        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "EventGroup not found." }
-        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
-      }
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+        Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
+        Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        else -> Status.UNKNOWN
+      }.toExternalStatusRuntimeException(e)
     }
   }
 
@@ -344,11 +336,9 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
         internalEventGroupsStub.streamEventGroups(internalRequest).toList()
       } catch (e: StatusException) {
         throw when (e.status.code) {
-            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-            else -> Status.UNKNOWN
-          }
-          .withCause(e)
-          .asRuntimeException()
+          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
 
     if (internalEventGroups.isEmpty()) {
