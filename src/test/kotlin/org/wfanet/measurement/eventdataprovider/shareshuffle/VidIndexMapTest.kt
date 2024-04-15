@@ -44,21 +44,21 @@ class VidIndexMapTest {
     }
     val exception =
       assertFailsWith<PopulationSpecValidationException>("Expected exception") {
-        VidIndexMap(testPopulationSpec)
+        InMemoryVidIndexMap(testPopulationSpec)
       }
     val details = exception.details[0] as EndVidInclusiveLessThanVidStartDetail
     assertThat(details.index).isEqualTo(VidRangeIndex(0, 0))
   }
 
   @Test
-  fun `create a VidIndexMap of size zero with an empty PopulationSpec`() {
+  fun `create a InMemoryVidIndexMap of size zero with an empty PopulationSpec`() {
     val emptyPopulationSpec = populationSpec {}
-    val vidIndexMap = VidIndexMap(emptyPopulationSpec)
+    val vidIndexMap = InMemoryVidIndexMap(emptyPopulationSpec)
     assertThat(vidIndexMap.size).isEqualTo(0)
   }
 
   @Test
-  fun `create a VidIndexMap of size one`() {
+  fun `create a InMemoryVidIndexMap of size one`() {
     val testPopulationSpec = populationSpec {
       subpopulations += subPopulation {
         vidRanges += vidRange {
@@ -67,13 +67,13 @@ class VidIndexMapTest {
         }
       }
     }
-    val vidIndexMap = VidIndexMap(testPopulationSpec)
+    val vidIndexMap = InMemoryVidIndexMap(testPopulationSpec)
     assertThat(vidIndexMap.size).isEqualTo(1)
     assertThat(vidIndexMap[1]).isEqualTo(0)
   }
 
   @Test
-  fun `create a VidIndexMap with a custom hash function and multiple subpopulations`() {
+  fun `create a InMemoryVidIndexMap with a custom hash function and multiple subpopulations`() {
     val vidCount = 10L
     val testPopulationSpec = populationSpec {
       subpopulations += subPopulation {
@@ -99,9 +99,9 @@ class VidIndexMapTest {
     // ordering of the indexes of the VIDs follows the ordering of
     // the VIDs themselves.
     val hashFunction = { _: Long, localSalt: ByteString ->
-      -1 * localSalt.asReadOnlyByteBuffer().getLong(0)
+      localSalt.asReadOnlyByteBuffer().getLong(0)
     }
-    val vidIndexMap = VidIndexMap(testPopulationSpec, salt, hashFunction)
+    val vidIndexMap = InMemoryVidIndexMap(testPopulationSpec, salt, hashFunction)
 
     assertThat(vidIndexMap.size).isEqualTo(vidCount)
     for (vid in 1..vidCount) {
