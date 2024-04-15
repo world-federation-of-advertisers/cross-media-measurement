@@ -36,6 +36,7 @@ import org.mockito.kotlin.verify
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepKey
+import org.wfanet.measurement.api.v2alpha.CanonicalRecurringExchangeKey
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepRequestKt
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepResponse
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -60,6 +61,7 @@ import org.wfanet.measurement.api.v2alpha.withPrincipal
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.ExternalId
@@ -79,6 +81,7 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.exchangeStep as internalExchangeStep
 import org.wfanet.measurement.internal.kingdom.recurringExchange
 import org.wfanet.measurement.internal.kingdom.streamExchangeStepsRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RecurringExchangeNotFoundException
 
 private const val DEFAULT_LIMIT = 50
 private const val EXCHANGE_NAME = "recurringExchanges/AAAAAAAAAHs/exchanges/2021-03-14"
@@ -353,6 +356,37 @@ class ExchangeStepsServiceTest {
     assertThat(exception.status.description).isEqualTo("Page size cannot be less than 0")
   }
 
+  @Test
+  fun `listExchangeSteps throws PERMISSION_DENIED with recurring exchange name when recurring exchange not found`() {
+    internalRecurringExchangesServiceMock.stub {
+      onBlocking { getRecurringExchange(any()) }
+        .thenThrow(
+          RecurringExchangeNotFoundException(EXTERNAL_RECURRING_EXCHANGE_ID)
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "RecurringExchange not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipal(ModelProviderPrincipal(MODEL_PROVIDER_KEY)) {
+          runBlocking {
+            service.listExchangeSteps(
+              listExchangeStepsRequest {
+                parent = EXCHANGE_NAME
+                filter = filter {
+                  modelProvider = MODEL_PROVIDER_KEY.toName()
+                  this.states += states
+                }
+                pageSize = 1
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("recurringExchange", RECURRING_EXCHANGE_KEY.toName())
+  }
+
   companion object {
     private val EXTERNAL_DATA_PROVIDER_ID = ExternalId(12345L)
     private val EXTERNAL_MODEL_PROVIDER_ID = ExternalId(23456L)
@@ -360,6 +394,8 @@ class ExchangeStepsServiceTest {
 
     private val DATA_PROVIDER_KEY = DataProviderKey(EXTERNAL_DATA_PROVIDER_ID.apiId.value)
     private val MODEL_PROVIDER_KEY = ModelProviderKey(EXTERNAL_MODEL_PROVIDER_ID.apiId.value)
+    private val RECURRING_EXCHANGE_KEY =
+      CanonicalRecurringExchangeKey(EXTERNAL_RECURRING_EXCHANGE_ID.apiId.value)
     private val EXCHANGE_STEP_KEY =
       CanonicalExchangeStepKey(
         recurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID.apiId.value,

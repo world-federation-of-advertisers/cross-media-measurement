@@ -25,6 +25,8 @@ import io.grpc.StatusRuntimeException
 import io.grpc.protobuf.StatusProto
 import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeKey
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepKey
 import org.wfanet.measurement.api.v2alpha.CanonicalRecurringExchangeKey
 import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
@@ -334,14 +336,35 @@ fun Status.toExternalStatusRuntimeException(
                 )
               )
               .toName()
-          put("recurring_exchange", recurringExchangeName)
+          put("recurringExchange", recurringExchangeName)
           errorMessage = "RecurringExchange $recurringExchangeName not found."
         }
         ErrorCode.EXCHANGE_STEP_NOT_FOUND -> {
-          errorMessage = "ExchangeStep not found."
+          val exchangeStepName =
+            CanonicalExchangeStepKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_recurring_exchange_id"]).toLong()
+                ),
+                checkNotNull(errorInfo.metadataMap["date"]),
+                checkNotNull(errorInfo.metadataMap["step_index"]),
+              )
+              .toName()
+          put("exchangeStep", exchangeStepName)
+          errorMessage = "ExchangeStep $exchangeStepName not found."
         }
         ErrorCode.EXCHANGE_STEP_ATTEMPT_NOT_FOUND -> {
-          errorMessage = "ExchangeStepAttempt not found."
+          val exchangeStepAttemptName =
+            CanonicalExchangeStepAttemptKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_recurring_exchange_id"]).toLong()
+                ),
+                checkNotNull(errorInfo.metadataMap["date"]),
+                checkNotNull(errorInfo.metadataMap["step_index"]),
+                checkNotNull(errorInfo.metadataMap["attempt_number"]),
+              )
+              .toName()
+          put("exchangeStepAttempt", exchangeStepAttemptName)
+          errorMessage = "ExchangeStepAttempt $exchangeStepAttemptName not found."
         }
         ErrorCode.EVENT_GROUP_STATE_ILLEGAL -> {
           errorMessage = "EventGroup not found."

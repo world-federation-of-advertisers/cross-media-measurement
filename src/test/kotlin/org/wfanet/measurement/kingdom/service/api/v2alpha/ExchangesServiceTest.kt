@@ -230,7 +230,7 @@ class ExchangesServiceTest {
         }
       assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
       assertThat(exception.errorInfo?.metadataMap)
-        .containsEntry("recurring_exchange", externalRecurringExchangeName)
+        .containsEntry("recurringExchange", externalRecurringExchangeName)
     }
 
   companion object {

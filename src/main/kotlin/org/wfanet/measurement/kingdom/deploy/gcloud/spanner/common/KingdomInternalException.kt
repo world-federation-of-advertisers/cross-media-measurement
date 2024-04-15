@@ -614,7 +614,7 @@ class ExchangeStepAttemptNotFoundException(
     get() =
       mapOf(
         "external_recurring_exchange_id" to externalRecurringExchangeId.value.toString(),
-        "date" to date.toString(),
+        "date" to date.toLocalDate().toString(),
         "step_index" to stepIndex.toString(),
         "attempt_number" to attemptNumber.toString(),
       )
@@ -630,7 +630,7 @@ class ExchangeStepNotFoundException(
     get() =
       mapOf(
         "external_recurring_exchange_id" to externalRecurringExchangeId.value.toString(),
-        "date" to date.toString(),
+        "date" to date.toLocalDate().toString(),
         "step_index" to stepIndex.toString(),
       )
 }

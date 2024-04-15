@@ -155,6 +155,7 @@ kt_jvm_test(
     srcs = ["ExchangeStepAttemptsServiceTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepAttemptsServiceTest",
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/common",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:exchange_step_attempts_service",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempts_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_kt_jvm_proto",
@@ -177,6 +178,7 @@ kt_jvm_test(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/common",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:exchange_steps_service",
         "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_kt_jvm_proto",
