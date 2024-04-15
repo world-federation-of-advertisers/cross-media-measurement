@@ -111,6 +111,24 @@ class CertificateReader(private val parentType: ParentType) :
     }
   }
 
+  fun bindWhereClause(
+    parentId: InternalId,
+    externalCertificateIds: Collection<ExternalId>,
+  ): CertificateReader {
+    return fillStatementBuilder {
+      appendClause(
+        """
+        WHERE
+          ${parentType.idColumnName} = @parentId
+          AND ${parentType.externalCertificateIdColumnName} IN UNNEST(@externalCertificateIds)
+        """
+          .trimIndent()
+      )
+      bind("parentId" to parentId)
+      bind("externalCertificateIds").toInt64Array(externalCertificateIds.map { it.value })
+    }
+  }
+
   override suspend fun translate(struct: Struct): Result {
     val certificateId = struct.getInternalId("CertificateId")
     val isNotYetActive = struct.getBoolean("IsNotYetActive")
