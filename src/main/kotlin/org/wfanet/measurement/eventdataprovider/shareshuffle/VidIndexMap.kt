@@ -24,13 +24,9 @@ import org.wfanet.measurement.common.toByteString
 
 class VidNotFoundException(vid: Long) : Exception("Failed to find VID $vid.")
 
-/**
- * A mapping of VIDs to [FrequencyVector] indexes for a [PopulationSpec].
- */
+/** A mapping of VIDs to [FrequencyVector] indexes for a [PopulationSpec]. */
 interface VidIndexMap {
-  /**
-   * Gets the index in the [FrequencyVector] for the given VID
-   */
+  /** Gets the index in the [FrequencyVector] for the given VID */
   operator fun get(vid: Long): Int
 }
 
