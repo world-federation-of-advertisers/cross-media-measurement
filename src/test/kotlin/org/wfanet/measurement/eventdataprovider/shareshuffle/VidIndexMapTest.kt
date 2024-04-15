@@ -99,7 +99,7 @@ class VidIndexMapTest {
     // ordering of the indexes of the VIDs follows the ordering of
     // the VIDs themselves.
     val hashFunction = { _: Long, localSalt: ByteString ->
-      localSalt.asReadOnlyByteBuffer().getLong(0)
+      -1 * localSalt.asReadOnlyByteBuffer().getLong(0)
     }
     val vidIndexMap = VidIndexMap(testPopulationSpec, salt, hashFunction)
 
