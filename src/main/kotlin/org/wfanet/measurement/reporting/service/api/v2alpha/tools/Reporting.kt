@@ -22,10 +22,12 @@ import com.google.type.dateTime
 import com.google.type.interval
 import com.google.type.timeZone
 import io.grpc.ManagedChannel
+import io.grpc.StatusException
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import kotlin.random.Random
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -49,7 +51,9 @@ import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
+import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.Report
+import org.wfanet.measurement.reporting.v2alpha.ReportKt
 import org.wfanet.measurement.reporting.v2alpha.ReportKt.reportingInterval
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
@@ -65,6 +69,7 @@ import org.wfanet.measurement.reporting.v2alpha.listMetricCalculationSpecsReques
 import org.wfanet.measurement.reporting.v2alpha.listReportingSetsRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
 import org.wfanet.measurement.reporting.v2alpha.metricCalculationSpec
+import org.wfanet.measurement.reporting.v2alpha.metricSpec
 import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
 import org.wfanet.measurement.reporting.v2alpha.timeIntervals
@@ -237,6 +242,561 @@ class ReportingSetsCommand : Runnable {
   }
 
   override fun run() {}
+}
+
+@CommandLine.Command(
+  name = "create-ui-report",
+  description = ["Create a report viewable by the Reporting UI"],
+)
+class CreateUiReportCommand : Runnable {
+  @CommandLine.ParentCommand private lateinit var parent: ReportsCommand
+
+  @CommandLine.Option(
+    names = ["--request-id"],
+    description = ["Request ID for creation of Report"],
+    required = false,
+    defaultValue = "",
+  )
+  private lateinit var requestId: String
+
+  @CommandLine.Option(
+    names = ["--parent"],
+    description = ["API resource name of the Measurement Consumer"],
+    required = true,
+  )
+  private lateinit var measurementConsumerName: String
+
+  class ReportParams {
+    @CommandLine.Option(
+      names = ["--id"],
+      description = ["Resource ID of the Report"],
+      required = true,
+      defaultValue = "",
+    )
+    lateinit var id: String
+      private set
+
+    @CommandLine.Option(
+      names = ["--display-name"],
+      description = ["Display Name for the report"],
+      required = true,
+      defaultValue = "",
+    )
+    lateinit var displayName: String
+      private set
+  }
+
+  @CommandLine.ArgGroup(
+    exclusive = false,
+    multiplicity = "1",
+    heading = "Create Report request configuration\n",
+  )
+  private lateinit var reportParams: ReportParams
+
+  class ReportingSetParams {
+    @CommandLine.Option(
+      names = ["--cmms-event-group"],
+      description =
+        ["EventGroup resource name from the CMMS API. This can be specified multiple times"],
+      required = true,
+    )
+    lateinit var eventGroupNames: List<String>
+      private set
+
+    @CommandLine.Option(
+      names = ["--reporting-set-id"],
+      description = ["Name of the ReportingSet used with the EDP"],
+      required = true,
+    )
+    lateinit var reportingSetName: String
+      private set
+
+    @CommandLine.Option(
+      names = ["--reporting-set-display-name"],
+      description = ["Human-readable name for display purposes"],
+      required = false,
+    )
+    lateinit var reportingSetDisplayName: String
+      private set
+  }
+
+  @CommandLine.ArgGroup(
+    exclusive = false,
+    multiplicity = "2..*",
+    heading = "Primitive Reporting Set request configuration\n",
+  )
+  private lateinit var edps: List<ReportingSetParams>
+
+  class MetricFrequencySpecInput {
+    @CommandLine.Option(
+      names = ["--daily-frequency"],
+      description = ["Whether to use daily frequency"],
+    )
+    var daily: Boolean = false
+      private set
+
+    @CommandLine.Option(
+      names = ["--day-of-week"],
+      description = ["Day of the week for weekly frequency."],
+    )
+    var dayOfWeek: DayOfWeek = DayOfWeek.DAY_OF_WEEK_UNSPECIFIED
+      private set
+
+    @CommandLine.Option(
+      names = ["--day-of-month"],
+      description =
+        [
+          """
+          Day of the month for monthly frequency. Represented by a number between 1 and 31, inclusive.
+          """
+        ],
+    )
+    var dayOfMonth: Int = 0
+      private set
+  }
+
+  @CommandLine.ArgGroup(
+    exclusive = true,
+    multiplicity = "1",
+    heading = "Metric frequency specification\n",
+  )
+  private lateinit var metricFrequencySpecInput: MetricFrequencySpecInput
+
+  class ReportingIntervalInput {
+    @CommandLine.Option(
+      names = ["--report-start"],
+      description = ["Start of the report in yyyy-MM-ddTHH:mm:ss"],
+      required = true,
+    )
+    lateinit var reportingIntervalReportStartTime: LocalDateTime
+      private set
+
+    @CommandLine.Option(
+      names = ["--report-end"],
+      description = ["End of the report in yyyy-mm-dd"],
+      required = true,
+    )
+    lateinit var reportingIntervalReportEnd: LocalDate
+      private set
+
+    @CommandLine.Option(
+      names = ["--report-time-zone"],
+      description =
+        ["IANA Time zone. If unspecified, it will use the user's default system time zone."],
+      required = false,
+    )
+    var timeZone: String = ZoneId.systemDefault().toString()
+      private set
+  }
+
+  @CommandLine.ArgGroup(exclusive = false, multiplicity = "1", heading = "Time intervals\n")
+  private lateinit var interval: ReportingIntervalInput
+
+  class Grouping {
+    @CommandLine.Option(
+      names = ["--grouping"],
+      description = ["Boolean to indicate the start of a new grouping list."],
+      required = true,
+    )
+    var grouping: Boolean = false
+      private set
+
+    @CommandLine.Option(
+      names = ["--predicate"],
+      description = ["A list of predicates for this grouping."],
+      required = true,
+    )
+    lateinit var predicates: List<String>
+      private set
+  }
+
+  @CommandLine.ArgGroup(
+    exclusive = false,
+    multiplicity = "0..*",
+    heading = "Grouping Specification\n",
+  )
+  private lateinit var groupings: List<Grouping>
+
+  private fun createPrimitiveReportingSet(
+    edp: ReportingSetParams,
+    measurementConsumerName: String,
+  ): ReportingSet {
+    val request = createReportingSetRequest {
+      parent = measurementConsumerName
+      reportingSet = reportingSet {
+        name = edp.reportingSetName
+        displayName = edp.reportingSetDisplayName
+        tags.put("ui.halo-cmm.org/reporting_set_type", "individual")
+        primitive =
+          ReportingSetKt.primitive {
+            for (eventGroupName in edp.eventGroupNames) cmmsEventGroups += eventGroupName
+          }
+      }
+    }
+
+    return runBlocking(Dispatchers.IO) { parent.reportingSetStub.createReportingSet(request) }
+  }
+
+  // Creates the nested unions for the provided EDPs.
+  private fun createUnionExpression(edpNames: List<String>): ReportingSet.SetExpression {
+    if (edpNames.size == 2) {
+      return ReportingSetKt.setExpression {
+        operation = ReportingSet.SetExpression.Operation.UNION
+        lhs = ReportingSetKt.SetExpressionKt.operand { reportingSet = edpNames[0] }
+        rhs = ReportingSetKt.SetExpressionKt.operand { reportingSet = edpNames[1] }
+      }
+    } else {
+      return ReportingSetKt.setExpression {
+        operation = ReportingSet.SetExpression.Operation.UNION
+        lhs = ReportingSetKt.SetExpressionKt.operand { reportingSet = edpNames[0] }
+        rhs =
+          ReportingSetKt.SetExpressionKt.operand {
+            expression = createUnionExpression(edpNames.subList(1, edpNames.size))
+          }
+      }
+    }
+  }
+
+  private fun createUnionReportingSet(
+    edps: List<ReportingSetParams>,
+    primitiveRs: List<ReportingSet>,
+    measurementConsumerName: String,
+  ): ReportingSet {
+    val edpNames = edps.map { it.reportingSetName }
+    val edpDisplayNames = edps.map { it.reportingSetDisplayName }
+    val edpFullNames = primitiveRs.map { it.name }
+    val unionName = "union-" + edpNames.joinToString(separator = "-")
+    val unionDisplayName = "Union (${edpDisplayNames.joinToString()})"
+
+    val rsRequest = createReportingSetRequest {
+      parent = measurementConsumerName
+      reportingSet = reportingSet {
+        name = unionName
+        displayName = unionDisplayName
+        tags.put("ui.halo-cmm.org/reporting_set_type", "union")
+        composite = ReportingSetKt.composite { expression = createUnionExpression(edpFullNames) }
+      }
+    }
+
+    return runBlocking(Dispatchers.IO) { parent.reportingSetStub.createReportingSet(rsRequest) }
+  }
+
+  private fun createUniqueReportingSet(
+    edp: ReportingSetParams,
+    primitiveReportingSets: ArrayList<ReportingSet>,
+    unionRsName: String,
+    measurementConsumerName: String,
+  ): ReportingSet {
+    // Depending on the name, a match may find other matches. eg. RS name = XYZ and parent name =
+    // measurementConsumers/ABCXYZ
+    val complement =
+      primitiveReportingSets.filter { !it.name.contains("/reportingSets/" + edp.reportingSetName) }
+    val primitivePairRs =
+      primitiveReportingSets.filter { it.name.contains("/reportingSets/" + edp.reportingSetName) }
+    // Since these reporting sets were created from the provided names, exactly one match should be
+    // found.
+    val primitivePairRsName = primitivePairRs[0].name
+    val request = createReportingSetRequest {
+      parent = measurementConsumerName
+      reportingSet = reportingSet {
+        name = edp.reportingSetName + "-unique"
+        displayName = edp.reportingSetDisplayName + " Unique"
+        tags.put("ui.halo-cmm.org/reporting_set_type", "unique")
+        tags.put("ui.halo-cmm.org/reporting_set_id", primitivePairRsName)
+        composite =
+          ReportingSetKt.composite {
+            expression =
+              ReportingSetKt.setExpression {
+                operation = ReportingSet.SetExpression.Operation.UNION
+                lhs = ReportingSetKt.SetExpressionKt.operand { reportingSet = unionRsName }
+                rhs =
+                  ReportingSetKt.SetExpressionKt.operand {
+                    expression =
+                      ReportingSetKt.setExpression {
+                        operation = ReportingSet.SetExpression.Operation.UNION
+                        lhs =
+                          ReportingSetKt.SetExpressionKt.operand {
+                            reportingSet = complement.elementAt(0).name
+                          }
+                        rhs =
+                          ReportingSetKt.SetExpressionKt.operand {
+                            reportingSet = complement.elementAt(1).name
+                          }
+                      }
+                  }
+              }
+          }
+      }
+    }
+
+    return runBlocking(Dispatchers.IO) { parent.reportingSetStub.createReportingSet(request) }
+  }
+
+  private fun getRandomString(length: Int): String {
+    val allowedChars = ('A'..'Z') + ('a'..'z') + ('0'..'9')
+    return (1..length).map { allowedChars.random() }.joinToString("")
+  }
+
+  private fun createPrimitiveMetricSpecs(
+    frequencySpec: MetricFrequencySpecInput,
+    measurementConsumerName: String,
+    groupings: List<Grouping>,
+  ): MetricCalculationSpec {
+    val baseName = "basic-metric-spec"
+    val specs =
+      mutableListOf<MetricSpec>(
+        metricSpec {
+          reachAndFrequency =
+            MetricSpecKt.reachAndFrequencyParams {
+              reachPrivacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 6.82E-4
+                  delta = 1.0E-15
+                }
+              frequencyPrivacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 0.003888
+                  delta = 1.0E-15
+                }
+              maximumFrequency = 10
+            }
+          vidSamplingInterval = MetricSpecKt.vidSamplingInterval { width = 0.27f }
+        },
+        metricSpec {
+          impressionCount =
+            MetricSpecKt.impressionCountParams {
+              privacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 0.007167
+                  delta = 1.0E-15
+                }
+              maximumFrequencyPerUser = 15
+            }
+          vidSamplingInterval = MetricSpecKt.vidSamplingInterval { width = 1.0f }
+        },
+      )
+
+    return this.createMetricSpecs(
+      baseName,
+      measurementConsumerName,
+      specs,
+      frequencySpec,
+      groupings,
+    )
+  }
+
+  private fun createCompositeMetricSpecs(
+    frequencySpec: MetricFrequencySpecInput,
+    measurementConsumerName: String,
+    groupings: List<Grouping>,
+  ): MetricCalculationSpec {
+    val baseName = "other-metric-spec"
+    val specs =
+      mutableListOf<MetricSpec>(
+        metricSpec {
+          reach =
+            MetricSpecKt.reachParams {
+              privacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 6.82E-4
+                  delta = 1.0E-15
+                }
+            }
+          vidSamplingInterval = MetricSpecKt.vidSamplingInterval { width = 0.01f }
+        },
+        metricSpec {
+          impressionCount =
+            MetricSpecKt.impressionCountParams {
+              privacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 0.007167
+                  delta = 1.0E-15
+                }
+              maximumFrequencyPerUser = 15
+            }
+          vidSamplingInterval = MetricSpecKt.vidSamplingInterval { width = 1.0f }
+        },
+      )
+
+    return this.createMetricSpecs(
+      baseName,
+      measurementConsumerName,
+      specs,
+      frequencySpec,
+      groupings,
+    )
+  }
+
+  private fun createMetricSpecs(
+    name: String,
+    measurementConsumerName: String,
+    specs: List<MetricSpec>,
+    frequencySpec: MetricFrequencySpecInput,
+    groupings: List<Grouping>,
+  ): MetricCalculationSpec {
+    // Add random string to the end of the name to help with uniqueness.
+    // This only helps so still need to make sure it's actually unique.
+    var retry = true
+    var randomString: String
+    var newName: String = ""
+    while (retry) {
+      randomString = getRandomString(6)
+      newName = name + "-" + randomString
+      val getMetricSpecRequest = getMetricCalculationSpecRequest { this.name = newName }
+      try {
+        runBlocking(Dispatchers.IO) {
+          parent.metricCalculationSpecStub.getMetricCalculationSpec(getMetricSpecRequest)
+        }
+      } catch (e: StatusException) {
+        retry = false
+      }
+    }
+
+    val msRequestUnique = createMetricCalculationSpecRequest {
+      parent = measurementConsumerName
+      metricCalculationSpec = metricCalculationSpec {
+        this.name = newName
+        metricFrequencySpec =
+          MetricCalculationSpecKt.metricFrequencySpec {
+            if (frequencySpec.daily) {
+              daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
+            } else if (frequencySpec.dayOfWeek != DayOfWeek.DAY_OF_WEEK_UNSPECIFIED) {
+              weekly =
+                MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                  this.dayOfWeek = frequencySpec.dayOfWeek
+                }
+            } else if (frequencySpec.dayOfMonth > 0) {
+              monthly =
+                MetricCalculationSpecKt.MetricFrequencySpecKt.monthly {
+                  dayOfMonth = frequencySpec.dayOfMonth
+                }
+            }
+          }
+
+        for (spec in specs) {
+          metricSpecs += spec
+        }
+        for (grouping in groupings) {
+          this.groupings += MetricCalculationSpecKt.grouping { predicates += grouping.predicates }
+        }
+      }
+    }
+
+    return runBlocking(Dispatchers.IO) {
+      parent.metricCalculationSpecStub.createMetricCalculationSpec(msRequestUnique)
+    }
+  }
+
+  // Steps:
+  //  1. Create Reporting Sets
+  //    a. One for each desired primitive reporting set
+  //    b. One for union of all reporting sets
+  //    c. One for each unique reporting set (eg. unique A = ABC - BC)
+  //  2. Create Metric Calculation Specs
+  //    a. One for impressions and reach and frequency cumulative = true (for 1a and 1b)
+  //    b. One for impressions and reach cumulative = true (for 1c)
+  //    c. Repeat 2a-b with cumulative = false
+  //  3. Create the Report with the right RS-CMS mappings
+  override fun run() {
+    // TODO Get from inputs
+    //  - unique post-fix
+    //  - union name/displayname
+
+    // 1a. create reporting set primitives
+    val primitiveReportingSets = ArrayList<ReportingSet>()
+    for (edp in edps) {
+      val reportingSet = createPrimitiveReportingSet(edp, measurementConsumerName)
+      primitiveReportingSets.add(reportingSet)
+    }
+
+    // 1b. create composite reporting sets (union)
+    val unionReportingSet =
+      createUnionReportingSet(edps, primitiveReportingSets, measurementConsumerName)
+
+    // 1c. create unique reporting sets (union - complement)
+    val uniqueReportingSets = ArrayList<ReportingSet>()
+    for (edp in edps) {
+      val reportingSet =
+        createUniqueReportingSet(
+          edp,
+          primitiveReportingSets,
+          unionReportingSet.name,
+          measurementConsumerName,
+        )
+      uniqueReportingSets.add(reportingSet)
+    }
+
+    // 2a. create impressions and reach and frequency metric specs
+    val metricCalculationSpecAll =
+      createPrimitiveMetricSpecs(metricFrequencySpecInput, measurementConsumerName, groupings)
+
+    // 2b. create impressions and reach metric specs
+    val metricCalculationSpecUnique =
+      createCompositeMetricSpecs(metricFrequencySpecInput, measurementConsumerName, groupings)
+
+    // 3. create the report
+    val request = createReportRequest {
+      parent = measurementConsumerName
+      reportId = this@CreateUiReportCommand.reportParams.id
+      requestId = this@CreateUiReportCommand.requestId
+      report = report {
+        name = this@CreateUiReportCommand.reportParams.id
+        this.reportingInterval = reportingInterval {
+          reportStart = dateTime {
+            year = interval.reportingIntervalReportStartTime.year
+            month = interval.reportingIntervalReportStartTime.monthValue
+            day = interval.reportingIntervalReportStartTime.dayOfMonth
+            hours = interval.reportingIntervalReportStartTime.hour
+            minutes = interval.reportingIntervalReportStartTime.minute
+            seconds = interval.reportingIntervalReportStartTime.second
+            this.timeZone = timeZone { id = interval.timeZone }
+          }
+          reportEnd = date {
+            year = interval.reportingIntervalReportEnd.year
+            month = interval.reportingIntervalReportEnd.monthValue
+            day = interval.reportingIntervalReportEnd.dayOfMonth
+          }
+        }
+        tags.put("ui.halo-cmm.org", "true")
+        tags.put("ui.halo-cmm.org/display_name", reportParams.displayName)
+
+        // Set primitive reporting sets
+        for (primitiveRS in primitiveReportingSets) {
+          reportingMetricEntries +=
+            ReportKt.reportingMetricEntry {
+              key = primitiveRS.name
+              value =
+                ReportKt.reportingMetricCalculationSpec {
+                  metricCalculationSpecs += metricCalculationSpecAll.name
+                }
+            }
+        }
+        // Set union reporting set
+        reportingMetricEntries +=
+          ReportKt.reportingMetricEntry {
+            key = unionReportingSet.name
+            value =
+              ReportKt.reportingMetricCalculationSpec {
+                metricCalculationSpecs += metricCalculationSpecAll.name
+              }
+          }
+        // set unique reporting sets
+        for (uniqueRS in uniqueReportingSets) {
+          reportingMetricEntries +=
+            ReportKt.reportingMetricEntry {
+              key = uniqueRS.name
+              value =
+                ReportKt.reportingMetricCalculationSpec {
+                  metricCalculationSpecs += metricCalculationSpecUnique.name
+                }
+            }
+        }
+      }
+    }
+    val report = runBlocking(Dispatchers.IO) { parent.reportsStub.createReport(request) }
+
+    println(report)
+  }
 }
 
 @CommandLine.Command(name = "create", description = ["Create a report"])
@@ -502,6 +1062,7 @@ class CreateFromExistingCommand : Runnable {
     [
       CommandLine.HelpCommand::class,
       CreateReportCommand::class,
+      CreateUiReportCommand::class,
       ListReportsCommand::class,
       GetReportCommand::class,
       CreateFromExistingCommand::class,
@@ -511,6 +1072,12 @@ class ReportsCommand : Runnable {
   @CommandLine.ParentCommand lateinit var parent: Reporting
 
   val reportsStub: ReportsCoroutineStub by lazy { ReportsCoroutineStub(parent.channel) }
+  val reportingSetStub: ReportingSetsCoroutineStub by lazy {
+    ReportingSetsCoroutineStub(parent.channel)
+  }
+  val metricCalculationSpecStub: MetricCalculationSpecsCoroutineStub by lazy {
+    MetricCalculationSpecsCoroutineStub(parent.channel)
+  }
 
   override fun run() {}
 }
