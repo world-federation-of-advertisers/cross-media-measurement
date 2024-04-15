@@ -86,7 +86,7 @@ fun Status.toExternalStatusRuntimeException(
                 )
               )
               .toName()
-          put("measurement_consumer", measurementConsumerName)
+          put("measurementConsumer", measurementConsumerName)
           errorMessage = "MeasurementConsumer $measurementConsumerName not found."
         }
         ErrorCode.DATA_PROVIDER_NOT_FOUND -> {
@@ -302,7 +302,7 @@ fun Status.toExternalStatusRuntimeException(
               .toActivationState()
               .toString()
           put("account", accountName)
-          put("account_activation_state", accountActivationState)
+          put("accountActivationState", accountActivationState)
           errorMessage =
             "Account $accountName is in illegal activation state: $accountActivationState."
         }
