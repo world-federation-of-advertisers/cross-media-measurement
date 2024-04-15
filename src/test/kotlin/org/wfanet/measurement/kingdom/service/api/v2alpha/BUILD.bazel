@@ -236,6 +236,7 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementConsumersServiceTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/common",
         "//src/main/proto/wfa/measurement/internal/kingdom:measurement_consumers_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
