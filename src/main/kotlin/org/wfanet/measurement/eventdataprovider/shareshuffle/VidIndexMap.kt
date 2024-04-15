@@ -81,10 +81,11 @@ class VidIndexMap(
 
   companion object {
     /**
-     * Hash a VID with SHA256
+     * Hash a VID with SHA256 and return the first 64 bits as a [Long]
      *
      * @param [vid] the vid to hash
      * @param [salt] Appended to the big endian representation of the vid before hashing
+     * @returns The first 64-bits of the hash as a [Long]
      */
     fun hashVidSha256(vid: Long, salt: ByteString = ByteString.EMPTY): Long {
       val hashInput = vid.toByteString(ByteOrder.BIG_ENDIAN).concat(salt)
