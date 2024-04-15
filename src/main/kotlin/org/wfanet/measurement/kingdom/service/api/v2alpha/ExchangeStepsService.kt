@@ -148,12 +148,10 @@ class ExchangeStepsService(
         )
       } catch (e: StatusException) {
         throw when (e.status.code) {
-            Status.Code.NOT_FOUND -> permissionDeniedStatus()
-            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-            else -> Status.UNKNOWN
-          }
-          .withCause(e)
-          .asRuntimeException()
+          Status.Code.NOT_FOUND -> Status.PERMISSION_DENIED
+          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
     when (authenticatedPrincipal) {
       is DataProviderPrincipal -> {
