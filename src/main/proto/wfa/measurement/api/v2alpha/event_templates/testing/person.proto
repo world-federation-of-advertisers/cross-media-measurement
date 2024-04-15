@@ -37,12 +37,10 @@ message Person {
     MALE = 1;
     FEMALE = 2;
   }
-  Gender gender = 1 [
-    (.wfa.measurement.api.v2alpha.template_field) = {
-      display_name: "Gender"
-      population_attribute: true
-    }
-  ];
+  Gender gender = 1 [(.wfa.measurement.api.v2alpha.template_field) = {
+    display_name: "Gender"
+    population_attribute: true
+  }];
 
   enum AgeGroup {
     AGE_GROUP_UNSPECIFIED = 0;
