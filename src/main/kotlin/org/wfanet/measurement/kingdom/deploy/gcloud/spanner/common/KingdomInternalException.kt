@@ -537,15 +537,16 @@ class EventGroupNotFoundByMeasurementConsumerException(
 }
 
 class EventGroupInvalidArgsException(
-  val originalExternalMeasurementId: ExternalId,
-  val providedExternalMeasurementId: ExternalId,
+  val originalExternalMeasurementConsumerId: ExternalId,
+  val providedExternalMeasurementConsumerId: ExternalId,
   provideDescription: () -> String = { "EventGroup invalid arguments" },
 ) : KingdomInternalException(ErrorCode.EVENT_GROUP_INVALID_ARGS, provideDescription) {
   override val context
     get() =
       mapOf(
-        "original_external_measurement_id" to originalExternalMeasurementId.value.toString(),
-        "provided_external_measurement_id" to providedExternalMeasurementId.value.toString(),
+        "original_external_measurement_id" to
+          originalExternalMeasurementConsumerId.value.toString(),
+        "provided_external_measurement_id" to providedExternalMeasurementConsumerId.value.toString(),
       )
 }
 
