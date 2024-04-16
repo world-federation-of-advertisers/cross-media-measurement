@@ -354,21 +354,23 @@ fun Status.toExternalStatusRuntimeException(
           val originalMeasurementConsumerName =
             MeasurementConsumerKey(
                 externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["original_external_measurement_id"]).toLong()
+                  checkNotNull(errorInfo.metadataMap["original_external_measurement_consumer_id"])
+                    .toLong()
                 )
               )
               .toName()
           val providedMeasurementConsumerName =
             MeasurementConsumerKey(
                 externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["provided_external_measurement_id"]).toLong()
+                  checkNotNull(errorInfo.metadataMap["provided_external_measurement_consumer_id"])
+                    .toLong()
                 )
               )
               .toName()
           put("originalMeasurementConsumer", originalMeasurementConsumerName)
           put("providedMeasurementConsumer", providedMeasurementConsumerName)
           errorMessage =
-            "EventGroup operation arguments original measurement: $originalMeasurementConsumerName and provided measurement: $providedMeasurementConsumerName invalid."
+            "EventGroup argument invalid: expected $originalMeasurementConsumerName but got $providedMeasurementConsumerName"
         }
         ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND -> {
           val eventGroupMetadataDescriptorName =

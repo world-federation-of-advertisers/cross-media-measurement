@@ -544,9 +544,10 @@ class EventGroupInvalidArgsException(
   override val context
     get() =
       mapOf(
-        "original_external_measurement_id" to
+        "original_external_measurement_consumer_id" to
           originalExternalMeasurementConsumerId.value.toString(),
-        "provided_external_measurement_id" to providedExternalMeasurementConsumerId.value.toString(),
+        "provided_external_measurement_consumer_id" to
+          providedExternalMeasurementConsumerId.value.toString(),
       )
 }
 
