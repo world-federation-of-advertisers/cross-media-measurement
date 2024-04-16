@@ -32,7 +32,10 @@ _edpCertResourceNames: [_edp1_cert_name, _edp2_cert_name, _edp3_cert_name, _edp4
 _secret_name: string @tag("secret_name")
 
 #KingdomPublicApiTarget: (#Target & {name: "v2alpha-public-api-server"}).target
+#Worker1DuchyName:       "worker1"
 #Worker1PublicApiTarget: (#Target & {name: "worker1-requisition-fulfillment-server"}).target
+#Worker2DuchyName:       "worker2"
+#Worker2PublicApiTarget: (#Target & {name: "worker2-requisition-fulfillment-server"}).target
 
 objectSets: [ for simulator in edpSimulators {[simulator.deployment]}] +
 	[ for simulator in edpSimulators {simulator.networkPolicies}]
@@ -65,9 +68,17 @@ edpSimulators: {
 		"\(edpConfig.displayName)": #EdpSimulator & {
 			_edpConfig: edpConfig
 			_imageConfig: repoSuffix: "simulator/synthetic-generator-edp"
-			_edp_secret_name:           _secret_name
-			_mc_resource_name:          _mc_name
-			_duchy_public_api_target:   #Worker1PublicApiTarget
+			_edp_secret_name:  _secret_name
+			_mc_resource_name: _mc_name
+			_requisitionFulfillmentServiceConfigs: [{
+				duchyName:            #Worker1DuchyName
+				duchyPublicApiTarget: #Worker1PublicApiTarget
+			},
+				{
+					duchyName:            #Worker2DuchyName
+					duchyPublicApiTarget: #Worker2PublicApiTarget
+				},
+			]
 			_kingdom_public_api_target: #KingdomPublicApiTarget
 			_additional_args: [
 				"--population-spec=\(_populationSpec)",
@@ -78,6 +89,7 @@ edpSimulators: {
 				_dependencies: [
 					"v2alpha-public-api-server",
 					"worker1-requisition-fulfillment-server",
+					"worker2-requisition-fulfillment-server",
 				]
 				_mounts: "config-files": #ConfigMapMount
 			}
