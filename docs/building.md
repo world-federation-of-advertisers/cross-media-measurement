@@ -12,8 +12,8 @@ tests, your build environment must have the following:
 *   Bazel
     *   See [`.bazelversion`](../.bazelversion)
 *   GNU/Linux OS with x86-64 architecture
-    *   Some image targets require building with glibc <= 2.31
-    *   Known to work on Debian Bullseye and Ubuntu 18.04
+    *   Some image targets require building with glibc <= 2.36
+    *   Known to work on Debian Bookworm and Ubuntu 22.04
 *   [Clang](https://clang.llvm.org/)
 *   [SWIG](http://swig.org/)
 *   Bash
@@ -29,14 +29,14 @@ bazel test //src/test/...
 
 ### Specifying Host Platform
 
-As stated above, some targets require building with glibc <= 2.31. Bazel cannot
+As stated above, some targets require building with glibc <= 2.36. Bazel cannot
 detect the glibc version used by the local C++ toolchain, so we rely on the host
 platform being explicitly specified using the `--host_platform` option. Known
 compatible platforms are defined in the
 [//build/platforms package](../build/platforms/BUILD.bazel).
 
-For example, if your host machine is running Ubuntu 20.04, you would specify
-`--host_platform=//build/platforms:ubuntu_20_04`.
+For example, if your host machine is running Ubuntu 22.04, you would specify
+`--host_platform=//build/platforms:ubuntu_22_04`.
 
 ## Make Variables
 
@@ -48,7 +48,7 @@ option. These are defined in [variables.bzl](../build/variables.bzl).
 ## IntelliJ Setup
 
 IntelliJ IDEA is the recommended IDE for development work on this project. As of
-2021-11-29, the project is known to be compatible with IntelliJ IDEA 2021.2.3
+2024-04-15, the project is known to be compatible with IntelliJ IDEA 2024.1
 Community Edition.
 
 You will need to set up your project using the
@@ -75,9 +75,9 @@ such as code completion:
 
 ## Containerized Builds
 
-The `docker.io/wfameasurement/bazel` container image provides a build
-environment with the appropriate dependencies. This can be helpful when your
-host machine does not meet the above requirements.
+The `ghcr.io/world-federation-of-advertisers/bazel` container image provides a
+build environment with the appropriate dependencies. This can be helpful when
+your host machine does not meet the above requirements.
 
 For convenience, the [`tools/bazel-container`](../tools/bazel-container) script
 can be used in place of the `bazel` executable for building/testing. For
@@ -125,6 +125,5 @@ this for you, so you can use it in place of `bazel run`.
 
 ## Local Kubernetes
 
-You can bring up a minimal testing environment in a local Kubernetes environment
-using [KiND](https://kind.sigs.k8s.io/). See
-[instructions](../src/main/k8s/local/README.md).
+You can bring up a minimal testing environment in a local Kubernetes cluster.
+See [instructions](../src/main/k8s/local/README.md).
