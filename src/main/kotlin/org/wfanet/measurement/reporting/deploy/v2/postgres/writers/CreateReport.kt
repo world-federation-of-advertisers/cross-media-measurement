@@ -314,7 +314,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
     reportingMetricMap: Map<MetricCalculationSpecReportingMetricKey, MetricReader.ReportingMetric>,
   ): ReportingMetricEntriesAndStatement {
     val updatedReportingMetricEntries =
-      mutableMapOf<String, Report.ReportingMetricCalculationSpec>()
+      hashMapOf<String, Report.ReportingMetricCalculationSpec>()
 
     val statement =
       valuesListBoundStatement(
@@ -348,6 +348,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
             val metricCalculationSpecResult =
               metricCalculationSpecsByExternalId.getValue(externalMetricCalculationSpecId)
             val updatedReportingMetricsList = mutableListOf<Report.ReportingMetric>()
+            val encounteredKeys = hashSetOf<MetricCalculationSpecReportingMetricKey>()
 
             metricCalSpecReportingMetrics.reportingMetricsList.forEach {
               val metricCalculationSpecReportingMetricKey =
@@ -363,6 +364,12 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
                         .filter { filter -> filter.isNotBlank() }
                   },
                 )
+
+              if (encounteredKeys.contains(metricCalculationSpecReportingMetricKey)) {
+                return@forEach
+              } else {
+                encounteredKeys.add(metricCalculationSpecReportingMetricKey)
+              }
 
               val existingReportingMetric: MetricReader.ReportingMetric? =
                 reportingMetricMap[metricCalculationSpecReportingMetricKey]

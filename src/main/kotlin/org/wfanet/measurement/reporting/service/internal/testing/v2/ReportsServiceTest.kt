@@ -572,6 +572,10 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
           endTime = timestamp { seconds = 200 }
         },
         interval {
+          startTime = timestamp { seconds = 100 }
+          endTime = timestamp { seconds = 200 }
+        },
+        interval {
           startTime = timestamp { seconds = 200 }
           endTime = timestamp { seconds = 300 }
         },
