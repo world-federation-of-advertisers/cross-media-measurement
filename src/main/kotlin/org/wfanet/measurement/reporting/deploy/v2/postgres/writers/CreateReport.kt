@@ -371,7 +371,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
                 if (existingReportingMetric != null) {
                   Pair(
                     existingReportingMetric.metricId,
-                    UUID.fromString(existingReportingMetric.createMetricRequestId)
+                    UUID.fromString(existingReportingMetric.createMetricRequestId),
                   )
                 } else {
                   Pair(null, UUID.randomUUID())
