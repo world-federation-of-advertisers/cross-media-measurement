@@ -31,8 +31,8 @@ _edpResourceNames: [_edp1_name, _edp2_name, _edp3_name, _edp4_name, _edp5_name, 
 _edpCertResourceNames: [_edp1_cert_name, _edp2_cert_name, _edp3_cert_name, _edp4_cert_name, _edp5_cert_name, _edp6_cert_name]
 _secret_name: string @tag("secret_name")
 
-_worker1Name: string @tag("worker1_name")
-_worker2Name: string @tag("worker2_name")
+_worker1Id: "worker1"
+_worker2Id: "worker2"
 
 #KingdomPublicApiTarget: (#Target & {name: "v2alpha-public-api-server"}).target
 #Worker1PublicApiTarget: (#Target & {name: "worker1-requisition-fulfillment-server"}).target
@@ -72,11 +72,11 @@ edpSimulators: {
 			_edp_secret_name:  _secret_name
 			_mc_resource_name: _mc_name
 			_requisitionFulfillmentServiceConfigs: [{
-				duchyName:            _worker1Name
+				duchyId:              _worker1Id
 				duchyPublicApiTarget: #Worker1PublicApiTarget
 			},
 				{
-					duchyName:            _worker2Name
+					duchyId:              _worker2Id
 					duchyPublicApiTarget: #Worker2PublicApiTarget
 				},
 			]

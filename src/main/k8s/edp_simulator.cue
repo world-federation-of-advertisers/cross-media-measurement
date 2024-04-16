@@ -22,7 +22,7 @@ package k8s
 }
 
 #RequisitionFulfillmentServiceConfig: {
-	duchyName:            string
+	duchyId:              string
 	duchyPublicApiTarget: string
 }
 
@@ -41,7 +41,7 @@ package k8s
 
 	_requisitionFulfillmentServiceFlags: [ for config in _requisitionFulfillmentServiceConfigs for flag in {
 		[
-			"--requisition-fulfillment-service-duchy-name=\(config.duchyName)",
+			"--requisition-fulfillment-service-duchy-id=\(config.duchyId)",
 			"--requisition-fulfillment-service-target=\(config.duchyPublicApiTarget)",
 			"--requisition-fulfillment-service-cert-host=localhost",
 		]

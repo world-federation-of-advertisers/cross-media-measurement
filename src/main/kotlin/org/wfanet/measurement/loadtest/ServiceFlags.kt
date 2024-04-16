@@ -41,11 +41,11 @@ class KingdomPublicApiFlags {
 
 class RequisitionFulfillmentServiceFlags {
   @CommandLine.Option(
-    names = ["--requisition-fulfillment-service-duchy-name"],
-    description = ["Duchy name of the Duchy RequisitionFullfillment server"],
+    names = ["--requisition-fulfillment-service-duchy-id"],
+    description = ["Duchy Id of the RequisitionFullfillment server"],
     required = true,
   )
-  lateinit var duchyName: String
+  lateinit var duchyId: String
     private set
 
   @CommandLine.Option(

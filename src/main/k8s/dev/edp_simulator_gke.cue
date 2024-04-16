@@ -32,9 +32,9 @@ _edpCertResourceNames: [_edp1_cert_name, _edp2_cert_name, _edp3_cert_name, _edp4
 _secret_name:            string @tag("secret_name")
 _kingdomPublicApiTarget: string @tag("kingdom_public_api_target")
 
-_worker1Name:            string @tag("worker1_name")
+_worker1Id:              "worker1"
 _worker1PublicApiTarget: string @tag("worker1_public_api_target")
-_worker2Name:            string @tag("worker2_name")
+_worker2Id:              "worker2"
 _worker2PublicApiTarget: string @tag("worker2_public_api_target")
 
 #SimulatorServiceAccount: "simulator"
@@ -64,11 +64,11 @@ edp_simulators: {
 			_edpConfig:       edp
 			_edp_secret_name: _secret_name
 			_requisitionFulfillmentServiceConfigs: [{
-				duchyName:            _worker1Name
+				duchyId:              _worker1Id
 				duchyPublicApiTarget: _worker1PublicApiTarget
 			},
 				{
-					duchyName:            _worker1Name
+					duchyId:              _worker2Id
 					duchyPublicApiTarget: _worker2PublicApiTarget
 				},
 			]
