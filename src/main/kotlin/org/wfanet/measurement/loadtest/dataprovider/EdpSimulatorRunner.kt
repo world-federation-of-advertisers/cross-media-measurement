@@ -70,14 +70,13 @@ abstract class EdpSimulatorRunner : Runnable {
     val certificatesStub = CertificatesCoroutineStub(v2AlphaPublicApiChannel)
     val dataProvidersStub = DataProvidersCoroutineStub(v2AlphaPublicApiChannel)
 
-    val requisitionFulfillmentStub =
-      RequisitionFulfillmentCoroutineStub(
-        buildMutualTlsChannel(
-          flags.requisitionFulfillmentServiceFlags.target,
-          clientCerts,
-          flags.requisitionFulfillmentServiceFlags.certHost,
-        )
-      )
+    val requisitionFulfillmentStubMap =
+      flags.requisitionFulfillmentServiceFlags.associate {
+        val channel = buildMutualTlsChannel(it.target, clientCerts, it.certHost)
+        val stub = RequisitionFulfillmentCoroutineStub(channel)
+        it.duchyName to stub
+      }
+
     val signingKeyHandle =
       loadSigningKey(flags.edpCsCertificateDerFile, flags.edpCsPrivateKeyDerFile)
     val certificateKey =
@@ -109,7 +108,7 @@ abstract class EdpSimulatorRunner : Runnable {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         eventQuery,
         MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval),
         createNoOpPrivacyBudgetManager(),
