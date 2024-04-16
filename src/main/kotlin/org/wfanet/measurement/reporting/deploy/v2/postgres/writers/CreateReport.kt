@@ -313,8 +313,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
     metricCalculationSpecsByExternalId: Map<String, MetricCalculationSpecReader.Result>,
     reportingMetricMap: Map<MetricCalculationSpecReportingMetricKey, MetricReader.ReportingMetric>,
   ): ReportingMetricEntriesAndStatement {
-    val updatedReportingMetricEntries =
-      hashMapOf<String, Report.ReportingMetricCalculationSpec>()
+    val updatedReportingMetricEntries = hashMapOf<String, Report.ReportingMetricCalculationSpec>()
 
     val statement =
       valuesListBoundStatement(
