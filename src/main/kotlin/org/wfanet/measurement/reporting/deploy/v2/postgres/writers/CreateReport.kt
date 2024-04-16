@@ -170,7 +170,8 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
         }
         .toSet()
 
-    // Retrieve existing metrics and group by `MetricCalculationSpecReportingMetricKey`
+    // Retrieve existing metrics and select the most recently created Metric for each
+    // `MetricCalculationSpecReportingMetricKey`.
     val reportingMetricMap:
       Map<MetricCalculationSpecReportingMetricKey, MetricReader.ReportingMetric> =
       buildMap {
@@ -366,14 +367,14 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
               val existingReportingMetric: MetricReader.ReportingMetric? =
                 reportingMetricMap[metricCalculationSpecReportingMetricKey]
 
-              val metricId: InternalId?
-              val createMetricRequestId =
+              val (metricId, createMetricRequestId) =
                 if (existingReportingMetric != null) {
-                  metricId = existingReportingMetric.metricId
-                  UUID.fromString(existingReportingMetric.createMetricRequestId)
+                  Pair(
+                    existingReportingMetric.metricId,
+                    UUID.fromString(existingReportingMetric.createMetricRequestId)
+                  )
                 } else {
-                  metricId = null
-                  UUID.randomUUID()
+                  Pair(null, UUID.randomUUID())
                 }
               addValuesBinding {
                 bindValuesParam(0, measurementConsumerId)
