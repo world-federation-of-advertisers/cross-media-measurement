@@ -328,10 +328,7 @@ class EdpSimulatorTest {
 
   // TODO(ple13): Create two requisitionFulfillmentStubs for HMSS test.
   private val requisitionFulfillmentStubMap =
-    mapOf(
-      DUCHY_ONE_NAME to requisitionFulfillmentStub,
-      DUCHY_TWO_NAME to requisitionFulfillmentStub,
-    )
+    mapOf(DUCHY_ONE_ID to requisitionFulfillmentStub, DUCHY_TWO_ID to requisitionFulfillmentStub)
 
   private val backingStore = TestInMemoryBackingStore()
   private val privacyBudgetManager =
