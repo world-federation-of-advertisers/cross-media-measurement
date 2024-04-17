@@ -82,11 +82,11 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
         internalClient.getDataProvider(
           getDataProviderRequest { externalDataProviderId = apiIdToExternalId(key.dataProviderId) }
         )
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "DataProvider not found" }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
-        }
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
 
     return internalDataProvider.toDataProvider()
@@ -122,11 +122,11 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
             this.requiredExternalDuchyIds += requiredExternalDuchyIds
           }
         )
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "DataProvider not found" }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
-        }
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
     return internalDataProvider.toDataProvider()
   }
@@ -172,13 +172,11 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
         )
       } catch (e: StatusException) {
         throw when (e.status.code) {
-            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-            Status.Code.CANCELLED -> Status.CANCELLED
-            Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription("DataProvider not found")
-            else -> Status.UNKNOWN
-          }
-          .withCause(e)
-          .asRuntimeException()
+          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          Status.Code.CANCELLED -> Status.CANCELLED
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
     return internalDataProvider.toDataProvider()
   }
@@ -208,13 +206,11 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
         )
       } catch (e: StatusException) {
         throw when (e.status.code) {
-            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-            Status.Code.CANCELLED -> Status.CANCELLED
-            Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription("DataProvider not found")
-            else -> Status.UNKNOWN
-          }
-          .withCause(e)
-          .asRuntimeException()
+          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          Status.Code.CANCELLED -> Status.CANCELLED
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
     return response.toDataProvider()
   }

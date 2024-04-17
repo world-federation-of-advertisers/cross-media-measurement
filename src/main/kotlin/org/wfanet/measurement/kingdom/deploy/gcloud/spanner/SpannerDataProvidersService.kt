@@ -16,7 +16,6 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
 import org.wfanet.measurement.api.Version
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.ExternalId
@@ -54,9 +53,12 @@ class SpannerDataProvidersService(
   }
 
   override suspend fun getDataProvider(request: GetDataProviderRequest): DataProvider {
+    val externalDataProviderId = ExternalId(request.externalDataProviderId)
     return DataProviderReader()
-      .readByExternalDataProviderId(client.singleUse(), ExternalId(request.externalDataProviderId))
-      ?.dataProvider ?: failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
+      .readByExternalDataProviderId(client.singleUse(), externalDataProviderId)
+      ?.dataProvider
+      ?: throw DataProviderNotFoundException(externalDataProviderId)
+        .asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
   }
 
   override suspend fun batchGetDataProviders(
