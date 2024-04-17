@@ -59,7 +59,7 @@ class InProcessEdpSimulator(
   private val certificateKey: DataProviderCertificateKey,
   mcResourceName: String,
   kingdomPublicApiChannel: Channel,
-  duchyPublicApiChannel: Channel,
+  duchyPublicApiChannelMap: Map<String, Channel>,
   trustedCertificates: Map<ByteString, X509Certificate>,
   private val syntheticDataSpec: SyntheticEventGroupSpec,
   coroutineContext: CoroutineContext = Dispatchers.Default,
@@ -91,8 +91,10 @@ class InProcessEdpSimulator(
           .withPrincipalName(resourceName),
       requisitionsStub =
         RequisitionsCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
-      requisitionFulfillmentStub =
-        RequisitionFulfillmentCoroutineStub(duchyPublicApiChannel).withPrincipalName(resourceName),
+      requisitionFulfillmentStubMap =
+        duchyPublicApiChannelMap.mapValues {
+          RequisitionFulfillmentCoroutineStub(it.value).withPrincipalName(resourceName)
+        },
       eventQuery =
         object :
           SyntheticGeneratorEventQuery(

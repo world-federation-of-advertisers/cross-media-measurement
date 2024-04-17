@@ -71,7 +71,8 @@ jobs:
       env:
         IMAGE_TAG: ${{ inputs.image-tag }}
         KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
-        DUCHY_PUBLIC_API_TARGET: ${{ vars.DUCHY_PUBLIC_API_TARGET }}
+        WORKER1_PUBLIC_API_TARGET: ${{ vars.WORKER1_PUBLIC_API_TARGET }}
+        WORKER2_PUBLIC_API_TARGET: ${{ vars.WORKER2_PUBLIC_API_TARGET }}
         MC_NAME: ${{ vars.MC_NAME }}
         EDP1_NAME: ${{ vars.EDP1_NAME }}
         EDP1_CERT_NAME: ${{ vars.EDP1_CERT_NAME }}
@@ -92,7 +93,8 @@ jobs:
         build --define "image_tag=$IMAGE_TAG"
         build --define "google_cloud_project=$GCLOUD_PROJECT"
         build --define "kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
-        build --define "duchy_public_api_target=$DUCHY_PUBLIC_API_TARGET"
+        build --define "worker1_public_api_target=$WORKER1_PUBLIC_API_TARGET"
+        build --define "worker2_public_api_target=$WORKER2_PUBLIC_API_TARGET"
         build --define "mc_name=$MC_NAME"
         build --define "edp1_name=$EDP1_NAME"
         build --define "edp1_cert_name=$EDP1_CERT_NAME"

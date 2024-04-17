@@ -120,7 +120,8 @@ Run the following, substituting your own values:
     ```shell
     bazel build //src/main/k8s/dev:synthetic_generator_edp_simulators.tar \
     --define=kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
-    --define=duchy_public_api_target=public.worker1.dev.halo-cmm.org:8443 \
+    --define=worker1_public_api_target=public.worker1.dev.halo-cmm.org:8443 \
+    --define=worker2_public_api_target=public.worker2.dev.halo-cmm.org:8443 \
     --define=mc_name=measurementConsumers/TGWOaWehLQ8 \
     --define=edp1_name=dataProviders/HRL1wWehTSM \
     --define=edp1_cert_name=dataProviders/HRL1wWehTSM/certificates/HRL1wWehTSM \
@@ -147,7 +148,8 @@ Run the following, substituting your own values:
     ```shell
     bazel build //src/main/k8s/dev:bigquery_edp_simulators.tar \
       --define=kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
-      --define=duchy_public_api_target=public.worker1.dev.halo-cmm.org:8443 \
+      --define=worker1_public_api_target=public.worker1.dev.halo-cmm.org:8443 \
+      --define=worker2_public_api_target=public.worker2.dev.halo-cmm.org:8443 \
       --define=mc_name=measurementConsumers/TGWOaWehLQ8 \
       --define=edp1_name=dataProviders/HRL1wWehTSM \
       --define=edp1_cert_name=dataProviders/HRL1wWehTSM/certificates/HRL1wWehTSM \
