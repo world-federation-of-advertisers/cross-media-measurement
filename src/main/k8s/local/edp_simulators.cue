@@ -71,10 +71,11 @@ edpSimulators: {
 			_imageConfig: repoSuffix: "simulator/synthetic-generator-edp"
 			_edp_secret_name:  _secret_name
 			_mc_resource_name: _mc_name
-			_requisitionFulfillmentServiceConfigs: [{
-				duchyId:              _worker1Id
-				duchyPublicApiTarget: #Worker1PublicApiTarget
-			},
+			_requisitionFulfillmentServiceConfigs: [
+				{
+					duchyId:              _worker1Id
+					duchyPublicApiTarget: #Worker1PublicApiTarget
+				},
 				{
 					duchyId:              _worker2Id
 					duchyPublicApiTarget: #Worker2PublicApiTarget
