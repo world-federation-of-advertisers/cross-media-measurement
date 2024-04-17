@@ -67,6 +67,7 @@ abstract class SyntheticGeneratorEventQuery(
   override fun getUserVirtualIdUniverse(): Sequence<Long> {
     // TODO(@kungfucraig): Use EDP support library to retrieve the universe.
     val vidRange = populationSpec.vidRange
+    println("vidRange $vidRange")
     return (vidRange.start until vidRange.endExclusive).asSequence()
   }
 }
