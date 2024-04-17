@@ -114,10 +114,15 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
   @Test
   fun `getEventGroupMetadataDescriptor fails for missing EventGroupMetadataDescriptor`() =
     runBlocking {
+      val externalDataProviderId =
+        population.createDataProvider(dataProvidersService).externalDataProviderId
       val exception =
         assertFailsWith<StatusRuntimeException> {
           eventGroupMetadataDescriptorService.getEventGroupMetadataDescriptor(
-            getEventGroupMetadataDescriptorRequest { externalEventGroupMetadataDescriptorId = 1L }
+            getEventGroupMetadataDescriptorRequest {
+              this.externalDataProviderId = externalDataProviderId
+              externalEventGroupMetadataDescriptorId = 1L
+            }
           )
         }
 
