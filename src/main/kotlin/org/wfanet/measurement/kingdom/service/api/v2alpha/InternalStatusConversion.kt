@@ -97,7 +97,7 @@ fun Status.toExternalStatusRuntimeException(
                 )
               )
               .toName()
-          put("data_provider", dataProviderName)
+          put("dataProvider", dataProviderName)
           errorMessage = "DataProvider $dataProviderName not found."
         }
         ErrorCode.DUCHY_NOT_FOUND -> {
