@@ -528,7 +528,7 @@ class AccountsServiceTest {
 
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
     assertThat(exception.errorInfo?.metadataMap)
-      .containsEntry("account_activation_state", Account.ActivationState.ACTIVATED.toString())
+      .containsEntry("accountActivationState", Account.ActivationState.ACTIVATED.toString())
     assertThat(exception.errorInfo?.metadataMap).containsEntry("account", ACCOUNT_NAME)
   }
 

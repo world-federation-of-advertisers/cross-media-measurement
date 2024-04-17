@@ -29,7 +29,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.stub
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.Account
 import org.wfanet.measurement.api.v2alpha.GetMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
@@ -49,15 +51,17 @@ import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.testing.TestData
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
-import org.wfanet.measurement.internal.kingdom.Account
+import org.wfanet.measurement.internal.kingdom.Account as InternalAccount
 import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer as InternalMeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumerKt.details
@@ -71,6 +75,10 @@ import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerRequest 
 import org.wfanet.measurement.internal.kingdom.getMeasurementConsumerRequest as internalGetMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.measurementConsumer as internalMeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.removeMeasurementConsumerOwnerRequest as internalRemoveMeasurementConsumerOwnerRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountActivationStateIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.PermissionDeniedException
 
 private const val MEASUREMENT_CONSUMER_ID = 123L
 private const val ACCOUNT_ID = 123L
@@ -506,6 +514,236 @@ class MeasurementConsumersServiceTest {
       )
   }
 
+  @Test
+  fun `createMeasurementConsumer throws PERMISSION_DENIED when measurement consumer creation token not valid`() {
+    internalServiceMock.stub {
+      onBlocking { createMeasurementConsumer(any()) }
+        .thenThrow(
+          PermissionDeniedException()
+            .asStatusRuntimeException(
+              Status.Code.PERMISSION_DENIED,
+              "Measurement Consumer creation token is not valid.",
+            )
+        )
+    }
+    val request = createMeasurementConsumerRequest {
+      measurementConsumer = measurementConsumer {
+        certificateDer = SERVER_CERTIFICATE_DER
+        publicKey = SIGNED_PUBLIC_KEY
+        measurementConsumerCreationToken = "VzmtXavLdk4"
+      }
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withAccount(ACTIVATED_INTERNAL_ACCOUNT) {
+          runBlocking { service.createMeasurementConsumer(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `createMeasurementConsumer throws FAILED_PRECONDITION with account name when account not found`() {
+    internalServiceMock.stub {
+      onBlocking { createMeasurementConsumer(any()) }
+        .thenThrow(
+          AccountNotFoundException(ExternalId(ACCOUNT_ID))
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Account was not found.")
+        )
+    }
+    val request = createMeasurementConsumerRequest {
+      measurementConsumer = measurementConsumer {
+        certificateDer = SERVER_CERTIFICATE_DER
+        publicKey = SIGNED_PUBLIC_KEY
+        measurementConsumerCreationToken = MEASUREMENT_CONSUMER_CREATION_TOKEN
+      }
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withAccount(ACTIVATED_INTERNAL_ACCOUNT) {
+          runBlocking { service.createMeasurementConsumer(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("account", ACCOUNT_NAME)
+  }
+
+  @Test
+  fun `createMeasurementConsumer throws FAILED_PRECONDITION with account name and state when account activation state illegal`() {
+    internalServiceMock.stub {
+      onBlocking { createMeasurementConsumer(any()) }
+        .thenThrow(
+          AccountActivationStateIllegalException(
+              ExternalId(ACCOUNT_ID),
+              InternalAccount.ActivationState.UNACTIVATED,
+            )
+            .asStatusRuntimeException(
+              Status.Code.FAILED_PRECONDITION,
+              "Account activation state illegal.",
+            )
+        )
+    }
+    val request = createMeasurementConsumerRequest {
+      measurementConsumer = measurementConsumer {
+        certificateDer = SERVER_CERTIFICATE_DER
+        publicKey = SIGNED_PUBLIC_KEY
+        measurementConsumerCreationToken = MEASUREMENT_CONSUMER_CREATION_TOKEN
+      }
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withAccount(
+          ACTIVATED_INTERNAL_ACCOUNT.copy {
+            activationState = InternalAccount.ActivationState.UNACTIVATED
+          }
+        ) {
+          runBlocking { service.createMeasurementConsumer(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("account", ACCOUNT_NAME)
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("accountActivationState", Account.ActivationState.UNACTIVATED.toString())
+  }
+
+  @Test
+  fun `getMeasurementConsumer throws NOT_FOUND with measurement consumer name when measurement consumer not found`() {
+    internalServiceMock.stub {
+      onBlocking { getMeasurementConsumer(any()) }
+        .thenThrow(
+          MeasurementConsumerNotFoundException(ExternalId(MEASUREMENT_CONSUMER_ID))
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.getMeasurementConsumer(
+              getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMER_NAME }
+            )
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("measurementConsumer", MEASUREMENT_CONSUMER_NAME)
+  }
+
+  @Test
+  fun `addMeasurementConsumerOwner throws NOT_FOUND with measurement consumer name when measurement consumer not found`() {
+    internalServiceMock.stub {
+      onBlocking { addMeasurementConsumerOwner(any()) }
+        .thenThrow(
+          MeasurementConsumerNotFoundException(ExternalId(MEASUREMENT_CONSUMER_ID))
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withAccount(ACTIVATED_INTERNAL_ACCOUNT) {
+          runBlocking {
+            service.addMeasurementConsumerOwner(
+              addMeasurementConsumerOwnerRequest {
+                name = MEASUREMENT_CONSUMER_NAME
+                account = ACCOUNT_NAME
+              }
+            )
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("measurementConsumer", MEASUREMENT_CONSUMER_NAME)
+  }
+
+  @Test
+  fun `addMeasurementConsumerOwner throws FAILED_PRECONDITION with account name when account not found`() {
+    internalServiceMock.stub {
+      onBlocking { addMeasurementConsumerOwner(any()) }
+        .thenThrow(
+          AccountNotFoundException(ExternalId(ACCOUNT_ID))
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Account was not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withAccount(ACTIVATED_INTERNAL_ACCOUNT) {
+          runBlocking {
+            service.addMeasurementConsumerOwner(
+              addMeasurementConsumerOwnerRequest {
+                name = MEASUREMENT_CONSUMER_NAME
+                account = ACCOUNT_NAME
+              }
+            )
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("account", ACCOUNT_NAME)
+  }
+
+  @Test
+  fun `removeMeasurementConsumerOwner throws FAILED_PRECONDITION with account name when account not found`() {
+    internalServiceMock.stub {
+      onBlocking { removeMeasurementConsumerOwner(any()) }
+        .thenThrow(
+          AccountNotFoundException(ExternalId(ACCOUNT_ID))
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Account was not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withAccount(ACTIVATED_INTERNAL_ACCOUNT) {
+          runBlocking {
+            service.removeMeasurementConsumerOwner(
+              removeMeasurementConsumerOwnerRequest {
+                name = MEASUREMENT_CONSUMER_NAME
+                account = ACCOUNT_NAME
+              }
+            )
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("account", ACCOUNT_NAME)
+  }
+
+  @Test
+  fun `removeMeasurementConsumerOwner throws NOT_FOUND with measurement consumer name when measurement consumer not found`() {
+    internalServiceMock.stub {
+      onBlocking { removeMeasurementConsumerOwner(any()) }
+        .thenThrow(
+          MeasurementConsumerNotFoundException(ExternalId(MEASUREMENT_CONSUMER_ID))
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withAccount(ACTIVATED_INTERNAL_ACCOUNT) {
+          runBlocking {
+            service.removeMeasurementConsumerOwner(
+              removeMeasurementConsumerOwnerRequest {
+                name = MEASUREMENT_CONSUMER_NAME
+                account = ACCOUNT_NAME
+              }
+            )
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("measurementConsumer", MEASUREMENT_CONSUMER_NAME)
+  }
+
   companion object {
     private val API_VERSION = Version.V2_ALPHA
 
@@ -550,9 +788,9 @@ class MeasurementConsumersServiceTest {
       publicKey = SIGNED_PUBLIC_KEY
     }
 
-    private val ACTIVATED_INTERNAL_ACCOUNT: Account = account {
+    private val ACTIVATED_INTERNAL_ACCOUNT: InternalAccount = account {
       externalAccountId = ACCOUNT_ID
-      activationState = Account.ActivationState.ACTIVATED
+      activationState = InternalAccount.ActivationState.ACTIVATED
       externalOwnedMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
       externalOwnedMeasurementConsumerIds += MEASUREMENT_CONSUMER_ID
     }

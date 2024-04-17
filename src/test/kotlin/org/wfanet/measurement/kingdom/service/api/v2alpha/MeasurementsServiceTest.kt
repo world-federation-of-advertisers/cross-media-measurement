@@ -2552,7 +2552,7 @@ class MeasurementsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception.errorInfo?.metadataMap)
-      .containsEntry("measurement_consumer", MEASUREMENT_CONSUMER_NAME)
+      .containsEntry("measurementConsumer", MEASUREMENT_CONSUMER_NAME)
   }
 
   @Test
@@ -2665,7 +2665,7 @@ class MeasurementsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception.errorInfo?.metadataMap)
-      .containsEntry("measurement_consumer", MEASUREMENT_CONSUMER_NAME)
+      .containsEntry("measurementConsumer", MEASUREMENT_CONSUMER_NAME)
   }
 
   @Test
