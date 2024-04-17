@@ -14,6 +14,8 @@
 
 package k8s
 
+import "list"
+
 #EdpConfig: {
 	displayName:      string
 	resourceName:     string
@@ -39,14 +41,14 @@ package k8s
 	_imageConfig: #ImageConfig
 	_additional_args: [...string]
 
-	_requisitionFulfillmentServiceFlags: [ for config in _requisitionFulfillmentServiceConfigs for flag in {
-		[
+	_requisitionFulfillmentServiceFlags: {
+		let flagLists = [ for config in _requisitionFulfillmentServiceConfigs {[
 			"--requisition-fulfillment-service-duchy-id=\(config.duchyId)",
 			"--requisition-fulfillment-service-target=\(config.duchyPublicApiTarget)",
 			"--requisition-fulfillment-service-cert-host=localhost",
-		]
-	} {flag},
-	]
+		]}]
+		list.FlattenN(flagLists, 2)
+	}
 
 	deployment: #Deployment & {
 		_name:       DisplayName + "-simulator"

@@ -95,6 +95,8 @@ DUCHY_K8S_SETTINGS = struct(
     aggregator_system_api_target = "$(aggregator_system_api_target)",
     worker1_system_api_target = "$(worker1_system_api_target)",
     worker2_system_api_target = "$(worker2_system_api_target)",
+    worker1_id = "$(worker1_id)",
+    worker2_id = "$(worker2_id)",
 )
 
 # Settings for simulator Kubernetes deployments.

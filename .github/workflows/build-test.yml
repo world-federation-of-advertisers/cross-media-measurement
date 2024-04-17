@@ -61,7 +61,9 @@ jobs:
           build --define image_repo_prefix=halo
           build --define image_tag=latest
           build --define kingdom_public_api_target=kingdom.example.com:8443
+          build --define worker1_id=worker1
           build --define worker1_public_api_target=worker1.example.com:8443
+          build --define worker2_id=worker2
           build --define worker2_public_api_target=worker2.example.com:8443
           build --define mc_name=measurementConsumers/foo
           build --define edp1_name=dataProviders/foo1

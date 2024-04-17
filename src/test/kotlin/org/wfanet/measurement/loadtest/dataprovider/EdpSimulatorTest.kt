@@ -326,7 +326,7 @@ class EdpSimulatorTest {
     RequisitionFulfillmentCoroutineStub(grpcTestServerRule.channel)
   }
 
-  // TODO(ple13): Create two requisitionFulfillmentStubs for HMSS test.
+  // TODO(@ple13): Create two requisitionFulfillmentStubs for HMSS test.
   private val requisitionFulfillmentStubMap =
     mapOf(DUCHY_ONE_ID to requisitionFulfillmentStub, DUCHY_TWO_ID to requisitionFulfillmentStub)
 
