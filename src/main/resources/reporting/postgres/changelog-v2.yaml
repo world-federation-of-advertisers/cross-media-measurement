@@ -40,3 +40,15 @@ databaseChangeLog:
 - include:
     file: drop-report-time-intervals-table.sql
     relativeToChangeLogFile: true
+- include:
+    file: add-state-column-to-metrics.sql
+    relativeToChangeLogFile: true
+- include:
+    file: add-index-on-metric-calculation-spec-reporting-metrics-table-for-update.sql
+    relativeToChangeLogFile: true
+- include:
+    file: drop-reporting-set-id-from-metric-calculation-spec-reporting-metrics-table-primary-key.sql
+    relativeToChangeLogFile: true
+- include:
+    file: add-indexes-for-metric-reuse.sql
+    relativeToChangeLogFile: true

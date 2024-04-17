@@ -24,6 +24,11 @@ import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import io.grpc.protobuf.StatusProto
 import org.wfanet.measurement.api.v2alpha.AccountKey
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeKey
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepKey
+import org.wfanet.measurement.api.v2alpha.CanonicalRecurringExchangeKey
+import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
@@ -36,7 +41,11 @@ import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.internal.kingdom.Account as InternalAccount
+import org.wfanet.measurement.internal.kingdom.Certificate as InternalCertificate
 import org.wfanet.measurement.internal.kingdom.ErrorCode
+import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
+import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 
 /**
  * Converts this [Status] to a [StatusRuntimeException] with details from [internalApiException].
@@ -53,6 +62,7 @@ fun Status.toExternalStatusRuntimeException(
   var errorMessage = this.description ?: "Unknown exception."
   val metadataMap =
     buildMap<String, String> {
+      // TODO{@jcorilla}: Convert all metadata keys to lower camelcase to follow AIP-193 guidance
       when (ErrorCode.valueOf(errorInfo.reason)) {
         ErrorCode.MEASUREMENT_NOT_FOUND -> {
           val measurementName =
@@ -87,7 +97,7 @@ fun Status.toExternalStatusRuntimeException(
                 )
               )
               .toName()
-          put("data_provider", dataProviderName)
+          put("dataProvider", dataProviderName)
           errorMessage = "DataProvider $dataProviderName not found."
         }
         ErrorCode.DUCHY_NOT_FOUND -> {
@@ -170,7 +180,12 @@ fun Status.toExternalStatusRuntimeException(
                 ),
               )
               .toName()
-          val measurementState = checkNotNull(errorInfo.metadataMap["measurement_state"]).toString()
+          val measurementState =
+            InternalMeasurement.State.valueOf(
+                checkNotNull(errorInfo.metadataMap["measurement_state"])
+              )
+              .toState()
+              .toString()
           put("measurement", measurementName)
           put("state", measurementState)
           errorMessage = "Measurement $measurementName is in illegal state: $measurementState"
@@ -196,7 +211,11 @@ fun Status.toExternalStatusRuntimeException(
               checkNotNull(errorInfo.metadataMap["external_certificate_id"]).toLong()
             )
           val certificateRevocationState =
-            checkNotNull(errorInfo.metadataMap["certificate_revocation_state"]).toString()
+            InternalCertificate.RevocationState.valueOf(
+                checkNotNull(errorInfo.metadataMap["certificate_revocation_state"])
+              )
+              .toRevocationState()
+              .toString()
           put("external_certificate_id", certificateApiId)
           put("certification_revocation_state", certificateRevocationState)
           errorMessage = "Certificate is in illegal revocation state: $certificateRevocationState."
@@ -208,10 +227,38 @@ fun Status.toExternalStatusRuntimeException(
           errorMessage = "ComputationParticipant not found."
         }
         ErrorCode.REQUISITION_NOT_FOUND -> {
-          errorMessage = "Requisition not found."
+          val dataProviderKey =
+            DataProviderKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_data_provider_id"]).toLong()
+              )
+            )
+          val requisitionName =
+            CanonicalRequisitionKey(
+                dataProviderKey,
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_requisition_id"]).toLong()
+                ),
+              )
+              .toName()
+          put("requisition", requisitionName)
+          errorMessage = "Requisition $requisitionName not found"
         }
         ErrorCode.REQUISITION_STATE_ILLEGAL -> {
-          errorMessage = "Requisition state illegal."
+          val requisitionApiId =
+            externalIdToApiId(
+              checkNotNull(errorInfo.metadataMap["external_requisition_id"]).toLong()
+            )
+          val requisitionState =
+            InternalRequisition.State.valueOf(
+                checkNotNull(errorInfo.metadataMap["requisition_state"])
+              )
+              .toRequisitionState()
+              .toString()
+          put("requisition_id", requisitionApiId)
+          put("state", requisitionState)
+          errorMessage =
+            "Requisition with id: $requisitionApiId is in illegal state: $requisitionState"
         }
         ErrorCode.ACCOUNT_NOT_FOUND -> {
           val accountName =
@@ -249,7 +296,11 @@ fun Status.toExternalStatusRuntimeException(
               )
               .toName()
           val accountActivationState =
-            checkNotNull(errorInfo.metadataMap["account_activation_state"]).toString()
+            InternalAccount.ActivationState.valueOf(
+                checkNotNull(errorInfo.metadataMap["account_activation_state"])
+              )
+              .toActivationState()
+              .toString()
           put("account", accountName)
           put("account_activation_state", accountActivationState)
           errorMessage =
@@ -278,13 +329,42 @@ fun Status.toExternalStatusRuntimeException(
           errorMessage = "EventGroupMetadataDescriptor with same type already exists."
         }
         ErrorCode.RECURRING_EXCHANGE_NOT_FOUND -> {
-          errorMessage = "RecurringExchange not found."
+          val recurringExchangeName =
+            CanonicalRecurringExchangeKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_recurring_exchange_id"]).toLong()
+                )
+              )
+              .toName()
+          put("recurringExchange", recurringExchangeName)
+          errorMessage = "RecurringExchange $recurringExchangeName not found."
         }
         ErrorCode.EXCHANGE_STEP_NOT_FOUND -> {
-          errorMessage = "ExchangeStep not found."
+          val exchangeStepName =
+            CanonicalExchangeStepKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_recurring_exchange_id"]).toLong()
+                ),
+                checkNotNull(errorInfo.metadataMap["date"]),
+                checkNotNull(errorInfo.metadataMap["step_index"]),
+              )
+              .toName()
+          put("exchangeStep", exchangeStepName)
+          errorMessage = "ExchangeStep $exchangeStepName not found."
         }
         ErrorCode.EXCHANGE_STEP_ATTEMPT_NOT_FOUND -> {
-          errorMessage = "ExchangeStepAttempt not found."
+          val exchangeStepAttemptName =
+            CanonicalExchangeStepAttemptKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_recurring_exchange_id"]).toLong()
+                ),
+                checkNotNull(errorInfo.metadataMap["date"]),
+                checkNotNull(errorInfo.metadataMap["step_index"]),
+                checkNotNull(errorInfo.metadataMap["attempt_number"]),
+              )
+              .toName()
+          put("exchangeStepAttempt", exchangeStepAttemptName)
+          errorMessage = "ExchangeStepAttempt $exchangeStepAttemptName not found."
         }
         ErrorCode.EVENT_GROUP_STATE_ILLEGAL -> {
           errorMessage = "EventGroup not found."
@@ -326,7 +406,16 @@ fun Status.toExternalStatusRuntimeException(
           errorMessage = "ModelRollout not found."
         }
         ErrorCode.EXCHANGE_NOT_FOUND -> {
-          errorMessage = "Exchange not found."
+          val exchangeName =
+            CanonicalExchangeKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_recurring_exchange_id"]).toLong()
+                ),
+                checkNotNull(errorInfo.metadataMap["date"]),
+              )
+              .toName()
+          put("exchange", exchangeName)
+          errorMessage = "Exchange $exchangeName not found."
         }
         ErrorCode.MODEL_SHARD_INVALID_ARGS -> {
           errorMessage = "ModelShard invalid arguments."

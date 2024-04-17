@@ -22,7 +22,6 @@ import java.security.GeneralSecurityException
 import org.wfanet.measurement.api.AccountConstants
 import org.wfanet.measurement.api.accountFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.Account
-import org.wfanet.measurement.api.v2alpha.Account.ActivationState
 import org.wfanet.measurement.api.v2alpha.Account.OpenIdConnectIdentity
 import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.AccountKt
@@ -48,7 +47,6 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.openid.createRequestUri
 import org.wfanet.measurement.common.toLong
 import org.wfanet.measurement.internal.kingdom.Account as InternalAccount
-import org.wfanet.measurement.internal.kingdom.Account.ActivationState as InternalActivationState
 import org.wfanet.measurement.internal.kingdom.Account.OpenIdConnectIdentity as InternalOpenIdConnectIdentity
 import org.wfanet.measurement.internal.kingdom.AccountKt as InternalAccountKt
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub
@@ -235,16 +233,6 @@ class AccountsService(
       }
     }
   }
-
-  /** Converts an internal [InternalActivationState] to a public [ActivationState]. */
-  private fun InternalActivationState.toActivationState(): ActivationState =
-    when (this) {
-      InternalActivationState.ACTIVATED -> ActivationState.ACTIVATED
-      InternalActivationState.UNACTIVATED -> ActivationState.UNACTIVATED
-      InternalActivationState.UNRECOGNIZED,
-      InternalActivationState.ACTIVATION_STATE_UNSPECIFIED ->
-        ActivationState.ACTIVATION_STATE_UNSPECIFIED
-    }
 
   /** Converts an internal [InternalOpenIdConnectIdentity] to a public [OpenIdConnectIdentity]. */
   private fun InternalOpenIdConnectIdentity.toOpenIdConnectIdentity(): OpenIdConnectIdentity =

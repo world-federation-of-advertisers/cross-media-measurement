@@ -2496,7 +2496,7 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    assertThat(exception.errorInfo?.metadataMap).containsEntry("data_provider", DATA_PROVIDERS_NAME)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("dataProvider", DATA_PROVIDERS_NAME)
   }
 
   @Test
@@ -2587,7 +2587,7 @@ class MeasurementsServiceTest {
           MeasurementStateIllegalException(
               ExternalId(EXTERNAL_MEASUREMENT_CONSUMER_ID),
               ExternalId(EXTERNAL_MEASUREMENT_ID),
-              InternalMeasurement.State.FAILED,
+              InternalState.FAILED,
             )
             .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Measurement state illegal.")
         )
@@ -2602,8 +2602,7 @@ class MeasurementsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception.errorInfo?.metadataMap).containsEntry("measurement", MEASUREMENT_NAME)
-    assertThat(exception.errorInfo?.metadataMap)
-      .containsEntry("state", InternalMeasurement.State.FAILED.toString())
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("state", State.FAILED.toString())
   }
 
   @Test
@@ -2634,7 +2633,7 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    assertThat(exception.errorInfo?.metadataMap).containsEntry("data_provider", DATA_PROVIDERS_NAME)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("dataProvider", DATA_PROVIDERS_NAME)
   }
 
   @Test

@@ -47,8 +47,16 @@ class CsvEdpSimulatorRunner : EdpSimulatorRunner() {
   var publisherId by Delegates.notNull<Int>()
     private set
 
+  @set:CommandLine.Option(
+    names = ["--max-vid-value"],
+    description = ["Max value (inclusive) of VIDs."],
+    defaultValue = "10000000", // 10 million,
+  )
+  var maxVidValue by Delegates.notNull<Long>()
+    private set
+
   override fun run() {
-    val eventQuery = CsvEventQuery(publisherId, eventsCsv)
+    val eventQuery = CsvEventQuery(publisherId, eventsCsv, maxVidValue)
     run(
       eventQuery,
       EdpSimulator.buildEventTemplates(TestEvent.getDescriptor()),

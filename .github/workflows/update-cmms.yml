@@ -42,6 +42,14 @@ jobs:
   publish-images:
     uses: ./.github/workflows/push-images.yml
 
+  scan-images:
+    uses: ./.github/workflows/scan-images.yml
+    needs: [publish-images]
+    with:
+      container-registry: ghcr.io
+      image-repo-prefix: ${{ github.repository_owner }}
+      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+
   terraform:
     uses: ./.github/workflows/terraform-cmms.yml
     secrets: inherit

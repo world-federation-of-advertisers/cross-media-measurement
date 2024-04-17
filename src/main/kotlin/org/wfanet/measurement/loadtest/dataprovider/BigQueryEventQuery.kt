@@ -37,11 +37,14 @@ import org.wfanet.measurement.common.toRange
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.measurement.gcloud.common.toInstant
 
+private const val DEFAULT_MAX_VID_VALUE = 100_000_000L
+
 /** Fulfill the query by querying the specified BigQuery table. */
 abstract class BigQueryEventQuery(
   private val bigQuery: BigQuery,
   private val datasetName: String,
   private val tableName: String,
+  private val maxVidValue: Long = DEFAULT_MAX_VID_VALUE,
 ) : EventQuery<Event> {
   protected abstract fun getPublisherId(eventGroup: EventGroup): Int
 
@@ -170,6 +173,10 @@ abstract class BigQueryEventQuery(
     )
   }
 
+  override fun getUserVirtualIdUniverse(): Sequence<Long> {
+    return (1L..maxVidValue).asSequence()
+  }
+
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
@@ -180,7 +187,8 @@ class SinglePublisherBigQueryEventQuery(
   datasetName: String,
   tableName: String,
   private val publisherId: Int,
-) : BigQueryEventQuery(bigQuery, datasetName, tableName) {
+  maxVidValue: Long = DEFAULT_MAX_VID_VALUE,
+) : BigQueryEventQuery(bigQuery, datasetName, tableName, maxVidValue) {
   override fun getPublisherId(eventGroup: EventGroup): Int {
     return publisherId
   }
