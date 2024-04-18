@@ -15,7 +15,6 @@
 package org.wfanet.measurement.eventdataprovider.shareshuffle
 
 import com.google.common.hash.Hashing
-import java.nio.ByteOrder
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator.validateVidRangesList
@@ -33,8 +32,8 @@ interface VidIndexMap {
  *
  * This implementation of [VidIndexMap] creates the mapping from scratch given a [PopulationSpec]
  *
- * Overriding the default hash function can cause incompatibilities between EDPs which can lead
- * to bad measurement. The [hashFunction] is exposed only for testing.
+ * Overriding the default hash function can cause incompatibilities between EDPs which can lead to
+ * bad measurement. The [hashFunction] is exposed only for testing.
  *
  * @param[populationSpec] The [PopulationSpec] to build the map for.
  * @param [hashFunction] The hash function to use for hashing VIDs.
@@ -54,9 +53,10 @@ class InMemoryVidIndexMap(
   /** A map of a VID to its index in the [Frequency Vector]. */
   private val indexMap = hashMapOf<Long, Int>()
 
-  /** A salt value to ensure the output of the hash used by the VidIndexMap is different
-   * from other functions that hash VIDs (e.g. the labeler). These are the first
-   * several digits of phi (the golden ratio) added to the date this value was created.
+  /**
+   * A salt value to ensure the output of the hash used by the VidIndexMap is different from other
+   * functions that hash VIDs (e.g. the labeler). These are the first several digits of phi (the
+   * golden ratio) added to the date this value was created.
    */
   private val salt = 1_618_033L + 20_240_417L
 
