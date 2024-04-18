@@ -5,7 +5,7 @@ load("@rules_jvm_external//:defs.bzl", "java_export")
 
 java_export(
     name = "exported_edp_libs",
-    maven_coordinates = "com.amazon.wfaedp:edp-java-libs:0.0.2",
+    maven_coordinates = "com.amazon.wfaedp:edp-java-libs:0.0.3",
     tags = ["manual"],
     runtime_deps = [
         ":edp_java_libs",
@@ -29,6 +29,7 @@ java_library(
         ":edp_java_proto",
         ":event_group_metadata_descriptors_service_java_proto",
         ":event_groups_service_java_proto",
+        ":measurement_consumers_service_java_proto",
         ":measurements_service_java_proto",
         ":model_lines_service_java_proto",
         ":model_releases_service_java_proto",
@@ -75,6 +76,7 @@ java_proto_library(
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_proto",
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_group_metadata_descriptors_service_proto",
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:measurement_consumers_service_proto",
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:public_keys_service_proto",
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_proto",
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:requisition_fulfillment_service_proto",
@@ -141,6 +143,16 @@ java_grpc_library(
     name = "measurements_service_java_proto",
     srcs = [
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_proto",
+    ],
+    deps = [
+        ":edp_java_proto",
+    ],
+)
+
+java_grpc_library(
+    name = "measurement_consumers_service_java_proto",
+    srcs = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:measurement_consumers_service_proto",
     ],
     deps = [
         ":edp_java_proto",
