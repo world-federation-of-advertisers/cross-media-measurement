@@ -81,11 +81,11 @@ class ModelSuitesService(private val internalClient: ModelSuitesCoroutineStub) :
     val createModelSuiteRequest = request.modelSuite.toInternal(parentKey)
     return try {
       internalClient.createModelSuite(createModelSuiteRequest).toModelSuite()
-    } catch (ex: StatusException) {
-      when (ex.status.code) {
-        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "ModelProvider not found." }
-        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
-      }
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        else -> Status.UNKNOWN
+      }.toExternalStatusRuntimeException(e)
     }
   }
 
@@ -114,11 +114,11 @@ class ModelSuitesService(private val internalClient: ModelSuitesCoroutineStub) :
 
     try {
       return internalClient.getModelSuite(getModelSuiteRequest).toModelSuite()
-    } catch (ex: StatusException) {
-      when (ex.status.code) {
-        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "ModelSuite not found" }
-        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception" }
-      }
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        else -> Status.UNKNOWN
+      }.toExternalStatusRuntimeException(e)
     }
   }
 
@@ -148,14 +148,11 @@ class ModelSuitesService(private val internalClient: ModelSuitesCoroutineStub) :
         internalClient
           .streamModelSuites(listModelSuitesPageToken.toStreamModelSuitesRequest())
           .toList()
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.INVALID_ARGUMENT ->
-            failGrpc(Status.INVALID_ARGUMENT, ex) {
-              ex.message ?: "Required field unspecified or invalid"
-            }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception" }
-        }
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
 
     if (results.isEmpty()) {
