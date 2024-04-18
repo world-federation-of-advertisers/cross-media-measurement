@@ -91,8 +91,10 @@ module "open_telemetry" {
   iam_service_account_description = "Open Telemetry Collector."
 }
 
+data "google_project" "project" {}
+
 resource "google_project_iam_member" "cloud_traces_agent" {
-  project = "halo-cmm-dev"
+  project = data.google_project.project.project_id
   role    = "roles/cloudtrace.agent"
   member  = module.open_telemetry.iam_service_account.member
 }
