@@ -26,7 +26,6 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.EndVidInclusiveLessThanVidStartDetail
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.VidRangeIndex
 import org.wfanet.measurement.api.v2alpha.populationSpec
-import org.wfanet.measurement.common.toByteString
 
 @RunWith(JUnit4::class)
 class VidIndexMapTest {
@@ -90,18 +89,12 @@ class VidIndexMapTest {
       }
     }
 
-    // We'll pass a salt which we'll confirm is the value we expect.
-    // The output of the hash is just the VID.
-    val salt = (1L).toByteString(ByteOrder.BIG_ENDIAN)
-
     // The value of the hash function is constant and equal to the salt.
     // Thus, because the secondary sort key is the VID itself, the
     // ordering of the indexes of the VIDs follows the ordering of
     // the VIDs themselves.
-    val hashFunction = { _: Long, localSalt: ByteString ->
-      localSalt.asReadOnlyByteBuffer().getLong(0)
-    }
-    val vidIndexMap = InMemoryVidIndexMap(testPopulationSpec, salt, hashFunction)
+    val hashFunction = { _: Long, salt: Long -> salt}
+    val vidIndexMap = InMemoryVidIndexMap(testPopulationSpec, hashFunction)
 
     assertThat(vidIndexMap.size).isEqualTo(vidCount)
     for (vid in 1..vidCount) {
