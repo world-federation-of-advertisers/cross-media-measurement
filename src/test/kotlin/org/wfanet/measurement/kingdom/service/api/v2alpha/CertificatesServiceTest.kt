@@ -1348,8 +1348,7 @@ class CertificatesServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception.errorInfo?.metadataMap)
-      .containsEntry("model_provider", MODEL_PROVIDER_NAME)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("modelProvider", MODEL_PROVIDER_NAME)
   }
 
   @Test

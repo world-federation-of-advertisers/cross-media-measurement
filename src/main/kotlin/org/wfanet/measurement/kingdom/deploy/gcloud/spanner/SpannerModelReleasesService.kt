@@ -28,6 +28,7 @@ import org.wfanet.measurement.internal.kingdom.GetModelReleaseRequest
 import org.wfanet.measurement.internal.kingdom.ModelRelease
 import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamModelReleasesRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelReleaseNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelSuiteNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelReleases
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelReleaseReader
@@ -47,14 +48,23 @@ class SpannerModelReleasesService(
   }
 
   override suspend fun getModelRelease(request: GetModelReleaseRequest): ModelRelease {
+    val externalModelReleaseId = ExternalId(request.externalModelReleaseId)
+    val externalModelSuiteId = ExternalId(request.externalModelSuiteId)
+    val externalModelProviderId = ExternalId(request.externalModelProviderId)
     return ModelReleaseReader()
       .readByExternalIds(
         client.singleUse(),
-        ExternalId(request.externalModelReleaseId),
-        ExternalId(request.externalModelSuiteId),
-        ExternalId(request.externalModelProviderId),
+        externalModelReleaseId,
+        externalModelSuiteId,
+        externalModelProviderId,
       )
-      ?.modelRelease ?: failGrpc(Status.NOT_FOUND) { "ModelRelease not found." }
+      ?.modelRelease
+      ?: throw ModelReleaseNotFoundException(
+          externalModelProviderId,
+          externalModelSuiteId,
+          externalModelReleaseId,
+        )
+        .asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelRelease not found.")
   }
 
   override fun streamModelReleases(request: StreamModelReleasesRequest): Flow<ModelRelease> {
