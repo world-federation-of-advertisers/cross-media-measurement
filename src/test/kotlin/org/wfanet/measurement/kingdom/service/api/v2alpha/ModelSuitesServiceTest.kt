@@ -31,6 +31,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.stub
 import org.mockito.kotlin.verify
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesRequest
@@ -49,9 +50,11 @@ import org.wfanet.measurement.api.v2alpha.withDuchyPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
@@ -66,6 +69,8 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.getModelSuiteRequest as internalGetModelSuiteRequest
 import org.wfanet.measurement.internal.kingdom.modelSuite as internalModelSuite
 import org.wfanet.measurement.internal.kingdom.streamModelSuitesRequest as internalStreamModelSuitesRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelProviderNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelSuiteNotFoundException
 
 private const val DEFAULT_LIMIT = 50
 
@@ -677,5 +682,53 @@ class ModelSuitesServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createModelSuite throws NOT_FOUND with model provider name when model provider not found`() {
+    internalModelSuitesMock.stub {
+      onBlocking { createModelSuite(any()) }
+        .thenThrow(
+          ModelProviderNotFoundException(ExternalId(EXTERNAL_MODEL_PROVIDER_ID))
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelProvider not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking {
+            service.createModelSuite(
+              createModelSuiteRequest {
+                parent = MODEL_PROVIDER_NAME
+                modelSuite = MODEL_SUITE
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("modelProvider", MODEL_PROVIDER_NAME)
+  }
+
+  @Test
+  fun `getModelSuite throws NOT_FOUND with model suite name when model suite not found`() {
+    internalModelSuitesMock.stub {
+      onBlocking { getModelSuite(any()) }
+        .thenThrow(
+          ModelSuiteNotFoundException(
+              ExternalId(EXTERNAL_MODEL_PROVIDER_ID),
+              ExternalId(EXTERNAL_MODEL_SUITE_ID),
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelSuite not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking { service.getModelSuite(getModelSuiteRequest { name = MODEL_SUITE_NAME }) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("modelSuite", MODEL_SUITE_NAME)
   }
 }

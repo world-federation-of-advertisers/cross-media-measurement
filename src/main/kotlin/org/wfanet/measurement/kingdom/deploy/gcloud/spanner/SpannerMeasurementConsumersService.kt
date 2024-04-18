@@ -15,7 +15,6 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -78,12 +77,12 @@ class SpannerMeasurementConsumersService(
   override suspend fun getMeasurementConsumer(
     request: GetMeasurementConsumerRequest
   ): MeasurementConsumer {
+    val externalMeasurementConsumerId = ExternalId(request.externalMeasurementConsumerId)
     return MeasurementConsumerReader()
-      .readByExternalMeasurementConsumerId(
-        client.singleUse(),
-        ExternalId(request.externalMeasurementConsumerId),
-      )
-      ?.measurementConsumer ?: failGrpc(Status.NOT_FOUND) { "MeasurementConsumer not found" }
+      .readByExternalMeasurementConsumerId(client.singleUse(), externalMeasurementConsumerId)
+      ?.measurementConsumer
+      ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
+        .asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found")
   }
 
   override suspend fun addMeasurementConsumerOwner(

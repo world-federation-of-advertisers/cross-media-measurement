@@ -104,12 +104,11 @@ class EventGroupMetadataDescriptorsService(
     val internalEventGroupMetadataDescriptor =
       try {
         internalEventGroupMetadataDescriptorsStub.getEventGroupMetadataDescriptor(getRequest)
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.NOT_FOUND ->
-            failGrpc(Status.NOT_FOUND, ex) { "EventGroupMetadataDescriptor not found" }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
-        }
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
     return internalEventGroupMetadataDescriptor.toEventGroupMetadataDescriptor()
   }
@@ -154,12 +153,11 @@ class EventGroupMetadataDescriptorsService(
     val internalEventGroupMetadataDescriptor =
       try {
         internalEventGroupMetadataDescriptorsStub.createEventGroupMetadataDescriptor(createRequest)
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.NOT_FOUND ->
-            failGrpc(Status.NOT_FOUND, ex) { "EventGroupMetadataDescriptor not found" }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
-        }
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
     return internalEventGroupMetadataDescriptor.toEventGroupMetadataDescriptor()
   }
@@ -201,14 +199,12 @@ class EventGroupMetadataDescriptorsService(
     val internalEventGroupMetadataDescriptor =
       try {
         internalEventGroupMetadataDescriptorsStub.updateEventGroupMetadataDescriptor(updateRequest)
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.INVALID_ARGUMENT ->
-            failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
-          Status.Code.NOT_FOUND ->
-            failGrpc(Status.NOT_FOUND, ex) { "EventGroupMetadataDescriptor not found" }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
-        }
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
     return internalEventGroupMetadataDescriptor.toEventGroupMetadataDescriptor()
   }
@@ -314,11 +310,9 @@ class EventGroupMetadataDescriptorsService(
           .toList()
       } catch (e: StatusException) {
         throw when (e.status.code) {
-            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-            else -> Status.UNKNOWN
-          }
-          .withCause(e)
-          .asRuntimeException()
+          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
       }
 
     if (results.isEmpty()) {

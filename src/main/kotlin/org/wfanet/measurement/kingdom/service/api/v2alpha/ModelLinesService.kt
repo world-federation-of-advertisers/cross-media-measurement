@@ -79,15 +79,12 @@ class ModelLinesService(private val internalClient: ModelLinesCoroutineStub) :
     val createModelLineRequest = request.modelLine.toInternal(parentKey)
     return try {
       internalClient.createModelLine(createModelLineRequest).toModelLine()
-    } catch (ex: StatusException) {
-      when (ex.status.code) {
-        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "ModelProvider not found" }
-        Status.Code.INVALID_ARGUMENT ->
-          failGrpc(Status.INVALID_ARGUMENT, ex) {
-            ex.message ?: "Required field unspecified or invalid"
-          }
-        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception" }
-      }
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+        else -> Status.UNKNOWN
+      }.toExternalStatusRuntimeException(e)
     }
   }
 
@@ -119,14 +116,12 @@ class ModelLinesService(private val internalClient: ModelLinesCoroutineStub) :
 
     try {
       return internalClient.setActiveEndTime(internalRequest).toModelLine()
-    } catch (ex: StatusException) {
-      when (ex.status.code) {
-        Status.Code.NOT_FOUND ->
-          failGrpc(Status.NOT_FOUND, ex) { ex.message ?: "ModelLine not found" }
-        Status.Code.INVALID_ARGUMENT ->
-          failGrpc(Status.INVALID_ARGUMENT, ex) { ex.message ?: "ActiveEndTime is invalid" }
-        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception" }
-      }
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+        else -> Status.UNKNOWN
+      }.toExternalStatusRuntimeException(e)
     }
   }
 
@@ -167,14 +162,12 @@ class ModelLinesService(private val internalClient: ModelLinesCoroutineStub) :
       return internalClient
         .setModelLineHoldbackModelLine(internalSetHoldbackModelLineRequest)
         .toModelLine()
-    } catch (ex: StatusException) {
-      when (ex.status.code) {
-        Status.Code.NOT_FOUND ->
-          failGrpc(Status.NOT_FOUND, ex) { ex.message ?: "ModelLine not found" }
-        Status.Code.INVALID_ARGUMENT ->
-          failGrpc(Status.INVALID_ARGUMENT, ex) { ex.message ?: "ModelLine has wrong type" }
-        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception" }
-      }
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+        else -> Status.UNKNOWN
+      }.toExternalStatusRuntimeException(e)
     }
   }
 
