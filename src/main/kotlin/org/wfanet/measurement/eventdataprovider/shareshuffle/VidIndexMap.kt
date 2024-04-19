@@ -99,9 +99,7 @@ class InMemoryVidIndexMap(
      * @param [vid] the vid to hash
      * @returns The first 64-bits of the hash as a [Long]
      */
-    fun hashVidToLongWithFarmHash(vid: Long, salt: Long): Long {
-      val hasher = Hashing.farmHashFingerprint64().newHasher()
-      return hasher.putLong(vid + salt).hash().asLong()
-    }
+    fun hashVidToLongWithFarmHash(vid: Long, salt: Long): Long =
+      Hashing.farmHashFingerprint64().hashLong(vid+salt).asLong()
   }
 }
