@@ -14,8 +14,6 @@
 package org.wfanet.measurement.eventdataprovider.shareshuffle
 
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.ByteString
-import java.nio.ByteOrder
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -93,7 +91,7 @@ class VidIndexMapTest {
     // Thus, because the secondary sort key is the VID itself, the
     // ordering of the indexes of the VIDs follows the ordering of
     // the VIDs themselves.
-    val hashFunction = { _: Long, salt: Long -> salt}
+    val hashFunction = { _: Long, salt: Long -> salt }
     val vidIndexMap = InMemoryVidIndexMap(testPopulationSpec, hashFunction)
 
     assertThat(vidIndexMap.size).isEqualTo(vidCount)
