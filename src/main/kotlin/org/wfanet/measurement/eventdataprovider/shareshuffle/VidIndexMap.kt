@@ -100,6 +100,6 @@ class InMemoryVidIndexMap(
      * @returns The first 64-bits of the hash as a [Long]
      */
     fun hashVidToLongWithFarmHash(vid: Long, salt: Long): Long =
-      Hashing.farmHashFingerprint64().hashLong(vid+salt).asLong()
+      Hashing.farmHashFingerprint64().hashLong(vid + salt).asLong()
   }
 }
