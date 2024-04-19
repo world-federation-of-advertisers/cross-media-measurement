@@ -31,6 +31,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.stub
 import org.mockito.kotlin.verify
 import org.wfanet.measurement.api.v2alpha.ListModelReleasesPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelReleasesRequest
@@ -50,9 +51,11 @@ import org.wfanet.measurement.api.v2alpha.withDuchyPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
@@ -67,6 +70,8 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.getModelReleaseRequest as internalGetModelReleaseRequest
 import org.wfanet.measurement.internal.kingdom.modelRelease as internalModelRelease
 import org.wfanet.measurement.internal.kingdom.streamModelReleasesRequest as internalStreamModelReleasesRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelReleaseNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelSuiteNotFoundException
 
 private const val DEFAULT_LIMIT = 50
 
@@ -702,5 +707,59 @@ class ModelReleasesServiceTest {
           }
         }
       )
+  }
+
+  @Test
+  fun `createModelRelease throws NOT_FOUND with model suite name when model suite not found`() {
+    internalModelLinesMock.stub {
+      onBlocking { createModelRelease(any()) }
+        .thenThrow(
+          ModelSuiteNotFoundException(
+              ExternalId(EXTERNAL_MODEL_PROVIDER_ID),
+              ExternalId(EXTERNAL_MODEL_SUITE_ID),
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelSuite not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking {
+            service.createModelRelease(
+              createModelReleaseRequest {
+                parent = MODEL_SUITE_NAME
+                modelRelease = MODEL_RELEASE
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("modelSuite", MODEL_SUITE_NAME)
+  }
+
+  @Test
+  fun `getModelRelease throws NOT_FOUND with model release name when model release not found`() {
+    internalModelLinesMock.stub {
+      onBlocking { getModelRelease(any()) }
+        .thenThrow(
+          ModelReleaseNotFoundException(
+              ExternalId(EXTERNAL_MODEL_PROVIDER_ID),
+              ExternalId(EXTERNAL_MODEL_SUITE_ID),
+              ExternalId(EXTERNAL_MODEL_RELEASE_ID),
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelRelease not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking {
+            service.getModelRelease(getModelReleaseRequest { name = MODEL_RELEASE_NAME })
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("modelRelease", MODEL_RELEASE_NAME)
   }
 }
