@@ -99,8 +99,8 @@ class InMemoryVidIndexMap(
     /**
      * Hash a VID with FarmHash and return the output as a [Long]
      *
-     * The input of the hash function is determined by converting the [vid] to a byte array
-     * with big endian ordering and concatenating the [salt] to it.
+     * The input of the hash function is determined by converting the [vid] to a byte array with big
+     * endian ordering and concatenating the [salt] to it.
      *
      * This input is passed to farmHashFingerprint64() whose output is a byte array.
      *
@@ -111,8 +111,8 @@ class InMemoryVidIndexMap(
      * @returns the hash of the vid
      */
     fun hashVidToLongWithFarmHash(vid: Long, salt: ByteString): Long {
-    val hashInput = vid.toByteString(ByteOrder.BIG_ENDIAN).concat(salt)
-    return Hashing.farmHashFingerprint64().hashBytes(hashInput.toByteArray()).asLong()
+      val hashInput = vid.toByteString(ByteOrder.BIG_ENDIAN).concat(salt)
+      return Hashing.farmHashFingerprint64().hashBytes(hashInput.toByteArray()).asLong()
     }
   }
 }
