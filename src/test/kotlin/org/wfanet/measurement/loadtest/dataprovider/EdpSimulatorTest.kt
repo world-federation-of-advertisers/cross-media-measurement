@@ -209,7 +209,8 @@ private val LAST_EVENT_DATE = LocalDate.now()
 private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
 private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
 
-private const val DUCHY_ID = "worker1"
+private const val DUCHY_ONE_ID = "worker1"
+private const val DUCHY_TWO_ID = "worker2"
 private const val RANDOM_SEED: Long = 0
 
 // Resource ID for EventGroup that fails Requisitions with CONSENT_SIGNAL_INVALID if used.
@@ -230,8 +231,8 @@ class EdpSimulatorTest {
         getCertificate(eq(getCertificateRequest { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME }))
       }
       .thenReturn(MEASUREMENT_CONSUMER_CERTIFICATE)
-    onBlocking { getCertificate(eq(getCertificateRequest { name = DUCHY_CERTIFICATE.name })) }
-      .thenReturn(DUCHY_CERTIFICATE)
+    onBlocking { getCertificate(eq(getCertificateRequest { name = DUCHY_ONE_CERTIFICATE.name })) }
+      .thenReturn(DUCHY_ONE_CERTIFICATE)
     onBlocking {
         getCertificate(eq(getCertificateRequest { name = DATA_PROVIDER_CERTIFICATE.name }))
       }
@@ -325,6 +326,10 @@ class EdpSimulatorTest {
     RequisitionFulfillmentCoroutineStub(grpcTestServerRule.channel)
   }
 
+  // TODO(@ple13): Create two requisitionFulfillmentStubs for HMSS test.
+  private val requisitionFulfillmentStubMap =
+    mapOf(DUCHY_ONE_ID to requisitionFulfillmentStub, DUCHY_TWO_ID to requisitionFulfillmentStub)
+
   private val backingStore = TestInMemoryBackingStore()
   private val privacyBudgetManager =
     PrivacyBudgetManager(PrivacyBucketFilter(TestPrivacyBucketMapper()), backingStore, 10.0f, 0.02f)
@@ -358,7 +363,7 @@ class EdpSimulatorTest {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         InMemoryEventQuery(emptyList()),
         dummyThrottler,
         privacyBudgetManager,
@@ -417,7 +422,7 @@ class EdpSimulatorTest {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         InMemoryEventQuery(emptyList()),
         dummyThrottler,
         privacyBudgetManager,
@@ -467,7 +472,7 @@ class EdpSimulatorTest {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         InMemoryEventQuery(emptyList()),
         dummyThrottler,
         privacyBudgetManager,
@@ -497,7 +502,7 @@ class EdpSimulatorTest {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         InMemoryEventQuery(emptyList()),
         dummyThrottler,
         privacyBudgetManager,
@@ -559,7 +564,7 @@ class EdpSimulatorTest {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         InMemoryEventQuery(emptyList()),
         dummyThrottler,
         privacyBudgetManager,
@@ -621,7 +626,7 @@ class EdpSimulatorTest {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         InMemoryEventQuery(allEvents),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         privacyBudgetManager,
@@ -702,7 +707,7 @@ class EdpSimulatorTest {
           eventGroupsStub,
           eventGroupMetadataDescriptorsStub,
           requisitionsStub,
-          requisitionFulfillmentStub,
+          requisitionFulfillmentStubMap,
           InMemoryEventQuery(allEvents),
           dummyThrottler,
           privacyBudgetManager,
@@ -850,7 +855,7 @@ class EdpSimulatorTest {
           eventGroupsStub,
           eventGroupMetadataDescriptorsStub,
           requisitionsStub,
-          requisitionFulfillmentStub,
+          requisitionFulfillmentStubMap,
           InMemoryEventQuery(allEvents),
           dummyThrottler,
           privacyBudgetManager,
@@ -956,7 +961,7 @@ class EdpSimulatorTest {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         eventQuery,
         dummyThrottler,
         privacyBudgetManager,
@@ -1013,7 +1018,7 @@ class EdpSimulatorTest {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         eventQueryMock,
         dummyThrottler,
         privacyBudgetManager,
@@ -1054,7 +1059,7 @@ class EdpSimulatorTest {
           refusal = refusal { justification = Refusal.Justification.CONSENT_SIGNAL_INVALID }
         }
       )
-    assertThat(refuseRequest.refusal.message).contains(DUCHY_NAME)
+    assertThat(refuseRequest.refusal.message).contains(DUCHY_ONE_NAME)
     assertThat(fakeRequisitionFulfillmentService.fullfillRequisitionInvocations).isEmpty()
     verifyBlocking(requisitionsServiceMock, never()) { fulfillDirectRequisition(any()) }
   }
@@ -1072,7 +1077,7 @@ class EdpSimulatorTest {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         eventQueryMock,
         dummyThrottler,
         privacyBudgetManager,
@@ -1142,7 +1147,7 @@ class EdpSimulatorTest {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         eventQueryMock,
         dummyThrottler,
         privacyBudgetManager,
@@ -1209,7 +1214,7 @@ class EdpSimulatorTest {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         eventQueryMock,
         dummyThrottler,
         privacyBudgetManager,
@@ -1276,7 +1281,7 @@ class EdpSimulatorTest {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         eventQueryMock,
         dummyThrottler,
         privacyBudgetManager,
@@ -1341,7 +1346,7 @@ class EdpSimulatorTest {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         eventQueryMock,
         dummyThrottler,
         privacyBudgetManager,
@@ -1406,7 +1411,7 @@ class EdpSimulatorTest {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         eventQueryMock,
         dummyThrottler,
         privacyBudgetManager,
@@ -1471,7 +1476,7 @@ class EdpSimulatorTest {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         eventQueryMock,
         dummyThrottler,
         privacyBudgetManager,
@@ -1536,7 +1541,7 @@ class EdpSimulatorTest {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         eventQueryMock,
         dummyThrottler,
         privacyBudgetManager,
@@ -1598,7 +1603,7 @@ class EdpSimulatorTest {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         syntheticGeneratorEventQuery,
         dummyThrottler,
         privacyBudgetManager,
@@ -1654,7 +1659,7 @@ class EdpSimulatorTest {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         syntheticGeneratorEventQuery,
         dummyThrottler,
         privacyBudgetManager,
@@ -1757,7 +1762,7 @@ class EdpSimulatorTest {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         syntheticGeneratorEventQuery,
         dummyThrottler,
         privacyBudgetManager,
@@ -1827,7 +1832,7 @@ class EdpSimulatorTest {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         syntheticGeneratorEventQuery,
         dummyThrottler,
         privacyBudgetManager,
@@ -1897,7 +1902,7 @@ class EdpSimulatorTest {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         syntheticGeneratorEventQuery,
         dummyThrottler,
         privacyBudgetManager,
@@ -1954,7 +1959,7 @@ class EdpSimulatorTest {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         syntheticGeneratorEventQuery,
         dummyThrottler,
         privacyBudgetManager,
@@ -2018,7 +2023,7 @@ class EdpSimulatorTest {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         syntheticGeneratorEventQuery,
         dummyThrottler,
         privacyBudgetManager,
@@ -2082,7 +2087,7 @@ class EdpSimulatorTest {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         syntheticGeneratorEventQuery,
         dummyThrottler,
         privacyBudgetManager,
@@ -2147,7 +2152,7 @@ class EdpSimulatorTest {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         syntheticGeneratorEventQuery,
         dummyThrottler,
         privacyBudgetManager,
@@ -2209,7 +2214,7 @@ class EdpSimulatorTest {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         syntheticGeneratorEventQuery,
         dummyThrottler,
         privacyBudgetManager,
@@ -2272,7 +2277,7 @@ class EdpSimulatorTest {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         syntheticGeneratorEventQuery,
         dummyThrottler,
         privacyBudgetManager,
@@ -2338,7 +2343,7 @@ class EdpSimulatorTest {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         syntheticGeneratorEventQuery,
         dummyThrottler,
         privacyBudgetManager,
@@ -2399,7 +2404,7 @@ class EdpSimulatorTest {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         syntheticGeneratorEventQuery,
         dummyThrottler,
         privacyBudgetManager,
@@ -2457,7 +2462,7 @@ class EdpSimulatorTest {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubMap,
         syntheticGeneratorEventQuery,
         dummyThrottler,
         privacyBudgetManager,
@@ -2507,13 +2512,20 @@ class EdpSimulatorTest {
       "dataProviders/foo/eventGroupMetadataDescriptors/bar"
 
     private val MC_SIGNING_KEY = loadSigningKey("${MC_ID}_cs_cert.der", "${MC_ID}_cs_private.der")
-    private val DUCHY_SIGNING_KEY =
-      loadSigningKey("${DUCHY_ID}_cs_cert.der", "${DUCHY_ID}_cs_private.der")
+    private val DUCHY_ONE_SIGNING_KEY =
+      loadSigningKey("${DUCHY_ONE_ID}_cs_cert.der", "${DUCHY_ONE_ID}_cs_private.der")
+    private val DUCHY_TWO_SIGNING_KEY =
+      loadSigningKey("${DUCHY_TWO_ID}_cs_cert.der", "${DUCHY_TWO_ID}_cs_private.der")
 
-    private val DUCHY_NAME = DuchyKey(DUCHY_ID).toName()
-    private val DUCHY_CERTIFICATE = certificate {
-      name = DuchyCertificateKey(DUCHY_ID, externalIdToApiId(6L)).toName()
-      x509Der = DUCHY_SIGNING_KEY.certificate.encoded.toByteString()
+    private val DUCHY_ONE_NAME = DuchyKey(DUCHY_ONE_ID).toName()
+    private val DUCHY_TWO_NAME = DuchyKey(DUCHY_TWO_ID).toName()
+    private val DUCHY_ONE_CERTIFICATE = certificate {
+      name = DuchyCertificateKey(DUCHY_ONE_ID, externalIdToApiId(6L)).toName()
+      x509Der = DUCHY_ONE_SIGNING_KEY.certificate.encoded.toByteString()
+    }
+    private val DUCHY_TWO_CERTIFICATE = certificate {
+      name = DuchyCertificateKey(DUCHY_TWO_ID, externalIdToApiId(6L)).toName()
+      x509Der = DUCHY_TWO_SIGNING_KEY.certificate.encoded.toByteString()
     }
     private val EDP_SIGNING_KEY =
       loadSigningKey("${EDP_DISPLAY_NAME}_cs_cert.der", "${EDP_DISPLAY_NAME}_cs_private.der")
@@ -2649,12 +2661,12 @@ class EdpSimulatorTest {
       dataProviderCertificate = DATA_PROVIDER_CERTIFICATE.name
       dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()
       duchies += duchyEntry {
-        key = DUCHY_NAME
+        key = DUCHY_ONE_NAME
         value = value {
-          duchyCertificate = DUCHY_CERTIFICATE.name
+          duchyCertificate = DUCHY_ONE_CERTIFICATE.name
           liquidLegionsV2 = liquidLegionsV2 {
             elGamalPublicKey =
-              signElgamalPublicKey(CONSENT_SIGNALING_ELGAMAL_PUBLIC_KEY, DUCHY_SIGNING_KEY)
+              signElgamalPublicKey(CONSENT_SIGNALING_ELGAMAL_PUBLIC_KEY, DUCHY_ONE_SIGNING_KEY)
           }
         }
       }
