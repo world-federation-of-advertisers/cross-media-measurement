@@ -92,7 +92,7 @@ module "open_telemetry" {
 }
 
 resource "google_project_iam_member" "cloud_traces_agent" {
-  project = "halo-cmm-dev"
+  project = data.google_client_config.default.project
   role    = "roles/cloudtrace.agent"
   member  = module.open_telemetry.iam_service_account.member
 }
