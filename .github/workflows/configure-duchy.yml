@@ -102,6 +102,7 @@ jobs:
         common --config=ci
         common --config=ghcr
         build --define image_tag=$IMAGE_TAG
+        build --define google_cloud_project=$GCLOUD_PROJECT
         build --define kingdom_system_api_target=$KINGDOM_SYSTEM_API_TARGET
         build --define aggregator_system_api_target=$AGGREGATOR_SYSTEM_API_TARGET
         build --define worker1_system_api_target=$WORKER1_SYSTEM_API_TARGET
