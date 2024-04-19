@@ -14,6 +14,8 @@
 package org.wfanet.measurement.eventdataprovider.shareshuffle
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.ByteString
+import java.nio.ByteOrder
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -24,6 +26,7 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.EndVidInclusiveLessThanVidStartDetail
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.VidRangeIndex
 import org.wfanet.measurement.api.v2alpha.populationSpec
+import org.wfanet.measurement.common.toLong
 
 @RunWith(JUnit4::class)
 class VidIndexMapTest {
@@ -91,7 +94,7 @@ class VidIndexMapTest {
     // Thus, because the secondary sort key is the VID itself, the
     // ordering of the indexes of the VIDs follows the ordering of
     // the VIDs themselves.
-    val hashFunction = { _: Long, salt: Long -> salt }
+    val hashFunction = { _: Long, salt: ByteString -> salt.toLong(ByteOrder.BIG_ENDIAN) }
     val vidIndexMap = InMemoryVidIndexMap(testPopulationSpec, hashFunction)
 
     assertThat(vidIndexMap.size).isEqualTo(vidCount)
