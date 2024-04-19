@@ -348,7 +348,7 @@ class PublicKeysServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception.errorInfo?.metadataMap)
-      .containsEntry("measurement_consumer_certificate", MEASUREMENT_CONSUMER_CERTIFICATE_NAME)
+      .containsEntry("measurementConsumerCertificate", MEASUREMENT_CONSUMER_CERTIFICATE_NAME)
   }
 
   @Test
