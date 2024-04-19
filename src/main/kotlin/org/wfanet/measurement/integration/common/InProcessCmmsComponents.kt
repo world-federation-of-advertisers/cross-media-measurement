@@ -88,7 +88,11 @@ class InProcessCmmsComponents(
         certificateKey = certificateKey,
         mcResourceName = mcResourceName,
         kingdomPublicApiChannel = kingdom.publicApiChannel,
-        duchyPublicApiChannel = duchies[1].publicApiChannel,
+        duchyPublicApiChannelMap =
+          mapOf(
+            duchies[1].externalDuchyId to duchies[1].publicApiChannel,
+            duchies[2].externalDuchyId to duchies[2].publicApiChannel,
+          ),
         trustedCertificates = TRUSTED_CERTIFICATES,
         syntheticDataSpec = syntheticEventGroupSpecs[specIndex],
       )

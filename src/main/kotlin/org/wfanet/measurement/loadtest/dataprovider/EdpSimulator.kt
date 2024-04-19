@@ -169,7 +169,8 @@ class EdpSimulator(
   private val eventGroupsStub: EventGroupsCoroutineStub,
   private val eventGroupMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub,
   private val requisitionsStub: RequisitionsCoroutineStub,
-  private val requisitionFulfillmentStub: RequisitionFulfillmentCoroutineStub,
+  private val requisitionFulfillmentStubsByDuchyId:
+    Map<String, RequisitionFulfillmentCoroutineStub>,
   private val eventQuery: EventQuery<Message>,
   private val throttler: Throttler,
   private val privacyBudgetManager: PrivacyBudgetManager,
@@ -1173,7 +1174,7 @@ class EdpSimulator(
       )
     }
     try {
-      requisitionFulfillmentStub.fulfillRequisition(requests)
+      requisitionFulfillmentStubsByDuchyId.values.first().fulfillRequisition(requests)
     } catch (e: StatusException) {
       throw Exception("Error fulfilling requisition $requisitionName", e)
     }
