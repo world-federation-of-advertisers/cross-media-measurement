@@ -1,0 +1,14 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "PopulationSpecValidatorTest",
+    srcs = ["PopulationSpecValidatorTest.kt"],
+    test_class = "org.wfanet.measurement.api.v2alpha.PopulationSpecValidatorTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:population_spec_validator",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
