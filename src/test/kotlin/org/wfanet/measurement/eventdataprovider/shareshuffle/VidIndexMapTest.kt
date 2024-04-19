@@ -14,6 +14,8 @@
 package org.wfanet.measurement.eventdataprovider.shareshuffle
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.ByteString
+import java.nio.ByteOrder
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
