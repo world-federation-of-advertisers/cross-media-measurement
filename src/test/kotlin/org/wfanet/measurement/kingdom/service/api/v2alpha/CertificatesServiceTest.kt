@@ -1435,7 +1435,7 @@ class CertificatesServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception.errorInfo?.metadataMap)
       .containsEntry(
-        "certification_revocation_state",
+        "certificationRevocationState",
         Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED.toString(),
       )
   }
@@ -1491,7 +1491,7 @@ class CertificatesServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception.errorInfo?.metadataMap)
       .containsEntry(
-        "certification_revocation_state",
+        "certificationRevocationState",
         Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED.toString(),
       )
   }

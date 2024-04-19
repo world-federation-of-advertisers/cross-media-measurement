@@ -1006,7 +1006,7 @@ class RequisitionsServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception.errorInfo?.metadataMap).containsEntry("state", State.FULFILLED.toString())
     assertThat(exception.errorInfo?.metadataMap)
-      .containsEntry("requisition_id", externalIdToApiId(EXTERNAL_REQUISITION_ID))
+      .containsEntry("requisitionId", externalIdToApiId(EXTERNAL_REQUISITION_ID))
   }
 
   @Test
@@ -1102,7 +1102,7 @@ class RequisitionsServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception.errorInfo?.metadataMap).containsEntry("state", State.FULFILLED.toString())
     assertThat(exception.errorInfo?.metadataMap)
-      .containsEntry("requisition_id", externalIdToApiId(EXTERNAL_REQUISITION_ID))
+      .containsEntry("requisitionId", externalIdToApiId(EXTERNAL_REQUISITION_ID))
   }
 
   @Test

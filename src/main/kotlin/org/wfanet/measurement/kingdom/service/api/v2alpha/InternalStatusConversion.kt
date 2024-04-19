@@ -72,7 +72,6 @@ fun Status.toExternalStatusRuntimeException(
   var errorMessage = this.description ?: "Unknown exception."
   val metadataMap =
     buildMap<String, String> {
-      // TODO{@jcorilla}: Convert all metadata keys to lower camelcase to follow AIP-193 guidance
       when (ErrorCode.valueOf(errorInfo.reason)) {
         ErrorCode.MEASUREMENT_NOT_FOUND -> {
           val measurementName =
@@ -130,7 +129,7 @@ fun Status.toExternalStatusRuntimeException(
                   certificateApiId,
                 )
                 .toName()
-            put("data_provider_certificate", dataProviderCertificateName)
+            put("dataProviderCertificate", dataProviderCertificateName)
             errorMessage = "DataProviderCertificate $dataProviderCertificateName not found."
           } else if (errorInfo.metadataMap.containsKey("external_measurement_consumer_id")) {
             val measurementConsumerCertificateName =
@@ -141,7 +140,7 @@ fun Status.toExternalStatusRuntimeException(
                   certificateApiId,
                 )
                 .toName()
-            put("measurement_consumer_certificate", measurementConsumerCertificateName)
+            put("measurementConsumerCertificate", measurementConsumerCertificateName)
             errorMessage =
               "MeasurementConsumerCertificate $measurementConsumerCertificateName not found."
           } else if (errorInfo.metadataMap.containsKey("external_duchy_id")) {
@@ -151,7 +150,7 @@ fun Status.toExternalStatusRuntimeException(
                   certificateApiId,
                 )
                 .toName()
-            put("duchy_certificate", duchyCertificateName)
+            put("duchyCertificate", duchyCertificateName)
             errorMessage = "DuchyCertificate $duchyCertificateName not found."
           } else if (errorInfo.metadataMap.containsKey("external_model_provider_id")) {
             val modelProviderCertificateName =
@@ -162,10 +161,10 @@ fun Status.toExternalStatusRuntimeException(
                   certificateApiId,
                 )
                 .toName()
-            put("model_provider_certificate", modelProviderCertificateName)
+            put("modelProviderCertificate", modelProviderCertificateName)
             errorMessage = "ModelProviderCertificate $modelProviderCertificateName not found."
           } else {
-            put("external_certificate_id", certificateApiId)
+            put("externalCertificateId", certificateApiId)
             errorMessage = "Certificate not found."
           }
         }
@@ -200,7 +199,6 @@ fun Status.toExternalStatusRuntimeException(
           put("state", measurementState)
           errorMessage = "Measurement $measurementName is in illegal state: $measurementState"
         }
-        // TODO{@jcorilla}: Populate metadata using subsequent error codes
         ErrorCode.MODEL_PROVIDER_NOT_FOUND -> {
           val modelProviderName =
             ModelProviderKey(
@@ -226,8 +224,8 @@ fun Status.toExternalStatusRuntimeException(
               )
               .toRevocationState()
               .toString()
-          put("external_certificate_id", certificateApiId)
-          put("certification_revocation_state", certificateRevocationState)
+          put("externalCertificateId", certificateApiId)
+          put("certificationRevocationState", certificateRevocationState)
           errorMessage = "Certificate is in illegal revocation state: $certificateRevocationState."
         }
         ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL -> {
@@ -265,7 +263,7 @@ fun Status.toExternalStatusRuntimeException(
               )
               .toRequisitionState()
               .toString()
-          put("requisition_id", requisitionApiId)
+          put("requisitionId", requisitionApiId)
           put("state", requisitionState)
           errorMessage =
             "Requisition with id: $requisitionApiId is in illegal state: $requisitionState"
@@ -323,7 +321,7 @@ fun Status.toExternalStatusRuntimeException(
           val apiKeyApiId =
             externalIdToApiId(checkNotNull(errorInfo.metadataMap["external_api_key_id"]).toLong())
 
-          put("external_api_key_id", apiKeyApiId)
+          put("externalApiKeyId", apiKeyApiId)
           errorMessage = "ApiKey not found."
         }
         ErrorCode.EVENT_GROUP_NOT_FOUND -> {
