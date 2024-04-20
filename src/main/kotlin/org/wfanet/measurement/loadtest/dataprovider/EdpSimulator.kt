@@ -47,8 +47,8 @@ import org.wfanet.anysketch.crypto.elGamalPublicKey as anySketchElGamalPublicKey
 import org.wfanet.frequencycount.FrequencyVector
 import org.wfanet.frequencycount.SecretShare
 import org.wfanet.frequencycount.SecretShareGeneratorAdapter
-import org.wfanet.frequencycount.SecretShareGeneratorRequest
 import org.wfanet.frequencycount.frequencyVector
+import org.wfanet.frequencycount.secretShareGeneratorRequest
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt.variance
@@ -197,7 +197,7 @@ class EdpSimulator(
   private val logSketchDetails: Boolean = false,
 ) {
   // In the simulation, the Vid universe is obtained from event query. However, in the actual
-  // implementation, the Edp must get it from the Vid model.
+  // implementation, the EDP must get it from the VID model.
   private val vidUniverse = eventQuery.getUserVirtualIdUniverse().toList()
 
   // All vid must use the same salt. If none is specified, use empty string for the salt.
@@ -1107,6 +1107,9 @@ class EdpSimulator(
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
   ): IntArray {
     logger.info("Generating HMSS Sketch...")
+    val maximumFrequency =
+      if (measurementSpec.hasReachAndFrequency()) measurementSpec.reachAndFrequency.maximumFrequency
+      else 1
     val sketch =
       ShareShuffleSketchGenerator(
           vidUniverse,
@@ -1123,7 +1126,7 @@ class EdpSimulator(
       logShareShuffleSketchDetails(sketch)
     }
 
-    return sketch
+    return sketch.map { if(it > maximumFrequency) maximumFrequency else it }.toIntArray()
   }
 
   private fun encryptLiquidLegionsV2Sketch(
@@ -1364,11 +1367,10 @@ class EdpSimulator(
         )
       }
 
-    val secretShareGeneratorRequest =
-      SecretShareGeneratorRequest.newBuilder()
-        .addAllData(frequencyVector.asIterable())
-        .setRingModulus(protocolConfig.sketchParams.ringModulus)
-        .build()
+    val secretShareGeneratorRequest = secretShareGeneratorRequest {
+      data += frequencyVector.toList()
+      ringModulus = protocolConfig.sketchParams.ringModulus
+    }
 
     val secretShare =
       SecretShare.parseFrom(
