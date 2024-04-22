@@ -140,7 +140,7 @@ kt_jvm_library(
     deps = [
         ":event_query",
         ":measurement_results",
-        ":share_shuffle_sketch_generator",
+        ":frequency_vector_generator",
         ":sketch_encrypter",
         ":sketch_generator",
         ":vid_to_index_map_generator",
@@ -328,8 +328,8 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "share_shuffle_sketch_generator",
-    srcs = ["ShareShuffleSketchGenerator.kt"],
+    name = "frequency_vector_generator",
+    srcs = ["FrequencyVectorGenerator.kt"],
     deps = [
         ":event_query",
         ":vid_to_index_map_generator",

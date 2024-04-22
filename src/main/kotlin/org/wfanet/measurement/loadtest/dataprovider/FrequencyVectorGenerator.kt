@@ -22,7 +22,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.common.lowerBound
 import org.wfanet.measurement.common.upperBound
 
-class ShareShuffleSketchGenerator(
+class FrequencyVectorGenerator(
   private val vidUniverse: List<Long>,
   private val salt: ByteString,
   inputVidToIndexMap: Map<Long, IndexedValue>,

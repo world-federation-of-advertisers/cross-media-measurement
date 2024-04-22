@@ -92,13 +92,13 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "ShareShuffleSketchGeneratorTest",
-    srcs = ["ShareShuffleSketchGeneratorTest.kt"],
-    test_class = "org.wfanet.measurement.loadtest.dataprovider.ShareShuffleSketchGeneratorTest",
+    name = "FrequencyVectorGeneratorTest",
+    srcs = ["FrequencyVectorGeneratorTest.kt"],
+    test_class = "org.wfanet.measurement.loadtest.dataprovider.FrequencyVectorGeneratorTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:in_memory_event_query",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:share_shuffle_sketch_generator",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:frequency_vector_generator",
         "//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",

@@ -1147,7 +1147,7 @@ class EdpSimulator(
       if (measurementSpec.hasReachAndFrequency()) measurementSpec.reachAndFrequency.maximumFrequency
       else 1
     val sketch =
-      ShareShuffleSketchGenerator(
+      FrequencyVectorGenerator(
           vidUniverse,
           salt,
           vidToIndexMap,
@@ -1155,6 +1155,8 @@ class EdpSimulator(
           measurementSpec.vidSamplingInterval,
         )
         .generate(eventGroupSpecs)
+        .map { if (it > maximumFrequency) maximumFrequency else it }
+        .toIntArray()
 
     logger.log(Level.INFO) { "Registers Size:\n${sketch.size}" }
 
@@ -1162,7 +1164,7 @@ class EdpSimulator(
       logShareShuffleSketchDetails(sketch)
     }
 
-    return sketch.map { if (it > maximumFrequency) maximumFrequency else it }.toIntArray()
+    return sketch
   }
 
   private fun encryptLiquidLegionsV2Sketch(
