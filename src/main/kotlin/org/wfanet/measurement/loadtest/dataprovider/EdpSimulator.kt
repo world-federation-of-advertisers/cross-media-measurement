@@ -184,7 +184,7 @@ class EdpSimulator(
   private val throttler: Throttler,
   private val privacyBudgetManager: PrivacyBudgetManager,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
-  inputVidToIndexMap: Map<Long, IndexedValue> = emptyMap(),
+  inputVidToIndexMap: Map<Long, IndexedValue> = emptyMap(), // 33M * (8 + (4+8)) = 660M
   /**
    * Known protobuf types for [EventGroupMetadataDescriptor]s.
    *
@@ -198,19 +198,29 @@ class EdpSimulator(
 ) {
   // In the simulation, the Vid universe is obtained from event query. However, in the actual
   // implementation, the Edp must get it from the Vid model.
-  private val vidUniverse = eventQuery.getUserVirtualIdUniverse().toList()
+  private lateinit var vidUniverse: Sequence<Long>
 
   // All vid must use the same salt. If none is specified, use empty string for the salt.
   private val salt: ByteString = ByteString.EMPTY
 
   // Computes the vid to index map for the vid universe if not provided.
-  private val vidToIndexMap =
-    if (inputVidToIndexMap.isEmpty())
-      if (vidUniverse.isEmpty()) emptyMap()
-      else VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
-    else inputVidToIndexMap
+  private lateinit var vidToIndexMap: Map<Long, IndexedValue>
 
   val eventGroupReferenceIdPrefix = getEventGroupReferenceIdPrefix(edpData.displayName)
+
+  init {
+    println("Getting vidUniverse.")
+    printMemoryUsage()
+    vidUniverse = eventQuery.getUserVirtualIdUniverse()
+    println("Getting vidToIndexMap.")
+    printMemoryUsage()
+    vidToIndexMap = inputVidToIndexMap.ifEmpty {
+      if (vidUniverse.none()) emptyMap()
+      else VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
+    }
+    println("EdpSimulator initialized.")
+    printMemoryUsage()
+  }
 
   /** A sequence of operations done in the simulator. */
   suspend fun run() {
@@ -607,7 +617,8 @@ class EdpSimulator(
 
   /** Executes the requisition fulfillment workflow. */
   suspend fun executeRequisitionFulfillingWorkflow() {
-    logger.info("Executing requisitionFulfillingWorkflow...")
+//    logger.info("Executing requisitionFulfillingWorkflow...")
+//    printMemoryUsage()
     val requisitions =
       getRequisitions().filter {
         checkNotNull(MeasurementKey.fromName(it.measurement)).measurementConsumerId ==

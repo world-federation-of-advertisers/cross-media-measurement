@@ -23,7 +23,7 @@ import org.wfanet.measurement.common.lowerBound
 import org.wfanet.measurement.common.upperBound
 
 class ShareShuffleSketchGenerator(
-  private val vidUniverse: List<Long>,
+  private val vidUniverse: Sequence<Long>,
   private val salt: ByteString,
   inputVidToIndexMap: Map<Long, IndexedValue>,
   private val eventQuery: EventQuery<Message>,
@@ -34,13 +34,13 @@ class ShareShuffleSketchGenerator(
 
   init {
     vidToIndexMap =
-      if (inputVidToIndexMap.isNotEmpty()) inputVidToIndexMap
+      if (!inputVidToIndexMap.none()) inputVidToIndexMap
       else VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
     sortedNormalizedHashValues = vidToIndexMap.values.toList().map { it.value }.sorted()
   }
   /** Generates a frequency vector for the specified [eventGroupSpecs]. */
   fun generate(eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>): IntArray {
-    require(vidUniverse.isNotEmpty()) { "The vid universe size must be positive." }
+    require(!vidUniverse.none()) { "The vid universe size must be positive." }
 
     val isWrappedAround = (vidSamplingInterval.start + vidSamplingInterval.width > 1.0)
     val samplingIntervalEnd =
@@ -61,10 +61,10 @@ class ShareShuffleSketchGenerator(
         sketchSize = 0
       }
     } else {
-      if (startIndex < vidUniverse.size) {
-        validIntervals.add(startIndex..(vidUniverse.size - 1))
+      if (startIndex < vidToIndexMap.size) {
+        validIntervals.add(startIndex..(vidToIndexMap.size - 1))
       }
-      sketchSize += (vidUniverse.size - startIndex)
+      sketchSize += (vidToIndexMap.size - startIndex)
 
       if (endIndexExclusive > 0) {
         validIntervals.add(0..(endIndexExclusive - 1))
@@ -85,7 +85,7 @@ class ShareShuffleSketchGenerator(
           if (bucketIndex >= 0) {
             sketch[bucketIndex] += 1
           } else {
-            sketch[bucketIndex + vidUniverse.size] += 1
+            sketch[bucketIndex + vidToIndexMap.size] += 1
           }
         }
     }

@@ -41,7 +41,7 @@ _worker2Id: "worker2"
 _resourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "500m"
-		memory: "2Gi"
+		memory: "10Gi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
@@ -100,8 +100,8 @@ edpSimulators: {
 			deployment: {
 				_container: {
 					_javaOptions: {
-						maxHeapSize: "1536M",
-						initialHeapSize: "1024M",
+						maxHeapSize: "8000M",
+						initialHeapSize: "8000M",
 					}
 					resources: _resourceRequirements
 				}
