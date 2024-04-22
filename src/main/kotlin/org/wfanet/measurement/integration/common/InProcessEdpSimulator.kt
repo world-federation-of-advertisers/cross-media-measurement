@@ -91,7 +91,7 @@ class InProcessEdpSimulator(
           .withPrincipalName(resourceName),
       requisitionsStub =
         RequisitionsCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
-      requisitionFulfillmentStubMap =
+      requisitionFulfillmentStubsByDuchyName =
         duchyPublicApiChannelMap.mapValues {
           RequisitionFulfillmentCoroutineStub(it.value).withPrincipalName(resourceName)
         },

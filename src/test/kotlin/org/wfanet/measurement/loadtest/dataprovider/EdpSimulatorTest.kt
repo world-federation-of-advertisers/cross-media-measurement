@@ -337,8 +337,8 @@ class EdpSimulatorTest {
 
   private val requisitionFulfillmentStubMap =
     mapOf(
-      DuchyKey("worker1").toName() to requisitionFulfillmentStub,
-      DuchyKey("worker2").toName() to requisitionFulfillmentStub
+      DuchyKey(DUCHY_ONE_ID).toName() to requisitionFulfillmentStub,
+      DuchyKey(DUCHY_TWO_ID).toName() to requisitionFulfillmentStub,
     )
 
   private val backingStore = TestInMemoryBackingStore()
@@ -657,6 +657,109 @@ class EdpSimulatorTest {
 
     assertThat(fakeRequisitionFulfillmentService.fullfillRequisitionInvocations).isEmpty()
     verifyBlocking(requisitionsServiceMock, never()) { fulfillDirectRequisition(any()) }
+  }
+
+  @Test
+  fun `refuses Hmss requisition due to invaild number of duchy entries`() {
+    val requisition =
+      HMSS_REQUISITION.copy {
+        duchies.clear()
+        duchies += duchyEntryOne
+      }
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
+
+    val edpSimulator =
+      EdpSimulator(
+        EDP_DATA,
+        MC_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        dataProvidersStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStubMap,
+        InMemoryEventQuery(emptyList()),
+        dummyThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        inputVidToIndexMap,
+      )
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
+
+    val refuseRequest: RefuseRequisitionRequest =
+      verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
+    assertThat(refuseRequest)
+      .ignoringFieldScope(
+        FieldScopes.allowingFieldDescriptors(
+          Refusal.getDescriptor().findFieldByNumber(Refusal.MESSAGE_FIELD_NUMBER)
+        )
+      )
+      .isEqualTo(
+        refuseRequisitionRequest {
+          name = REQUISITION.name
+          refusal = refusal { justification = Refusal.Justification.UNFULFILLABLE }
+        }
+      )
+    assertThat(refuseRequest.refusal.message).contains("Two duchy entries are expected")
+    assertThat(fakeRequisitionFulfillmentService.fullfillRequisitionInvocations).isEmpty()
+  }
+
+  @Test
+  fun `refuses Hmss requisition due to invaild number of encryption public key`() {
+    val requisition =
+      HMSS_REQUISITION.copy {
+        duchies.clear()
+        duchies +=
+          duchyEntryOne.copy {
+            key = DUCHY_ONE_NAME
+            value = value { duchyCertificate = DUCHY_ONE_CERTIFICATE.name }
+          }
+        duchies += duchyEntryTwo
+      }
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
+
+    val edpSimulator =
+      EdpSimulator(
+        EDP_DATA,
+        MC_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        dataProvidersStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStubMap,
+        InMemoryEventQuery(emptyList()),
+        dummyThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        inputVidToIndexMap,
+      )
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
+
+    val refuseRequest: RefuseRequisitionRequest =
+      verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
+    assertThat(refuseRequest)
+      .ignoringFieldScope(
+        FieldScopes.allowingFieldDescriptors(
+          Refusal.getDescriptor().findFieldByNumber(Refusal.MESSAGE_FIELD_NUMBER)
+        )
+      )
+      .isEqualTo(
+        refuseRequisitionRequest {
+          name = REQUISITION.name
+          refusal = refusal { justification = Refusal.Justification.UNFULFILLABLE }
+        }
+      )
+    assertThat(refuseRequest.refusal.message).contains("encryption public key")
+    assertThat(fakeRequisitionFulfillmentService.fullfillRequisitionInvocations).isEmpty()
   }
 
   @Test
@@ -2871,7 +2974,6 @@ class EdpSimulatorTest {
       "dataProviders/foo/eventGroupMetadataDescriptors/bar"
 
     private val MC_SIGNING_KEY = loadSigningKey("${MC_ID}_cs_cert.der", "${MC_ID}_cs_private.der")
-
     private val DUCHY_ONE_SIGNING_KEY =
       loadSigningKey("${DUCHY_ONE_ID}_cs_cert.der", "${DUCHY_ONE_ID}_cs_private.der")
     private val DUCHY_TWO_SIGNING_KEY =
@@ -2879,7 +2981,6 @@ class EdpSimulatorTest {
 
     private val DUCHY_ONE_NAME = DuchyKey(DUCHY_ONE_ID).toName()
     private val DUCHY_TWO_NAME = DuchyKey(DUCHY_TWO_ID).toName()
-
     private val DUCHY_ONE_CERTIFICATE = certificate {
       name = DuchyCertificateKey(DUCHY_ONE_ID, externalIdToApiId(6L)).toName()
       x509Der = DUCHY_ONE_SIGNING_KEY.certificate.encoded.toByteString()
@@ -3045,6 +3146,21 @@ class EdpSimulatorTest {
       }
     }
 
+    private val duchyEntryOne = duchyEntry {
+      key = DUCHY_ONE_NAME
+      value = value {
+        duchyCertificate = DUCHY_ONE_CERTIFICATE.name
+        honestMajorityShareShuffle = honestMajorityShareShuffle {
+          publicKey = signEncryptionPublicKey(DUCHY1_ENCRYPTION_PUBLIC_KEY, DUCHY_ONE_SIGNING_KEY)
+        }
+      }
+    }
+
+    private val duchyEntryTwo = duchyEntry {
+      key = DUCHY_TWO_NAME
+      value = value { duchyCertificate = DUCHY_TWO_CERTIFICATE.name }
+    }
+
     private val HMSS_REQUISITION = requisition {
       name = "${EDP_NAME}/requisitions/foo"
       measurement = MEASUREMENT_NAME
@@ -3064,19 +3180,8 @@ class EdpSimulatorTest {
       }
       dataProviderCertificate = DATA_PROVIDER_CERTIFICATE.name
       dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()
-      duchies += duchyEntry {
-        key = DUCHY_ONE_NAME
-        value = value {
-          duchyCertificate = DUCHY_ONE_CERTIFICATE.name
-          honestMajorityShareShuffle = honestMajorityShareShuffle {
-            publicKey = signEncryptionPublicKey(DUCHY1_ENCRYPTION_PUBLIC_KEY, DUCHY_ONE_SIGNING_KEY)
-          }
-        }
-      }
-      duchies += duchyEntry {
-        key = DUCHY_TWO_NAME
-        value = value { duchyCertificate = DUCHY_TWO_CERTIFICATE.name }
-      }
+      duchies += duchyEntryOne
+      duchies += duchyEntryTwo
     }
 
     private val TRUSTED_CERTIFICATES: Map<ByteString, X509Certificate> =
@@ -3155,6 +3260,7 @@ class EdpSimulatorTest {
 
     private val inputVidToIndexMap =
       VidToIndexMapGenerator.generateMapping(ByteString.EMPTY, (0L..10000L).toList())
+
     private fun loadEncryptionPrivateKey(fileName: String): TinkPrivateKeyHandle {
       return loadPrivateKey(SECRET_FILES_PATH.resolve(fileName).toFile())
     }

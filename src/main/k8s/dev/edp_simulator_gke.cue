@@ -31,7 +31,11 @@ _edpResourceNames: [_edp1_name, _edp2_name, _edp3_name, _edp4_name, _edp5_name, 
 _edpCertResourceNames: [_edp1_cert_name, _edp2_cert_name, _edp3_cert_name, _edp4_cert_name, _edp5_cert_name, _edp6_cert_name]
 _secret_name:            string @tag("secret_name")
 _kingdomPublicApiTarget: string @tag("kingdom_public_api_target")
-_duchyPublicApiTarget:   string @tag("duchy_public_api_target")
+
+_worker1Id:              string @tag("worker1_id")
+_worker1PublicApiTarget: string @tag("worker1_public_api_target")
+_worker2Id:              string @tag("worker2_id")
+_worker2PublicApiTarget: string @tag("worker2_public_api_target")
 
 #SimulatorServiceAccount: "simulator"
 
@@ -57,9 +61,17 @@ _edpConfigs: [
 edp_simulators: {
 	for edp in _edpConfigs {
 		"\(edp.displayName)": #EdpSimulator & {
-			_edpConfig:                 edp
-			_edp_secret_name:           _secret_name
-			_duchy_public_api_target:   _duchyPublicApiTarget
+			_edpConfig:       edp
+			_edp_secret_name: _secret_name
+			_requisitionFulfillmentServiceConfigs: [{
+				duchyId:              _worker1Id
+				duchyPublicApiTarget: _worker1PublicApiTarget
+			},
+				{
+					duchyId:              _worker2Id
+					duchyPublicApiTarget: _worker2PublicApiTarget
+				},
+			]
 			_kingdom_public_api_target: _kingdomPublicApiTarget
 			_mc_resource_name:          _mc_name
 

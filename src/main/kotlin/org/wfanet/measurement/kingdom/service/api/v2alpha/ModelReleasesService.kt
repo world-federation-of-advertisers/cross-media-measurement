@@ -81,11 +81,11 @@ class ModelReleasesService(private val internalClient: ModelReleasesCoroutineStu
     val createModelReleaseRequest = request.modelRelease.toInternal(parentKey)
     return try {
       internalClient.createModelRelease(createModelReleaseRequest).toModelRelease()
-    } catch (ex: StatusException) {
-      when (ex.status.code) {
-        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "ModelSuite not found" }
-        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception" }
-      }
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        else -> Status.UNKNOWN
+      }.toExternalStatusRuntimeException(e)
     }
   }
 
@@ -115,12 +115,11 @@ class ModelReleasesService(private val internalClient: ModelReleasesCoroutineStu
 
     try {
       return internalClient.getModelRelease(internalGetModelReleaseRequest).toModelRelease()
-    } catch (ex: StatusException) {
-      when (ex.status.code) {
-        Status.Code.NOT_FOUND ->
-          failGrpc(Status.NOT_FOUND, ex) { ex.message ?: "ModelRelease not found" }
-        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception" }
-      }
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        else -> Status.UNKNOWN
+      }.toExternalStatusRuntimeException(e)
     }
   }
 

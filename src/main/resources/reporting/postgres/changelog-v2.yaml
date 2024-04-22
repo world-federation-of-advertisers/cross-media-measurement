@@ -49,3 +49,6 @@ databaseChangeLog:
 - include:
     file: drop-reporting-set-id-from-metric-calculation-spec-reporting-metrics-table-primary-key.sql
     relativeToChangeLogFile: true
+- include:
+    file: add-indexes-for-metric-reuse.sql
+    relativeToChangeLogFile: true

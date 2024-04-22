@@ -32,6 +32,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.stub
 import org.mockito.kotlin.verify
 import org.wfanet.measurement.api.v2alpha.DeleteModelOutageRequest
 import org.wfanet.measurement.api.v2alpha.ListModelOutagesPageTokenKt.previousPageEnd
@@ -55,9 +56,11 @@ import org.wfanet.measurement.api.v2alpha.withDuchyPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
@@ -74,6 +77,10 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.deleteModelOutageRequest as internalDeleteModelOutageRequest
 import org.wfanet.measurement.internal.kingdom.modelOutage as internalModelOutage
 import org.wfanet.measurement.internal.kingdom.streamModelOutagesRequest as internalStreamModelOutagesRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelOutageInvalidArgsException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelOutageNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelOutageStateIllegalException
 
 private const val DEFAULT_LIMIT = 50
 
@@ -870,5 +877,122 @@ class ModelOutagesServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `createModelOutage throws NOT_FOUND with model line name when model line not found`() {
+    internalModelOutagesMock.stub {
+      onBlocking { createModelOutage(any()) }
+        .thenThrow(
+          ModelLineNotFoundException(
+              ExternalId(EXTERNAL_MODEL_PROVIDER_ID),
+              ExternalId(EXTERNAL_MODEL_SUITE_ID),
+              ExternalId(EXTERNAL_MODEL_LINE_ID),
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelLine not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking {
+            service.createModelOutage(
+              createModelOutageRequest {
+                parent = MODEL_LINE_NAME
+                modelOutage = MODEL_OUTAGE
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("modelLine", MODEL_LINE_NAME)
+  }
+
+  @Test
+  fun `createModelOutage throwns INVALID_ARGUMENT with model outage name when argument invalid`() {
+    internalModelOutagesMock.stub {
+      onBlocking { createModelOutage(any()) }
+        .thenThrow(
+          ModelOutageInvalidArgsException(
+              ExternalId(EXTERNAL_MODEL_PROVIDER_ID),
+              ExternalId(EXTERNAL_MODEL_SUITE_ID),
+              ExternalId(EXTERNAL_MODEL_LINE_ID),
+              ExternalId(EXTERNAL_MODEL_OUTAGE_ID),
+            )
+            .asStatusRuntimeException(
+              Status.Code.INVALID_ARGUMENT,
+              "ModelOutage invalid arguments.",
+            )
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking {
+            service.createModelOutage(
+              createModelOutageRequest {
+                parent = MODEL_LINE_NAME
+                modelOutage = MODEL_OUTAGE
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("modelOutage", MODEL_OUTAGE_NAME)
+  }
+
+  @Test
+  fun `deleteModelOutage throws NOT_FOUND with model outage name when model outage not found`() {
+    internalModelOutagesMock.stub {
+      onBlocking { deleteModelOutage(any()) }
+        .thenThrow(
+          ModelOutageNotFoundException(
+              ExternalId(EXTERNAL_MODEL_PROVIDER_ID),
+              ExternalId(EXTERNAL_MODEL_SUITE_ID),
+              ExternalId(EXTERNAL_MODEL_LINE_ID),
+              ExternalId(EXTERNAL_MODEL_OUTAGE_ID),
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelOutage not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking {
+            service.deleteModelOutage(deleteModelOutageRequest { name = MODEL_OUTAGE_NAME })
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("modelOutage", MODEL_OUTAGE_NAME)
+  }
+
+  @Test
+  fun `deleteModelOutage throws NOT_FOUND with model outage name when model outage was deleted`() {
+    internalModelOutagesMock.stub {
+      onBlocking { deleteModelOutage(any()) }
+        .thenThrow(
+          ModelOutageStateIllegalException(
+              ExternalId(EXTERNAL_MODEL_PROVIDER_ID),
+              ExternalId(EXTERNAL_MODEL_SUITE_ID),
+              ExternalId(EXTERNAL_MODEL_LINE_ID),
+              ExternalId(EXTERNAL_MODEL_OUTAGE_ID),
+              InternalModelOutageState.DELETED,
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelOutage not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking {
+            service.deleteModelOutage(deleteModelOutageRequest { name = MODEL_OUTAGE_NAME })
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("modelOutage", MODEL_OUTAGE_NAME)
   }
 }

@@ -96,8 +96,12 @@ class EdpSimulatorFlags {
   lateinit var kingdomPublicApiFlags: KingdomPublicApiFlags
     private set
 
-  @CommandLine.Mixin
-  lateinit var requisitionFulfillmentServiceFlags: RequisitionFulfillmentServiceFlags
+  @CommandLine.ArgGroup(
+    exclusive = false,
+    multiplicity = "1..*",
+    heading = "Configurations of the Duchies' RequisitionFullfillment servers",
+  )
+  lateinit var requisitionFulfillmentServiceFlags: List<RequisitionFulfillmentServiceFlags>
     private set
 
   @CommandLine.Option(

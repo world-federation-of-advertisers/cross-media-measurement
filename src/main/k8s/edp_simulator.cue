@@ -14,6 +14,8 @@
 
 package k8s
 
+import "list"
+
 #EdpConfig: {
 	displayName:      string
 	resourceName:     string
@@ -21,11 +23,16 @@ package k8s
 	publisherId:      int
 }
 
+#RequisitionFulfillmentServiceConfig: {
+	duchyId:              string
+	duchyPublicApiTarget: string
+}
+
 #EdpSimulator: {
-	_edpConfig:                 #EdpConfig
-	_mc_resource_name:          string
-	_edp_secret_name:           string
-	_duchy_public_api_target:   string
+	_edpConfig:        #EdpConfig
+	_mc_resource_name: string
+	_edp_secret_name:  string
+	_requisitionFulfillmentServiceConfigs: [...#RequisitionFulfillmentServiceConfig]
 	_kingdom_public_api_target: string
 	_logSketchDetails:          bool | *false
 
@@ -33,6 +40,15 @@ package k8s
 
 	_imageConfig: #ImageConfig
 	_additional_args: [...string]
+
+	_requisitionFulfillmentServiceFlags: {
+		let flagLists = [ for config in _requisitionFulfillmentServiceConfigs {[
+			"--requisition-fulfillment-service-duchy-id=\(config.duchyId)",
+			"--requisition-fulfillment-service-target=\(config.duchyPublicApiTarget)",
+			"--requisition-fulfillment-service-cert-host=localhost",
+		]}]
+		list.FlattenN(flagLists, 2)
+	}
 
 	deployment: #Deployment & {
 		_name:       DisplayName + "-simulator"
@@ -53,10 +69,8 @@ package k8s
 				"--mc-resource-name=\(_mc_resource_name)",
 				"--kingdom-public-api-target=\(_kingdom_public_api_target)",
 				"--kingdom-public-api-cert-host=localhost",
-				"--requisition-fulfillment-service-target=\(_duchy_public_api_target)",
-				"--requisition-fulfillment-service-cert-host=localhost",
 				"--log-sketch-details=\(_logSketchDetails)",
-			] + _additional_args
+			] + _requisitionFulfillmentServiceFlags + _additional_args
 		}
 	}
 

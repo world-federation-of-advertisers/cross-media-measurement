@@ -71,21 +71,13 @@ abstract class EdpSimulatorRunner : Runnable {
     val certificatesStub = CertificatesCoroutineStub(v2AlphaPublicApiChannel)
     val dataProvidersStub = DataProvidersCoroutineStub(v2AlphaPublicApiChannel)
 
-    val requisitionFulfillmentStub =
-      RequisitionFulfillmentCoroutineStub(
-        buildMutualTlsChannel(
-          flags.requisitionFulfillmentServiceFlags.target,
-          clientCerts,
-          flags.requisitionFulfillmentServiceFlags.certHost,
-        )
-      )
-    // TODO(@ple13): Update the requisition fulfillment stub map when multiple fulfillment targets
-    // are supported.
-    val requisitionFulfillmentStubMap =
-      mapOf(
-        DuchyKey("worker1").toName() to requisitionFulfillmentStub,
-        DuchyKey("worker2").toName() to requisitionFulfillmentStub
-      )
+    val requisitionFulfillmentStubsByDuchyName =
+      flags.requisitionFulfillmentServiceFlags.associate {
+        val channel = buildMutualTlsChannel(it.target, clientCerts, it.certHost)
+        val stub = RequisitionFulfillmentCoroutineStub(channel)
+        it.duchyId to stub
+      }
+
     val signingKeyHandle =
       loadSigningKey(flags.edpCsCertificateDerFile, flags.edpCsPrivateKeyDerFile)
     val certificateKey =
@@ -117,7 +109,7 @@ abstract class EdpSimulatorRunner : Runnable {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStubMap,
+        requisitionFulfillmentStubsByDuchyName,
         eventQuery,
         MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval),
         createNoOpPrivacyBudgetManager(),

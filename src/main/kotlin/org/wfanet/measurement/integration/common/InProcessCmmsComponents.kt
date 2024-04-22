@@ -92,7 +92,7 @@ class InProcessCmmsComponents(
         duchyPublicApiChannelMap =
           mapOf(
             DuchyKey(duchies[1].externalDuchyId).toName() to duchies[1].publicApiChannel,
-            DuchyKey(duchies[2].externalDuchyId).toName() to duchies[2].publicApiChannel
+            DuchyKey(duchies[2].externalDuchyId).toName() to duchies[2].publicApiChannel,
           ),
         trustedCertificates = TRUSTED_CERTIFICATES,
         syntheticDataSpec = syntheticEventGroupSpecs[specIndex],

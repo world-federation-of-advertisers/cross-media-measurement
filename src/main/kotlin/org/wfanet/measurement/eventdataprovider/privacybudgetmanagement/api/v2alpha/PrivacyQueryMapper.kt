@@ -130,6 +130,11 @@ object PrivacyQueryMapper {
                 measurementSpec.reachAndFrequency.frequencyPrivacyParams.delta,
             )
 
+          // TODO(@ple13): Update the code when AcdpParamsConverter has been extended to support
+          // binomial noise and HMSS switchs to binomial noise.
+
+          // Uses the function getLlv2AcdpCharge to compute the ACDP charge for this query as HMSS
+          // and LLV2 use the same approach when adding differential private noise.
           AcdpParamsConverter.getLlv2AcdpCharge(dpParams, contributorCount)
         }
         else ->

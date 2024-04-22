@@ -179,12 +179,14 @@ class EdpSimulator(
   private val eventGroupsStub: EventGroupsCoroutineStub,
   private val eventGroupMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub,
   private val requisitionsStub: RequisitionsCoroutineStub,
-  private val requisitionFulfillmentStubMap: Map<String, RequisitionFulfillmentCoroutineStub>,
+  private val requisitionFulfillmentStubsByDuchyName:
+    Map<String, RequisitionFulfillmentCoroutineStub>,
   private val eventQuery: EventQuery<Message>,
   private val throttler: Throttler,
   private val privacyBudgetManager: PrivacyBudgetManager,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   inputVidToIndexMap: Map<Long, IndexedValue> = emptyMap(),
+  inputVidUniverse: List<Long> = emptyList(),
   /**
    * Known protobuf types for [EventGroupMetadataDescriptor]s.
    *
@@ -196,19 +198,28 @@ class EdpSimulator(
   private val random: Random = Random,
   private val logSketchDetails: Boolean = false,
 ) {
-  // In the simulation, the Vid universe is obtained from event query. However, in the actual
-  // implementation, the EDP must get it from the VID model.
-  private val vidUniverse = eventQuery.getUserVirtualIdUniverse().toList()
+  // In the simulator, the VID universe is obtained from eventQuery if not provided. However, in the
+  // actual implementation, the EDP must get it from the VID model.
+  private val vidUniverse =
+    if (inputVidUniverse.isEmpty()) eventQuery.getUserVirtualIdUniverse().toList()
+    else inputVidUniverse
 
-  // All vid must use the same salt. If none is specified, use empty string for the salt.
+  // All VID must use the same salt. If none is specified, use empty string for the salt.
   private val salt: ByteString = ByteString.EMPTY
 
-  // Computes the vid to index map for the vid universe if not provided.
+  // Computes the VID to index map for the VID universe if not provided.
   private val vidToIndexMap =
     if (inputVidToIndexMap.isEmpty())
       if (vidUniverse.isEmpty()) emptyMap()
       else VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
     else inputVidToIndexMap
+
+  private val SUPPORTED_PROTOCOLS =
+    setOf(
+      ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2,
+      ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2,
+      ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
+    )
 
   val eventGroupReferenceIdPrefix = getEventGroupReferenceIdPrefix(edpData.displayName)
 
@@ -495,13 +506,7 @@ class EdpSimulator(
     duchyCertificate: Certificate,
     protocol: ProtocolConfig.Protocol.ProtocolCase,
   ) {
-    require(
-      protocol == ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2 ||
-        protocol == ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ||
-        protocol == ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE
-    ) {
-      "Unsupported protocol $protocol"
-    }
+    require(protocol in SUPPORTED_PROTOCOLS) { "Unsupported protocol $protocol" }
 
     val duchyX509Certificate: X509Certificate = readCertificate(duchyCertificate.x509Der)
     // Look up the trusted issuer certificate for this Duchy certificate. Note that this doesn't
@@ -548,7 +553,13 @@ class EdpSimulator(
     }
   }
 
-  /** Verify duchy entries' certificates. Return true for valid or false for invalid. */
+  /**
+   * Verify duchy entries.
+   *
+   * For each duchy entry, verifies its certificate. Return true for valid or false for invalid. If
+   * the protocol is honest majority share shuffle, also verify that there are exactly two duchy
+   * entires, and only one of them has the encryption public key.
+   */
   private suspend fun verifyDuchyEntries(
     requisition: Requisition,
     protocol: ProtocolConfig.Protocol.ProtocolCase,
@@ -566,6 +577,35 @@ class EdpSimulator(
         Requisition.Refusal.Justification.CONSENT_SIGNAL_INVALID,
         e.message.orEmpty(),
       )
+    }
+
+    if (protocol == ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE) {
+      if (requisition.duchiesList.size != 2) {
+        logger.log(
+          Level.WARNING,
+          "Two duchy entries are expected, but there are ${requisition.duchiesList.size}."
+        )
+        throw RequisitionRefusalException(
+          Requisition.Refusal.Justification.UNFULFILLABLE,
+          "Two duchy entries are expected, but there are ${requisition.duchiesList.size}.",
+        )
+      }
+
+      val publicKeyList =
+        requisition.duchiesList
+          .filter { it.value.honestMajorityShareShuffle.hasPublicKey() }
+          .map { it.value.honestMajorityShareShuffle.publicKey }
+
+      if (publicKeyList.size != 1) {
+        logger.log(
+          Level.WARNING,
+          "Exactly one duchy entry is expected to have the encryption public key, but ${publicKeyList.size} duchy entries do.",
+        )
+        throw RequisitionRefusalException(
+          Requisition.Refusal.Justification.UNFULFILLABLE,
+          "Exactly one duchy entry is expected to have the encryption public key, but ${publicKeyList.size} duchy entries do.",
+        )
+      }
     }
   }
 
@@ -982,11 +1022,7 @@ class EdpSimulator(
         )
       )
     } catch (e: PrivacyBudgetManagerException) {
-      logger.log(
-        Level.WARNING,
-        "chargeHmssPrivacyBudget failed due to ${e.errorType}",
-        e,
-      )
+      logger.log(Level.WARNING, "chargeHmssPrivacyBudget failed due to ${e.errorType}", e)
       when (e.errorType) {
         PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED -> {
           throw RequisitionRefusalException(
@@ -1126,7 +1162,7 @@ class EdpSimulator(
       logShareShuffleSketchDetails(sketch)
     }
 
-    return sketch.map { if(it > maximumFrequency) maximumFrequency else it }.toIntArray()
+    return sketch.map { if (it > maximumFrequency) maximumFrequency else it }.toIntArray()
   }
 
   private fun encryptLiquidLegionsV2Sketch(
@@ -1203,7 +1239,7 @@ class EdpSimulator(
         combinedPublicKey,
         measurementSpec.reachAndFrequency.maximumFrequency.coerceAtLeast(1),
       )
-    fulfillRequisition(requisition.name, requisitionFingerprint, nonce, encryptedSketch)
+    fulfillRequisition(requisition, requisitionFingerprint, nonce, encryptedSketch)
   }
 
   /**
@@ -1262,22 +1298,22 @@ class EdpSimulator(
         protocolConfig.ellipticCurveId,
         combinedPublicKey,
       )
-    fulfillRequisition(requisition.name, requisitionFingerprint, nonce, encryptedSketch)
+    fulfillRequisition(requisition, requisitionFingerprint, nonce, encryptedSketch)
   }
 
   private suspend fun fulfillRequisition(
-    requisitionName: String,
+    requisition: Requisition,
     requisitionFingerprint: ByteString,
     nonce: Long,
     data: ByteString,
   ) {
-    logger.info("Fulfilling requisition $requisitionName...")
+    logger.info("Fulfilling requisition ${requisition.name}...")
     val requests: Flow<FulfillRequisitionRequest> = flow {
       logger.info { "Emitting FulfillRequisitionRequests..." }
       emit(
         fulfillRequisitionRequest {
           header = header {
-            name = requisitionName
+            name = requisition.name
             this.requisitionFingerprint = requisitionFingerprint
             this.nonce = nonce
           }
@@ -1290,14 +1326,54 @@ class EdpSimulator(
       )
     }
     try {
-      requisitionFulfillmentStubMap.values.first().fulfillRequisition(requests)
+      requisitionFulfillmentStubsByDuchyName.values.first().fulfillRequisition(requests)
     } catch (e: StatusException) {
-      throw Exception("Error fulfilling requisition $requisitionName", e)
+      throw Exception("Error fulfilling requisition ${requisition.name}", e)
+    }
+  }
+
+  private suspend fun fulfillRequisition(
+    requisition: Requisition,
+    requisitionFingerprint: ByteString,
+    nonce: Long,
+    encryptedSignedSeed: EncryptedMessage,
+    shareVector: FrequencyVector,
+  ) {
+    logger.info("Fulfilling requisition ${requisition.name}...")
+    val requests: Flow<FulfillRequisitionRequest> = flow {
+      logger.info { "Emitting FulfillRequisitionRequests..." }
+      emit(
+        fulfillRequisitionRequest {
+          header = header {
+            name = requisition.name
+            this.requisitionFingerprint = requisitionFingerprint
+            this.nonce = nonce
+            this.honestMajorityShareShuffle = honestMajorityShareShuffle {
+              secretSeed = encryptedSignedSeed
+              registerCount = shareVector.dataList.size.toLong()
+              dataProviderCertificate = edpData.certificateKey.toName()
+            }
+          }
+        }
+      )
+      emitAll(
+        shareVector.toByteString().asBufferedFlow(RPC_CHUNK_SIZE_BYTES).map {
+          fulfillRequisitionRequest { bodyChunk = bodyChunk { this.data = it } }
+        }
+      )
+    }
+    try {
+      val requisitionFulfillmentStub =
+        requisitionFulfillmentStubsByDuchyName.getOrElse(getDuchyWithoutPublicKey(requisition)) {
+          throw RuntimeException("Requisition fulfillment stub not found.")
+        }
+      requisitionFulfillmentStub.fulfillRequisition(requests)
+    } catch (e: StatusException) {
+      throw Exception("Error fulfilling requisition ${requisition.name}", e)
     }
   }
 
   private fun getEncryptionKeyForShareSeed(requisition: Requisition): SignedMessage {
-    require(requisition.duchiesList.size == 2) { "There must be exactly 2 duchy entries." }
     val publicKeyList =
       requisition.duchiesList
         .filter { it.value.honestMajorityShareShuffle.hasPublicKey() }
@@ -1310,7 +1386,6 @@ class EdpSimulator(
   }
 
   private suspend fun getDuchyWithoutPublicKey(requisition: Requisition): String {
-    require(requisition.duchiesList.size == 2) { "There must be exactly 2 duchy entries." }
     val duchyKeyList =
       requisition.duchiesList
         .filter { !it.value.honestMajorityShareShuffle.hasPublicKey() }
@@ -1350,11 +1425,7 @@ class EdpSimulator(
 
     val frequencyVector =
       try {
-        generateHmssSketch(
-          vidToIndexMap,
-          measurementSpec,
-          eventGroupSpecs,
-        )
+        generateHmssSketch(vidToIndexMap, measurementSpec, eventGroupSpecs)
       } catch (e: EventFilterValidationException) {
         logger.log(
           Level.WARNING,
@@ -1386,53 +1457,7 @@ class EdpSimulator(
 
     val shareVector = frequencyVector { data += secretShare.shareVectorList }
 
-    fulfillHmssRequisition(
-      requisition,
-      requisitionFingerprint,
-      nonce,
-      shareSeedCiphertext,
-      shareVector
-    )
-  }
-
-  private suspend fun fulfillHmssRequisition(
-    requisition: Requisition,
-    requisitionFingerprint: ByteString,
-    nonce: Long,
-    encryptedSignedSeed: EncryptedMessage,
-    shareVector: FrequencyVector,
-  ) {
-    logger.info("Fulfilling requisition ${requisition.name}...")
-    val requests: Flow<FulfillRequisitionRequest> = flow {
-      logger.info { "Emitting FulfillRequisitionRequests..." }
-      emit(
-        fulfillRequisitionRequest {
-          header = header {
-            name = requisition.name
-            this.requisitionFingerprint = requisitionFingerprint
-            this.nonce = nonce
-            this.honestMajorityShareShuffle = honestMajorityShareShuffle {
-              secretSeed = encryptedSignedSeed
-              registerCount = shareVector.dataList.size.toLong()
-              dataProviderCertificate = edpData.certificateKey.toName()
-            }
-          }
-        }
-      )
-      emitAll(
-        shareVector.toByteString().asBufferedFlow(RPC_CHUNK_SIZE_BYTES).map {
-          fulfillRequisitionRequest { bodyChunk = bodyChunk { this.data = it } }
-        }
-      )
-    }
-    try {
-      val requisitionFulfillmentStub =
-        requisitionFulfillmentStubMap.get(getDuchyWithoutPublicKey(requisition))
-      require(requisitionFulfillmentStub != null) { "Requisition fulfillment stub not found." }
-      requisitionFulfillmentStub.fulfillRequisition(requests)
-    } catch (e: StatusException) {
-      throw Exception("Error fulfilling requisition ${requisition.name}", e)
-    }
+    fulfillRequisition(requisition, requisitionFingerprint, nonce, shareSeedCiphertext, shareVector)
   }
 
   private fun Requisition.getCombinedPublicKey(curveId: Int): AnySketchElGamalPublicKey {
@@ -1904,6 +1929,7 @@ class EdpSimulator(
     init {
       System.loadLibrary("secret_share_generator_adapter")
     }
+
     private const val RPC_CHUNK_SIZE_BYTES = 32 * 1024 // 32 KiB
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
