@@ -583,7 +583,7 @@ class EdpSimulator(
       if (requisition.duchiesList.size != 2) {
         logger.log(
           Level.WARNING,
-          "Two duchy entries are expected, but there are ${requisition.duchiesList.size}."
+          "Two duchy entries are expected, but there are ${requisition.duchiesList.size}.",
         )
         throw RequisitionRefusalException(
           Requisition.Refusal.Justification.UNFULFILLABLE,

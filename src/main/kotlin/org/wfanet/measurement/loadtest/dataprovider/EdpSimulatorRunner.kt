@@ -75,7 +75,7 @@ abstract class EdpSimulatorRunner : Runnable {
       flags.requisitionFulfillmentServiceFlags.associate {
         val channel = buildMutualTlsChannel(it.target, clientCerts, it.certHost)
         val stub = RequisitionFulfillmentCoroutineStub(channel)
-        it.duchyId to stub
+        DuchyKey(it.duchyId).toName() to stub
       }
 
     val signingKeyHandle =
