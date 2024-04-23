@@ -139,8 +139,8 @@ kt_jvm_library(
     srcs = ["EdpSimulator.kt"],
     deps = [
         ":event_query",
-        ":measurement_results",
         ":frequency_vector_generator",
+        ":measurement_results",
         ":sketch_encrypter",
         ":sketch_generator",
         ":vid_to_index_map_generator",
