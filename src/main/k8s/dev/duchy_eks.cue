@@ -83,25 +83,7 @@ duchy: #PostgresDuchy & {
 	_verbose_grpc_logging:      "false"
 	_postgresConfig:            #AwsPostgresConfig
 	services: {
-		"computation-control-server": {
-			metadata: {
-				annotations: {
-					"service.beta.kubernetes.io/aws-load-balancer-type":            "nlb"
-					"service.beta.kubernetes.io/aws-load-balancer-scheme":          "internet-facing"
-					"service.beta.kubernetes.io/aws-load-balancer-nlb-target-type": "ip"
-					"service.beta.kubernetes.io/aws-load-balancer-eip-allocations": _computationControlServerEips
-				}
-			}
-		}
-		"requisition-fulfillment-server": {
-			metadata: {
-				annotations: {
-					"service.beta.kubernetes.io/aws-load-balancer-type":            "nlb"
-					"service.beta.kubernetes.io/aws-load-balancer-scheme":          "internet-facing"
-					"service.beta.kubernetes.io/aws-load-balancer-nlb-target-type": "ip"
-				}
-			}
-		}
+		"computation-control-server": _eipAllocations: _computationControlServerEips
 	}
 	deployments: {
 		"herald-daemon-deployment": {
