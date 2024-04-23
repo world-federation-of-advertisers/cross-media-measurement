@@ -1,4 +1,4 @@
-# Copyright 2023 The Cross-Media Measurement Authors
+# Copyright 2024 The Cross-Media Measurement Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,27 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-variable "name" {
-  description = "Name of the cluster."
-  type        = string
-  nullable    = false
+output "v2alpha_api_address" {
+  description = "`google_compute_address` for v2alpha public API"
+  value       = google_compute_address.v2alpha
 }
-
-variable "location" {
-  description = "Location of cluster."
-  type        = string
-}
-
-variable "secret_key" {
-  description = "`google_kms_crypto_key` for cluster secret encryption."
-  type = object({
-    name = string
-    id   = string
-  })
-}
-
-variable "release_channel" {
-  description = "`release_channel.channel` for the cluster"
-  type        = string
-  nullable    = false
+output "system_v1alpha_api_address" {
+  description = "`google_compute_address` for v1alpha system API"
+  value       = google_compute_address.system_v1alpha
 }

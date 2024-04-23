@@ -14,7 +14,9 @@
 
 package k8s
 
-_secret_name: string @tag("secret_name")
+_secret_name:          string @tag("secret_name")
+_publicApiAddressName: string @tag("public_api_address_name")
+_systemApiAddressName: string @tag("system_api_address_name")
 
 // Name of K8s service account for the internal API server.
 #InternalServerServiceAccount: "internal-server"
@@ -77,5 +79,10 @@ kingdom: #Kingdom & {
 				_grpcThreadPoolSize: #SystemServerGrpcThreads
 			}
 		}
+	}
+
+	services: {
+		"system-api-server": _ipAddressName:         _systemApiAddressName
+		"v2alpha-public-api-server": _ipAddressName: _publicApiAddressName
 	}
 }
