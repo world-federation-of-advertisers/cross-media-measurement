@@ -207,6 +207,7 @@ maven.install(
         "com.google.cloud:google-cloud-security-private-ca:2.3.1",
         "com.google.crypto.tink:tink-awskms:1.9.1",
         "com.google.crypto.tink:tink-gcpkms:1.9.0",
+        "com.google.privacy.differentialprivacy:differentialprivacy:3.0.0",
         "com.squareup.okhttp3:okhttp:4.12.0",
         "io.opentelemetry.semconv:opentelemetry-semconv:1.22.0-alpha",
         "io.opentelemetry:opentelemetry-sdk:" + OPENTELEMETRY_JAVA_VERSION,

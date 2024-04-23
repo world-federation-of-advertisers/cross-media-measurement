@@ -5,6 +5,7 @@ kt_jvm_test(
     srcs = ["LaplaceNoiserTest.kt"],
     test_class = "org.wfanet.measurement.eventdataprovider.noiser.LaplaceNoiserTest",
     deps = [
+        "//imports/java/com/google/privacy/differentialprivacy:differentialprivacy",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
@@ -16,6 +17,7 @@ kt_jvm_test(
     srcs = ["GaussianNoiserTest.kt"],
     test_class = "org.wfanet.measurement.eventdataprovider.noiser.GaussianNoiserTest",
     deps = [
+        "//imports/java/com/google/privacy/differentialprivacy:differentialprivacy",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",

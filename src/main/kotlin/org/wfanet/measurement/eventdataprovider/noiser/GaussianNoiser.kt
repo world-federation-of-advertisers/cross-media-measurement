@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.eventdataprovider.noiser
 
+import com.google.privacy.differentialprivacy.GaussianNoise
 import java.util.Random
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.exp
@@ -21,13 +22,18 @@ import org.apache.commons.math3.analysis.solvers.BisectionSolver
 import org.apache.commons.math3.distribution.NormalDistribution
 import org.apache.commons.math3.random.RandomGeneratorFactory
 
-class GaussianNoiser(privacyParams: DpParams, random: Random) : AbstractNoiser() {
+class GaussianNoiser(val privacyParams: DpParams, random: Random) : AbstractNoiser() {
   override val distribution: NormalDistribution = getNormalDistribution(privacyParams, random)
+  private val gaussianNoise = GaussianNoise()
 
   private fun getNormalDistribution(privacyParams: DpParams, random: Random): NormalDistribution {
     val sigma = getSigma(privacyParams)
 
     return NormalDistribution(RandomGeneratorFactory.createRandomGenerator(random), 0.0, sigma)
+  }
+
+  override fun sample(): Double {
+    return gaussianNoise.addNoise(0.0, 1, 1.0, privacyParams.epsilon, privacyParams.delta)
   }
 
   override val variance: Double

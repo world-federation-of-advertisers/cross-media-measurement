@@ -14,17 +14,23 @@
 
 package org.wfanet.measurement.eventdataprovider.noiser
 
+import com.google.privacy.differentialprivacy.LaplaceNoise
 import java.util.Random
 import org.apache.commons.math3.distribution.LaplaceDistribution
 import org.apache.commons.math3.random.RandomGeneratorFactory
 
-class LaplaceNoiser(privacyParams: DpParams, random: Random) : AbstractNoiser() {
+class LaplaceNoiser(val privacyParams: DpParams, random: Random) : AbstractNoiser() {
   override val distribution: LaplaceDistribution =
     LaplaceDistribution(
       RandomGeneratorFactory.createRandomGenerator(random),
       0.0,
       1 / privacyParams.epsilon,
     )
+  private val laplaceNoise = LaplaceNoise()
+
+  override fun sample(): Double {
+    return laplaceNoise.addNoise(0.0, 1.0, privacyParams.epsilon, 0.0)
+  }
 
   override val variance: Double
     get() = distribution.numericalVariance
