@@ -23,6 +23,7 @@ import io.grpc.StatusRuntimeException
 import io.grpc.protobuf.StatusProto
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
@@ -536,15 +537,17 @@ class EventGroupNotFoundByMeasurementConsumerException(
 }
 
 class EventGroupInvalidArgsException(
-  val originalExternalMeasurementId: ExternalId,
-  val providedExternalMeasurementId: ExternalId,
+  val originalExternalMeasurementConsumerId: ExternalId,
+  val providedExternalMeasurementConsumerId: ExternalId,
   provideDescription: () -> String = { "EventGroup invalid arguments" },
 ) : KingdomInternalException(ErrorCode.EVENT_GROUP_INVALID_ARGS, provideDescription) {
   override val context
     get() =
       mapOf(
-        "original_external_measurement_id" to originalExternalMeasurementId.value.toString(),
-        "provided_external_measurement_id" to providedExternalMeasurementId.value.toString(),
+        "original_external_measurement_consumer_id" to
+          originalExternalMeasurementConsumerId.value.toString(),
+        "provided_external_measurement_consumer_id" to
+          providedExternalMeasurementConsumerId.value.toString(),
       )
 }
 
@@ -613,7 +616,7 @@ class ExchangeStepAttemptNotFoundException(
     get() =
       mapOf(
         "external_recurring_exchange_id" to externalRecurringExchangeId.value.toString(),
-        "date" to date.toString(),
+        "date" to date.toLocalDate().toString(),
         "step_index" to stepIndex.toString(),
         "attempt_number" to attemptNumber.toString(),
       )
@@ -629,7 +632,7 @@ class ExchangeStepNotFoundException(
     get() =
       mapOf(
         "external_recurring_exchange_id" to externalRecurringExchangeId.value.toString(),
-        "date" to date.toString(),
+        "date" to date.toLocalDate().toString(),
         "step_index" to stepIndex.toString(),
       )
 }
@@ -724,7 +727,7 @@ class ExchangeNotFoundException(
     get() =
       mapOf(
         "external_recurring_exchange_id" to externalRecurringExchangeId.value.toString(),
-        "date" to date.toString(),
+        "date" to date.toLocalDate().toString(),
       )
 }
 

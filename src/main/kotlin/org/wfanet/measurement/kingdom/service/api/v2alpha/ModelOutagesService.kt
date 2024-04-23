@@ -84,15 +84,12 @@ class ModelOutagesService(
     val createModelOutageRequest = request.modelOutage.toInternal(parentKey)
     return try {
       internalClient.createModelOutage(createModelOutageRequest).toModelOutage()
-    } catch (ex: StatusException) {
-      when (ex.status.code) {
-        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "ModelLine not found" }
-        Status.Code.INVALID_ARGUMENT ->
-          failGrpc(Status.INVALID_ARGUMENT, ex) {
-            ex.message ?: "ModelOutageStartTime cannot precede ModelOutageEndTime"
-          }
-        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception" }
-      }
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+        else -> Status.UNKNOWN
+      }.toExternalStatusRuntimeException(e)
     }
   }
 
@@ -126,13 +123,12 @@ class ModelOutagesService(
 
     return try {
       internalClient.deleteModelOutage(deleteRequest).toModelOutage()
-    } catch (ex: StatusException) {
-      when (ex.status.code) {
-        Status.Code.INVALID_ARGUMENT ->
-          failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
-        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "ModelOutage not found." }
-        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
-      }
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+        Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        else -> Status.UNKNOWN
+      }.toExternalStatusRuntimeException(e)
     }
   }
 

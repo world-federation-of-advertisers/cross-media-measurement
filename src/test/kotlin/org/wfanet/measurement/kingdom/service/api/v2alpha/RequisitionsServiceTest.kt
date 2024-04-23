@@ -34,11 +34,13 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.stub
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsPageToken
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt.filter
@@ -80,8 +82,10 @@ import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.base64UrlDecode
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
@@ -108,6 +112,10 @@ import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtoco
 import org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest as internalRefuseRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.requisition as internalRequisition
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionNotFoundByDataProviderException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionStateIllegalException
 
 private val UPDATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
 
@@ -939,6 +947,225 @@ class RequisitionsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `refuseRequisition throws NOT_FOUND with requisition name when requisition is missing`() {
+    internalRequisitionMock.stub {
+      onBlocking { refuseRequisition(any()) }
+        .thenThrow(
+          RequisitionNotFoundByDataProviderException(
+              ExternalId(EXTERNAL_DATA_PROVIDER_ID),
+              ExternalId(EXTERNAL_REQUISITION_ID),
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "Requisition not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.refuseRequisition(
+              refuseRequisitionRequest {
+                name = REQUISITION_NAME
+                refusal = refusal { justification = Refusal.Justification.UNFULFILLABLE }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("requisition", REQUISITION_NAME)
+  }
+
+  @Test
+  fun `refuseRequisition throws FAILED_PRECONDITION with requisition id and state when requisition state is illegal`() {
+    internalRequisitionMock.stub {
+      onBlocking { refuseRequisition(any()) }
+        .thenThrow(
+          RequisitionStateIllegalException(
+              ExternalId(EXTERNAL_DATA_PROVIDER_ID),
+              InternalState.FULFILLED,
+            )
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Requisition state illegal.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.refuseRequisition(
+              refuseRequisitionRequest {
+                name = REQUISITION_NAME
+                refusal = refusal { justification = Refusal.Justification.UNFULFILLABLE }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("state", State.FULFILLED.toString())
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("requisitionId", externalIdToApiId(EXTERNAL_REQUISITION_ID))
+  }
+
+  @Test
+  fun `refuseRequisition throws FAILED_PRECONDITION with measurement name and state when measurement state is illegal`() {
+    internalRequisitionMock.stub {
+      onBlocking { refuseRequisition(any()) }
+        .thenThrow(
+          MeasurementStateIllegalException(
+              ExternalId(EXTERNAL_MEASUREMENT_CONSUMER_ID),
+              ExternalId(EXTERNAL_MEASUREMENT_ID),
+              InternalMeasurement.State.FAILED,
+            )
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Measurement state illegal.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.refuseRequisition(
+              refuseRequisitionRequest {
+                name = REQUISITION_NAME
+                refusal = refusal { justification = Refusal.Justification.UNFULFILLABLE }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("state", Measurement.State.FAILED.toString())
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("measurement", MEASUREMENT_NAME)
+  }
+
+  @Test
+  fun `fulfillDirectRequisition NOT_FOUND with requisition name when requisition is missing`() {
+    internalRequisitionMock.stub {
+      onBlocking { fulfillRequisition(any()) }
+        .thenThrow(
+          RequisitionNotFoundByDataProviderException(
+              ExternalId(EXTERNAL_DATA_PROVIDER_ID),
+              ExternalId(EXTERNAL_REQUISITION_ID),
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "Requisition not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.fulfillDirectRequisition(
+              fulfillDirectRequisitionRequest {
+                name = REQUISITION_NAME
+                encryptedResult = ENCRYPTED_RESULT
+                nonce = NONCE
+                certificate = DATA_PROVIDER_CERTIFICATE_NAME
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("requisition", REQUISITION_NAME)
+  }
+
+  @Test
+  fun `fulfillDirectRequisition FAILED_PRECONDITION with requisition id and state when requisition state is illegal`() {
+    internalRequisitionMock.stub {
+      onBlocking { fulfillRequisition(any()) }
+        .thenThrow(
+          RequisitionStateIllegalException(
+              ExternalId(EXTERNAL_DATA_PROVIDER_ID),
+              InternalState.FULFILLED,
+            )
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Requisition state illegal.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.fulfillDirectRequisition(
+              fulfillDirectRequisitionRequest {
+                name = REQUISITION_NAME
+                encryptedResult = ENCRYPTED_RESULT
+                nonce = NONCE
+                certificate = DATA_PROVIDER_CERTIFICATE_NAME
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("state", State.FULFILLED.toString())
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("requisitionId", externalIdToApiId(EXTERNAL_REQUISITION_ID))
+  }
+
+  @Test
+  fun `fulfillDirectRequisition FAILED_PRECONDITION with measurement name and state when measurement state is illegal`() {
+    internalRequisitionMock.stub {
+      onBlocking { fulfillRequisition(any()) }
+        .thenThrow(
+          MeasurementStateIllegalException(
+              ExternalId(EXTERNAL_MEASUREMENT_CONSUMER_ID),
+              ExternalId(EXTERNAL_MEASUREMENT_ID),
+              InternalMeasurement.State.FAILED,
+            )
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Measurement state illegal.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.fulfillDirectRequisition(
+              fulfillDirectRequisitionRequest {
+                name = REQUISITION_NAME
+                encryptedResult = ENCRYPTED_RESULT
+                nonce = NONCE
+                certificate = DATA_PROVIDER_CERTIFICATE_NAME
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("state", Measurement.State.FAILED.toString())
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("measurement", MEASUREMENT_NAME)
+  }
+
+  @Test
+  fun `fulfillDirectRequisition FAILED_PRECONDITION with duchy name when duchy not found`() {
+    val duchyName = DuchyKey(DUCHY_ID).toName()
+    internalRequisitionMock.stub {
+      onBlocking { fulfillRequisition(any()) }
+        .thenThrow(
+          DuchyNotFoundException(DUCHY_ID)
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Duchy not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.fulfillDirectRequisition(
+              fulfillDirectRequisitionRequest {
+                name = REQUISITION_NAME
+                encryptedResult = ENCRYPTED_RESULT
+                nonce = NONCE
+                certificate = DATA_PROVIDER_CERTIFICATE_NAME
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("duchy", duchyName)
   }
 
   companion object {

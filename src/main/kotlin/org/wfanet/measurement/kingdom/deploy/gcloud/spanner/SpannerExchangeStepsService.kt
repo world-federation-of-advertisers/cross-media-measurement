@@ -18,7 +18,6 @@ import io.grpc.Status
 import java.time.Clock
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.toProtoTime
@@ -33,6 +32,7 @@ import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.GetExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequest
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ExchangeStepNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamExchangeSteps
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepAttemptReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepReader
@@ -48,14 +48,21 @@ class SpannerExchangeStepsService(
 ) : ExchangeStepsCoroutineImplBase() {
 
   override suspend fun getExchangeStep(request: GetExchangeStepRequest): ExchangeStep {
+    val externalRecurringExchangeId = ExternalId(request.externalRecurringExchangeId)
     val exchangeStepResult =
       ExchangeStepReader()
         .readByExternalIds(
           client.singleUse(),
-          ExternalId(request.externalRecurringExchangeId),
+          externalRecurringExchangeId,
           request.date,
           request.stepIndex,
-        ) ?: failGrpc(Status.NOT_FOUND) { "ExchangeStep not found" }
+        )
+        ?: throw ExchangeStepNotFoundException(
+            externalRecurringExchangeId,
+            request.date,
+            request.stepIndex,
+          )
+          .asStatusRuntimeException(Status.Code.NOT_FOUND, "ExchangeStep not found")
 
     return exchangeStepResult.exchangeStep
   }

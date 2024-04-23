@@ -27,7 +27,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.stub
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeKey
+import org.wfanet.measurement.api.v2alpha.CanonicalRecurringExchangeKey
 import org.wfanet.measurement.api.v2alpha.DataProviderExchangeKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
@@ -41,6 +43,7 @@ import org.wfanet.measurement.api.v2alpha.ModelProviderRecurringExchangeKey
 import org.wfanet.measurement.api.v2alpha.exchange
 import org.wfanet.measurement.api.v2alpha.getExchangeRequest
 import org.wfanet.measurement.api.v2alpha.withPrincipal
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.ExternalId
@@ -55,6 +58,8 @@ import org.wfanet.measurement.internal.kingdom.exchange as internalExchange
 import org.wfanet.measurement.internal.kingdom.exchangeDetails
 import org.wfanet.measurement.internal.kingdom.getExchangeRequest as internalGetExchangeRequest
 import org.wfanet.measurement.internal.kingdom.recurringExchange as internalRecurringExchange
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ExchangeNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RecurringExchangeNotFoundException
 
 @RunWith(JUnit4::class)
 class ExchangesServiceTest {
@@ -185,6 +190,48 @@ class ExchangesServiceTest {
 
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
+
+  @Test
+  fun `getExchange throws NOT_FOUND with exchange name when exchange not found`() = runBlocking {
+    internalExchangesServiceMock.stub {
+      onBlocking { getExchange(any()) }
+        .thenThrow(
+          ExchangeNotFoundException(EXTERNAL_RECURRING_EXCHANGE_ID, EXCHANGE_DATE)
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "Exchange not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipal(DataProviderPrincipal(DATA_PROVIDER_KEY)) {
+          runBlocking { service.getExchange(getExchangeRequest { name = EXCHANGE_KEY.toName() }) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("exchange", EXCHANGE_KEY.toName())
+  }
+
+  @Test
+  fun `getExchange throws PERMISSION_DENIED with recurring exchange name when recurring exchange not found`() =
+    runBlocking {
+      val externalRecurringExchangeName =
+        CanonicalRecurringExchangeKey(EXTERNAL_RECURRING_EXCHANGE_ID.apiId.value).toName()
+      internalRecurringExchangesServiceMock.stub {
+        onBlocking { getRecurringExchange(any()) }
+          .thenThrow(
+            RecurringExchangeNotFoundException(EXTERNAL_RECURRING_EXCHANGE_ID)
+              .asStatusRuntimeException(Status.Code.NOT_FOUND, "RecurringExchange not found.")
+          )
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipal(DataProviderPrincipal(DATA_PROVIDER_KEY)) {
+            runBlocking { service.getExchange(getExchangeRequest { name = EXCHANGE_KEY.toName() }) }
+          }
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+      assertThat(exception.errorInfo?.metadataMap)
+        .containsEntry("recurringExchange", externalRecurringExchangeName)
+    }
 
   companion object {
     private val EXTERNAL_RECURRING_EXCHANGE_ID = ExternalId(1)

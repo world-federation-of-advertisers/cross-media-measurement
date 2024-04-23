@@ -1348,8 +1348,7 @@ class CertificatesServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception.errorInfo?.metadataMap)
-      .containsEntry("model_provider", MODEL_PROVIDER_NAME)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("modelProvider", MODEL_PROVIDER_NAME)
   }
 
   @Test
@@ -1436,8 +1435,8 @@ class CertificatesServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception.errorInfo?.metadataMap)
       .containsEntry(
-        "certification_revocation_state",
-        InternalCertificate.RevocationState.REVOCATION_STATE_UNSPECIFIED.toString(),
+        "certificationRevocationState",
+        Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED.toString(),
       )
   }
 
@@ -1492,8 +1491,8 @@ class CertificatesServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception.errorInfo?.metadataMap)
       .containsEntry(
-        "certification_revocation_state",
-        InternalCertificate.RevocationState.REVOCATION_STATE_UNSPECIFIED.toString(),
+        "certificationRevocationState",
+        Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED.toString(),
       )
   }
 

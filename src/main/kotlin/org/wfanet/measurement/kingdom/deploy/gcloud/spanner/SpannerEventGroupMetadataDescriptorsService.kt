@@ -20,8 +20,8 @@ import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.ProtoReflection
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptor
@@ -74,7 +74,11 @@ class SpannerEventGroupMetadataDescriptorsService(
         request.externalEventGroupMetadataDescriptorId,
       )
       ?.eventGroupMetadataDescriptor
-      ?: failGrpc(Status.NOT_FOUND) { "EventGroupMetadataDescriptor not found" }
+      ?: throw EventGroupMetadataDescriptorNotFoundException(
+          ExternalId(request.externalDataProviderId),
+          ExternalId(request.externalEventGroupMetadataDescriptorId),
+        )
+        .asStatusRuntimeException(Status.Code.NOT_FOUND, "EventGroupMetadataDescriptor not found.")
   }
 
   override suspend fun updateEventGroupMetadataDescriptor(
