@@ -45,7 +45,7 @@ resource "google_container_cluster" "cluster" {
   enable_l4_ilb_subsetting = true
 
   release_channel {
-    channel = "REGULAR"
+    channel = var.release_channel
   }
 
   # We can't create a cluster with no node pool defined, but we want to only use

@@ -90,13 +90,15 @@ import ("strings")
 	_otlpEndpoint:                                          "--otel-exporter-otlp-endpoint=\(#OpenTelemetryCollectorEndpoint)"
 
 	services: [Name=_]: #GrpcService & {
-		_name:   Name
-		_system: "kingdom"
+		metadata: {
+			_component: "kingdom"
+			name:       Name
+		}
 	}
 	services: {
 		"gcp-kingdom-data-server": {}
-		"system-api-server": _type:         "LoadBalancer"
-		"v2alpha-public-api-server": _type: "LoadBalancer"
+		"system-api-server":         #ExternalService
+		"v2alpha-public-api-server": #ExternalService
 	}
 
 	jobs: [Name=_]: #Job & {

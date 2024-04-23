@@ -19,6 +19,8 @@ _duchy_protocols_setup_config: string @tag("duchy_protocols_setup_config")
 _secret_name:                  string @tag("secret_name")
 _cloudStorageBucket:           string @tag("cloud_storage_bucket")
 _certificateId:                string @tag("certificate_id")
+_publicApiAddressName:         string @tag("public_api_address_name")
+_systemApiAddressName:         string @tag("system_api_address_name")
 _aggregatorSystemApiTarget:    string @tag("aggregator_system_api_target")
 _worker1SystemApiTarget:       string @tag("worker1_system_api_target")
 _worker2SystemApiTarget:       string @tag("worker2_system_api_target")
@@ -135,5 +137,10 @@ duchy: #SpannerDuchy & {
 				serviceAccountName: #StorageServiceAccount
 			}
 		}
+	}
+
+	services: {
+		"requisition-fulfillment-server": _ipAddressName: _publicApiAddressName
+		"computation-control-server": _ipAddressName:     _systemApiAddressName
 	}
 }
