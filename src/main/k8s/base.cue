@@ -330,26 +330,24 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	spec: {
 		selector: app: "\(metadata.name)-app"
 		ports: [...#ServicePort]
-		type?: "ClusterIP" | "LoadBalancer"
+		type?:           "ClusterIP" | "LoadBalancer"
+		loadBalancerIP?: string | null
 	}
 }
 
+// K8s Service with external load balancer.
+#ExternalService: #Service & {
+	spec: type: "LoadBalancer"
+}
+
 #GrpcService: #Service & {
-	_name:   string
-	_system: string
-	_type:   *"ClusterIP" | "LoadBalancer"
-
 	metadata: {
-		_component: _system
-
-		name: _name
 		annotations: {
 			"cloud.google.com/app-protocols":   "{\"\(#GrpcServicePort.name)\": \"HTTP2\"}"
 			"kubernetes.io/ingress.allow-http": "false"
 		}
 	}
 	spec: {
-		type: _type
 		ports: [#GrpcServicePort]
 	}
 }

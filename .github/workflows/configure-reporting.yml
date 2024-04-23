@@ -82,6 +82,7 @@ jobs:
         build --define "postgres_instance=$POSTGRES_INSTANCE"
         build --define "postgres_region=$GCLOUD_REGION"
         build --define "kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
+        build --define reporting_public_api_address_name=reporting-v1alpha
         EOF
 
 

@@ -190,6 +190,7 @@ values):
 
 ```shell
 bazel build //src/main/k8s/dev:reporting_v2.tar \
+  --define reporting_public_api_address_name=reporting-v2alpha \
   --define google_cloud_project=halo-cmm-dev \
   --define postgres_instance=dev-postgres \
   --define postgres_region=us-central1 \
@@ -358,13 +359,6 @@ reporting-v2alpha-public-api-server   LoadBalancer   10.16.32.255   34.135.79.68
 NAME                       SCHEDULE     SUSPEND   ACTIVE   LAST SCHEDULE   AGE
 report-scheduling-cronjob  30 6 * * *   False     0        <none>          10m
 ```
-
-## Reserve an external IP
-
-The `reporting-v2alpha-public-api-server` service has an external load balancer
-IP so that it can be accessed from outside the cluster. By default, the assigned
-IP address is ephemeral. We can reserve a static IP to make it easier to access.
-See [Reserving External IPs](cluster-config.md#reserving-external-ips).
 
 ## Appendix
 
