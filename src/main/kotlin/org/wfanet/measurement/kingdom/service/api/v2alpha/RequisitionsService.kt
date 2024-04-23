@@ -343,7 +343,12 @@ private fun InternalRequisition.toRequisition(): Requisition {
       signatureAlgorithmOid = details.dataProviderPublicKeySignatureAlgorithmOid
     }
 
-    duchies += duchiesMap.entries.map { it.toDuchyEntry(measurementApiVersion) }
+    duchies +=
+      duchiesMap.entries
+        .filter { it.value.availableForFulfillment() }
+        .map {
+          it.toDuchyEntry(measurementApiVersion, this@toRequisition.externalFulfillingDuchyId)
+        }
 
     state = this@toRequisition.state.toRequisitionState()
     if (state == State.REFUSED) {
@@ -353,6 +358,18 @@ private fun InternalRequisition.toRequisition(): Requisition {
       }
     }
     measurementState = this@toRequisition.parentMeasurement.state.toState()
+  }
+}
+
+private fun DuchyValue.availableForFulfillment(): Boolean {
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
+  return when (protocolCase) {
+    DuchyValue.ProtocolCase.LIQUID_LEGIONS_V2,
+    DuchyValue.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> true
+    DuchyValue.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+      !honestMajorityShareShuffle.tinkPublicKey.isEmpty
+    }
+    DuchyValue.ProtocolCase.PROTOCOL_NOT_SET -> error("protocol not set")
   }
 }
 
@@ -397,6 +414,7 @@ private fun State.toInternal(): InternalState =
 /** Converts an internal [DuchyValue] to a public [DuchyEntry.Value]. */
 private fun DuchyValue.toDuchyEntryValue(
   externalDuchyId: String,
+  externalFulfillingDuchyId: String,
   apiVersion: Version,
 ): DuchyEntry.Value {
   val duchyCertificateKey =
@@ -414,7 +432,13 @@ private fun DuchyValue.toDuchyEntryValue(
         reachOnlyLiquidLegionsV2 = source.reachOnlyLiquidLegionsV2.toDuchyEntryLlV2(apiVersion)
       }
       DuchyValue.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
-        honestMajorityShareShuffle = source.honestMajorityShareShuffle.toDuchyEntryHmss(apiVersion)
+        val containingEncryptionKey = !source.honestMajorityShareShuffle.tinkPublicKey.isEmpty
+        val isFulfillingDuchy = externalDuchyId == externalFulfillingDuchyId
+        honestMajorityShareShuffle =
+          source.honestMajorityShareShuffle.toDuchyEntryHmss(
+            containingEncryptionKey && !isFulfillingDuchy,
+            apiVersion,
+          )
       }
       DuchyValue.ProtocolCase.PROTOCOL_NOT_SET -> error("protocol not set")
     }
@@ -443,32 +467,38 @@ private fun ComputationParticipant.LiquidLegionsV2Details.toDuchyEntryLlV2(
 }
 
 private fun ComputationParticipant.HonestMajorityShareShuffleDetails.toDuchyEntryHmss(
-  apiVersion: Version
+  addingEncryptionKey: Boolean,
+  apiVersion: Version,
 ): DuchyEntry.HonestMajorityShareShuffle {
   val source = this
   return DuchyEntryKt.honestMajorityShareShuffle {
-    publicKey = signedMessage {
-      setMessage(
-        any {
-          value = source.tinkPublicKey
-          typeUrl =
-            when (apiVersion) {
-              Version.V2_ALPHA -> ProtoReflection.getTypeUrl(EncryptedMessage.getDescriptor())
-            }
-        }
-      )
-      signature = source.tinkPublicKeySignature
-      signatureAlgorithmOid = source.tinkPublicKeySignatureAlgorithmOid
+    if (addingEncryptionKey) {
+      publicKey = signedMessage {
+        setMessage(
+          any {
+            value = source.tinkPublicKey
+            typeUrl =
+              when (apiVersion) {
+                Version.V2_ALPHA -> ProtoReflection.getTypeUrl(EncryptedMessage.getDescriptor())
+              }
+          }
+        )
+        signature = source.tinkPublicKeySignature
+        signatureAlgorithmOid = source.tinkPublicKeySignatureAlgorithmOid
+      }
     }
   }
 }
 
 /** Converts an internal duchy map entry to a public [DuchyEntry]. */
-private fun Map.Entry<String, DuchyValue>.toDuchyEntry(apiVersion: Version): DuchyEntry {
+private fun Map.Entry<String, DuchyValue>.toDuchyEntry(
+  apiVersion: Version,
+  externalFulfillingDuchyId: String,
+): DuchyEntry {
   val mapEntry = this
   return duchyEntry {
     key = mapEntry.key
-    value = mapEntry.value.toDuchyEntryValue(mapEntry.key, apiVersion)
+    value = mapEntry.value.toDuchyEntryValue(mapEntry.key, externalFulfillingDuchyId, apiVersion)
   }
 }
 
