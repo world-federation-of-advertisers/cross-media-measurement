@@ -40,7 +40,7 @@ class FrequencyVectorGenerator(
   }
   /** Generates a frequency vector for the specified [eventGroupSpecs]. */
   fun generate(eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>): IntArray {
-    require(vidUniverse.isNotEmpty()) { "The vid universe size must be positive." }
+    require(vidToIndexMap.isNotEmpty()) { "The VID to index map not be empty." }
 
     val isWrappedAround = (vidSamplingInterval.start + vidSamplingInterval.width > 1.0)
     val samplingIntervalEnd =
@@ -61,10 +61,10 @@ class FrequencyVectorGenerator(
         sketchSize = 0
       }
     } else {
-      if (startIndex < vidUniverse.size) {
-        validIntervals.add(startIndex..(vidUniverse.size - 1))
+      if (startIndex < vidToIndexMap.size) {
+        validIntervals.add(startIndex..(vidToIndexMap.size - 1))
       }
-      sketchSize += (vidUniverse.size - startIndex)
+      sketchSize += (vidToIndexMap.size - startIndex)
 
       if (endIndexExclusive > 0) {
         validIntervals.add(0..(endIndexExclusive - 1))

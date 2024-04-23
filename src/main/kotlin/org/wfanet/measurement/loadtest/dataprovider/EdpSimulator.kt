@@ -198,10 +198,11 @@ class EdpSimulator(
   private val random: Random = Random,
   private val logSketchDetails: Boolean = false,
 ) {
-  // In the simulator, the VID universe is obtained from eventQuery if not provided. However, in the
-  // actual implementation, the EDP must get it from the VID model.
+  // In the simulator, the VID universe is obtained from eventQuery if it is not provided and the
+  // VID to index map is empty.
   private val vidUniverse =
-    if (inputVidUniverse.isEmpty()) eventQuery.getUserVirtualIdUniverse().toList()
+    if (inputVidUniverse.isEmpty() && inputVidToIndexMap.isEmpty())
+      eventQuery.getUserVirtualIdUniverse().toList()
     else inputVidUniverse
 
   // All VID must use the same salt. If none is specified, use empty string for the salt.
