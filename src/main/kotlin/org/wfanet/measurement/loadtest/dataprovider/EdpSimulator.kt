@@ -186,7 +186,6 @@ class EdpSimulator(
   private val privacyBudgetManager: PrivacyBudgetManager,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   inputVidToIndexMap: Map<Long, IndexedValue> = emptyMap(),
-  inputVidUniverse: List<Long> = emptyList(),
   /**
    * Known protobuf types for [EventGroupMetadataDescriptor]s.
    *
@@ -198,22 +197,12 @@ class EdpSimulator(
   private val random: Random = Random,
   private val logSketchDetails: Boolean = false,
 ) {
-  // In the simulator, the VID universe is obtained from eventQuery if it is not provided and the
-  // VID to index map is empty.
-  private val vidUniverse =
-    if (inputVidUniverse.isEmpty() && inputVidToIndexMap.isEmpty())
-      eventQuery.getUserVirtualIdUniverse().toList()
-    else inputVidUniverse
-
-  // All VID must use the same salt. If none is specified, use empty string for the salt.
-  private val salt: ByteString = ByteString.EMPTY
-
-  // Computes the VID to index map for the VID universe if not provided.
-  private val vidToIndexMap =
-    if (inputVidToIndexMap.isEmpty())
-      if (vidUniverse.isEmpty()) emptyMap()
-      else VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
-    else inputVidToIndexMap
+  // Initializes the vidToIndexMap.
+  //
+  // TODO(@ple13): Ensure that the vidToIndexMap has been properly initialized at this point (either
+  // copied from non-empty inputVidToIndexMap, read from a file, or computed from the vidUniverse)
+  // when the HMSS protocol is enabled in the integration tests.
+  private val vidToIndexMap = inputVidToIndexMap
 
   private val SUPPORTED_PROTOCOLS =
     setOf(
@@ -557,9 +546,9 @@ class EdpSimulator(
   /**
    * Verify duchy entries.
    *
-   * For each duchy entry, verifies its certificate. Return true for valid or false for invalid. If
-   * the protocol is honest majority share shuffle, also verify that there are exactly two duchy
-   * entires, and only one of them has the encryption public key.
+   * For each duchy entry, verifies its certificate. If the protocol is honest majority share
+   * shuffle, also verify that there are exactly two duchy entires, and only one of them has the
+   * encryption public key. Throws a RequisitionRefusalException if the verification fails.
    */
   private suspend fun verifyDuchyEntries(
     requisition: Requisition,
@@ -587,7 +576,7 @@ class EdpSimulator(
           "Two duchy entries are expected, but there are ${requisition.duchiesList.size}.",
         )
         throw RequisitionRefusalException(
-          Requisition.Refusal.Justification.UNFULFILLABLE,
+          Requisition.Refusal.Justification.SPEC_INVALID,
           "Two duchy entries are expected, but there are ${requisition.duchiesList.size}.",
         )
       }
@@ -603,7 +592,7 @@ class EdpSimulator(
           "Exactly one duchy entry is expected to have the encryption public key, but ${publicKeyList.size} duchy entries do.",
         )
         throw RequisitionRefusalException(
-          Requisition.Refusal.Justification.UNFULFILLABLE,
+          Requisition.Refusal.Justification.SPEC_INVALID,
           "Exactly one duchy entry is expected to have the encryption public key, but ${publicKeyList.size} duchy entries do.",
         )
       }
@@ -1147,10 +1136,17 @@ class EdpSimulator(
     val maximumFrequency =
       if (measurementSpec.hasReachAndFrequency()) measurementSpec.reachAndFrequency.maximumFrequency
       else 1
+
+    // TODO(@ple13): Verify that the vidToIndexMap has been properly initialized when a smaller
+    // synthetic dataset is used and the path to HMSS protocol is included in the integration tests.
+    // In that case, the actual vidUniverse is not needed.
+    val vidUniverse =
+      if (vidToIndexMap.isEmpty()) eventQuery.getUserVirtualIdUniverse().toList() else emptyList()
+
     val sketch =
       FrequencyVectorGenerator(
           vidUniverse,
-          salt,
+          ByteString.EMPTY,
           vidToIndexMap,
           eventQuery,
           measurementSpec.vidSamplingInterval,
@@ -1367,9 +1363,8 @@ class EdpSimulator(
     }
     try {
       val requisitionFulfillmentStub =
-        requisitionFulfillmentStubsByDuchyName.getOrElse(getDuchyWithoutPublicKey(requisition)) {
-          throw RuntimeException("Requisition fulfillment stub not found.")
-        }
+        requisitionFulfillmentStubsByDuchyName[getDuchyWithoutPublicKey(requisition)]
+          ?: throw Exception("Requisition fulfillment stub not found.")
       requisitionFulfillmentStub.fulfillRequisition(requests)
     } catch (e: StatusException) {
       throw Exception("Error fulfilling requisition ${requisition.name}", e)
@@ -1377,27 +1372,23 @@ class EdpSimulator(
   }
 
   private fun getEncryptionKeyForShareSeed(requisition: Requisition): SignedMessage {
-    val publicKeyList =
-      requisition.duchiesList
-        .filter { it.value.honestMajorityShareShuffle.hasPublicKey() }
-        .map { it.value.honestMajorityShareShuffle.publicKey }
-    require(publicKeyList.size == 1) {
-      "There must be exactly one duchy entry that contains an encryption public key."
-    }
-
-    return publicKeyList.first()
+    return requisition.duchiesList
+      .singleOrNull { it.value.honestMajorityShareShuffle.hasPublicKey() }
+      ?.value
+      ?.honestMajorityShareShuffle
+      ?.publicKey
+      ?: throw IllegalArgumentException(
+        "Expected exactly one Duchy entry with an HMSS encryption public key."
+      )
   }
 
   private suspend fun getDuchyWithoutPublicKey(requisition: Requisition): String {
-    val duchyKeyList =
-      requisition.duchiesList
-        .filter { !it.value.honestMajorityShareShuffle.hasPublicKey() }
-        .map { it.key }
-    require(duchyKeyList.size == 1) {
-      "There must be exactly one duchy entry that does not contain an encryption public key."
-    }
-
-    return duchyKeyList.first()
+    return requisition.duchiesList
+      .singleOrNull { !it.value.honestMajorityShareShuffle.hasPublicKey() }
+      ?.key
+      ?: throw IllegalArgumentException(
+        "Expected exactly one Duchy entry with an HMSS encryption public key."
+      )
   }
 
   /** Fulfill Honest Majority Share Shuffle Measurement's Requisition. */

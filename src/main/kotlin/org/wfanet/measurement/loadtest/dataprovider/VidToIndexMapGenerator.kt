@@ -41,23 +41,23 @@ object VidToIndexMapGenerator {
   fun generateMapping(salt: ByteString, vidUniverse: List<Long>): Map<Long, IndexedValue> {
     require(vidUniverse.isNotEmpty()) { "The vid universe must not be empty." }
 
-    val hashes = mutableListOf<Pair<Long, BigInteger>>()
+    val hashes = mutableListOf<Pair<Long, Double>>()
 
     for (vid in vidUniverse) {
       // Converts the hash to a non-negative BigInteger.
-      val hash = BigInteger(1, generateHash(vid, salt).toByteArray())
+      val hash = BigInteger(1, generateHash(vid, salt).toByteArray()).toDouble()
       hashes.add(Pair(vid, hash))
     }
 
     // Sorts by the hash values and uses vid to break tie in case of collision.
-    hashes.sortWith(compareBy<Pair<Long, BigInteger>> { it.second }.thenBy { it.first })
+    hashes.sortWith(compareBy<Pair<Long, Double>> { it.second }.thenBy { it.first })
 
     // Maps the hash values to the unit interval and generates the vid to index and normalized hash
     // value map.
     val maxHashValue = BigInteger.ONE.shiftLeft(256).subtract(BigInteger.ONE).toDouble()
     val vidMap = mutableMapOf<Long, IndexedValue>()
     for ((index, pair) in hashes.withIndex()) {
-      val normalizedHashValue = pair.second.toDouble() / maxHashValue
+      val normalizedHashValue = pair.second / maxHashValue
       vidMap[pair.first] = IndexedValue(index, normalizedHashValue)
     }
 

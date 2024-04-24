@@ -701,7 +701,7 @@ class EdpSimulatorTest {
       .isEqualTo(
         refuseRequisitionRequest {
           name = REQUISITION.name
-          refusal = refusal { justification = Refusal.Justification.UNFULFILLABLE }
+          refusal = refusal { justification = Refusal.Justification.SPEC_INVALID }
         }
       )
     assertThat(refuseRequest.refusal.message).contains("Two duchy entries are expected")
@@ -755,7 +755,7 @@ class EdpSimulatorTest {
       .isEqualTo(
         refuseRequisitionRequest {
           name = REQUISITION.name
-          refusal = refusal { justification = Refusal.Justification.UNFULFILLABLE }
+          refusal = refusal { justification = Refusal.Justification.SPEC_INVALID }
         }
       )
     assertThat(refuseRequest.refusal.message).contains("encryption public key")
@@ -3259,7 +3259,7 @@ class EdpSimulatorTest {
     private const val IMPRESSION_TOLERANCE = 1.0
 
     private val inputVidToIndexMap =
-      VidToIndexMapGenerator.generateMapping(ByteString.EMPTY, (0L..10000L).toList())
+      VidToIndexMapGenerator.generateMapping(ByteString.EMPTY, (0L..1000000L).toList())
 
     private fun loadEncryptionPrivateKey(fileName: String): TinkPrivateKeyHandle {
       return loadPrivateKey(SECRET_FILES_PATH.resolve(fileName).toFile())
