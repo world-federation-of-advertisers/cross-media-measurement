@@ -38,15 +38,16 @@ message HonestMajorityShareShuffle {
   // -> SHUFFLE_PHASE -> COMPLETE
   //
   // For AGGREGATOR, the normal stage transition is:
-  // WAIT_ON_AGGREGATION_INPUT -> AGGREGATION_PHASE -> COMPLETE
+  // INITIALIZED -> WAIT_ON_AGGREGATION_INPUT -> AGGREGATION_PHASE
+  // -> COMPLETE
   enum Stage {
     // The computation stage is unknown. This is never set intentionally.
     STAGE_UNSPECIFIED = 0;
 
-    // The computation is created by the non-aggregator populated with sampled
-    // randomness seed and encryption key pair.
+    // The computation is created by the duchy. Non-aggregators populate it
+    // with sampled randomness seed and encryption key pair.
     //
-    // Role: FIRST_NON_AGGREGATOR, SECOND_NON_AGGREGATOR.
+    // Role: AGGREGATOR, FIRST_NON_AGGREGATOR, SECOND_NON_AGGREGATOR.
     //
     // Actions: 1. Creating local Computation. 2. Sending requisition params to
     // the Kingdom.

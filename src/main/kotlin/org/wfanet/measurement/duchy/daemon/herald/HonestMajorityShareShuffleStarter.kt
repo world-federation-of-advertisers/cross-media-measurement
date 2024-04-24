@@ -96,22 +96,11 @@ object HonestMajorityShareShuffleStarter {
     val requisitions =
       systemComputation.requisitionsList.toRequisitionEntries(systemComputation.measurementSpec)
 
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
-    val initialStage =
-      when (role) {
-        RoleInComputation.FIRST_NON_AGGREGATOR,
-        RoleInComputation.SECOND_NON_AGGREGATOR -> Stage.INITIALIZED.toProtocolStage()
-        RoleInComputation.AGGREGATOR -> Stage.WAIT_ON_AGGREGATION_INPUT.toProtocolStage()
-        RoleInComputation.NON_AGGREGATOR,
-        RoleInComputation.UNRECOGNIZED,
-        RoleInComputation.ROLE_IN_COMPUTATION_UNSPECIFIED -> error("Invalid role $role")
-      }
-
     computationStorageClient.createComputation(
       createComputationRequest {
         computationType = ComputationTypeEnum.ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE
         globalComputationId = globalId
-        computationStage = initialStage
+        computationStage = Stage.INITIALIZED.toProtocolStage()
         computationDetails = initialComputationDetails
         this.requisitions += requisitions
       }

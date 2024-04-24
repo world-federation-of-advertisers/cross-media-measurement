@@ -54,12 +54,13 @@ import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 object HonestMajorityShareShuffleProtocol {
   /** Implementation of [ProtocolStageEnumHelper] for [HonestMajorityShareShuffle.Stage]. */
   object EnumStages : ProtocolStageEnumHelper<HonestMajorityShareShuffle.Stage> {
-    override val validInitialStages = setOf(INITIALIZED, WAIT_ON_AGGREGATION_INPUT)
+    override val validInitialStages = setOf(INITIALIZED)
     override val validTerminalStages = setOf(COMPLETE)
 
     override val validSuccessors =
       mapOf(
-          INITIALIZED to setOf(WAIT_TO_START, WAIT_ON_SHUFFLE_INPUT_PHASE_ONE),
+          INITIALIZED to
+            setOf(WAIT_TO_START, WAIT_ON_SHUFFLE_INPUT_PHASE_ONE, WAIT_ON_AGGREGATION_INPUT),
           WAIT_TO_START to setOf(SETUP_PHASE),
           WAIT_ON_SHUFFLE_INPUT_PHASE_ONE to setOf(SETUP_PHASE),
           SETUP_PHASE to setOf(WAIT_ON_SHUFFLE_INPUT_PHASE_TWO, SHUFFLE_PHASE),
@@ -95,13 +96,13 @@ object HonestMajorityShareShuffleProtocol {
           WAIT_TO_START,
           WAIT_ON_SHUFFLE_INPUT_PHASE_TWO -> details.role == RoleInComputation.FIRST_NON_AGGREGATOR
           WAIT_ON_SHUFFLE_INPUT_PHASE_ONE -> details.role == RoleInComputation.SECOND_NON_AGGREGATOR
-          INITIALIZED,
           SETUP_PHASE,
           SHUFFLE_PHASE ->
             details.role == RoleInComputation.FIRST_NON_AGGREGATOR ||
               details.role == RoleInComputation.SECOND_NON_AGGREGATOR
           WAIT_ON_AGGREGATION_INPUT,
           AGGREGATION_PHASE -> details.role == RoleInComputation.AGGREGATOR
+          INITIALIZED,
           COMPLETE -> true /* Stage can be executed at either AGGREGATOR or NON_AGGREGATOR */
           STAGE_UNSPECIFIED,
           UNRECOGNIZED -> error("Invalid Stage. $stage")
