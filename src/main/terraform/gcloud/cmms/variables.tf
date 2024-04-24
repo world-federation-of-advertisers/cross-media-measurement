@@ -18,6 +18,13 @@ variable "cluster_location" {
   default     = null
 }
 
+variable "cluster_release_channel" {
+  description = "Release channel for GKE clusters."
+  type        = string
+  default     = "REGULAR"
+  nullable    = false
+}
+
 variable "key_ring_name" {
   description = "Name of the KMS key ring."
   type        = string

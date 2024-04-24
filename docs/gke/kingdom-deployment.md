@@ -73,6 +73,9 @@ Applying the Terraform configuration will create a new cluster. You can use the
 gcloud container clusters get-credentials kingdom
 ```
 
+Applying the Terraform configuration will also create external IP resources and
+output the resource names. These will be needed in later steps.
+
 ## Build and push the container images (optional)
 
 If you aren't using
@@ -113,9 +116,11 @@ values):
 bazel build //src/main/k8s/dev:kingdom.tar \
   --define google_cloud_project=halo-kingdom-demo \
   --define spanner_instance=halo-cmms \
+  --define kingdom_public_api_address_name=kingdom-v2alpha \
+  --define kingdom_system_api_address_name=kingdom-system-v1alpha \
   --define container_registry=ghcr.io \
   --define image_repo_prefix=world-federation-of-advertisers \
-  --define image_tag=0.3.0
+  --define image_tag=0.5.2
 ```
 
 Extract the generated archive to some directory. It is recommended that you
@@ -264,16 +269,6 @@ v2alpha-public-api-server LoadBalancer 10.3.255.191 34.132.87.22 8443:31300/TCP 
 ```
 
 ## Make the Kingdom accessible outside the cluster
-
-### Reserve the external IPs
-
-There are two public APIs in the kingdom. The `v2alpha-public-api-server` is
-called by the EDPs, MPs and MCs. The `system-api-server` is called by the
-duchies. As you can see from the result in the previous step. Only these two
-services have external IPs. However, these external IPs are ephemeral. We need
-to reserve them such that they are stable.
-
-See [Reserving External IPs](cluster-config.md#reserving-external-ips)
 
 ### Set up DNS records
 

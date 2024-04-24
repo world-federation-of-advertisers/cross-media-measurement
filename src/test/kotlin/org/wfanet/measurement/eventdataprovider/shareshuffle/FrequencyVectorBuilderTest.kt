@@ -31,7 +31,7 @@ class FrequencyVectorBuilderTest {
 
     // Build the map
     val populationSpec = PopulationSpec.newBuilder().build()
-    val index: VidIndexMap = VidIndexMap(populationSpec)
+    val index: VidIndexMap = InMemoryVidIndexMap(populationSpec)
 
     val samplingInterval = VidSamplingInterval.newBuilder().build()
     val builder = FrequencyVectorBuilder(index, samplingInterval)

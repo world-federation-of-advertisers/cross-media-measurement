@@ -95,14 +95,16 @@ import ("strings")
 	_otlpEndpoint: "--otel-exporter-otlp-endpoint=\(#OpenTelemetryCollectorEndpoint)"
 
 	services: [Name=_]: #GrpcService & {
-		_name:   _object_prefix + Name
-		_system: "duchy"
+		metadata: {
+			_component: "duchy"
+			name:       _object_prefix + Name
+		}
 	}
 	services: {
 		"async-computation-control-server": {}
-		"computation-control-server": _type: "LoadBalancer"
+		"computation-control-server": #ExternalService
 		"internal-api-server": {}
-		"requisition-fulfillment-server": _type: "LoadBalancer"
+		"requisition-fulfillment-server": #ExternalService
 	}
 
 	deployments: [Name=_]: #Deployment & {

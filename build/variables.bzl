@@ -84,6 +84,8 @@ AWS_SETTINGS = struct(
 KINGDOM_K8S_SETTINGS = struct(
     public_api_target = "$(kingdom_public_api_target)",
     system_api_target = "$(kingdom_system_api_target)",
+    public_api_address_name = "$(kingdom_public_api_address_name)",
+    system_api_address_name = "$(kingdom_system_api_address_name)",
 )
 
 # Settings for Duchy Kubernetes deployments.
@@ -95,6 +97,15 @@ DUCHY_K8S_SETTINGS = struct(
     aggregator_system_api_target = "$(aggregator_system_api_target)",
     worker1_system_api_target = "$(worker1_system_api_target)",
     worker2_system_api_target = "$(worker2_system_api_target)",
+    worker1_id = "$(worker1_id)",
+    worker2_id = "$(worker2_id)",
+    public_api_address_name = "$(duchy_public_api_address_name)",
+    system_api_address_name = "$(duchy_system_api_address_name)",
+)
+
+# Settings for Reporting Kubernetes deployments.
+REPORTING_K8S_SETTINGS = struct(
+    public_api_address_name = "$(reporting_public_api_address_name)",
 )
 
 # Settings for simulator Kubernetes deployments.

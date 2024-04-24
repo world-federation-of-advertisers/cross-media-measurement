@@ -133,6 +133,7 @@ class HonestMajorityShareShuffleMill(
     mapOf(
       Pair(Stage.INITIALIZED, FIRST_NON_AGGREGATOR) to ::initializationPhase,
       Pair(Stage.INITIALIZED, SECOND_NON_AGGREGATOR) to ::initializationPhase,
+      Pair(Stage.INITIALIZED, AGGREGATOR) to ::initializationPhase,
       Pair(Stage.SETUP_PHASE, FIRST_NON_AGGREGATOR) to ::setupPhase,
       Pair(Stage.SETUP_PHASE, SECOND_NON_AGGREGATOR) to ::setupPhase,
       Pair(Stage.SHUFFLE_PHASE, FIRST_NON_AGGREGATOR) to ::shufflePhase,
@@ -166,18 +167,6 @@ class HonestMajorityShareShuffleMill(
 
   private suspend fun sendParticipantParamsToKingdom(token: ComputationToken) {
     val computationDetails = token.computationDetails.honestMajorityShareShuffle
-    require(computationDetails.encryptionKeyPair.hasPublicKey()) { "Public key not set." }
-
-    val signedEncryptionPublicKey =
-      when (Version.fromString(token.computationDetails.kingdomComputation.publicApiVersion)) {
-        Version.V2_ALPHA -> {
-          signEncryptionPublicKey(
-            computationDetails.encryptionKeyPair.publicKey.toV2AlphaEncryptionPublicKey(),
-            signingKey,
-            signingKey.defaultAlgorithm,
-          )
-        }
-      }
 
     val request = setParticipantRequisitionParamsRequest {
       name = ComputationParticipantKey(token.globalComputationId, duchyId).toName()
@@ -186,9 +175,28 @@ class HonestMajorityShareShuffleMill(
           duchyCertificate = consentSignalCert.name
           honestMajorityShareShuffle =
             ComputationParticipantKt.RequisitionParamsKt.honestMajorityShareShuffle {
-              tinkPublicKey = signedEncryptionPublicKey.message.value
-              tinkPublicKeySignature = signedEncryptionPublicKey.signature
-              tinkPublicKeySignatureAlgorithmOid = signedEncryptionPublicKey.signatureAlgorithmOid
+              if (computationDetails.role != AGGREGATOR) {
+                require(computationDetails.encryptionKeyPair.hasPublicKey()) {
+                  "Public key not set."
+                }
+
+                val signedEncryptionPublicKey =
+                  when (
+                    Version.fromString(token.computationDetails.kingdomComputation.publicApiVersion)
+                  ) {
+                    Version.V2_ALPHA -> {
+                      signEncryptionPublicKey(
+                        computationDetails.encryptionKeyPair.publicKey
+                          .toV2AlphaEncryptionPublicKey(),
+                        signingKey,
+                        signingKey.defaultAlgorithm,
+                      )
+                    }
+                  }
+                tinkPublicKey = signedEncryptionPublicKey.message.value
+                tinkPublicKeySignature = signedEncryptionPublicKey.signature
+                tinkPublicKeySignatureAlgorithmOid = signedEncryptionPublicKey.signatureAlgorithmOid
+              }
             }
         }
     }

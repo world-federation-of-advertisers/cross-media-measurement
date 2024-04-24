@@ -56,3 +56,11 @@ resource "google_storage_bucket_iam_member" "storage" {
   role   = "roles/storage.objectAdmin"
   member = module.storage_user.iam_service_account.member
 }
+
+resource "google_compute_address" "v2alpha" {
+  name = "${var.name}-duchy-v2alpha"
+}
+
+resource "google_compute_address" "system_v1alpha" {
+  name = "${var.name}-duchy-system-v1alpha"
+}
