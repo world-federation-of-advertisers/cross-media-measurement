@@ -494,7 +494,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     }
 
     val expectedComputationParticipant = computationParticipant {
-      state = ComputationParticipant.State.REQUISITION_PARAMS_SET
+      state = ComputationParticipant.State.READY
       this.externalMeasurementConsumerId = externalMeasurementConsumerId
       externalMeasurementId = measurement.externalMeasurementId
       externalComputationId = measurement.externalComputationId
@@ -517,6 +517,89 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         }
       )
     assertThat(nonUpdatedMeasurement.state).isEqualTo(Measurement.State.PENDING_REQUISITION_PARAMS)
+  }
+
+  @Test
+  fun `setParticipantRequisitionParams for final HMSS Duchy updates Measurement and Requisition state`() {
+    runBlocking {
+      createDuchyCertificates()
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val dataProvider = population.createDataProvider(dataProvidersService)
+      val measurement =
+        population.createHmssMeasurement(
+          measurementsService,
+          measurementConsumer,
+          PROVIDED_MEASUREMENT_ID,
+          dataProvider,
+        )
+
+      // Set Participant Params for the aggregator computationParticipant.
+      computationParticipantsService.setParticipantRequisitionParams(
+        setParticipantRequisitionParamsRequest {
+          this.externalComputationId = measurement.externalComputationId
+          externalDuchyId = DUCHIES[0].externalDuchyId
+          externalDuchyCertificateId =
+            duchyCertificates[DUCHIES[0].externalDuchyId]!!.externalCertificateId
+          honestMajorityShareShuffle =
+            ComputationParticipant.HonestMajorityShareShuffleDetails.getDefaultInstance()
+        }
+      )
+      // Set Participant Params for second computationParticipant.
+      computationParticipantsService.setParticipantRequisitionParams(
+        setParticipantRequisitionParamsRequest {
+          this.externalComputationId = measurement.externalComputationId
+          externalDuchyId = DUCHIES[1].externalDuchyId
+          externalDuchyCertificateId =
+            duchyCertificates[DUCHIES[1].externalDuchyId]!!.externalCertificateId
+          honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
+            tinkPublicKey = TINK_PUBLIC_KEY
+            tinkPublicKeySignature = TINK_PUBLIC_KEY_SIGNATURE
+            tinkPublicKeySignatureAlgorithmOid = TINK_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
+          }
+        }
+      )
+      // Set Participant Params for third computationParticipant.
+      computationParticipantsService.setParticipantRequisitionParams(
+        setParticipantRequisitionParamsRequest {
+          this.externalComputationId = measurement.externalComputationId
+          externalDuchyId = DUCHIES[2].externalDuchyId
+          externalDuchyCertificateId =
+            duchyCertificates[DUCHIES[2].externalDuchyId]!!.externalCertificateId
+          honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
+            tinkPublicKey = TINK_PUBLIC_KEY
+            tinkPublicKeySignature = TINK_PUBLIC_KEY_SIGNATURE
+            tinkPublicKeySignatureAlgorithmOid = TINK_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
+          }
+        }
+      )
+
+      val updatedMeasurement =
+        measurementsService.getMeasurementByComputationId(
+          getMeasurementByComputationIdRequest {
+            externalComputationId = measurement.externalComputationId
+          }
+        )
+      assertThat(updatedMeasurement.state)
+        .isEqualTo(Measurement.State.PENDING_REQUISITION_FULFILLMENT)
+
+      val requisitions: List<Requisition> =
+        requisitionsService
+          .streamRequisitions(
+            streamRequisitionsRequest {
+              filter = filter {
+                externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+                externalMeasurementId = measurement.externalMeasurementId
+              }
+            }
+          )
+          .toList()
+      assertThat(requisitions.map { it.state }).containsExactly(Requisition.State.UNFULFILLED)
+      requisitions.map {
+        assertThat(it.state).isEqualTo(Requisition.State.UNFULFILLED)
+        assertThat(it.externalFulfillingDuchyId).isNotEmpty()
+      }
+    }
   }
 
   @Test
@@ -843,7 +926,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   }
 
   @Test
-  fun `failComputationParticipant fails due to illegal  measurement state`() = runBlocking {
+  fun `failComputationParticipant fails due to illegal measurement state`() = runBlocking {
     createDuchyCertificates()
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)

@@ -21,6 +21,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
+import com.google.protobuf.any as protoAny
 import com.google.protobuf.kotlin.toByteStringUtf8
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -41,6 +42,7 @@ import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyKey
+import org.wfanet.measurement.api.v2alpha.EncryptedMessage
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsPageToken
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt.filter
@@ -55,10 +57,12 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
 import org.wfanet.measurement.api.v2alpha.Requisition.State
+import org.wfanet.measurement.api.v2alpha.RequisitionKt
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
+import org.wfanet.measurement.api.v2alpha.ShareShuffleSketchParams
 import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
@@ -92,6 +96,7 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.honestMajorityShareShuffleDetails
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.liquidLegionsV2Details
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
@@ -545,6 +550,41 @@ class RequisitionsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `listRequisitions shows HMSS requisitions with encryption key`() = runBlocking {
+    whenever(internalRequisitionMock.streamRequisitions(any()))
+      .thenReturn(flowOf(INTERNAL_HMSS_REQUISITION))
+    val request = listRequisitionsRequest {
+      parent = DATA_PROVIDER_NAME
+      pageSize = 2
+    }
+
+    val response =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.listRequisitions(request) }
+      }
+
+    val streamRequisitionRequest: StreamRequisitionsRequest = captureFirst {
+      verify(internalRequisitionMock).streamRequisitions(capture())
+    }
+    assertThat(streamRequisitionRequest)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        streamRequisitionsRequest {
+          limit = 3
+          filter =
+            StreamRequisitionsRequestKt.filter {
+              states += VISIBLE_REQUISITION_STATES
+              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+            }
+        }
+      )
+    assertThat(response)
+      .ignoringFields(ListRequisitionsResponse.NEXT_PAGE_TOKEN_FIELD_NUMBER)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(listRequisitionsResponse { requisitions += HMSS_REQUISITION })
   }
 
   @Test
@@ -1203,6 +1243,14 @@ class RequisitionsServiceTest {
       signature = UPDATE_TIME.toByteString()
       signatureAlgorithmOid = "2.9999"
     }
+    private val TINK_PUBLIC_KEY_1 = ByteString.copyFromUtf8("This is an Tink Public Key 1.")
+    private val TINK_PUBLIC_KEY_SIGNATURE_1 =
+      ByteString.copyFromUtf8("This is an Tink Public Key signature 1.")
+    private val TINK_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID = "2.9999"
+
+    private val TINK_PUBLIC_KEY_2 = ByteString.copyFromUtf8("This is an Tink Public Key 2.")
+    private val TINK_PUBLIC_KEY_SIGNATURE_2 =
+      ByteString.copyFromUtf8("This is an Tink Public Key signature 2.")
 
     private val DIRECT_RF_PROTOCOL_CONFIG =
       ProtocolConfigKt.direct {
@@ -1276,6 +1324,50 @@ class RequisitionsServiceTest {
         }
     }
 
+    private val INTERNAL_HMSS_REQUISITION =
+      INTERNAL_REQUISITION.copy {
+        val source = this@copy
+
+        state = InternalState.UNFULFILLED
+        duchies.clear()
+        duchies["aggregator"] =
+          InternalRequisitionKt.duchyValue {
+            externalDuchyCertificateId = 6L
+            honestMajorityShareShuffle = honestMajorityShareShuffleDetails {}
+          }
+        duchies["worker1"] =
+          InternalRequisitionKt.duchyValue {
+            externalDuchyCertificateId = 6L
+            honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
+              tinkPublicKey = TINK_PUBLIC_KEY_1
+              tinkPublicKeySignature = TINK_PUBLIC_KEY_SIGNATURE_1
+              tinkPublicKeySignatureAlgorithmOid = TINK_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
+            }
+          }
+        duchies["worker2"] =
+          InternalRequisitionKt.duchyValue {
+            externalDuchyCertificateId = 6L
+            honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
+              tinkPublicKey = TINK_PUBLIC_KEY_2
+              tinkPublicKeySignature = TINK_PUBLIC_KEY_SIGNATURE_2
+              tinkPublicKeySignatureAlgorithmOid = TINK_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
+            }
+          }
+        externalFulfillingDuchyId = "worker1"
+
+        parentMeasurement =
+          source.parentMeasurement.copy {
+            protocolConfig = internalProtocolConfig {
+              externalProtocolConfigId = "hmss"
+              honestMajorityShareShuffle =
+                InternalProtocolConfigKt.honestMajorityShareShuffle {
+                  noiseMechanism = InternalProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN
+                }
+            }
+            dataProvidersCount = 2
+          }
+      }
+
     private val REQUISITION: Requisition = requisition {
       name =
         CanonicalRequisitionKey(
@@ -1333,5 +1425,51 @@ class RequisitionsServiceTest {
       state = State.FULFILLED
       measurementState = Measurement.State.AWAITING_REQUISITION_FULFILLMENT
     }
+
+    private val HMSS_REQUISITION =
+      REQUISITION.copy {
+        val source = this@copy
+        protocolConfig =
+          source.protocolConfig.copy {
+            protocols.clear()
+            protocols +=
+              ProtocolConfigKt.protocol {
+                honestMajorityShareShuffle =
+                  ProtocolConfigKt.honestMajorityShareShuffle {
+                    sketchParams = ShareShuffleSketchParams.getDefaultInstance()
+                    noiseMechanism = ProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN
+                  }
+              }
+          }
+        duchies.clear()
+        duchies += duchyEntry {
+          key = "worker1"
+          value = value {
+            duchyCertificate = DUCHY_CERTIFICATE_NAME
+            honestMajorityShareShuffle =
+              Requisition.DuchyEntry.HonestMajorityShareShuffle.getDefaultInstance()
+          }
+        }
+        duchies += duchyEntry {
+          key = "worker2"
+          value = value {
+            duchyCertificate = "duchies/worker2/certificates/AAAAAAAAAAY"
+            honestMajorityShareShuffle =
+              RequisitionKt.DuchyEntryKt.honestMajorityShareShuffle {
+                publicKey = signedMessage {
+                  setMessage(
+                    protoAny {
+                      value = TINK_PUBLIC_KEY_2
+                      typeUrl = ProtoReflection.getTypeUrl(EncryptedMessage.getDescriptor())
+                    }
+                  )
+                  signature = TINK_PUBLIC_KEY_SIGNATURE_2
+                  signatureAlgorithmOid = TINK_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
+                }
+              }
+          }
+        }
+        state = State.UNFULFILLED
+      }
   }
 }
