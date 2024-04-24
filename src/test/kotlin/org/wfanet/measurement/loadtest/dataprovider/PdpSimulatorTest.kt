@@ -16,15 +16,12 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
-import com.google.protobuf.Timestamp
+import com.google.protobuf.any
 import com.google.protobuf.kotlin.toByteString
-import com.google.protobuf.timestamp
-import com.google.type.interval
 import java.lang.UnsupportedOperationException
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
-import java.time.Instant
 import kotlin.random.Random
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -43,10 +40,11 @@ import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
-import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.ReplaceDataAvailabilityIntervalRequest
@@ -61,19 +59,16 @@ import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
-import org.wfanet.measurement.api.v2alpha.listModelRolloutsResponse
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.measurementSpec
-import org.wfanet.measurement.api.v2alpha.modelRelease
-import org.wfanet.measurement.api.v2alpha.modelRollout
-import org.wfanet.measurement.api.v2alpha.populations.testing.populationBucket
+import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.unpack
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
@@ -91,7 +86,6 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.throttler.Throttler
-import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
@@ -121,94 +115,83 @@ private val MEASUREMENT_CONSUMER_CERTIFICATE = certificate {
   x509Der = MEASUREMENT_CONSUMER_CERTIFICATE_DER
 }
 
-private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
-
-private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
-private const val POPULATION_NAME = "$DATA_PROVIDER_NAME/populations/AAAAAAAAAHs"
-private const val POPULATION_NAME_2 = "$DATA_PROVIDER_NAME/populations/AAAAAAAAAJs"
-
 private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
 private const val MODEL_SUITE_NAME = "$MODEL_PROVIDER_NAME/modelSuites/AAAAAAAAAHs"
-private const val MODEL_RELEASE_NAME = "$MODEL_SUITE_NAME/modelReleases/AAAAAAAAAHs"
-private const val MODEL_RELEASE_NAME_2 = "$MODEL_SUITE_NAME/modelReleases/AAAAAAAAAJs"
-private const val MODEL_RELEASE_NAME_3 = "$MODEL_SUITE_NAME/modelReleases/AAAAAAAAAKs"
-
 private const val MODEL_LINE_NAME = "${MODEL_SUITE_NAME}/modelLines/AAAAAAAAAHs"
-private const val MODEL_ROLLOUT_NAME = "${MODEL_LINE_NAME}/modelRollouts/AAAAAAAAAHs"
 
-private val MODEL_RELEASE_1 = modelRelease {
-  name = MODEL_RELEASE_NAME
-  createTime = CREATE_TIME
-  population = POPULATION_NAME
+private val PERSON_1 = person {
+  ageGroup = Person.AgeGroup.YEARS_18_TO_34
+  gender = Person.Gender.MALE
 }
 
-private val MODEL_RELEASE_2 = modelRelease {
-  name = MODEL_RELEASE_NAME_2
-  createTime = CREATE_TIME
-  population = POPULATION_NAME_2
+private val PERSON_2 = person {
+  ageGroup = Person.AgeGroup.YEARS_35_TO_54
+  gender = Person.Gender.MALE
 }
 
-private val MODEL_ROLLOUT = modelRollout {
-  name = MODEL_ROLLOUT_NAME
-  modelRelease = MODEL_RELEASE_NAME
+private val PERSON_3 = person {
+  ageGroup = Person.AgeGroup.YEARS_18_TO_34
+  gender = Person.Gender.FEMALE
 }
 
-private val EVENT_1 = testEvent {
-  person = person {
-    ageGroup = Person.AgeGroup.YEARS_18_TO_34
-    gender = Person.Gender.MALE
-  }
-}
-private val EVENT_2 = testEvent {
-  person = person {
-    ageGroup = Person.AgeGroup.YEARS_35_TO_54
-    gender = Person.Gender.MALE
-  }
-}
-private val EVENT_3 = testEvent {
-  person = person {
-    ageGroup = Person.AgeGroup.YEARS_18_TO_34
-    gender = Person.Gender.FEMALE
-  }
+val ATTRIBUTE_1 = any {
+  typeUrl = ProtoReflection.getTypeUrl(Person.getDescriptor())
+  value = PERSON_1.toByteString()
 }
 
-private const val POPULATION_SIZE_1 = 100L
-private const val POPULATION_SIZE_2 = 200L
-private const val POPULATION_SIZE_3 = 300L
-
-private val VALID_START_TIME_1 = timestamp { seconds = 100L }
-private val VALID_START_TIME_2 = timestamp { seconds = 200L }
-private val VALID_START_TIME_3 = timestamp { seconds = 300L }
-
-private val VALID_END_TIME_1 = timestamp { seconds = 400L }
-private val VALID_END_TIME_2 = timestamp { seconds = 500L }
-
-private val POPULATION_BUCKET_1 = populationBucket {
-  event = EVENT_1
-  populationSize = POPULATION_SIZE_1
-  validStartTime = VALID_START_TIME_1
-  validEndTime = VALID_END_TIME_1
-  modelReleases += listOf(MODEL_RELEASE_NAME, MODEL_RELEASE_NAME_3)
+val ATTRIBUTE_2 = any {
+  typeUrl = ProtoReflection.getTypeUrl(Person.getDescriptor())
+  value = PERSON_2.toByteString()
 }
 
-private val POPULATION_BUCKET_2 = populationBucket {
-  event = EVENT_2
-  populationSize = POPULATION_SIZE_2
-  validStartTime = VALID_START_TIME_2
-  validEndTime = VALID_END_TIME_1
-  modelReleases += listOf(MODEL_RELEASE_NAME, MODEL_RELEASE_NAME_2)
+val ATTRIBUTE_3 = any {
+  typeUrl = ProtoReflection.getTypeUrl(Person.getDescriptor())
+  value = PERSON_3.toByteString()
 }
 
-private val POPULATION_BUCKET_3 = populationBucket {
-  event = EVENT_3
-  populationSize = POPULATION_SIZE_3
-  validStartTime = VALID_START_TIME_3
-  validEndTime = VALID_END_TIME_2
-  modelReleases += listOf(MODEL_RELEASE_NAME)
+val VID_RANGE_1 = vidRange {
+  startVid = 0
+  endVidInclusive = 99
 }
 
-private val POPULATION_BUCKETS_LIST =
-  listOf(POPULATION_BUCKET_1, POPULATION_BUCKET_2, POPULATION_BUCKET_3)
+val VID_RANGE_2 = vidRange {
+  startVid = 100
+  endVidInclusive = 299
+}
+
+val VID_RANGE_3 = vidRange {
+  startVid = 300
+  endVidInclusive = 599
+}
+
+// Male 18-34
+val SUB_POPULATION_1 = subPopulation {
+  attributes += listOf(ATTRIBUTE_1)
+  vidRanges += listOf(VID_RANGE_1)
+}
+
+// Male 35-54
+val SUB_POPULATION_2 = subPopulation {
+  attributes += listOf(ATTRIBUTE_2)
+  vidRanges += listOf(VID_RANGE_2)
+}
+
+// Female 18-34
+val SUB_POPULATION_3 = subPopulation {
+  attributes += listOf(ATTRIBUTE_3)
+  vidRanges += listOf(VID_RANGE_3)
+}
+
+val POPULATION_SPEC_1 = populationSpec {
+  subpopulations += listOf(SUB_POPULATION_1, SUB_POPULATION_2, SUB_POPULATION_3)
+}
+
+val POPULATION_ID_1 = "1234"
+
+private val POPULATION_SPEC_MAP =
+  mapOf<String, PopulationSpec>(
+    POPULATION_ID_1 to POPULATION_SPEC_1,
+  )
 
 @RunWith(JUnit4::class)
 class PdpSimulatorTest {
@@ -234,15 +217,6 @@ class PdpSimulatorTest {
       }
   }
 
-  private val modelRolloutsServiceStub: ModelRolloutsCoroutineImplBase = mockService {
-    onBlocking { listModelRollouts(any()) }
-      .thenReturn(listModelRolloutsResponse { modelRollouts += listOf(MODEL_ROLLOUT) })
-  }
-
-  private val modelReleasesServiceStub: ModelReleasesCoroutineImplBase = mockService {
-    onBlocking { getModelRelease(any()) }.thenReturn(MODEL_RELEASE_1)
-  }
-
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
     onBlocking { listRequisitions(any()) }
       .thenReturn(listRequisitionsResponse { requisitions += REQUISITION })
@@ -253,8 +227,6 @@ class PdpSimulatorTest {
   val grpcTestServerRule = GrpcTestServerRule {
     addService(certificatesServiceMock)
     addService(dataProvidersServiceMock)
-    addService(modelRolloutsServiceStub)
-    addService(modelReleasesServiceStub)
     addService(requisitionsServiceMock)
   }
 
@@ -294,9 +266,8 @@ class PdpSimulatorTest {
         dummyThrottler,
         TRUSTED_CERTIFICATES,
         MC_NAME,
-        modelRolloutsStub,
-        modelReleasesStub,
-        POPULATION_BUCKETS_LIST,
+        POPULATION_SPEC_MAP,
+        POPULATION_ID_1
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -308,8 +279,8 @@ class PdpSimulatorTest {
       )
     val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
 
-    // Result should be the sum of POPULATION_1 and POPULATION_3
-    assertThat(result.population.value).isEqualTo(POPULATION_SIZE_1 + POPULATION_SIZE_3)
+    // Result should be the sum of SUB_POPULATION_1 and SUB_POPULATION_3
+    assertThat(result.population.value).isEqualTo(400)
   }
 
   @Test
@@ -319,10 +290,6 @@ class PdpSimulatorTest {
         population =
           RequisitionSpecKt.population {
             filter = eventFilter { expression = "person.gender == ${Person.Gender.MALE_VALUE}" }
-            interval = interval {
-              startTime = VALID_START_TIME_1
-              endTime = VALID_END_TIME_2
-            }
           }
       }
 
@@ -348,9 +315,8 @@ class PdpSimulatorTest {
         dummyThrottler,
         TRUSTED_CERTIFICATES,
         MC_NAME,
-        modelRolloutsStub,
-        modelReleasesStub,
-        POPULATION_BUCKETS_LIST,
+        POPULATION_SPEC_MAP,
+        POPULATION_ID_1
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -362,21 +328,17 @@ class PdpSimulatorTest {
       )
     val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
 
-    // Result should be the sum of POPULATION_BUCKET_1 and POPULATION_BUCKET_2
-    assertThat(result.population.value).isEqualTo(POPULATION_SIZE_1 + POPULATION_SIZE_2)
+    // Result should be the sum of SUB_POPULATION_1 and SUB_POPULATION_2
+    assertThat(result.population.value).isEqualTo(300)
   }
 
   @Test
-  fun `gets correct population of all males within interval`() {
+  fun `gets correct population of all FEmales`() {
     val requisitionSpec =
       REQUISITION_SPEC.copy {
         population =
           RequisitionSpecKt.population {
-            filter = eventFilter { expression = "person.gender == ${Person.Gender.MALE_VALUE}" }
-            interval = interval {
-              startTime = VALID_START_TIME_2
-              endTime = timestamp { seconds = 200L }
-            }
+            filter = eventFilter { expression = "person.gender == ${Person.Gender.FEMALE_VALUE}" }
           }
       }
 
@@ -402,9 +364,8 @@ class PdpSimulatorTest {
         dummyThrottler,
         TRUSTED_CERTIFICATES,
         MC_NAME,
-        modelRolloutsStub,
-        modelReleasesStub,
-        POPULATION_BUCKETS_LIST,
+        POPULATION_SPEC_MAP,
+        POPULATION_ID_1
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -416,67 +377,8 @@ class PdpSimulatorTest {
       )
     val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
 
-    // Result should be only POPULATION_BUCKET_1 because it is the only bucket in this time range
-    assertThat(result.population.value).isEqualTo(POPULATION_SIZE_1)
-  }
-
-  @Test
-  fun `gets correct population of all males using different ModelRelease`() {
-    modelReleasesServiceStub.stub {
-      onBlocking { getModelRelease(any()) }.thenReturn(MODEL_RELEASE_2)
-    }
-
-    val requisitionSpec =
-      REQUISITION_SPEC.copy {
-        population =
-          RequisitionSpecKt.population {
-            filter = eventFilter { expression = "person.gender == ${Person.Gender.MALE_VALUE}" }
-            interval = interval {
-              startTime = VALID_START_TIME_1
-              endTime = VALID_END_TIME_2
-            }
-          }
-      }
-
-    val encryptedRequisitionSpec =
-      encryptRequisitionSpec(
-        signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
-        DATA_PROVIDER_PUBLIC_KEY,
-      )
-
-    val requisition = REQUISITION.copy { this.encryptedRequisitionSpec = encryptedRequisitionSpec }
-
-    requisitionsServiceMock.stub {
-      onBlocking { listRequisitions(any()) }
-        .thenReturn(listRequisitionsResponse { requisitions += requisition })
-    }
-
-    val simulator =
-      PdpSimulator(
-        PDP_DATA,
-        certificatesStub,
-        dataProvidersStub,
-        requisitionsStub,
-        dummyThrottler,
-        TRUSTED_CERTIFICATES,
-        MC_NAME,
-        modelRolloutsStub,
-        modelReleasesStub,
-        POPULATION_BUCKETS_LIST,
-      )
-
-    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
-
-    val request: FulfillDirectRequisitionRequest =
-      verifyAndCapture(
-        requisitionsServiceMock,
-        RequisitionsCoroutineImplBase::fulfillDirectRequisition,
-      )
-    val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
-
-    // Result should be only POPULATION_BUCKET_2 because it is the only bucket of males using
-    // MODEL_RELEASE_2
-    assertThat(result.population.value).isEqualTo(POPULATION_SIZE_2)
+    // Result should be SUB_POPULATION_2
+    assertThat(result.population.value).isEqualTo(300)
   }
 
   companion object {
@@ -526,10 +428,6 @@ class PdpSimulatorTest {
         RequisitionSpecKt.population {
           filter = eventFilter {
             expression = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
-          }
-          interval = interval {
-            startTime = VALID_START_TIME_1
-            endTime = VALID_END_TIME_2
           }
         }
       measurementPublicKey = MC_PUBLIC_KEY.pack()

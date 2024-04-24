@@ -320,7 +320,6 @@ kt_jvm_library(
     name = "data_provider_simulator",
     srcs = ["DataProviderSimulator.kt"],
     deps = [
-
         ":measurement_results",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
@@ -351,9 +350,9 @@ kt_jvm_library(
         ":measurement_results",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
         "//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:model_release_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:model_releases_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:model_rollouts_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/populations/testing:population_bucket_kt_jvm_proto",
     ],
 )

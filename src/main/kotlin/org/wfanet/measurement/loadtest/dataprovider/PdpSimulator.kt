@@ -14,10 +14,9 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import com.google.protobuf.Any
 import com.google.protobuf.ByteString
-import com.google.protobuf.util.Timestamps
-import io.grpc.Status
-import io.grpc.StatusException
+import com.google.protobuf.kotlin.unpack
 import java.security.cert.X509Certificate
 import java.util.logging.Level
 import org.wfanet.measurement.api.v2alpha.Certificate
@@ -27,18 +26,17 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.api.v2alpha.ModelRelease
-import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.api.v2alpha.PopulationSpec.SubPopulation
+import org.wfanet.measurement.api.v2alpha.PopulationSpec.VidRange
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.getModelReleaseRequest
-import org.wfanet.measurement.api.v2alpha.listModelRolloutsRequest
-import org.wfanet.measurement.api.v2alpha.populations.testing.PopulationBucket
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.throttler.Throttler
-import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 /** A simulator handling PDP businesses. */
@@ -50,9 +48,8 @@ class PdpSimulator(
   throttler: Throttler,
   trustedCertificates: Map<ByteString, X509Certificate>,
   measurementConsumerName: String,
-  private val modelRolloutsStub: ModelRolloutsCoroutineStub,
-  private val modelReleasesStub: ModelReleasesCoroutineStub,
-  private val populationBucketsList: List<PopulationBucket>,
+  private val populationSpecMap: Map<String, PopulationSpec>,
+  private val populationId: String
 ) :
   DataProviderSimulator(
     pdpData,
@@ -63,6 +60,7 @@ class PdpSimulator(
     trustedCertificates,
     measurementConsumerName
   ) {
+
   /** Executes the requisition fulfillment workflow. */
   override suspend fun executeRequisitionFulfillingWorkflow() {
     logger.info("Executing requisitionFulfillingWorkflow...")
@@ -104,7 +102,9 @@ class PdpSimulator(
         logger.log(Level.INFO, "MeasurementSpec:\n$measurementSpec")
         logger.log(Level.INFO, "RequisitionSpec:\n$requisitionSpec")
 
-        val modelRelease = getModelRelease(measurementSpec)
+        // TODO: add check for invalid population id
+        val populationSpec = populationSpecMap.getValue(populationId)
+        val subPopulationList = populationSpec.subpopulationsList
 
         val requisitionFilterExpression = requisitionSpec.population.filter.expression
 
@@ -112,8 +112,7 @@ class PdpSimulator(
           requisition,
           requisitionSpec,
           measurementSpec,
-          populationBucketsList,
-          modelRelease,
+          subPopulationList,
           requisitionFilterExpression,
         )
       } catch (refusalException: RequisitionRefusalException) {
@@ -126,63 +125,15 @@ class PdpSimulator(
     }
   }
 
-  /**
-   * Returns the [ModelRelease] associated with the latest `ModelRollout` that is connected to the
-   * `ModelLine` provided in the MeasurementSpec`
-   */
-  private suspend fun getModelRelease(measurementSpec: MeasurementSpec): ModelRelease {
-    val measurementSpecModelLineName = measurementSpec.modelLine
-
-    // Returns list of ModelRollouts.
-    val listModelRolloutsResponse =
-      try {
-        modelRolloutsStub.listModelRollouts(
-          listModelRolloutsRequest { parent = measurementSpecModelLineName }
-        )
-      } catch (e: StatusException) {
-        throw when (e.status.code) {
-          Status.Code.NOT_FOUND ->
-            InvalidSpecException("ModelLine $measurementSpecModelLineName not found", e)
-          else -> Exception("Error retrieving ModelLine $measurementSpecModelLineName", e)
-        }
-      }
-
-    // Sort list of ModelRollouts by descending updateTime.
-    val sortedModelRolloutsList =
-      listModelRolloutsResponse.modelRolloutsList.sortedWith { a, b ->
-        val aDate =
-          if (a.hasGradualRolloutPeriod()) a.gradualRolloutPeriod.endDate else a.instantRolloutDate
-        val bDate =
-          if (b.hasGradualRolloutPeriod()) b.gradualRolloutPeriod.endDate else b.instantRolloutDate
-        if (aDate.toLocalDate().isBefore(bDate.toLocalDate())) -1 else 1
-      }
-
-    // Retrieves latest ModelRollout from list.
-    val latestModelRollout = sortedModelRolloutsList.first()
-    val modelReleaseName = latestModelRollout.modelRelease
-
-    // Returns ModelRelease associated with latest ModelRollout.
-    return try {
-      modelReleasesStub.getModelRelease(getModelReleaseRequest { name = modelReleaseName })
-    } catch (e: StatusException) {
-      throw when (e.status.code) {
-        Status.Code.NOT_FOUND -> InvalidSpecException("ModelRelease $modelReleaseName not found", e)
-        else -> Exception("Error retrieving ModelLine $modelReleaseName", e)
-      }
-    }
-  }
-
   private suspend fun fulfillPopulationMeasurement(
     requisition: Requisition,
     requisitionSpec: RequisitionSpec,
     measurementSpec: MeasurementSpec,
-    populationBucketsList: List<PopulationBucket>,
-    modelRelease: ModelRelease,
+    subPopulationList: List<SubPopulation>,
     filterExpression: String,
   ) {
     // Filters populationBucketsList through a CEL program and sums the result.
-    val populationSum =
-      getTotalPopulation(requisitionSpec, populationBucketsList, modelRelease, filterExpression)
+    val populationSum = getTotalPopulation(subPopulationList, filterExpression)
 
     // Create measurement result with sum of valid populations.
     val measurementResult =
@@ -194,32 +145,47 @@ class PdpSimulator(
     fulfillDirectMeasurement(requisition, measurementSpec, requisitionSpec.nonce, measurementResult)
   }
 
+  /** Returns the total sum of populations that reflect the filter expression. */
   private fun getTotalPopulation(
-    requisitionSpec: RequisitionSpec,
-    populationBucketsList: List<PopulationBucket>,
-    modelRelease: ModelRelease,
+    subPopulationList: List<SubPopulation>,
     filterExpression: String,
   ): Long {
-    val requisitionIntervalEndTime = requisitionSpec.population.interval.endTime
-
-    // Filter populationBucketsList to only include buckets that 1) contain the latest ModelRelease
-    // connected to the ModelLine provided in the measurementSpec and 2) have a start and end time
-    // within the time window provided in the requisitionSpec.
-    val validPopulationBucketsList =
-      populationBucketsList.filter {
-        it.modelReleasesList.contains(modelRelease.name) &&
-          Timestamps.compare(it.validStartTime, requisitionIntervalEndTime) < 0 &&
-          (it.validEndTime === null || Timestamps.compare(it.validEndTime, it.validStartTime) > 0)
-      }
-    return validPopulationBucketsList.sumOf {
-      val program = EventFilters.compileProgram(TestEvent.getDescriptor(), filterExpression)
-
-      // Use program to check if Person field in the PopulationBucket contains the filterExpression.
-      if (EventFilters.matches(it.event, program)) {
-        it.populationSize
+    return subPopulationList.sumOf { it ->
+      val attributesList = it.attributesList
+      val vidRanges = it.vidRangesList
+      val shouldSumPopulation = isValidAttributesList(attributesList, filterExpression)
+      if (shouldSumPopulation) {
+        getSumOfVidRanges(vidRanges)
       } else {
         0L
       }
     }
+  }
+
+  /** Returns the total sum given a list of VID ranges. */
+  private fun getSumOfVidRanges(vidRanges: List<VidRange>): Long {
+    return vidRanges.sumOf { it.endVidInclusive - it.startVid + 1 }
+  }
+
+  /**
+   * Returns a [Boolean] representing whether any of the attributes in the list pass a check against
+   * the filter expression after being run through a program.
+   */
+  private fun isValidAttributesList(attributeList: List<Any>, filterExpression: String): Boolean {
+    val program = EventFilters.compileProgram(TestEvent.getDescriptor(), filterExpression)
+    return attributeList.any {
+      if (isPerson(it)) {
+        val event: TestEvent = testEvent { person = it.unpack<Person>() }
+        EventFilters.matches(event, program)
+      } else {
+        false
+      }
+    }
+  }
+
+  /** Returns a [Boolean] representing whether an attribute is of type Person. */
+  private fun isPerson(attribute: Any): Boolean {
+    val typeUrl = attribute.typeUrl
+    return (typeUrl == ProtoReflection.getTypeUrl(Person.getDescriptor()))
   }
 }
