@@ -168,7 +168,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
       setJson("ParticipantDetailsJson" to participantDetails)
     }
 
-    val otherComputationParticipants =
+    val otherComputationParticipants: List<ComputationParticipantDetails> =
       findComputationParticipants(externalComputationId)
         .filter { it.duchyId.value != duchyId }
         .toList()
@@ -203,9 +203,8 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
           }
         )
         .collect {
+          val requisitionId = it.getLong("RequisitionId")
           transactionContext.bufferUpdateMutation("Requisitions") {
-            val requisitionId = it.getLong("RequisitionId")
-
             set("MeasurementConsumerId" to measurementConsumerId)
             set("MeasurementId" to measurementId)
             set("RequisitionId" to requisitionId)
@@ -288,6 +287,8 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
     currentParticipantDetails: ComputationParticipant.Details,
     otherParticipantDetails: List<ComputationParticipantDetails>,
   ): Long {
+    // TODO(renjiez): Set the fulfullingDuchyId during Measurement creation by adding duchy roles in
+    // HMSS config.
     val candidateDuchyIds = mutableListOf<Long>()
 
     require(currentParticipantDetails.hasHonestMajorityShareShuffle()) {
@@ -310,6 +311,6 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
     }
 
     candidateDuchyIds.sort()
-    return candidateDuchyIds[requisitionId.toInt() % candidateDuchyIds.size]
+    return candidateDuchyIds[(requisitionId % candidateDuchyIds.size).toInt()]
   }
 }

@@ -426,26 +426,27 @@ private fun DuchyValue.toDuchyEntryValue(
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Annotated with @NotNull.
     when (source.protocolCase) {
       DuchyValue.ProtocolCase.LIQUID_LEGIONS_V2 -> {
-        liquidLegionsV2 = source.liquidLegionsV2.toDuchyEntryLlV2(apiVersion)
+        liquidLegionsV2 = source.liquidLegionsV2.toLlv2DuchyEntry(apiVersion)
       }
       DuchyValue.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
-        reachOnlyLiquidLegionsV2 = source.reachOnlyLiquidLegionsV2.toDuchyEntryLlV2(apiVersion)
+        reachOnlyLiquidLegionsV2 = source.reachOnlyLiquidLegionsV2.toLlv2DuchyEntry(apiVersion)
       }
       DuchyValue.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
         val containingEncryptionKey = !source.honestMajorityShareShuffle.tinkPublicKey.isEmpty
         val isFulfillingDuchy = externalDuchyId == externalFulfillingDuchyId
         honestMajorityShareShuffle =
-          source.honestMajorityShareShuffle.toDuchyEntryHmss(
-            containingEncryptionKey && !isFulfillingDuchy,
-            apiVersion,
-          )
+          if (containingEncryptionKey && !isFulfillingDuchy) {
+            source.honestMajorityShareShuffle.toHmssDuchyEntryWithPublicKey(apiVersion)
+          } else {
+            DuchyEntry.HonestMajorityShareShuffle.getDefaultInstance()
+          }
       }
       DuchyValue.ProtocolCase.PROTOCOL_NOT_SET -> error("protocol not set")
     }
   }
 }
 
-private fun ComputationParticipant.LiquidLegionsV2Details.toDuchyEntryLlV2(
+private fun ComputationParticipant.LiquidLegionsV2Details.toLlv2DuchyEntry(
   apiVersion: Version
 ): DuchyEntry.LiquidLegionsV2 {
   val source = this
@@ -466,26 +467,23 @@ private fun ComputationParticipant.LiquidLegionsV2Details.toDuchyEntryLlV2(
   }
 }
 
-private fun ComputationParticipant.HonestMajorityShareShuffleDetails.toDuchyEntryHmss(
-  addingEncryptionKey: Boolean,
-  apiVersion: Version,
+private fun ComputationParticipant.HonestMajorityShareShuffleDetails.toHmssDuchyEntryWithPublicKey(
+  apiVersion: Version
 ): DuchyEntry.HonestMajorityShareShuffle {
   val source = this
   return DuchyEntryKt.honestMajorityShareShuffle {
-    if (addingEncryptionKey) {
-      publicKey = signedMessage {
-        setMessage(
-          any {
-            value = source.tinkPublicKey
-            typeUrl =
-              when (apiVersion) {
-                Version.V2_ALPHA -> ProtoReflection.getTypeUrl(EncryptedMessage.getDescriptor())
-              }
-          }
-        )
-        signature = source.tinkPublicKeySignature
-        signatureAlgorithmOid = source.tinkPublicKeySignatureAlgorithmOid
-      }
+    publicKey = signedMessage {
+      setMessage(
+        any {
+          value = source.tinkPublicKey
+          typeUrl =
+            when (apiVersion) {
+              Version.V2_ALPHA -> ProtoReflection.getTypeUrl(EncryptedMessage.getDescriptor())
+            }
+        }
+      )
+      signature = source.tinkPublicKeySignature
+      signatureAlgorithmOid = source.tinkPublicKeySignatureAlgorithmOid
     }
   }
 }
