@@ -34,9 +34,11 @@ resource "google_spanner_database_iam_member" "kingdom_internal" {
 }
 
 resource "google_compute_address" "v2alpha" {
-  name = "kingdom-v2alpha"
+  name    = "kingdom-v2alpha"
+  address = var.v2alpha_ip_address
 }
 
 resource "google_compute_address" "system_v1alpha" {
-  name = "kingdom-system-v1alpha"
+  name    = "kingdom-system-v1alpha"
+  address = var.system_v1alpha_ip_address
 }
