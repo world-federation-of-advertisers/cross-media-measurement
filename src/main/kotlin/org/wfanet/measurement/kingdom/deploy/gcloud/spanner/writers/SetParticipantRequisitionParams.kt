@@ -287,8 +287,8 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
     currentParticipantDetails: ComputationParticipant.Details,
     otherParticipantDetails: List<ComputationParticipantDetails>,
   ): Long {
-    // TODO(renjiez): Set the fulfullingDuchyId during Measurement creation by adding duchy roles in
-    // HMSS config.
+    // TODO(@renjiez): Set the fulfullingDuchyId during Measurement creation by adding duchy roles
+    // into HMSS config.
     val candidateDuchyIds = mutableListOf<Long>()
 
     require(currentParticipantDetails.hasHonestMajorityShareShuffle()) {
