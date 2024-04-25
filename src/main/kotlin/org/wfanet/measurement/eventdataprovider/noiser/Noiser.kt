@@ -28,8 +28,8 @@ enum class DirectNoiseMechanism {
 /** A base Noiser interface for direct measurements. */
 interface Noiser {
 
-  /** Returns a random value sampled from the distribution. */
-  fun sample(): Double
+  /** Adds noise to input assuming L1 and L2 sensitivities = 1 */
+  fun addNoise(x: Double): Double
 
   /** The variance of the noiser. */
   val variance: Double

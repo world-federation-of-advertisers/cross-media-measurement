@@ -29,7 +29,7 @@ class GaussianNoiserTest {
   fun `Gaussian noiser with random seed returns expected samples`() {
     val random = Random(RANDOM_SEED)
     val gaussianNoiser = GaussianNoiser(DP_PARAMS, random)
-    val samples = List(5) { gaussianNoiser.sample() }
+    val samples = List(5) { gaussianNoiser.addNoise(0.0) }
     val expectedSamples =
       listOf(
         10.240550327678935,
@@ -46,7 +46,7 @@ class GaussianNoiserTest {
   fun `standard deviation from samples is close to the theoretical sigma`() {
     val random = Random(RANDOM_SEED)
     val gaussianNoiser = GaussianNoiser(DP_PARAMS, random)
-    val samples = List(1000) { gaussianNoiser.sample() }
+    val samples = List(1000) { gaussianNoiser.addNoise(0.0) }
 
     val sigma = calculateStandardDeviation(samples)
     // Sigma value with pre-set epsilon and delta

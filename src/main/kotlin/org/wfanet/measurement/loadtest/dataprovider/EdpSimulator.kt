@@ -1276,6 +1276,9 @@ class EdpSimulator(
       DirectNoiseMechanism.NONE ->
         object : AbstractNoiser() {
           override val distribution = ConstantRealDistribution(0.0)
+          override fun addNoise(x: Double): Double {
+            return x + distribution.sample()
+          }
           override val variance: Double
             get() = distribution.numericalVariance
         }
@@ -1300,8 +1303,7 @@ class EdpSimulator(
   ): Int {
     val reachNoiser: AbstractNoiser =
       getPublisherNoiser(privacyParams, directNoiseMechanism, random)
-
-    return max(0, reachValue + reachNoiser.sample().toInt())
+    return max(0, reachNoiser.addNoise(reachValue.toDouble()).toInt())
   }
 
   /**
@@ -1327,7 +1329,7 @@ class EdpSimulator(
       frequencyMap.mapValues { (_, percentage) ->
         // Round the noise for privacy.
         val noisedCount: Int =
-          (percentage * reachValue).roundToInt() + (frequencyNoiser.sample()).roundToInt()
+          frequencyNoiser.addNoise(percentage * reachValue).roundToInt()
         max(0, noisedCount)
       }
     val normalizationTerm: Double = frequencyHistogram.values.sum().toDouble()
@@ -1355,7 +1357,7 @@ class EdpSimulator(
     val noiser: AbstractNoiser =
       getPublisherNoiser(impressionMeasurementSpec.privacyParams, directNoiseMechanism, random)
     // Noise needs to be scaled by maximumFrequencyPerUser.
-    val noise = noiser.sample() * impressionMeasurementSpec.maximumFrequencyPerUser
+    val noise = noiser.addNoise(0.0) * impressionMeasurementSpec.maximumFrequencyPerUser
     return max(0L, impressionValue + noise.roundToInt())
   }
 

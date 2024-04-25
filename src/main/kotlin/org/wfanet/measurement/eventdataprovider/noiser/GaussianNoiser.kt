@@ -32,8 +32,8 @@ class GaussianNoiser(val privacyParams: DpParams, random: Random) : AbstractNois
     return NormalDistribution(RandomGeneratorFactory.createRandomGenerator(random), 0.0, sigma)
   }
 
-  override fun sample(): Double {
-    return gaussianNoise.addNoise(0.0, 1, 1.0, privacyParams.epsilon, privacyParams.delta)
+  override fun addNoise(x: Double): Double {
+    return gaussianNoise.addNoise(x, 1, 1.0, privacyParams.epsilon, privacyParams.delta)
   }
 
   override val variance: Double

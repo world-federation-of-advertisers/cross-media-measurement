@@ -19,8 +19,4 @@ import org.apache.commons.math3.distribution.RealDistribution
 /** A base noiser class for direct measurements */
 abstract class AbstractNoiser : Noiser {
   protected abstract val distribution: RealDistribution
-
-  override fun sample(): Double {
-    return distribution.sample()
-  }
 }

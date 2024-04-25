@@ -25,7 +25,7 @@ class LaplaceNoiserTest {
   fun `Laplace noiser with random seed returns expected samples`() {
     val random = Random(RANDOM_SEED)
     val laplaceNoiser = LaplaceNoiser(DP_PARAMS, random)
-    val samples = List(5) { laplaceNoiser.sample() }
+    val samples = List(5) { laplaceNoiser.addNoise(0.0) }
     val expectedSamples =
       listOf(
         0.6194439986492494,

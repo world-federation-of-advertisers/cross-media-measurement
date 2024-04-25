@@ -28,8 +28,8 @@ class LaplaceNoiser(val privacyParams: DpParams, random: Random) : AbstractNoise
     )
   private val laplaceNoise = LaplaceNoise()
 
-  override fun sample(): Double {
-    return laplaceNoise.addNoise(0.0, 1.0, privacyParams.epsilon, 0.0)
+  override fun addNoise(x: Double): Double {
+    return laplaceNoise.addNoise(x, 1.0, privacyParams.epsilon, 0.0)
   }
 
   override val variance: Double
