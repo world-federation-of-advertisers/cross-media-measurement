@@ -1441,7 +1441,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
       },
     )
 
-    database.writeRequisitionBlobPath(token, requisitionKey1, "this is a new path", null, "v2alpha")
+    database.writeRequisitionBlobPath(token, requisitionKey1, "this is a new path", "v2alpha")
 
     assertQueryReturns(
       databaseClient,

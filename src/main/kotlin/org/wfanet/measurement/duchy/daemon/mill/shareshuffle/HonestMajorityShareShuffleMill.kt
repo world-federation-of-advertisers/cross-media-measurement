@@ -274,15 +274,15 @@ class HonestMajorityShareShuffleMill(
             require(source.path.isNotBlank()) {
               "Requisition blobPath is empty for ${source.externalKey.externalRequisitionId}"
             }
-            require(!source.secretSeedCiphertext.isEmpty) {
+            val protocolDetails = source.details.protocolDetails.honestMajorityShareShuffle
+            require(!protocolDetails.secretSeedCiphertext.isEmpty) {
               "Requisition secretSeed is empty for ${source.externalKey.externalRequisitionId}"
             }
             ShufflePhaseInputKt.secretSeed {
               requisitionId = source.externalKey.externalRequisitionId
-              secretSeedCiphertext = source.secretSeedCiphertext
-              registerCount = source.details.honestMajorityShareShuffle.registerCount
-              dataProviderCertificate =
-                source.details.honestMajorityShareShuffle.dataProviderCertificate
+              secretSeedCiphertext = protocolDetails.secretSeedCiphertext
+              registerCount = protocolDetails.registerCount
+              dataProviderCertificate = protocolDetails.dataProviderCertificate
             }
           }
     }
