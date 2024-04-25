@@ -23,5 +23,8 @@ databaseChangeLog:
     file: create-duchy-schema.sql
     relativeToChangeLogFile: true
 - include:
-      file: add-requisition-random-seed.sql
-      relativeToChangeLogFile: true
+    file: add-requisition-random-seed.sql
+    relativeToChangeLogFile: true
+- include:
+    file: drop-requisition-random-seed.sql
+    relativeToChangeLogFile: true

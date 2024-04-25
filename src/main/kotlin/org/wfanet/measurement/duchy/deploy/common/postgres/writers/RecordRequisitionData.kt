@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.duchy.deploy.common.postgres.writers
 
-import com.google.protobuf.ByteString
 import java.time.Clock
 import java.time.temporal.ChronoUnit
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
@@ -22,15 +21,15 @@ import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationRe
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.RequisitionReader
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
+import org.wfanet.measurement.internal.duchy.RequisitionProtocolDetails
 import org.wfanet.measurement.internal.duchy.copy
 
 /**
- * [PostgresWriter] to record the data for a requisition by a path to the blob or a seed.
+ * [PostgresWriter] to record the data for a requisition by a path to the blob.
  *
  * @param localId local identifier of the computation.
  * @param externalRequisitionKey [ExternalRequisitionKey] of the computation.
  * @param pathToBlob requisition blob path.
- * @param secretSeedCiphertext requisition random seed.
  * @param clock See [Clock].
  *
  * Throws following exceptions on [execute]:
@@ -40,16 +39,13 @@ class RecordRequisitionData(
   private val localId: Long,
   private val externalRequisitionKey: ExternalRequisitionKey,
   private val pathToBlob: String,
-  private val secretSeedCiphertext: ByteString?,
   private val publicApiVersion: String,
+  private val protocolDetails: RequisitionProtocolDetails? = null,
   private val clock: Clock,
   private val computationReader: ComputationReader,
 ) : PostgresWriter<ComputationToken>() {
   override suspend fun TransactionScope.runTransaction(): ComputationToken {
     require(pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $externalRequisitionKey" }
-    if (secretSeedCiphertext != null) {
-      require(!secretSeedCiphertext.isEmpty) { "Cannot insert empty seed. $externalRequisitionKey" }
-    }
     require(publicApiVersion.isNotBlank()) {
       "Cannot insert public api version $externalRequisitionKey"
     }
@@ -63,6 +59,9 @@ class RecordRequisitionData(
     val requisitionDetails =
       requisition.requisitionDetails.copy {
         publicApiVersion = this@RecordRequisitionData.publicApiVersion
+        if (this@RecordRequisitionData.protocolDetails != null) {
+          this.protocolDetails = this@RecordRequisitionData.protocolDetails
+        }
       }
 
     val writeTime = clock.instant().truncatedTo(ChronoUnit.MICROS)
@@ -73,7 +72,6 @@ class RecordRequisitionData(
       externalRequisitionId = externalRequisitionKey.externalRequisitionId,
       requisitionFingerprint = externalRequisitionKey.requisitionFingerprint,
       pathToBlob = pathToBlob,
-      secretSeedCiphertext = secretSeedCiphertext,
       requisitionDetails = requisitionDetails,
       updateTime = writeTime,
     )

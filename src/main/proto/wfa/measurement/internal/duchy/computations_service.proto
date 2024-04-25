@@ -305,13 +305,10 @@ message RecordRequisitionFulfillmentRequest {
   // The blob path where the data of the requisition is stored.
   // Required. Must be non-empty.
   string blob_path = 3;
-  // The random seed that is signed and encrypted.
-  //
-  // This is a ciphertext containing a serialized `SignedMessage` from the
-  // public API.
-  bytes secret_seed_ciphertext = 4;
   // Version of the public API.
-  string public_api_version = 5;
+  string public_api_version = 4;
+  // Protocol specific details.
+  RequisitionProtocolDetails protocol_details = 5;
 }
 // Response to record Requisition.
 message RecordRequisitionFulfillmentResponse {

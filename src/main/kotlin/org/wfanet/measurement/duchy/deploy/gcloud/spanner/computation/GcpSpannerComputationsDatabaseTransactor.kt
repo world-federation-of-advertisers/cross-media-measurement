@@ -19,7 +19,6 @@ import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Struct
-import com.google.protobuf.ByteString
 import com.google.protobuf.Message
 import java.time.Clock
 import java.time.Duration
@@ -51,6 +50,7 @@ import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
 import org.wfanet.measurement.internal.duchy.RequisitionDetails
 import org.wfanet.measurement.internal.duchy.RequisitionEntry
+import org.wfanet.measurement.internal.duchy.RequisitionProtocolDetails
 import org.wfanet.measurement.internal.duchy.copy
 
 /** Implementation of [ComputationsDatabaseTransactor] using GCP Spanner Database. */
@@ -655,17 +655,14 @@ class GcpSpannerComputationsDatabaseTransactor<
     }
   }
 
-  private suspend fun writeRequisitionFulfillment(
+  override suspend fun writeRequisitionBlobPath(
     token: ComputationEditToken<ProtocolT, StageT>,
     externalRequisitionKey: ExternalRequisitionKey,
     pathToBlob: String,
-    secretSeedCiphertext: ByteString? = null,
     publicApiVersion: String,
+    protocolDetails: RequisitionProtocolDetails?,
   ) {
     require(pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $externalRequisitionKey" }
-    if (secretSeedCiphertext != null) {
-      require(!secretSeedCiphertext.isEmpty) { "Cannot insert empty seed. $externalRequisitionKey" }
-    }
     require(publicApiVersion.isNotBlank()) {
       "Cannot insert blank public api version. $externalRequisitionKey"
     }
@@ -694,7 +691,13 @@ class GcpSpannerComputationsDatabaseTransactor<
         "The token doesn't match the computation owns the requisition."
       }
 
-      val updatedDetails = details.copy { this.publicApiVersion = publicApiVersion }
+      val updatedDetails =
+        details.copy {
+          this.publicApiVersion = publicApiVersion
+          if (protocolDetails != null) {
+            this.protocolDetails = protocolDetails
+          }
+        }
       txn.buffer(
         listOf(
           computationMutations.updateComputation(
@@ -707,32 +710,11 @@ class GcpSpannerComputationsDatabaseTransactor<
             externalRequisitionId = externalRequisitionKey.externalRequisitionId,
             requisitionFingerprint = externalRequisitionKey.requisitionFingerprint,
             pathToBlob = pathToBlob,
-            secretSeedCiphertext = secretSeedCiphertext,
             requisitionDetails = updatedDetails,
           ),
         )
       )
     }
-  }
-
-  override suspend fun writeRequisitionBlobPath(
-    token: ComputationEditToken<ProtocolT, StageT>,
-    externalRequisitionKey: ExternalRequisitionKey,
-    pathToBlob: String,
-    secretSeedCiphertext: ByteString?,
-    publicApiVersion: String,
-  ) {
-    require(pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $externalRequisitionKey" }
-    require(publicApiVersion.isNotBlank()) {
-      "Cannot insert blank public api version. $externalRequisitionKey"
-    }
-    writeRequisitionFulfillment(
-      token,
-      externalRequisitionKey,
-      pathToBlob,
-      secretSeedCiphertext,
-      publicApiVersion,
-    )
   }
 
   override suspend fun insertComputationStat(

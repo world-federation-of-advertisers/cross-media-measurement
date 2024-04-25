@@ -65,7 +65,6 @@ class ComputationTokenProtoQuery(
                  r2.ExternalRequisitionId,
                  r2.RequisitionFingerprint,
                  r2.PathToBlob,
-                 r2.RandomSeed,
                  r2.RequisitionDetails
                FROM Requisitions AS r2
                WHERE c.ComputationId = r2.ComputationId
@@ -99,7 +98,6 @@ class ComputationTokenProtoQuery(
                  r2.ExternalRequisitionId,
                  r2.RequisitionFingerprint,
                  r2.PathToBlob,
-                 r2.RandomSeed,
                  r2.RequisitionDetails
                FROM Requisitions AS r2
                WHERE c.ComputationId = r2.ComputationId
@@ -159,9 +157,6 @@ class ComputationTokenProtoQuery(
             }
             if (!it.isNull("PathToBlob")) {
               path = it.getString("PathToBlob")
-            }
-            if (!it.isNull("RandomSeed")) {
-              secretSeedCiphertext = it.getBytesAsByteString("RandomSeed")
             }
             details = it.getProtoMessage("RequisitionDetails", RequisitionDetails.parser())
           }
