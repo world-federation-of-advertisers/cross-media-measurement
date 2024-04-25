@@ -78,6 +78,8 @@ jobs:
           build --define "image_tag=$IMAGE_TAG"
           build --define "google_cloud_project=$GCLOUD_PROJECT"
           build --define "spanner_instance=$SPANNER_INSTANCE"
+          build --define kingdom_public_api_address_name=kingdom-v2alpha
+          build --define kingdom_system_api_address_name=kingdom-system-v1alpha
           EOF
 
       - name: Export BAZEL_BIN
