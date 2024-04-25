@@ -8,6 +8,6 @@ protocol_config {
   noise_mechanism: DISCRETE_GAUSSIAN
 }
 
-required_external_duchy_ids: "worker_1"
-required_external_duchy_ids: "worker_2"
+required_external_duchy_ids: "worker1"
+required_external_duchy_ids: "worker2"
 required_external_duchy_ids: "aggregator"

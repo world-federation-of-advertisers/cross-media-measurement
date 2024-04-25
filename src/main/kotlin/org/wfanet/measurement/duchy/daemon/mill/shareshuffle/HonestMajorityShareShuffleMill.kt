@@ -29,10 +29,14 @@ import kotlinx.coroutines.flow.flowOf
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptedMessage
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.RandomSeed
+import org.wfanet.measurement.api.v2alpha.SignedMessage
+import org.wfanet.measurement.api.v2alpha.encryptedMessage
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.unpack
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.crypto.PrivateKeyStore
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
@@ -50,6 +54,7 @@ import org.wfanet.measurement.duchy.daemon.utils.ReachAndFrequencyResult
 import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaEncryptionPublicKey
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients.PermanentErrorException
+import org.wfanet.measurement.duchy.service.internal.computations.inputPathList
 import org.wfanet.measurement.duchy.service.system.v1alpha.advanceComputationHeader
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails
@@ -288,9 +293,16 @@ class HonestMajorityShareShuffleMill(
       stub = peerDuchyStub(hmssDetails.role),
     )
 
+    val nextStage = nextStage(token).toProtocolStage()
     return dataClients.transitionComputationToStage(
       token,
-      stage = nextStage(token).toProtocolStage(),
+      stage = nextStage,
+      inputsToNextStage =
+        if (nextStage == Stage.SHUFFLE_PHASE.toProtocolStage()) {
+          token.inputPathList()
+        } else {
+          emptyList()
+        }
     )
   }
 
@@ -315,6 +327,7 @@ class HonestMajorityShareShuffleMill(
   private suspend fun verifySecretSeed(
     secretSeed: ShufflePhaseInput.SecretSeed,
     duchyPrivateKeyId: String,
+    apiVersion: Version,
   ): RandomSeed {
     requireNotNull(privateKeyStore) { "privateKeyStore is null for non-aggregator." }
     val privateKey =
@@ -323,10 +336,15 @@ class HonestMajorityShareShuffleMill(
           "Fail to get private key for requisition ${secretSeed.requisitionId}"
         )
 
-    val encryptedAndSignedMessage = EncryptedMessage.parseFrom(secretSeed.secretSeedCiphertext)
-    val signedMessage = decryptRandomSeed(encryptedAndSignedMessage, privateKey)
+    val encryptedAndSignedSeed = encryptedMessage {
+      ciphertext = secretSeed.secretSeedCiphertext
+      typeUrl = when (apiVersion) {
+        Version.V2_ALPHA -> ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
+      }
+    }
+    val signedSeed = decryptRandomSeed(encryptedAndSignedSeed, privateKey)
 
-    val randomSeed: RandomSeed = signedMessage.unpack()
+    val randomSeed: RandomSeed = signedSeed.unpack()
 
     val dataProviderCertificateName = secretSeed.dataProviderCertificate
     val dataProviderCertificate =
@@ -346,7 +364,7 @@ class HonestMajorityShareShuffleMill(
         )
 
     try {
-      verifyRandomSeed(signedMessage, x509Certificate, trustedIssuer)
+      verifyRandomSeed(signedSeed, x509Certificate, trustedIssuer)
     } catch (e: CertPathValidatorException) {
       throw PermanentErrorException("Invalid certificate for $dataProviderCertificateName", e)
     } catch (e: SignatureException) {
@@ -357,8 +375,7 @@ class HonestMajorityShareShuffleMill(
   }
 
   private suspend fun shufflePhase(token: ComputationToken): ComputationToken {
-    val requisitions = token.requisitionsList
-    requisitions.sortedBy { it.externalKey.externalRequisitionId }
+    val requisitions = token.requisitionsList.sortedBy { it.externalKey.externalRequisitionId }
 
     val requisitionBlobs = dataClients.readRequisitionBlobs(token)
     val shufflePhaseInput = getShufflePhaseInput(token)
@@ -385,6 +402,7 @@ class HonestMajorityShareShuffleMill(
 
         val blob = requisitionBlobs[requisitionId]
         if (blob != null) {
+          logger.info("ShufflePhase: $requisitionId is a blob")
           // Requisition in format of blob.
           sketchShares += sketchShare {
             data =
@@ -394,13 +412,15 @@ class HonestMajorityShareShuffleMill(
               }
           }
         } else {
+          logger.info("ShufflePhase: $requisitionId is a random seed from peer.")
           // Requisition in format of random seed.
           val secretSeed = secretSeeds.find { it.requisitionId == requisitionId }
           require(secretSeed != null) {
             "Neither blob and seed received for requisition $requisitionId"
           }
 
-          val seed = verifySecretSeed(secretSeed, hmss.encryptionKeyPair.privateKeyId)
+          // TODO(@renjiez): Read public api version from ShufflePhaseInput
+          val seed = verifySecretSeed(secretSeed, hmss.encryptionKeyPair.privateKeyId, Version.V2_ALPHA)
 
           sketchShares += sketchShare { this.seed = seed.data }
         }
@@ -468,6 +488,7 @@ class HonestMajorityShareShuffleMill(
       mapOf(
         Pair(Stage.INITIALIZED, FIRST_NON_AGGREGATOR) to Stage.WAIT_TO_START,
         Pair(Stage.INITIALIZED, SECOND_NON_AGGREGATOR) to Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_ONE,
+        Pair(Stage.INITIALIZED, AGGREGATOR) to Stage.WAIT_ON_AGGREGATION_INPUT,
         Pair(Stage.SETUP_PHASE, FIRST_NON_AGGREGATOR) to Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_TWO,
         Pair(Stage.SETUP_PHASE, SECOND_NON_AGGREGATOR) to Stage.SHUFFLE_PHASE,
         Pair(Stage.SHUFFLE_PHASE, FIRST_NON_AGGREGATOR) to Stage.COMPLETE,

@@ -846,6 +846,7 @@ class EdpSimulator(
             "Protocol not set or not supported.",
           )
         }
+        logger.info("Processed requisition ${requisition.name}")
       } catch (refusalException: RequisitionRefusalException) {
         refuseRequisition(
           requisition.name,
@@ -1120,6 +1121,9 @@ class EdpSimulator(
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
   ): IntArray {
     logger.info("Generating HMSS Sketch...")
+    val maximumFrequency =
+      if (measurementSpec.hasReachAndFrequency()) measurementSpec.reachAndFrequency.maximumFrequency
+      else 1
     val sketch =
       ShareShuffleSketchGenerator(
           vidUniverse,
@@ -1129,6 +1133,8 @@ class EdpSimulator(
           measurementSpec.vidSamplingInterval,
         )
         .generate(eventGroupSpecs)
+        .map { if (it > maximumFrequency) maximumFrequency else it }
+        .toIntArray()
 
     logger.log(Level.INFO) { "Registers Size:\n${sketch.size}" }
 
@@ -1298,6 +1304,7 @@ class EdpSimulator(
           fulfillRequisitionRequest { bodyChunk = bodyChunk { this.data = it } }
         }
       )
+      logger.info { "Emitted FulfillRequisitionRequests..." }
     }
     try {
       requisitionFulfillmentStubsByDuchyId.values.first().fulfillRequisition(requests)
@@ -1438,7 +1445,7 @@ class EdpSimulator(
     }
     try {
       val requisitionFulfillmentStub =
-        requisitionFulfillmentStubMap.get(getDuchyWithoutPublicKey(requisition))
+        requisitionFulfillmentStubsByDuchyId.get(getDuchyWithoutPublicKey(requisition))
       require(requisitionFulfillmentStub != null) { "Requisition fulfillment stub not found." }
       requisitionFulfillmentStub.fulfillRequisition(requests)
     } catch (e: StatusException) {

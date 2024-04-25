@@ -310,6 +310,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
     }
 
     candidateDuchyIds.sort()
-    return candidateDuchyIds[requisitionId.toInt() % candidateDuchyIds.size]
+    val selectedIndex = (requisitionId % candidateDuchyIds.size).toInt()
+    return candidateDuchyIds[selectedIndex]
   }
 }

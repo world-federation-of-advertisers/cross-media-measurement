@@ -10,7 +10,7 @@ reach_only_liquid_legions_v2 {
 }
 honest_majority_share_shuffle {
   role: SECOND_NON_AGGREGATOR
-  first_non_aggregator_duchy_id: "worker_1"
-  second_non_aggregator_duchy_id: "worker_2"
+  first_non_aggregator_duchy_id: "worker1"
+  second_non_aggregator_duchy_id: "worker2"
   aggregator_duchy_id: "aggregator"
 }

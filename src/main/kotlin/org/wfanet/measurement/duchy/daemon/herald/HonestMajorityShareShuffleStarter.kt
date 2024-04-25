@@ -104,6 +104,7 @@ object HonestMajorityShareShuffleStarter {
         globalComputationId = globalId
         computationStage = Stage.INITIALIZED.toProtocolStage()
         computationDetails = initialComputationDetails
+        afterCreation = AfterCreation.ADD_UNCLAIMED_TO_QUEUE
         this.requisitions += requisitions
       }
     )
