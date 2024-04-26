@@ -1,0 +1,53 @@
+# Copyright 2024 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Conditionally build and push container images
+
+on:
+  workflow_call:
+    inputs:
+      existing-image-tag:
+        description: "Tag of existing published container images"
+        type: string
+    outputs:
+      image-tag:
+        description: "Tag of container images"
+        value: ${{ jobs.get-image-tag.outputs.image-tag }}
+
+jobs:
+  get-image-tag:
+    runs-on: ubuntu-22.04
+    outputs:
+      image-tag: ${{ steps.get-image-tag.outputs.image-tag }}
+    steps:
+      - id: get-image-tag
+        name: Get image tag
+        env:
+          EXISTING_IMAGE_TAG: ${{ inputs.existing-image-tag }}
+        run: |
+          declare image_tag
+          if [[ -n "$EXISTING_IMAGE_TAG" ]]; then
+            image_tag="$EXISTING_IMAGE_TAG"
+          elif [[ "$GITHUB_REF_TYPE" == 'tag' ]]; then
+            image_tag="${GITHUB_REF_NAME#v}"
+          else
+            image_tag="$GITHUB_SHA"
+          fi
+          echo "image-tag=${image_tag}" >> "$GITHUB_OUTPUT"
+  push-images:
+    uses: ./.github/workflows/push-images.yml
+    if: inputs.existing-image-tag == ''
+    needs: [get-image-tag]
+    with:
+      image-tag: ${{ needs.get-image-tag.outputs.image-tag }}
