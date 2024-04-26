@@ -56,7 +56,7 @@ package k8s
 		"service.beta.kubernetes.io/aws-load-balancer-scheme":          "internet-facing"
 		"service.beta.kubernetes.io/aws-load-balancer-nlb-target-type": "ip"
 		if _eipAllocations != _|_ {
-			"service.beta.kubernetes.io/aws-load-balancer-eip-allocations": _computationControlServerEips
+			"service.beta.kubernetes.io/aws-load-balancer-eip-allocations": _eipAllocations
 		}
 	}
 }
