@@ -95,7 +95,8 @@ jobs:
         AGGREGATOR_SYSTEM_API_TARGET: ${{ vars.AGGREGATOR_SYSTEM_API_TARGET }}
         WORKER1_SYSTEM_API_TARGET: ${{ vars.WORKER1_SYSTEM_API_TARGET }}
         WORKER2_SYSTEM_API_TARGET: ${{ vars.WORKER2_SYSTEM_API_TARGET }}
-        COMPUTATION_CONTROL_SERVER_EIPS: ${{ vars.AWS_COMPUTATION_CONTROL_SERVER_EIPS }}
+        DUCHY_PUBLIC_API_EIP_ALLOCS: ${{ vars.AWS_DUCHY_PUBLIC_API_EIP_ALLOCS }}
+        DUCHY_SYSTEM_API_EIP_ALLOCS: ${{ vars.AWS_DUCHY_SYSTEM_API_EIP_ALLOCS }}
         S3_BUCKET: ${{ vars.AWS_S3_BUCKET }}
       run: |
         cat << EOF > ~/.bazelrc
@@ -113,7 +114,8 @@ jobs:
         build --define postgres_port=5432
         build --define postgres_region=$AWS_REGION
         build --define postgres_credential_secret_name=$POSTGRES_CRED_SECRET_NAME
-        build --define computation_control_server_eips=$COMPUTATION_CONTROL_SERVER_EIPS
+        build --define duchy_public_api_eip_allocs=$DUCHY_PUBLIC_API_EIP_ALLOCS
+        build --define duchy_system_api_eip_allocs=$DUCHY_SYSTEM_API_EIP_ALLOCS
         EOF
 
     - name: Get EKS cluster credentials
