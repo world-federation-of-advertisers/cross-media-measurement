@@ -1317,6 +1317,9 @@ class RequisitionsServiceTest {
           .toName()
       dataProviderPublicKey = PACKED_DATA_PROVIDER_PUBLIC_KEY
       encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC
+      // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this
+      // field.
+      encryptedRequisitionSpecCiphertext = ENCRYPTED_REQUISITION_SPEC.ciphertext
 
       // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this
       // field.
