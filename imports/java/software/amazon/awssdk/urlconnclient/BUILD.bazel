@@ -1,0 +1,6 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "urlconnclient",
+    actual = "@maven//:software_amazon_awssdk_url_connection_client",
+)

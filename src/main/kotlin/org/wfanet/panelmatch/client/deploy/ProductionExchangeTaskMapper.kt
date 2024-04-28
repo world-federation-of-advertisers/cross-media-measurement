@@ -30,29 +30,8 @@ import org.wfanet.panelmatch.client.eventpreprocessing.HardCodedHkdfPepperProvid
 import org.wfanet.panelmatch.client.eventpreprocessing.HardCodedIdentifierHashPepperProvider
 import org.wfanet.panelmatch.client.eventpreprocessing.JniEventPreprocessor
 import org.wfanet.panelmatch.client.eventpreprocessing.PreprocessingParameters
-import org.wfanet.panelmatch.client.exchangetasks.ApacheBeamContext
-import org.wfanet.panelmatch.client.exchangetasks.ApacheBeamTask
-import org.wfanet.panelmatch.client.exchangetasks.AssignJoinKeyIdsTask
-import org.wfanet.panelmatch.client.exchangetasks.CopyFromPreviousExchangeTask
-import org.wfanet.panelmatch.client.exchangetasks.CopyFromSharedStorageTask
-import org.wfanet.panelmatch.client.exchangetasks.CopyToSharedStorageTask
-import org.wfanet.panelmatch.client.exchangetasks.DeterministicCommutativeCipherTask
-import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
-import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
-import org.wfanet.panelmatch.client.exchangetasks.GenerateAsymmetricKeyPairTask
-import org.wfanet.panelmatch.client.exchangetasks.GenerateHybridEncryptionKeyPairTask
-import org.wfanet.panelmatch.client.exchangetasks.HybridDecryptTask
-import org.wfanet.panelmatch.client.exchangetasks.HybridEncryptTask
-import org.wfanet.panelmatch.client.exchangetasks.InputTask
-import org.wfanet.panelmatch.client.exchangetasks.IntersectValidateTask
-import org.wfanet.panelmatch.client.exchangetasks.JoinKeyHashingExchangeTask
-import org.wfanet.panelmatch.client.exchangetasks.ProducerTask
-import org.wfanet.panelmatch.client.exchangetasks.buildPrivateMembershipQueries
-import org.wfanet.panelmatch.client.exchangetasks.copyFromSharedStorage
-import org.wfanet.panelmatch.client.exchangetasks.copyToSharedStorage
-import org.wfanet.panelmatch.client.exchangetasks.decryptPrivateMembershipResults
-import org.wfanet.panelmatch.client.exchangetasks.executePrivateMembershipQueries
-import org.wfanet.panelmatch.client.exchangetasks.preprocessEvents
+import org.wfanet.panelmatch.client.exchangetasks.*
+import org.wfanet.panelmatch.client.exchangetasks.emr.EmrExchangeTaskService
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.JniPrivateMembershipCryptor
@@ -62,6 +41,7 @@ import org.wfanet.panelmatch.client.privatemembership.JniQueryResultsDecryptor
 import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
 import org.wfanet.panelmatch.client.storage.SharedStorageSelector
 import org.wfanet.panelmatch.common.ShardedFileName
+import org.wfanet.panelmatch.client.exchangetasks.emr.EmrServerlessClientService
 import org.wfanet.panelmatch.common.certificates.CertificateManager
 import org.wfanet.panelmatch.common.crypto.JniDeterministicCommutativeCipher
 import org.wfanet.panelmatch.common.crypto.generateSecureRandomByteString
@@ -78,6 +58,8 @@ open class ProductionExchangeTaskMapper(
   private val certificateManager: CertificateManager,
   private val makePipelineOptions: () -> PipelineOptions,
   private val taskContext: TaskParameters,
+  private val emrBeamTaskExecutorOnDaemon: Boolean = false,
+  private val emrService: EmrExchangeTaskService? = null,
 ) : ExchangeTaskMapper() {
   override suspend fun ExchangeContext.commutativeDeterministicEncrypt(): ExchangeTask {
     return DeterministicCommutativeCipherTask.forEncryption(JniDeterministicCommutativeCipher())
@@ -180,8 +162,13 @@ open class ProductionExchangeTaskMapper(
 
     val outputManifests = mapOf("decrypted-event-data" to stepDetails.decryptEventDataSetFileCount)
 
-    return apacheBeamTaskFor(outputManifests, emptyList()) {
-      decryptPrivateMembershipResults(stepDetails.parameters, JniQueryResultsDecryptor())
+    return if (emrBeamTaskExecutorOnDaemon) {
+      requireNotNull(emrService)
+      EmrExchangeTask(emrService)
+    } else {
+      apacheBeamTaskFor(outputManifests, emptyList()) {
+        decryptPrivateMembershipResults(stepDetails.parameters, JniQueryResultsDecryptor())
+      }
     }
   }
 

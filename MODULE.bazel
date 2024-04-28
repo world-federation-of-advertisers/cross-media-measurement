@@ -223,6 +223,8 @@ maven.install(
         "org.projectnessie.cel:cel-generated-pb:" + PROJECTNESSIE_CEL_VERSION,
         "org.slf4j:slf4j-simple:1.7.32",
         "software.amazon.awssdk:acmpca:2.17.258",
+        "software.amazon.awssdk:emrserverless:2.17.214",
+        "software.amazon.awssdk:url-connection-client:2.17.214",
     ],
     fail_if_repin_required = True,
     fetch_sources = True,  # For IDE integration.

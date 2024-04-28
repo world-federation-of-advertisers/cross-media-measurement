@@ -26,11 +26,15 @@ import org.wfanet.measurement.common.crypto.tink.TinkKeyStorageProvider
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.deploy.CertificateAuthorityFlags
 import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
+import org.wfanet.panelmatch.client.deploy.ProductionExchangeTaskMapper
 import org.wfanet.panelmatch.client.deploy.example.ExampleDaemon
+import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
+import org.wfanet.panelmatch.client.exchangetasks.emr.EmrExchangeTaskService
 import org.wfanet.panelmatch.client.launcher.ExchangeStepValidatorImpl
 import org.wfanet.panelmatch.client.launcher.ExchangeTaskExecutor
 import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
 import org.wfanet.panelmatch.common.beam.BeamOptions
+import org.wfanet.panelmatch.client.exchangetasks.emr.EmrServerlessClientService
 import org.wfanet.panelmatch.common.certificates.aws.CertificateAuthority
 import org.wfanet.panelmatch.common.certificates.aws.PrivateCaClient
 import org.wfanet.panelmatch.common.secrets.MutableSecretMap
@@ -40,7 +44,9 @@ import picocli.CommandLine.Mixin
 import picocli.CommandLine.Option
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider
+import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient
 import software.amazon.awssdk.regions.Region
+import software.amazon.awssdk.services.emrserverless.EmrServerlessClient
 import software.amazon.awssdk.services.s3.S3AsyncClient
 
 @Command(
@@ -61,6 +67,14 @@ private class AwsExampleDaemon : ExampleDaemon() {
     private set
 
   @Option(
+    names = ["--emr-executor-role-arn"],
+    description = ["EMR executor role ARN"],
+    required = true,
+  )
+  lateinit var emrExecutorRoleArn: String
+    private set
+
+  @Option(
     names = ["--s3-storage-bucket"],
     description = ["The name of the s3 bucket used for default private storage."],
   )
@@ -77,6 +91,32 @@ private class AwsExampleDaemon : ExampleDaemon() {
     defaultValue = "false",
   )
   private var s3FromBeam by Delegates.notNull<Boolean>()
+
+  override val exchangeTaskMapper: ExchangeTaskMapper by lazy {
+    val inputTaskThrottler = createThrottler()
+    ProductionExchangeTaskMapper(
+      inputTaskThrottler = inputTaskThrottler,
+      privateStorageSelector = privateStorageSelector,
+      sharedStorageSelector = sharedStorageSelector,
+      certificateManager = certificateManager,
+      makePipelineOptions = ::makePipelineOptions,
+      taskContext = taskContext,
+      emrBeamTaskExecutorOnDaemon = true,
+      emrService = EmrExchangeTaskService(
+        exchangeTaskAppIdPath = "s3://${s3Bucket}/exchange-tasks/emr/application",
+        storageClient = rootStorageClient,
+        emrServerlessClientService = EmrServerlessClientService(
+          s3ExchangeTaskJarPath = "s3://${s3Bucket}/exchange-tasks/jars/beam-exchange-tasks.jar",
+          s3ExchangeTaskLogPath = "s3://${s3Bucket}/exchange-tasks/logs",
+          emrJobExecutionRoleArn = emrExecutorRoleArn,
+          emrServerlessClient = EmrServerlessClient.builder()
+            .credentialsProvider(DefaultCredentialsProvider.create())
+            .httpClient(UrlConnectionHttpClient.create())
+            .build()
+        ),
+      )
+    )
+  }
 
   override fun makePipelineOptions(): PipelineOptions {
     // TODO(jmolle): replace usage of DirectRunner.
