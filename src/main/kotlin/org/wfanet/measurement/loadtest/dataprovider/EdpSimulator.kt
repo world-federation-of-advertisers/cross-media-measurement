@@ -1366,9 +1366,8 @@ class EdpSimulator(
 
   private fun getEncryptionKeyForShareSeed(requisition: Requisition): SignedMessage {
     return requisition.duchiesList
-      .singleOrNull { it.value.honestMajorityShareShuffle.hasPublicKey() }
-      ?.value
-      ?.honestMajorityShareShuffle
+      .map { it.value.honestMajorityShareShuffle }
+      .singleOrNull { it.hasPublicKey() }
       ?.publicKey
       ?: throw IllegalArgumentException(
         "Expected exactly one Duchy entry with an HMSS encryption public key."
