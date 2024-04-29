@@ -115,9 +115,10 @@ class InProcessEdpSimulator(
           100.0f,
         ),
       trustedCertificates = trustedCertificates,
-      vidToIndexMap = VidToIndexMapGenerator.generateMapping(
+      vidToIndexMap =
+        VidToIndexMapGenerator.generateMapping(
           ByteString.EMPTY,
-          eventQuery.getUserVirtualIdUniverse().toList()
+          eventQuery.getUserVirtualIdUniverse().toList(),
         ),
       knownEventGroupMetadataTypes = listOf(SyntheticEventGroupSpec.getDescriptor().file),
       random = random,
