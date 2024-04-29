@@ -207,6 +207,7 @@ kt_jvm_library(
         ":edp_simulator",
         ":edp_simulator_flags",
         ":event_query",
+        ":vid_to_index_map_generator",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:privacy_budgets",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:vid_sampling",

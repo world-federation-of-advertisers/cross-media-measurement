@@ -185,7 +185,7 @@ class EdpSimulator(
   private val throttler: Throttler,
   private val privacyBudgetManager: PrivacyBudgetManager,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
-  inputVidToIndexMap: Map<Long, IndexedValue> = emptyMap(),
+  private val vidToIndexMap: Map<Long, IndexedValue> = emptyMap(),
   /**
    * Known protobuf types for [EventGroupMetadataDescriptor]s.
    *
@@ -197,13 +197,6 @@ class EdpSimulator(
   private val random: Random = Random,
   private val logSketchDetails: Boolean = false,
 ) {
-  // Initializes the vidToIndexMap.
-  //
-  // TODO(@ple13): Ensure that the vidToIndexMap has been properly initialized at this point (either
-  // copied from non-empty inputVidToIndexMap, read from a file, or computed from the vidUniverse)
-  // when the HMSS protocol is enabled in the integration tests.
-  private val vidToIndexMap = inputVidToIndexMap
-
   private val SUPPORTED_PROTOCOLS =
     setOf(
       ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2,
