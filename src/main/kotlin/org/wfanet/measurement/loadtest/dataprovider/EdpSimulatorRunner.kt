@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
-import com.google.protobuf.ByteString
 import com.google.protobuf.Descriptors
 import com.google.protobuf.Message
 import io.grpc.ManagedChannel
