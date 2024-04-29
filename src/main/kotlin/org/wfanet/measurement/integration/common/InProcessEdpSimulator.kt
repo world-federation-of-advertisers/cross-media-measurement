@@ -51,7 +51,6 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.
 import org.wfanet.measurement.loadtest.dataprovider.EdpData
 import org.wfanet.measurement.loadtest.dataprovider.EdpSimulator
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
-import org.wfanet.measurement.loadtest.dataprovider.VidToIndexMapGenerator
 
 /** An in process EDP simulator. */
 class InProcessEdpSimulator(
@@ -75,15 +74,6 @@ class InProcessEdpSimulator(
         }
     )
 
-  private val eventQuery =
-    object :
-      SyntheticGeneratorEventQuery(
-        SyntheticGenerationSpecs.POPULATION_SPEC,
-        TestEvent.getDescriptor(),
-      ) {
-      override fun getSyntheticDataSpec(eventGroup: EventGroup) = syntheticDataSpec
-    }
-
   private val delegate =
     EdpSimulator(
       edpData = createEdpData(displayName, resourceName),
@@ -105,7 +95,14 @@ class InProcessEdpSimulator(
         duchyPublicApiChannelMap.mapValues {
           RequisitionFulfillmentCoroutineStub(it.value).withPrincipalName(resourceName)
         },
-      eventQuery = eventQuery,
+      eventQuery =
+        object :
+          SyntheticGeneratorEventQuery(
+            SyntheticGenerationSpecs.POPULATION_SPEC,
+            TestEvent.getDescriptor(),
+          ) {
+          override fun getSyntheticDataSpec(eventGroup: EventGroup) = syntheticDataSpec
+        },
       throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
       privacyBudgetManager =
         PrivacyBudgetManager(
@@ -115,11 +112,6 @@ class InProcessEdpSimulator(
           100.0f,
         ),
       trustedCertificates = trustedCertificates,
-      vidToIndexMap =
-        VidToIndexMapGenerator.generateMapping(
-          ByteString.EMPTY,
-          eventQuery.getUserVirtualIdUniverse().toList(),
-        ),
       knownEventGroupMetadataTypes = listOf(SyntheticEventGroupSpec.getDescriptor().file),
       random = random,
     )

@@ -115,11 +115,6 @@ abstract class EdpSimulatorRunner : Runnable {
         MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval),
         createNoOpPrivacyBudgetManager(),
         clientCerts.trustedCertificates,
-        vidToIndexMap =
-          VidToIndexMapGenerator.generateMapping(
-            ByteString.EMPTY,
-            eventQuery.getUserVirtualIdUniverse().toList(),
-          ),
         knownEventGroupMetadataTypes = knownEventGroupMetadataTypes,
         random = random,
         logSketchDetails = flags.logSketchDetails,
