@@ -185,7 +185,7 @@ class EdpSimulator(
   private val throttler: Throttler,
   private val privacyBudgetManager: PrivacyBudgetManager,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
-  private val vidToIndexMap: Map<Long, IndexedValue> = emptyMap(),
+  private val vidToIndexMap: Map<Long, IndexedValue>,
   /**
    * Known protobuf types for [EventGroupMetadataDescriptor]s.
    *
@@ -197,13 +197,6 @@ class EdpSimulator(
   private val random: Random = Random,
   private val logSketchDetails: Boolean = false,
 ) {
-  private val SUPPORTED_PROTOCOLS =
-    setOf(
-      ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2,
-      ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2,
-      ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
-    )
-
   val eventGroupReferenceIdPrefix = getEventGroupReferenceIdPrefix(edpData.displayName)
 
   /** A sequence of operations done in the simulator. */
@@ -832,6 +825,16 @@ class EdpSimulator(
             throw RequisitionRefusalException(
               Requisition.Refusal.Justification.SPEC_INVALID,
               "Measurement type not supported for protocol hmss.",
+            )
+          }
+          if (vidToIndexMap.isEmpty()) {
+            logger.log(
+              Level.WARNING,
+              "Skipping ${requisition.name}: The vidToIndexMap is needed for protocol hmss.",
+            )
+            throw RequisitionRefusalException(
+              Requisition.Refusal.Justification.SPEC_INVALID,
+              "The vidToIndexMap is needed for protocol hmss.",
             )
           }
           verifyDuchyEntries(
@@ -1915,6 +1918,13 @@ class EdpSimulator(
     init {
       System.loadLibrary("secret_share_generator_adapter")
     }
+
+    private val SUPPORTED_PROTOCOLS =
+      setOf(
+        ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2,
+        ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2,
+        ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
+      )
 
     private const val RPC_CHUNK_SIZE_BYTES = 32 * 1024 // 32 KiB
 

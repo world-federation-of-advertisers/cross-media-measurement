@@ -41,6 +41,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
+import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
@@ -207,11 +208,6 @@ private val CONSENT_SIGNALING_ELGAMAL_PUBLIC_KEY = elGamalPublicKey {
   element = HexString("0277BF406C5AA4376413E480E0AB8B0EFCA999D362204E6D1686E0BE567811604D").bytes
 }
 
-// private val DUCHY1_ENCRYPTION_PUBLIC_KEY = encryptionPublicKey {
-//   format = EncryptionPublicKey.Format.TINK_KEYSET
-//   data = ByteString.copyFromUtf8("worker1EncryptionPublicKey")
-// }
-
 private val LAST_EVENT_DATE = LocalDate.now()
 private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
 private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
@@ -241,7 +237,7 @@ class EdpSimulatorTest {
     onBlocking { getCertificate(eq(getCertificateRequest { name = DUCHY_ONE_CERTIFICATE.name })) }
       .thenReturn(DUCHY_ONE_CERTIFICATE)
     onBlocking { getCertificate(eq(getCertificateRequest { name = DUCHY_TWO_CERTIFICATE.name })) }
-      .thenReturn(DUCHY_ONE_CERTIFICATE)
+      .thenReturn(DUCHY_TWO_CERTIFICATE)
     onBlocking {
         getCertificate(eq(getCertificateRequest { name = DATA_PROVIDER_CERTIFICATE.name }))
       }
@@ -660,11 +656,11 @@ class EdpSimulatorTest {
   }
 
   @Test
-  fun `refuses Hmss requisition due to invaild number of duchy entries`() {
+  fun `refuses HMSS requisition due to invalid number of duchy entries`() {
     val requisition =
       HMSS_REQUISITION.copy {
         duchies.clear()
-        duchies += duchyEntryOne
+        duchies += DUCHY_ENTRY_ONE
       }
     requisitionsServiceMock.stub {
       onBlocking { listRequisitions(any()) }
@@ -709,16 +705,16 @@ class EdpSimulatorTest {
   }
 
   @Test
-  fun `refuses Hmss requisition due to invaild number of encryption public key`() {
+  fun `refuses HMSS requisition due to invalid number of encryption public key`() {
     val requisition =
       HMSS_REQUISITION.copy {
         duchies.clear()
         duchies +=
-          duchyEntryOne.copy {
+          DUCHY_ENTRY_ONE.copy {
             key = DUCHY_ONE_NAME
             value = value { duchyCertificate = DUCHY_ONE_CERTIFICATE.name }
           }
-        duchies += duchyEntryTwo
+        duchies += DUCHY_ENTRY_TWO
       }
     requisitionsServiceMock.stub {
       onBlocking { listRequisitions(any()) }
@@ -763,7 +759,7 @@ class EdpSimulatorTest {
   }
 
   @Test
-  fun `fulfills Hmss reach and frequency Requisition`() {
+  fun `fulfills HMSS reach and frequency Requisition`() {
     requisitionsServiceMock.stub {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += HMSS_REQUISITION })
@@ -857,46 +853,11 @@ class EdpSimulatorTest {
   }
 
   @Test
-  fun `fulfills Hmss reach and frequency requisition without precomputed vid to index map`() {
+  fun `refuses HMSS requisition due to empty vidToIndexMap`() {
     requisitionsServiceMock.stub {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += HMSS_REQUISITION })
     }
-
-    val matchingEvents =
-      generateEvents(
-        1L..10L,
-        FIRST_EVENT_DATE,
-        Person.AgeGroup.YEARS_18_TO_34,
-        Person.Gender.FEMALE,
-      )
-    val nonMatchingEvents =
-      generateEvents(
-        11L..15L,
-        FIRST_EVENT_DATE,
-        Person.AgeGroup.YEARS_35_TO_54,
-        Person.Gender.FEMALE,
-      ) +
-        generateEvents(
-          16L..20L,
-          FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_55_PLUS,
-          Person.Gender.FEMALE,
-        ) +
-        generateEvents(
-          21L..25L,
-          FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_18_TO_34,
-          Person.Gender.MALE,
-        ) +
-        generateEvents(
-          26L..30L,
-          FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_35_TO_54,
-          Person.Gender.MALE,
-        )
-
-    val allEvents = matchingEvents + nonMatchingEvents
 
     val edpSimulator =
       EdpSimulator(
@@ -909,48 +870,34 @@ class EdpSimulatorTest {
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
         requisitionFulfillmentStubMap,
-        InMemoryEventQuery(allEvents, 10000),
+        InMemoryEventQuery(emptyList()),
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
+        emptyMap(),
       )
-
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
-    val requests: List<FulfillRequisitionRequest> =
-      fakeRequisitionFulfillmentService.fullfillRequisitionInvocations.single().requests
-    val header: FulfillRequisitionRequest.Header = requests.first().header
-    val shareVector =
-      FrequencyVector.parseFrom(requests.drop(1).map { it.bodyChunk.data }.flatten())
-    assert(
-      shareVector.dataList.all {
-        it in 0 until HONEST_MAJORITY_SHARE_SHUFFLE_SKETCH_PARAMS.ringModulus
-      }
-    )
-    assertThat(header)
-      .comparingExpectedFieldsOnly()
+    val refuseRequest: RefuseRequisitionRequest =
+      verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
+    assertThat(refuseRequest)
+      .ignoringFieldScope(
+        FieldScopes.allowingFieldDescriptors(
+          Refusal.getDescriptor().findFieldByNumber(Refusal.MESSAGE_FIELD_NUMBER)
+        )
+      )
       .isEqualTo(
-        FulfillRequisitionRequestKt.header {
-          name = HMSS_REQUISITION.name
-          requisitionFingerprint =
-            computeRequisitionFingerprint(
-              HMSS_REQUISITION.measurementSpec.message.value,
-              Hashing.hashSha256(HMSS_REQUISITION.encryptedRequisitionSpec.ciphertext),
-            )
-          nonce = REQUISITION_SPEC.nonce
-          honestMajorityShareShuffle =
-            FulfillRequisitionRequestKt.HeaderKt.honestMajorityShareShuffle {
-              registerCount = shareVector.dataList.size.toLong()
-              dataProviderCertificate = EDP_DATA.certificateKey.toName()
-            }
+        refuseRequisitionRequest {
+          name = REQUISITION.name
+          refusal = refusal { justification = Refusal.Justification.SPEC_INVALID }
         }
       )
-    println(header.honestMajorityShareShuffle.secretSeed)
-    assert(header.honestMajorityShareShuffle.hasSecretSeed())
+    assertThat(refuseRequest.refusal.message).contains("vidToIndexMap")
+    assertThat(fakeRequisitionFulfillmentService.fullfillRequisitionInvocations).isEmpty()
   }
 
   @Test
-  fun `charges privacy budget with discrete Gaussian noise and ACDP composition for mpc Hmss reach and frequency Requisition`() {
+  fun `charges privacy budget with discrete Gaussian noise and ACDP composition for mpc HMSS reach and frequency Requisition`() {
     runBlocking {
       val measurementSpec =
         MEASUREMENT_SPEC.copy {
@@ -1446,7 +1393,7 @@ class EdpSimulatorTest {
 
   @Test
   fun `refuses requisition when DuchyEntry verification fails`() {
-
+    val eventQueryMock = mock<EventQuery<TestEvent>>()
     val simulator =
       EdpSimulator(
         EDP_DATA,
@@ -1458,7 +1405,7 @@ class EdpSimulatorTest {
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
         requisitionFulfillmentStubMap,
-        InMemoryEventQuery(emptyList()),
+        eventQueryMock,
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
@@ -1506,7 +1453,7 @@ class EdpSimulatorTest {
 
   @Test
   fun `refuses Requisition when EventGroup not found`() {
-
+    val eventQueryMock = mock<EventQuery<TestEvent>>()
     val simulator =
       EdpSimulator(
         EDP_DATA,
@@ -1518,7 +1465,7 @@ class EdpSimulatorTest {
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
         requisitionFulfillmentStubMap,
-        InMemoryEventQuery(emptyList()),
+        eventQueryMock,
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
@@ -1577,7 +1524,7 @@ class EdpSimulatorTest {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisitionGeometric })
     }
-
+    val eventQueryMock = mock<EventQuery<TestEvent>>()
     val simulator =
       EdpSimulator(
         EDP_DATA,
@@ -1589,7 +1536,7 @@ class EdpSimulatorTest {
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
         requisitionFulfillmentStubMap,
-        InMemoryEventQuery(emptyList()),
+        eventQueryMock,
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
@@ -1645,7 +1592,7 @@ class EdpSimulatorTest {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
-
+    val eventQueryMock = mock<EventQuery<TestEvent>>()
     val simulator =
       EdpSimulator(
         EDP_DATA,
@@ -1657,7 +1604,7 @@ class EdpSimulatorTest {
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
         requisitionFulfillmentStubMap,
-        InMemoryEventQuery(emptyList()),
+        eventQueryMock,
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
@@ -1713,7 +1660,7 @@ class EdpSimulatorTest {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
-
+    val eventQueryMock = mock<EventQuery<TestEvent>>()
     val simulator =
       EdpSimulator(
         EDP_DATA,
@@ -1725,7 +1672,7 @@ class EdpSimulatorTest {
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
         requisitionFulfillmentStubMap,
-        InMemoryEventQuery(emptyList()),
+        eventQueryMock,
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
@@ -1779,7 +1726,7 @@ class EdpSimulatorTest {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
-
+    val eventQueryMock = mock<EventQuery<TestEvent>>()
     val simulator =
       EdpSimulator(
         EDP_DATA,
@@ -1791,7 +1738,7 @@ class EdpSimulatorTest {
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
         requisitionFulfillmentStubMap,
-        InMemoryEventQuery(emptyList()),
+        eventQueryMock,
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
@@ -1845,7 +1792,7 @@ class EdpSimulatorTest {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
-
+    val eventQueryMock = mock<EventQuery<TestEvent>>()
     val simulator =
       EdpSimulator(
         EDP_DATA,
@@ -1857,7 +1804,7 @@ class EdpSimulatorTest {
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
         requisitionFulfillmentStubMap,
-        InMemoryEventQuery(emptyList()),
+        eventQueryMock,
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
@@ -1911,7 +1858,7 @@ class EdpSimulatorTest {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
-
+    val eventQueryMock = mock<EventQuery<TestEvent>>()
     val simulator =
       EdpSimulator(
         EDP_DATA,
@@ -1923,7 +1870,7 @@ class EdpSimulatorTest {
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
         requisitionFulfillmentStubMap,
-        InMemoryEventQuery(emptyList()),
+        eventQueryMock,
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
@@ -1977,7 +1924,7 @@ class EdpSimulatorTest {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
-
+    val eventQueryMock = mock<EventQuery<TestEvent>>()
     val simulator =
       EdpSimulator(
         EDP_DATA,
@@ -1989,7 +1936,7 @@ class EdpSimulatorTest {
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
         requisitionFulfillmentStubMap,
-        InMemoryEventQuery(emptyList()),
+        eventQueryMock,
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
@@ -3146,7 +3093,7 @@ class EdpSimulatorTest {
       }
     }
 
-    private val duchyEntryOne = duchyEntry {
+    private val DUCHY_ENTRY_ONE = duchyEntry {
       key = DUCHY_ONE_NAME
       value = value {
         duchyCertificate = DUCHY_ONE_CERTIFICATE.name
@@ -3156,7 +3103,7 @@ class EdpSimulatorTest {
       }
     }
 
-    private val duchyEntryTwo = duchyEntry {
+    private val DUCHY_ENTRY_TWO = duchyEntry {
       key = DUCHY_TWO_NAME
       value = value { duchyCertificate = DUCHY_TWO_CERTIFICATE.name }
     }
@@ -3180,8 +3127,8 @@ class EdpSimulatorTest {
       }
       dataProviderCertificate = DATA_PROVIDER_CERTIFICATE.name
       dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()
-      duchies += duchyEntryOne
-      duchies += duchyEntryTwo
+      duchies += DUCHY_ENTRY_ONE
+      duchies += DUCHY_ENTRY_TWO
     }
 
     private val TRUSTED_CERTIFICATES: Map<ByteString, X509Certificate> =
