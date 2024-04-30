@@ -27,14 +27,14 @@ _worker2_cert_name:    string @tag("worker2_cert_name")
 #MillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "3"
-		memory: "2.5Gi"
+		memory: "4Gi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#MillMaxHeapSize:        "2G"
-#MillReplicas:           1
+#MillMaxHeapSize: "3500M"
+#MillReplicas:    1
 
 #DuchyConfig: {
 	let duchyName = name
@@ -54,17 +54,16 @@ _duchyConfigs: {
 		databaseType:            "spanner"
 	}
 	"worker1": {
-		protocolsSetupConfig:    "worker1_protocols_setup_config.textproto"
-		certificateResourceName: _worker1_cert_name
-		databaseType:            "spanner"
+		protocolsSetupConfig:      "worker1_protocols_setup_config.textproto"
+		certificateResourceName:   _worker1_cert_name
+		databaseType:              "spanner"
 		duchyKeyEncryptionKeyFile: "worker1_kek.tink"
 	}
 	"worker2": {
-		protocolsSetupConfig:    "worker2_protocols_setup_config.textproto"
-		certificateResourceName: _worker2_cert_name
-		databaseType:            "postgres"
+		protocolsSetupConfig:      "worker2_protocols_setup_config.textproto"
+		certificateResourceName:   _worker2_cert_name
+		databaseType:              "postgres"
 		duchyKeyEncryptionKeyFile: "worker2_kek.tink"
-
 	}
 }
 
@@ -95,11 +94,11 @@ _computationControlTargets: {
 
 _baseDuchyConfig: {
 	_imageSuffixes: {
-		"computation-control-server":     "duchy/local-computation-control"
-		"herald-daemon":									"duchy/local-herald"
-		"liquid-legions-v2-mill-daemon":  "duchy/local-liquid-legions-v2-mill"
-		"honest-majority-share-shuffle-mill-daemon":  "duchy/local-honest-majority-share-shuffle-mill"
-		"requisition-fulfillment-server": "duchy/local-requisition-fulfillment"
+		"computation-control-server":                "duchy/local-computation-control"
+		"herald-daemon":                             "duchy/local-herald"
+		"liquid-legions-v2-mill-daemon":             "duchy/local-liquid-legions-v2-mill"
+		"honest-majority-share-shuffle-mill-daemon": "duchy/local-honest-majority-share-shuffle-mill"
+		"requisition-fulfillment-server":            "duchy/local-requisition-fulfillment"
 	}
 	_duchy_secret_name:           _secret_name
 	_computation_control_targets: _computationControlTargets
@@ -120,9 +119,9 @@ duchies: [
 					"internal-api-server": "duchy/local-spanner-computations"
 				}
 				_duchy: {
-					name:                   duchyConfig.name
-					protocols_setup_config: duchyConfig.protocolsSetupConfig
-					cs_cert_resource_name:  duchyConfig.certificateResourceName
+					name:                      duchyConfig.name
+					protocols_setup_config:    duchyConfig.protocolsSetupConfig
+					cs_cert_resource_name:     duchyConfig.certificateResourceName
 					duchyKeyEncryptionKeyFile: duchyConfig.duchyKeyEncryptionKeyFile
 				}
 				deployments: {
@@ -141,9 +140,9 @@ duchies: [
 					"internal-api-server": "duchy/local-postgres-internal-server"
 				}
 				_duchy: {
-					name:                   duchyConfig.name
-					protocols_setup_config: duchyConfig.protocolsSetupConfig
-					cs_cert_resource_name:  duchyConfig.certificateResourceName
+					name:                      duchyConfig.name
+					protocols_setup_config:    duchyConfig.protocolsSetupConfig
+					cs_cert_resource_name:     duchyConfig.certificateResourceName
 					duchyKeyEncryptionKeyFile: duchyConfig.duchyKeyEncryptionKeyFile
 				}
 				_postgresConfig: {

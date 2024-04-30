@@ -196,6 +196,10 @@ message HonestMajorityShareShuffle {
   message AggregationPhaseInput {
     // Combined sketches from non-aggregators.
     repeated uint32 combined_sketch = 1;
+    // The number of registers in the sketch.
+    //
+    // It is provided from RequisitionFulfillment.
+    int64 register_count = 3;
   }
 
   // Details about a particular attempt of running a stage of the

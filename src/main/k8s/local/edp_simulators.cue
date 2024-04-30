@@ -38,7 +38,7 @@ _worker2Id: "worker2"
 #Worker1PublicApiTarget: (#Target & {name: "worker1-requisition-fulfillment-server"}).target
 #Worker2PublicApiTarget: (#Target & {name: "worker2-requisition-fulfillment-server"}).target
 
-_resourceRequirements: ResourceRequirements=#ResourceRequirements & {
+#EdpSimulatorRresourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "500m"
 		memory: "10Gi"
@@ -100,20 +100,20 @@ edpSimulators: {
 			deployment: {
 				_container: {
 					_javaOptions: {
-						maxHeapSize: "8000M",
-						initialHeapSize: "8000M",
+						maxHeapSize:     "8000M"
+						initialHeapSize: "8000M"
 					}
-					resources: _resourceRequirements
+					resources: #EdpSimulatorRresourceRequirements
 				}
-			 spec: template: spec: {
-			 	_dependencies: [
-			 		"v2alpha-public-api-server",
+				spec: template: spec: {
+					_dependencies: [
+						"v2alpha-public-api-server",
 						"worker1-requisition-fulfillment-server",
 						"worker2-requisition-fulfillment-server",
-					"worker2-requisition-fulfillment-server",]
+						"worker2-requisition-fulfillment-server"]
 					_mounts: "config-files": #ConfigMapMount
-			 }
-		  }
+				}
+			}
 		}
 	}
 }

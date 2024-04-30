@@ -321,6 +321,9 @@ absl::StatusOr<CompleteAggregationPhaseResponse> CompleteAggregationPhase(
   *response.mutable_elapsed_cpu_duration() =
       google::protobuf::util::TimeUtil::MillisecondsToDuration(
           timer.ElapsedMillis());
+
+   std::cout << "adjusted_total=" << adjusted_total << std::endl;
+   std::cout << "reach=" << reach << std::endl;
   return response;
 }
 

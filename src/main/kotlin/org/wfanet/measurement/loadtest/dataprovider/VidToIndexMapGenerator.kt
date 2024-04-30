@@ -17,19 +17,21 @@
 package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.protobuf.ByteString
-import java.nio.ByteOrder
-import org.wfanet.measurement.common.toByteString
 import java.lang.management.ManagementFactory
+import java.nio.ByteOrder
 import java.security.MessageDigest
+import org.wfanet.measurement.common.toByteString
 
 fun printMemoryUsage() {
   fun Double.format(digits: Int) = "%.${digits}f".format(this)
 
-  System.gc()
+  //  System.gc()
   val runtime = Runtime.getRuntime()
 
   println("Total memory: ${(runtime.totalMemory() / 1048576.0).format(2)} MB")
-  println("Used memory: ${((runtime.totalMemory() - runtime.freeMemory()) / 1048576.0).format(2)} MB")
+  println(
+    "Used memory: ${((runtime.totalMemory() - runtime.freeMemory()) / 1048576.0).format(2)} MB"
+  )
   println("Free memory: ${(runtime.freeMemory() / 1048576.0).format(2)} MB")
   println("Max memory: ${(runtime.maxMemory() / 1048576.0).format(2)} MB")
 
@@ -43,9 +45,7 @@ fun printMemoryUsage() {
 
 // Helper extension to format as MB with 2 decimals
 
-
 data class IndexedValue(val index: Int, val value: Double)
-
 
 object VidToIndexMapGenerator {
 
@@ -59,13 +59,15 @@ object VidToIndexMapGenerator {
     return hashing.digest().toByteString()
   }
 
-  fun ByteArray.toLong(): Long {
-    return foldIndexed(0L) { index, acc, byte ->
-      (acc shl 8) or (byte.toLong() and 0xff)
+  private fun ByteArray.toULong(): ULong {
+    var unsignedLong = 0UL
+    for (digit in this) {
+      unsignedLong = (unsignedLong shl 8) or (digit.toUByte().toULong())
     }
+    return unsignedLong
   }
 
-  data class PairOfLong(val first: Long, val second: Long)
+  data class VidToHash(val first: Long, val second: ULong)
 
   /**
    * Generates the map (vid, (bucket index, normalized hash)) for all vids in the vid universe.
@@ -79,42 +81,31 @@ object VidToIndexMapGenerator {
 
     val size = vidUniverse.count()
 
-    val hashes = Array(size) { Pair(0L, 0L) }
+    val hashes = Array(size) { VidToHash(0L, 0UL) }
 
     var n = 0
     printMemoryUsage()
     for (vid in vidUniverse) {
       // Converts the hash to a non-negative BigInteger.
-      val hash = generateHash(vid, salt).toByteArray().copyOfRange(0, 8).toLong()
-      hashes[n] = Pair(vid, hash)
+      val hash = generateHash(vid, salt).toByteArray().copyOfRange(0, 8).toULong()
+      hashes[n] = VidToHash(vid, hash)
 
       n += 1
-//      if (n % 5_000_000 == 0) {
-//        println("n=$n")
-//
-//      }
-
     }
     println("generateMapping 2")
     printMemoryUsage()
 
     // Sorts by the hash values and uses vid to break tie in case of collision.
-    hashes.sortWith(compareBy<Pair<Long, Long>> { it.first }.thenBy { it.second })
+    hashes.sortWith(compareBy<VidToHash> { it.second }.thenBy { it.first })
     println("generateMapping 3")
 
     // Maps the hash values to the unit interval and generates the vid to index and normalized hash
     // value map.
-    val maxHashValue = Long.MAX_VALUE.toDouble()
+    val maxHashValue = ULong.MAX_VALUE.toDouble()
     val vidMap = mutableMapOf<Long, IndexedValue>() // 33M * 24 = ~1GB
-    n = 0
     for ((index, pair) in hashes.withIndex()) {
       val normalizedHashValue = pair.second.toDouble() / maxHashValue
       vidMap[pair.first] = IndexedValue(index, normalizedHashValue)
-      n += 1
-//      if (n % 5_000_000 == 0) {
-//        println("n=$n")
-//        printMemoryUsage()
-//      }
     }
     println("generateMapping 4")
 

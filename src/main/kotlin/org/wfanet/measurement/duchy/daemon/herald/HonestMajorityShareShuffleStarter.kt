@@ -77,7 +77,7 @@ object HonestMajorityShareShuffleStarter {
         HonestMajorityShareShuffleKt.computationDetails {
           this.role = role
           parameters = systemComputation.toHonestMajorityShareShuffleParameters()
-          participants += systemComputation.computationParticipantsList.map { it.key.duchyId }
+          participants += getParticipants(honestMajorityShareShuffleSetupConfig)
           if (role != RoleInComputation.AGGREGATOR) {
             randomSeed = generateRandomSeed()
 
@@ -186,6 +186,14 @@ object HonestMajorityShareShuffleStarter {
       }
       noiseMechanism = hmssConfig.noiseMechanism.toInternalNoiseMechanism()
     }
+  }
+
+  private fun getParticipants(setupConfig: HonestMajorityShareShuffleSetupConfig): List<String> {
+    return listOf(
+      setupConfig.firstNonAggregatorDuchyId,
+      setupConfig.secondNonAggregatorDuchyId,
+      setupConfig.secondNonAggregatorDuchyId,
+    )
   }
 
   private fun Computation.MpcProtocolConfig.NoiseMechanism.toInternalNoiseMechanism():

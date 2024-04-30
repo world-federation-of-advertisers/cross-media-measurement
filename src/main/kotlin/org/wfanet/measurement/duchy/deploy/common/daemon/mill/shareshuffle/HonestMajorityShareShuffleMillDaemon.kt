@@ -14,6 +14,11 @@
 
 package org.wfanet.measurement.duchy.deploy.common.daemon.mill.shareshuffle
 
+import com.google.crypto.tink.Aead
+import com.google.crypto.tink.BinaryKeysetReader
+import com.google.crypto.tink.CleartextKeysetHandle
+import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.aead.AeadConfig
 import com.google.protobuf.ByteString
 import io.grpc.Channel
 import io.opentelemetry.api.GlobalOpenTelemetry
@@ -34,40 +39,34 @@ import java.time.Duration
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
+import org.wfanet.measurement.common.crypto.tink.TinkKeyStorageProvider
+import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
+import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
+import org.wfanet.measurement.duchy.daemon.mill.shareshuffle.HonestMajorityShareShuffleMill
+import org.wfanet.measurement.duchy.daemon.mill.shareshuffle.crypto.JniHonestMajorityShareShuffleCryptor
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
+import org.wfanet.measurement.duchy.storage.TinkKeyStore
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
+import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub as SystemComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
-import com.google.crypto.tink.Aead
-import com.google.crypto.tink.BinaryKeysetReader
-import com.google.crypto.tink.CleartextKeysetHandle
-import com.google.crypto.tink.KeysetHandle
-import com.google.crypto.tink.aead.AeadConfig
-import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
-import org.wfanet.measurement.common.crypto.tink.TinkKeyStorageProvider
-import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
-import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
-import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.duchy.daemon.mill.shareshuffle.HonestMajorityShareShuffleMill
-import org.wfanet.measurement.duchy.daemon.mill.shareshuffle.crypto.JniHonestMajorityShareShuffleCryptor
-import org.wfanet.measurement.duchy.storage.TinkKeyStore
-import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import picocli.CommandLine
 
 abstract class HonestMajorityShareShuffleMillDaemon : Runnable {
@@ -88,10 +87,10 @@ abstract class HonestMajorityShareShuffleMillDaemon : Runnable {
 
     val computationsServiceChannel: Channel =
       buildMutualTlsChannel(
-        flags.computationsServiceFlags.target,
-        clientCerts,
-        flags.computationsServiceFlags.certHost,
-      )
+          flags.computationsServiceFlags.target,
+          clientCerts,
+          flags.computationsServiceFlags.certHost,
+        )
         .withShutdownTimeout(flags.channelShutdownTimeout)
         .withDefaultDeadline(flags.computationsServiceFlags.defaultDeadlineDuration)
     val dataClients =
@@ -105,13 +104,13 @@ abstract class HonestMajorityShareShuffleMillDaemon : Runnable {
         .filterKeys { it != duchyName }
         .mapValues { (duchyId, entry) ->
           ComputationControlCoroutineStub(
-            buildMutualTlsChannel(
-              flags.computationControlServiceTargets.getValue(duchyId),
-              clientCerts,
-              entry.computationControlServiceCertHost,
+              buildMutualTlsChannel(
+                  flags.computationControlServiceTargets.getValue(duchyId),
+                  clientCerts,
+                  entry.computationControlServiceCertHost,
+                )
+                .withShutdownTimeout(flags.channelShutdownTimeout)
             )
-              .withShutdownTimeout(flags.channelShutdownTimeout)
-          )
             .withDuchyId(duchyName)
         }
 
@@ -120,7 +119,7 @@ abstract class HonestMajorityShareShuffleMillDaemon : Runnable {
         .withShutdownTimeout(flags.channelShutdownTimeout)
 
     val publicApiChannel =
-      buildMutualTlsChannel(flags.systemApiFlags.target, clientCerts, flags.systemApiFlags.certHost)
+      buildMutualTlsChannel(flags.publicApiFlags.target, clientCerts, flags.publicApiFlags.certHost)
         .withShutdownTimeout(flags.channelShutdownTimeout)
 
     val systemComputationsClient =
@@ -151,19 +150,20 @@ abstract class HonestMajorityShareShuffleMillDaemon : Runnable {
     // included in mill logs to help debugging.
     val millId = System.getenv("HOSTNAME")
 
-    val privateKeyStore = flags.keyEncryptionKeyTinkFile?.let { file ->
-      val keyUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+    val privateKeyStore =
+      flags.keyEncryptionKeyTinkFile?.let { file ->
+        val keyUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
 
-      val keysetHandle: KeysetHandle =
-        file.inputStream().use { input ->
-          CleartextKeysetHandle.read(BinaryKeysetReader.withInputStream(input))
-        }
-      AeadConfig.register()
-      val aead = keysetHandle.getPrimitive(Aead::class.java)
-      val fakeKmsClient = FakeKmsClient().also { it.setAead(keyUri, aead) }
-      TinkKeyStorageProvider(fakeKmsClient)
-        .makeKmsPrivateKeyStore(TinkKeyStore(storageClient), keyUri)
-    }
+        val keysetHandle: KeysetHandle =
+          file.inputStream().use { input ->
+            CleartextKeysetHandle.read(BinaryKeysetReader.withInputStream(input))
+          }
+        AeadConfig.register()
+        val aead = keysetHandle.getPrimitive(Aead::class.java)
+        val fakeKmsClient = FakeKmsClient().also { it.setAead(keyUri, aead) }
+        TinkKeyStorageProvider(fakeKmsClient)
+          .makeKmsPrivateKeyStore(TinkKeyStore(storageClient), keyUri)
+      }
 
     val openTelemetry: OpenTelemetry =
       if (flags.openTelemetryOptions == null) {
@@ -229,9 +229,10 @@ abstract class HonestMajorityShareShuffleMillDaemon : Runnable {
         certificateClient = publicCertificatesClient,
         workerStubs = computationControlClientMap,
         cryptoWorker = JniHonestMajorityShareShuffleCryptor(),
-        protocolsSetupConfig = flags.protocolsSetupConfig.reader().use {
-          parseTextProto(it, ProtocolsSetupConfig.getDefaultInstance())
-        },
+        protocolsSetupConfig =
+          flags.protocolsSetupConfig.reader().use {
+            parseTextProto(it, ProtocolsSetupConfig.getDefaultInstance())
+          },
         workLockDuration = flags.workLockDuration,
         openTelemetry = openTelemetry,
         requestChunkSizeBytes = flags.requestChunkSizeBytes,
@@ -241,9 +242,7 @@ abstract class HonestMajorityShareShuffleMillDaemon : Runnable {
       withContext(CoroutineName("Mill $millId")) {
         val throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval)
         throttler.loopOnReady {
-          logAndSuppressExceptionSuspend {
-            mill.pollAndProcessNextComputation()
-          }
+          logAndSuppressExceptionSuspend { mill.pollAndProcessNextComputation() }
         }
       }
     }

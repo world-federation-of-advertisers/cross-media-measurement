@@ -24,12 +24,11 @@ import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.flowOf
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.EncryptedMessage
-import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.RandomSeed
 import org.wfanet.measurement.api.v2alpha.SignedMessage
@@ -80,6 +79,7 @@ import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.ShareShuffleSketch
 import org.wfanet.measurement.internal.duchy.protocol.completeAggregationPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.completeShufflePhaseRequest
+import org.wfanet.measurement.internal.duchy.protocol.copy
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
@@ -302,7 +302,7 @@ class HonestMajorityShareShuffleMill(
           token.inputPathList()
         } else {
           emptyList()
-        }
+        },
     )
   }
 
@@ -338,9 +338,10 @@ class HonestMajorityShareShuffleMill(
 
     val encryptedAndSignedSeed = encryptedMessage {
       ciphertext = secretSeed.secretSeedCiphertext
-      typeUrl = when (apiVersion) {
-        Version.V2_ALPHA -> ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
-      }
+      typeUrl =
+        when (apiVersion) {
+          Version.V2_ALPHA -> ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
+        }
     }
     val signedSeed = decryptRandomSeed(encryptedAndSignedSeed, privateKey)
 
@@ -383,7 +384,6 @@ class HonestMajorityShareShuffleMill(
 
     val request = completeShufflePhaseRequest {
       val hmss = token.computationDetails.honestMajorityShareShuffle
-      sketchParams = hmss.parameters.sketchParams
       commonRandomSeed = hmss.randomSeed xor shufflePhaseInput.peerRandomSeed
       order =
         if (hmss.role == FIRST_NON_AGGREGATOR) {
@@ -397,13 +397,16 @@ class HonestMajorityShareShuffleMill(
       }
       noiseMechanism = hmss.parameters.noiseMechanism
 
+      val registerCounts = mutableListOf<Long>()
       for (requisition in requisitions) {
         val requisitionId = requisition.externalKey.externalRequisitionId
 
         val blob = requisitionBlobs[requisitionId]
         if (blob != null) {
           logger.info("ShufflePhase: $requisitionId is a blob")
-          // Requisition in format of blob.
+          // Requisition fulfilled locally in format of a blob.
+          registerCounts +=
+            requisition.details.protocolDetails.honestMajorityShareShuffle.registerCount
           sketchShares += sketchShare {
             data =
               CompleteShufflePhaseRequestKt.SketchShareKt.shareData {
@@ -413,24 +416,34 @@ class HonestMajorityShareShuffleMill(
           }
         } else {
           logger.info("ShufflePhase: $requisitionId is a random seed from peer.")
-          // Requisition in format of random seed.
-          val secretSeed = secretSeeds.find { it.requisitionId == requisitionId }
-          require(secretSeed != null) {
-            "Neither blob and seed received for requisition $requisitionId"
-          }
+          // Requisition data provided by peer worker in format of a seed.
+          val secretSeed =
+            secretSeeds.find { it.requisitionId == requisitionId }
+              ?: error { "Neither blob and seed received for requisition $requisitionId" }
+          registerCounts += secretSeed.registerCount
 
           // TODO(@renjiez): Read public api version from ShufflePhaseInput
-          val seed = verifySecretSeed(secretSeed, hmss.encryptionKeyPair.privateKeyId, Version.V2_ALPHA)
+          val seed =
+            verifySecretSeed(secretSeed, hmss.encryptionKeyPair.privateKeyId, Version.V2_ALPHA)
 
           sketchShares += sketchShare { this.seed = seed.data }
         }
       }
+      require(registerCounts.distinct().size == 1) {
+        "All RegisterCount from requisitions must be the same. $registerCounts"
+      }
+      sketchParams =
+        hmss.parameters.sketchParams.copy {
+          registerCount = registerCounts.first()
+          logger.log(Level.INFO, "registerCount = $registerCount")
+        }
     }
 
     val result = cryptoWorker.completeShufflePhase(request)
 
     val aggregationPhaseInput = aggregationPhaseInput {
       combinedSketch += result.combinedSketchList
+      registerCount = request.sketchParams.registerCount
     }
 
     sendAdvanceComputationRequest(
@@ -448,7 +461,6 @@ class HonestMajorityShareShuffleMill(
 
     val request = completeAggregationPhaseRequest {
       val hmss = token.computationDetails.honestMajorityShareShuffle
-      sketchParams = hmss.parameters.sketchParams
       maximumFrequency = hmss.parameters.maximumFrequency
       val publicApiVersion =
         Version.fromString(token.computationDetails.kingdomComputation.publicApiVersion)
@@ -469,10 +481,17 @@ class HonestMajorityShareShuffleMill(
         sketchShares +=
           CompleteAggregationPhaseRequestKt.shareData { shareVector += input.combinedSketchList }
       }
+      sketchParams =
+        hmss.parameters.sketchParams.copy {
+          require(aggregationPhaseInputs.map { it.registerCount }.distinct().size == 1)
+          registerCount = aggregationPhaseInputs.first().registerCount
+          logger.log(Level.INFO, "registerCount = $registerCount")
+        }
     }
 
     val result = cryptoWorker.completeAggregationPhase(request)
 
+    logger.log(Level.INFO) { "Result: $result" }
     sendResultToKingdom(
       token,
       ReachAndFrequencyResult(result.reach, result.frequencyDistributionMap),
