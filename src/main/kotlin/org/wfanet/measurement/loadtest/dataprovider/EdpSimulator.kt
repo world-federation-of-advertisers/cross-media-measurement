@@ -833,7 +833,7 @@ class EdpSimulator(
               "Skipping ${requisition.name}: The vidToIndexMap is needed for protocol hmss.",
             )
             throw RequisitionRefusalException(
-              Requisition.Refusal.Justification.SPEC_INVALID,
+              Requisition.Refusal.Justification.UNFULFILLABLE,
               "The vidToIndexMap is needed for protocol hmss.",
             )
           }

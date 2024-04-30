@@ -889,7 +889,7 @@ class EdpSimulatorTest {
       .isEqualTo(
         refuseRequisitionRequest {
           name = REQUISITION.name
-          refusal = refusal { justification = Refusal.Justification.SPEC_INVALID }
+          refusal = refusal { justification = Refusal.Justification.UNFULFILLABLE }
         }
       )
     assertThat(refuseRequest.refusal.message).contains("vidToIndexMap")
