@@ -15,7 +15,6 @@
 name: Build and push container images
 
 on:
-  workflow_dispatch:
   workflow_call:
     inputs:
       image-tag:
@@ -44,7 +43,7 @@ jobs:
 
       - name: Write ~/.bazelrc
         env:
-          IMAGE_TAG: ${{ inputs.image-tag || github.sha }}
+          IMAGE_TAG: ${{ inputs.image-tag }}
         run: |
           cat << EOF > ~/.bazelrc
           common --config=ci
