@@ -164,7 +164,14 @@ open class ProductionExchangeTaskMapper(
 
     return if (emrBeamTaskExecutorOnDaemon) {
       requireNotNull(emrService)
-      EmrExchangeTask(emrService)
+      EmrExchangeTask(emrService,
+        exchangeDateKey.recurringExchangeId,
+        workflow.stepsList.indexOfFirst {
+          it.stepCase == ExchangeWorkflow.Step.StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP
+        },
+        attemptKey,
+        exchangeDateKey.date,
+      )
     } else {
       apacheBeamTaskFor(outputManifests, emptyList()) {
         decryptPrivateMembershipResults(stepDetails.parameters, JniQueryResultsDecryptor())

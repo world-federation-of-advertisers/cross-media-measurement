@@ -10,6 +10,14 @@ kt_jvm_library(
     srcs = glob(["*.kt"]),
     deps = [
         "//imports/java/software/amazon/awssdk/emrserverless",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/storage",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempt_kt_jvm_proto",
+        "//src/main/proto/wfa/panelmatch/client/storage:storage_details_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/common/api:resource_key",
     ],
 )

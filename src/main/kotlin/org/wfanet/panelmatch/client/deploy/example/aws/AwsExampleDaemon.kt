@@ -35,6 +35,7 @@ import org.wfanet.panelmatch.client.launcher.ExchangeTaskExecutor
 import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
 import org.wfanet.panelmatch.common.beam.BeamOptions
 import org.wfanet.panelmatch.client.exchangetasks.emr.EmrServerlessClientService
+import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.common.certificates.aws.CertificateAuthority
 import org.wfanet.panelmatch.common.certificates.aws.PrivateCaClient
 import org.wfanet.panelmatch.common.secrets.MutableSecretMap
@@ -104,7 +105,9 @@ private class AwsExampleDaemon : ExampleDaemon() {
       emrBeamTaskExecutorOnDaemon = true,
       emrService = EmrExchangeTaskService(
         exchangeTaskAppIdPath = "s3://${s3Bucket}/exchange-tasks/emr/application",
+        exchangeWorkflowPrefix = "s3://${s3Bucket}/valid-exchange-workflows",
         storageClient = rootStorageClient,
+        storageType = StorageDetails.PlatformCase.AWS,
         emrServerlessClientService = EmrServerlessClientService(
           s3ExchangeTaskJarPath = "s3://${s3Bucket}/exchange-tasks/jars/beam-exchange-tasks.jar",
           s3ExchangeTaskLogPath = "s3://${s3Bucket}/exchange-tasks/logs",
