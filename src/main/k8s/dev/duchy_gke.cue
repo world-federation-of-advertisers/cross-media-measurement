@@ -28,6 +28,7 @@ _worker2SystemApiTarget:       string @tag("worker2_system_api_target")
 _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 
 #KingdomSystemApiTarget:             string @tag("kingdom_system_api_target")
+#KingdomPublicApiTarget:             string @tag("kingdom_public_api_target")
 #InternalServerServiceAccount:       "internal-server"
 #StorageServiceAccount:              "storage"
 #InternalServerResourceRequirements: #ResourceRequirements & {
@@ -80,6 +81,7 @@ duchy: #SpannerDuchy & {
 		"worker2":    _worker2SystemApiTarget
 	}
 	_kingdom_system_api_target: #KingdomSystemApiTarget
+	_kingdom_public_api_target: #KingdomPublicApiTarget
 	_blob_storage_flags:        _cloudStorageConfig.flags
 	_verbose_grpc_logging:      "false"
 	_duchyMillParallelism:      4
@@ -109,10 +111,25 @@ duchy: #SpannerDuchy & {
 			_container: {
 				resources: #HeraldResourceRequirements
 			}
-			spec: template: spec: #SpotVmPodSpec
+			spec: template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {
+				serviceAccountName: #StorageServiceAccount
+			}
 		}
 		"liquid-legions-v2-mill-daemon-deployment": {
 			_workLockDuration: "10m"
+			_container: {
+				_javaOptions: maxHeapSize: #MillMaxHeapSize
+				resources: #MillResourceRequirements
+			}
+			spec: {
+				replicas: #MillReplicas
+				template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {
+					serviceAccountName: #StorageServiceAccount
+				}
+			}
+		}
+		"honest-majority-share-shuffle-daemon-deployment": {
+			_workLockDuration: "5m"
 			_container: {
 				_javaOptions: maxHeapSize: #MillMaxHeapSize
 				resources: #MillResourceRequirements

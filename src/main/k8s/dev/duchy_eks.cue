@@ -22,10 +22,12 @@ _computationControlServerEips: string @tag("computation_control_server_eips")
 _aggregatorSystemApiTarget:    string @tag("aggregator_system_api_target")
 _worker1SystemApiTarget:       string @tag("worker1_system_api_target")
 _worker2SystemApiTarget:       string @tag("worker2_system_api_target")
+_duchyKeyEncryptionKeyFile:    string @tag("duchy_key_encryption_key_file")
 
 _duchyCertName: "duchies/\(_duchyName)/certificates/\(_certificateId)"
 
 #KingdomSystemApiTarget:             string @tag("kingdom_system_api_target")
+#KingdomPublicApiTarget:             string @tag("kingdom_public_api_target")
 #InternalServerServiceAccount:       "internal-server"
 #StorageServiceAccount:              "storage"
 #InternalServerResourceRequirements: #ResourceRequirements & {
@@ -47,7 +49,7 @@ _duchyCertName: "duchies/\(_duchyName)/certificates/\(_certificateId)"
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#MillMaxHeapSize:        "3G"
+#MillMaxHeapSize:        "3500M"
 #MillReplicas:           1
 #FulfillmentMaxHeapSize: "96M"
 
@@ -68,9 +70,10 @@ duchy: #PostgresDuchy & {
 		"update-duchy-schema":            "duchy/aws-postgres-update-schema"
 	}
 	_duchy: {
-		name:                   _duchyName
-		protocols_setup_config: _duchyProtocolsSetupConfig
-		cs_cert_resource_name:  _duchyCertName
+		name:                      _duchyName
+		protocols_setup_config:    _duchyProtocolsSetupConfig
+		cs_cert_resource_name:     _duchyCertName
+		duchyKeyEncryptionKeyFile: _duchyKeyEncryptionKeyFile
 	}
 	_duchy_secret_name: _secretName
 	_computation_control_targets: {
@@ -79,6 +82,7 @@ duchy: #PostgresDuchy & {
 		"worker2":    _worker2SystemApiTarget
 	}
 	_kingdom_system_api_target: #KingdomSystemApiTarget
+	_kingdom_public_api_target: #KingdomPublicApiTarget
 	_blob_storage_flags:        #AwsS3Config.flags
 	_verbose_grpc_logging:      "false"
 	_postgresConfig:            #AwsPostgresConfig
@@ -90,10 +94,25 @@ duchy: #PostgresDuchy & {
 			_container: {
 				resources: #HeraldResourceRequirements
 			}
-			spec: template: spec: #PodSpec
+			spec: template: spec: #StorageServiceAccount & {
+				serviceAccountName: #StorageServiceAccount
+			}
 		}
 		"liquid-legions-v2-mill-daemon-deployment": {
 			_workLockDuration: "10m"
+			_container: {
+				_javaOptions: maxHeapSize: #MillMaxHeapSize
+				resources: #MillResourceRequirements
+			}
+			spec: {
+				replicas: #MillReplicas
+				template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {
+					serviceAccountName: #StorageServiceAccount
+				}
+			}
+		}
+		"honest-majority-share-shuffle-mill-daemon-deployment": {
+			_workLockDuration: "5m"
 			_container: {
 				_javaOptions: maxHeapSize: #MillMaxHeapSize
 				resources: #MillResourceRequirements

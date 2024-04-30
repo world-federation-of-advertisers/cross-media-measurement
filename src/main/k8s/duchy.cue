@@ -20,9 +20,10 @@ import ("strings")
 
 #Duchy: {
 	_duchy: {
-		name:                   string
-		protocols_setup_config: string
-		cs_cert_resource_name:  string
+		name:                      string
+		protocols_setup_config:    string
+		cs_cert_resource_name:     string
+		duchyKeyEncryptionKeyFile: string
 	}
 	_duchy_secret_name: string
 	_computation_control_targets: [Name=_]: string
@@ -34,9 +35,9 @@ import ("strings")
 	_blob_storage_flags: [...string]
 	_verbose_grpc_logging: "true" | "false"
 
-	_name:                   _duchy.name
-	_protocols_setup_config: _duchy.protocols_setup_config
-	_cs_cert_resource_name:  _duchy.cs_cert_resource_name
+	_name:                      _duchy.name
+	_protocols_setup_config:    _duchy.protocols_setup_config
+	_cs_cert_resource_name:     _duchy.cs_cert_resource_name
 	_duchyKeyEncryptionKeyFile: _duchy.duchyKeyEncryptionKeyFile
 
 	_object_prefix: "\(_name)-"
