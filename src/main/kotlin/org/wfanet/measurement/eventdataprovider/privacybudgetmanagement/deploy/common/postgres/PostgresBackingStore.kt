@@ -177,8 +177,7 @@ class PostgresBackingStoreTransactionContext(private val connection: Connection)
       statement.setString(1, privacyReference.measurementConsumerId)
       statement.setString(2, privacyReference.referenceId)
       statement.setObject(3, privacyReference.isRefund)
-      // TODO(@duliomatos) Make the blocking IO run within a dispatcher using coroutines
-      statement.executeUpdate()
+      statement.executeLargeUpdate()
     }
   }
 
