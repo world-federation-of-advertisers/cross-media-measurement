@@ -112,6 +112,7 @@ class InProcessEdpSimulator(
           100.0f,
         ),
       trustedCertificates = trustedCertificates,
+      vidToIndexMap = emptyMap(),
       knownEventGroupMetadataTypes = listOf(SyntheticEventGroupSpec.getDescriptor().file),
       random = random,
     )
