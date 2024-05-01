@@ -32,7 +32,7 @@ class HonestMajorityShareShuffleProtocolEnumStagesTest {
         HonestMajorityShareShuffle.Stage.INITIALIZED
       )
     }
-    assertTrue {
+    assertFalse {
       HonestMajorityShareShuffleProtocol.EnumStages.validInitialStage(
         HonestMajorityShareShuffle.Stage.WAIT_ON_AGGREGATION_INPUT
       )
