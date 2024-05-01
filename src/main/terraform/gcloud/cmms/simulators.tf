@@ -46,7 +46,7 @@ module "simulators_spot_node_pool" {
   cluster         = data.google_container_cluster.simulators
   service_account = module.common.cluster_service_account
   machine_type    = "c2-standard-4"
-  max_node_count  = 3
+  max_node_count  = 6
   spot            = true
 }
 
