@@ -301,6 +301,7 @@ import ("strings")
 			_sourceMatchLabels: [
 				_object_prefix + "herald-daemon-app",
 				_object_prefix + "liquid-legions-v2-mill-daemon-app",
+				_object_prefix + "honest-majority-share-shuffle-mill-daemon-app",
 				_object_prefix + "async-computation-control-server-app",
 				_object_prefix + "requisition-fulfillment-server-app",
 				_object_prefix + "computations-cleaner-app",
@@ -352,6 +353,13 @@ import ("strings")
 		}
 		"liquid-legions-v2-mill-daemon": {
 			_app_label: _object_prefix + "liquid-legions-v2-mill-daemon-app"
+			_egresses: {
+				// Need to send external traffic.
+				any: {}
+			}
+		}
+		"honest-majority-share-shuffle-mill-daemon": {
+			_app_label: _object_prefix + "honest-majority-share-shuffle-mill-daemon-app"
 			_egresses: {
 				// Need to send external traffic.
 				any: {}
