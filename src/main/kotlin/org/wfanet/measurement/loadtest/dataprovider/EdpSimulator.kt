@@ -54,6 +54,7 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCorouti
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt.variance
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DeterministicCount
 import org.wfanet.measurement.api.v2alpha.DeterministicCountDistinct
@@ -112,6 +113,7 @@ import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.randomSeed
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalRequest
+import org.wfanet.measurement.api.v2alpha.replaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.v2alpha.updateEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
@@ -185,7 +187,7 @@ class EdpSimulator(
   private val throttler: Throttler,
   private val privacyBudgetManager: PrivacyBudgetManager,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
-  private val vidToIndexMap: Map<Long, IndexedValue>,
+  private val vidToIndexMap: Map<Long, IndexedValue> = emptyMap(),
   /**
    * Known protobuf types for [EventGroupMetadataDescriptor]s.
    *
@@ -212,6 +214,17 @@ class EdpSimulator(
         }
       }
     )
+
+    dataProvidersStub.replaceDataProviderCapabilities(
+      replaceDataProviderCapabilitiesRequest {
+        name = edpData.name
+        capabilities =
+          DataProviderKt.capabilities {
+            honestMajorityShareShuffleSupported = vidToIndexMap.isNotEmpty()
+          }
+      }
+    )
+
     throttler.loopOnReady { executeRequisitionFulfillingWorkflow() }
   }
 
