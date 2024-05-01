@@ -144,6 +144,7 @@ class PostgresComputationsService(
             protocolStagesEnumHelper.getValidInitialStage(request.computationType).first(),
             request.stageDetails,
             request.computationDetails,
+            request.afterCreation,
             request.requisitionsList,
             clock,
             computationTypeEnumHelper,
@@ -443,9 +444,8 @@ class PostgresComputationsService(
           localId = request.token.localComputationId,
           externalRequisitionKey = request.key,
           pathToBlob = request.blobPath,
-          secretSeedCiphertext =
-            if (!request.secretSeedCiphertext.isEmpty) request.secretSeedCiphertext else null,
           publicApiVersion = request.publicApiVersion,
+          protocolDetails = if (request.hasProtocolDetails()) request.protocolDetails else null,
           computationReader = computationReader,
         )
         .execute(client, idGenerator)

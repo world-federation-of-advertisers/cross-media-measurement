@@ -28,6 +28,7 @@ import org.wfanet.measurement.duchy.service.internal.DuchyInternalException
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
+import org.wfanet.measurement.internal.duchy.CreateComputationRequest.AfterCreation
 import org.wfanet.measurement.internal.duchy.RequisitionEntry
 
 /**
@@ -55,6 +56,7 @@ class CreateComputation<ProtocolT : Any, ComputationDT : Message, StageT : Any, 
   private val initialStage: StageT,
   private val stageDetails: StageDT,
   private val computationDetails: ComputationDT,
+  private val afterCreation: AfterCreation,
   private val requisitions: List<RequisitionEntry>,
   private val clock: Clock,
   private val computationTypeEnumHelper: ComputationTypeEnumHelper<ProtocolT>,
@@ -85,7 +87,12 @@ class CreateComputation<ProtocolT : Any, ComputationDT : Message, StageT : Any, 
       stage =
         computationProtocolStagesEnumHelper.computationStageEnumToLongValues(initialStage).stage,
       lockOwner = lockOwner,
-      lockExpirationTime = writeTimestamp,
+      lockExpirationTime =
+        if (afterCreation == AfterCreation.ADD_UNCLAIMED_TO_QUEUE) {
+          writeTimestamp
+        } else {
+          null
+        },
       details = computationDetails,
     )
 

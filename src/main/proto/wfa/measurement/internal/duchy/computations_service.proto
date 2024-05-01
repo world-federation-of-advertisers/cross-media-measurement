@@ -103,6 +103,18 @@ message CreateComputationRequest {
   ComputationDetails computation_details = 4;
   // Map of Requisitions to create for this Computation.
   repeated RequisitionEntry requisitions = 5;
+
+  enum AfterCreation {
+    // Not set intentionally.
+    UNSPECIFIED = 0;
+    // Add the computation to the work queue, but in an unclaimed stage for
+    // some worker to claim at a later time.
+    ADD_UNCLAIMED_TO_QUEUE = 2;
+    // Do not add to the work queue.
+    // There is no work to be done on the computation at this time.
+    DO_NOT_ADD_TO_QUEUE = 3;
+  }
+  AfterCreation after_creation = 7;
 }
 
 message CreateComputationResponse {
@@ -305,13 +317,10 @@ message RecordRequisitionFulfillmentRequest {
   // The blob path where the data of the requisition is stored.
   // Required. Must be non-empty.
   string blob_path = 3;
-  // The random seed that is signed and encrypted.
-  //
-  // This is a ciphertext containing a serialized `SignedMessage` from the
-  // public API.
-  bytes secret_seed_ciphertext = 4;
   // Version of the public API.
-  string public_api_version = 5;
+  string public_api_version = 4;
+  // Protocol specific details.
+  RequisitionProtocolDetails protocol_details = 5;
 }
 // Response to record Requisition.
 message RecordRequisitionFulfillmentResponse {

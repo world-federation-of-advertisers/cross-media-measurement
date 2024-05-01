@@ -26,7 +26,7 @@ object HmssProtocolConfig {
     private set
 
   /**
-   * Set of external IDs of required Duchies, where the first entry must correspond to the Duchy in
+   * Set of external IDs of required Duchies, where the last entry must correspond to the Duchy in
    * the aggregator role.
    */
   lateinit var requiredExternalDuchyIds: Set<String>

@@ -44,6 +44,11 @@ import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
 import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
 import org.wfanet.anysketch.crypto.elGamalPublicKey as anySketchElGamalPublicKey
+import org.wfanet.frequencycount.FrequencyVector
+import org.wfanet.frequencycount.SecretShare
+import org.wfanet.frequencycount.SecretShareGeneratorAdapter
+import org.wfanet.frequencycount.SecretShareGeneratorRequest
+import org.wfanet.frequencycount.frequencyVector
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt.variance
@@ -66,6 +71,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.honestMajorityShareShuffle
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
@@ -103,6 +109,7 @@ import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
+import org.wfanet.measurement.api.v2alpha.randomSeed
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.api.v2alpha.unpack
@@ -124,7 +131,9 @@ import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
+import org.wfanet.measurement.consent.client.dataprovider.encryptRandomSeed
 import org.wfanet.measurement.consent.client.dataprovider.encryptResult
+import org.wfanet.measurement.consent.client.dataprovider.signRandomSeed
 import org.wfanet.measurement.consent.client.dataprovider.signResult
 import org.wfanet.measurement.consent.client.dataprovider.verifyElGamalPublicKey
 import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
@@ -141,6 +150,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getDirectAcdpQuery
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getHmssAcdpQuery
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getLiquidLegionsV2AcdpQuery
 import org.wfanet.measurement.loadtest.common.sampleVids
 import org.wfanet.measurement.loadtest.config.TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
@@ -175,6 +185,7 @@ class EdpSimulator(
   private val throttler: Throttler,
   private val privacyBudgetManager: PrivacyBudgetManager,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
+  inputVidToIndexMap: Map<Long, IndexedValue> = emptyMap(), // 33M * (8 + (4+8)) = 660M
   /**
    * Known protobuf types for [EventGroupMetadataDescriptor]s.
    *
@@ -186,7 +197,31 @@ class EdpSimulator(
   private val random: Random = Random,
   private val logSketchDetails: Boolean = false,
 ) {
+  // In the simulation, the Vid universe is obtained from event query. However, in the actual
+  // implementation, the Edp must get it from the Vid model.
+  private lateinit var vidUniverse: Sequence<Long>
+
+  // All vid must use the same salt. If none is specified, use empty string for the salt.
+  private val salt: ByteString = ByteString.EMPTY
+
+  // Computes the vid to index map for the vid universe if not provided.
+  private lateinit var vidToIndexMap: Map<Long, IndexedValue>
+
   val eventGroupReferenceIdPrefix = getEventGroupReferenceIdPrefix(edpData.displayName)
+
+  init {
+    println("Getting vidUniverse.")
+    printMemoryUsage()
+    vidUniverse = eventQuery.getUserVirtualIdUniverse()
+    println("Getting vidToIndexMap.")
+    printMemoryUsage()
+    vidToIndexMap = inputVidToIndexMap.ifEmpty {
+      if (vidUniverse.none()) emptyMap()
+      else VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
+    }
+    println("EdpSimulator initialized.")
+    printMemoryUsage()
+  }
 
   /** A sequence of operations done in the simulator. */
   suspend fun run() {
@@ -201,6 +236,7 @@ class EdpSimulator(
         }
       }
     )
+    logger.info("ready to execute workflow.")
     throttler.loopOnReady { executeRequisitionFulfillingWorkflow() }
   }
 
@@ -473,7 +509,8 @@ class EdpSimulator(
   ) {
     require(
       protocol == ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2 ||
-        protocol == ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2
+        protocol == ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ||
+        protocol == ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE
     ) {
       "Unsupported protocol $protocol"
     }
@@ -500,6 +537,14 @@ class EdpSimulator(
             duchyX509Certificate,
             trustedIssuer,
           )
+        ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
+          if (duchyEntry.value.honestMajorityShareShuffle.hasPublicKey()) {
+            verifyEncryptionPublicKey(
+              duchyEntry.value.honestMajorityShareShuffle.publicKey,
+              duchyX509Certificate,
+              trustedIssuer,
+            )
+          }
         else -> throw InvalidSpecException("Unsupported protocol $protocol")
       }
     } catch (e: CertPathValidatorException) {
@@ -573,7 +618,8 @@ class EdpSimulator(
 
   /** Executes the requisition fulfillment workflow. */
   suspend fun executeRequisitionFulfillingWorkflow() {
-    logger.info("Executing requisitionFulfillingWorkflow...")
+//    logger.info("Executing requisitionFulfillingWorkflow...")
+//    printMemoryUsage()
     val requisitions =
       getRequisitions().filter {
         checkNotNull(MeasurementKey.fromName(it.measurement)).measurementConsumerId ==
@@ -766,6 +812,30 @@ class EdpSimulator(
             requisitionSpec.nonce,
             eventGroupSpecs,
           )
+        } else if (protocols.any { it.hasHonestMajorityShareShuffle() }) {
+          // TODO(@ple13): Extend support for reach only hmss.
+          if (!measurementSpec.hasReachAndFrequency()) {
+            logger.log(
+              Level.WARNING,
+              "Skipping ${requisition.name}: Measurement type not supported for protocol hmss.",
+            )
+            throw RequisitionRefusalException(
+              Requisition.Refusal.Justification.SPEC_INVALID,
+              "Measurement type not supported for protocol hmss.",
+            )
+          }
+          verifyDuchyEntries(
+            requisition,
+            ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
+          )
+
+          fulfillRequisitionForHmssMeasurement(
+            requisition,
+            measurementSpec,
+            requisitionFingerprint,
+            requisitionSpec.nonce,
+            eventGroupSpecs,
+          )
         } else {
           logger.log(
             Level.WARNING,
@@ -776,6 +846,7 @@ class EdpSimulator(
             "Protocol not set or not supported.",
           )
         }
+        logger.info("Processed requisition ${requisition.name}")
       } catch (refusalException: RequisitionRefusalException) {
         refuseRequisition(
           requisition.name,
@@ -900,6 +971,65 @@ class EdpSimulator(
     }
   }
 
+  private suspend fun chargeHmssPrivacyBudget(
+    requisitionName: String,
+    measurementSpec: MeasurementSpec,
+    eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>,
+    noiseMechanism: NoiseMechanism,
+    contributorCount: Int,
+  ) {
+    logger.info("chargeHmssPrivacyBudget for requisition with $noiseMechanism noise mechanism...")
+
+    try {
+      if (noiseMechanism != NoiseMechanism.DISCRETE_GAUSSIAN) {
+        throw PrivacyBudgetManagerException(
+          PrivacyBudgetManagerExceptionType.INCORRECT_NOISE_MECHANISM
+        )
+      }
+
+      privacyBudgetManager.chargePrivacyBudgetInAcdp(
+        getHmssAcdpQuery(
+          Reference(measurementConsumerName, requisitionName, false),
+          measurementSpec,
+          eventSpecs,
+          contributorCount,
+        )
+      )
+    } catch (e: PrivacyBudgetManagerException) {
+      logger.log(
+        Level.WARNING,
+        "chargeHmssPrivacyBudget failed due to ${e.errorType}",
+        e,
+      )
+      when (e.errorType) {
+        PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED -> {
+          throw RequisitionRefusalException(
+            Requisition.Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET,
+            "Privacy budget exceeded",
+          )
+        }
+        PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER -> {
+          throw RequisitionRefusalException(
+            Requisition.Refusal.Justification.SPEC_INVALID,
+            "Invalid event filter",
+          )
+        }
+        PrivacyBudgetManagerExceptionType.INCORRECT_NOISE_MECHANISM -> {
+          throw RequisitionRefusalException(
+            Requisition.Refusal.Justification.SPEC_INVALID,
+            "Incorrect noise mechanism. Should be DISCRETE_GAUSSIAN for ACDP composition but is $noiseMechanism",
+          )
+        }
+        PrivacyBudgetManagerExceptionType.DATABASE_UPDATE_ERROR,
+        PrivacyBudgetManagerExceptionType.UPDATE_AFTER_COMMIT,
+        PrivacyBudgetManagerExceptionType.NESTED_TRANSACTION,
+        PrivacyBudgetManagerExceptionType.BACKING_STORE_CLOSED -> {
+          throw Exception("Unexpected PBM error", e)
+        }
+      }
+    }
+  }
+
   private suspend fun chargeDirectPrivacyBudget(
     requisitionName: String,
     measurementSpec: MeasurementSpec,
@@ -985,15 +1115,15 @@ class EdpSimulator(
     }
   }
 
-  private fun generateShareShuffleSketch(
-    vidUniverse: List<Long>,
-    salt: ByteString,
+  private fun generateHmssSketch(
     vidToIndexMap: Map<Long, IndexedValue>,
     measurementSpec: MeasurementSpec,
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
   ): IntArray {
-
     logger.info("Generating HMSS Sketch...")
+    val maximumFrequency =
+      if (measurementSpec.hasReachAndFrequency()) measurementSpec.reachAndFrequency.maximumFrequency
+      else 1
     val sketch =
       ShareShuffleSketchGenerator(
           vidUniverse,
@@ -1003,6 +1133,8 @@ class EdpSimulator(
           measurementSpec.vidSamplingInterval,
         )
         .generate(eventGroupSpecs)
+        .map { if (it > maximumFrequency) maximumFrequency else it }
+        .toIntArray()
 
     logger.log(Level.INFO) { "Registers Size:\n${sketch.size}" }
 
@@ -1172,11 +1304,152 @@ class EdpSimulator(
           fulfillRequisitionRequest { bodyChunk = bodyChunk { this.data = it } }
         }
       )
+      logger.info { "Emitted FulfillRequisitionRequests..." }
     }
     try {
       requisitionFulfillmentStubsByDuchyId.values.first().fulfillRequisition(requests)
     } catch (e: StatusException) {
       throw Exception("Error fulfilling requisition $requisitionName", e)
+    }
+  }
+
+  private fun getEncryptionKeyForShareSeed(requisition: Requisition): SignedMessage {
+    require(requisition.duchiesList.size == 2) { "There must be exactly 2 duchy entries." }
+    val publicKeyList =
+      requisition.duchiesList
+        .filter { it.value.honestMajorityShareShuffle.hasPublicKey() }
+        .map { it.value.honestMajorityShareShuffle.publicKey }
+    require(publicKeyList.size == 1) {
+      "There must be exactly one duchy entry that contains an encryption public key."
+    }
+
+    return publicKeyList.first()
+  }
+
+  private suspend fun getDuchyWithoutPublicKey(requisition: Requisition): String {
+    require(requisition.duchiesList.size == 2) { "There must be exactly 2 duchy entries." }
+    val duchyKeyList =
+      requisition.duchiesList
+        .filter { !it.value.honestMajorityShareShuffle.hasPublicKey() }
+        .map { it.key }
+    require(duchyKeyList.size == 1) {
+      "There must be exactly one duchy entry that does not contain an encryption public key."
+    }
+
+    return duchyKeyList.first()
+  }
+
+  /** Fulfill Honest Majority Share Shuffle Measurement's Requisition. */
+  private suspend fun fulfillRequisitionForHmssMeasurement(
+    requisition: Requisition,
+    measurementSpec: MeasurementSpec,
+    requisitionFingerprint: ByteString,
+    nonce: Long,
+    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
+  ) {
+    val protocolConfig: ProtocolConfig.HonestMajorityShareShuffle =
+      requireNotNull(
+          requisition.protocolConfig.protocolsList.find { protocol ->
+            protocol.hasHonestMajorityShareShuffle()
+          }
+        ) {
+          "Protocol with HonestMajorityShareShuffle is missing"
+        }
+        .honestMajorityShareShuffle
+
+    chargeHmssPrivacyBudget(
+      requisition.name,
+      measurementSpec,
+      eventGroupSpecs.map { it.spec },
+      protocolConfig.noiseMechanism,
+      requisition.duchiesCount - 1,
+    )
+
+    val frequencyVector =
+      try {
+        generateHmssSketch(
+          vidToIndexMap,
+          measurementSpec,
+          eventGroupSpecs,
+        )
+      } catch (e: EventFilterValidationException) {
+        logger.log(
+          Level.WARNING,
+          "RequisitionFulfillmentWorkflow failed due to invalid event filter",
+          e,
+        )
+        throw RequisitionRefusalException(
+          Requisition.Refusal.Justification.SPEC_INVALID,
+          "Invalid event filter (${e.code}): ${e.code.description}",
+        )
+      }
+
+    val secretShareGeneratorRequest =
+      SecretShareGeneratorRequest.newBuilder()
+        .addAllData(frequencyVector.asIterable())
+        .setRingModulus(protocolConfig.sketchParams.ringModulus)
+        .build()
+
+    val secretShare =
+      SecretShare.parseFrom(
+        SecretShareGeneratorAdapter.generateSecretShares(secretShareGeneratorRequest.toByteArray())
+      )
+
+    val shareSeed = randomSeed { data = secretShare.shareSeed.key.concat(secretShare.shareSeed.iv) }
+    val signedShareSeed =
+      signRandomSeed(shareSeed, edpData.signingKeyHandle, edpData.signingKeyHandle.defaultAlgorithm)
+    val publicKey =
+      EncryptionPublicKey.parseFrom(getEncryptionKeyForShareSeed(requisition).message.value)
+    val shareSeedCiphertext = encryptRandomSeed(signedShareSeed, publicKey)
+
+    val shareVector = frequencyVector { data += secretShare.shareVectorList }
+
+    fulfillHmssRequisition(
+      requisition,
+      requisitionFingerprint,
+      nonce,
+      shareSeedCiphertext,
+      shareVector
+    )
+  }
+
+  private suspend fun fulfillHmssRequisition(
+    requisition: Requisition,
+    requisitionFingerprint: ByteString,
+    nonce: Long,
+    encryptedSignedSeed: EncryptedMessage,
+    shareVector: FrequencyVector,
+  ) {
+    logger.info("Fulfilling requisition ${requisition.name}...")
+    val requests: Flow<FulfillRequisitionRequest> = flow {
+      logger.info { "Emitting FulfillRequisitionRequests..." }
+      emit(
+        fulfillRequisitionRequest {
+          header = header {
+            name = requisition.name
+            this.requisitionFingerprint = requisitionFingerprint
+            this.nonce = nonce
+            this.honestMajorityShareShuffle = honestMajorityShareShuffle {
+              secretSeed = encryptedSignedSeed
+              registerCount = shareVector.dataList.size.toLong()
+              dataProviderCertificate = edpData.certificateKey.toName()
+            }
+          }
+        }
+      )
+      emitAll(
+        shareVector.toByteString().asBufferedFlow(RPC_CHUNK_SIZE_BYTES).map {
+          fulfillRequisitionRequest { bodyChunk = bodyChunk { this.data = it } }
+        }
+      )
+    }
+    try {
+      val requisitionFulfillmentStub =
+        requisitionFulfillmentStubsByDuchyId.get(getDuchyWithoutPublicKey(requisition))
+      require(requisitionFulfillmentStub != null) { "Requisition fulfillment stub not found." }
+      requisitionFulfillmentStub.fulfillRequisition(requests)
+    } catch (e: StatusException) {
+      throw Exception("Error fulfilling requisition ${requisition.name}", e)
     }
   }
 
@@ -1646,6 +1919,9 @@ class EdpSimulator(
   }
 
   companion object {
+    init {
+      System.loadLibrary("secret_share_generator_adapter")
+    }
     private const val RPC_CHUNK_SIZE_BYTES = 32 * 1024 // 32 KiB
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)

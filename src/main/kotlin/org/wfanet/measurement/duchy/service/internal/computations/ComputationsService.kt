@@ -123,6 +123,7 @@ class ComputationsService(
       request.stageDetails,
       request.computationDetails,
       request.requisitionsList,
+      request.afterCreation,
     )
 
     sendStatusUpdateToKingdom(
@@ -345,11 +346,11 @@ class ComputationsService(
     request: RecordRequisitionFulfillmentRequest
   ): RecordRequisitionFulfillmentResponse {
     computationsDatabase.writeRequisitionBlobPath(
-      request.token.toDatabaseEditToken(),
-      request.key,
-      request.blobPath,
-      if (!request.secretSeedCiphertext.isEmpty) request.secretSeedCiphertext else null,
-      request.publicApiVersion,
+      token = request.token.toDatabaseEditToken(),
+      externalRequisitionKey = request.key,
+      pathToBlob = request.blobPath,
+      publicApiVersion = request.publicApiVersion,
+      protocolDetails = if (request.hasProtocolDetails()) request.protocolDetails else null,
     )
     return checkNotNull(computationsDatabase.readComputationToken(request.key))
       .toRecordRequisitionBlobPathResponse()

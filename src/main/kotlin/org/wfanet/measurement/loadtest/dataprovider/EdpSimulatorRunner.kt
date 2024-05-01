@@ -23,6 +23,7 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
@@ -49,6 +50,8 @@ abstract class EdpSimulatorRunner : Runnable {
     metadataByReferenceIdSuffix: Map<String, Message>,
     knownEventGroupMetadataTypes: Iterable<Descriptors.FileDescriptor>,
   ) {
+    println("EdpSimulatorRunner started.")
+
     val clientCerts =
       SigningCerts.fromPemFiles(
         certificateFile = flags.tlsFlags.certFile,
@@ -70,12 +73,14 @@ abstract class EdpSimulatorRunner : Runnable {
     val certificatesStub = CertificatesCoroutineStub(v2AlphaPublicApiChannel)
     val dataProvidersStub = DataProvidersCoroutineStub(v2AlphaPublicApiChannel)
 
+    println("EdpSimulatorRunner 1.")
     val requisitionFulfillmentStubMap =
       flags.requisitionFulfillmentServiceFlags.associate {
         val channel = buildMutualTlsChannel(it.target, clientCerts, it.certHost)
         val stub = RequisitionFulfillmentCoroutineStub(channel)
         it.duchyId to stub
       }
+    println("EdpSimulatorRunner 1.")
 
     val signingKeyHandle =
       loadSigningKey(flags.edpCsCertificateDerFile, flags.edpCsPrivateKeyDerFile)
@@ -89,7 +94,7 @@ abstract class EdpSimulatorRunner : Runnable {
         signingKeyHandle,
         certificateKey,
       )
-
+    println("EdpSimulatorRunner 3.")
     val randomSeed = flags.randomSeed
     val random =
       if (randomSeed != null) {
@@ -97,6 +102,7 @@ abstract class EdpSimulatorRunner : Runnable {
       } else {
         Random.Default
       }
+    println("EdpSimulatorRunner 4.")
 
     val edpSimulator =
       EdpSimulator(
@@ -117,6 +123,9 @@ abstract class EdpSimulatorRunner : Runnable {
         random = random,
         logSketchDetails = flags.logSketchDetails,
       )
+
+    println("EdpSimulator instance created.")
+
     runBlocking {
       edpSimulator.ensureEventGroups(eventTemplates, metadataByReferenceIdSuffix)
       edpSimulator.run()

@@ -91,3 +91,26 @@ class SystemApiFlags {
   var certHost: String? = null
     private set
 }
+
+// TODO(@renjiez): Add Certificate Service in kingdom system api.
+class KingdomPublicApiFlags {
+  @CommandLine.Option(
+    names = ["--kingdom-public-api-target"],
+    description = ["gRPC target (authority) of the Kingdom public API server"],
+    required = true,
+  )
+  lateinit var target: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--kingdom-public-api-cert-host"],
+    description =
+      [
+        "Expected hostname (DNS-ID) in the Kingdom public API server's TLS certificate.",
+        "This overrides derivation of the TLS DNS-ID from --kingdom-public-api-target.",
+      ],
+    required = false,
+  )
+  var certHost: String? = null
+    private set
+}

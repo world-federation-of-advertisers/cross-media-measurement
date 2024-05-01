@@ -96,8 +96,4 @@ message RequisitionMetadata {
   // The requisition data in format of a path to the BLOB. The requisition is
   // fulfilled when it is specified.
   string path = 2;
-
-  // The requisition data in format of a secret seed. It is ciphertext
-  // containing a serialized `SignedMessage` message from the CMMS public API.
-  bytes secret_seed_ciphertext = 4;
 }

@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.duchy.db.computation
 
-import com.google.protobuf.ByteString
 import java.time.Duration
 import java.time.Instant
 import org.wfanet.measurement.internal.duchy.ComputationDetails
@@ -22,8 +21,10 @@ import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
+import org.wfanet.measurement.internal.duchy.CreateComputationRequest.AfterCreation
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
 import org.wfanet.measurement.internal.duchy.RequisitionEntry
+import org.wfanet.measurement.internal.duchy.RequisitionProtocolDetails
 
 /**
  * Grouping of a read only view ([ComputationsDatabaseReader]) and a writer (
@@ -86,7 +87,7 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
   /**
    * Inserts a new computation for the global identifier.
    *
-   * The computation is added to the queue immediately.
+   * Whether The computation is added to the queue immediately is determined by `afterCreation`.
    */
   suspend fun insertComputation(
     globalId: String,
@@ -95,6 +96,7 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
     stageDetails: StageDetailsT,
     computationDetails: ComputationDetailsT,
     requisitions: List<RequisitionEntry> = listOf(),
+    afterCreation: AfterCreation = AfterCreation.ADD_UNCLAIMED_TO_QUEUE,
   )
 
   /**
@@ -205,8 +207,8 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
     token: ComputationEditToken<ProtocolT, StageT>,
     externalRequisitionKey: ExternalRequisitionKey,
     pathToBlob: String,
-    secretSeedCiphertext: ByteString? = null,
     publicApiVersion: String,
+    protocolDetails: RequisitionProtocolDetails? = null,
   )
 
   /** Inserts the specified [ComputationStatMetric] into the database. */

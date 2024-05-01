@@ -46,6 +46,16 @@ objectSets: [
 	for edp in edp_simulators {edp.networkPolicies},
 ]
 
+#EdpSimulatorRresourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "500m"
+		memory: "10Gi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+
 _edpConfigs: [...#EdpConfig]
 _edpConfigs: [
 	for i, name in _edpResourceNames {
@@ -76,6 +86,13 @@ edp_simulators: {
 			_mc_resource_name:          _mc_name
 
 			deployment: {
+				_container: {
+					_javaOptions: {
+						maxHeapSize:     "8000M"
+						initialHeapSize: "8000M"
+					}
+					resources: #EdpSimulatorRresourceRequirements
+				}
 				spec: template: spec: #SpotVmPodSpec & #ServiceAccountPodSpec & {
 					serviceAccountName: #SimulatorServiceAccount
 				}

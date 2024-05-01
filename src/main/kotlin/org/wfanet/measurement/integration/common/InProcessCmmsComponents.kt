@@ -26,6 +26,7 @@ import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec

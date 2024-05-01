@@ -29,6 +29,7 @@ import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt
+import org.wfanet.measurement.internal.duchy.CreateComputationRequest
 import org.wfanet.measurement.internal.duchy.NoiseMechanism
 import org.wfanet.measurement.internal.duchy.computationDetails
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
@@ -81,6 +82,7 @@ object ReachOnlyLiquidLegionsV2Starter {
           ComputationTypeEnum.ComputationType.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
         globalComputationId = globalId
         computationDetails = initialComputationDetails
+        afterCreation = CreateComputationRequest.AfterCreation.ADD_UNCLAIMED_TO_QUEUE
         this.requisitions += requisitions
       }
     )

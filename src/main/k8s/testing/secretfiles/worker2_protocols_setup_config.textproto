@@ -1,0 +1,16 @@
+# proto-file: src/main/proto/wfa/measurement/internal/duchy/config/protocols_setup_config.proto
+# proto-message: ProtocolsSetupConfig
+liquid_legions_v2 {
+  role: NON_AGGREGATOR
+  external_aggregator_duchy_id: "aggregator"
+}
+reach_only_liquid_legions_v2 {
+  role: NON_AGGREGATOR
+  external_aggregator_duchy_id: "aggregator"
+}
+honest_majority_share_shuffle {
+  role: SECOND_NON_AGGREGATOR
+  first_non_aggregator_duchy_id: "worker1"
+  second_non_aggregator_duchy_id: "worker2"
+  aggregator_duchy_id: "aggregator"
+}
