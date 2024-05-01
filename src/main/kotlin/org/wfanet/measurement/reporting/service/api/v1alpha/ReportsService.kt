@@ -1194,6 +1194,9 @@ class ReportsService(
       val requisitionSpec = requisitionSpec {
         events = RequisitionSpecKt.events { eventGroups += eventGroupEntriesList }
         measurementPublicKey = measurementEncryptionPublicKey
+        // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this
+        // field.
+        serializedMeasurementPublicKey = measurementEncryptionPublicKey.value
         nonce = secureRandom.nextLong()
       }
       val encryptRequisitionSpec =
@@ -1224,6 +1227,9 @@ class ReportsService(
     val isSingleDataProvider = nonceHashes.size == 1
     return measurementSpec {
       measurementPublicKey = measurementEncryptionPublicKey
+      // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this
+      // field.
+      serializedMeasurementPublicKey = measurementEncryptionPublicKey.value
       this.nonceHashes += nonceHashes
 
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.

@@ -126,7 +126,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.81.1",
+    version = "0.82.1",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -141,7 +141,6 @@ bazel_dep(
 )
 bazel_dep(
     name = "consent-signaling-client",
-    version = "0.21.0",
     repo_name = "wfa_consent_signaling_client",
 )
 bazel_dep(
@@ -322,6 +321,16 @@ archive_override(
     strip_prefix = "rules_proto-6.0.0-rc2",
     urls = [
         "https://github.com/bazelbuild/rules_proto/releases/download/6.0.0-rc2/rules_proto-6.0.0-rc2.tar.gz",
+    ],
+)
+
+# DO_NOT_SUBMIT(world-federation-of-advertisers/consent-signaling-client#50): Use version.
+archive_override(
+    module_name = "consent-signaling-client",
+    integrity = "sha256-GrZmk2bx6JdEwavBgxYle5W6MUb/co/7TZ6lsxRHhgQ=",
+    strip_prefix = "consent-signaling-client-0672294d913174b1c834ce946145c632d25b70bf",
+    urls = [
+        "https://github.com/world-federation-of-advertisers/consent-signaling-client/archive/0672294d913174b1c834ce946145c632d25b70bf.tar.gz",
     ],
 )
 

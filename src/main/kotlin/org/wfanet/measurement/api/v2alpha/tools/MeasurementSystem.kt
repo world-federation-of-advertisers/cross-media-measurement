@@ -610,7 +610,11 @@ class CreateMeasurement : Runnable {
                 expression = populationMeasurementParams.populationInputs.filter
               }
           }
-        this.measurementPublicKey = packedMeasurementEncryptionPublicKey
+        measurementPublicKey = packedMeasurementEncryptionPublicKey
+        // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this
+        // field.
+        serializedMeasurementPublicKey = packedMeasurementEncryptionPublicKey.value
+
         nonce = secureRandom.nextLong()
       }
 
@@ -660,6 +664,9 @@ class CreateMeasurement : Runnable {
           }
         events = RequisitionSpecKt.events { this.eventGroups += eventGroups }
         this.measurementPublicKey = packedMeasurementEncryptionPublicKey
+        // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this
+        // field.
+        serializedMeasurementPublicKey = packedMeasurementEncryptionPublicKey.value
         nonce = secureRandom.nextLong()
       }
 
@@ -727,6 +734,9 @@ class CreateMeasurement : Runnable {
         }
       val unsignedMeasurementSpec = measurementSpec {
         measurementPublicKey = packedMeasurementEncryptionPublicKey
+        // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this
+        // field.
+        serializedMeasurementPublicKey = packedMeasurementEncryptionPublicKey.value
         nonceHashes += this@measurement.dataProviders.map { it.value.nonceHash }
         if (!measurementParams.populationMeasurementParams.selected) {
           vidSamplingInterval = vidSamplingInterval {
