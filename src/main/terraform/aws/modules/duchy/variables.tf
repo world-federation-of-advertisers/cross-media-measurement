@@ -26,12 +26,18 @@ variable "aws_region" {
 
 variable "eks_oidc_provider_arn" {
   description = "ARN of the EKS cluster's OIDC provider"
-  type     = string
-  nullable = false
+  type        = string
+  nullable    = false
 }
 
 variable "s3_bucket_arn" {
   description = "ARN of the s3 bucket"
   type        = string
+  nullable    = false
+}
+
+variable "vpc_public_subnet_count" {
+  description = "Number of public subnets in the VPC"
+  type        = number
   nullable    = false
 }

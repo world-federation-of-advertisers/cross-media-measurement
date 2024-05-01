@@ -14,14 +14,15 @@
 
 package k8s
 
-_duchyName:                    string @tag("duchy_name")
-_duchyProtocolsSetupConfig:    string @tag("duchy_protocols_setup_config")
-_secretName:                   string @tag("secret_name")
-_certificateId:                string @tag("certificate_id")
-_computationControlServerEips: string @tag("computation_control_server_eips")
-_aggregatorSystemApiTarget:    string @tag("aggregator_system_api_target")
-_worker1SystemApiTarget:       string @tag("worker1_system_api_target")
-_worker2SystemApiTarget:       string @tag("worker2_system_api_target")
+_duchyName:                 string @tag("duchy_name")
+_duchyProtocolsSetupConfig: string @tag("duchy_protocols_setup_config")
+_secretName:                string @tag("secret_name")
+_certificateId:             string @tag("certificate_id")
+_publicApiEipAllocs:        string @tag("public_api_eip_allocs")
+_systemApiEipAllocs:        string @tag("system_api_eip_allocs")
+_aggregatorSystemApiTarget: string @tag("aggregator_system_api_target")
+_worker1SystemApiTarget:    string @tag("worker1_system_api_target")
+_worker2SystemApiTarget:    string @tag("worker2_system_api_target")
 
 _duchyCertName: "duchies/\(_duchyName)/certificates/\(_certificateId)"
 
@@ -83,7 +84,8 @@ duchy: #PostgresDuchy & {
 	_verbose_grpc_logging:      "false"
 	_postgresConfig:            #AwsPostgresConfig
 	services: {
-		"computation-control-server": _eipAllocations: _computationControlServerEips
+		"requisition-fulfillment-server": _eipAllocations: _publicApiEipAllocs
+		"computation-control-server": _eipAllocations:     _systemApiEipAllocs
 	}
 	deployments: {
 		"herald-daemon-deployment": {
