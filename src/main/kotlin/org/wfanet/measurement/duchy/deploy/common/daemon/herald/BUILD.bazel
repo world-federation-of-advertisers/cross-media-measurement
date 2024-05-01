@@ -7,6 +7,7 @@ package(default_testonly = True)  #TODO: delete when InMemoryKeyStore and FakeHy
 kt_jvm_library(
     name = "herald_daemon",
     srcs = ["HeraldDaemon.kt"],
+    visibility = ["//src/main/kotlin/org/wfanet/measurement/duchy/deploy:__subpackages__"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/herald",

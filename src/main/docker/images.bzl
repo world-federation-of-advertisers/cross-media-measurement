@@ -102,6 +102,11 @@ COMMON_IMAGES = [
 # These are only used on GKE.
 GKE_IMAGES = [
     struct(
+        name = "gcs_herald_daemon_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/daemon/herald:gcs_herald_daemon_image",
+        repository = _PREFIX + "/duchy/herald",
+    ),
+    struct(
         name = "duchy_computation_control_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:gcs_computation_control_server_image",
         repository = _PREFIX + "/duchy/computation-control",
@@ -127,6 +132,11 @@ GKE_IMAGES = [
         repository = _PREFIX + "/duchy/liquid-legions-v2-mill",
     ),
     struct(
+        name = "duchy_honest_majority_share_shuffle_mill_daemon_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/daemon/mill/shareshuffle:gcs_honest_majority_share_shuffle_mill_daemon_image",
+        repository = _PREFIX + "/duchy/honest-majority-share-shuffle-mill",
+    ),
+    struct(
         name = "bigquery_edp_simulator_runner_image",
         image = "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:bigquery_edp_simulator_runner_image",
         repository = _PREFIX + "/simulator/bigquery-edp",
@@ -141,6 +151,11 @@ GKE_IMAGES = [
 # List of specs for all Docker containers to push to a container registry.
 # These are only used on EKS.
 EKS_IMAGES = [
+    struct(
+        name = "s3_herald_daemon_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/aws/daemon/herald:s3_herald_daemon_image",
+        repository = _PREFIX + "/duchy/aws-herald",
+    ),
     struct(
         name = "duchy_s3_computation_control_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/aws/server:s3_computation_control_server_image",
@@ -160,6 +175,11 @@ EKS_IMAGES = [
         name = "duchy_s3_liquid_legions_v2_mill_daemon_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/aws/daemon/mill/liquidlegionsv2:s3_liquid_legions_v2_mill_daemon_image",
         repository = _PREFIX + "/duchy/aws-liquid-legions-v2-mill",
+    ),
+    struct(
+        name = "duchy_s3_honest_majority_share_shuffle_mill_daemon_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/aws/daemon/mill/shareshuffle:s3_honest_majority_share_shuffle_mill_daemon_image",
+        repository = _PREFIX + "/duchy/aws-honest-majority-share-shuffle-mill",
     ),
     struct(
         name = "duchy_aws_postgres_update_schema_image",
