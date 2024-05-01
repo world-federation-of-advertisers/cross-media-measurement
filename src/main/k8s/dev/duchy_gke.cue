@@ -24,6 +24,7 @@ _systemApiAddressName:         string @tag("system_api_address_name")
 _aggregatorSystemApiTarget:    string @tag("aggregator_system_api_target")
 _worker1SystemApiTarget:       string @tag("worker1_system_api_target")
 _worker2SystemApiTarget:       string @tag("worker2_system_api_target")
+_duchyKeyEncryptionKeyFile:    string @tag("duchy_key_encryption_key_file")
 
 _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 
@@ -73,6 +74,7 @@ duchy: #SpannerDuchy & {
 		name:                   _duchy_name
 		protocols_setup_config: _duchy_protocols_setup_config
 		cs_cert_resource_name:  _duchy_cert_name
+		duchyKeyEncryptionKeyFile: _duchyKeyEncryptionKeyFile
 	}
 	_duchy_secret_name: _secret_name
 	_computation_control_targets: {
