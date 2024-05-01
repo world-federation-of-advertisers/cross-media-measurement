@@ -123,6 +123,7 @@ class ComputationsService(
       request.stageDetails,
       request.computationDetails,
       request.requisitionsList,
+      request.afterCreation,
     )
 
     sendStatusUpdateToKingdom(

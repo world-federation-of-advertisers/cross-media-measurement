@@ -311,7 +311,6 @@ fun buildMpcProtocolConfig(
       mpcProtocolConfig {
         honestMajorityShareShuffle = honestMajorityShareShuffle {
           sketchParams = shareShuffleSketchParams {
-            registerCount = protocolConfig.honestMajorityShareShuffle.sketchParams.registerCount
             bytesPerRegister =
               protocolConfig.honestMajorityShareShuffle.sketchParams.bytesPerRegister
             ringModulus = protocolConfig.honestMajorityShareShuffle.sketchParams.ringModulus

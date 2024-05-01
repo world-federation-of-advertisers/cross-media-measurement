@@ -27,7 +27,7 @@ import java.time.Duration
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.flowOf
 import org.wfanet.measurement.api.Version
-import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptedMessage
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.RandomSeed
@@ -56,6 +56,8 @@ import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
+import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
+import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation.AGGREGATOR
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation.FIRST_NON_AGGREGATOR
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation.SECOND_NON_AGGREGATOR
@@ -93,12 +95,13 @@ class HonestMajorityShareShuffleMill(
   systemComputationsClient: ComputationsGrpcKt.ComputationsCoroutineStub,
   systemComputationLogEntriesClient: ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub,
   computationStatsClient: ComputationStatsGrpcKt.ComputationStatsCoroutineStub,
-  private val privateKeyStore: PrivateKeyStore<TinkKeyId, TinkPrivateKeyHandle>,
-  private val certificateClient: CertificatesGrpcKt.CertificatesCoroutineStub,
+  private val certificateClient: CertificatesCoroutineStub,
   private val workerStubs: Map<String, ComputationControlCoroutineStub>,
   private val cryptoWorker: HonestMajorityShareShuffleCryptor,
+  private val protocolsSetupConfig: ProtocolsSetupConfig,
   workLockDuration: Duration,
   openTelemetry: OpenTelemetry,
+  private val privateKeyStore: PrivateKeyStore<TinkKeyId, TinkPrivateKeyHandle>? = null,
   requestChunkSizeBytes: Int = 1024 * 32,
   maximumAttempts: Int = 10,
   clock: Clock = Clock.systemUTC(),
@@ -142,7 +145,7 @@ class HonestMajorityShareShuffleMill(
     val role = token.computationDetails.honestMajorityShareShuffle.role
 
     return STAGE_TRANSITIONS[Pair(stage, role)]
-      ?: error("Unexpected stage or role: ($stage, $role)")
+      ?: error("Unexpected stage or role for next stage: ($stage, $role)")
   }
 
   override suspend fun processComputationImpl(token: ComputationToken) {
@@ -151,7 +154,9 @@ class HonestMajorityShareShuffleMill(
     }
     val stage = token.computationStage.honestMajorityShareShuffle
     val role = token.computationDetails.honestMajorityShareShuffle.role
-    val action = actions[Pair(stage, role)] ?: error("Unexpected stage or role: ($stage, $role)")
+    val action =
+      actions[Pair(stage, role)]
+        ?: error("Unexpected stage or role for mill actions: ($stage, $role)")
     val updatedToken = action(token)
 
     val globalId = token.globalComputationId
@@ -208,12 +213,21 @@ class HonestMajorityShareShuffleMill(
     )
   }
 
-  private fun peerDuchyStub(participants: List<String>): ComputationControlCoroutineStub {
-    // TODO(@renjiez): remove participants fields and use a map to get stub for specific
-    // RoleInComputation.
+  private fun peerDuchyStub(role: RoleInComputation): ComputationControlCoroutineStub {
+    val peerDuchy =
+      when (role) {
+        FIRST_NON_AGGREGATOR -> {
+          protocolsSetupConfig.honestMajorityShareShuffle.secondNonAggregatorDuchyId
+        }
+        SECOND_NON_AGGREGATOR -> {
+          protocolsSetupConfig.honestMajorityShareShuffle.firstNonAggregatorDuchyId
+        }
+        AGGREGATOR,
+        RoleInComputation.NON_AGGREGATOR,
+        RoleInComputation.ROLE_IN_COMPUTATION_UNSPECIFIED,
+        RoleInComputation.UNRECOGNIZED -> error("Unexpected role:$role for peerDuchyStub")
+      }
 
-    // The last participant is the aggregator.
-    val peerDuchy = participants.dropLast(1).find { it != duchyId }
     return workerStubs[peerDuchy]
       ?: throw PermanentErrorException(
         "No ComputationControlService stub for the peer duchy '$peerDuchy'"
@@ -222,7 +236,7 @@ class HonestMajorityShareShuffleMill(
 
   private fun aggregatorStub(participants: List<String>): ComputationControlCoroutineStub {
     // The last participant is the aggregator.
-    val aggregator = participants.last()
+    val aggregator = protocolsSetupConfig.honestMajorityShareShuffle.aggregatorDuchyId
     return workerStubs[aggregator]
       ?: throw PermanentErrorException(
         "No ComputationControlService stub for aggregator '$aggregator'"
@@ -263,7 +277,7 @@ class HonestMajorityShareShuffleMill(
     sendAdvanceComputationRequest(
       header = advanceComputationHeader(headerDescription, token.globalComputationId),
       content = addLoggingHook(token, flowOf(shufflePhaseInput.toByteString())),
-      stub = peerDuchyStub(hmssDetails.participantsList),
+      stub = peerDuchyStub(hmssDetails.role),
     )
 
     return dataClients.transitionComputationToStage(
@@ -294,6 +308,7 @@ class HonestMajorityShareShuffleMill(
     secretSeed: ShufflePhaseInput.SecretSeed,
     duchyPrivateKeyId: String,
   ): RandomSeed {
+    requireNotNull(privateKeyStore) { "privateKeyStore is null for non-aggregator." }
     val privateKey =
       privateKeyStore.read(TinkKeyId(duchyPrivateKeyId.toLong()))
         ?: throw PermanentErrorException(

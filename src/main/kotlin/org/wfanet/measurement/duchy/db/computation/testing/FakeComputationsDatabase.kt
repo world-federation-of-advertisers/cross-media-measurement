@@ -40,6 +40,7 @@ import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTokenKt
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
+import org.wfanet.measurement.internal.duchy.CreateComputationRequest.AfterCreation
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
 import org.wfanet.measurement.internal.duchy.RequisitionEntry
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
@@ -74,6 +75,7 @@ private constructor(
     stageDetails: ComputationStageDetails,
     computationDetails: ComputationDetails,
     requisitions: List<RequisitionEntry>,
+    afterCreation: AfterCreation,
   ) {
     if (globalId.toLong() in tokens) {
       throw Status.fromCode(Status.Code.ALREADY_EXISTS).asRuntimeException()

@@ -103,6 +103,18 @@ message CreateComputationRequest {
   ComputationDetails computation_details = 4;
   // Map of Requisitions to create for this Computation.
   repeated RequisitionEntry requisitions = 5;
+
+  enum AfterCreation {
+    // Not set intentionally.
+    UNSPECIFIED = 0;
+    // Add the computation to the work queue, but in an unclaimed stage for
+    // some worker to claim at a later time.
+    ADD_UNCLAIMED_TO_QUEUE = 2;
+    // Do not add to the work queue.
+    // There is no work to be done on the computation at this time.
+    DO_NOT_ADD_TO_QUEUE = 3;
+  }
+  AfterCreation after_creation = 7;
 }
 
 message CreateComputationResponse {

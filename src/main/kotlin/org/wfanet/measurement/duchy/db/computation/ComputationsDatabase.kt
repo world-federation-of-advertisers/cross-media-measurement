@@ -22,6 +22,7 @@ import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
+import org.wfanet.measurement.internal.duchy.CreateComputationRequest.AfterCreation
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
 import org.wfanet.measurement.internal.duchy.RequisitionEntry
 
@@ -86,7 +87,7 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
   /**
    * Inserts a new computation for the global identifier.
    *
-   * The computation is added to the queue immediately.
+   * Whether The computation is added to the queue immediately is determined by `afterCreation`.
    */
   suspend fun insertComputation(
     globalId: String,
@@ -95,6 +96,7 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
     stageDetails: StageDetailsT,
     computationDetails: ComputationDetailsT,
     requisitions: List<RequisitionEntry> = listOf(),
+    afterCreation: AfterCreation = AfterCreation.ADD_UNCLAIMED_TO_QUEUE,
   )
 
   /**

@@ -268,7 +268,9 @@ private val AGGREGATOR_PROTOCOLS_SETUP_CONFIG = protocolsSetupConfig {
   }
   honestMajorityShareShuffle = honestMajorityShareShuffleSetupConfig {
     role = RoleInComputation.AGGREGATOR
-    externalAggregatorDuchyId = DUCHY_ONE
+    aggregatorDuchyId = DUCHY_ONE
+    firstNonAggregatorDuchyId = DUCHY_TWO
+    secondNonAggregatorDuchyId = DUCHY_THREE
   }
 }
 
@@ -283,8 +285,9 @@ private val NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG = protocolsSetupConfig {
   }
   honestMajorityShareShuffle = honestMajorityShareShuffleSetupConfig {
     role = RoleInComputation.FIRST_NON_AGGREGATOR
-    externalAggregatorDuchyId = DUCHY_ONE
-    externalPeerNonAggregatorDuchyId = DUCHY_THREE
+    aggregatorDuchyId = DUCHY_ONE
+    firstNonAggregatorDuchyId = DUCHY_TWO
+    secondNonAggregatorDuchyId = DUCHY_THREE
   }
 }
 
@@ -1425,7 +1428,7 @@ class HeraldTest {
         privateKeyStore = privateKeyStore,
         continuationTokenManager = ContinuationTokenManager(continuationTokensStub),
         protocolsSetupConfig = NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
-        Clock.systemUTC(),
+        clock = Clock.systemUTC(),
         maxAttempts = 2,
       )
 

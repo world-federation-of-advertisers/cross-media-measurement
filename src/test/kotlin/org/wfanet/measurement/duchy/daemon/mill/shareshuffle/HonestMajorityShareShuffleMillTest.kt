@@ -99,6 +99,8 @@ import org.wfanet.measurement.internal.duchy.computationDetails
 import org.wfanet.measurement.internal.duchy.computationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation
+import org.wfanet.measurement.internal.duchy.config.honestMajorityShareShuffleSetupConfig
+import org.wfanet.measurement.internal.duchy.config.protocolsSetupConfig
 import org.wfanet.measurement.internal.duchy.copy
 import org.wfanet.measurement.internal.duchy.differentialPrivacyParams
 import org.wfanet.measurement.internal.duchy.encryptionKeyPair
@@ -184,6 +186,14 @@ private val AEAD = KEY_ENCRYPTION_KEY.getPrimitive(Aead::class.java)
 private const val COMPUTATION_PARTICIPANT_1 = "worker_1"
 private const val COMPUTATION_PARTICIPANT_2 = "worker_2"
 private const val COMPUTATION_PARTICIPANT_3 = "aggregator"
+
+private val PROTOCOLS_SETUP_CONFIG = protocolsSetupConfig {
+  honestMajorityShareShuffle = honestMajorityShareShuffleSetupConfig {
+    aggregatorDuchyId = DUCHY_THREE_NAME
+    firstNonAggregatorDuchyId = DUCHY_ONE_NAME
+    secondNonAggregatorDuchyId = DUCHY_TWO_NAME
+  }
+}
 
 private val TEST_REQUISITION_1 = TestRequisition("111") { SERIALIZED_MEASUREMENT_SPEC }
 private val TEST_REQUISITION_2 = TestRequisition("222") { SERIALIZED_MEASUREMENT_SPEC }
@@ -364,6 +374,7 @@ class HonestMajorityShareShuffleMillTest {
       privateKeyStore = privateKeyStore,
       certificateClient = certificateStub,
       workerStubs = workerStubs,
+      protocolsSetupConfig = PROTOCOLS_SETUP_CONFIG,
       cryptoWorker = mockCryptoWorker,
       workLockDuration = Duration.ofMinutes(5),
       openTelemetry = GlobalOpenTelemetry.get(),
