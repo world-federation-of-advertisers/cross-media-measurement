@@ -23,9 +23,9 @@ data "aws_availability_zones" "available" {}
 data "aws_caller_identity" "current" {}
 
 locals {
-  az_count    = 2
-  azs         = slice(data.aws_availability_zones.available.names, 0, local.az_count)
-  vpc_cidr    = "10.0.0.0/16"
+  az_count = 2
+  azs      = slice(data.aws_availability_zones.available.names, 0, local.az_count)
+  vpc_cidr = "10.0.0.0/16"
 }
 
 module "vpc" {
@@ -97,7 +97,7 @@ module "load_balancer_controller_irsa_role" {
   attach_load_balancer_controller_policy = true
 
   oidc_providers = {
-    provider_arn               = module.cluster.oidc_provider_arn
+    provider_arn = module.cluster.oidc_provider_arn
     namespace_service_accounts = [
       "kube-system:aws-load-balancer-controller"
     ]
@@ -120,15 +120,16 @@ module "cluster_addons" {
 }
 
 module "duchy" {
-  source    = "../../modules/duchy"
+  source = "../../modules/duchy"
   providers = {
     kubernetes = kubernetes.duchy
   }
 
-  account_id            = data.aws_caller_identity.current.account_id
-  aws_region            = var.aws_region
-  eks_oidc_provider_arn = module.cluster.oidc_provider_arn
-  s3_bucket_arn         = module.storage.s3_bucket.arn
+  account_id              = data.aws_caller_identity.current.account_id
+  aws_region              = var.aws_region
+  eks_oidc_provider_arn   = module.cluster.oidc_provider_arn
+  s3_bucket_arn           = module.storage.s3_bucket.arn
+  vpc_public_subnet_count = local.az_count
 }
 
 

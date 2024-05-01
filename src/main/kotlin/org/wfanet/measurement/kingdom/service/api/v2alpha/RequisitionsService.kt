@@ -326,6 +326,8 @@ private fun InternalRequisition.toRequisition(): Requisition {
           Version.V2_ALPHA -> ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
         }
     }
+    // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this field.
+    encryptedRequisitionSpecCiphertext = details.encryptedRequisitionSpec
 
     dataProviderCertificate =
       DataProviderCertificateKey(
