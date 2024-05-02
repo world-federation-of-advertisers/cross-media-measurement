@@ -218,7 +218,7 @@ class PostgresBackingStoreTransactionContext(private val connection: Connection)
       """
         .trimIndent()
 
-    val queryT  otalAcdpCharge = getQueryTotalAcdpCharge(acdpCharges, reference.isRefund)
+    val queryTotalAcdpCharge = getQueryTotalAcdpCharge(acdpCharges, reference.isRefund)
 
     val statement: PreparedStatement = connection.prepareStatement(insertEntrySql)
 
