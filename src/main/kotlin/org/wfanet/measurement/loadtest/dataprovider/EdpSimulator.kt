@@ -187,6 +187,12 @@ class EdpSimulator(
   private val throttler: Throttler,
   private val privacyBudgetManager: PrivacyBudgetManager,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
+  /**
+   * EDP uses the vidToIndexMap to fulfill the requisitions for the honest majority share shuffle
+   * protocol.
+   *
+   * When the vidToIndexMap is empty, the honest majority share shuffle protocol is not supported.
+   */
   private val vidToIndexMap: Map<Long, IndexedValue> = emptyMap(),
   /**
    * Known protobuf types for [EventGroupMetadataDescriptor]s.
@@ -846,7 +852,7 @@ class EdpSimulator(
               "Skipping ${requisition.name}: The vidToIndexMap is needed for protocol hmss.",
             )
             throw RequisitionRefusalException(
-              Requisition.Refusal.Justification.UNFULFILLABLE,
+              Requisition.Refusal.Justification.SPEC_INVALID,
               "The vidToIndexMap is needed for protocol hmss.",
             )
           }
