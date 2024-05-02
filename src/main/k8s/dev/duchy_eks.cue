@@ -97,7 +97,7 @@ duchy: #PostgresDuchy & {
 			_container: {
 				resources: #HeraldResourceRequirements
 			}
-			spec: template: spec: #StorageServiceAccount & {
+			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #StorageServiceAccount
 			}
 		}
