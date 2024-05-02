@@ -83,7 +83,9 @@ object HonestMajorityShareShuffleStarter {
 
             val privateKeyHandle = TinkPrivateKeyHandle.generateHpke()
             requireNotNull(privateKeyStore) { "privateKeyStore cannot be null." }
+            logger.log(Level.INFO, "Storing private key...")
             val privateKeyId = storePrivateKey(privateKeyStore, privateKeyHandle)
+            logger.log(Level.INFO, "Stored private key")
             encryptionKeyPair = encryptionKeyPair {
               this.privateKeyId = privateKeyId
               publicKey = encryptionPublicKey {
