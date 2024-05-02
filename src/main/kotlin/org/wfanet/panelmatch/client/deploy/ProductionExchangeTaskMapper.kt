@@ -41,7 +41,6 @@ import org.wfanet.panelmatch.client.privatemembership.JniQueryResultsDecryptor
 import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
 import org.wfanet.panelmatch.client.storage.SharedStorageSelector
 import org.wfanet.panelmatch.common.ShardedFileName
-import org.wfanet.panelmatch.client.exchangetasks.emr.EmrServerlessClientService
 import org.wfanet.panelmatch.common.certificates.CertificateManager
 import org.wfanet.panelmatch.common.crypto.JniDeterministicCommutativeCipher
 import org.wfanet.panelmatch.common.crypto.generateSecureRandomByteString
@@ -158,9 +157,6 @@ open class ProductionExchangeTaskMapper(
     check(
       step.stepCase == ExchangeWorkflow.Step.StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP
     )
-    val stepDetails = step.decryptPrivateMembershipQueryResultsStep
-
-    val outputManifests = mapOf("decrypted-event-data" to stepDetails.decryptEventDataSetFileCount)
 
     return if (emrBeamTaskExecutorOnDaemon) {
       requireNotNull(emrService)
@@ -173,6 +169,10 @@ open class ProductionExchangeTaskMapper(
         exchangeDateKey.date,
       )
     } else {
+      val stepDetails = step.decryptPrivateMembershipQueryResultsStep
+
+      val outputManifests = mapOf("decrypted-event-data" to stepDetails.decryptEventDataSetFileCount)
+
       apacheBeamTaskFor(outputManifests, emptyList()) {
         decryptPrivateMembershipResults(stepDetails.parameters, JniQueryResultsDecryptor())
       }

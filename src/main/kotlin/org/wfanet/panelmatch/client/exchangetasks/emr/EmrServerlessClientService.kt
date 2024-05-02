@@ -13,13 +13,13 @@ private const val EMR_RELEASE_LABEL = "emr-7.0.0"
 private const val MAX_STATE_CHECK = 100
 private val STATE_CHECK_SLEEP_INTERVAL: Duration = 10.toDuration(DurationUnit.SECONDS)
 
-class EmrServerlessClientService(
+open class EmrServerlessClientService(
   private val s3ExchangeTaskJarPath: String,
   private val s3ExchangeTaskLogPath: String,
   private val emrJobExecutionRoleArn: String,
   private val emrServerlessClient: EmrServerlessClient,
 ) {
-  fun createApplication(applicationName: String): String {
+  open fun createApplication(applicationName: String): String {
     val request = CreateApplicationRequest.builder().name(applicationName).releaseLabel(
       EMR_RELEASE_LABEL
     ).type("SPARK").build()
@@ -28,7 +28,7 @@ class EmrServerlessClientService(
     return response.applicationId()
   }
 
-  suspend fun startOrStopApplication(applicationId: String, start: Boolean): Boolean {
+  open suspend fun startOrStopApplication(applicationId: String, start: Boolean): Boolean {
     var checks = 0
     val initialStartOrStopSleep = 30.toDuration(DurationUnit.SECONDS)
 
@@ -59,7 +59,7 @@ class EmrServerlessClientService(
     return false
   }
 
-  suspend fun startAndWaitJobRunCompletion(applicationId: String, arguments: List<String>): Boolean {
+  open suspend fun startAndWaitJobRunCompletion(applicationId: String, arguments: List<String>): Boolean {
     val startJobReq = StartJobRunRequest.builder()
       .applicationId(applicationId)
       .executionRoleArn(emrJobExecutionRoleArn)

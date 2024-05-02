@@ -11,7 +11,7 @@ import org.wfanet.panelmatch.common.storage.toStringUtf8
 
 private const val EMR_EXCHANGE_TASK_APP_NAME = "panel-exchange-beam-task"
 
-class EmrExchangeTaskService(
+open class EmrExchangeTaskService(
   val exchangeTaskAppIdPath: String,
   val exchangeWorkflowPrefix: String,
   val storageClient: StorageClient,
@@ -44,13 +44,17 @@ class EmrExchangeTaskService(
       throw RuntimeException("Panel exchange app was not started successfully")
     }
 
-    emrServerlessClientService.startAndWaitJobRunCompletion(appId, listOf(
+    val successful = emrServerlessClientService.startAndWaitJobRunCompletion(appId, listOf(
       "--exchange-workflow-blob-key=$exchangeWorkflowPrefix/$exchangeWorkflowId",
       "--step-index=$exchangeStepIndex",
       "--exchange-step-attempt-resource-id=${exchangeStepAttempt.toName()}",
       "--exchange-date=${exchangeDate.format(DateTimeFormatter.ISO_LOCAL_DATE)}",
       "--storage-type=${storageType.name}",
     ))
+
+    if (!successful) {
+      throw RuntimeException("Panel exchange step was not executed successfully")
+    }
 
     val stopped = emrServerlessClientService.startOrStopApplication(appId, false)
 
