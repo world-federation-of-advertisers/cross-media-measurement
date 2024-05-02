@@ -219,6 +219,11 @@ object HonestMajorityShareShuffleStarter {
     client: PrivateKeyStore<TinkKeyId, TinkPrivateKeyHandle>,
     privateKeyHandle: TinkPrivateKeyHandle,
   ): String {
-    return client.write(privateKeyHandle)
+    try{
+      return client.write(privateKeyHandle)
+    } catch (e: Exception) {
+      logger.log(Level.INFO) {"Error storing private key. Error: $e"}
+      throw e
+    }
   }
 }
