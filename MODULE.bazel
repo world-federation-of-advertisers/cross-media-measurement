@@ -325,6 +325,12 @@ archive_override(
     ],
 )
 
+archive_override(
+    module_name = "any-sketch",
+    urls = ["https://github.com/world-federation-of-advertisers/any-sketch/archive/c4a5bfba0f36fdbcc3ce06ee449d72a21879eab0.tar.gz"],
+    strip_prefix = "any-sketch-c4a5bfba0f36fdbcc3ce06ee449d72a21879eab0",
+)
+
 # Force use of newer version of boringssl.
 single_version_override(
     module_name = "boringssl",

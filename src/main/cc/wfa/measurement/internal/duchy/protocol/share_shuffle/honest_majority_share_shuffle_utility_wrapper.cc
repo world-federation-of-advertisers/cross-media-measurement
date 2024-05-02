@@ -30,7 +30,20 @@ absl::StatusOr<std::string> CompleteShufflePhase(
       serialized_request, CompleteShufflePhase);
 }
 
+absl::StatusOr<std::string> CompleteReachOnlyShufflePhase(
+    const std::string& serialized_request) {
+  return JniWrap<CompleteShufflePhaseRequest, CompleteShufflePhaseResponse>(
+      serialized_request, CompleteShufflePhase);
+}
+
 absl::StatusOr<std::string> CompleteAggregationPhase(
+    const std::string& serialized_request) {
+  return JniWrap<CompleteAggregationPhaseRequest,
+                 CompleteAggregationPhaseResponse>(serialized_request,
+                                                   CompleteAggregationPhase);
+}
+
+absl::StatusOr<std::string> CompleteReachOnlyAggregationPhase(
     const std::string& serialized_request) {
   return JniWrap<CompleteAggregationPhaseRequest,
                  CompleteAggregationPhaseResponse>(serialized_request,

@@ -28,7 +28,14 @@ using ::wfa::measurement::internal::duchy::protocol::
 absl::StatusOr<CompleteShufflePhaseResponse> CompleteShufflePhase(
     const CompleteShufflePhaseRequest& request);
 
+absl::StatusOr<CompleteShufflePhaseResponse> CompleteReachOnlyShufflePhase(
+    const CompleteShufflePhaseRequest& request);
+
 absl::StatusOr<CompleteAggregationPhaseResponse> CompleteAggregationPhase(
+    const CompleteAggregationPhaseRequest& request);
+
+absl::StatusOr<CompleteAggregationPhaseResponse>
+CompleteReachOnlyAggregationPhase(
     const CompleteAggregationPhaseRequest& request);
 
 }  // namespace wfa::measurement::internal::duchy::protocol::share_shuffle

@@ -30,6 +30,10 @@ absl::StatusOr<std::vector<uint32_t>> GenerateNoiseRegisters(
     const ShareShuffleSketchParams& sketch_param,
     const math::DistributedNoiser& distributed_noiser);
 
+absl::StatusOr<std::vector<uint32_t>> GenerateReachOnlyNoiseRegisters(
+    const ShareShuffleSketchParams& sketch_param,
+    const math::DistributedNoiser& distributed_noiser);
+
 absl::StatusOr<frequency_count::PrngSeed> GetPrngSeedFromString(
     const std::string& seed_str);
 
