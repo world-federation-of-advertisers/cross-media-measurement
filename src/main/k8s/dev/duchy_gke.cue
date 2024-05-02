@@ -74,7 +74,9 @@ duchy: #SpannerDuchy & {
 		name:                   _duchy_name
 		protocols_setup_config: _duchy_protocols_setup_config
 		cs_cert_resource_name:  _duchy_cert_name
-		duchyKeyEncryptionKeyFile: _duchyKeyEncryptionKeyFile
+		if (_duchyKeyEncryptionKeyFile != _|_) {
+			duchyKeyEncryptionKeyFile: _duchyKeyEncryptionKeyFile
+		}
 	}
 	_duchy_secret_name: _secret_name
 	_computation_control_targets: {
