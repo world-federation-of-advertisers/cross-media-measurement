@@ -36,11 +36,16 @@ _duchyCertName: "duchies/\(_duchyName)/certificates/\(_certificateId)"
 		cpu: "75m"
 	}
 }
-#HeraldResourceRequirements: #ResourceRequirements & {
+#HeraldResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu: "25m"
+		memory: "1024Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
 	}
 }
+#HeraldMaxHeapSize:    "800M"
 #MillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "3"
@@ -96,6 +101,7 @@ duchy: #PostgresDuchy & {
 	deployments: {
 		"herald-daemon-deployment": {
 			_container: {
+				_javaOptions: maxHeapSize: #HeraldMaxHeapSize
 				resources: #HeraldResourceRequirements
 			}
 			spec: template: spec: #ServiceAccountPodSpec & {
