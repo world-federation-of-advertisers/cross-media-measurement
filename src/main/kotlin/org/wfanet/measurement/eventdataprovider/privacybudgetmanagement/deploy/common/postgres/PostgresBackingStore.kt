@@ -97,7 +97,7 @@ class PostgresBackingStoreTransactionContext(private val connection: Connection)
     connection.prepareStatement(selectSql).use { statement: PreparedStatement ->
       statement.setString(1, measurementConsumerId)
       statement.setString(2, referenceId)
-      // TODO(@duliomatos) Make the blocking IO run within a dispatcher using coroutines
+      // TODO: Make the blocking IO run within a dispatcher using coroutines
       statement.executeQuery().use { rs: ResultSet ->
         if (rs.next()) {
           return rs.getBoolean("IsRefund")
@@ -177,6 +177,7 @@ class PostgresBackingStoreTransactionContext(private val connection: Connection)
       statement.setString(1, privacyReference.measurementConsumerId)
       statement.setString(2, privacyReference.referenceId)
       statement.setObject(3, privacyReference.isRefund)
+      // TODO: Make the blocking IO run within a dispatcher using coroutines
       statement.executeLargeUpdate()
     }
   }
@@ -217,7 +218,7 @@ class PostgresBackingStoreTransactionContext(private val connection: Connection)
       """
         .trimIndent()
 
-    val queryTotalAcdpCharge = getQueryTotalAcdpCharge(acdpCharges, reference.isRefund)
+    val queryT  otalAcdpCharge = getQueryTotalAcdpCharge(acdpCharges, reference.isRefund)
 
     val statement: PreparedStatement = connection.prepareStatement(insertEntrySql)
 
