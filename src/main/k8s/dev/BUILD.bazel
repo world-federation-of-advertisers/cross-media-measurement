@@ -246,7 +246,7 @@ expand_template(
         "{duchy_id}": "aggregator",
         "{duchy_role}": "aggregator",
     },
-    template = "duchy_secret_kustomization.tmpl.yaml",
+    template = "aggregator_secret_kustomization.tmpl.yaml",
 )
 
 expand_template(
