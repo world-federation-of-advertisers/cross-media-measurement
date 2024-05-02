@@ -256,7 +256,7 @@ expand_template(
         "{duchy_id}": "worker1",
         "{duchy_role}": "non_aggregator",
     },
-    template = "duchy_secret_kustomization.tmpl.yaml",
+    template = "non_aggregator_secret_kustomization.tmpl.yaml",
 )
 
 expand_template(
@@ -266,7 +266,7 @@ expand_template(
         "{duchy_id}": "worker2",
         "{duchy_role}": "non_aggregator",
     },
-    template = "duchy_secret_kustomization.tmpl.yaml",
+    template = "non_aggregator_secret_kustomization.tmpl.yaml",
 )
 
 kustomization_dir(
