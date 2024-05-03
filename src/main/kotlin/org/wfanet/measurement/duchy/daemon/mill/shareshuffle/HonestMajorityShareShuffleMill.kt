@@ -438,7 +438,7 @@ class HonestMajorityShareShuffleMill(
           logger.log(Level.INFO, "registerCount = $registerCount")
         }
     }
-
+    logger.log(Level.INFO) { "Start shuffle phase..." }
     val result = cryptoWorker.completeShufflePhase(request)
 
     val aggregationPhaseInput = aggregationPhaseInput {
@@ -489,6 +489,7 @@ class HonestMajorityShareShuffleMill(
         }
     }
 
+    logger.log(Level.INFO) { "Start aggregation phase..." }
     val result = cryptoWorker.completeAggregationPhase(request)
 
     logger.log(Level.INFO) { "Result: $result" }
