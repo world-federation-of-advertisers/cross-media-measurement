@@ -16,8 +16,11 @@
 
 package org.wfanet.panelmatch.integration.k8s
 
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import com.google.protobuf.Any
 import com.google.protobuf.kotlin.toByteString
+import com.google.protobuf.util.JsonFormat
 import io.grpc.ManagedChannel
 import io.kubernetes.client.common.KubernetesObject
 import io.kubernetes.client.openapi.Configuration
@@ -55,6 +58,7 @@ import org.wfanet.measurement.common.k8s.testing.PortForwarder
 import org.wfanet.measurement.common.k8s.testing.Processes
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.toProtoDate
+import org.wfanet.measurement.integration.common.DEFAULT_SERVICE_CONFIG
 import org.wfanet.measurement.integration.common.createEntityContent
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt
@@ -214,9 +218,12 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
         val dpStorageAddress: InetSocketAddress =
           withContext(Dispatchers.IO) { dpStorageForwarder.start() }
         val dpStorageChannel =
-          buildMutualTlsChannel(dpStorageAddress.toTarget(), EDP_SIGNING_CERTS)
+          buildMutualTlsChannel(
+              dpStorageAddress.toTarget(),
+              EDP_SIGNING_CERTS,
+              defaultServiceConfig = RPC_DEFAULT_SERVICE_CONFIG_MAP,
+            )
             .also { channels.add(it) }
-            .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
         dpForwardedStorage =
           ForwardedStorageClient(
             ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub(dpStorageChannel)
@@ -503,6 +510,11 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
     private const val MP_PRIVATE_STORAGE_DEPLOYMENT_NAME = "mp-private-storage-server-deployment"
     private const val DP_PRIVATE_STORAGE_DEPLOYMENT_NAME = "dp-private-storage-server-deployment"
     private const val SHARED_STORAGE_DEPLOYMENT_NAME = "shared-storage-server-deployment"
+    private val RPC_DEFAULT_SERVICE_CONFIG_MAP: Map<String, *>? by lazy {
+      val serviceConfigJson = JsonFormat.printer().print(DEFAULT_SERVICE_CONFIG)
+      val mapType = object : TypeToken<Map<String, *>>() {}.type
+      Gson().fromJson(serviceConfigJson, mapType)
+    }
 
     private val DEFAULT_RPC_DEADLINE = Duration.ofSeconds(30)
     private val IMAGE_PUSHER_PATH = Paths.get("src", "main", "docker", "push_all_local_images.bash")

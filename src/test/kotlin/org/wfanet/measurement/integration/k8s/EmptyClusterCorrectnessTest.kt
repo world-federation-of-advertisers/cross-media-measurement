@@ -16,6 +16,9 @@
 
 package org.wfanet.measurement.integration.k8s
 
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import com.google.protobuf.util.JsonFormat
 import io.grpc.Channel
 import io.grpc.ManagedChannel
 import io.grpc.StatusException
@@ -60,12 +63,12 @@ import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.jceProvider
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
-import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.k8s.KubernetesClient
 import org.wfanet.measurement.common.k8s.testing.PortForwarder
 import org.wfanet.measurement.common.k8s.testing.Processes
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
+import org.wfanet.measurement.integration.common.DEFAULT_SERVICE_CONFIG
 import org.wfanet.measurement.integration.common.MC_DISPLAY_NAME
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.integration.common.createEntityContent
@@ -243,9 +246,12 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       val publicApiAddress: InetSocketAddress =
         withContext(Dispatchers.IO) { publicApiForwarder.start() }
       val publicApiChannel: Channel =
-        buildMutualTlsChannel(publicApiAddress.toTarget(), MEASUREMENT_CONSUMER_SIGNING_CERTS)
+        buildMutualTlsChannel(
+            publicApiAddress.toTarget(),
+            MEASUREMENT_CONSUMER_SIGNING_CERTS,
+            defaultServiceConfig = RPC_DEFAULT_SERVICE_CONFIG_MAP,
+          )
           .also { channels.add(it) }
-          .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
       val eventGroupsClient = EventGroupsGrpcKt.EventGroupsCoroutineStub(publicApiChannel)
 
       return MeasurementConsumerSimulator(
@@ -468,7 +474,11 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     private val logger = Logger.getLogger(this::class.java.name)
 
     private const val SERVER_PORT: Int = 8443
-    private val DEFAULT_RPC_DEADLINE = Duration.ofSeconds(30)
+    private val RPC_DEFAULT_SERVICE_CONFIG_MAP: Map<String, *>? by lazy {
+      val serviceConfigJson = JsonFormat.printer().print(DEFAULT_SERVICE_CONFIG)
+      val mapType = object : TypeToken<Map<String, *>>() {}.type
+      Gson().fromJson(serviceConfigJson, mapType)
+    }
     private const val KINGDOM_INTERNAL_DEPLOYMENT_NAME = "gcp-kingdom-data-server-deployment"
     private const val KINGDOM_PUBLIC_DEPLOYMENT_NAME = "v2alpha-public-api-server-deployment"
     private const val NUM_DATA_PROVIDERS = 6
