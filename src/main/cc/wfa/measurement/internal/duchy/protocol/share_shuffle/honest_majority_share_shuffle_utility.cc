@@ -322,8 +322,6 @@ absl::StatusOr<CompleteAggregationPhaseResponse> CompleteAggregationPhase(
       google::protobuf::util::TimeUtil::MillisecondsToDuration(
           timer.ElapsedMillis());
 
-   std::cout << "adjusted_total=" << adjusted_total << std::endl;
-   std::cout << "reach=" << reach << std::endl;
   return response;
 }
 
