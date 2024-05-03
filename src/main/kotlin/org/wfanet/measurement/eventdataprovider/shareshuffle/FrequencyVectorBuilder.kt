@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// TODO(@kungfucraig): Move this and other files in this directory into a v2alpha subpackage
 package org.wfanet.measurement.eventdataprovider.shareshuffle
 
 import org.wfanet.frequencycount.FrequencyVector
@@ -19,6 +20,14 @@ import org.wfanet.frequencycount.frequencyVector
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator.validateVidRangesList
+
+// TODO(@kungfucraig): Move this into a utility class.
+/** Get the number of VIDs represented by a PopulationSpec */
+val PopulationSpec.size: Long
+  get() =
+    subpopulationsList.sumOf { subPop ->
+      subPop.vidRangesList.sumOf { (it.startVid..it.endVidInclusive).count().toLong() }
+    }
 
 /**
  * A utility for building an appropriately sized [FrequencyVector] for a given [MeasurementSpec] and
@@ -36,8 +45,8 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator.validateVidRan
  * is used to appropriately size the output vector and if the client does not do its own filtering,
  * filter the inputs to [increment] and [incrementAll].
  *
- * @param populationSpec [PopulationSpec] for the population being measured
- * @param measurementSpec [MeasurementSpec] that specifies a Reach or ReachAndFrequency
+ * @param populationSpec specification of the population being measured
+ * @param measurementSpec a [MeasurementSpec] that specifies a Reach or ReachAndFrequency
  * @param strict If false the various increment methods ignore indexes that are out of bounds. If
  *   true, an out of bounds index will result in an exception being thrown.
  * @constructor Create a [FrequencyVectorBuilder]
@@ -48,27 +57,8 @@ class FrequencyVectorBuilder(
   val strict: Boolean = true,
 ) {
 
-  /** The accumulated frequency data */
-  private val frequencyData: IntArray
-
-  /**
-   * For a non-wrapping sampling interval this is the entire range of indexes in the VidIndexMap
-   * that correspond to the sampling interval [start, start+width) For a wrapping sampling interval
-   * this is the range of indexes that correspond to the sub-interval [start, 1.0)
-   */
-  private val primaryRange: IntRange
-
-  /**
-   * For a wrapping VidSamplingInterval this is the part of the range than spans [0, width-start)
-   */
-  private val wrappedRange: IntRange
-
   /** The maximum frequency allowed in the output frequency vector. */
   private val maxFrequency: Int
-
-  /** The size of the frequency vector being managed */
-  val size: Int
-    get() = frequencyData.size
 
   init {
     require(measurementSpec.hasReach() || measurementSpec.hasReachAndFrequency()) {
@@ -87,7 +77,21 @@ class FrequencyVectorBuilder(
       } else {
         1
       }
+  }
 
+  /**
+   * For a non-wrapping sampling interval this is the entire range of indexes in the VidIndexMap
+   * that correspond to the sampling interval [start, start+width) For a wrapping sampling interval
+   * this is the range of indexes that correspond to the sub-interval [start, 1.0)
+   */
+  private val primaryRange: IntRange
+
+  /**
+   * For a wrapping VidSamplingInterval this is the part of the range than spans [0, width-start)
+   */
+  private val wrappedRange: IntRange
+
+  init {
     val vidSamplingInterval = measurementSpec.vidSamplingInterval
     require(vidSamplingInterval.width > 0 && vidSamplingInterval.width <= 1.0) {
       "MeasurementSpec.VidSamplingInterval.width must be > 0 and <= 1"
@@ -97,7 +101,11 @@ class FrequencyVectorBuilder(
     }
 
     validateVidRangesList(populationSpec).getOrThrow()
-    val populationSize = getPopulationSize(populationSpec)
+    val populationSizeLong = populationSpec.size
+    require(populationSizeLong > Int.MIN_VALUE || populationSizeLong < Int.MAX_VALUE) {
+      "population size < Int.MAX_VALUE and > Int.MIN_VALUE"
+    }
+    val populationSize = populationSizeLong.toInt()
 
     // If we have a wrapping interval globalEndIndex will be larger than the populationSize
     val globalStartIndex = (populationSize * vidSamplingInterval.start).toInt()
@@ -110,7 +118,16 @@ class FrequencyVectorBuilder(
       } else {
         IntRange.EMPTY
       }
+  }
 
+  /** The accumulated frequency data */
+  private val frequencyData: IntArray
+
+  /** The size of the frequency vector being managed */
+  val size: Int
+    get() = frequencyData.size
+
+  init {
     // Initialize the frequency vector
     val frequencyVectorSize = primaryRange.count() + wrappedRange.count()
     frequencyData = IntArray(frequencyVectorSize)
@@ -140,8 +157,7 @@ class FrequencyVectorBuilder(
   }
 
   /** Build a FrequencyVector. */
-  fun build(): FrequencyVector =
-    FrequencyVector.newBuilder()!!.addAllData(frequencyData.asList()).build()
+  fun build(): FrequencyVector = frequencyVector { data += frequencyData.asList() }
 
   /**
    * Increment the frequency vector for the VID at the given globalIndex.
@@ -196,16 +212,6 @@ class FrequencyVectorBuilder(
 
     other.frequencyData.forEachIndexed { i: Int, freq: Int ->
       frequencyData[i] = minOf(freq + frequencyData[i], maxFrequency)
-    }
-  }
-
-  companion object {
-    // TODO(@kungfucraig): Move this into a utility class.
-    fun getPopulationSize(populationSpec: PopulationSpec): Int {
-      var out = 0
-      for (subPop in populationSpec.subpopulationsList) for (range in subPop.vidRangesList) out +=
-        (range.startVid..range.endVidInclusive).count()
-      return out
     }
   }
 }

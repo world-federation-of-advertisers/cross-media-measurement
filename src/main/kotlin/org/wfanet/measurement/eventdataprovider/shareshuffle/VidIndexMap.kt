@@ -30,7 +30,7 @@ interface VidIndexMap {
   operator fun get(vid: Long): Int
 
   /** The number of VIDs managed by this VidIndexMap */
-  val size: Int
+  val size: Long
 
   /** The PopulationSpec used to create this map */
   val populationSpec: PopulationSpec
@@ -56,7 +56,7 @@ class InMemoryVidIndexMap(
   // TODO(@kungfucraig): Provide a constructor that reads the vid->index map from a file.
 
   override val size
-    get() = indexMap.size
+    get() = indexMap.size.toLong()
 
   /** A map of a VID to its index in the [Frequency Vector]. */
   private val indexMap = hashMapOf<Long, Int>()
