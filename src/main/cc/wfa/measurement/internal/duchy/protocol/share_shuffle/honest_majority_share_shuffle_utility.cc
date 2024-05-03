@@ -72,9 +72,26 @@ absl::Status VerifySketchParameters(const ShareShuffleSketchParams& params) {
   return absl::OkStatus();
 }
 
+// Checks if modulus is a prime.
+absl::StatusOr<bool> IsPrime(int modulus) {
+  if (modulus < 0) {
+    return absl::InvalidArgumentError("Input must be a non-negative integer.");
+  }
+  if (modulus <= 1) {
+    return false;
+  }
+  for (int i = 2; i * i <= modulus; i++) {
+    if (modulus % i == 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
 }  // namespace
 
-absl::StatusOr<CompleteShufflePhaseResponse> CompleteShufflePhase(
+absl::StatusOr<CompleteShufflePhaseResponse>
+CompleteReachAndFrequencyShufflePhase(
     const CompleteShufflePhaseRequest& request) {
   StartedThreadCpuTimer timer;
   CompleteShufflePhaseResponse response;
@@ -126,7 +143,8 @@ absl::StatusOr<CompleteShufflePhaseResponse> CompleteShufflePhase(
 
     // Generates local noise registers.
     ASSIGN_OR_RETURN(std::vector<uint32_t> noise_registers,
-                     GenerateNoiseRegisters(request.sketch_params(), *noiser));
+                     GenerateReachAndFrequencyNoiseRegisters(
+                         request.sketch_params(), *noiser));
 
     // Both workers generate common random vectors from the common random seed.
     // rand_vec_1 || rand_vec_2 <-- PRNG(seed).
@@ -198,10 +216,10 @@ absl::StatusOr<CompleteShufflePhaseResponse> CompleteReachOnlyShufflePhase(
   RETURN_IF_ERROR(VerifySketchParameters(request.sketch_params()));
 
   // Verify that the ring modulus is a prime.
-  for (int i = 2; i <= request.sketch_params().ring_modulus() / 2; i++) {
-    if (request.sketch_params().ring_modulus() % i == 0) {
-      return absl::InvalidArgumentError("The ring modulus must be a prime.");
-    }
+  ASSIGN_OR_RETURN(bool isPrime,
+                   IsPrime(request.sketch_params().ring_modulus()));
+  if (!isPrime) {
+    return absl::InvalidArgumentError("The ring modulus must be a prime.");
   }
 
   if (request.sketch_shares().empty()) {
@@ -325,7 +343,8 @@ absl::StatusOr<CompleteShufflePhaseResponse> CompleteReachOnlyShufflePhase(
   return response;
 }
 
-absl::StatusOr<CompleteAggregationPhaseResponse> CompleteAggregationPhase(
+absl::StatusOr<CompleteAggregationPhaseResponse>
+CompleteReachAndFrequencyAggregationPhase(
     const CompleteAggregationPhaseRequest& request) {
   StartedThreadCpuTimer timer;
   CompleteAggregationPhaseResponse response;
@@ -349,18 +368,18 @@ absl::StatusOr<CompleteAggregationPhaseResponse> CompleteAggregationPhase(
   // frequency_histogram[i] = the number of times value i occurs where
   // i in {0, ..., maximum_frequency-1}.
   absl::flat_hash_map<int, int64_t> frequency_histogram;
-  for (auto x : combined_sketch) {
-    if (x > request.sketch_params().maximum_combined_frequency() &&
-        x != (request.sketch_params().ring_modulus() - 1)) {
+  for (const auto reg : combined_sketch) {
+    if (reg > request.sketch_params().maximum_combined_frequency() &&
+        reg != (request.sketch_params().ring_modulus() - 1)) {
       return absl::InternalError(absl::Substitute(
           "The combined register value, which is $0, is not valid. It must be "
           "either the sentinel value, which is $1, or less that or equal to "
           "the combined maximum frequency, which is $2.",
-          x, request.sketch_params().ring_modulus() - 1,
+          reg, request.sketch_params().ring_modulus() - 1,
           request.sketch_params().maximum_combined_frequency()));
     }
-    if (x < maximum_frequency) {
-      frequency_histogram[x]++;
+    if (reg < maximum_frequency) {
+      frequency_histogram[reg]++;
     }
   }
 
@@ -474,8 +493,8 @@ CompleteReachOnlyAggregationPhase(
 
   // Count the non-zero registers.
   int64_t non_empty_register_count = 0;
-  for (auto x : combined_sketch) {
-    if (x != 0) {
+  for (const auto reg : combined_sketch) {
+    if (reg != 0) {
       non_empty_register_count++;
     }
   }

@@ -146,7 +146,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "any-sketch",
-    version = "0.8.0",
+    version = "0.9.0",
     repo_name = "any_sketch",
 )
 bazel_dep(
@@ -323,12 +323,6 @@ archive_override(
     urls = [
         "https://github.com/bazelbuild/rules_proto/releases/download/6.0.0-rc2/rules_proto-6.0.0-rc2.tar.gz",
     ],
-)
-
-archive_override(
-    module_name = "any-sketch",
-    urls = ["https://github.com/world-federation-of-advertisers/any-sketch/archive/c4a5bfba0f36fdbcc3ce06ee449d72a21879eab0.tar.gz"],
-    strip_prefix = "any-sketch-c4a5bfba0f36fdbcc3ce06ee449d72a21879eab0",
 )
 
 # Force use of newer version of boringssl.

@@ -25,13 +25,15 @@ using ::wfa::measurement::internal::duchy::protocol::
 using ::wfa::measurement::internal::duchy::protocol::
     CompleteShufflePhaseResponse;
 
-absl::StatusOr<CompleteShufflePhaseResponse> CompleteShufflePhase(
+absl::StatusOr<CompleteShufflePhaseResponse>
+CompleteReachAndFrequencyShufflePhase(
     const CompleteShufflePhaseRequest& request);
 
 absl::StatusOr<CompleteShufflePhaseResponse> CompleteReachOnlyShufflePhase(
     const CompleteShufflePhaseRequest& request);
 
-absl::StatusOr<CompleteAggregationPhaseResponse> CompleteAggregationPhase(
+absl::StatusOr<CompleteAggregationPhaseResponse>
+CompleteReachAndFrequencyAggregationPhase(
     const CompleteAggregationPhaseRequest& request);
 
 absl::StatusOr<CompleteAggregationPhaseResponse>

@@ -44,7 +44,7 @@ using ::wfa::math::kBytesPerAes256Iv;
 using ::wfa::math::kBytesPerAes256Key;
 using ::wfa::math::UniformPseudorandomGenerator;
 
-absl::StatusOr<std::vector<uint32_t>> GenerateNoiseRegisters(
+absl::StatusOr<std::vector<uint32_t>> GenerateReachAndFrequencyNoiseRegisters(
     const ShareShuffleSketchParams& sketch_param,
     const math::DistributedNoiser& distributed_noiser) {
   if (sketch_param.ring_modulus() <=
