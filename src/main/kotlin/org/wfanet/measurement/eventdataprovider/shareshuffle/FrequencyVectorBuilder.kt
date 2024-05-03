@@ -103,7 +103,7 @@ class FrequencyVectorBuilder(
     validateVidRangesList(populationSpec).getOrThrow()
     val populationSizeLong = populationSpec.size
     require(populationSizeLong > Int.MIN_VALUE || populationSizeLong < Int.MAX_VALUE) {
-      "population size < Int.MAX_VALUE and > Int.MIN_VALUE"
+      "population size must be > Int.MIN_VALUE and < Int.MAX_VALUE"
     }
     val populationSize = populationSizeLong.toInt()
 
