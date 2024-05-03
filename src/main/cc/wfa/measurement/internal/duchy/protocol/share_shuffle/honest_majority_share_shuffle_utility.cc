@@ -187,14 +187,12 @@ absl::StatusOr<CompleteShufflePhaseResponse> CompleteShufflePhase(
   *response.mutable_elapsed_cpu_duration() =
       google::protobuf::util::TimeUtil::MillisecondsToDuration(
           timer.ElapsedMillis());
-  std::cout << "C++ shuffle phase complete" << std::endl;
+
   return response;
 }
 
 absl::StatusOr<CompleteAggregationPhaseResponse> CompleteAggregationPhase(
     const CompleteAggregationPhaseRequest& request) {
-
-  std::cout << "Aggregation phase debug 1" << std::endl;
 
   StartedThreadCpuTimer timer;
   CompleteAggregationPhaseResponse response;
@@ -204,12 +202,10 @@ absl::StatusOr<CompleteAggregationPhaseResponse> CompleteAggregationPhase(
         "The number of share vectors must be equal to the number of "
         "non-aggregators.");
   }
-  std::cout << "Aggregation phase debug 2" << std::endl;
   ASSIGN_OR_RETURN(
       std::vector<uint32_t> combined_sketch,
       CombineSketchShares(request.sketch_params(), request.sketch_shares()));
 
-  std::cout << "Aggregation phase debug 3" << std::endl;
 
   int maximum_frequency = request.maximum_frequency();
   if (maximum_frequency < 1) {
@@ -237,7 +233,6 @@ absl::StatusOr<CompleteAggregationPhaseResponse> CompleteAggregationPhase(
       frequency_histogram[x]++;
     }
   }
-  std::cout << "Aggregation phase debug 4" << std::endl;
 
   int64_t register_count = request.sketch_params().register_count();
 
@@ -270,7 +265,6 @@ absl::StatusOr<CompleteAggregationPhaseResponse> CompleteAggregationPhase(
         std::min(register_count, non_empty_register_count);
   }
 
-  std::cout << "Aggregation phase debug 5" << std::endl;
   // Counts the number of registers that have frequency value in the range
   // [0, maximum_frequency - 1].
   int accumulated_count = 0;
@@ -278,7 +272,7 @@ absl::StatusOr<CompleteAggregationPhaseResponse> CompleteAggregationPhase(
        it++) {
     accumulated_count += it->second;
   }
-  std::cout << "Aggregation phase debug 6" << std::endl;
+
   // Computes the value frequency_histogram[maximum_frequency+] from the current
   // frequency histogram, then stores the number of registers that have
   // frequency value in the range [1, maximum_frequency+] in adjusted_total, and
@@ -317,7 +311,6 @@ absl::StatusOr<CompleteAggregationPhaseResponse> CompleteAggregationPhase(
                    EstimateReach(non_empty_register_count,
                                  request.vid_sampling_interval_width()));
 
-  std::cout << "Aggregation phase debug 7" << std::endl;
   response.set_reach(reach);
 
   google::protobuf::Map<int64_t, double>& distribution =
@@ -328,7 +321,7 @@ absl::StatusOr<CompleteAggregationPhaseResponse> CompleteAggregationPhase(
           static_cast<double>(frequency_histogram[i]) / adjusted_total;
     }
   }
-  std::cout << "Aggregation phase debug 8" << std::endl;
+
   *response.mutable_elapsed_cpu_duration() =
       google::protobuf::util::TimeUtil::MillisecondsToDuration(
           timer.ElapsedMillis());
