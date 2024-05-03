@@ -114,7 +114,7 @@ object PopulationSpecValidator {
     if (validVidRanges.size > 1) {
       var (previousVidRange, previousIndexMessage) = validVidRanges[0]
       for ((currentVidRange, currentIndexMessage) in
-      validVidRanges.slice(1..validVidRanges.lastIndex)) {
+        validVidRanges.slice(1..validVidRanges.lastIndex)) {
         if (previousVidRange.endVidInclusive >= currentVidRange.startVid) {
           details.add(
             PopulationSpecValidationException.VidRangesNotDisjointDetail(
