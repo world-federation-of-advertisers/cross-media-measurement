@@ -21,8 +21,11 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator.validateVidRangesList
 
-// TODO(@kungfucraig): Move this into a utility class.
-/** Get the number of VIDs represented by a PopulationSpec */
+/**
+ * Get the number of VIDs represented by a PopulationSpec
+ *
+ * TODO(@kungfucraig): Move this into the package where Population Spec resides
+ */
 val PopulationSpec.size: Long
   get() =
     subpopulationsList.sumOf { subPop ->
@@ -213,5 +216,23 @@ class FrequencyVectorBuilder(
     other.frequencyData.forEachIndexed { i: Int, freq: Int ->
       frequencyData[i] = minOf(freq + frequencyData[i], maxFrequency)
     }
+  }
+
+  companion object {
+    /** Allow for DSL syntax when building a FrequencyVector. */
+    fun build(
+      populationSpec: PopulationSpec,
+      measurementSpec: MeasurementSpec,
+      bind: FrequencyVectorBuilder.() -> Unit,
+    ): FrequencyVector = FrequencyVectorBuilder(populationSpec, measurementSpec).apply(bind).build()
+
+    /** Allow for DSL syntax when building a FrequencyVector. */
+    fun build(
+      populationSpec: PopulationSpec,
+      measurementSpec: MeasurementSpec,
+      frequencyVector: FrequencyVector,
+      bind: FrequencyVectorBuilder.() -> Unit,
+    ): FrequencyVector =
+      FrequencyVectorBuilder(populationSpec, measurementSpec, frequencyVector).apply(bind).build()
   }
 }
