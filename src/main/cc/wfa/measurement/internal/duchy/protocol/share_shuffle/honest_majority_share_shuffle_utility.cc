@@ -187,6 +187,7 @@ absl::StatusOr<CompleteShufflePhaseResponse> CompleteShufflePhase(
   *response.mutable_elapsed_cpu_duration() =
       google::protobuf::util::TimeUtil::MillisecondsToDuration(
           timer.ElapsedMillis());
+  std::cout << "C++ shuffle phase complete" << std::endl;
   return response;
 }
 
