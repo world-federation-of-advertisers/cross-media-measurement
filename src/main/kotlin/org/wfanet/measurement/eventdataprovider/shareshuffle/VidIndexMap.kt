@@ -28,6 +28,7 @@ class VidNotFoundException(vid: Long) : Exception("Failed to find VID $vid.")
 interface VidIndexMap {
   /** Gets the index in the [FrequencyVector] for the given VID */
   operator fun get(vid: Long): Int
+
   val size: Int
   val populationSpec: PopulationSpec
 }
