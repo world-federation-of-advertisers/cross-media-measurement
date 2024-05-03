@@ -72,16 +72,16 @@ absl::Status VerifySketchParameters(const ShareShuffleSketchParams& params) {
   return absl::OkStatus();
 }
 
-// Checks if modulus is a prime.
-absl::StatusOr<bool> IsPrime(int modulus) {
-  if (modulus < 0) {
+// Checks if val is a prime.
+absl::StatusOr<bool> IsPrime(int val) {
+  if (val < 0) {
     return absl::InvalidArgumentError("Input must be a non-negative integer.");
   }
-  if (modulus <= 1) {
+  if (val <= 1) {
     return false;
   }
-  for (int i = 2; i * i <= modulus; i++) {
-    if (modulus % i == 0) {
+  for (int i = 2; i * i <= val; i++) {
+    if (val % i == 0) {
       return false;
     }
   }
