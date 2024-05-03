@@ -73,10 +73,9 @@ absl::Status VerifySketchParameters(const ShareShuffleSketchParams& params) {
 }
 
 // Checks if val is a prime.
-absl::StatusOr<bool> IsPrime(int val) {
-  if (val < 0) {
-    return absl::InvalidArgumentError("Input must be a non-negative integer.");
-  }
+//
+// This algorithm has the computation complexity of O(sqrt(val)).
+bool IsPrime(int val) {
   if (val <= 1) {
     return false;
   }
@@ -117,12 +116,9 @@ CompleteReachAndFrequencyShufflePhase(
           "actual is $2.",
           i, sketch_size, share_vector.size()));
     }
-    for (int j = 0; j < sketch_size; j++) {
-      // It's guaranteed that (combined_sketch[j] + share_vector[j]) is
-      // not greater than 2^{32}-1.
-      combined_sketch[j] = (combined_sketch[j] + share_vector[j]) %
-                           request.sketch_params().ring_modulus();
-    }
+    ASSIGN_OR_RETURN(combined_sketch,
+                     VectorAddMod(combined_sketch, share_vector,
+                                  request.sketch_params().ring_modulus()));
   }
 
   ASSIGN_OR_RETURN(PrngSeed seed,
@@ -216,9 +212,7 @@ absl::StatusOr<CompleteShufflePhaseResponse> CompleteReachOnlyShufflePhase(
   RETURN_IF_ERROR(VerifySketchParameters(request.sketch_params()));
 
   // Verify that the ring modulus is a prime.
-  ASSIGN_OR_RETURN(bool isPrime,
-                   IsPrime(request.sketch_params().ring_modulus()));
-  if (!isPrime) {
+  if (!IsPrime(request.sketch_params().ring_modulus())) {
     return absl::InvalidArgumentError("The ring modulus must be a prime.");
   }
 
@@ -241,12 +235,9 @@ absl::StatusOr<CompleteShufflePhaseResponse> CompleteReachOnlyShufflePhase(
           "actual is $2.",
           i, sketch_size, share_vector.size()));
     }
-    for (int j = 0; j < sketch_size; j++) {
-      // It's guaranteed that (combined_sketch[j] + share_vector[j]) is
-      // not greater than 2^{32}-1.
-      combined_sketch[j] = (combined_sketch[j] + share_vector[j]) %
-                           request.sketch_params().ring_modulus();
-    }
+    ASSIGN_OR_RETURN(combined_sketch,
+                     VectorAddMod(combined_sketch, share_vector,
+                                  request.sketch_params().ring_modulus()));
   }
 
   ASSIGN_OR_RETURN(PrngSeed seed,
@@ -264,8 +255,8 @@ absl::StatusOr<CompleteShufflePhaseResponse> CompleteReachOnlyShufflePhase(
 
   // Transform share of non-zero registers to share of a non-zero random value.
   for (int j = 0; j < sketch_size; j++) {
-    combined_sketch[j] =
-        (combined_sketch[j] * r[j]) % request.sketch_params().ring_modulus();
+    combined_sketch[j] = uint64_t{combined_sketch[j]} * uint64_t{r[j]} %
+                         request.sketch_params().ring_modulus();
   }
 
   // Adds noise registers to the combined input share.
