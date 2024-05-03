@@ -29,7 +29,7 @@ interface VidIndexMap {
   /** Gets the index in the [FrequencyVector] for the given VID */
   operator fun get(vid: Long): Int
 
-  /** The size of the map */
+  /** The number of VIDs managed by this VidIndexMap */
   val size: Int
 
   /** The PopulationSpec used to create this map */
