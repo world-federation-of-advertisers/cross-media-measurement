@@ -23,7 +23,7 @@ module "internal_server_iam_policy" {
   description = "Policy for duchy internal server"
 
   policy = jsonencode({
-    Version   = "2012-10-17"
+    Version = "2012-10-17"
     Statement = [
       {
         Effect = "Allow"
@@ -91,7 +91,7 @@ module "storage_iam_policy" {
   description = "Policy for accessing duchy storage blobs"
 
   policy = jsonencode({
-    Version   = "2012-10-17"
+    Version = "2012-10-17"
     Statement = [
       {
         Effect = "Allow"
@@ -130,3 +130,22 @@ resource "kubernetes_service_account" "storage-service-account" {
     }
   }
 }
+
+resource "aws_eip" "v2alpha" {
+  count = var.vpc_public_subnet_count
+
+  domain = "vpc"
+  tags = {
+    "Name" : "duchy-system-v1alpha-${count.index}"
+  }
+}
+
+resource "aws_eip" "system_v1alpha" {
+  count = var.vpc_public_subnet_count
+
+  domain = "vpc"
+  tags = {
+    "Name" : "duchy-v2alpha-${count.index}"
+  }
+}
+

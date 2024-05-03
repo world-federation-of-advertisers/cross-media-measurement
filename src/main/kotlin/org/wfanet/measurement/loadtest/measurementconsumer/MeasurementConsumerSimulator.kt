@@ -747,13 +747,21 @@ class MeasurementConsumerSimulator(
     return measurement
   }
 
-  /** Checks if the given [Measurement] is failed. */
+  /** Checks if the given [Measurement] is in an unsuccessful terminal state. */
   private fun checkNotFailed(measurement: Measurement): Measurement {
-    check(measurement.state != Measurement.State.FAILED) {
-      val failure: Failure = measurement.failure
-      "Measurement failed with reason ${failure.reason}: ${failure.message}"
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
+    when (measurement.state) {
+      Measurement.State.AWAITING_REQUISITION_FULFILLMENT,
+      Measurement.State.COMPUTING,
+      Measurement.State.SUCCEEDED -> return measurement
+      Measurement.State.FAILED -> {
+        val failure: Failure = measurement.failure
+        error("Measurement failed with reason ${failure.reason}: ${failure.message}")
+      }
+      Measurement.State.CANCELLED -> error("Measurement cancelled")
+      Measurement.State.STATE_UNSPECIFIED,
+      Measurement.State.UNRECOGNIZED -> error("Unexpected Measurement state ${measurement.state}")
     }
-    return measurement
   }
 
   /** Gets the failure of an invalid [Measurement] if it is failed */
