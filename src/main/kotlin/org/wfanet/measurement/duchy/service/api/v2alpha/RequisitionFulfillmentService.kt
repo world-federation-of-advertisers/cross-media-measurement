@@ -50,6 +50,8 @@ import org.wfanet.measurement.internal.duchy.requisitionProtocolDetails
 import org.wfanet.measurement.system.v1alpha.RequisitionKey as SystemRequisitionKey
 import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.fulfillRequisitionRequest as systemFulfillRequisitionRequest
+import java.util.logging.Level
+import java.util.logging.Logger
 
 private val FULFILLED_RESPONSE =
   FulfillRequisitionResponse.newBuilder().apply { state = Requisition.State.FULFILLED }.build()
@@ -100,11 +102,20 @@ class RequisitionFulfillmentService(
         // TODO(world-federation-of-advertisers/cross-media-measurement#85): Handle the case that it
         //  is already marked fulfilled locally.
         if (requisitionMetadata.path.isBlank()) {
+
+          logger.log(Level.INFO, "Writing blob...")
           val blob =
-            requisitionStore.write(
-              RequisitionBlobContext(computationToken.globalComputationId, key.requisitionId),
-              consumed.remaining.map { it.bodyChunk.data },
-            )
+            try {
+              requisitionStore.write(
+                RequisitionBlobContext(computationToken.globalComputationId, key.requisitionId),
+                consumed.remaining.map { it.bodyChunk.data },
+              )
+            } catch (e: Exception) {
+              logger.log(Level.WARNING) { "Error in writing blob. Error: $e" }
+              throw e
+            }
+
+          logger.log(Level.INFO, "Wrote blob.")
 
           if (computationToken.computationStage.hasHonestMajorityShareShuffle()) {
             val hmss = header.honestMajorityShareShuffle
@@ -113,34 +124,17 @@ class RequisitionFulfillmentService(
               "DataProviderCertificate not specified for HMSS protocol."
             }
 
-            val secretSeedCiphertext = hmss.secretSeed.ciphertext
-
             recordHmssRequisitionLocally(
               token = computationToken,
               key = externalRequisitionKey,
               blobPath = blob.blobKey,
-              secretSeedCiphertext = secretSeedCiphertext,
+              secretSeedCiphertext = hmss.secretSeed.ciphertext,
               registerCount = hmss.registerCount,
               dataProviderCertificate = hmss.dataProviderCertificate,
             )
           } else {
             recordLlv2RequisitionLocally(computationToken, externalRequisitionKey, blob.blobKey)
           }
-          val seed =
-            if (computationToken.computationStage.hasHonestMajorityShareShuffle()) {
-              grpcRequire(header.honestMajorityShareShuffle.hasSecretSeed()) {
-                "Secret seed not be specified for HMSS protocol."
-              }
-              grpcRequire(
-                header.honestMajorityShareShuffle.secretSeed.typeUrl ==
-                  ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
-              ) {
-                "ciphertext of secret seed must be of SignedMessage."
-              }
-              header.honestMajorityShareShuffle.secretSeed.ciphertext
-            } else {
-              null
-            }
         }
 
         fulfillRequisitionAtKingdom(
@@ -269,6 +263,9 @@ class RequisitionFulfillmentService(
         this.nonce = nonce
       }
     )
+  }
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
 
