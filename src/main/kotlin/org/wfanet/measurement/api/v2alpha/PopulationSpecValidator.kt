@@ -44,19 +44,6 @@ class PopulationSpecValidationException(message: String, val details: List<Detai
   /** A common interface for the set of Details associated with this exception */
   interface Detail
 
-  /** A class that represents a VidRangeIndex within a [PopulationSpec] */
-  data class VidRangeIndex(val subPopulationIndex: Int, val vidRangeIndex: Int) {
-    operator fun compareTo(other: VidRangeIndex): Int =
-      compareValuesBy(this, other, { it.subPopulationIndex }, { it.vidRangeIndex })
-
-    override fun toString(): String {
-      return "SubpopulationIndex: $subPopulationIndex VidRangeIndex: $vidRangeIndex"
-    }
-  }
-
-  /** A common interface for the set of Details associated with this exception */
-  interface Detail
-
   /**
    * Indicates that a pair of [VidRange]s are not disjoint.
    *
@@ -127,7 +114,7 @@ object PopulationSpecValidator {
     if (validVidRanges.size > 1) {
       var (previousVidRange, previousIndexMessage) = validVidRanges[0]
       for ((currentVidRange, currentIndexMessage) in
-        validVidRanges.slice(1..validVidRanges.lastIndex)) {
+      validVidRanges.slice(1..validVidRanges.lastIndex)) {
         if (previousVidRange.endVidInclusive >= currentVidRange.startVid) {
           details.add(
             PopulationSpecValidationException.VidRangesNotDisjointDetail(
@@ -160,25 +147,6 @@ object PopulationSpecValidator {
     val details = mutableListOf<PopulationSpecValidationException.Detail>()
     if (vidRange.startVid <= 0) {
       details.add(PopulationSpecValidationException.StartVidNotPositiveDetail(vidRangeIndex))
-    }
-    if (vidRange.endVidInclusive < vidRange.startVid) {
-      details.add(
-        PopulationSpecValidationException.EndVidInclusiveLessThanVidStartDetail(vidRangeIndex)
-      )
-    }
-    return details
-  }
-
-  /**
-   * Validate a [VidRange]
-   *
-   * @param [vidRange] is the range to validate
-   * @return If invalid, a non-empty [List<Error>], or an empty list if valid.
-   */
-  private fun validateVidRange(vidRange: VidRange, indexMessage: String = ""): List<Error> {
-    val errors = mutableListOf<Error>()
-    if (vidRange.startVid <= 0) {
-      details.add(PopulationSpecValidationException.StartVidNotPositiveDetail(indexMessage))
     }
     if (vidRange.endVidInclusive < vidRange.startVid) {
       details.add(
