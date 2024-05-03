@@ -299,7 +299,6 @@ class FrequencyVectorBuilderTest {
 
     // In strict mode this fails because the partial interval is from 0.3 to 0.8, however
     // since we are not in strict mode this has no effect.
-    // not include the global index zero.
     builder.increment(0)
     assertThat(builder.build()).isEqualTo(frequencyVector { data += listOf<Int>(0, 0, 0, 0, 0) })
   }
