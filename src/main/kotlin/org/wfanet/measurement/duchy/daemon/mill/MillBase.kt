@@ -646,7 +646,7 @@ abstract class MillBase(
   private fun cpuDurationLogger(): CpuDurationLogger = CpuDurationLogger(this::getCpuTimeMillis)
 
   @OptIn(ExperimentalTime::class)
-  private inner class WallDurationLogger {
+  protected inner class WallDurationLogger {
     private val timeMark = TimeSource.Monotonic.markNow()
 
     suspend fun logStageDurationMetric(
@@ -659,7 +659,7 @@ abstract class MillBase(
     }
   }
 
-  private fun wallDurationLogger(): WallDurationLogger = WallDurationLogger()
+  protected fun wallDurationLogger(): WallDurationLogger = WallDurationLogger()
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)

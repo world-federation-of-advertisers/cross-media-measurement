@@ -40,8 +40,10 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 #HeraldResourceRequirements: #ResourceRequirements & {
 	requests: {
 		cpu: "25m"
+		memory: "512M"
 	}
 }
+#HeraldMaxHeapSize:    "400M"
 #MillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "3"
@@ -113,6 +115,7 @@ duchy: #SpannerDuchy & {
 		}
 		"herald-daemon-deployment": {
 			_container: {
+				_javaOptions: maxHeapSize: #HeraldMaxHeapSize
 				resources: #HeraldResourceRequirements
 			}
 			spec: template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {

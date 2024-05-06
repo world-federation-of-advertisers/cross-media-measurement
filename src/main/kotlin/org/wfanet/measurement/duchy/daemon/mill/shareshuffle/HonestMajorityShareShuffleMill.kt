@@ -18,13 +18,13 @@ import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.api.metrics.LongHistogram
 import io.opentelemetry.api.metrics.Meter
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
-import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.flowOf
 import org.wfanet.measurement.api.Version
@@ -46,8 +46,10 @@ import org.wfanet.measurement.common.xor
 import org.wfanet.measurement.consent.client.duchy.decryptRandomSeed
 import org.wfanet.measurement.consent.client.duchy.signEncryptionPublicKey
 import org.wfanet.measurement.consent.client.duchy.verifyRandomSeed
+import org.wfanet.measurement.duchy.daemon.mill.CRYPTO_LIB_CPU_DURATION
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
 import org.wfanet.measurement.duchy.daemon.mill.MillBase
+import org.wfanet.measurement.duchy.daemon.mill.STAGE_WALL_CLOCK_DURATION
 import org.wfanet.measurement.duchy.daemon.mill.shareshuffle.crypto.HonestMajorityShareShuffleCryptor
 import org.wfanet.measurement.duchy.daemon.utils.ReachAndFrequencyResult
 import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaEncryptionPublicKey
@@ -129,6 +131,21 @@ class HonestMajorityShareShuffleMill(
     openTelemetry = openTelemetry,
   ) {
   private val meter: Meter = openTelemetry.getMeter(HonestMajorityShareShuffleMill::class.java.name)
+
+  private val shufflePhaseCryptoCpuTimeDurationHistogram: LongHistogram =
+    meter.histogramBuilder("shuffle_phase_crypto_cpu_time_duration_millis").ofLongs().build()
+
+  private val shufflePhaseWallClockDurationHistogram: LongHistogram =
+    meter.histogramBuilder("shuffle_phase_crypto_cpu_time_duration_millis").ofLongs().build()
+
+  private val shufflePhaseDataSizeHistogram: LongHistogram =
+    meter.histogramBuilder("shuffle_phase_data_size_bytes").ofLongs().build()
+
+  private val aggregationPhaseCryptoCpuTimeDurationHistogram: LongHistogram =
+    meter.histogramBuilder("aggregation_phase_crypto_cpu_time_duration_millis").ofLongs().build()
+
+  private val aggregationPhaseWallClockDurationHistogram: LongHistogram =
+    meter.histogramBuilder("aggregation_phase_wall_clock_duration_millis").ofLongs().build()
 
   // TODO(@renjiez): add metrics.
 
@@ -432,25 +449,40 @@ class HonestMajorityShareShuffleMill(
       require(registerCounts.distinct().size == 1) {
         "All RegisterCount from requisitions must be the same. $registerCounts"
       }
-      sketchParams =
-        hmss.parameters.sketchParams.copy {
-          registerCount = registerCounts.first()
-          logger.log(Level.INFO, "registerCount = $registerCount")
-        }
+      sketchParams = hmss.parameters.sketchParams.copy { registerCount = registerCounts.first() }
     }
-    logger.log(Level.INFO) { "Start shuffle phase..." }
+
+    val cryptoLogger = wallDurationLogger()
     val result = cryptoWorker.completeShufflePhase(request)
+
+    cryptoLogger.logStageDurationMetric(
+      token,
+      STAGE_WALL_CLOCK_DURATION,
+      shufflePhaseWallClockDurationHistogram,
+    )
+    logStageDurationMetric(
+      token,
+      CRYPTO_LIB_CPU_DURATION,
+      result.elapsedCpuDuration.seconds * 1000,
+      shufflePhaseCryptoCpuTimeDurationHistogram,
+    )
 
     val aggregationPhaseInput = aggregationPhaseInput {
       combinedSketch += result.combinedSketchList
       registerCount = request.sketchParams.registerCount
     }
 
+    val transmissionLogger = wallDurationLogger()
     sendAdvanceComputationRequest(
       header =
         advanceComputationHeader(Description.AGGREGATION_PHASE_INPUT, token.globalComputationId),
       content = addLoggingHook(token, flowOf(aggregationPhaseInput.toByteString())),
       stub = aggregatorStub(token.computationDetails.honestMajorityShareShuffle.participantsList),
+    )
+    transmissionLogger.logStageDurationMetric(
+      token,
+      STAGE_WALL_CLOCK_DURATION,
+      shufflePhaseDataSizeHistogram,
     )
 
     return completeComputation(token, ComputationDetails.CompletedReason.SUCCEEDED)
@@ -485,14 +517,24 @@ class HonestMajorityShareShuffleMill(
         hmss.parameters.sketchParams.copy {
           require(aggregationPhaseInputs.map { it.registerCount }.distinct().size == 1)
           registerCount = aggregationPhaseInputs.first().registerCount
-          logger.log(Level.INFO, "registerCount = $registerCount")
         }
     }
 
-    logger.log(Level.INFO) { "Start aggregation phase..." }
+    val cryptoLogger = wallDurationLogger()
     val result = cryptoWorker.completeAggregationPhase(request)
 
-    logger.log(Level.INFO) { "Result: $result" }
+    cryptoLogger.logStageDurationMetric(
+      token,
+      STAGE_WALL_CLOCK_DURATION,
+      aggregationPhaseWallClockDurationHistogram,
+    )
+    logStageDurationMetric(
+      token,
+      CRYPTO_LIB_CPU_DURATION,
+      result.elapsedCpuDuration.seconds * 1000,
+      aggregationPhaseCryptoCpuTimeDurationHistogram,
+    )
+
     sendResultToKingdom(
       token,
       ReachAndFrequencyResult(result.reach, result.frequencyDistributionMap),
