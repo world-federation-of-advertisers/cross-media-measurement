@@ -538,6 +538,9 @@ class MetricsService(
     ): MeasurementSpec {
       return measurementSpec {
         measurementPublicKey = packedMeasurementEncryptionPublicKey
+        // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this
+        // field.
+        serializedMeasurementPublicKey = packedMeasurementEncryptionPublicKey.value
         this.nonceHashes += nonceHashes
 
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
@@ -658,6 +661,9 @@ class MetricsService(
         val requisitionSpec = requisitionSpec {
           events = RequisitionSpecKt.events { eventGroups += eventGroupEntriesList }
           measurementPublicKey = packedMeasurementEncryptionPublicKey
+          // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this
+          // field.
+          serializedMeasurementPublicKey = packedMeasurementEncryptionPublicKey.value
           nonce = secureRandom.nextLong()
         }
         val encryptRequisitionSpec =
