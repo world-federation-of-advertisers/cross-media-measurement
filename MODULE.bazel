@@ -232,23 +232,22 @@ maven.install(
         "org.apache.tomcat:annotations-api:6.0.53",
         "com.google.api.grpc:proto-google-common-protos:2.34.0",
     ],
-    generate_compat_repositories = True,
     fail_if_repin_required = True,
     fetch_sources = True,  # For IDE integration.
+    generate_compat_repositories = True,
     lock_file = "//:maven_install.json",
     strict_visibility = True,
 )
 use_repo(
     maven,
-    "com_google_guava_guava",
     "com_google_api_grpc_proto_google_common_protos",
-    "com_google_j2objc_j2objc_annotations",
-    "com_google_guava_failureaccess",
     "com_google_code_findbugs_jsr305",
     "com_google_errorprone_error_prone_annotations",
-    "org_apache_tomcat_annotations_api",
+    "com_google_guava_failureaccess",
+    "com_google_guava_guava",
+    "com_google_j2objc_j2objc_annotations",
     "maven",
-
+    "org_apache_tomcat_annotations_api",
 )
 
 npm = use_extension("@aspect_rules_js//npm:extensions.bzl", "npm")

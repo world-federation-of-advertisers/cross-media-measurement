@@ -5,7 +5,7 @@ load("@rules_jvm_external//:defs.bzl", "java_export")
 
 java_export(
     name = "exported_edp_libs",
-    maven_coordinates = "com.amazon.wfaedp:edp-java-libs:0.0.3",
+    maven_coordinates = "com.amazon.wfaedp:edp-java-libs:0.0.4",
     tags = ["manual"],
     runtime_deps = [
         ":edp_java_libs",
@@ -38,8 +38,13 @@ java_library(
         ":model_suites_service_java_proto",
         ":public_keys_service_java_proto",
         ":requisitions_service_java_proto",
+        "@virtual_people_core_serving//src/main/kotlin/org/wfanet/virtualpeople/core/labeler",
+        "@virtual_people_core_serving//src/main/kotlin/org/wfanet/virtualpeople/core/model:model_node",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/common:key_handles",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
     ],
 )
 
@@ -69,6 +74,9 @@ java_proto_library(
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_shard_proto",
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_template_proto",
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:date_interval_proto",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:event_proto",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:label_proto",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:model_proto",
         # GRPCs
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_proto",
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:api_keys_service_proto",
