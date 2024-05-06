@@ -48,6 +48,8 @@ import org.wfanet.measurement.consent.client.duchy.signEncryptionPublicKey
 import org.wfanet.measurement.consent.client.duchy.verifyRandomSeed
 import org.wfanet.measurement.duchy.daemon.mill.CRYPTO_LIB_CPU_DURATION
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
+import org.wfanet.measurement.duchy.daemon.mill.DATA_TRANSMISSION_WALL_CLOCK_DURATION
+import org.wfanet.measurement.duchy.daemon.mill.JNI_WALL_CLOCK_DURATION
 import org.wfanet.measurement.duchy.daemon.mill.MillBase
 import org.wfanet.measurement.duchy.daemon.mill.STAGE_WALL_CLOCK_DURATION
 import org.wfanet.measurement.duchy.daemon.mill.shareshuffle.crypto.HonestMajorityShareShuffleCryptor
@@ -457,7 +459,7 @@ class HonestMajorityShareShuffleMill(
 
     cryptoLogger.logStageDurationMetric(
       token,
-      STAGE_WALL_CLOCK_DURATION,
+      JNI_WALL_CLOCK_DURATION,
       shufflePhaseWallClockDurationHistogram,
     )
     logStageDurationMetric(
@@ -481,7 +483,7 @@ class HonestMajorityShareShuffleMill(
     )
     transmissionLogger.logStageDurationMetric(
       token,
-      STAGE_WALL_CLOCK_DURATION,
+      DATA_TRANSMISSION_WALL_CLOCK_DURATION,
       shufflePhaseDataSizeHistogram,
     )
 
@@ -525,7 +527,7 @@ class HonestMajorityShareShuffleMill(
 
     cryptoLogger.logStageDurationMetric(
       token,
-      STAGE_WALL_CLOCK_DURATION,
+      JNI_WALL_CLOCK_DURATION,
       aggregationPhaseWallClockDurationHistogram,
     )
     logStageDurationMetric(
