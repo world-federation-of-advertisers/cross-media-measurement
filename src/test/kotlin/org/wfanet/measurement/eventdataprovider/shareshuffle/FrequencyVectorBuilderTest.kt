@@ -30,79 +30,6 @@ import org.wfanet.measurement.api.v2alpha.populationSpec
 
 @RunWith(JUnit4::class)
 class FrequencyVectorBuilderTest {
-  companion object {
-    // A hash function to map the VIDs into the frequency vector based on their numeric order
-    private val hashFunction = { vid: Long, _: ByteString -> vid - STARTING_VID }
-
-    private const val STARTING_VID = 100_000L
-
-    private const val SMALL_POPULATION_SIZE = 10
-    private val SMALL_POPULATION_SPEC = populationSpec {
-      subpopulations += subPopulation {
-        vidRanges += vidRange {
-          // make the VIDs out of bounds of the frequency vector
-          startVid = STARTING_VID
-          endVidInclusive = STARTING_VID + SMALL_POPULATION_SIZE - 1
-        }
-      }
-    }
-    val SMALL_POPULATION_VID_INDEX_MAP = InMemoryVidIndexMap(SMALL_POPULATION_SPEC, hashFunction)
-
-    private val SMALL_COMPLEX_POPULATION_SPEC = populationSpec {
-      subpopulations += subPopulation {
-        vidRanges += vidRange {
-          // make the VIDs out of bounds of the frequency vector
-          startVid = STARTING_VID
-          endVidInclusive = STARTING_VID + 4
-        }
-      }
-      subpopulations += subPopulation {
-        vidRanges += vidRange {
-          // make the VIDs out of bounds of the frequency vector
-          startVid = STARTING_VID + 4 + 1
-          endVidInclusive = STARTING_VID + SMALL_POPULATION_SIZE - 1
-        }
-      }
-    }
-    val SMALL_COMPLEX_POPULATION_VID_INDEX_MAP =
-      InMemoryVidIndexMap(SMALL_POPULATION_SPEC, hashFunction)
-
-    private val FULL_SAMPLING_INTERVAL = vidSamplingInterval {
-      start = 0f
-      width = 1.0f
-    }
-    private val FULL_REACH_MEASUREMENT_SPEC = measurementSpec {
-      vidSamplingInterval = FULL_SAMPLING_INTERVAL
-      reach = reach {}
-    }
-
-    private val PARTIAL_NON_WRAPPING_SAMPLING_INTERVAL = vidSamplingInterval {
-      start = 0.3f
-      width = 0.5f
-    }
-    private val PARTIAL_NON_WRAPPING_REACH_MEASUREMENT_SPEC = measurementSpec {
-      vidSamplingInterval = PARTIAL_NON_WRAPPING_SAMPLING_INTERVAL
-      reach = reach {}
-    }
-
-    private val PARTIAL_WRAPPING_SAMPLING_INTERVAL = vidSamplingInterval {
-      start = 0.8f
-      width = 0.5f
-    }
-    private val PARTIAL_WRAPPING_REACH_MEASUREMENT_SPEC = measurementSpec {
-      vidSamplingInterval = PARTIAL_WRAPPING_SAMPLING_INTERVAL
-      reach = reach {}
-    }
-
-    private val FULL_WRAPPING_SAMPLING_INTERVAL = vidSamplingInterval {
-      start = 1.0f
-      width = 1.0f
-    }
-    private val FULL_WRAPPING_REACH_MEASUREMENT_SPEC = measurementSpec {
-      vidSamplingInterval = FULL_WRAPPING_SAMPLING_INTERVAL
-      reach = reach {}
-    }
-  }
 
   @Test
   fun `construction fails when measurement spec does not have reach or reach and frequency`() {
@@ -416,5 +343,79 @@ class FrequencyVectorBuilderTest {
     expectedData[3] = 1
     expectedData[8] = 1
     assertThat(builder.build()).isEqualTo(frequencyVector { data += expectedData.toList() })
+  }
+
+  companion object {
+    // A hash function to map the VIDs into the frequency vector based on their numeric order
+    private val hashFunction = { vid: Long, _: ByteString -> vid - STARTING_VID }
+
+    private const val STARTING_VID = 100_000L
+
+    private const val SMALL_POPULATION_SIZE = 10
+    private val SMALL_POPULATION_SPEC = populationSpec {
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          // make the VIDs out of bounds of the frequency vector
+          startVid = STARTING_VID
+          endVidInclusive = STARTING_VID + SMALL_POPULATION_SIZE - 1
+        }
+      }
+    }
+    val SMALL_POPULATION_VID_INDEX_MAP = InMemoryVidIndexMap(SMALL_POPULATION_SPEC, hashFunction)
+
+    private val SMALL_COMPLEX_POPULATION_SPEC = populationSpec {
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          // make the VIDs out of bounds of the frequency vector
+          startVid = STARTING_VID
+          endVidInclusive = STARTING_VID + 4
+        }
+      }
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          // make the VIDs out of bounds of the frequency vector
+          startVid = STARTING_VID + 4 + 1
+          endVidInclusive = STARTING_VID + SMALL_POPULATION_SIZE - 1
+        }
+      }
+    }
+    val SMALL_COMPLEX_POPULATION_VID_INDEX_MAP =
+      InMemoryVidIndexMap(SMALL_POPULATION_SPEC, hashFunction)
+
+    private val FULL_SAMPLING_INTERVAL = vidSamplingInterval {
+      start = 0f
+      width = 1.0f
+    }
+    private val FULL_REACH_MEASUREMENT_SPEC = measurementSpec {
+      vidSamplingInterval = FULL_SAMPLING_INTERVAL
+      reach = reach {}
+    }
+
+    private val PARTIAL_NON_WRAPPING_SAMPLING_INTERVAL = vidSamplingInterval {
+      start = 0.3f
+      width = 0.5f
+    }
+    private val PARTIAL_NON_WRAPPING_REACH_MEASUREMENT_SPEC = measurementSpec {
+      vidSamplingInterval = PARTIAL_NON_WRAPPING_SAMPLING_INTERVAL
+      reach = reach {}
+    }
+
+    private val PARTIAL_WRAPPING_SAMPLING_INTERVAL = vidSamplingInterval {
+      start = 0.8f
+      width = 0.5f
+    }
+    private val PARTIAL_WRAPPING_REACH_MEASUREMENT_SPEC = measurementSpec {
+      vidSamplingInterval = PARTIAL_WRAPPING_SAMPLING_INTERVAL
+      reach = reach {}
+    }
+
+    private val FULL_WRAPPING_SAMPLING_INTERVAL = vidSamplingInterval {
+      start = 1.0f
+      width = 1.0f
+    }
+    private val FULL_WRAPPING_REACH_MEASUREMENT_SPEC = measurementSpec {
+      vidSamplingInterval = FULL_WRAPPING_SAMPLING_INTERVAL
+      reach = reach {}
+    }
   }
 }
