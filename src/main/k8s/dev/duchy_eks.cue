@@ -57,12 +57,16 @@ _duchyCertName: "duchies/\(_duchyName)/certificates/\(_certificateId)"
 }
 #MillMaxHeapSize:        "3500M"
 #MillReplicas:           1
-#FulfillmentResourceRequirements: #ResourceRequirements & {
+#FulfillmentResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu: "200m"
+		memory: "512Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
 	}
 }
-#FulfillmentMaxHeapSize: "150M"
+#FulfillmentMaxHeapSize: "350M"
 
 objectSets: [
 	default_deny_ingress_and_egress,
