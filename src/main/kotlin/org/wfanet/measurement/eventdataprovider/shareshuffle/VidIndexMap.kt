@@ -48,6 +48,8 @@ interface VidIndexMap {
  * @param [hashFunction] The hash function to use for hashing VIDs.
  * @constructor Creates a [VidIndexMap] for the given [PopulationSpec]
  * @throws [PopulationSpecValidationException] if the [populationSpec] is invalid
+ *
+ * TODO(@kungfucraig): Move this into its own file.
  */
 class InMemoryVidIndexMap(
   override val populationSpec: PopulationSpec,
