@@ -57,7 +57,7 @@ _duchyCertName: "duchies/\(_duchyName)/certificates/\(_certificateId)"
 }
 #MillMaxHeapSize:        "3500M"
 #MillReplicas:           1
-#FulfillmentResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+#FulfillmentResourceRequirements: #ResourceRequirements & {
 	requests: {
 		cpu: "200m"
 	}
