@@ -853,16 +853,6 @@ class EdpSimulator(
               "Measurement type not supported for protocol hmss.",
             )
           }
-          if (vidToIndexMap.isEmpty()) {
-            logger.log(
-              Level.WARNING,
-              "Skipping ${requisition.name}: The vidToIndexMap is needed for protocol hmss.",
-            )
-            throw RequisitionRefusalException(
-              Requisition.Refusal.Justification.SPEC_INVALID,
-              "The vidToIndexMap is needed for protocol hmss.",
-            )
-          }
           verifyDuchyEntries(
             requisition,
             ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
