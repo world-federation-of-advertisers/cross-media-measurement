@@ -60,7 +60,7 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 #MillReplicas:           1
 #FulfillmentResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
-		cpu: "150m"
+		cpu: "200m"
 	}
 }
 #FulfillmentMaxHeapSize: "150M"
