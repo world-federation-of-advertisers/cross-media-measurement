@@ -136,7 +136,7 @@ resource "aws_eip" "v2alpha" {
 
   domain = "vpc"
   tags = {
-    "Name" : "duchy-system-v1alpha-${count.index}"
+    "Name" : "duchy-v2alpha-${count.index}"
   }
 }
 
@@ -145,7 +145,7 @@ resource "aws_eip" "system_v1alpha" {
 
   domain = "vpc"
   tags = {
-    "Name" : "duchy-v2alpha-${count.index}"
+    "Name" : "duchy-system-v1alpha-${count.index}"
   }
 }
 
