@@ -325,6 +325,15 @@ archive_override(
     ],
 )
 
+# DO NOT MERGE (https://github.com/world-federation-of-advertisers/common-jvm/pull/249) : Update common-jvm version instead before merging.
+archive_override(
+    module_name = "common-jvm",
+    strip_prefix = "common-jvm-9ef5891aa6b517228fbe07bc650b3065f72e94a3",
+    urls = [
+        "https://github.com/world-federation-of-advertisers/common-jvm/archive/9ef5891aa6b517228fbe07bc650b3065f72e94a3.tar.gz",
+    ],
+)
+
 # Force use of newer version of boringssl.
 single_version_override(
     module_name = "boringssl",
