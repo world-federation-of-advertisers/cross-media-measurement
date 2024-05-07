@@ -848,6 +848,7 @@ class EdpSimulatorTest {
             }
         }
       )
+    // TODO(@ple13): Verify the reach and the frequency distribution.
     assert(header.honestMajorityShareShuffle.hasSecretSeed())
   }
 

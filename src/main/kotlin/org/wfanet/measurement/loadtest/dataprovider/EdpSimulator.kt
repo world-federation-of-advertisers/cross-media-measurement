@@ -501,6 +501,13 @@ class EdpSimulator(
     duchyCertificate: Certificate,
     protocol: ProtocolConfig.Protocol.ProtocolCase,
   ) {
+    val SUPPORTED_PROTOCOLS = buildSet {
+      add(ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2)
+      add(ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2)
+      if (vidToIndexMap.isNotEmpty()) {
+        add(ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE)
+      }
+    }
     require(protocol in SUPPORTED_PROTOCOLS) { "Unsupported protocol $protocol" }
 
     val duchyX509Certificate: X509Certificate = readCertificate(duchyCertificate.x509Der)
@@ -1931,13 +1938,6 @@ class EdpSimulator(
     init {
       System.loadLibrary("secret_share_generator_adapter")
     }
-
-    private val SUPPORTED_PROTOCOLS =
-      setOf(
-        ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2,
-        ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2,
-        ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
-      )
 
     private const val RPC_CHUNK_SIZE_BYTES = 32 * 1024 // 32 KiB
 
