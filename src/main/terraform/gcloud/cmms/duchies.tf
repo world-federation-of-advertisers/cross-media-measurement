@@ -16,9 +16,10 @@ module "clusters" {
   source   = "../modules/cluster"
   for_each = local.duchy_names
 
-  name       = "${each.key}-duchy"
-  location   = local.cluster_location
-  secret_key = module.common.cluster_secret_key
+  name            = "${each.key}-duchy"
+  location        = local.cluster_location
+  release_channel = var.cluster_release_channel
+  secret_key      = module.common.cluster_secret_key
 }
 
 data "google_container_cluster" "clusters" {

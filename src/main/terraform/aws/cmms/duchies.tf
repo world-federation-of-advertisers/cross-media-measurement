@@ -43,7 +43,7 @@ module "load_balancer_controller_irsa_role" {
   oidc_providers = {
     for k, cluster in module.clusters :
     k => {
-      provider_arn               = cluster.oidc_provider_arn
+      provider_arn = cluster.oidc_provider_arn
       namespace_service_accounts = [
         "kube-system:aws-load-balancer-controller"
       ]
@@ -94,13 +94,14 @@ module "worker2_cluster_addons" {
 }
 
 module "worker2_duchy" {
-  source    = "../modules/duchy"
+  source = "../modules/duchy"
   providers = {
     kubernetes = kubernetes.worker2
   }
 
-  account_id            = data.aws_caller_identity.current.account_id
-  aws_region            = var.aws_region
-  eks_oidc_provider_arn = module.clusters["worker2"].oidc_provider_arn
-  s3_bucket_arn         = module.storage.s3_bucket.arn
+  account_id              = data.aws_caller_identity.current.account_id
+  aws_region              = var.aws_region
+  eks_oidc_provider_arn   = module.clusters["worker2"].oidc_provider_arn
+  s3_bucket_arn           = module.storage.s3_bucket.arn
+  vpc_public_subnet_count = local.az_count
 }

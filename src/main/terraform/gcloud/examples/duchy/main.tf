@@ -47,9 +47,10 @@ module "storage" {
 module "cluster" {
   source = "../../modules/cluster"
 
-  name       = local.cluster_name
-  location   = local.cluster_location
-  secret_key = module.common.cluster_secret_key
+  name            = local.cluster_name
+  location        = local.cluster_location
+  release_channel = var.cluster_release_channel
+  secret_key      = module.common.cluster_secret_key
 }
 
 data "google_container_cluster" "cluster" {
