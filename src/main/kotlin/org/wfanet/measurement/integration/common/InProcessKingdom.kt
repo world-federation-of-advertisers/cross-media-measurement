@@ -14,9 +14,11 @@
 
 package org.wfanet.measurement.integration.common
 
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import com.google.protobuf.Descriptors
+import com.google.protobuf.util.JsonFormat
 import io.grpc.Channel
-import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
 import org.junit.rules.TestRule
 import org.junit.runner.Description
@@ -24,7 +26,6 @@ import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.testing.withMetadataPrincipalIdentities
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
-import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.identity.testing.withMetadataDuchyIdentities
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
@@ -78,12 +79,7 @@ class InProcessKingdom(
   val knownEventGroupMetadataTypes: Iterable<Descriptors.FileDescriptor>
     get() = kingdomDataServices.knownEventGroupMetadataTypes
 
-  private val internalApiChannel by lazy {
-    internalDataServer.channel.withDefaultDeadline(
-      DEFAULT_INTERNAL_DEADLINE_MILLIS,
-      TimeUnit.MILLISECONDS,
-    )
-  }
+  private val internalApiChannel by lazy { internalDataServer.channel }
   private val internalApiKeysClient by lazy { InternalApiKeysCoroutineStub(internalApiChannel) }
   private val internalMeasurementsClient by lazy {
     InternalMeasurementsCoroutineStub(internalApiChannel)
@@ -119,9 +115,11 @@ class InProcessKingdom(
   private val internalRecurringExchangesClient by lazy {
     InternalRecurringExchangesCoroutineStub(internalApiChannel)
   }
-
   private val internalDataServer =
-    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+    GrpcTestServerRule(
+      logAllRequests = verboseGrpcLogging,
+      defaultServiceConfig = DEFAULT_SERVICE_CONFIG_MAP,
+    ) {
       logger.info("Building Kingdom's internal Data services")
       kingdomDataServices.buildDataServices().toList().forEach { addService(it) }
     }
@@ -223,5 +221,10 @@ class InProcessKingdom(
         ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE,
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
       )
+    private val DEFAULT_SERVICE_CONFIG_MAP: Map<String, *>? by lazy {
+      val serviceConfigJson = JsonFormat.printer().print(DEFAULT_SERVICE_CONFIG)
+      val mapType = object : TypeToken<Map<String, *>>() {}.type
+      Gson().fromJson(serviceConfigJson, mapType)
+    }
   }
 }
