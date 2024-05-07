@@ -58,7 +58,12 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 }
 #MillMaxHeapSize:        "3G"
 #MillReplicas:           1
-#FulfillmentMaxHeapSize: "96M"
+#FulfillmentResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu: "150m"
+	}
+}
+#FulfillmentMaxHeapSize: "150M"
 
 objectSets: [
 	default_deny_ingress_and_egress,
@@ -159,6 +164,7 @@ duchy: #SpannerDuchy & {
 		"requisition-fulfillment-server-deployment": {
 			_container: {
 				_javaOptions: maxHeapSize: #FulfillmentMaxHeapSize
+				resources: #FulfillmentResourceRequirements
 			}
 			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #StorageServiceAccount
