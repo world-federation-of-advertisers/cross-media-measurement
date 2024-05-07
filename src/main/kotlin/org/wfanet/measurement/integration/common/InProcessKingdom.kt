@@ -212,9 +212,6 @@ class InProcessKingdom(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-
-    /** Default deadline for RPCs to internal server in milliseconds. */
-    private const val DEFAULT_INTERNAL_DEADLINE_MILLIS = 30_000L
     private val MEASUREMENT_NOISE_MECHANISMS: List<ProtocolConfig.NoiseMechanism> =
       listOf(
         ProtocolConfig.NoiseMechanism.NONE,
