@@ -49,7 +49,7 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 #HeraldMaxHeapSize:    "400M"
 #MillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
-		cpu:    "3"
+		cpu:    "2"
 		memory: "4Gi"
 	}
 	limits: {
