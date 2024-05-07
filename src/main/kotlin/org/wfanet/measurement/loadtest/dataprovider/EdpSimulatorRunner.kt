@@ -114,6 +114,10 @@ abstract class EdpSimulatorRunner : Runnable {
         MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval),
         createNoOpPrivacyBudgetManager(),
         clientCerts.trustedCertificates,
+        /**
+         * When the vidToIndexMap is empty, HMSS is not supported.
+         * TODO(@ple13): Use the actual vidToIndexMap when smaller dataset is available.
+         */
         vidToIndexMap = emptyMap(),
         knownEventGroupMetadataTypes = knownEventGroupMetadataTypes,
         random = random,

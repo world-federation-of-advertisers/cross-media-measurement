@@ -1152,15 +1152,9 @@ class EdpSimulator(
       if (measurementSpec.hasReachAndFrequency()) measurementSpec.reachAndFrequency.maximumFrequency
       else 1
 
-    // TODO(@ple13): Verify that the vidToIndexMap has been properly initialized when a smaller
-    // synthetic dataset is used and the path to HMSS protocol is included in the integration tests.
-    // In that case, the actual vidUniverse is not needed.
-    val vidUniverse =
-      if (vidToIndexMap.isEmpty()) eventQuery.getUserVirtualIdUniverse().toList() else emptyList()
-
     val sketch =
       FrequencyVectorGenerator(
-          vidUniverse,
+          vidUniverse = emptyList(),
           ByteString.EMPTY,
           vidToIndexMap,
           eventQuery,

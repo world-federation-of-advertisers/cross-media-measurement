@@ -112,6 +112,10 @@ class InProcessEdpSimulator(
           100.0f,
         ),
       trustedCertificates = trustedCertificates,
+      /**
+       * When the vidToIndexMap is empty, HMSS is not supported.
+       * TODO(@ple13): Use the actual vidToIndexMap when smaller dataset is available.
+       */
       vidToIndexMap = emptyMap(),
       knownEventGroupMetadataTypes = listOf(SyntheticEventGroupSpec.getDescriptor().file),
       random = random,

@@ -848,7 +848,6 @@ class EdpSimulatorTest {
             }
         }
       )
-    println(header.honestMajorityShareShuffle.secretSeed)
     assert(header.honestMajorityShareShuffle.hasSecretSeed())
   }
 
