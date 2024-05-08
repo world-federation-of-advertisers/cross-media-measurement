@@ -2583,24 +2583,25 @@ class MetricsServiceTest {
 
   @Test
   fun `createMetric creates measurements for single pub reach when single edp params set`() {
-    val cmmsMeasurementSpec = BASE_MEASUREMENT_SPEC.copy {
-      measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
+    val cmmsMeasurementSpec =
+      BASE_MEASUREMENT_SPEC.copy {
+        measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
 
-      nonceHashes.add(Hashing.hashSha256(RANDOM_OUTPUT_LONG))
+        nonceHashes.add(Hashing.hashSha256(RANDOM_OUTPUT_LONG))
 
-      reach =
-        MeasurementSpecKt.reach {
-          privacyParams = differentialPrivacyParams {
-            epsilon = SINGLE_DATA_PROVIDER_REACH_ONLY_REACH_EPSILON
-            delta = DIFFERENTIAL_PRIVACY_DELTA
+        reach =
+          MeasurementSpecKt.reach {
+            privacyParams = differentialPrivacyParams {
+              epsilon = SINGLE_DATA_PROVIDER_REACH_ONLY_REACH_EPSILON
+              delta = DIFFERENTIAL_PRIVACY_DELTA
+            }
           }
-        }
-      vidSamplingInterval =
-        MeasurementSpecKt.vidSamplingInterval {
-          start = SINGLE_DATA_PROVIDER_REACH_ONLY_VID_SAMPLING_START
-          width = SINGLE_DATA_PROVIDER_REACH_ONLY_VID_SAMPLING_WIDTH
-        }
-    }
+        vidSamplingInterval =
+          MeasurementSpecKt.vidSamplingInterval {
+            start = SINGLE_DATA_PROVIDER_REACH_ONLY_VID_SAMPLING_START
+            width = SINGLE_DATA_PROVIDER_REACH_ONLY_VID_SAMPLING_WIDTH
+          }
+      }
 
     val internalMeasurement = internalMeasurement {
       cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
@@ -2851,24 +2852,25 @@ class MetricsServiceTest {
 
   @Test
   fun `createMetric creates measurements for single pub reach when single edp params not set`() {
-    val cmmsMeasurementSpec = BASE_MEASUREMENT_SPEC.copy {
-      measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
+    val cmmsMeasurementSpec =
+      BASE_MEASUREMENT_SPEC.copy {
+        measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
 
-      nonceHashes.add(Hashing.hashSha256(RANDOM_OUTPUT_LONG))
+        nonceHashes.add(Hashing.hashSha256(RANDOM_OUTPUT_LONG))
 
-      reach =
-        MeasurementSpecKt.reach {
-          privacyParams = differentialPrivacyParams {
-            epsilon = REACH_ONLY_REACH_EPSILON
-            delta = DIFFERENTIAL_PRIVACY_DELTA
+        reach =
+          MeasurementSpecKt.reach {
+            privacyParams = differentialPrivacyParams {
+              epsilon = REACH_ONLY_REACH_EPSILON
+              delta = DIFFERENTIAL_PRIVACY_DELTA
+            }
           }
-        }
-      vidSamplingInterval =
-        MeasurementSpecKt.vidSamplingInterval {
-          start = REACH_ONLY_VID_SAMPLING_START
-          width = REACH_ONLY_VID_SAMPLING_WIDTH
-        }
-    }
+        vidSamplingInterval =
+          MeasurementSpecKt.vidSamplingInterval {
+            start = REACH_ONLY_VID_SAMPLING_START
+            width = REACH_ONLY_VID_SAMPLING_WIDTH
+          }
+      }
 
     val internalMeasurement = internalMeasurement {
       cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
@@ -3087,29 +3089,30 @@ class MetricsServiceTest {
 
   @Test
   fun `createMetric creates measurements for single pub rf when single edp params set`() {
-    val cmmsMeasurementSpec = BASE_MEASUREMENT_SPEC.copy {
-      measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
+    val cmmsMeasurementSpec =
+      BASE_MEASUREMENT_SPEC.copy {
+        measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
 
-      nonceHashes.add(Hashing.hashSha256(RANDOM_OUTPUT_LONG))
+        nonceHashes.add(Hashing.hashSha256(RANDOM_OUTPUT_LONG))
 
-      reachAndFrequency =
-        MeasurementSpecKt.reachAndFrequency {
-          reachPrivacyParams = differentialPrivacyParams {
-            epsilon = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_REACH_EPSILON
-            delta = DIFFERENTIAL_PRIVACY_DELTA
+        reachAndFrequency =
+          MeasurementSpecKt.reachAndFrequency {
+            reachPrivacyParams = differentialPrivacyParams {
+              epsilon = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_REACH_EPSILON
+              delta = DIFFERENTIAL_PRIVACY_DELTA
+            }
+            frequencyPrivacyParams = differentialPrivacyParams {
+              epsilon = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_FREQUENCY_EPSILON
+              delta = DIFFERENTIAL_PRIVACY_DELTA
+            }
+            maximumFrequency = REACH_FREQUENCY_MAXIMUM_FREQUENCY
           }
-          frequencyPrivacyParams = differentialPrivacyParams {
-            epsilon = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_FREQUENCY_EPSILON
-            delta = DIFFERENTIAL_PRIVACY_DELTA
+        vidSamplingInterval =
+          MeasurementSpecKt.vidSamplingInterval {
+            start = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_VID_SAMPLING_START
+            width = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_VID_SAMPLING_WIDTH
           }
-          maximumFrequency = REACH_FREQUENCY_MAXIMUM_FREQUENCY
-        }
-      vidSamplingInterval =
-        MeasurementSpecKt.vidSamplingInterval {
-          start = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_VID_SAMPLING_START
-          width = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_VID_SAMPLING_WIDTH
-        }
-    }
+      }
 
     val internalMeasurement = internalMeasurement {
       cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
