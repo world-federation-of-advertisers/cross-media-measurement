@@ -218,6 +218,9 @@ class MetricReader(private val readContext: ReadContext) {
     }
   }
 
+  /**
+   * Read all Metrics that are associated with any Measurement with an ID in the given IDs list.
+   */
   fun readMetricsByCmmsMeasurementId(
     measurementConsumerId: InternalId,
     cmmsMeasurementIds: Collection<String>,
