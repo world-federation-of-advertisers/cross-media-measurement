@@ -25,7 +25,8 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Landscap
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
 
 object PrivacyQueryMapper {
-  private const val SENSITIVITY = 1.0
+
+  const val SENSITIVITY = 1.0
 
   /**
    * Constructs a pbm specific [AcdpQuery] from given proto messages for LiquidLegionsV2 protocol.
