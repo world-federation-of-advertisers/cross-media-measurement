@@ -56,6 +56,10 @@ message MetricSpecConfig {
 
   message Params {
     DifferentialPrivacyParams privacy_params = 1;
+    VidSamplingInterval vid_sampling_interval = 2;
+  }
+  message FrequencyParams {
+    DifferentialPrivacyParams privacy_params = 1;
     DifferentialPrivacyParams frequency_privacy_params = 2;
     VidSamplingInterval vid_sampling_interval = 3;
   }
@@ -73,10 +77,10 @@ message MetricSpecConfig {
   // on a per-Measurement basis.
   message ReachAndFrequencyParams {
     // Parameters for multiple DataProviders.
-    Params multiple_data_provider_params = 1;
+    FrequencyParams multiple_data_provider_params = 1;
 
     // Parameters for a single DataProvider.
-    Params single_data_provider_params = 2;
+    FrequencyParams single_data_provider_params = 2;
 
     // Maximum frequency cut-off value in frequency histogram.
     //

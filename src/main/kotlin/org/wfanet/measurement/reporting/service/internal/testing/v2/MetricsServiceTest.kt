@@ -215,7 +215,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         reachAndFrequency =
           MetricSpecKt.reachAndFrequencyParams {
             multipleDataProviderParams =
-              MetricSpecKt.params {
+              MetricSpecKt.frequencyParams {
                 privacyParams =
                   MetricSpecKt.differentialPrivacyParams {
                     epsilon = 1.0
@@ -648,7 +648,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         reachAndFrequency =
           MetricSpecKt.reachAndFrequencyParams {
             multipleDataProviderParams =
-              MetricSpecKt.params {
+              MetricSpecKt.frequencyParams {
                 privacyParams =
                   MetricSpecKt.differentialPrivacyParams {
                     epsilon = 1.0
@@ -765,7 +765,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           reachAndFrequency =
             MetricSpecKt.reachAndFrequencyParams {
               multipleDataProviderParams =
-                MetricSpecKt.params {
+                MetricSpecKt.frequencyParams {
                   privacyParams =
                     MetricSpecKt.differentialPrivacyParams {
                       epsilon = 1.0
@@ -880,7 +880,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         reachAndFrequency =
           MetricSpecKt.reachAndFrequencyParams {
             multipleDataProviderParams =
-              MetricSpecKt.params {
+              MetricSpecKt.frequencyParams {
                 privacyParams =
                   MetricSpecKt.differentialPrivacyParams {
                     epsilon = 1.0
@@ -955,7 +955,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         reachAndFrequency =
           MetricSpecKt.reachAndFrequencyParams {
             multipleDataProviderParams =
-              MetricSpecKt.params {
+              MetricSpecKt.frequencyParams {
                 privacyParams =
                   MetricSpecKt.differentialPrivacyParams {
                     epsilon = 1.0
@@ -1213,7 +1213,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         reachAndFrequency =
           MetricSpecKt.reachAndFrequencyParams {
             multipleDataProviderParams =
-              MetricSpecKt.params {
+              MetricSpecKt.frequencyParams {
                 privacyParams =
                   MetricSpecKt.differentialPrivacyParams {
                     epsilon = 1.0
@@ -1288,7 +1288,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         reachAndFrequency =
           MetricSpecKt.reachAndFrequencyParams {
             multipleDataProviderParams =
-              MetricSpecKt.params {
+              MetricSpecKt.frequencyParams {
                 privacyParams =
                   MetricSpecKt.differentialPrivacyParams {
                     epsilon = 1.0
@@ -1370,7 +1370,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         reachAndFrequency =
           MetricSpecKt.reachAndFrequencyParams {
             multipleDataProviderParams =
-              MetricSpecKt.params {
+              MetricSpecKt.frequencyParams {
                 privacyParams =
                   MetricSpecKt.differentialPrivacyParams {
                     epsilon = 1.0
@@ -1464,7 +1464,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           reachAndFrequency =
             MetricSpecKt.reachAndFrequencyParams {
               multipleDataProviderParams =
-                MetricSpecKt.params {
+                MetricSpecKt.frequencyParams {
                   privacyParams =
                     MetricSpecKt.differentialPrivacyParams {
                       epsilon = 1.0
@@ -1566,7 +1566,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           reachAndFrequency =
             MetricSpecKt.reachAndFrequencyParams {
               multipleDataProviderParams =
-                MetricSpecKt.params {
+                MetricSpecKt.frequencyParams {
                   privacyParams =
                     MetricSpecKt.differentialPrivacyParams {
                       epsilon = 1.0
@@ -1660,7 +1660,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           reachAndFrequency =
             MetricSpecKt.reachAndFrequencyParams {
               multipleDataProviderParams =
-                MetricSpecKt.params {
+                MetricSpecKt.frequencyParams {
                   privacyParams =
                     MetricSpecKt.differentialPrivacyParams {
                       epsilon = 1.0
@@ -1743,7 +1743,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           reachAndFrequency =
             MetricSpecKt.reachAndFrequencyParams {
               multipleDataProviderParams =
-                MetricSpecKt.params {
+                MetricSpecKt.frequencyParams {
                   privacyParams =
                     MetricSpecKt.differentialPrivacyParams {
                       epsilon = 1.0
@@ -1825,7 +1825,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         reachAndFrequency =
           MetricSpecKt.reachAndFrequencyParams {
             multipleDataProviderParams =
-              MetricSpecKt.params {
+              MetricSpecKt.frequencyParams {
                 privacyParams =
                   MetricSpecKt.differentialPrivacyParams {
                     epsilon = 1.0
@@ -1909,7 +1909,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           reachAndFrequency =
             MetricSpecKt.reachAndFrequencyParams {
               multipleDataProviderParams =
-                MetricSpecKt.params {
+                MetricSpecKt.frequencyParams {
                   privacyParams =
                     MetricSpecKt.differentialPrivacyParams {
                       epsilon = 1.0
@@ -1993,7 +1993,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           reachAndFrequency =
             MetricSpecKt.reachAndFrequencyParams {
               multipleDataProviderParams =
-                MetricSpecKt.params {
+                MetricSpecKt.frequencyParams {
                   privacyParams =
                     MetricSpecKt.differentialPrivacyParams {
                       epsilon = 1.0
@@ -2076,7 +2076,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         reachAndFrequency =
           MetricSpecKt.reachAndFrequencyParams {
             multipleDataProviderParams =
-              MetricSpecKt.params {
+              MetricSpecKt.frequencyParams {
                 privacyParams =
                   MetricSpecKt.differentialPrivacyParams {
                     epsilon = 1.0
@@ -2304,7 +2304,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 reachAndFrequency =
                   MetricSpecKt.reachAndFrequencyParams {
                     multipleDataProviderParams =
-                      MetricSpecKt.params {
+                      MetricSpecKt.frequencyParams {
                         privacyParams =
                           MetricSpecKt.differentialPrivacyParams {
                             epsilon = 1.0
@@ -2354,7 +2354,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 reachAndFrequency =
                   MetricSpecKt.reachAndFrequencyParams {
                     multipleDataProviderParams =
-                      MetricSpecKt.params {
+                      MetricSpecKt.frequencyParams {
                         privacyParams =
                           MetricSpecKt.differentialPrivacyParams {
                             epsilon = 1.0
@@ -2372,7 +2372,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                           }
                       }
                     singleDataProviderParams =
-                      MetricSpecKt.params {
+                      MetricSpecKt.frequencyParams {
                         privacyParams =
                           MetricSpecKt.differentialPrivacyParams {
                             epsilon = 2.0
