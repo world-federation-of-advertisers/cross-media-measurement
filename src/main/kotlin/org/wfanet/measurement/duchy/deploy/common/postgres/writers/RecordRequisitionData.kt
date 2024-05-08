@@ -21,7 +21,7 @@ import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationRe
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.RequisitionReader
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
-import org.wfanet.measurement.internal.duchy.RequisitionProtocolDetails
+import org.wfanet.measurement.internal.duchy.RequisitionDetails
 import org.wfanet.measurement.internal.duchy.copy
 
 /**
@@ -40,7 +40,7 @@ class RecordRequisitionData(
   private val externalRequisitionKey: ExternalRequisitionKey,
   private val pathToBlob: String,
   private val publicApiVersion: String,
-  private val protocolDetails: RequisitionProtocolDetails? = null,
+  private val protocolDetails: RequisitionDetails.RequisitionProtocolDetails? = null,
   private val clock: Clock,
   private val computationReader: ComputationReader,
 ) : PostgresWriter<ComputationToken>() {

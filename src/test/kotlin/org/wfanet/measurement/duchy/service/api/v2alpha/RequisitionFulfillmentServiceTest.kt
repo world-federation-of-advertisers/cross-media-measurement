@@ -66,7 +66,7 @@ import org.wfanet.measurement.internal.duchy.*
 import org.wfanet.measurement.internal.duchy.ComputationDetailsKt.kingdomComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
-import org.wfanet.measurement.internal.duchy.RequisitionProtocolDetailsKt.honestMajorityShareShuffleDetails
+import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolDetailsKt.honestMajorityShareShuffleDetails
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage
 import org.wfanet.measurement.storage.testing.BlobSubject.Companion.assertThat
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
@@ -265,13 +265,14 @@ class RequisitionFulfillmentServiceTest {
           key = REQUISITION_KEY
           blobPath = blob.blobKey
           publicApiVersion = Version.V2_ALPHA.string
-          protocolDetails = requisitionProtocolDetails {
-            honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
-              secretSeedCiphertext = TEST_REQUISITION_SEED.ciphertext
-              registerCount = REGISTER_COUNT
-              dataProviderCertificate = DATA_PROVIDER_CERTIFICATE
+          protocolDetails =
+            RequisitionDetailsKt.requisitionProtocolDetails {
+              honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
+                secretSeedCiphertext = TEST_REQUISITION_SEED.ciphertext
+                registerCount = REGISTER_COUNT
+                dataProviderCertificate = DATA_PROVIDER_CERTIFICATE
+              }
             }
-          }
         }
       )
     verifyProtoArgument(requisitionsServiceMock, RequisitionsCoroutineImplBase::fulfillRequisition)

@@ -50,7 +50,6 @@ import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
 import org.wfanet.measurement.internal.duchy.RequisitionDetails
 import org.wfanet.measurement.internal.duchy.RequisitionEntry
-import org.wfanet.measurement.internal.duchy.RequisitionProtocolDetails
 import org.wfanet.measurement.internal.duchy.copy
 
 /** Implementation of [ComputationsDatabaseTransactor] using GCP Spanner Database. */
@@ -660,7 +659,7 @@ class GcpSpannerComputationsDatabaseTransactor<
     externalRequisitionKey: ExternalRequisitionKey,
     pathToBlob: String,
     publicApiVersion: String,
-    protocolDetails: RequisitionProtocolDetails?,
+    protocolDetails: RequisitionDetails.RequisitionProtocolDetails?,
   ) {
     require(pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $externalRequisitionKey" }
     require(publicApiVersion.isNotBlank()) {

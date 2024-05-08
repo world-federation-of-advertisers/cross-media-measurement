@@ -45,7 +45,8 @@ import org.wfanet.measurement.internal.duchy.GetComputationIdsRequest
 import org.wfanet.measurement.internal.duchy.GetComputationIdsResponse
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.internal.duchy.RequisitionDetails
-import org.wfanet.measurement.internal.duchy.RequisitionProtocolDetailsKt.honestMajorityShareShuffleDetails
+import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt
+import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolDetailsKt.honestMajorityShareShuffleDetails
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.computationStage
 import org.wfanet.measurement.internal.duchy.computationToken
@@ -60,7 +61,6 @@ import org.wfanet.measurement.internal.duchy.recordRequisitionFulfillmentRequest
 import org.wfanet.measurement.internal.duchy.requisitionDetails
 import org.wfanet.measurement.internal.duchy.requisitionEntry
 import org.wfanet.measurement.internal.duchy.requisitionMetadata
-import org.wfanet.measurement.internal.duchy.requisitionProtocolDetails
 import org.wfanet.measurement.internal.duchy.updateComputationDetailsRequest
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineImplBase
@@ -536,13 +536,14 @@ class ComputationsServiceTest {
       key = requisitionKey
       blobPath = "this is a new path"
       publicApiVersion = "v2alpha"
-      protocolDetails = requisitionProtocolDetails {
-        honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
-          this.secretSeedCiphertext = secretSeed
-          this.registerCount = 100L
-          this.dataProviderCertificate = "dataProviders/123/certificates/100"
+      protocolDetails =
+        RequisitionDetailsKt.requisitionProtocolDetails {
+          honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
+            this.secretSeedCiphertext = secretSeed
+            this.registerCount = 100L
+            this.dataProviderCertificate = "dataProviders/123/certificates/100"
+          }
         }
-      }
     }
 
     assertThat(service.recordRequisitionFulfillment(request).token)
@@ -555,13 +556,14 @@ class ComputationsServiceTest {
             path = "this is a new path"
             details = requisitionDetails {
               this.publicApiVersion = "v2alpha"
-              protocolDetails = requisitionProtocolDetails {
-                honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
-                  this.secretSeedCiphertext = secretSeed
-                  this.registerCount = 100L
-                  this.dataProviderCertificate = "dataProviders/123/certificates/100"
+              protocolDetails =
+                RequisitionDetailsKt.requisitionProtocolDetails {
+                  honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
+                    this.secretSeedCiphertext = secretSeed
+                    this.registerCount = 100L
+                    this.dataProviderCertificate = "dataProviders/123/certificates/100"
+                  }
                 }
-              }
             }
           }
         }

@@ -22,8 +22,8 @@ import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
+import org.wfanet.measurement.internal.duchy.RequisitionDetails
 import org.wfanet.measurement.internal.duchy.RequisitionEntry
-import org.wfanet.measurement.internal.duchy.RequisitionProtocolDetails
 
 /**
  * Grouping of a read only view ([ComputationsDatabaseReader]) and a writer (
@@ -206,7 +206,7 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
     externalRequisitionKey: ExternalRequisitionKey,
     pathToBlob: String,
     publicApiVersion: String,
-    protocolDetails: RequisitionProtocolDetails? = null,
+    protocolDetails: RequisitionDetails.RequisitionProtocolDetails? = null,
   )
 
   /** Inserts the specified [ComputationStatMetric] into the database. */

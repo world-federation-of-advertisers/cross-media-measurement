@@ -47,7 +47,8 @@ import org.wfanet.measurement.internal.duchy.CreateComputationResponse
 import org.wfanet.measurement.internal.duchy.EnqueueComputationResponse
 import org.wfanet.measurement.internal.duchy.GetComputationIdsResponse
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
-import org.wfanet.measurement.internal.duchy.RequisitionProtocolDetailsKt.honestMajorityShareShuffleDetails
+import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt
+import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolDetailsKt.honestMajorityShareShuffleDetails
 import org.wfanet.measurement.internal.duchy.advanceComputationStageRequest
 import org.wfanet.measurement.internal.duchy.claimWorkRequest
 import org.wfanet.measurement.internal.duchy.computationDetails
@@ -66,14 +67,12 @@ import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggrega
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.computationParticipant
 import org.wfanet.measurement.internal.duchy.protocol.copy
-import org.wfanet.measurement.internal.duchy.protocol.honestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.purgeComputationsRequest
 import org.wfanet.measurement.internal.duchy.recordOutputBlobPathRequest
 import org.wfanet.measurement.internal.duchy.recordRequisitionFulfillmentRequest
 import org.wfanet.measurement.internal.duchy.requisitionDetails
 import org.wfanet.measurement.internal.duchy.requisitionEntry
 import org.wfanet.measurement.internal.duchy.requisitionMetadata
-import org.wfanet.measurement.internal.duchy.requisitionProtocolDetails
 import org.wfanet.measurement.internal.duchy.updateComputationDetailsRequest
 
 @RunWith(JUnit4::class)
@@ -1039,13 +1038,14 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
       key = DEFAULT_REQUISITION_ENTRY.key
       this.blobPath = blobPath
       publicApiVersion = Version.V2_ALPHA.string
-      protocolDetails = requisitionProtocolDetails {
-        honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
-          this.secretSeedCiphertext = secretSeed
-          this.registerCount = registerCount
-          this.dataProviderCertificate = dataProviderCertificate
+      protocolDetails =
+        RequisitionDetailsKt.requisitionProtocolDetails {
+          honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
+            this.secretSeedCiphertext = secretSeed
+            this.registerCount = registerCount
+            this.dataProviderCertificate = dataProviderCertificate
+          }
         }
-      }
     }
     val recordRequisitionBlobResponse =
       service.recordRequisitionFulfillment(recordRequisitionFulfillmentRequest)
@@ -1058,13 +1058,14 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
             details =
               details.copy {
                 publicApiVersion = Version.V2_ALPHA.string
-                protocolDetails = requisitionProtocolDetails {
-                  honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
-                    this.secretSeedCiphertext = secretSeed
-                    this.registerCount = registerCount
-                    this.dataProviderCertificate = dataProviderCertificate
+                protocolDetails =
+                  RequisitionDetailsKt.requisitionProtocolDetails {
+                    honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
+                      this.secretSeedCiphertext = secretSeed
+                      this.registerCount = registerCount
+                      this.dataProviderCertificate = dataProviderCertificate
+                    }
                   }
-                }
               }
           }
       }

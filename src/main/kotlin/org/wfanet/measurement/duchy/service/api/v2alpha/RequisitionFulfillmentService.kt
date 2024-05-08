@@ -41,12 +41,12 @@ import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoro
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
+import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt
+import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolDetailsKt.honestMajorityShareShuffleDetails
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
-import org.wfanet.measurement.internal.duchy.RequisitionProtocolDetailsKt.honestMajorityShareShuffleDetails
 import org.wfanet.measurement.internal.duchy.externalRequisitionKey
 import org.wfanet.measurement.internal.duchy.getComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.recordRequisitionFulfillmentRequest
-import org.wfanet.measurement.internal.duchy.requisitionProtocolDetails
 import org.wfanet.measurement.system.v1alpha.RequisitionKey as SystemRequisitionKey
 import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.fulfillRequisitionRequest as systemFulfillRequisitionRequest
@@ -246,13 +246,14 @@ class RequisitionFulfillmentService(
         this.key = key
         this.blobPath = blobPath
         publicApiVersion = Version.V2_ALPHA.string
-        protocolDetails = requisitionProtocolDetails {
-          honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
-            this.secretSeedCiphertext = secretSeedCiphertext
-            this.registerCount = registerCount
-            this.dataProviderCertificate = dataProviderCertificate
+        protocolDetails =
+          RequisitionDetailsKt.requisitionProtocolDetails {
+            honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
+              this.secretSeedCiphertext = secretSeedCiphertext
+              this.registerCount = registerCount
+              this.dataProviderCertificate = dataProviderCertificate
+            }
           }
-        }
       }
     )
   }

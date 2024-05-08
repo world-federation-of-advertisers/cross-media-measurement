@@ -94,7 +94,8 @@ import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationS
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.EncryptionPublicKey
 import org.wfanet.measurement.internal.duchy.NoiseMechanism
-import org.wfanet.measurement.internal.duchy.RequisitionProtocolDetailsKt.honestMajorityShareShuffleDetails
+import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt
+import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolDetailsKt.honestMajorityShareShuffleDetails
 import org.wfanet.measurement.internal.duchy.computationDetails
 import org.wfanet.measurement.internal.duchy.computationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.computationToken
@@ -120,7 +121,6 @@ import org.wfanet.measurement.internal.duchy.protocol.completeShufflePhaseReques
 import org.wfanet.measurement.internal.duchy.protocol.completeShufflePhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.shareShuffleSketch
 import org.wfanet.measurement.internal.duchy.protocol.shareShuffleSketchParams
-import org.wfanet.measurement.internal.duchy.requisitionProtocolDetails
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequestKt
@@ -203,13 +203,14 @@ private val REQUISITION_1 =
   TEST_REQUISITION_1.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_ONE_NAME).copy {
     details =
       details.copy {
-        protocolDetails = requisitionProtocolDetails {
-          honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
-            secretSeedCiphertext = "secret_seed_1".toByteStringUtf8()
-            registerCount = 100
-            dataProviderCertificate = "DataProviders/1/Certificates/1"
+        protocolDetails =
+          RequisitionDetailsKt.requisitionProtocolDetails {
+            honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
+              secretSeedCiphertext = "secret_seed_1".toByteStringUtf8()
+              registerCount = 100
+              dataProviderCertificate = "DataProviders/1/Certificates/1"
+            }
           }
-        }
       }
     path = RequisitionBlobContext(GLOBAL_ID, externalKey.externalRequisitionId).blobKey
   }
@@ -219,13 +220,14 @@ private val REQUISITION_3 =
   TEST_REQUISITION_3.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_ONE_NAME).copy {
     details =
       details.copy {
-        protocolDetails = requisitionProtocolDetails {
-          honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
-            registerCount = 100
-            dataProviderCertificate = "DataProviders/3/Certificates/2"
-            secretSeedCiphertext = "secret_seed_3".toByteStringUtf8()
+        protocolDetails =
+          RequisitionDetailsKt.requisitionProtocolDetails {
+            honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
+              registerCount = 100
+              dataProviderCertificate = "DataProviders/3/Certificates/2"
+              secretSeedCiphertext = "secret_seed_3".toByteStringUtf8()
+            }
           }
-        }
       }
     path = RequisitionBlobContext(GLOBAL_ID, externalKey.externalRequisitionId).blobKey
   }
@@ -547,13 +549,14 @@ class HonestMajorityShareShuffleMillTest {
         TEST_REQUISITION_1.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_TWO_NAME).copy {
           details =
             details.copy {
-              protocolDetails = requisitionProtocolDetails {
-                honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
-                  secretSeedCiphertext = "secret_seed_2".toByteStringUtf8()
-                  registerCount = 100
-                  dataProviderCertificate = "DataProviders/2/Certificates/2"
+              protocolDetails =
+                RequisitionDetailsKt.requisitionProtocolDetails {
+                  honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
+                    secretSeedCiphertext = "secret_seed_2".toByteStringUtf8()
+                    registerCount = 100
+                    dataProviderCertificate = "DataProviders/2/Certificates/2"
+                  }
                 }
-              }
             }
           path = RequisitionBlobContext(GLOBAL_ID, externalKey.externalRequisitionId).blobKey
         }

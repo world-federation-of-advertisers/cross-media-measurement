@@ -19,26 +19,6 @@ package wfa.measurement.internal.duchy;
 option java_package = "org.wfanet.measurement.internal.duchy";
 option java_multiple_files = true;
 
-// Protocol specific details in the Requisition.
-message RequisitionProtocolDetails {
-  // HonestMajorityShareShuffle protocol specific details.
-  message HonestMajorityShareShuffleDetails {
-    // The ciphertext of the EncryptedMessage of a secret seed.
-    bytes secret_seed_ciphertext = 1;
-
-    // The number of registers in the sketch.
-    int64 register_count = 2;
-
-    // Resource name of the `Certificate` belonging to the parent
-    // `DataProvider` used to verify the secret_seed signature.
-    string data_provider_certificate = 3;
-  }
-
-  oneof protocol {
-    HonestMajorityShareShuffleDetails honest_majority_share_shuffle = 1;
-  }
-}
-
 // The details of requisition used in a computation.
 message RequisitionDetails {
   // SHA-256 hash of nonce value for Requisition. Required. Immutable.
@@ -54,6 +34,24 @@ message RequisitionDetails {
   string public_api_version = 4;
 
   // Protocol specific details in the Requisition.
+  message RequisitionProtocolDetails {
+    // HonestMajorityShareShuffle protocol specific details.
+    message HonestMajorityShareShuffleDetails {
+      // The ciphertext of the EncryptedMessage of a secret seed.
+      bytes secret_seed_ciphertext = 1;
+
+      // The number of registers in the sketch.
+      int64 register_count = 2;
+
+      // Resource name of the `Certificate` belonging to the parent
+      // `DataProvider` used to verify the secret_seed signature.
+      string data_provider_certificate = 3;
+    }
+
+    oneof protocol {
+      HonestMajorityShareShuffleDetails honest_majority_share_shuffle = 1;
+    }
+  }
   RequisitionProtocolDetails protocol_details = 5;
 }
 

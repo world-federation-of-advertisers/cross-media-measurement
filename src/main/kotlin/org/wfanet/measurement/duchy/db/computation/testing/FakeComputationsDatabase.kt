@@ -40,9 +40,9 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTokenKt
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
+import org.wfanet.measurement.internal.duchy.RequisitionDetails
 import org.wfanet.measurement.internal.duchy.RequisitionEntry
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
-import org.wfanet.measurement.internal.duchy.RequisitionProtocolDetails
 import org.wfanet.measurement.internal.duchy.copy
 import org.wfanet.measurement.internal.duchy.requisitionMetadata
 
@@ -322,7 +322,7 @@ private constructor(
     externalRequisitionKey: ExternalRequisitionKey,
     pathToBlob: String,
     publicApiVersion: String,
-    protocolDetails: RequisitionProtocolDetails?,
+    protocolDetails: RequisitionDetails.RequisitionProtocolDetails?,
   ) {
     @Suppress("CANDIDATE_CHOSEN_USING_OVERLOAD_RESOLUTION_BY_LAMBDA_ANNOTATION")
     updateToken(token) {

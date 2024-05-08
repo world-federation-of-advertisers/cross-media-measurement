@@ -308,7 +308,7 @@ message RecordRequisitionFulfillmentRequest {
   // Version of the public API.
   string public_api_version = 4;
   // Protocol specific details.
-  RequisitionProtocolDetails protocol_details = 5;
+  RequisitionDetails.RequisitionProtocolDetails protocol_details = 5;
 }
 // Response to record Requisition.
 message RecordRequisitionFulfillmentResponse {
