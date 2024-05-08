@@ -78,6 +78,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
     val cmmsCreateMeasurementRequestId: UUID,
     val timeIntervalStart: OffsetDateTime,
     val timeIntervalEndExclusive: OffsetDateTime,
+    val isSingleDataProvider: Boolean,
   )
 
   private data class MetricMeasurementsValues(
@@ -193,7 +194,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
     val statement =
       valuesListBoundStatement(
         valuesStartIndex = 0,
-        paramCount = 21,
+        paramCount = 27,
         """
       INSERT INTO Metrics
         (
@@ -217,7 +218,13 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
           CreateTime,
           MetricDetails,
           MetricDetailsJson,
-          State
+          State,
+          SingleDataProviderDifferentialPrivacyEpsilon,
+          SingleDataProviderDifferentialPrivacyDelta,
+          SingleDataProviderFrequencyDifferentialPrivacyEpsilon,
+          SingleDataProviderFrequencyDifferentialPrivacyDelta,
+          SingleDataProviderVidSamplingIntervalStart,
+          SingleDataProviderVidSamplingIntervalWidth
         )
         VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER}
          """,
@@ -231,12 +238,6 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
             val metricId = idGenerator.generateInternalId()
             val externalMetricId: String = it.externalMetricId
             val reportingSetId: InternalId? = reportingSetMap[it.metric.externalReportingSetId]
-            val vidSamplingIntervalStart =
-              if (it.metric.metricSpec.typeCase == MetricSpec.TypeCase.POPULATION_COUNT) 0
-              else it.metric.metricSpec.vidSamplingInterval.start
-            val vidSamplingIntervalWidth =
-              if (it.metric.metricSpec.typeCase == MetricSpec.TypeCase.POPULATION_COUNT) 0
-              else it.metric.metricSpec.vidSamplingInterval.width
 
             addValuesBinding {
               bindValuesParam(0, measurementConsumerId)
@@ -261,38 +262,78 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
               when (it.metric.metricSpec.typeCase) {
                 MetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
                   val reachAndFrequency = it.metric.metricSpec.reachAndFrequency
-                  bindValuesParam(8, reachAndFrequency.reachPrivacyParams.epsilon)
-                  bindValuesParam(9, reachAndFrequency.reachPrivacyParams.delta)
-                  bindValuesParam(10, reachAndFrequency.frequencyPrivacyParams.epsilon)
-                  bindValuesParam(11, reachAndFrequency.reachPrivacyParams.delta)
+                  bindValuesParam(8, reachAndFrequency.multipleDataProviderParams.privacyParams.epsilon)
+                  bindValuesParam(9, reachAndFrequency.multipleDataProviderParams.privacyParams.delta)
+                  bindValuesParam(10, reachAndFrequency.multipleDataProviderParams.frequencyPrivacyParams.epsilon)
+                  bindValuesParam(11, reachAndFrequency.multipleDataProviderParams.frequencyPrivacyParams.delta)
                   bindValuesParam<Long>(12, null)
                   bindValuesParam<PostgresInterval>(13, null)
                   bindValuesParam(14, reachAndFrequency.maximumFrequency)
+                  bindValuesParam(15, reachAndFrequency.multipleDataProviderParams.vidSamplingInterval.start)
+                  bindValuesParam(16, reachAndFrequency.multipleDataProviderParams.vidSamplingInterval.width)
+                  if (reachAndFrequency.hasSingleDataProviderParams()) {
+                    bindValuesParam(21, reachAndFrequency.singleDataProviderParams.privacyParams.epsilon)
+                    bindValuesParam(22, reachAndFrequency.singleDataProviderParams.privacyParams.delta)
+                    bindValuesParam(23, reachAndFrequency.singleDataProviderParams.frequencyPrivacyParams.epsilon)
+                    bindValuesParam(24, reachAndFrequency.singleDataProviderParams.frequencyPrivacyParams.delta)
+                    bindValuesParam(25, reachAndFrequency.singleDataProviderParams.vidSamplingInterval.start)
+                    bindValuesParam(26, reachAndFrequency.singleDataProviderParams.vidSamplingInterval.width)
+                  } else {
+                    bindValuesParam<Double>(21, null)
+                    bindValuesParam<Double>(22, null)
+                    bindValuesParam<Double>(23, null)
+                    bindValuesParam<Double>(24, null)
+                    bindValuesParam<Float>(25, null)
+                    bindValuesParam<Float>(26, null)
+                  }
                 }
                 MetricSpec.TypeCase.REACH -> {
                   val reach = it.metric.metricSpec.reach
-                  bindValuesParam(8, reach.privacyParams.epsilon)
-                  bindValuesParam(9, reach.privacyParams.delta)
+                  bindValuesParam(8, reach.multipleDataProviderParams.privacyParams.epsilon)
+                  bindValuesParam(9, reach.multipleDataProviderParams.privacyParams.delta)
                   bindValuesParam<Double>(10, null)
                   bindValuesParam<Double>(11, null)
                   bindValuesParam<Long>(12, null)
                   bindValuesParam<PostgresInterval>(13, null)
                   bindValuesParam<Long>(14, null)
+                  bindValuesParam(15, reach.multipleDataProviderParams.vidSamplingInterval.start)
+                  bindValuesParam(16, reach.multipleDataProviderParams.vidSamplingInterval.width)
+                  bindValuesParam<Double>(23, null)
+                  bindValuesParam<Double>(24, null)
+                  if (reach.hasSingleDataProviderParams()) {
+                    bindValuesParam(21, reach.singleDataProviderParams.privacyParams.epsilon)
+                    bindValuesParam(22, reach.singleDataProviderParams.privacyParams.delta)
+                    bindValuesParam(25, reach.singleDataProviderParams.vidSamplingInterval.start)
+                    bindValuesParam(26, reach.singleDataProviderParams.vidSamplingInterval.width)
+                  } else {
+                    bindValuesParam<Double>(21, null)
+                    bindValuesParam<Double>(22, null)
+                    bindValuesParam<Float>(25, null)
+                    bindValuesParam<Float>(26, null)
+                  }
                 }
                 MetricSpec.TypeCase.IMPRESSION_COUNT -> {
                   val impressionCount = it.metric.metricSpec.impressionCount
-                  bindValuesParam(8, impressionCount.privacyParams.epsilon)
-                  bindValuesParam(9, impressionCount.privacyParams.delta)
+                  bindValuesParam(8, impressionCount.params.privacyParams.epsilon)
+                  bindValuesParam(9, impressionCount.params.privacyParams.delta)
                   bindValuesParam<Double>(10, null)
                   bindValuesParam<Double>(11, null)
                   bindValuesParam(12, impressionCount.maximumFrequencyPerUser)
                   bindValuesParam<PostgresInterval>(13, null)
                   bindValuesParam<Long>(14, null)
+                  bindValuesParam(15, impressionCount.params.vidSamplingInterval.start)
+                  bindValuesParam(16, impressionCount.params.vidSamplingInterval.width)
+                  bindValuesParam<Double>(21, null)
+                  bindValuesParam<Double>(22, null)
+                  bindValuesParam<Double>(23, null)
+                  bindValuesParam<Double>(24, null)
+                  bindValuesParam<Float>(25, null)
+                  bindValuesParam<Float>(26, null)
                 }
                 MetricSpec.TypeCase.WATCH_DURATION -> {
                   val watchDuration = it.metric.metricSpec.watchDuration
-                  bindValuesParam(8, watchDuration.privacyParams.epsilon)
-                  bindValuesParam(9, watchDuration.privacyParams.delta)
+                  bindValuesParam(8, watchDuration.params.privacyParams.epsilon)
+                  bindValuesParam(9, watchDuration.params.privacyParams.delta)
                   bindValuesParam<Double>(10, null)
                   bindValuesParam<Double>(11, null)
                   bindValuesParam<Long>(12, null)
@@ -301,6 +342,14 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                     PostgresInterval.of(watchDuration.maximumWatchDurationPerUser.toDuration()),
                   )
                   bindValuesParam<Long>(14, null)
+                  bindValuesParam(15, watchDuration.params.vidSamplingInterval.start)
+                  bindValuesParam(16, watchDuration.params.vidSamplingInterval.width)
+                  bindValuesParam<Double>(21, null)
+                  bindValuesParam<Double>(22, null)
+                  bindValuesParam<Double>(23, null)
+                  bindValuesParam<Double>(24, null)
+                  bindValuesParam<Float>(25, null)
+                  bindValuesParam<Float>(26, null)
                 }
                 MetricSpec.TypeCase.POPULATION_COUNT -> {
                   bindValuesParam(8, 0)
@@ -310,11 +359,17 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                   bindValuesParam<Long>(12, null)
                   bindValuesParam<PostgresInterval>(13, null)
                   bindValuesParam<Long>(14, null)
+                  bindValuesParam(15, 0)
+                  bindValuesParam(16, 0)
+                  bindValuesParam<Double>(21, null)
+                  bindValuesParam<Double>(22, null)
+                  bindValuesParam<Double>(23, null)
+                  bindValuesParam<Double>(24, null)
+                  bindValuesParam<Float>(25, null)
+                  bindValuesParam<Float>(26, null)
                 }
                 MetricSpec.TypeCase.TYPE_NOT_SET -> {}
               }
-              bindValuesParam(15, vidSamplingIntervalStart)
-              bindValuesParam(16, vidSamplingIntervalWidth)
               bindValuesParam(17, createTime)
               bindValuesParam(18, it.metric.details)
               bindValuesParam(19, it.metric.details.toJson())
@@ -397,7 +452,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
     val measurementsStatement =
       valuesListBoundStatement(
         valuesStartIndex = 0,
-        paramCount = 9,
+        paramCount = 10,
         """
         INSERT INTO Measurements
           (
@@ -409,7 +464,8 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
             TimeIntervalEndExclusive,
             State,
             MeasurementDetails,
-            MeasurementDetailsJson
+            MeasurementDetailsJson,
+            IsSingleDataProvider
           )
         VALUES
         ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER}
@@ -426,6 +482,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
             bindValuesParam(6, Measurement.State.STATE_UNSPECIFIED)
             bindValuesParam(7, Measurement.Details.getDefaultInstance())
             bindValuesParam(8, Measurement.Details.getDefaultInstance().toJson())
+            bindValuesParam(9, it.isSingleDataProvider)
           }
         }
       }
@@ -581,6 +638,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
             it.measurement.timeInterval.startTime.toInstant().atOffset(ZoneOffset.UTC),
           timeIntervalEndExclusive =
             it.measurement.timeInterval.endTime.toInstant().atOffset(ZoneOffset.UTC),
+          isSingleDataProvider = it.measurement.isSingleDataProvider,
         )
       )
 

@@ -113,16 +113,18 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       metricSpec = metricSpec {
         reach =
           MetricSpecKt.reachParams {
-            privacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
-          }
-        vidSamplingInterval =
-          MetricSpecKt.vidSamplingInterval {
-            start = 0.1f
-            width = 0.5f
+            multipleDataProviderParams = MetricSpecKt.params {
+              privacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 1.0
+                  delta = 2.0
+                }
+              vidSamplingInterval =
+                MetricSpecKt.vidSamplingInterval {
+                  start = 0.1f
+                  width = 0.5f
+                }
+            }
           }
       }
       weightedMeasurements +=
@@ -211,22 +213,24 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       metricSpec = metricSpec {
         reachAndFrequency =
           MetricSpecKt.reachAndFrequencyParams {
-            reachPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
-            frequencyPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
+            multipleDataProviderParams = MetricSpecKt.params {
+              privacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 1.0
+                  delta = 2.0
+                }
+              frequencyPrivacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 1.0
+                  delta = 2.0
+                }
+              vidSamplingInterval =
+                MetricSpecKt.vidSamplingInterval {
+                  start = 0.1f
+                  width = 0.5f
+                }
+            }
             maximumFrequency = 5
-          }
-        vidSamplingInterval =
-          MetricSpecKt.vidSamplingInterval {
-            start = 0.1f
-            width = 0.5f
           }
       }
       weightedMeasurements +=
@@ -315,17 +319,19 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       metricSpec = metricSpec {
         impressionCount =
           MetricSpecKt.impressionCountParams {
-            privacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
+            params = MetricSpecKt.params {
+              privacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 1.0
+                  delta = 2.0
+                }
+              vidSamplingInterval =
+                MetricSpecKt.vidSamplingInterval {
+                  start = 0.1f
+                  width = 0.5f
+                }
+            }
             maximumFrequencyPerUser = 5
-          }
-        vidSamplingInterval =
-          MetricSpecKt.vidSamplingInterval {
-            start = 0.1f
-            width = 0.5f
           }
       }
       weightedMeasurements +=
@@ -414,17 +420,19 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       metricSpec = metricSpec {
         watchDuration =
           MetricSpecKt.watchDurationParams {
-            privacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
+            params = MetricSpecKt.params {
+              privacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 1.0
+                  delta = 2.0
+                }
+              vidSamplingInterval =
+                MetricSpecKt.vidSamplingInterval {
+                  start = 0.1f
+                  width = 0.5f
+                }
+            }
             maximumWatchDurationPerUser = Durations.fromSeconds(100)
-          }
-        vidSamplingInterval =
-          MetricSpecKt.vidSamplingInterval {
-            start = 0.1f
-            width = 0.5f
           }
       }
       weightedMeasurements +=
@@ -565,17 +573,19 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       metricSpec = metricSpec {
         watchDuration =
           MetricSpecKt.watchDurationParams {
-            privacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
+            params = MetricSpecKt.params {
+              privacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 1.0
+                  delta = 2.0
+                }
+              vidSamplingInterval =
+                MetricSpecKt.vidSamplingInterval {
+                  start = 0.1f
+                  width = 0.5f
+                }
+            }
             maximumWatchDurationPerUser = Durations.fromSeconds(100)
-          }
-        vidSamplingInterval =
-          MetricSpecKt.vidSamplingInterval {
-            start = 0.1f
-            width = 0.5f
           }
       }
       weightedMeasurements +=
@@ -632,22 +642,24 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       metricSpec = metricSpec {
         reachAndFrequency =
           MetricSpecKt.reachAndFrequencyParams {
-            reachPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
-            frequencyPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
+            multipleDataProviderParams = MetricSpecKt.params {
+              privacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 1.0
+                  delta = 2.0
+                }
+              frequencyPrivacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 1.0
+                  delta = 2.0
+                }
+              vidSamplingInterval =
+                MetricSpecKt.vidSamplingInterval {
+                  start = 0.1f
+                  width = 0.5f
+                }
+            }
             maximumFrequency = 5
-          }
-        vidSamplingInterval =
-          MetricSpecKt.vidSamplingInterval {
-            start = 0.1f
-            width = 0.5f
           }
       }
       weightedMeasurements +=
@@ -746,22 +758,24 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         metricSpec = metricSpec {
           reachAndFrequency =
             MetricSpecKt.reachAndFrequencyParams {
-              reachPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
-              frequencyPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
+              multipleDataProviderParams = MetricSpecKt.params {
+                privacyParams =
+                  MetricSpecKt.differentialPrivacyParams {
+                    epsilon = 1.0
+                    delta = 2.0
+                  }
+                frequencyPrivacyParams =
+                  MetricSpecKt.differentialPrivacyParams {
+                    epsilon = 1.0
+                    delta = 2.0
+                  }
+                vidSamplingInterval =
+                  MetricSpecKt.vidSamplingInterval {
+                    start = 0.1f
+                    width = 0.5f
+                  }
+              }
               maximumFrequency = 5
-            }
-          vidSamplingInterval =
-            MetricSpecKt.vidSamplingInterval {
-              start = 0.1f
-              width = 0.5f
             }
         }
         weightedMeasurements +=
@@ -858,22 +872,24 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       metricSpec = metricSpec {
         reachAndFrequency =
           MetricSpecKt.reachAndFrequencyParams {
-            reachPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
-            frequencyPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 3.0
-                delta = 4.0
-              }
+            multipleDataProviderParams = MetricSpecKt.params {
+              privacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 1.0
+                  delta = 2.0
+                }
+              frequencyPrivacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 1.0
+                  delta = 2.0
+                }
+              vidSamplingInterval =
+                MetricSpecKt.vidSamplingInterval {
+                  start = 0.1f
+                  width = 0.5f
+                }
+            }
             maximumFrequency = 5
-          }
-        vidSamplingInterval =
-          MetricSpecKt.vidSamplingInterval {
-            start = 0.1f
-            width = 0.5f
           }
       }
       weightedMeasurements +=
@@ -930,22 +946,24 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       metricSpec = metricSpec {
         reachAndFrequency =
           MetricSpecKt.reachAndFrequencyParams {
-            reachPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
-            frequencyPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
+            multipleDataProviderParams = MetricSpecKt.params {
+              privacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 1.0
+                  delta = 2.0
+                }
+              frequencyPrivacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 1.0
+                  delta = 2.0
+                }
+              vidSamplingInterval =
+                MetricSpecKt.vidSamplingInterval {
+                  start = 0.1f
+                  width = 0.5f
+                }
+            }
             maximumFrequency = 5
-          }
-        vidSamplingInterval =
-          MetricSpecKt.vidSamplingInterval {
-            start = 0.1f
-            width = 0.5f
           }
       }
       weightedMeasurements +=
@@ -1011,16 +1029,18 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       metricSpec = metricSpec {
         reach =
           MetricSpecKt.reachParams {
-            privacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
-          }
-        vidSamplingInterval =
-          MetricSpecKt.vidSamplingInterval {
-            start = 0.1f
-            width = 0.5f
+            multipleDataProviderParams = MetricSpecKt.params {
+              privacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 1.0
+                  delta = 2.0
+                }
+              vidSamplingInterval =
+                MetricSpecKt.vidSamplingInterval {
+                  start = 0.1f
+                  width = 0.5f
+                }
+            }
           }
       }
       weightedMeasurements +=
@@ -1075,11 +1095,6 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         endTime = timestamp { seconds = 100 }
       }
       metricSpec = metricSpec {
-        vidSamplingInterval =
-          MetricSpecKt.vidSamplingInterval {
-            start = 0.1f
-            width = 0.5f
-          }
       }
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
@@ -1121,69 +1136,6 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
   }
 
   @Test
-  fun `createMetric throws INVALID_ARGUMENT when metric spec missing vid sampling interval`() =
-    runBlocking {
-      createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-      val createdReportingSet =
-        createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-
-      val metric = metric {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        externalReportingSetId = createdReportingSet.externalReportingSetId
-        timeInterval = interval {
-          startTime = timestamp { seconds = 10 }
-          endTime = timestamp { seconds = 100 }
-        }
-        metricSpec = metricSpec {
-          reach =
-            MetricSpecKt.reachParams {
-              privacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
-            }
-        }
-        weightedMeasurements +=
-          MetricKt.weightedMeasurement {
-            weight = 2
-            binaryRepresentation = 1
-            measurement = measurement {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-              timeInterval = interval {
-                startTime = timestamp { seconds = 10 }
-                endTime = timestamp { seconds = 100 }
-              }
-              primitiveReportingSetBases +=
-                ReportingSetKt.primitiveReportingSetBasis {
-                  externalReportingSetId = createdReportingSet.externalReportingSetId
-                  filters += "filter1"
-                  filters += "filter2"
-                }
-            }
-          }
-        details =
-          MetricKt.details {
-            filters += "filter1"
-            filters += "filter2"
-          }
-      }
-
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.createMetric(
-            createMetricRequest {
-              this.metric = metric
-              externalMetricId = "external-metric-id"
-            }
-          )
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.message).contains("vid")
-    }
-
-  @Test
   fun `createMetric throws INVALID_ARGUMENT when metric missing weighted measurements`() =
     runBlocking {
       createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
@@ -1200,16 +1152,18 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         metricSpec = metricSpec {
           reach =
             MetricSpecKt.reachParams {
-              privacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
-            }
-          vidSamplingInterval =
-            MetricSpecKt.vidSamplingInterval {
-              start = 0.1f
-              width = 0.5f
+              multipleDataProviderParams = MetricSpecKt.params {
+                privacyParams =
+                  MetricSpecKt.differentialPrivacyParams {
+                    epsilon = 1.0
+                    delta = 2.0
+                  }
+                vidSamplingInterval =
+                  MetricSpecKt.vidSamplingInterval {
+                    start = 0.1f
+                    width = 0.5f
+                  }
+              }
             }
         }
         details =
@@ -1248,22 +1202,24 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       metricSpec = metricSpec {
         reachAndFrequency =
           MetricSpecKt.reachAndFrequencyParams {
-            reachPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
-            frequencyPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
+            multipleDataProviderParams = MetricSpecKt.params {
+              privacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 1.0
+                  delta = 2.0
+                }
+              frequencyPrivacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 1.0
+                  delta = 2.0
+                }
+              vidSamplingInterval =
+                MetricSpecKt.vidSamplingInterval {
+                  start = 0.1f
+                  width = 0.5f
+                }
+            }
             maximumFrequency = 5
-          }
-        vidSamplingInterval =
-          MetricSpecKt.vidSamplingInterval {
-            start = 0.1f
-            width = 0.5f
           }
       }
       weightedMeasurements +=
@@ -1320,22 +1276,24 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       metricSpec = metricSpec {
         reachAndFrequency =
           MetricSpecKt.reachAndFrequencyParams {
-            reachPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
-            frequencyPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
+            multipleDataProviderParams = MetricSpecKt.params {
+              privacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 1.0
+                  delta = 2.0
+                }
+              frequencyPrivacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 1.0
+                  delta = 2.0
+                }
+              vidSamplingInterval =
+                MetricSpecKt.vidSamplingInterval {
+                  start = 0.1f
+                  width = 0.5f
+                }
+            }
             maximumFrequency = 5
-          }
-        vidSamplingInterval =
-          MetricSpecKt.vidSamplingInterval {
-            start = 0.1f
-            width = 0.5f
           }
       }
       weightedMeasurements +=
@@ -1399,22 +1357,24 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       metricSpec = metricSpec {
         reachAndFrequency =
           MetricSpecKt.reachAndFrequencyParams {
-            reachPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
-            frequencyPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
+            multipleDataProviderParams = MetricSpecKt.params {
+              privacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 1.0
+                  delta = 2.0
+                }
+              frequencyPrivacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 1.0
+                  delta = 2.0
+                }
+              vidSamplingInterval =
+                MetricSpecKt.vidSamplingInterval {
+                  start = 0.1f
+                  width = 0.5f
+                }
+            }
             maximumFrequency = 5
-          }
-        vidSamplingInterval =
-          MetricSpecKt.vidSamplingInterval {
-            start = 0.1f
-            width = 0.5f
           }
       }
       weightedMeasurements +=
@@ -1490,22 +1450,24 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         metricSpec = metricSpec {
           reachAndFrequency =
             MetricSpecKt.reachAndFrequencyParams {
-              reachPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
-              frequencyPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
+              multipleDataProviderParams = MetricSpecKt.params {
+                privacyParams =
+                  MetricSpecKt.differentialPrivacyParams {
+                    epsilon = 1.0
+                    delta = 2.0
+                  }
+                frequencyPrivacyParams =
+                  MetricSpecKt.differentialPrivacyParams {
+                    epsilon = 1.0
+                    delta = 2.0
+                  }
+                vidSamplingInterval =
+                  MetricSpecKt.vidSamplingInterval {
+                    start = 0.1f
+                    width = 0.5f
+                  }
+              }
               maximumFrequency = 5
-            }
-          vidSamplingInterval =
-            MetricSpecKt.vidSamplingInterval {
-              start = 0.1f
-              width = 0.5f
             }
         }
         weightedMeasurements +=
@@ -1589,22 +1551,24 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         metricSpec = metricSpec {
           reachAndFrequency =
             MetricSpecKt.reachAndFrequencyParams {
-              reachPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
-              frequencyPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
+              multipleDataProviderParams = MetricSpecKt.params {
+                privacyParams =
+                  MetricSpecKt.differentialPrivacyParams {
+                    epsilon = 1.0
+                    delta = 2.0
+                  }
+                frequencyPrivacyParams =
+                  MetricSpecKt.differentialPrivacyParams {
+                    epsilon = 1.0
+                    delta = 2.0
+                  }
+                vidSamplingInterval =
+                  MetricSpecKt.vidSamplingInterval {
+                    start = 0.1f
+                    width = 0.5f
+                  }
+              }
               maximumFrequency = 5
-            }
-          vidSamplingInterval =
-            MetricSpecKt.vidSamplingInterval {
-              start = 0.1f
-              width = 0.5f
             }
         }
         weightedMeasurements +=
@@ -1680,22 +1644,24 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         metricSpec = metricSpec {
           reachAndFrequency =
             MetricSpecKt.reachAndFrequencyParams {
-              reachPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
-              frequencyPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
+              multipleDataProviderParams = MetricSpecKt.params {
+                privacyParams =
+                  MetricSpecKt.differentialPrivacyParams {
+                    epsilon = 1.0
+                    delta = 2.0
+                  }
+                frequencyPrivacyParams =
+                  MetricSpecKt.differentialPrivacyParams {
+                    epsilon = 1.0
+                    delta = 2.0
+                  }
+                vidSamplingInterval =
+                  MetricSpecKt.vidSamplingInterval {
+                    start = 0.1f
+                    width = 0.5f
+                  }
+              }
               maximumFrequency = 5
-            }
-          vidSamplingInterval =
-            MetricSpecKt.vidSamplingInterval {
-              start = 0.1f
-              width = 0.5f
             }
         }
         weightedMeasurements +=
@@ -1760,22 +1726,24 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         metricSpec = metricSpec {
           reachAndFrequency =
             MetricSpecKt.reachAndFrequencyParams {
-              reachPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
-              frequencyPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
+              multipleDataProviderParams = MetricSpecKt.params {
+                privacyParams =
+                  MetricSpecKt.differentialPrivacyParams {
+                    epsilon = 1.0
+                    delta = 2.0
+                  }
+                frequencyPrivacyParams =
+                  MetricSpecKt.differentialPrivacyParams {
+                    epsilon = 1.0
+                    delta = 2.0
+                  }
+                vidSamplingInterval =
+                  MetricSpecKt.vidSamplingInterval {
+                    start = 0.1f
+                    width = 0.5f
+                  }
+              }
               maximumFrequency = 5
-            }
-          vidSamplingInterval =
-            MetricSpecKt.vidSamplingInterval {
-              start = 0.1f
-              width = 0.5f
             }
         }
         weightedMeasurements +=
@@ -1839,22 +1807,24 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       metricSpec = metricSpec {
         reachAndFrequency =
           MetricSpecKt.reachAndFrequencyParams {
-            reachPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
-            frequencyPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
+            multipleDataProviderParams = MetricSpecKt.params {
+              privacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 1.0
+                  delta = 2.0
+                }
+              frequencyPrivacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 1.0
+                  delta = 2.0
+                }
+              vidSamplingInterval =
+                MetricSpecKt.vidSamplingInterval {
+                  start = 0.1f
+                  width = 0.5f
+                }
+            }
             maximumFrequency = 5
-          }
-        vidSamplingInterval =
-          MetricSpecKt.vidSamplingInterval {
-            start = 0.1f
-            width = 0.5f
           }
       }
       weightedMeasurements +=
@@ -1904,88 +1874,6 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
   }
 
   @Test
-  fun `batchCreateMetrics throws INVALID_ARGUMENT when metric spec missing vid sampling`() =
-    runBlocking {
-      createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-      val createdReportingSet =
-        createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-
-      val metric = metric {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        externalReportingSetId = createdReportingSet.externalReportingSetId
-        timeInterval = interval {
-          startTime = timestamp { seconds = 10 }
-          endTime = timestamp { seconds = 100 }
-        }
-        metricSpec = metricSpec {
-          reachAndFrequency =
-            MetricSpecKt.reachAndFrequencyParams {
-              reachPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
-              frequencyPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
-              maximumFrequency = 5
-            }
-          vidSamplingInterval =
-            MetricSpecKt.vidSamplingInterval {
-              start = 0.1f
-              width = 0.5f
-            }
-        }
-        weightedMeasurements +=
-          MetricKt.weightedMeasurement {
-            weight = 2
-            binaryRepresentation = 1
-            measurement = measurement {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-              timeInterval = interval {
-                startTime = timestamp { seconds = 10 }
-                endTime = timestamp { seconds = 100 }
-              }
-              primitiveReportingSetBases +=
-                ReportingSetKt.primitiveReportingSetBasis {
-                  externalReportingSetId = createdReportingSet.externalReportingSetId
-                  filters += "filter1"
-                  filters += "filter2"
-                }
-            }
-          }
-        details =
-          MetricKt.details {
-            filters += "filter1"
-            filters += "filter2"
-          }
-      }
-
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.batchCreateMetrics(
-            batchCreateMetricsRequest {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-              requests += createMetricRequest {
-                this.metric = metric
-                externalMetricId = "externalMetricId1"
-              }
-              requests += createMetricRequest {
-                this.metric =
-                  metric.copy { metricSpec = metricSpec.copy { clearVidSamplingInterval() } }
-                externalMetricId = "externalMetricId2"
-              }
-            }
-          )
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.message).contains("vid")
-    }
-
-  @Test
   fun `batchCreateMetrics throws INVALID_ARGUMENT when metric missing weighted measurements`() =
     runBlocking {
       createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
@@ -2002,22 +1890,24 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         metricSpec = metricSpec {
           reachAndFrequency =
             MetricSpecKt.reachAndFrequencyParams {
-              reachPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
-              frequencyPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
+              multipleDataProviderParams = MetricSpecKt.params {
+                privacyParams =
+                  MetricSpecKt.differentialPrivacyParams {
+                    epsilon = 1.0
+                    delta = 2.0
+                  }
+                frequencyPrivacyParams =
+                  MetricSpecKt.differentialPrivacyParams {
+                    epsilon = 1.0
+                    delta = 2.0
+                  }
+                vidSamplingInterval =
+                  MetricSpecKt.vidSamplingInterval {
+                    start = 0.1f
+                    width = 0.5f
+                  }
+              }
               maximumFrequency = 5
-            }
-          vidSamplingInterval =
-            MetricSpecKt.vidSamplingInterval {
-              start = 0.1f
-              width = 0.5f
             }
         }
         weightedMeasurements +=
@@ -2083,22 +1973,24 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         metricSpec = metricSpec {
           reachAndFrequency =
             MetricSpecKt.reachAndFrequencyParams {
-              reachPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
-              frequencyPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
+              multipleDataProviderParams = MetricSpecKt.params {
+                privacyParams =
+                  MetricSpecKt.differentialPrivacyParams {
+                    epsilon = 1.0
+                    delta = 2.0
+                  }
+                frequencyPrivacyParams =
+                  MetricSpecKt.differentialPrivacyParams {
+                    epsilon = 1.0
+                    delta = 2.0
+                  }
+                vidSamplingInterval =
+                  MetricSpecKt.vidSamplingInterval {
+                    start = 0.1f
+                    width = 0.5f
+                  }
+              }
               maximumFrequency = 5
-            }
-          vidSamplingInterval =
-            MetricSpecKt.vidSamplingInterval {
-              start = 0.1f
-              width = 0.5f
             }
         }
         weightedMeasurements +=
@@ -2163,22 +2055,24 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       metricSpec = metricSpec {
         reachAndFrequency =
           MetricSpecKt.reachAndFrequencyParams {
-            reachPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
-            frequencyPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
+            multipleDataProviderParams = MetricSpecKt.params {
+              privacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 1.0
+                  delta = 2.0
+                }
+              frequencyPrivacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 1.0
+                  delta = 2.0
+                }
+              vidSamplingInterval =
+                MetricSpecKt.vidSamplingInterval {
+                  start = 0.1f
+                  width = 0.5f
+                }
+            }
             maximumFrequency = 5
-          }
-        vidSamplingInterval =
-          MetricSpecKt.vidSamplingInterval {
-            start = 0.1f
-            width = 0.5f
           }
       }
       weightedMeasurements +=
@@ -2236,16 +2130,18 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
             metricSpec = metricSpec {
               reach =
                 MetricSpecKt.reachParams {
-                  privacyParams =
-                    MetricSpecKt.differentialPrivacyParams {
-                      epsilon = 1.0
-                      delta = 2.0
-                    }
-                }
-              vidSamplingInterval =
-                MetricSpecKt.vidSamplingInterval {
-                  start = 0.1f
-                  width = 0.5f
+                  multipleDataProviderParams = MetricSpecKt.params {
+                    privacyParams =
+                      MetricSpecKt.differentialPrivacyParams {
+                        epsilon = 1.0
+                        delta = 2.0
+                      }
+                    vidSamplingInterval =
+                      MetricSpecKt.vidSamplingInterval {
+                        start = 0.1f
+                        width = 0.5f
+                      }
+                  }
                 }
             }
           }
@@ -2266,7 +2162,111 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
   }
 
   @Test
-  fun `batchGetMetrics succeeds when metric spec type is frequency duration`(): Unit = runBlocking {
+  fun `batchGetMetrics succeeds when metric spec type is reach and single params set`(): Unit =
+    runBlocking {
+      createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+
+      val createMetricRequest =
+        createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService).copy {
+          metric =
+            metric.copy {
+              metricSpec = metricSpec {
+                reach =
+                  MetricSpecKt.reachParams {
+                    multipleDataProviderParams = MetricSpecKt.params {
+                      privacyParams =
+                        MetricSpecKt.differentialPrivacyParams {
+                          epsilon = 1.0
+                          delta = 2.0
+                        }
+                      vidSamplingInterval =
+                        MetricSpecKt.vidSamplingInterval {
+                          start = 0.1f
+                          width = 0.5f
+                        }
+                    }
+                    singleDataProviderParams = MetricSpecKt.params {
+                      privacyParams =
+                        MetricSpecKt.differentialPrivacyParams {
+                          epsilon = 2.0
+                          delta = 4.0
+                        }
+                      vidSamplingInterval =
+                        MetricSpecKt.vidSamplingInterval {
+                          start = 0.2f
+                          width = 0.6f
+                        }
+                    }
+                  }
+              }
+            }
+        }
+      val createdMetric = service.createMetric(createMetricRequest)
+
+      assertThat(createdMetric.metricSpec.reach).isEqualTo(createMetricRequest.metric.metricSpec.reach)
+
+      val retrievedMetrics =
+        service.batchGetMetrics(
+          batchGetMetricsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalMetricIds += createdMetric.externalMetricId
+          }
+        )
+
+      assertThat(retrievedMetrics.metricsList)
+        .ignoringRepeatedFieldOrder()
+        .containsExactly(createdMetric)
+    }
+
+  @Test
+  fun `batchGetMetrics succeeds when measurement has isSingleDataProvider set to true`(): Unit =
+    runBlocking {
+      createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+
+      val createMetricRequest =
+        createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService).copy {
+          val source = this
+          metric =
+            metric.copy {
+              weightedMeasurements.clear()
+              weightedMeasurements +=
+                MetricKt.weightedMeasurement {
+                  weight = 2
+                  binaryRepresentation = 1
+                  measurement = measurement {
+                    this.cmmsMeasurementConsumerId = source.metric.cmmsMeasurementConsumerId
+                    timeInterval = interval {
+                      startTime = timestamp { seconds = 10 }
+                      endTime = timestamp { seconds = 100 }
+                    }
+                    primitiveReportingSetBases +=
+                      ReportingSetKt.primitiveReportingSetBasis {
+                        externalReportingSetId = source.metric.externalReportingSetId
+                        filters += "filter1"
+                      }
+                    isSingleDataProvider = true
+                  }
+                }
+            }
+        }
+      val createdMetric = service.createMetric(createMetricRequest)
+
+      val retrievedMetrics =
+        service.batchGetMetrics(
+          batchGetMetricsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalMetricIds += createdMetric.externalMetricId
+          }
+        )
+
+      assertThat(createdMetric.weightedMeasurementsList.first().measurement.isSingleDataProvider).isTrue()
+      assertThat(retrievedMetrics.metricsList)
+        .ignoringRepeatedFieldOrder()
+        .containsExactly(createdMetric)
+    }
+
+  @Test
+  fun `batchGetMetrics succeeds when metric spec type is reach and frequency`(): Unit = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
 
     val createMetricRequest =
@@ -2276,22 +2276,24 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
             metricSpec = metricSpec {
               reachAndFrequency =
                 MetricSpecKt.reachAndFrequencyParams {
-                  reachPrivacyParams =
-                    MetricSpecKt.differentialPrivacyParams {
-                      epsilon = 1.0
-                      delta = 2.0
-                    }
-                  frequencyPrivacyParams =
-                    MetricSpecKt.differentialPrivacyParams {
-                      epsilon = 1.0
-                      delta = 2.0
-                    }
+                  multipleDataProviderParams = MetricSpecKt.params {
+                    privacyParams =
+                      MetricSpecKt.differentialPrivacyParams {
+                        epsilon = 1.0
+                        delta = 2.0
+                      }
+                    frequencyPrivacyParams =
+                      MetricSpecKt.differentialPrivacyParams {
+                        epsilon = 1.0
+                        delta = 2.0
+                      }
+                    vidSamplingInterval =
+                      MetricSpecKt.vidSamplingInterval {
+                        start = 0.1f
+                        width = 0.5f
+                      }
+                  }
                   maximumFrequency = 5
-                }
-              vidSamplingInterval =
-                MetricSpecKt.vidSamplingInterval {
-                  start = 0.1f
-                  width = 0.5f
                 }
             }
           }
@@ -2310,6 +2312,74 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       .ignoringRepeatedFieldOrder()
       .containsExactly(createdMetric)
   }
+
+  @Test
+  fun `batchGetMetrics succeeds when metric spec type is rf and single params set`(): Unit =
+    runBlocking {
+      createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+
+      val createMetricRequest =
+        createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService).copy {
+          metric =
+            metric.copy {
+              metricSpec = metricSpec {
+                reachAndFrequency =
+                  MetricSpecKt.reachAndFrequencyParams {
+                    multipleDataProviderParams = MetricSpecKt.params {
+                      privacyParams =
+                        MetricSpecKt.differentialPrivacyParams {
+                          epsilon = 1.0
+                          delta = 2.0
+                        }
+                      frequencyPrivacyParams =
+                        MetricSpecKt.differentialPrivacyParams {
+                          epsilon = 1.0
+                          delta = 2.0
+                        }
+                      vidSamplingInterval =
+                        MetricSpecKt.vidSamplingInterval {
+                          start = 0.1f
+                          width = 0.5f
+                        }
+                    }
+                    singleDataProviderParams = MetricSpecKt.params {
+                      privacyParams =
+                        MetricSpecKt.differentialPrivacyParams {
+                          epsilon = 2.0
+                          delta = 4.0
+                        }
+                      frequencyPrivacyParams =
+                        MetricSpecKt.differentialPrivacyParams {
+                          epsilon = 3.0
+                          delta = 5.0
+                        }
+                      vidSamplingInterval =
+                        MetricSpecKt.vidSamplingInterval {
+                          start = 0.3f
+                          width = 0.6f
+                        }
+                    }
+                    maximumFrequency = 5
+                  }
+              }
+            }
+        }
+      val createdMetric = service.createMetric(createMetricRequest)
+
+      assertThat(createdMetric.metricSpec.reachAndFrequency).isEqualTo(createMetricRequest.metric.metricSpec.reachAndFrequency)
+
+      val retrievedMetrics =
+        service.batchGetMetrics(
+          batchGetMetricsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalMetricIds += createdMetric.externalMetricId
+          }
+        )
+
+      assertThat(retrievedMetrics.metricsList)
+        .ignoringRepeatedFieldOrder()
+        .containsExactly(createdMetric)
+    }
 
   @Test
   fun `batchGetMetrics succeeds when metric spec type is impression count`(): Unit = runBlocking {
@@ -2322,17 +2392,19 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
             metricSpec = metricSpec {
               impressionCount =
                 MetricSpecKt.impressionCountParams {
-                  privacyParams =
-                    MetricSpecKt.differentialPrivacyParams {
-                      epsilon = 1.0
-                      delta = 2.0
-                    }
+                  params = MetricSpecKt.params {
+                    privacyParams =
+                      MetricSpecKt.differentialPrivacyParams {
+                        epsilon = 1.0
+                        delta = 2.0
+                      }
+                    vidSamplingInterval =
+                      MetricSpecKt.vidSamplingInterval {
+                        start = 0.1f
+                        width = 0.5f
+                      }
+                  }
                   maximumFrequencyPerUser = 5
-                }
-              vidSamplingInterval =
-                MetricSpecKt.vidSamplingInterval {
-                  start = 0.1f
-                  width = 0.5f
                 }
             }
           }
@@ -2363,17 +2435,19 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
             metricSpec = metricSpec {
               watchDuration =
                 MetricSpecKt.watchDurationParams {
-                  privacyParams =
-                    MetricSpecKt.differentialPrivacyParams {
-                      epsilon = 1.0
-                      delta = 2.0
-                    }
+                  params = MetricSpecKt.params {
+                    privacyParams =
+                      MetricSpecKt.differentialPrivacyParams {
+                        epsilon = 1.0
+                        delta = 2.0
+                      }
+                    vidSamplingInterval =
+                      MetricSpecKt.vidSamplingInterval {
+                        start = 0.1f
+                        width = 0.5f
+                      }
+                  }
                   maximumWatchDurationPerUser = Durations.fromSeconds(100)
-                }
-              vidSamplingInterval =
-                MetricSpecKt.vidSamplingInterval {
-                  start = 0.1f
-                  width = 0.5f
                 }
             }
           }
@@ -2886,7 +2960,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
   }
 
   @Test
-  fun `streamReportingSets filters when id after filter is set`(): Unit = runBlocking {
+  fun `streamMetrics filters when id after filter is set`(): Unit = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
 
     val createMetricRequest =
@@ -3068,16 +3142,18 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         metricSpec = metricSpec {
           reach =
             MetricSpecKt.reachParams {
-              privacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
-            }
-          vidSamplingInterval =
-            MetricSpecKt.vidSamplingInterval {
-              start = 0.1f
-              width = 0.5f
+              multipleDataProviderParams = MetricSpecKt.params {
+                privacyParams =
+                  MetricSpecKt.differentialPrivacyParams {
+                    epsilon = 1.0
+                    delta = 2.0
+                  }
+                vidSamplingInterval =
+                  MetricSpecKt.vidSamplingInterval {
+                    start = 0.1f
+                    width = 0.5f
+                  }
+              }
             }
         }
         weightedMeasurements +=

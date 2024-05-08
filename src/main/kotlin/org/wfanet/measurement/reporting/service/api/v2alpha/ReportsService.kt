@@ -64,6 +64,7 @@ import org.wfanet.measurement.internal.reporting.v2.batchGetMetricCalculationSpe
 import org.wfanet.measurement.internal.reporting.v2.createReportRequest as internalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internalGetReportRequest
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
+import kotlin.random.Random
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withPrincipalName
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.reportScheduleInfoFromCurrentContext
@@ -103,6 +104,7 @@ class ReportsService(
   private val internalMetricCalculationSpecsStub: MetricCalculationSpecsCoroutineStub,
   private val metricsStub: MetricsCoroutineStub,
   private val metricSpecConfig: MetricSpecConfig,
+  private val secureRandom: Random,
 ) : ReportsCoroutineImplBase() {
   private data class CreateReportInfo(
     val parent: String,
@@ -813,7 +815,7 @@ class ReportsService(
                   InternalReportKt.ReportingMetricKt.details {
                     this.metricSpec =
                       try {
-                        metricSpec.toMetricSpec().withDefaults(metricSpecConfig).toInternal()
+                        metricSpec.toMetricSpec().withDefaults(metricSpecConfig, secureRandom).toInternal()
                       } catch (e: MetricSpecDefaultsException) {
                         failGrpc(Status.INVALID_ARGUMENT) {
                           listOfNotNull("Invalid metric spec.", e.message, e.cause?.message)

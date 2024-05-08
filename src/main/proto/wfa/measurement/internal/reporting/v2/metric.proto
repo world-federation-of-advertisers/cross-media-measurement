@@ -29,21 +29,31 @@ message MetricSpec {
     double epsilon = 1;
     double delta = 2;
   }
+  message VidSamplingInterval {
+    float start = 1;
+    float width = 2;
+  }
+  message Params {
+    DifferentialPrivacyParams privacy_params = 1;
+    DifferentialPrivacyParams frequency_privacy_params = 2;
+    VidSamplingInterval vid_sampling_interval = 3;
+  }
 
   message ReachParams {
-    DifferentialPrivacyParams privacy_params = 1;
+    Params multiple_data_provider_params = 2;
+    Params single_data_provider_params = 3;
   }
   message ReachAndFrequencyParams {
-    DifferentialPrivacyParams reach_privacy_params = 1;
-    DifferentialPrivacyParams frequency_privacy_params = 2;
+    Params multiple_data_provider_params = 4;
+    Params single_data_provider_params = 5;
     int32 maximum_frequency = 3;
   }
   message ImpressionCountParams {
-    DifferentialPrivacyParams privacy_params = 1;
+    Params params = 3;
     int32 maximum_frequency_per_user = 2;
   }
   message WatchDurationParams {
-    DifferentialPrivacyParams privacy_params = 1;
+    Params params = 3;
     google.protobuf.Duration maximum_watch_duration_per_user = 2;
   }
   message PopulationCountParams {}
@@ -55,12 +65,6 @@ message MetricSpec {
     WatchDurationParams watch_duration = 4;
     PopulationCountParams population_count = 5;
   }
-
-  message VidSamplingInterval {
-    float start = 1;
-    float width = 2;
-  }
-  VidSamplingInterval vid_sampling_interval = 6;
 }
 
 // Proto representation of the internal Metric entity type.
