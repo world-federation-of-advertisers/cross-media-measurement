@@ -326,6 +326,8 @@ private fun InternalRequisition.toRequisition(): Requisition {
           Version.V2_ALPHA -> ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
         }
     }
+    // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this field.
+    encryptedRequisitionSpecCiphertext = details.encryptedRequisitionSpec
 
     dataProviderCertificate =
       DataProviderCertificateKey(
@@ -343,7 +345,12 @@ private fun InternalRequisition.toRequisition(): Requisition {
       signatureAlgorithmOid = details.dataProviderPublicKeySignatureAlgorithmOid
     }
 
-    duchies += duchiesMap.entries.map { it.toDuchyEntry(measurementApiVersion) }
+    duchies +=
+      duchiesMap.entries
+        .filter { it.value.availableForFulfillment() }
+        .map {
+          it.toDuchyEntry(measurementApiVersion, this@toRequisition.externalFulfillingDuchyId)
+        }
 
     state = this@toRequisition.state.toRequisitionState()
     if (state == State.REFUSED) {
@@ -353,6 +360,18 @@ private fun InternalRequisition.toRequisition(): Requisition {
       }
     }
     measurementState = this@toRequisition.parentMeasurement.state.toState()
+  }
+}
+
+private fun DuchyValue.availableForFulfillment(): Boolean {
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
+  return when (protocolCase) {
+    DuchyValue.ProtocolCase.LIQUID_LEGIONS_V2,
+    DuchyValue.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> true
+    DuchyValue.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+      !honestMajorityShareShuffle.tinkPublicKey.isEmpty
+    }
+    DuchyValue.ProtocolCase.PROTOCOL_NOT_SET -> error("protocol not set")
   }
 }
 
@@ -397,6 +416,7 @@ private fun State.toInternal(): InternalState =
 /** Converts an internal [DuchyValue] to a public [DuchyEntry.Value]. */
 private fun DuchyValue.toDuchyEntryValue(
   externalDuchyId: String,
+  externalFulfillingDuchyId: String,
   apiVersion: Version,
 ): DuchyEntry.Value {
   val duchyCertificateKey =
@@ -408,20 +428,27 @@ private fun DuchyValue.toDuchyEntryValue(
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Annotated with @NotNull.
     when (source.protocolCase) {
       DuchyValue.ProtocolCase.LIQUID_LEGIONS_V2 -> {
-        liquidLegionsV2 = source.liquidLegionsV2.toDuchyEntryLlV2(apiVersion)
+        liquidLegionsV2 = source.liquidLegionsV2.toLlv2DuchyEntry(apiVersion)
       }
       DuchyValue.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
-        reachOnlyLiquidLegionsV2 = source.reachOnlyLiquidLegionsV2.toDuchyEntryLlV2(apiVersion)
+        reachOnlyLiquidLegionsV2 = source.reachOnlyLiquidLegionsV2.toLlv2DuchyEntry(apiVersion)
       }
       DuchyValue.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
-        honestMajorityShareShuffle = source.honestMajorityShareShuffle.toDuchyEntryHmss(apiVersion)
+        val containingEncryptionKey = !source.honestMajorityShareShuffle.tinkPublicKey.isEmpty
+        val isFulfillingDuchy = externalDuchyId == externalFulfillingDuchyId
+        honestMajorityShareShuffle =
+          if (containingEncryptionKey && !isFulfillingDuchy) {
+            source.honestMajorityShareShuffle.toHmssDuchyEntryWithPublicKey(apiVersion)
+          } else {
+            DuchyEntry.HonestMajorityShareShuffle.getDefaultInstance()
+          }
       }
       DuchyValue.ProtocolCase.PROTOCOL_NOT_SET -> error("protocol not set")
     }
   }
 }
 
-private fun ComputationParticipant.LiquidLegionsV2Details.toDuchyEntryLlV2(
+private fun ComputationParticipant.LiquidLegionsV2Details.toLlv2DuchyEntry(
   apiVersion: Version
 ): DuchyEntry.LiquidLegionsV2 {
   val source = this
@@ -442,7 +469,7 @@ private fun ComputationParticipant.LiquidLegionsV2Details.toDuchyEntryLlV2(
   }
 }
 
-private fun ComputationParticipant.HonestMajorityShareShuffleDetails.toDuchyEntryHmss(
+private fun ComputationParticipant.HonestMajorityShareShuffleDetails.toHmssDuchyEntryWithPublicKey(
   apiVersion: Version
 ): DuchyEntry.HonestMajorityShareShuffle {
   val source = this
@@ -464,11 +491,14 @@ private fun ComputationParticipant.HonestMajorityShareShuffleDetails.toDuchyEntr
 }
 
 /** Converts an internal duchy map entry to a public [DuchyEntry]. */
-private fun Map.Entry<String, DuchyValue>.toDuchyEntry(apiVersion: Version): DuchyEntry {
+private fun Map.Entry<String, DuchyValue>.toDuchyEntry(
+  apiVersion: Version,
+  externalFulfillingDuchyId: String,
+): DuchyEntry {
   val mapEntry = this
   return duchyEntry {
     key = mapEntry.key
-    value = mapEntry.value.toDuchyEntryValue(mapEntry.key, apiVersion)
+    value = mapEntry.value.toDuchyEntryValue(mapEntry.key, externalFulfillingDuchyId, apiVersion)
   }
 }
 

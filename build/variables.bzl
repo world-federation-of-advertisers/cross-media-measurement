@@ -75,7 +75,6 @@ AWS_SETTINGS = struct(
     postgres_region = "$(postgres_region)",
     s3_bucket = "$(s3_bucket)",
     s3_region = "$(s3_region)",
-    computation_control_server_eips = "$(computation_control_server_eips)",
     amp_ingest_endpoint = "$(amp_ingest_endpoint)",
     amp_region = "$(amp_region)",
 )
@@ -101,6 +100,8 @@ DUCHY_K8S_SETTINGS = struct(
     worker2_id = "$(worker2_id)",
     public_api_address_name = "$(duchy_public_api_address_name)",
     system_api_address_name = "$(duchy_system_api_address_name)",
+    public_api_eip_allocs = "$(duchy_public_api_eip_allocs)",
+    system_api_eip_allocs = "$(duchy_system_api_eip_allocs)",
 )
 
 # Settings for Reporting Kubernetes deployments.

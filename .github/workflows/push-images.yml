@@ -15,18 +15,15 @@
 name: Build and push container images
 
 on:
-  workflow_dispatch:
   workflow_call:
-    outputs:
+    inputs:
       image-tag:
         description: "Tag of container images"
-        value: ${{ jobs.push-images.outputs.image-tag }}
-
+        type: string
+        required: true
 jobs:
   push-images:
     runs-on: ubuntu-22.04
-    outputs:
-      image-tag: ${{ steps.get-image-tag.outputs.image-tag }}
     permissions:
       id-token: write
       packages: write
@@ -44,20 +41,9 @@ jobs:
           workload_identity_provider: ${{ vars.BAZEL_BUILD_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.BAZEL_BUILD_SERVICE_ACCOUNT }}
 
-      - id: get-image-tag
-        name: Get image tag
-        run: |
-          declare image_tag
-          if [[ "$GITHUB_REF_TYPE" == 'tag' ]]; then
-            image_tag="${GITHUB_REF_NAME#v}"
-          else
-            image_tag="$GITHUB_SHA"
-          fi
-          echo "image-tag=${image_tag}" >> "$GITHUB_OUTPUT"
-
       - name: Write ~/.bazelrc
         env:
-          IMAGE_TAG: ${{ steps.get-image-tag.outputs.image-tag }}
+          IMAGE_TAG: ${{ inputs.image-tag }}
         run: |
           cat << EOF > ~/.bazelrc
           common --config=ci

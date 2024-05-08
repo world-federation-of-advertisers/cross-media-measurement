@@ -28,6 +28,12 @@ class VidNotFoundException(vid: Long) : Exception("Failed to find VID $vid.")
 interface VidIndexMap {
   /** Gets the index in the [FrequencyVector] for the given VID */
   operator fun get(vid: Long): Int
+
+  /** The number of VIDs managed by this VidIndexMap */
+  val size: Long
+
+  /** The PopulationSpec used to create this map */
+  val populationSpec: PopulationSpec
 }
 
 /**
@@ -42,16 +48,17 @@ interface VidIndexMap {
  * @param [hashFunction] The hash function to use for hashing VIDs.
  * @constructor Creates a [VidIndexMap] for the given [PopulationSpec]
  * @throws [PopulationSpecValidationException] if the [populationSpec] is invalid
+ *
+ * TODO(@kungfucraig): Move this into its own file.
  */
 class InMemoryVidIndexMap(
-  populationSpec: PopulationSpec,
+  override val populationSpec: PopulationSpec,
   private val hashFunction: (Long, ByteString) -> Long = ::hashVidToLongWithFarmHash,
 ) : VidIndexMap {
   // TODO(@kungfucraig): Provide a constructor that reads the vid->index map from a file.
 
-  /** The number of VIDs managed by this VidIndexMap */
-  val size
-    get() = indexMap.size
+  override val size
+    get() = indexMap.size.toLong()
 
   /** A map of a VID to its index in the [Frequency Vector]. */
   private val indexMap = hashMapOf<Long, Int>()

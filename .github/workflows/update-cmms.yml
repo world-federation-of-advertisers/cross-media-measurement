@@ -20,6 +20,10 @@ on:
       environment:
         type: string
         required: true
+      run-tests:
+        description: "Run tests"
+        type: boolean
+        default: true
       apply:
         description: "Apply the new configuration"
         type: boolean
@@ -33,18 +37,28 @@ on:
         options:
         - dev
         - qa
+      run-tests:
+        description: "Run tests"
+        type: boolean
+        default: true
       apply:
         description: "Apply the new configuration"
         type: boolean
         default: false
+      existing-image-tag:
+        description: "Tag of existing published images (skips push)"
+        type: string
 
 jobs:
   publish-images:
-    uses: ./.github/workflows/push-images.yml
+    uses: ./.github/workflows/maybe-push-images.yml
+    with:
+      existing-image-tag: ${{ inputs.existing-image-tag }}
 
   scan-images:
     uses: ./.github/workflows/scan-images.yml
     needs: [publish-images]
+    if: inputs.existing-image-tag == ''
     with:
       container-registry: ghcr.io
       image-repo-prefix: ${{ github.repository_owner }}
@@ -122,7 +136,7 @@ jobs:
       apply: ${{ inputs.apply }}
 
   run-tests:
-    if: ${{ inputs.apply }}
+    if: inputs.run-tests
     needs: [
       update-kingdom,
       update-aggregator-duchy,
