@@ -35,6 +35,7 @@ import java.time.temporal.Temporal
 import java.time.temporal.TemporalAdjusters
 import java.time.zone.ZoneRulesException
 import kotlin.math.min
+import kotlin.random.Random
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
@@ -64,7 +65,6 @@ import org.wfanet.measurement.internal.reporting.v2.batchGetMetricCalculationSpe
 import org.wfanet.measurement.internal.reporting.v2.createReportRequest as internalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internalGetReportRequest
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
-import kotlin.random.Random
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withPrincipalName
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.reportScheduleInfoFromCurrentContext
@@ -815,7 +815,10 @@ class ReportsService(
                   InternalReportKt.ReportingMetricKt.details {
                     this.metricSpec =
                       try {
-                        metricSpec.toMetricSpec().withDefaults(metricSpecConfig, secureRandom).toInternal()
+                        metricSpec
+                          .toMetricSpec()
+                          .withDefaults(metricSpecConfig, secureRandom)
+                          .toInternal()
                       } catch (e: MetricSpecDefaultsException) {
                         failGrpc(Status.INVALID_ARGUMENT) {
                           listOfNotNull("Invalid metric spec.", e.message, e.cause?.message)
