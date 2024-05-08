@@ -35,6 +35,10 @@ message MetricSpec {
   }
   message Params {
     DifferentialPrivacyParams privacy_params = 1;
+    VidSamplingInterval vid_sampling_interval = 2;
+  }
+  message FrequencyParams {
+    DifferentialPrivacyParams privacy_params = 1;
     DifferentialPrivacyParams frequency_privacy_params = 2;
     VidSamplingInterval vid_sampling_interval = 3;
   }
@@ -44,8 +48,8 @@ message MetricSpec {
     Params single_data_provider_params = 3;
   }
   message ReachAndFrequencyParams {
-    Params multiple_data_provider_params = 4;
-    Params single_data_provider_params = 5;
+    FrequencyParams multiple_data_provider_params = 4;
+    FrequencyParams single_data_provider_params = 5;
     int32 maximum_frequency = 3;
   }
   message ImpressionCountParams {
