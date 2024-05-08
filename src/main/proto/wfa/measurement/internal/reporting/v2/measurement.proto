@@ -135,4 +135,6 @@ message Measurement {
     repeated Result results = 2;
   }
   Details details = 7;
+
+  bool is_single_data_provider = 8;
 }

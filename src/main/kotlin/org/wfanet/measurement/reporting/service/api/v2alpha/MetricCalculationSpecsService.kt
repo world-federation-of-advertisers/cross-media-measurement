@@ -37,6 +37,7 @@ import org.wfanet.measurement.internal.reporting.v2.createMetricCalculationSpecR
 import org.wfanet.measurement.internal.reporting.v2.getMetricCalculationSpecRequest
 import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec as internalMetricCalculationSpec
+import kotlin.random.Random
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.GetMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.ListMetricCalculationSpecsPageToken
@@ -54,6 +55,7 @@ import org.wfanet.measurement.reporting.v2alpha.metricCalculationSpec
 class MetricCalculationSpecsService(
   private val internalMetricCalculationSpecsStub: MetricCalculationSpecsCoroutineStub,
   private val metricSpecConfig: MetricSpecConfig,
+  private val secureRandom: Random,
 ) : MetricCalculationSpecsCoroutineImplBase() {
   override suspend fun createMetricCalculationSpec(
     request: CreateMetricCalculationSpecRequest
@@ -240,7 +242,7 @@ class MetricCalculationSpecsService(
     val internalMetricSpecs =
       source.metricSpecsList.map { metricSpec ->
         try {
-          metricSpec.withDefaults(metricSpecConfig).toInternal()
+          metricSpec.withDefaults(metricSpecConfig, secureRandom).toInternal()
         } catch (e: MetricSpecDefaultsException) {
           failGrpc(Status.INVALID_ARGUMENT) {
             listOfNotNull("Invalid metric_spec.", e.message, e.cause?.message)

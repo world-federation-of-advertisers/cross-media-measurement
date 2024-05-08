@@ -210,16 +210,18 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
                     metricSpec = metricSpec {
                       reach =
                         MetricSpecKt.reachParams {
-                          privacyParams =
-                            MetricSpecKt.differentialPrivacyParams {
-                              epsilon = 1.0
-                              delta = 2.0
-                            }
-                        }
-                      vidSamplingInterval =
-                        MetricSpecKt.vidSamplingInterval {
-                          start = 0.1f
-                          width = 0.5f
+                          multipleDataProviderParams = MetricSpecKt.params {
+                            privacyParams =
+                              MetricSpecKt.differentialPrivacyParams {
+                                epsilon = 1.0
+                                delta = 2.0
+                              }
+                            vidSamplingInterval =
+                              MetricSpecKt.vidSamplingInterval {
+                                start = 0.1f
+                                width = 0.5f
+                              }
+                          }
                         }
                     }
                     timeInterval = interval {
@@ -245,16 +247,18 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
                     metricSpec = metricSpec {
                       reach =
                         MetricSpecKt.reachParams {
-                          privacyParams =
-                            MetricSpecKt.differentialPrivacyParams {
-                              epsilon = 1.0
-                              delta = 2.0
-                            }
-                        }
-                      vidSamplingInterval =
-                        MetricSpecKt.vidSamplingInterval {
-                          start = 0.1f
-                          width = 0.5f
+                          multipleDataProviderParams = MetricSpecKt.params {
+                            privacyParams =
+                              MetricSpecKt.differentialPrivacyParams {
+                                epsilon = 1.0
+                                delta = 2.0
+                              }
+                            vidSamplingInterval =
+                              MetricSpecKt.vidSamplingInterval {
+                                start = 0.1f
+                                width = 0.5f
+                              }
+                          }
                         }
                     }
                     timeInterval = interval {
@@ -341,16 +345,18 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
                     metricSpec = metricSpec {
                       reach =
                         MetricSpecKt.reachParams {
-                          privacyParams =
-                            MetricSpecKt.differentialPrivacyParams {
-                              epsilon = 1.0
-                              delta = 2.0
-                            }
-                        }
-                      vidSamplingInterval =
-                        MetricSpecKt.vidSamplingInterval {
-                          start = 0.1f
-                          width = 0.5f
+                          multipleDataProviderParams = MetricSpecKt.params {
+                            privacyParams =
+                              MetricSpecKt.differentialPrivacyParams {
+                                epsilon = 1.0
+                                delta = 2.0
+                              }
+                            vidSamplingInterval =
+                              MetricSpecKt.vidSamplingInterval {
+                                start = 0.1f
+                                width = 0.5f
+                              }
+                          }
                         }
                     }
                     timeInterval = interval {
@@ -367,16 +373,18 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
                     metricSpec = metricSpec {
                       reach =
                         MetricSpecKt.reachParams {
-                          privacyParams =
-                            MetricSpecKt.differentialPrivacyParams {
-                              epsilon = 1.0
-                              delta = 2.0
-                            }
-                        }
-                      vidSamplingInterval =
-                        MetricSpecKt.vidSamplingInterval {
-                          start = 0.1f
-                          width = 0.5f
+                          multipleDataProviderParams = MetricSpecKt.params {
+                            privacyParams =
+                              MetricSpecKt.differentialPrivacyParams {
+                                epsilon = 1.0
+                                delta = 2.0
+                              }
+                            vidSamplingInterval =
+                              MetricSpecKt.vidSamplingInterval {
+                                start = 0.1f
+                                width = 0.5f
+                              }
+                          }
                         }
                     }
                     timeInterval = interval {
@@ -594,16 +602,18 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
                 metricSpec = metricSpec {
                   reach =
                     MetricSpecKt.reachParams {
-                      privacyParams =
-                        MetricSpecKt.differentialPrivacyParams {
-                          epsilon = 1.0
-                          delta = 2.0
-                        }
-                    }
-                  vidSamplingInterval =
-                    MetricSpecKt.vidSamplingInterval {
-                      start = 0.1f
-                      width = 0.5f
+                      multipleDataProviderParams = MetricSpecKt.params {
+                        privacyParams =
+                          MetricSpecKt.differentialPrivacyParams {
+                            epsilon = 1.0
+                            delta = 2.0
+                          }
+                        vidSamplingInterval =
+                          MetricSpecKt.vidSamplingInterval {
+                            start = 0.1f
+                            width = 0.5f
+                          }
+                      }
                     }
                 }
                 this.timeInterval = interval
@@ -765,16 +775,18 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
                 metricSpec = metricSpec {
                   reach =
                     MetricSpecKt.reachParams {
-                      privacyParams =
-                        MetricSpecKt.differentialPrivacyParams {
-                          epsilon = 1.0
-                          delta = 2.0
-                        }
-                    }
-                  vidSamplingInterval =
-                    MetricSpecKt.vidSamplingInterval {
-                      start = 0.1f
-                      width = 0.5f
+                      multipleDataProviderParams = MetricSpecKt.params {
+                        privacyParams =
+                          MetricSpecKt.differentialPrivacyParams {
+                            epsilon = 1.0
+                            delta = 2.0
+                          }
+                        vidSamplingInterval =
+                          MetricSpecKt.vidSamplingInterval {
+                            start = 0.1f
+                            width = 0.5f
+                          }
+                      }
                     }
                 }
                 this.timeInterval = interval
@@ -941,16 +953,18 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
                       metricSpec = metricSpec {
                         reach =
                           MetricSpecKt.reachParams {
-                            privacyParams =
-                              MetricSpecKt.differentialPrivacyParams {
-                                epsilon = 1.0
-                                delta = 2.0
-                              }
-                          }
-                        vidSamplingInterval =
-                          MetricSpecKt.vidSamplingInterval {
-                            start = 0.1f
-                            width = 0.5f
+                            multipleDataProviderParams = MetricSpecKt.params {
+                              privacyParams =
+                                MetricSpecKt.differentialPrivacyParams {
+                                  epsilon = 1.0
+                                  delta = 2.0
+                                }
+                              vidSamplingInterval =
+                                MetricSpecKt.vidSamplingInterval {
+                                  start = 0.1f
+                                  width = 0.5f
+                                }
+                            }
                           }
                       }
                       timeInterval = interval {
@@ -967,16 +981,18 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
                       metricSpec = metricSpec {
                         reach =
                           MetricSpecKt.reachParams {
-                            privacyParams =
-                              MetricSpecKt.differentialPrivacyParams {
-                                epsilon = 1.0
-                                delta = 2.0
-                              }
-                          }
-                        vidSamplingInterval =
-                          MetricSpecKt.vidSamplingInterval {
-                            start = 0.1f
-                            width = 0.5f
+                            multipleDataProviderParams = MetricSpecKt.params {
+                              privacyParams =
+                                MetricSpecKt.differentialPrivacyParams {
+                                  epsilon = 1.0
+                                  delta = 2.0
+                                }
+                              vidSamplingInterval =
+                                MetricSpecKt.vidSamplingInterval {
+                                  start = 0.1f
+                                  width = 0.5f
+                                }
+                            }
                           }
                       }
                       timeInterval = interval {
@@ -1034,16 +1050,18 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
                     metricSpec = metricSpec {
                       reach =
                         MetricSpecKt.reachParams {
-                          privacyParams =
-                            MetricSpecKt.differentialPrivacyParams {
-                              epsilon = 1.0
-                              delta = 2.0
-                            }
-                        }
-                      vidSamplingInterval =
-                        MetricSpecKt.vidSamplingInterval {
-                          start = 0.1f
-                          width = 0.5f
+                          multipleDataProviderParams = MetricSpecKt.params {
+                            privacyParams =
+                              MetricSpecKt.differentialPrivacyParams {
+                                epsilon = 1.0
+                                delta = 2.0
+                              }
+                            vidSamplingInterval =
+                              MetricSpecKt.vidSamplingInterval {
+                                start = 0.1f
+                                width = 0.5f
+                              }
+                          }
                         }
                     }
                     timeInterval = interval {
@@ -1060,16 +1078,18 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
                     metricSpec = metricSpec {
                       reach =
                         MetricSpecKt.reachParams {
-                          privacyParams =
-                            MetricSpecKt.differentialPrivacyParams {
-                              epsilon = 1.0
-                              delta = 2.0
-                            }
-                        }
-                      vidSamplingInterval =
-                        MetricSpecKt.vidSamplingInterval {
-                          start = 0.1f
-                          width = 0.5f
+                          multipleDataProviderParams = MetricSpecKt.params {
+                            privacyParams =
+                              MetricSpecKt.differentialPrivacyParams {
+                                epsilon = 1.0
+                                delta = 2.0
+                              }
+                            vidSamplingInterval =
+                              MetricSpecKt.vidSamplingInterval {
+                                start = 0.1f
+                                width = 0.5f
+                              }
+                          }
                         }
                     }
                     timeInterval = interval {
@@ -1132,16 +1152,18 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
                       metricSpec = metricSpec {
                         reach =
                           MetricSpecKt.reachParams {
-                            privacyParams =
-                              MetricSpecKt.differentialPrivacyParams {
-                                epsilon = 1.0
-                                delta = 2.0
-                              }
-                          }
-                        vidSamplingInterval =
-                          MetricSpecKt.vidSamplingInterval {
-                            start = 0.1f
-                            width = 0.5f
+                            multipleDataProviderParams = MetricSpecKt.params {
+                              privacyParams =
+                                MetricSpecKt.differentialPrivacyParams {
+                                  epsilon = 1.0
+                                  delta = 2.0
+                                }
+                              vidSamplingInterval =
+                                MetricSpecKt.vidSamplingInterval {
+                                  start = 0.1f
+                                  width = 0.5f
+                                }
+                            }
                           }
                       }
                       timeInterval = interval {
@@ -1418,16 +1440,18 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
                       metricSpec = metricSpec {
                         reach =
                           MetricSpecKt.reachParams {
-                            privacyParams =
-                              MetricSpecKt.differentialPrivacyParams {
-                                epsilon = 1.0
-                                delta = 2.0
-                              }
-                          }
-                        vidSamplingInterval =
-                          MetricSpecKt.vidSamplingInterval {
-                            start = 0.1f
-                            width = 0.5f
+                            multipleDataProviderParams = MetricSpecKt.params {
+                              privacyParams =
+                                MetricSpecKt.differentialPrivacyParams {
+                                  epsilon = 1.0
+                                  delta = 2.0
+                                }
+                              vidSamplingInterval =
+                                MetricSpecKt.vidSamplingInterval {
+                                  start = 0.1f
+                                  width = 0.5f
+                                }
+                            }
                           }
                       }
                       timeInterval = interval {
@@ -1453,16 +1477,18 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
                       metricSpec = metricSpec {
                         reach =
                           MetricSpecKt.reachParams {
-                            privacyParams =
-                              MetricSpecKt.differentialPrivacyParams {
-                                epsilon = 1.0
-                                delta = 2.0
-                              }
-                          }
-                        vidSamplingInterval =
-                          MetricSpecKt.vidSamplingInterval {
-                            start = 0.1f
-                            width = 0.5f
+                            multipleDataProviderParams = MetricSpecKt.params {
+                              privacyParams =
+                                MetricSpecKt.differentialPrivacyParams {
+                                  epsilon = 1.0
+                                  delta = 2.0
+                                }
+                              vidSamplingInterval =
+                                MetricSpecKt.vidSamplingInterval {
+                                  start = 0.1f
+                                  width = 0.5f
+                                }
+                            }
                           }
                       }
                       timeInterval = interval {
@@ -1540,16 +1566,18 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
                     metricSpec = metricSpec {
                       reach =
                         MetricSpecKt.reachParams {
-                          privacyParams =
-                            MetricSpecKt.differentialPrivacyParams {
-                              epsilon = 1.0
-                              delta = 2.0
-                            }
-                        }
-                      vidSamplingInterval =
-                        MetricSpecKt.vidSamplingInterval {
-                          start = 0.1f
-                          width = 0.5f
+                          multipleDataProviderParams = MetricSpecKt.params {
+                            privacyParams =
+                              MetricSpecKt.differentialPrivacyParams {
+                                epsilon = 1.0
+                                delta = 2.0
+                              }
+                            vidSamplingInterval =
+                              MetricSpecKt.vidSamplingInterval {
+                                start = 0.1f
+                                width = 0.5f
+                              }
+                          }
                         }
                     }
                     timeInterval = interval {
@@ -1935,16 +1963,18 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
                         metricSpec = metricSpec {
                           reach =
                             MetricSpecKt.reachParams {
-                              privacyParams =
-                                MetricSpecKt.differentialPrivacyParams {
-                                  epsilon = 1.0
-                                  delta = 2.0
-                                }
-                            }
-                          vidSamplingInterval =
-                            MetricSpecKt.vidSamplingInterval {
-                              start = 0.1f
-                              width = 0.5f
+                              multipleDataProviderParams = MetricSpecKt.params {
+                                privacyParams =
+                                  MetricSpecKt.differentialPrivacyParams {
+                                    epsilon = 1.0
+                                    delta = 2.0
+                                  }
+                                vidSamplingInterval =
+                                  MetricSpecKt.vidSamplingInterval {
+                                    start = 0.1f
+                                    width = 0.5f
+                                  }
+                              }
                             }
                         }
                         timeInterval = interval {
@@ -1998,16 +2028,18 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
                       metricSpec = metricSpec {
                         reach =
                           MetricSpecKt.reachParams {
-                            privacyParams =
-                              MetricSpecKt.differentialPrivacyParams {
-                                epsilon = 1.0
-                                delta = 2.0
-                              }
-                          }
-                        vidSamplingInterval =
-                          MetricSpecKt.vidSamplingInterval {
-                            start = 0.1f
-                            width = 0.5f
+                            multipleDataProviderParams = MetricSpecKt.params {
+                              privacyParams =
+                                MetricSpecKt.differentialPrivacyParams {
+                                  epsilon = 1.0
+                                  delta = 2.0
+                                }
+                              vidSamplingInterval =
+                                MetricSpecKt.vidSamplingInterval {
+                                  start = 0.1f
+                                  width = 0.5f
+                                }
+                            }
                           }
                       }
                       timeInterval = interval {

@@ -52,3 +52,9 @@ databaseChangeLog:
 - include:
     file: add-indexes-for-metric-reuse.sql
     relativeToChangeLogFile: true
+- include:
+    file: add-additional-metric-spec-columns-to-metrics.sql
+    relativeToChangeLogFile: true
+- include:
+    file: add-is-single-data-provider-column-to-measurements.sql
+    relativeToChangeLogFile: true
