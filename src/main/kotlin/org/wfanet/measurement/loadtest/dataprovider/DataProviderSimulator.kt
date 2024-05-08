@@ -61,11 +61,10 @@ data class DataProviderData(
 )
 
 abstract class DataProviderSimulator(
-  private val dataProviderData: DataProviderData,
+  val dataProviderData: DataProviderData,
   private val certificatesStub: CertificatesCoroutineStub,
-  private val dataProvidersStub: DataProvidersCoroutineStub,
   private val requisitionsStub: RequisitionsCoroutineStub,
-  private val throttler: Throttler,
+  val throttler: Throttler,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   protected val measurementConsumerName: String,
 ) {
@@ -85,24 +84,11 @@ abstract class DataProviderSimulator(
   protected class InvalidSpecException(message: String, cause: Throwable? = null) :
     Exception(message, cause)
 
+  /** A sequence of operations done in the simulator. */
+  abstract suspend fun run()
+
   /** Executes the requisition fulfillment workflow. */
   abstract suspend fun executeRequisitionFulfillingWorkflow()
-
-  /** A sequence of operations done in the simulator. */
-  suspend fun run() {
-    dataProvidersStub.replaceDataAvailabilityInterval(
-      replaceDataAvailabilityIntervalRequest {
-        name = dataProviderData.name
-        dataAvailabilityInterval = interval {
-          startTime = timestamp {
-            seconds = 1577865600 // January 1, 2020 12:00:00 AM, America/Los_Angeles
-          }
-          endTime = Instant.now().toProtoTime()
-        }
-      }
-    )
-    throttler.loopOnReady { executeRequisitionFulfillingWorkflow() }
-  }
 
   protected fun verifySpecifications(
     requisition: Requisition,
@@ -166,6 +152,8 @@ abstract class DataProviderSimulator(
     } catch (e: PublicKeyMismatchException) {
       throw InvalidConsentSignalException(e.message, e)
     }
+
+    // TODO(@uakyol): Validate that collection interval is not outside of privacy landscape.
 
     return Specifications(measurementSpec, requisitionSpec)
   }

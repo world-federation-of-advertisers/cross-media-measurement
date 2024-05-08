@@ -40,6 +40,9 @@ import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
 import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
 import org.wfanet.anysketch.crypto.elGamalPublicKey as anySketchElGamalPublicKey
+import com.google.protobuf.timestamp
+import com.google.type.interval
+import java.time.Instant
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt.variance
@@ -92,6 +95,7 @@ import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.v2alpha.updateEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
@@ -102,6 +106,7 @@ import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
 import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
 import org.wfanet.measurement.consent.client.dataprovider.verifyElGamalPublicKey
@@ -128,7 +133,7 @@ class EdpSimulator(
   measurementConsumerName: String,
   private val measurementConsumersStub: MeasurementConsumersCoroutineStub,
   private val certificatesStub: CertificatesCoroutineStub,
-  dataProvidersStub: DataProvidersCoroutineStub,
+  private val dataProvidersStub: DataProvidersCoroutineStub,
   private val eventGroupsStub: EventGroupsCoroutineStub,
   private val eventGroupMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub,
   private val requisitionsStub: RequisitionsCoroutineStub,
@@ -152,13 +157,28 @@ class EdpSimulator(
   DataProviderSimulator(
     edpData,
     certificatesStub,
-    dataProvidersStub,
     requisitionsStub,
     throttler,
     trustedCertificates,
     measurementConsumerName
   ) {
   val eventGroupReferenceIdPrefix = getEventGroupReferenceIdPrefix(edpData.displayName)
+
+  /** A sequence of operations done in the simulator. */
+  override suspend fun run() {
+    dataProvidersStub.replaceDataAvailabilityInterval(
+      replaceDataAvailabilityIntervalRequest {
+        name = dataProviderData.name
+        dataAvailabilityInterval = interval {
+          startTime = timestamp {
+            seconds = 1577865600 // January 1, 2020 12:00:00 AM, America/Los_Angeles
+          }
+          endTime = Instant.now().toProtoTime()
+        }
+      }
+    )
+    throttler.loopOnReady { executeRequisitionFulfillingWorkflow() }
+  }
 
   /**
    * Ensures that an appropriate [EventGroup] with appropriate [EventGroupMetadataDescriptor] exists

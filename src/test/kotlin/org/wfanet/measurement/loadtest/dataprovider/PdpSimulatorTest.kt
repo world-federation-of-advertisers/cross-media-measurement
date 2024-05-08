@@ -35,13 +35,11 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCorouti
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
-import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
-import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
@@ -101,8 +99,10 @@ private val SECRET_FILES_PATH: Path =
       Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
     )
   )
-private const val PDP_ID = "someDataProvider"
+private const val PDP_ID = "somePopulationDataProvider"
 private const val PDP_NAME = "dataProviders/$PDP_ID"
+private const val DP_ID = "someDataProvider"
+private const val DP_NAME = "dataProviders/$DP_ID"
 
 private val MEASUREMENT_CONSUMER_CERTIFICATE_DER =
   SECRET_FILES_PATH.resolve("mc_cs_cert.der").toFile().readByteString()
@@ -186,10 +186,12 @@ val POPULATION_SPEC_1 = populationSpec {
   subpopulations += listOf(SUB_POPULATION_1, SUB_POPULATION_2, SUB_POPULATION_3)
 }
 
-val POPULATION_ID_1 = "1234"
+val POPULATION_ID = "1234"
+
+val POPULATION_ID_1 = PopulationKey(DP_NAME, POPULATION_ID)
 
 private val POPULATION_SPEC_MAP =
-  mapOf<String, PopulationSpec>(
+  mapOf<PopulationKey, PopulationSpec>(
     POPULATION_ID_1 to POPULATION_SPEC_1,
   )
 
@@ -205,9 +207,9 @@ class PdpSimulatorTest {
       }
       .thenReturn(DATA_PROVIDER_CERTIFICATE)
     onBlocking {
-        getCertificate(eq(getCertificateRequest { name = DATA_PROVIDER_RESULT_CERTIFICATE.name }))
+        getCertificate(eq(getCertificateRequest { name = DATA_PROVIDER_CERTIFICATE.name }))
       }
-      .thenReturn(DATA_PROVIDER_RESULT_CERTIFICATE)
+      .thenReturn(DATA_PROVIDER_CERTIFICATE)
   }
   private val dataProvidersServiceMock: DataProvidersCoroutineImplBase = mockService {
     onBlocking { replaceDataAvailabilityInterval(any()) }
@@ -234,18 +236,6 @@ class PdpSimulatorTest {
     CertificatesCoroutineStub(grpcTestServerRule.channel)
   }
 
-  private val dataProvidersStub: DataProvidersCoroutineStub by lazy {
-    DataProvidersCoroutineStub(grpcTestServerRule.channel)
-  }
-
-  private val modelRolloutsStub: ModelRolloutsCoroutineStub by lazy {
-    ModelRolloutsCoroutineStub(grpcTestServerRule.channel)
-  }
-
-  private val modelReleasesStub: ModelReleasesCoroutineStub by lazy {
-    ModelReleasesCoroutineStub(grpcTestServerRule.channel)
-  }
-
   private val requisitionsStub: RequisitionsCoroutineStub by lazy {
     RequisitionsCoroutineStub(grpcTestServerRule.channel)
   }
@@ -261,7 +251,6 @@ class PdpSimulatorTest {
       PdpSimulator(
         PDP_DATA,
         certificatesStub,
-        dataProvidersStub,
         requisitionsStub,
         dummyThrottler,
         TRUSTED_CERTIFICATES,
@@ -310,7 +299,6 @@ class PdpSimulatorTest {
       PdpSimulator(
         PDP_DATA,
         certificatesStub,
-        dataProvidersStub,
         requisitionsStub,
         dummyThrottler,
         TRUSTED_CERTIFICATES,
@@ -359,7 +347,6 @@ class PdpSimulatorTest {
       PdpSimulator(
         PDP_DATA,
         certificatesStub,
-        dataProvidersStub,
         requisitionsStub,
         dummyThrottler,
         TRUSTED_CERTIFICATES,
@@ -385,33 +372,22 @@ class PdpSimulatorTest {
     private val MC_SIGNING_KEY = loadSigningKey("${MC_ID}_cs_cert.der", "${MC_ID}_cs_private.der")
     private val PDP_SIGNING_KEY =
       loadSigningKey("${PDP_DISPLAY_NAME}_cs_cert.der", "${PDP_DISPLAY_NAME}_cs_private.der")
-    private val PDP_RESULT_SIGNING_KEY =
-      loadSigningKey(
-        "${PDP_DISPLAY_NAME}_result_cs_cert.der",
-        "${PDP_DISPLAY_NAME}_result_cs_private.der",
-      )
     private val DATA_PROVIDER_CERTIFICATE_KEY =
       DataProviderCertificateKey(PDP_ID, externalIdToApiId(8L))
-    private val DATA_PROVIDER_RESULT_CERTIFICATE_KEY =
-      DataProviderCertificateKey(PDP_ID, externalIdToApiId(9L))
 
     private val DATA_PROVIDER_CERTIFICATE = certificate {
       name = DATA_PROVIDER_CERTIFICATE_KEY.toName()
       x509Der = PDP_SIGNING_KEY.certificate.encoded.toByteString()
       subjectKeyIdentifier = PDP_SIGNING_KEY.certificate.subjectKeyIdentifier!!
     }
-    private val DATA_PROVIDER_RESULT_CERTIFICATE = certificate {
-      name = DATA_PROVIDER_RESULT_CERTIFICATE_KEY.toName()
-      x509Der = PDP_RESULT_SIGNING_KEY.certificate.encoded.toByteString()
-      subjectKeyIdentifier = PDP_RESULT_SIGNING_KEY.certificate.subjectKeyIdentifier!!
-    }
+
     private val PDP_DATA =
       DataProviderData(
         PDP_NAME,
         PDP_DISPLAY_NAME,
         loadEncryptionPrivateKey("${PDP_DISPLAY_NAME}_enc_private.tink"),
-        PDP_RESULT_SIGNING_KEY,
-        DATA_PROVIDER_RESULT_CERTIFICATE_KEY,
+        PDP_SIGNING_KEY,
+        DATA_PROVIDER_CERTIFICATE_KEY,
       )
 
     private val MC_PUBLIC_KEY =

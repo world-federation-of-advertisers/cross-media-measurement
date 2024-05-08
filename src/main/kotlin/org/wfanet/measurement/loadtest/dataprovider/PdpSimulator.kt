@@ -21,11 +21,11 @@ import java.security.cert.X509Certificate
 import java.util.logging.Level
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec.SubPopulation
 import org.wfanet.measurement.api.v2alpha.PopulationSpec.VidRange
@@ -43,24 +43,26 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 class PdpSimulator(
   pdpData: DataProviderData,
   certificatesStub: CertificatesCoroutineStub,
-  dataProvidersStub: DataProvidersCoroutineStub,
   requisitionsStub: RequisitionsCoroutineStub,
   throttler: Throttler,
   trustedCertificates: Map<ByteString, X509Certificate>,
   measurementConsumerName: String,
-  private val populationSpecMap: Map<String, PopulationSpec>,
-  private val populationId: String
+  private val populationSpecMap: Map<PopulationKey, PopulationSpec>,
+  private val populationId: PopulationKey
 ) :
   DataProviderSimulator(
     pdpData,
     certificatesStub,
-    dataProvidersStub,
     requisitionsStub,
     throttler,
     trustedCertificates,
     measurementConsumerName
   ) {
 
+  /** A sequence of operations done in the simulator. */
+  override suspend fun run() {
+    throttler.loopOnReady { executeRequisitionFulfillingWorkflow() }
+  }
   /** Executes the requisition fulfillment workflow. */
   override suspend fun executeRequisitionFulfillingWorkflow() {
     logger.info("Executing requisitionFulfillingWorkflow...")
@@ -101,6 +103,7 @@ class PdpSimulator(
 
         logger.log(Level.INFO, "MeasurementSpec:\n$measurementSpec")
         logger.log(Level.INFO, "RequisitionSpec:\n$requisitionSpec")
+
 
         // TODO: add check for invalid population id
         val populationSpec = populationSpecMap.getValue(populationId)
