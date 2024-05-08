@@ -853,7 +853,7 @@ class EdpSimulatorTest {
   }
 
   @Test
-  fun `HMSS requisition throws IllegalArgumentException due to empty vidToIndexMap`() {
+  fun `refuses HMSS requisition due to empty vidToIndexMap`() {
     requisitionsServiceMock.stub {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += HMSS_REQUISITION })
@@ -874,13 +874,26 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        vidToIndexMap = emptyMap(),
+        emptyMap(),
       )
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
-      }
-    assertThat(exception).hasMessageThat().contains("Unsupported protocol")
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
+
+    val refuseRequest: RefuseRequisitionRequest =
+      verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
+    assertThat(refuseRequest)
+      .ignoringFieldScope(
+        FieldScopes.allowingFieldDescriptors(
+          Refusal.getDescriptor().findFieldByNumber(Refusal.MESSAGE_FIELD_NUMBER)
+        )
+      )
+      .isEqualTo(
+        refuseRequisitionRequest {
+          name = REQUISITION.name
+          refusal = refusal { justification = Refusal.Justification.SPEC_INVALID }
+        }
+      )
+    assertThat(refuseRequest.refusal.message).contains("Protocol not supported")
+    assertThat(fakeRequisitionFulfillmentService.fullfillRequisitionInvocations).isEmpty()
   }
 
   @Test

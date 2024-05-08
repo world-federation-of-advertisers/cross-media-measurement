@@ -207,6 +207,14 @@ class EdpSimulator(
 ) {
   val eventGroupReferenceIdPrefix = getEventGroupReferenceIdPrefix(edpData.displayName)
 
+  val supportedProtocols = buildSet {
+    add(ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2)
+    add(ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2)
+    if (vidToIndexMap.isNotEmpty()) {
+      add(ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE)
+    }
+  }
+
   /** A sequence of operations done in the simulator. */
   suspend fun run() {
     dataProvidersStub.replaceDataAvailabilityInterval(
@@ -496,20 +504,24 @@ class EdpSimulator(
     return Specifications(measurementSpec, requisitionSpec)
   }
 
+  private fun verifyProtocolConfig(
+    requsitionName: String,
+    protocol: ProtocolConfig.Protocol.ProtocolCase,
+  ) {
+    if (protocol !in supportedProtocols) {
+      logger.log(Level.WARNING, "Skipping $requsitionName: Protocol not supported.")
+      throw RequisitionRefusalException(
+        Requisition.Refusal.Justification.SPEC_INVALID,
+        "Protocol not supported.",
+      )
+    }
+  }
+
   private fun verifyDuchyEntry(
     duchyEntry: DuchyEntry,
     duchyCertificate: Certificate,
     protocol: ProtocolConfig.Protocol.ProtocolCase,
   ) {
-    val SUPPORTED_PROTOCOLS = buildSet {
-      add(ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2)
-      add(ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2)
-      if (vidToIndexMap.isNotEmpty()) {
-        add(ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE)
-      }
-    }
-    require(protocol in SUPPORTED_PROTOCOLS) { "Unsupported protocol $protocol" }
-
     val duchyX509Certificate: X509Certificate = readCertificate(duchyCertificate.x509Der)
     // Look up the trusted issuer certificate for this Duchy certificate. Note that this doesn't
     // confirm that this is the trusted issuer for the right Duchy. In a production environment,
@@ -809,6 +821,10 @@ class EdpSimulator(
               "Measurement type not supported for protocol llv2.",
             )
           }
+          verifyProtocolConfig(
+            requisition.name,
+            ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2,
+          )
           verifyDuchyEntries(requisition, ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2)
 
           fulfillRequisitionForLiquidLegionsV2Measurement(
@@ -829,6 +845,10 @@ class EdpSimulator(
               "Measurement type not supported for protocol rollv2.",
             )
           }
+          verifyProtocolConfig(
+            requisition.name,
+            ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2,
+          )
           verifyDuchyEntries(
             requisition,
             ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2,
@@ -853,6 +873,10 @@ class EdpSimulator(
               "Measurement type not supported for protocol hmss.",
             )
           }
+          verifyProtocolConfig(
+            requisition.name,
+            ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
+          )
           verifyDuchyEntries(
             requisition,
             ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,

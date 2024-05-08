@@ -99,6 +99,8 @@ abstract class EdpSimulatorRunner : Runnable {
         Random.Default
       }
 
+    // TODO(@ple13): Use the actual vidToIndexMap instead of an empty map when a smaller dataset is
+    // available.
     val edpSimulator =
       EdpSimulator(
         edpData,
@@ -114,11 +116,6 @@ abstract class EdpSimulatorRunner : Runnable {
         MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval),
         createNoOpPrivacyBudgetManager(),
         clientCerts.trustedCertificates,
-        /**
-         * When the vidToIndexMap is empty, HMSS is not supported.
-         *
-         * TODO(@ple13): Use the actual vidToIndexMap when smaller dataset is available.
-         */
         vidToIndexMap = emptyMap(),
         knownEventGroupMetadataTypes = knownEventGroupMetadataTypes,
         random = random,
