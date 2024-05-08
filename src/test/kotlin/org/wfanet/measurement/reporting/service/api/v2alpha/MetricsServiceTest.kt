@@ -2583,7 +2583,7 @@ class MetricsServiceTest {
 
   @Test
   fun `createMetric creates measurements for single pub reach when single edp params set`() {
-    val cmmsMeasurementSpec = measurementSpec {
+    val cmmsMeasurementSpec = BASE_MEASUREMENT_SPEC.copy {
       measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
 
       nonceHashes.add(Hashing.hashSha256(RANDOM_OUTPUT_LONG))
@@ -2851,7 +2851,7 @@ class MetricsServiceTest {
 
   @Test
   fun `createMetric creates measurements for single pub reach when single edp params not set`() {
-    val cmmsMeasurementSpec = measurementSpec {
+    val cmmsMeasurementSpec = BASE_MEASUREMENT_SPEC.copy {
       measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
 
       nonceHashes.add(Hashing.hashSha256(RANDOM_OUTPUT_LONG))
@@ -3087,7 +3087,7 @@ class MetricsServiceTest {
 
   @Test
   fun `createMetric creates measurements for single pub rf when single edp params set`() {
-    val cmmsMeasurementSpec = measurementSpec {
+    val cmmsMeasurementSpec = BASE_MEASUREMENT_SPEC.copy {
       measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
 
       nonceHashes.add(Hashing.hashSha256(RANDOM_OUTPUT_LONG))
