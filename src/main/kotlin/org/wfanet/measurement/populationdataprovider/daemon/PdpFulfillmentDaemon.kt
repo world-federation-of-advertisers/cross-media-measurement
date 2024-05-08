@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.loadtest.dataprovider
+package org.wfanet.measurement.populationdataprovider.daemon
 
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
@@ -38,9 +38,11 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
+import org.wfanet.measurement.loadtest.dataprovider.DataProviderData
+import org.wfanet.measurement.loadtest.dataprovider.DataProviderSimulator
 
 /** A simulator handling PDP businesses. */
-class PdpSimulator(
+class PdpFulfillmentDaemon(
   pdpData: DataProviderData,
   certificatesStub: CertificatesCoroutineStub,
   requisitionsStub: RequisitionsCoroutineStub,

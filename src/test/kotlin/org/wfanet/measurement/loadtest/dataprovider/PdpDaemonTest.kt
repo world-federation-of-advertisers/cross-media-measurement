@@ -89,6 +89,7 @@ import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
+import org.wfanet.measurement.populationdataprovider.daemon.PdpFulfillmentDaemon
 
 private const val MC_ID = "mc"
 private const val MC_NAME = "measurementConsumers/$MC_ID"
@@ -196,7 +197,7 @@ private val POPULATION_SPEC_MAP =
   )
 
 @RunWith(JUnit4::class)
-class PdpSimulatorTest {
+class PdpDaemonTest {
   private val certificatesServiceMock: CertificatesCoroutineImplBase = mockService {
     onBlocking {
         getCertificate(eq(getCertificateRequest { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME }))
@@ -248,7 +249,7 @@ class PdpSimulatorTest {
     }
 
     val simulator =
-      PdpSimulator(
+      PdpFulfillmentDaemon(
         PDP_DATA,
         certificatesStub,
         requisitionsStub,
@@ -296,7 +297,7 @@ class PdpSimulatorTest {
     }
 
     val simulator =
-      PdpSimulator(
+      PdpFulfillmentDaemon(
         PDP_DATA,
         certificatesStub,
         requisitionsStub,
@@ -344,7 +345,7 @@ class PdpSimulatorTest {
     }
 
     val simulator =
-      PdpSimulator(
+      PdpFulfillmentDaemon(
         PDP_DATA,
         certificatesStub,
         requisitionsStub,

@@ -80,8 +80,8 @@ kt_jvm_test(
 )
 
 kt_jvm_library(
-    name = "pdp_simulator_test",
-    srcs = ["PdpSimulatorTest.kt"],
+    name = "pdp_daemon_test",
+    srcs = ["PdpDaemonTest.kt"],
     data = [
         "//src/main/k8s/testing/secretfiles:all_configs",
         "//src/main/k8s/testing/secretfiles:all_der_files",
@@ -89,6 +89,7 @@ kt_jvm_library(
         "//src/main/k8s/testing/secretfiles:edp_trusted_certs.pem",
     ],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/populationdataprovider/daemon:pdp_fulfillment_daemon",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
@@ -100,7 +101,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:test_identifiers",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:in_memory_event_query",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:measurement_results",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:pdp_simulator",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_generator_event_query",
         "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
@@ -118,9 +118,9 @@ kt_jvm_library(
 
 # TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
 java_test(
-    name = "PdpSimulatorTest",
-    test_class = "org.wfanet.measurement.loadtest.dataprovider.PdpSimulatorTest",
-    runtime_deps = [":pdp_simulator_test"],
+    name = "PdpDaemonTest",
+    test_class = "org.wfanet.measurement.loadtest.dataprovider.PdpDaemonTest",
+    runtime_deps = [":pdp_daemon_test"],
 )
 
 kt_jvm_test(
