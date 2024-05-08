@@ -821,11 +821,10 @@ class EdpSimulator(
               "Measurement type not supported for protocol llv2.",
             )
           }
-          verifyProtocolConfig(
-            requisition.name,
-            ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2,
-          )
-          verifyDuchyEntries(requisition, ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2)
+
+          val protocolConfig = ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2
+          verifyProtocolConfig(requisition.name, protocolConfig)
+          verifyDuchyEntries(requisition, protocolConfig)
 
           fulfillRequisitionForLiquidLegionsV2Measurement(
             requisition,
@@ -845,14 +844,10 @@ class EdpSimulator(
               "Measurement type not supported for protocol rollv2.",
             )
           }
-          verifyProtocolConfig(
-            requisition.name,
-            ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2,
-          )
-          verifyDuchyEntries(
-            requisition,
-            ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2,
-          )
+
+          val protocolConfig = ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2
+          verifyProtocolConfig(requisition.name, protocolConfig)
+          verifyDuchyEntries(requisition, protocolConfig)
 
           fulfillRequisitionForReachOnlyLiquidLegionsV2Measurement(
             requisition,
@@ -873,14 +868,10 @@ class EdpSimulator(
               "Measurement type not supported for protocol hmss.",
             )
           }
-          verifyProtocolConfig(
-            requisition.name,
-            ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
-          )
-          verifyDuchyEntries(
-            requisition,
-            ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
-          )
+
+          val protocolConfig = ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE
+          verifyProtocolConfig(requisition.name, protocolConfig)
+          verifyDuchyEntries(requisition, protocolConfig)
 
           fulfillRequisitionForHmssMeasurement(
             requisition,
