@@ -8570,7 +8570,7 @@ class MetricsServiceTest {
       }
 
     // CMMS single publisher reach-frequency measurements
-    private val SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT_SPEC = BASE_MEASURMENT_SPEC.copy {
+    private val SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT_SPEC = BASE_MEASUREMENT_SPEC.copy {
       measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
 
       nonceHashes.add(Hashing.hashSha256(RANDOM_OUTPUT_LONG))
@@ -8668,7 +8668,7 @@ class MetricsServiceTest {
       }
 
     // CMMS single publisher impression measurements
-    private val SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC = BASE_MEASURMENT_SPEC.copy {
+    private val SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC = BASE_MEASUREMENT_SPEC.copy {
       measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
 
       nonceHashes.add(Hashing.hashSha256(RANDOM_OUTPUT_LONG))
@@ -8771,7 +8771,7 @@ class MetricsServiceTest {
       }
 
     // CMMS cross publisher watch duration measurements
-    private val UNION_ALL_WATCH_DURATION_MEASUREMENT_SPEC = BASE_MEASURMENT_SPEC.copy {
+    private val UNION_ALL_WATCH_DURATION_MEASUREMENT_SPEC = BASE_MEASUREMENT_SPEC.copy {
       measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
 
       nonceHashes +=
@@ -8870,7 +8870,7 @@ class MetricsServiceTest {
       }
 
     // CMMS population measurements
-    private val POPULATION_MEASUREMENT_SPEC = BASE_MEASURMENT_SPEC.copy {
+    private val POPULATION_MEASUREMENT_SPEC = BASE_MEASUREMENT_SPEC.copy {
       measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
 
       nonceHashes +=
