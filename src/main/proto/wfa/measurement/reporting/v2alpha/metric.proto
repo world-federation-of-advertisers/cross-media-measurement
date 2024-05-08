@@ -124,8 +124,8 @@ message MetricSpec {
     // Differential privacy parameters.
     DifferentialPrivacyParams privacy_params = 1 [deprecated = true];
 
-    // Parameters for watch duration. Will be required in a future release. Takes
-    // precedence over `privacy_params`.
+    // Parameters for watch duration. Will be required in a future release.
+    // Takes precedence over `privacy_params`.
     Params params = 3;
 
     // Maximum watch duration per user that will be included in this metric.
