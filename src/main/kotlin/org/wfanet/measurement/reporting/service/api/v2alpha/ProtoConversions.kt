@@ -39,7 +39,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams as NoiserDpParams
 import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodology as InternalCustomDirectMethodology
 import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodologyKt as InternalCustomDirectMethodologyKt
@@ -171,52 +170,60 @@ fun MetricSpec.toInternal(): InternalMetricSpec {
 }
 
 /** Converts a [MetricSpec.WatchDurationParams] to an [InternalMetricSpec.WatchDurationParams]. */
-fun MetricSpec.WatchDurationParams.toInternal(vidSamplingInterval: InternalMetricSpec.VidSamplingInterval?): InternalMetricSpec.WatchDurationParams {
+fun MetricSpec.WatchDurationParams.toInternal(
+  vidSamplingInterval: InternalMetricSpec.VidSamplingInterval?
+): InternalMetricSpec.WatchDurationParams {
   val source = this
   return InternalMetricSpecKt.watchDurationParams {
     if (source.hasMaximumWatchDurationPerUser()) {
       maximumWatchDurationPerUser = source.maximumWatchDurationPerUser
     }
 
-    params = InternalMetricSpecKt.params {
-      privacyParams = if (source.hasPrivacyParams()) {
-        source.privacyParams.toInternal()
-      } else {
-        source.params.privacyParams.toInternal()
-      }
+    params =
+      InternalMetricSpecKt.params {
+        privacyParams =
+          if (source.hasPrivacyParams()) {
+            source.privacyParams.toInternal()
+          } else {
+            source.params.privacyParams.toInternal()
+          }
 
-      if (vidSamplingInterval != null) {
-        this.vidSamplingInterval = vidSamplingInterval
-      } else {
-        this.vidSamplingInterval = source.params.vidSamplingInterval.toInternal()
+        if (vidSamplingInterval != null) {
+          this.vidSamplingInterval = vidSamplingInterval
+        } else {
+          this.vidSamplingInterval = source.params.vidSamplingInterval.toInternal()
+        }
       }
-    }
   }
 }
 
 /**
  * Converts a [MetricSpec.ImpressionCountParams] to an [InternalMetricSpec.ImpressionCountParams].
  */
-fun MetricSpec.ImpressionCountParams.toInternal(vidSamplingInterval: InternalMetricSpec.VidSamplingInterval?): InternalMetricSpec.ImpressionCountParams {
+fun MetricSpec.ImpressionCountParams.toInternal(
+  vidSamplingInterval: InternalMetricSpec.VidSamplingInterval?
+): InternalMetricSpec.ImpressionCountParams {
   val source = this
   return InternalMetricSpecKt.impressionCountParams {
     if (source.hasMaximumFrequencyPerUser()) {
       maximumFrequencyPerUser = source.maximumFrequencyPerUser
     }
 
-    params = InternalMetricSpecKt.params {
-      privacyParams = if (source.hasPrivacyParams()) {
-        source.privacyParams.toInternal()
-      } else {
-        source.params.privacyParams.toInternal()
-      }
+    params =
+      InternalMetricSpecKt.params {
+        privacyParams =
+          if (source.hasPrivacyParams()) {
+            source.privacyParams.toInternal()
+          } else {
+            source.params.privacyParams.toInternal()
+          }
 
-      if (vidSamplingInterval != null) {
-        this.vidSamplingInterval = vidSamplingInterval
-      } else {
-        this.vidSamplingInterval = source.params.vidSamplingInterval.toInternal()
+        if (vidSamplingInterval != null) {
+          this.vidSamplingInterval = vidSamplingInterval
+        } else {
+          this.vidSamplingInterval = source.params.vidSamplingInterval.toInternal()
+        }
       }
-    }
   }
 }
 
@@ -224,62 +231,75 @@ fun MetricSpec.ImpressionCountParams.toInternal(vidSamplingInterval: InternalMet
  * Converts a [MetricSpec.ReachAndFrequencyParams] to an
  * [InternalMetricSpec.ReachAndFrequencyParams].
  */
-fun MetricSpec.ReachAndFrequencyParams.toInternal(vidSamplingInterval: InternalMetricSpec.VidSamplingInterval?): InternalMetricSpec.ReachAndFrequencyParams {
+fun MetricSpec.ReachAndFrequencyParams.toInternal(
+  vidSamplingInterval: InternalMetricSpec.VidSamplingInterval?
+): InternalMetricSpec.ReachAndFrequencyParams {
   val source = this
   return InternalMetricSpecKt.reachAndFrequencyParams {
     maximumFrequency = source.maximumFrequency
 
-    multipleDataProviderParams = InternalMetricSpecKt.params {
-      if (source.hasReachPrivacyParams()) {
-        privacyParams = source.reachPrivacyParams.toInternal()
-        frequencyPrivacyParams = source.frequencyPrivacyParams.toInternal()
-      } else {
-        privacyParams = source.multipleDataProviderParams.privacyParams.toInternal()
-        frequencyPrivacyParams = source.multipleDataProviderParams.frequencyPrivacyParams.toInternal()
-      }
+    multipleDataProviderParams =
+      InternalMetricSpecKt.params {
+        if (source.hasReachPrivacyParams()) {
+          privacyParams = source.reachPrivacyParams.toInternal()
+          frequencyPrivacyParams = source.frequencyPrivacyParams.toInternal()
+        } else {
+          privacyParams = source.multipleDataProviderParams.privacyParams.toInternal()
+          frequencyPrivacyParams =
+            source.multipleDataProviderParams.frequencyPrivacyParams.toInternal()
+        }
 
-      if (vidSamplingInterval != null) {
-        this.vidSamplingInterval = vidSamplingInterval
-      } else {
-        this.vidSamplingInterval = source.multipleDataProviderParams.vidSamplingInterval.toInternal()
+        if (vidSamplingInterval != null) {
+          this.vidSamplingInterval = vidSamplingInterval
+        } else {
+          this.vidSamplingInterval =
+            source.multipleDataProviderParams.vidSamplingInterval.toInternal()
+        }
       }
-    }
 
     if (source.hasSingleDataProviderParams()) {
-      singleDataProviderParams = InternalMetricSpecKt.params {
-        privacyParams = source.singleDataProviderParams.privacyParams.toInternal()
-        frequencyPrivacyParams = source.singleDataProviderParams.frequencyPrivacyParams.toInternal()
-        this.vidSamplingInterval =
-          source.singleDataProviderParams.vidSamplingInterval.toInternal()
-      }
+      singleDataProviderParams =
+        InternalMetricSpecKt.params {
+          privacyParams = source.singleDataProviderParams.privacyParams.toInternal()
+          frequencyPrivacyParams =
+            source.singleDataProviderParams.frequencyPrivacyParams.toInternal()
+          this.vidSamplingInterval =
+            source.singleDataProviderParams.vidSamplingInterval.toInternal()
+        }
     }
   }
 }
 
 /** Converts a [MetricSpec.ReachParams] to an [InternalMetricSpec.ReachParams]. */
-fun MetricSpec.ReachParams.toInternal(vidSamplingInterval: InternalMetricSpec.VidSamplingInterval?): InternalMetricSpec.ReachParams {
+fun MetricSpec.ReachParams.toInternal(
+  vidSamplingInterval: InternalMetricSpec.VidSamplingInterval?
+): InternalMetricSpec.ReachParams {
   val source = this
   return InternalMetricSpecKt.reachParams {
-    multipleDataProviderParams = InternalMetricSpecKt.params {
-      privacyParams = if (source.hasPrivacyParams()) {
-        source.privacyParams.toInternal()
-      } else {
-        source.multipleDataProviderParams.privacyParams.toInternal()
-      }
+    multipleDataProviderParams =
+      InternalMetricSpecKt.params {
+        privacyParams =
+          if (source.hasPrivacyParams()) {
+            source.privacyParams.toInternal()
+          } else {
+            source.multipleDataProviderParams.privacyParams.toInternal()
+          }
 
-      if (vidSamplingInterval != null) {
-        this.vidSamplingInterval = vidSamplingInterval
-      } else {
-        this.vidSamplingInterval = source.multipleDataProviderParams.vidSamplingInterval.toInternal()
+        if (vidSamplingInterval != null) {
+          this.vidSamplingInterval = vidSamplingInterval
+        } else {
+          this.vidSamplingInterval =
+            source.multipleDataProviderParams.vidSamplingInterval.toInternal()
+        }
       }
-    }
 
     if (source.hasSingleDataProviderParams()) {
-      singleDataProviderParams = InternalMetricSpecKt.params {
-        privacyParams = source.singleDataProviderParams.privacyParams.toInternal()
-        this.vidSamplingInterval =
-          source.singleDataProviderParams.vidSamplingInterval.toInternal()
-      }
+      singleDataProviderParams =
+        InternalMetricSpecKt.params {
+          privacyParams = source.singleDataProviderParams.privacyParams.toInternal()
+          this.vidSamplingInterval =
+            source.singleDataProviderParams.vidSamplingInterval.toInternal()
+        }
     }
   }
 }
@@ -312,18 +332,28 @@ fun InternalMetricSpec.toMetricSpec(): MetricSpec {
         reach =
           MetricSpecKt.reachParams {
             if (source.reach.hasSingleDataProviderParams()) {
-              multipleDataProviderParams = MetricSpecKt.params {
-                privacyParams = source.reach.multipleDataProviderParams.privacyParams.toPrivacyParams()
-                vidSamplingInterval = source.reach.multipleDataProviderParams.vidSamplingInterval.toVidSamplingInterval()
-              }
+              multipleDataProviderParams =
+                MetricSpecKt.params {
+                  privacyParams =
+                    source.reach.multipleDataProviderParams.privacyParams.toPrivacyParams()
+                  vidSamplingInterval =
+                    source.reach.multipleDataProviderParams.vidSamplingInterval
+                      .toVidSamplingInterval()
+                }
 
-              singleDataProviderParams = MetricSpecKt.params {
-                privacyParams = source.reach.singleDataProviderParams.privacyParams.toPrivacyParams()
-                vidSamplingInterval = source.reach.singleDataProviderParams.vidSamplingInterval.toVidSamplingInterval()
-              }
+              singleDataProviderParams =
+                MetricSpecKt.params {
+                  privacyParams =
+                    source.reach.singleDataProviderParams.privacyParams.toPrivacyParams()
+                  vidSamplingInterval =
+                    source.reach.singleDataProviderParams.vidSamplingInterval
+                      .toVidSamplingInterval()
+                }
             } else {
-              privacyParams = source.reach.multipleDataProviderParams.privacyParams.toPrivacyParams()
-              spec.vidSamplingInterval = source.reach.multipleDataProviderParams.vidSamplingInterval.toVidSamplingInterval()
+              privacyParams =
+                source.reach.multipleDataProviderParams.privacyParams.toPrivacyParams()
+              spec.vidSamplingInterval =
+                source.reach.multipleDataProviderParams.vidSamplingInterval.toVidSamplingInterval()
             }
           }
       InternalMetricSpec.TypeCase.REACH_AND_FREQUENCY ->
@@ -331,32 +361,52 @@ fun InternalMetricSpec.toMetricSpec(): MetricSpec {
           MetricSpecKt.reachAndFrequencyParams {
             maximumFrequency = source.reachAndFrequency.maximumFrequency
             if (source.reachAndFrequency.hasSingleDataProviderParams()) {
-              multipleDataProviderParams = MetricSpecKt.params {
-                privacyParams = source.reachAndFrequency.multipleDataProviderParams.privacyParams.toPrivacyParams()
-                frequencyPrivacyParams = source.reachAndFrequency.multipleDataProviderParams.frequencyPrivacyParams.toPrivacyParams()
-                vidSamplingInterval = source.reachAndFrequency.multipleDataProviderParams.vidSamplingInterval.toVidSamplingInterval()
-              }
+              multipleDataProviderParams =
+                MetricSpecKt.params {
+                  privacyParams =
+                    source.reachAndFrequency.multipleDataProviderParams.privacyParams
+                      .toPrivacyParams()
+                  frequencyPrivacyParams =
+                    source.reachAndFrequency.multipleDataProviderParams.frequencyPrivacyParams
+                      .toPrivacyParams()
+                  vidSamplingInterval =
+                    source.reachAndFrequency.multipleDataProviderParams.vidSamplingInterval
+                      .toVidSamplingInterval()
+                }
 
-              singleDataProviderParams = MetricSpecKt.params {
-                privacyParams = source.reachAndFrequency.singleDataProviderParams.privacyParams.toPrivacyParams()
-                frequencyPrivacyParams = source.reachAndFrequency.singleDataProviderParams.frequencyPrivacyParams.toPrivacyParams()
-                vidSamplingInterval = source.reachAndFrequency.singleDataProviderParams.vidSamplingInterval.toVidSamplingInterval()
-              }
+              singleDataProviderParams =
+                MetricSpecKt.params {
+                  privacyParams =
+                    source.reachAndFrequency.singleDataProviderParams.privacyParams
+                      .toPrivacyParams()
+                  frequencyPrivacyParams =
+                    source.reachAndFrequency.singleDataProviderParams.frequencyPrivacyParams
+                      .toPrivacyParams()
+                  vidSamplingInterval =
+                    source.reachAndFrequency.singleDataProviderParams.vidSamplingInterval
+                      .toVidSamplingInterval()
+                }
             } else {
-              reachPrivacyParams = source.reachAndFrequency.multipleDataProviderParams.privacyParams.toPrivacyParams()
-              frequencyPrivacyParams = source.reachAndFrequency.multipleDataProviderParams.frequencyPrivacyParams.toPrivacyParams()
-              spec.vidSamplingInterval = source.reachAndFrequency.multipleDataProviderParams.vidSamplingInterval.toVidSamplingInterval()
+              reachPrivacyParams =
+                source.reachAndFrequency.multipleDataProviderParams.privacyParams.toPrivacyParams()
+              frequencyPrivacyParams =
+                source.reachAndFrequency.multipleDataProviderParams.frequencyPrivacyParams
+                  .toPrivacyParams()
+              spec.vidSamplingInterval =
+                source.reachAndFrequency.multipleDataProviderParams.vidSamplingInterval
+                  .toVidSamplingInterval()
             }
           }
       InternalMetricSpec.TypeCase.IMPRESSION_COUNT -> {
         impressionCount =
           MetricSpecKt.impressionCountParams {
             maximumFrequencyPerUser = source.impressionCount.maximumFrequencyPerUser
-            params = MetricSpecKt.params {
-              privacyParams = source.impressionCount.params.privacyParams.toPrivacyParams()
-              vidSamplingInterval =
-                source.impressionCount.params.vidSamplingInterval.toVidSamplingInterval()
-            }
+            params =
+              MetricSpecKt.params {
+                privacyParams = source.impressionCount.params.privacyParams.toPrivacyParams()
+                vidSamplingInterval =
+                  source.impressionCount.params.vidSamplingInterval.toVidSamplingInterval()
+              }
             privacyParams = source.impressionCount.params.privacyParams.toPrivacyParams()
           }
         vidSamplingInterval =
@@ -366,14 +416,16 @@ fun InternalMetricSpec.toMetricSpec(): MetricSpec {
         watchDuration =
           MetricSpecKt.watchDurationParams {
             maximumWatchDurationPerUser = source.watchDuration.maximumWatchDurationPerUser
-            params = MetricSpecKt.params {
-              privacyParams = source.watchDuration.params.privacyParams.toPrivacyParams()
-              vidSamplingInterval =
-                source.watchDuration.params.vidSamplingInterval.toVidSamplingInterval()
-            }
+            params =
+              MetricSpecKt.params {
+                privacyParams = source.watchDuration.params.privacyParams.toPrivacyParams()
+                vidSamplingInterval =
+                  source.watchDuration.params.vidSamplingInterval.toVidSamplingInterval()
+              }
             privacyParams = source.watchDuration.params.privacyParams.toPrivacyParams()
           }
-        vidSamplingInterval = source.watchDuration.params.vidSamplingInterval.toVidSamplingInterval()
+        vidSamplingInterval =
+          source.watchDuration.params.vidSamplingInterval.toVidSamplingInterval()
       }
       InternalMetricSpec.TypeCase.POPULATION_COUNT -> {
         populationCount = MetricSpec.PopulationCountParams.getDefaultInstance()
@@ -408,16 +460,24 @@ fun InternalMetricSpec.DifferentialPrivacyParams.toCmmsPrivacyParams(): Differen
 }
 
 /** Converts an [InternalMetricSpec.ReachParams] to a [MeasurementSpec.Reach]. */
-fun InternalMetricSpec.ReachParams.toReach(isSingleDataProvider: Boolean): Pair<MeasurementSpec.Reach, VidSamplingInterval> {
+fun InternalMetricSpec.ReachParams.toReach(
+  isSingleDataProvider: Boolean
+): Pair<MeasurementSpec.Reach, VidSamplingInterval> {
   val source = this
   return if (isSingleDataProvider && source.hasSingleDataProviderParams()) {
-    Pair(MeasurementSpecKt.reach {
-      privacyParams = source.singleDataProviderParams.privacyParams.toCmmsPrivacyParams()
-    }, source.singleDataProviderParams.vidSamplingInterval.toCmmsVidSamplingInterval())
+    Pair(
+      MeasurementSpecKt.reach {
+        privacyParams = source.singleDataProviderParams.privacyParams.toCmmsPrivacyParams()
+      },
+      source.singleDataProviderParams.vidSamplingInterval.toCmmsVidSamplingInterval(),
+    )
   } else {
-    Pair(MeasurementSpecKt.reach {
-      privacyParams = source.multipleDataProviderParams.privacyParams.toCmmsPrivacyParams()
-    }, source.multipleDataProviderParams.vidSamplingInterval.toCmmsVidSamplingInterval())
+    Pair(
+      MeasurementSpecKt.reach {
+        privacyParams = source.multipleDataProviderParams.privacyParams.toCmmsPrivacyParams()
+      },
+      source.multipleDataProviderParams.vidSamplingInterval.toCmmsVidSamplingInterval(),
+    )
   }
 }
 
@@ -425,40 +485,57 @@ fun InternalMetricSpec.ReachParams.toReach(isSingleDataProvider: Boolean): Pair<
  * Converts an [InternalMetricSpec.ReachAndFrequencyParams] to a
  * [MeasurementSpec.ReachAndFrequency].
  */
-fun InternalMetricSpec.ReachAndFrequencyParams.toReachAndFrequency(isSingleDataProvider: Boolean):
-  Pair<MeasurementSpec.ReachAndFrequency, VidSamplingInterval> {
+fun InternalMetricSpec.ReachAndFrequencyParams.toReachAndFrequency(
+  isSingleDataProvider: Boolean
+): Pair<MeasurementSpec.ReachAndFrequency, VidSamplingInterval> {
   val source = this
   return if (isSingleDataProvider && source.hasSingleDataProviderParams()) {
-    Pair(MeasurementSpecKt.reachAndFrequency {
-      reachPrivacyParams = source.singleDataProviderParams.privacyParams.toCmmsPrivacyParams()
-      frequencyPrivacyParams = source.singleDataProviderParams.frequencyPrivacyParams.toCmmsPrivacyParams()
-      maximumFrequency = source.maximumFrequency
-    }, source.singleDataProviderParams.vidSamplingInterval.toCmmsVidSamplingInterval())
+    Pair(
+      MeasurementSpecKt.reachAndFrequency {
+        reachPrivacyParams = source.singleDataProviderParams.privacyParams.toCmmsPrivacyParams()
+        frequencyPrivacyParams =
+          source.singleDataProviderParams.frequencyPrivacyParams.toCmmsPrivacyParams()
+        maximumFrequency = source.maximumFrequency
+      },
+      source.singleDataProviderParams.vidSamplingInterval.toCmmsVidSamplingInterval(),
+    )
   } else {
-    Pair(MeasurementSpecKt.reachAndFrequency {
-      reachPrivacyParams = source.multipleDataProviderParams.privacyParams.toCmmsPrivacyParams()
-      frequencyPrivacyParams = source.multipleDataProviderParams.frequencyPrivacyParams.toCmmsPrivacyParams()
-      maximumFrequency = source.maximumFrequency
-    }, source.multipleDataProviderParams.vidSamplingInterval.toCmmsVidSamplingInterval())
+    Pair(
+      MeasurementSpecKt.reachAndFrequency {
+        reachPrivacyParams = source.multipleDataProviderParams.privacyParams.toCmmsPrivacyParams()
+        frequencyPrivacyParams =
+          source.multipleDataProviderParams.frequencyPrivacyParams.toCmmsPrivacyParams()
+        maximumFrequency = source.maximumFrequency
+      },
+      source.multipleDataProviderParams.vidSamplingInterval.toCmmsVidSamplingInterval(),
+    )
   }
 }
 
 /** Builds a [MeasurementSpec.ReachAndFrequency] for impression count. */
-fun InternalMetricSpec.ImpressionCountParams.toImpression(): Pair<MeasurementSpec.Impression, VidSamplingInterval> {
+fun InternalMetricSpec.ImpressionCountParams.toImpression():
+  Pair<MeasurementSpec.Impression, VidSamplingInterval> {
   val source = this
-  return Pair(MeasurementSpecKt.impression {
-    privacyParams = source.params.privacyParams.toCmmsPrivacyParams()
-    maximumFrequencyPerUser = source.maximumFrequencyPerUser
-  }, source.params.vidSamplingInterval.toCmmsVidSamplingInterval())
+  return Pair(
+    MeasurementSpecKt.impression {
+      privacyParams = source.params.privacyParams.toCmmsPrivacyParams()
+      maximumFrequencyPerUser = source.maximumFrequencyPerUser
+    },
+    source.params.vidSamplingInterval.toCmmsVidSamplingInterval(),
+  )
 }
 
 /** Builds a [MeasurementSpec.ReachAndFrequency] for watch duration. */
-fun InternalMetricSpec.WatchDurationParams.toDuration(): Pair<MeasurementSpec.Duration, VidSamplingInterval> {
+fun InternalMetricSpec.WatchDurationParams.toDuration():
+  Pair<MeasurementSpec.Duration, VidSamplingInterval> {
   val source = this
-  return Pair(MeasurementSpecKt.duration {
-    privacyParams = source.params.privacyParams.toCmmsPrivacyParams()
-    maximumWatchDurationPerUser = source.maximumWatchDurationPerUser
-  }, source.params.vidSamplingInterval.toCmmsVidSamplingInterval())
+  return Pair(
+    MeasurementSpecKt.duration {
+      privacyParams = source.params.privacyParams.toCmmsPrivacyParams()
+      maximumWatchDurationPerUser = source.maximumWatchDurationPerUser
+    },
+    source.params.vidSamplingInterval.toCmmsVidSamplingInterval(),
+  )
 }
 
 /** Converts an internal [InternalMetric.State] to a public [Metric.State]. */
