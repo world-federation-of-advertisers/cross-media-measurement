@@ -34,9 +34,9 @@ message RequisitionDetails {
   string public_api_version = 4;
 
   // Protocol specific details in the Requisition.
-  message RequisitionProtocolDetails {
+  message RequisitionProtocol {
     // HonestMajorityShareShuffle protocol specific details.
-    message HonestMajorityShareShuffleDetails {
+    message HonestMajorityShareShuffle {
       // The ciphertext of the EncryptedMessage of a secret seed.
       bytes secret_seed_ciphertext = 1;
 
@@ -49,10 +49,10 @@ message RequisitionDetails {
     }
 
     oneof protocol {
-      HonestMajorityShareShuffleDetails honest_majority_share_shuffle = 1;
+      HonestMajorityShareShuffle honest_majority_share_shuffle = 1;
     }
   }
-  RequisitionProtocolDetails protocol_details = 5;
+  RequisitionProtocol protocol = 5;
 }
 
 // Lookup key for Requisition by external ID.

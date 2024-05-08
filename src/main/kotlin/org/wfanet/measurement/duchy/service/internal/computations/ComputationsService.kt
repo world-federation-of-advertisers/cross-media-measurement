@@ -349,7 +349,7 @@ class ComputationsService(
       externalRequisitionKey = request.key,
       pathToBlob = request.blobPath,
       publicApiVersion = request.publicApiVersion,
-      protocolDetails = if (request.hasProtocolDetails()) request.protocolDetails else null,
+      protocol = if (request.hasProtocolDetails()) request.protocolDetails else null,
     )
     return checkNotNull(computationsDatabase.readComputationToken(request.key))
       .toRecordRequisitionBlobPathResponse()

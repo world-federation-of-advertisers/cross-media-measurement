@@ -46,7 +46,7 @@ import org.wfanet.measurement.internal.duchy.GetComputationIdsResponse
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.internal.duchy.RequisitionDetails
 import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt
-import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolDetailsKt.honestMajorityShareShuffleDetails
+import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolKt.honestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.computationStage
 import org.wfanet.measurement.internal.duchy.computationToken
@@ -537,8 +537,8 @@ class ComputationsServiceTest {
       blobPath = "this is a new path"
       publicApiVersion = "v2alpha"
       protocolDetails =
-        RequisitionDetailsKt.requisitionProtocolDetails {
-          honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
+        RequisitionDetailsKt.requisitionProtocol {
+          honestMajorityShareShuffle = honestMajorityShareShuffle {
             this.secretSeedCiphertext = secretSeed
             this.registerCount = 100L
             this.dataProviderCertificate = "dataProviders/123/certificates/100"
@@ -556,9 +556,9 @@ class ComputationsServiceTest {
             path = "this is a new path"
             details = requisitionDetails {
               this.publicApiVersion = "v2alpha"
-              protocolDetails =
-                RequisitionDetailsKt.requisitionProtocolDetails {
-                  honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
+              protocol =
+                RequisitionDetailsKt.requisitionProtocol {
+                  honestMajorityShareShuffle = honestMajorityShareShuffle {
                     this.secretSeedCiphertext = secretSeed
                     this.registerCount = 100L
                     this.dataProviderCertificate = "dataProviders/123/certificates/100"

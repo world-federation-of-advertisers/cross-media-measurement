@@ -206,7 +206,7 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
     externalRequisitionKey: ExternalRequisitionKey,
     pathToBlob: String,
     publicApiVersion: String,
-    protocolDetails: RequisitionDetails.RequisitionProtocolDetails? = null,
+    protocol: RequisitionDetails.RequisitionProtocol? = null,
   )
 
   /** Inserts the specified [ComputationStatMetric] into the database. */

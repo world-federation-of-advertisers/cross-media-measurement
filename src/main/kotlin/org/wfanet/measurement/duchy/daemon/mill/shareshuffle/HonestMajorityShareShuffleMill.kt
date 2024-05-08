@@ -255,7 +255,7 @@ class HonestMajorityShareShuffleMill(
             require(source.path.isNotBlank()) {
               "Requisition blobPath is empty for ${source.externalKey.externalRequisitionId}"
             }
-            val protocolDetails = source.details.protocolDetails.honestMajorityShareShuffle
+            val protocolDetails = source.details.protocol.honestMajorityShareShuffle
             require(!protocolDetails.secretSeedCiphertext.isEmpty) {
               "Requisition secretSeed is empty for ${source.externalKey.externalRequisitionId}"
             }

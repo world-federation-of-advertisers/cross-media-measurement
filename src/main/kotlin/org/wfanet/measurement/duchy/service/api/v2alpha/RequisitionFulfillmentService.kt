@@ -42,7 +42,7 @@ import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt
-import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolDetailsKt.honestMajorityShareShuffleDetails
+import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolKt.honestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.externalRequisitionKey
 import org.wfanet.measurement.internal.duchy.getComputationTokenRequest
@@ -247,8 +247,8 @@ class RequisitionFulfillmentService(
         this.blobPath = blobPath
         publicApiVersion = Version.V2_ALPHA.string
         protocolDetails =
-          RequisitionDetailsKt.requisitionProtocolDetails {
-            honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
+          RequisitionDetailsKt.requisitionProtocol {
+            honestMajorityShareShuffle = honestMajorityShareShuffle {
               this.secretSeedCiphertext = secretSeedCiphertext
               this.registerCount = registerCount
               this.dataProviderCertificate = dataProviderCertificate

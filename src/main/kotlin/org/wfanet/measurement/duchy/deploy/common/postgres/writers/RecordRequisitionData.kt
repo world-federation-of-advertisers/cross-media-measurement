@@ -40,7 +40,7 @@ class RecordRequisitionData(
   private val externalRequisitionKey: ExternalRequisitionKey,
   private val pathToBlob: String,
   private val publicApiVersion: String,
-  private val protocolDetails: RequisitionDetails.RequisitionProtocolDetails? = null,
+  private val protocolDetails: RequisitionDetails.RequisitionProtocol? = null,
   private val clock: Clock,
   private val computationReader: ComputationReader,
 ) : PostgresWriter<ComputationToken>() {
@@ -60,7 +60,7 @@ class RecordRequisitionData(
       requisition.requisitionDetails.copy {
         publicApiVersion = this@RecordRequisitionData.publicApiVersion
         if (this@RecordRequisitionData.protocolDetails != null) {
-          this.protocolDetails = this@RecordRequisitionData.protocolDetails
+          this.protocol = this@RecordRequisitionData.protocolDetails
         }
       }
 

@@ -48,7 +48,7 @@ import org.wfanet.measurement.internal.duchy.EnqueueComputationResponse
 import org.wfanet.measurement.internal.duchy.GetComputationIdsResponse
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt
-import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolDetailsKt.honestMajorityShareShuffleDetails
+import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolKt.honestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.advanceComputationStageRequest
 import org.wfanet.measurement.internal.duchy.claimWorkRequest
 import org.wfanet.measurement.internal.duchy.computationDetails
@@ -1039,8 +1039,8 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
       this.blobPath = blobPath
       publicApiVersion = Version.V2_ALPHA.string
       protocolDetails =
-        RequisitionDetailsKt.requisitionProtocolDetails {
-          honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
+        RequisitionDetailsKt.requisitionProtocol {
+          honestMajorityShareShuffle = honestMajorityShareShuffle {
             this.secretSeedCiphertext = secretSeed
             this.registerCount = registerCount
             this.dataProviderCertificate = dataProviderCertificate
@@ -1058,9 +1058,9 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
             details =
               details.copy {
                 publicApiVersion = Version.V2_ALPHA.string
-                protocolDetails =
-                  RequisitionDetailsKt.requisitionProtocolDetails {
-                    honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
+                protocol =
+                  RequisitionDetailsKt.requisitionProtocol {
+                    honestMajorityShareShuffle = honestMajorityShareShuffle {
                       this.secretSeedCiphertext = secretSeed
                       this.registerCount = registerCount
                       this.dataProviderCertificate = dataProviderCertificate

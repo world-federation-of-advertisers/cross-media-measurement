@@ -95,7 +95,7 @@ import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoro
 import org.wfanet.measurement.internal.duchy.EncryptionPublicKey
 import org.wfanet.measurement.internal.duchy.NoiseMechanism
 import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt
-import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolDetailsKt.honestMajorityShareShuffleDetails
+import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolKt.honestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.computationDetails
 import org.wfanet.measurement.internal.duchy.computationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.computationToken
@@ -203,9 +203,9 @@ private val REQUISITION_1 =
   TEST_REQUISITION_1.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_ONE_NAME).copy {
     details =
       details.copy {
-        protocolDetails =
-          RequisitionDetailsKt.requisitionProtocolDetails {
-            honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
+        protocol =
+          RequisitionDetailsKt.requisitionProtocol {
+            honestMajorityShareShuffle = honestMajorityShareShuffle {
               secretSeedCiphertext = "secret_seed_1".toByteStringUtf8()
               registerCount = 100
               dataProviderCertificate = "DataProviders/1/Certificates/1"
@@ -220,9 +220,9 @@ private val REQUISITION_3 =
   TEST_REQUISITION_3.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_ONE_NAME).copy {
     details =
       details.copy {
-        protocolDetails =
-          RequisitionDetailsKt.requisitionProtocolDetails {
-            honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
+        protocol =
+          RequisitionDetailsKt.requisitionProtocol {
+            honestMajorityShareShuffle = honestMajorityShareShuffle {
               registerCount = 100
               dataProviderCertificate = "DataProviders/3/Certificates/2"
               secretSeedCiphertext = "secret_seed_3".toByteStringUtf8()
@@ -517,24 +517,20 @@ class HonestMajorityShareShuffleMillTest {
             secretSeeds += secretSeed {
               requisitionId = REQUISITION_1.externalKey.externalRequisitionId
               secretSeedCiphertext =
-                REQUISITION_1.details.protocolDetails.honestMajorityShareShuffle
-                  .secretSeedCiphertext
+                REQUISITION_1.details.protocol.honestMajorityShareShuffle.secretSeedCiphertext
               registerCount =
-                REQUISITION_1.details.protocolDetails.honestMajorityShareShuffle.registerCount
+                REQUISITION_1.details.protocol.honestMajorityShareShuffle.registerCount
               dataProviderCertificate =
-                REQUISITION_1.details.protocolDetails.honestMajorityShareShuffle
-                  .dataProviderCertificate
+                REQUISITION_1.details.protocol.honestMajorityShareShuffle.dataProviderCertificate
             }
             secretSeeds += secretSeed {
               requisitionId = REQUISITION_3.externalKey.externalRequisitionId
               secretSeedCiphertext =
-                REQUISITION_3.details.protocolDetails.honestMajorityShareShuffle
-                  .secretSeedCiphertext
+                REQUISITION_3.details.protocol.honestMajorityShareShuffle.secretSeedCiphertext
               registerCount =
-                REQUISITION_3.details.protocolDetails.honestMajorityShareShuffle.registerCount
+                REQUISITION_3.details.protocol.honestMajorityShareShuffle.registerCount
               dataProviderCertificate =
-                REQUISITION_3.details.protocolDetails.honestMajorityShareShuffle
-                  .dataProviderCertificate
+                REQUISITION_3.details.protocol.honestMajorityShareShuffle.dataProviderCertificate
             }
           }
         )
@@ -549,9 +545,9 @@ class HonestMajorityShareShuffleMillTest {
         TEST_REQUISITION_1.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_TWO_NAME).copy {
           details =
             details.copy {
-              protocolDetails =
-                RequisitionDetailsKt.requisitionProtocolDetails {
-                  honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
+              protocol =
+                RequisitionDetailsKt.requisitionProtocol {
+                  honestMajorityShareShuffle = honestMajorityShareShuffle {
                     secretSeedCiphertext = "secret_seed_2".toByteStringUtf8()
                     registerCount = 100
                     dataProviderCertificate = "DataProviders/2/Certificates/2"
@@ -607,13 +603,12 @@ class HonestMajorityShareShuffleMillTest {
             secretSeeds += secretSeed {
               requisitionId = fulfilledRequisition2.externalKey.externalRequisitionId
               secretSeedCiphertext =
-                fulfilledRequisition2.details.protocolDetails.honestMajorityShareShuffle
+                fulfilledRequisition2.details.protocol.honestMajorityShareShuffle
                   .secretSeedCiphertext
               registerCount =
-                fulfilledRequisition2.details.protocolDetails.honestMajorityShareShuffle
-                  .registerCount
+                fulfilledRequisition2.details.protocol.honestMajorityShareShuffle.registerCount
               dataProviderCertificate =
-                fulfilledRequisition2.details.protocolDetails.honestMajorityShareShuffle
+                fulfilledRequisition2.details.protocol.honestMajorityShareShuffle
                   .dataProviderCertificate
             }
           }
@@ -681,8 +676,7 @@ class HonestMajorityShareShuffleMillTest {
     }
     whenever(mockCertificates.getCertificate(any())).thenAnswer {
       certificate {
-        name =
-          REQUISITION_2.details.protocolDetails.honestMajorityShareShuffle.dataProviderCertificate
+        name = REQUISITION_2.details.protocol.honestMajorityShareShuffle.dataProviderCertificate
         x509Der = DATA_PROVIDER_CERT_DER
         this.subjectKeyIdentifier = DATA_PROVIDER_SIGNING_CERT.subjectKeyIdentifier!!
       }

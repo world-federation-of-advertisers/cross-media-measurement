@@ -659,7 +659,7 @@ class GcpSpannerComputationsDatabaseTransactor<
     externalRequisitionKey: ExternalRequisitionKey,
     pathToBlob: String,
     publicApiVersion: String,
-    protocolDetails: RequisitionDetails.RequisitionProtocolDetails?,
+    protocol: RequisitionDetails.RequisitionProtocol?,
   ) {
     require(pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $externalRequisitionKey" }
     require(publicApiVersion.isNotBlank()) {
@@ -693,8 +693,8 @@ class GcpSpannerComputationsDatabaseTransactor<
       val updatedDetails =
         details.copy {
           this.publicApiVersion = publicApiVersion
-          if (protocolDetails != null) {
-            this.protocolDetails = protocolDetails
+          if (protocol != null) {
+            this.protocol = protocol
           }
         }
       txn.buffer(

@@ -322,7 +322,7 @@ private constructor(
     externalRequisitionKey: ExternalRequisitionKey,
     pathToBlob: String,
     publicApiVersion: String,
-    protocolDetails: RequisitionDetails.RequisitionProtocolDetails?,
+    protocol: RequisitionDetails.RequisitionProtocol?,
   ) {
     @Suppress("CANDIDATE_CHOSEN_USING_OVERLOAD_RESOLUTION_BY_LAMBDA_ANNOTATION")
     updateToken(token) {
@@ -336,8 +336,8 @@ private constructor(
           details =
             details.copy {
               this.publicApiVersion = publicApiVersion
-              if (protocolDetails != null) {
-                this.protocolDetails = protocolDetails
+              if (protocol != null) {
+                this.protocol = protocol
               }
             }
         }
