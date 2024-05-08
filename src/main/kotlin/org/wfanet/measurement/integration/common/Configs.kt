@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.integration.common
 
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import com.google.protobuf.ByteString
 import com.google.protobuf.Message
 import io.grpc.serviceconfig.ServiceConfig
@@ -33,6 +35,7 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.internal.kingdom.DuchyIdConfig
@@ -135,12 +138,17 @@ fun createEntityContent(displayName: String) =
   )
 
 /**
- * Default grpc service config to apply to all services.
+ * Default grpc service config map to apply to all services.
  *
  * Timeout is set as 30 seconds.
  */
-val DEFAULT_SERVICE_CONFIG: ServiceConfig by lazy {
-  val configPath = Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "data")
-  val configFile = getRuntimePath(configPath.resolve("default_service_config.textproto"))!!.toFile()
-  parseTextProto(configFile, ServiceConfig.getDefaultInstance())
-}
+val DEFAULT_SERVICE_CONFIG_MAP: Map<String, *>?
+  get() {
+    val configPath = Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "data")
+    val configFile =
+      getRuntimePath(configPath.resolve("default_service_config.textproto"))!!.toFile()
+    val defaultServiceConfig = parseTextProto(configFile, ServiceConfig.getDefaultInstance())
+    val serviceConfigJson = defaultServiceConfig.toJson()
+    val mapType = object : TypeToken<Map<String, *>>() {}.type
+    return Gson().fromJson(serviceConfigJson, mapType)
+  }

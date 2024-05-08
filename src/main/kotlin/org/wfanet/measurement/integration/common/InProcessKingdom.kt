@@ -14,10 +14,7 @@
 
 package org.wfanet.measurement.integration.common
 
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import com.google.protobuf.Descriptors
-import com.google.protobuf.util.JsonFormat
 import io.grpc.Channel
 import java.util.logging.Logger
 import org.junit.rules.TestRule
@@ -218,10 +215,5 @@ class InProcessKingdom(
         ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE,
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
       )
-    private val DEFAULT_SERVICE_CONFIG_MAP: Map<String, *>? by lazy {
-      val serviceConfigJson = JsonFormat.printer().print(DEFAULT_SERVICE_CONFIG)
-      val mapType = object : TypeToken<Map<String, *>>() {}.type
-      Gson().fromJson(serviceConfigJson, mapType)
-    }
   }
 }
