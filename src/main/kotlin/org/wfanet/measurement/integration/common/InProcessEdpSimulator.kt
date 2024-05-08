@@ -74,6 +74,8 @@ class InProcessEdpSimulator(
         }
     )
 
+  // TODO(@ple13): Use the actual vidToIndexMap instead of an empty map when a smaller dataset is
+  // available.
   private val delegate =
     EdpSimulator(
       edpData = createEdpData(displayName, resourceName),
@@ -91,7 +93,7 @@ class InProcessEdpSimulator(
           .withPrincipalName(resourceName),
       requisitionsStub =
         RequisitionsCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
-      requisitionFulfillmentStubsByDuchyId =
+      requisitionFulfillmentStubsByDuchyName =
         duchyPublicApiChannelMap.mapValues {
           RequisitionFulfillmentCoroutineStub(it.value).withPrincipalName(resourceName)
         },
@@ -112,6 +114,7 @@ class InProcessEdpSimulator(
           100.0f,
         ),
       trustedCertificates = trustedCertificates,
+      vidToIndexMap = emptyMap(),
       knownEventGroupMetadataTypes = listOf(SyntheticEventGroupSpec.getDescriptor().file),
       random = random,
     )
