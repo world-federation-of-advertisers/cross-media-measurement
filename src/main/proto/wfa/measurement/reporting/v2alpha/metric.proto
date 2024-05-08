@@ -57,10 +57,10 @@ message MetricSpec {
   }
 
   message FrequencyParams {
-      DifferentialPrivacyParams privacy_params = 1;
-      DifferentialPrivacyParams frequency_privacy_params = 2;
-      VidSamplingInterval vid_sampling_interval = 3;
-    }
+    DifferentialPrivacyParams privacy_params = 1;
+    DifferentialPrivacyParams frequency_privacy_params = 2;
+    VidSamplingInterval vid_sampling_interval = 3;
+  }
 
   // Parameters that are used to generate `Reach` metrics. Applied on a
   // per-Measurement basis.
