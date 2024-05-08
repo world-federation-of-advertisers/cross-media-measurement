@@ -28,6 +28,8 @@ import org.wfanet.measurement.eventdataprovider.noiser.GaussianNoiser
  * A utility Object to convert per-query DP params(epsilon, delta) to ACDP params(rho, theta) for
  * ACDP accounting. It can perform conversions for both MPC and direct measurements. This conversion
  * only works for Gaussian noise and will not work with other noising mechanism(e.g. Laplace).
+ *
+ * TODO(@ple13): Refactor the AcdpParamsConverter object to take the noise type into account.
  */
 object AcdpParamsConverter {
   /** Memoized computation of LLV2 based MPC ACDP params conversion results. */
