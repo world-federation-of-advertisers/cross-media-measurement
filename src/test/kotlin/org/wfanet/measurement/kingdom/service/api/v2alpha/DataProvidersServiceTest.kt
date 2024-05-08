@@ -54,8 +54,10 @@ import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.testing.TestData
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
@@ -72,6 +74,7 @@ import org.wfanet.measurement.internal.kingdom.getDataProviderRequest as interna
 import org.wfanet.measurement.internal.kingdom.replaceDataAvailabilityIntervalRequest as internalReplaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderCapabilitiesRequest as internalReplaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderRequiredDuchiesRequest as internalReplaceDataProviderRequiredDuchiesRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 
 private const val DATA_PROVIDER_ID = 123L
 private const val DATA_PROVIDER_ID_2 = 124L
@@ -585,6 +588,106 @@ class DataProvidersServiceTest {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `getDataProvider throws NOT_FOUND with data provider name when data provider not found`() {
+    internalServiceMock.stub {
+      onBlocking { getDataProvider(any()) }
+        .thenThrow(
+          DataProviderNotFoundException(ExternalId(DATA_PROVIDER_ID))
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.getDataProvider(getDataProviderRequest { name = DATA_PROVIDER_NAME })
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("dataProvider", DATA_PROVIDER_NAME)
+  }
+
+  @Test
+  fun `replaceDataProviderRequiredDuchies throws NOT_FOUND with data provider name when data provider not found`() {
+    internalServiceMock.stub {
+      onBlocking { replaceDataProviderRequiredDuchies(any()) }
+        .thenThrow(
+          DataProviderNotFoundException(ExternalId(DATA_PROVIDER_ID))
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.replaceDataProviderRequiredDuchies(
+              replaceDataProviderRequiredDuchiesRequest {
+                name = DATA_PROVIDER_NAME
+                requiredDuchies += DUCHY_NAMES
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("dataProvider", DATA_PROVIDER_NAME)
+  }
+
+  @Test
+  fun `replaceDataAvailabilityInterval throws NOT_FOUND with data provider name when data provider not found`() {
+    internalServiceMock.stub {
+      onBlocking { replaceDataAvailabilityInterval(any()) }
+        .thenThrow(
+          DataProviderNotFoundException(ExternalId(DATA_PROVIDER_ID))
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.replaceDataAvailabilityInterval(
+              replaceDataAvailabilityIntervalRequest {
+                name = DATA_PROVIDER_NAME
+                dataAvailabilityInterval = DATA_PROVIDER.dataAvailabilityInterval
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("dataProvider", DATA_PROVIDER_NAME)
+  }
+
+  @Test
+  fun `replaceDataProviderCapabilities throws NOT_FOUND with data provider name when data provider not found`() {
+    internalServiceMock.stub {
+      onBlocking { replaceDataProviderCapabilities(any()) }
+        .thenThrow(
+          DataProviderNotFoundException(ExternalId(DATA_PROVIDER_ID))
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.replaceDataProviderCapabilities(
+              replaceDataProviderCapabilitiesRequest {
+                name = DATA_PROVIDER_NAME
+                capabilities =
+                  DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("dataProvider", DATA_PROVIDER_NAME)
   }
 
   companion object {

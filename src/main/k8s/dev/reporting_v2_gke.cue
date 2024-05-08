@@ -16,6 +16,7 @@ package k8s
 
 _reportingSecretName:         string @tag("secret_name")
 _reportingMcConfigSecretName: string @tag("mc_config_secret_name")
+_publicApiAddressName:        string @tag("public_api_address_name")
 
 #KingdomApiTarget: #GrpcTarget & {
 	target: string @tag("kingdom_public_api_target")
@@ -80,5 +81,9 @@ reporting: #Reporting & {
 		"reporting-v2alpha-public-api-server": {
 			_container: resources: #PublicServerResourceRequirements
 		}
+	}
+
+	services: {
+		"reporting-v2alpha-public-api-server": _ipAddressName: _publicApiAddressName
 	}
 }

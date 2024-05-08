@@ -37,3 +37,17 @@ variable "spanner_instance" {
   })
   nullable = false
 }
+
+variable "v2alpha_ip_address" {
+  description = "IP address for v2alpha public API"
+  type        = string
+  nullable    = true
+  default     = null
+}
+
+variable "system_v1alpha_ip_address" {
+  description = "IP address for v1alpha system API"
+  type        = string
+  nullable    = true
+  default     = null
+}

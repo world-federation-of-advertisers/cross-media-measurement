@@ -41,6 +41,14 @@ class KingdomPublicApiFlags {
 
 class RequisitionFulfillmentServiceFlags {
   @CommandLine.Option(
+    names = ["--requisition-fulfillment-service-duchy-id"],
+    description = ["Duchy Id of the RequisitionFullfillment server"],
+    required = true,
+  )
+  lateinit var duchyId: String
+    private set
+
+  @CommandLine.Option(
     names = ["--requisition-fulfillment-service-target"],
     description = ["gRPC target (authority) of the Duchy RequisitionFullfillment server"],
     required = true,

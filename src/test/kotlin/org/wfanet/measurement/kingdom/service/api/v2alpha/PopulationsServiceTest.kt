@@ -545,7 +545,7 @@ class PopulationsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception.errorInfo?.metadataMap).containsEntry("data_provider", DATA_PROVIDER_NAME)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("dataProvider", DATA_PROVIDER_NAME)
   }
 
   @Test

@@ -879,7 +879,7 @@ class HeraldTest {
 
     fakeComputationDatabase.addComputation(
       globalId = confirmingKnown.key.computationId,
-      stage = HonestMajorityShareShuffle.Stage.WAIT_ON_AGGREGATION_INPUT.toProtocolStage(),
+      stage = HonestMajorityShareShuffle.Stage.INITIALIZED.toProtocolStage(),
       computationDetails = HMSS_FIRST_NON_AGGREGATOR_COMPUTATION_DETAILS,
     )
 
@@ -895,9 +895,9 @@ class HeraldTest {
       )
       .containsExactly(
         confirmingKnown.key.computationId.toLong(),
-        HonestMajorityShareShuffle.Stage.WAIT_ON_AGGREGATION_INPUT.toProtocolStage(),
+        HonestMajorityShareShuffle.Stage.INITIALIZED.toProtocolStage(),
         confirmingUnknown.key.computationId.toLong(),
-        HonestMajorityShareShuffle.Stage.WAIT_ON_AGGREGATION_INPUT.toProtocolStage(),
+        HonestMajorityShareShuffle.Stage.INITIALIZED.toProtocolStage(),
       )
 
     assertThat(

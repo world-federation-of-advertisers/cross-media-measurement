@@ -88,18 +88,12 @@ class ModelShardsService(private val internalClient: ModelShardsCoroutineStub) :
     val createModelShardRequest = request.modelShard.toInternal(parentKey, modelReleaseKey)
     return try {
       internalClient.createModelShard(createModelShardRequest).toModelShard()
-    } catch (ex: StatusException) {
-      when (ex.status.code) {
-        Status.Code.NOT_FOUND ->
-          failGrpc(Status.NOT_FOUND, ex) {
-            ex.message ?: "Either DataProvider or ModelRelease were not found"
-          }
-        Status.Code.INVALID_ARGUMENT ->
-          failGrpc(Status.INVALID_ARGUMENT, ex) {
-            ex.message ?: "Required field unspecified or invalid"
-          }
-        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception" }
-      }
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+        else -> Status.UNKNOWN
+      }.toExternalStatusRuntimeException(e)
     }
   }
 
@@ -129,16 +123,12 @@ class ModelShardsService(private val internalClient: ModelShardsCoroutineStub) :
     try {
       internalClient.deleteModelShard(deleteModelShardRequest)
       return Empty.getDefaultInstance()
-    } catch (ex: StatusException) {
-      when (ex.status.code) {
-        Status.Code.NOT_FOUND ->
-          failGrpc(Status.NOT_FOUND, ex) { ex.message ?: "ModelShard not found" }
-        Status.Code.INVALID_ARGUMENT ->
-          failGrpc(Status.INVALID_ARGUMENT, ex) {
-            ex.message ?: "Required field unspecified or invalid"
-          }
-        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception" }
-      }
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+        else -> Status.UNKNOWN
+      }.toExternalStatusRuntimeException(e)
     }
   }
 

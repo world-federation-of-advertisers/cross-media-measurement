@@ -15,9 +15,10 @@
 module "reporting_v2_cluster" {
   source = "../modules/cluster"
 
-  name       = local.reporting_v2_cluster_name
-  location   = local.cluster_location
-  secret_key = module.common.cluster_secret_key
+  name            = local.reporting_v2_cluster_name
+  location        = local.cluster_location
+  release_channel = var.cluster_release_channel
+  secret_key      = module.common.cluster_secret_key
 }
 
 data "google_container_cluster" "reporting_v2" {
@@ -44,4 +45,8 @@ module "reporting_v2" {
   iam_service_account_name = "reporting-v2-internal"
   postgres_instance        = google_sql_database_instance.postgres
   postgres_database_name   = "reporting-v2"
+}
+
+resource "google_compute_address" "reporting_v2alpha" {
+  name = "reporting-v2alpha"
 }

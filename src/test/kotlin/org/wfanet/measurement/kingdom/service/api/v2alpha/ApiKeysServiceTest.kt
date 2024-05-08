@@ -207,7 +207,7 @@ class ApiKeysServiceTest {
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception.errorInfo?.metadataMap)
-      .containsEntry("measurement_consumer", MEASUREMENT_CONSUMER_NAME)
+      .containsEntry("measurementConsumer", MEASUREMENT_CONSUMER_NAME)
   }
 
   @Test
@@ -227,7 +227,7 @@ class ApiKeysServiceTest {
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception.errorInfo?.metadataMap)
-      .containsEntry("external_api_key_id", ExternalId(EXTERNAL_API_KEY_ID).apiId.value)
+      .containsEntry("externalApiKeyId", ExternalId(EXTERNAL_API_KEY_ID).apiId.value)
   }
 }
 

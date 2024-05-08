@@ -30,3 +30,9 @@ variable "secret_key" {
     id   = string
   })
 }
+
+variable "release_channel" {
+  description = "`release_channel.channel` for the cluster"
+  type        = string
+  nullable    = false
+}
