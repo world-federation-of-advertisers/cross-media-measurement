@@ -18,6 +18,7 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.devtools.build.runfiles.Runfiles
 import com.google.protobuf.duration
 import com.google.protobuf.timestamp
 import com.google.type.DayOfWeek
@@ -28,8 +29,11 @@ import com.google.type.interval
 import com.google.type.timeZone
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import java.nio.file.Path
+import java.nio.file.Paths
 import java.time.Duration
 import java.time.Instant
+import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -41,7 +45,10 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.KArgumentCaptor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.eq
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
@@ -49,11 +56,14 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.internal.reporting.v2.BatchGetMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.CreateReportRequestKt
@@ -78,16 +88,6 @@ import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetric
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals as internalTimeIntervals
-import com.google.devtools.build.runfiles.Runfiles
-import java.nio.file.Path
-import java.nio.file.Paths
-import kotlin.random.Random
-import org.mockito.kotlin.doReturn
-import org.mockito.kotlin.mock
-import org.mockito.kotlin.stub
-import org.wfanet.measurement.common.getRuntimePath
-import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.withReportScheduleInfoAndMeasurementConsumerPrincipal
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsRequest
@@ -4368,151 +4368,278 @@ class ReportsServiceTest {
     private val END_TIME = END_INSTANT.toProtoTime()
 
     private val SECRET_FILES_PATH: Path = run {
-      val runfiles = Runfiles.preload(buildMap {
-        put("RUNFILES_DIR", "src/main/k8s/testing/")
-        put("metric_spec_config.textproto", "metric_spec_config.textproto")
-      }).unmapped()
+      val runfiles =
+        Runfiles.preload(
+            buildMap {
+              put("RUNFILES_DIR", "src/main/k8s/testing/")
+              put("metric_spec_config.textproto", "metric_spec_config.textproto")
+            }
+          )
+          .unmapped()
       checkNotNull(runfiles.getRuntimePath(Paths.get("secretfiles")))
     }
 
     private val METRIC_SPEC_CONFIG: MetricSpecConfig =
-      parseTextProto(SECRET_FILES_PATH.resolve("metric_spec_config.textproto").toFile(), MetricSpecConfig.getDefaultInstance())
+      parseTextProto(
+        SECRET_FILES_PATH.resolve("metric_spec_config.textproto").toFile(),
+        MetricSpecConfig.getDefaultInstance(),
+      )
 
     private val REACH_METRIC_SPEC: MetricSpec = metricSpec {
       reach =
         MetricSpecKt.reachParams {
-          multipleDataProviderParams = MetricSpecKt.params {
-            privacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams.privacyParams.epsilon
-                delta = METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams.privacyParams.delta
-              }
-            vidSamplingInterval =
-              MetricSpecKt.vidSamplingInterval {
-                start = METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams.vidSamplingInterval.fixedStart.start
-                width = METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams.vidSamplingInterval.fixedStart.width
-              }
-          }
-          singleDataProviderParams = MetricSpecKt.params {
-            privacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams.privacyParams.epsilon
-                delta = METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams.privacyParams.delta
-              }
-            vidSamplingInterval =
-              MetricSpecKt.vidSamplingInterval {
-                start = METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams.vidSamplingInterval.fixedStart.start
-                width = METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams.vidSamplingInterval.fixedStart.width
-              }
-          }
+          multipleDataProviderParams =
+            MetricSpecKt.params {
+              privacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon =
+                    METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams.privacyParams.epsilon
+                  delta =
+                    METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams.privacyParams.delta
+                }
+              vidSamplingInterval =
+                MetricSpecKt.vidSamplingInterval {
+                  start =
+                    METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams.vidSamplingInterval
+                      .fixedStart
+                      .start
+                  width =
+                    METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams.vidSamplingInterval
+                      .fixedStart
+                      .width
+                }
+            }
+          singleDataProviderParams =
+            MetricSpecKt.params {
+              privacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon =
+                    METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams.privacyParams.epsilon
+                  delta =
+                    METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams.privacyParams.delta
+                }
+              vidSamplingInterval =
+                MetricSpecKt.vidSamplingInterval {
+                  start =
+                    METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams.vidSamplingInterval
+                      .fixedStart
+                      .start
+                  width =
+                    METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams.vidSamplingInterval
+                      .fixedStart
+                      .width
+                }
+            }
         }
     }
     private val INTERNAL_REACH_METRIC_SPEC: InternalMetricSpec = internalMetricSpec {
       reach =
         InternalMetricSpecKt.reachParams {
-          multipleDataProviderParams = InternalMetricSpecKt.params {
-            privacyParams =
-              InternalMetricSpecKt.differentialPrivacyParams {
-                epsilon = METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams.privacyParams.epsilon
-                delta = METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams.privacyParams.delta
-              }
-            vidSamplingInterval =
-              InternalMetricSpecKt.vidSamplingInterval {
-                start = METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams.vidSamplingInterval.fixedStart.start
-                width = METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams.vidSamplingInterval.fixedStart.width
-              }
-          }
-          singleDataProviderParams = InternalMetricSpecKt.params {
-            privacyParams =
-              InternalMetricSpecKt.differentialPrivacyParams {
-                epsilon = METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams.privacyParams.epsilon
-                delta = METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams.privacyParams.delta
-              }
-            vidSamplingInterval =
-              InternalMetricSpecKt.vidSamplingInterval {
-                start = METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams.vidSamplingInterval.fixedStart.start
-                width = METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams.vidSamplingInterval.fixedStart.width
-              }
-          }
+          multipleDataProviderParams =
+            InternalMetricSpecKt.params {
+              privacyParams =
+                InternalMetricSpecKt.differentialPrivacyParams {
+                  epsilon =
+                    METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams.privacyParams.epsilon
+                  delta =
+                    METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams.privacyParams.delta
+                }
+              vidSamplingInterval =
+                InternalMetricSpecKt.vidSamplingInterval {
+                  start =
+                    METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams.vidSamplingInterval
+                      .fixedStart
+                      .start
+                  width =
+                    METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams.vidSamplingInterval
+                      .fixedStart
+                      .width
+                }
+            }
+          singleDataProviderParams =
+            InternalMetricSpecKt.params {
+              privacyParams =
+                InternalMetricSpecKt.differentialPrivacyParams {
+                  epsilon =
+                    METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams.privacyParams.epsilon
+                  delta =
+                    METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams.privacyParams.delta
+                }
+              vidSamplingInterval =
+                InternalMetricSpecKt.vidSamplingInterval {
+                  start =
+                    METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams.vidSamplingInterval
+                      .fixedStart
+                      .start
+                  width =
+                    METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams.vidSamplingInterval
+                      .fixedStart
+                      .width
+                }
+            }
         }
     }
     private val REACH_AND_FREQUENCY_METRIC_SPEC: MetricSpec = metricSpec {
       reachAndFrequency =
         MetricSpecKt.reachAndFrequencyParams {
-          multipleDataProviderParams = MetricSpecKt.params {
-            privacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams.privacyParams.epsilon
-                delta = METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams.privacyParams.delta
-              }
-            frequencyPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams.frequencyPrivacyParams.epsilon
-                delta = METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams.frequencyPrivacyParams.delta
-              }
-            vidSamplingInterval =
-              MetricSpecKt.vidSamplingInterval {
-                start = METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams.vidSamplingInterval.fixedStart.start
-                width = METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams.vidSamplingInterval.fixedStart.width
-              }
-          }
-          singleDataProviderParams = MetricSpecKt.params {
-            privacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.privacyParams.epsilon
-                delta = METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.privacyParams.delta
-              }
-            frequencyPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.frequencyPrivacyParams.epsilon
-                delta = METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.frequencyPrivacyParams.delta
-              }
-            vidSamplingInterval =
-              MetricSpecKt.vidSamplingInterval {
-                start = METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.vidSamplingInterval.fixedStart.start
-                width = METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.vidSamplingInterval.fixedStart.width
-              }
-          }
+          multipleDataProviderParams =
+            MetricSpecKt.params {
+              privacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon =
+                    METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
+                      .privacyParams
+                      .epsilon
+                  delta =
+                    METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
+                      .privacyParams
+                      .delta
+                }
+              frequencyPrivacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon =
+                    METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
+                      .frequencyPrivacyParams
+                      .epsilon
+                  delta =
+                    METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
+                      .frequencyPrivacyParams
+                      .delta
+                }
+              vidSamplingInterval =
+                MetricSpecKt.vidSamplingInterval {
+                  start =
+                    METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
+                      .vidSamplingInterval
+                      .fixedStart
+                      .start
+                  width =
+                    METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
+                      .vidSamplingInterval
+                      .fixedStart
+                      .width
+                }
+            }
+          singleDataProviderParams =
+            MetricSpecKt.params {
+              privacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon =
+                    METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
+                      .privacyParams
+                      .epsilon
+                  delta =
+                    METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
+                      .privacyParams
+                      .delta
+                }
+              frequencyPrivacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon =
+                    METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
+                      .frequencyPrivacyParams
+                      .epsilon
+                  delta =
+                    METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
+                      .frequencyPrivacyParams
+                      .delta
+                }
+              vidSamplingInterval =
+                MetricSpecKt.vidSamplingInterval {
+                  start =
+                    METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
+                      .vidSamplingInterval
+                      .fixedStart
+                      .start
+                  width =
+                    METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
+                      .vidSamplingInterval
+                      .fixedStart
+                      .width
+                }
+            }
           maximumFrequency = METRIC_SPEC_CONFIG.reachAndFrequencyParams.maximumFrequency
         }
     }
     private val INTERNAL_REACH_AND_FREQUENCY_METRIC_SPEC: InternalMetricSpec = internalMetricSpec {
       reachAndFrequency =
         InternalMetricSpecKt.reachAndFrequencyParams {
-          multipleDataProviderParams = InternalMetricSpecKt.params {
-            privacyParams =
-              InternalMetricSpecKt.differentialPrivacyParams {
-                epsilon = METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams.privacyParams.epsilon
-                delta = METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams.privacyParams.delta
-              }
-            frequencyPrivacyParams =
-              InternalMetricSpecKt.differentialPrivacyParams {
-                epsilon = METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams.frequencyPrivacyParams.epsilon
-                delta = METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams.frequencyPrivacyParams.delta
-              }
-            vidSamplingInterval =
-              InternalMetricSpecKt.vidSamplingInterval {
-                start = METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams.vidSamplingInterval.fixedStart.start
-                width = METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams.vidSamplingInterval.fixedStart.width
-              }
-          }
-          singleDataProviderParams = InternalMetricSpecKt.params {
-            privacyParams =
-              InternalMetricSpecKt.differentialPrivacyParams {
-                epsilon = METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.privacyParams.epsilon
-                delta = METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.privacyParams.delta
-              }
-            frequencyPrivacyParams =
-              InternalMetricSpecKt.differentialPrivacyParams {
-                epsilon = METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.frequencyPrivacyParams.epsilon
-                delta = METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.frequencyPrivacyParams.delta
-              }
-            vidSamplingInterval =
-              InternalMetricSpecKt.vidSamplingInterval {
-                start = METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.vidSamplingInterval.fixedStart.start
-                width = METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.vidSamplingInterval.fixedStart.width
-              }
-          }
+          multipleDataProviderParams =
+            InternalMetricSpecKt.params {
+              privacyParams =
+                InternalMetricSpecKt.differentialPrivacyParams {
+                  epsilon =
+                    METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
+                      .privacyParams
+                      .epsilon
+                  delta =
+                    METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
+                      .privacyParams
+                      .delta
+                }
+              frequencyPrivacyParams =
+                InternalMetricSpecKt.differentialPrivacyParams {
+                  epsilon =
+                    METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
+                      .frequencyPrivacyParams
+                      .epsilon
+                  delta =
+                    METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
+                      .frequencyPrivacyParams
+                      .delta
+                }
+              vidSamplingInterval =
+                InternalMetricSpecKt.vidSamplingInterval {
+                  start =
+                    METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
+                      .vidSamplingInterval
+                      .fixedStart
+                      .start
+                  width =
+                    METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
+                      .vidSamplingInterval
+                      .fixedStart
+                      .width
+                }
+            }
+          singleDataProviderParams =
+            InternalMetricSpecKt.params {
+              privacyParams =
+                InternalMetricSpecKt.differentialPrivacyParams {
+                  epsilon =
+                    METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
+                      .privacyParams
+                      .epsilon
+                  delta =
+                    METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
+                      .privacyParams
+                      .delta
+                }
+              frequencyPrivacyParams =
+                InternalMetricSpecKt.differentialPrivacyParams {
+                  epsilon =
+                    METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
+                      .frequencyPrivacyParams
+                      .epsilon
+                  delta =
+                    METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
+                      .frequencyPrivacyParams
+                      .delta
+                }
+              vidSamplingInterval =
+                InternalMetricSpecKt.vidSamplingInterval {
+                  start =
+                    METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
+                      .vidSamplingInterval
+                      .fixedStart
+                      .start
+                  width =
+                    METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
+                      .vidSamplingInterval
+                      .fixedStart
+                      .width
+                }
+            }
           maximumFrequency = METRIC_SPEC_CONFIG.reachAndFrequencyParams.maximumFrequency
         }
     }
@@ -4520,39 +4647,50 @@ class ReportsServiceTest {
     private val WATCH_DURATION_METRIC_SPEC: MetricSpec = metricSpec {
       watchDuration =
         MetricSpecKt.watchDurationParams {
-          params = MetricSpecKt.params {
-            privacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = METRIC_SPEC_CONFIG.watchDurationParams.params.privacyParams.epsilon
-                delta = METRIC_SPEC_CONFIG.watchDurationParams.params.privacyParams.delta
-              }
-            vidSamplingInterval =
-              MetricSpecKt.vidSamplingInterval {
-                start = METRIC_SPEC_CONFIG.watchDurationParams.params.vidSamplingInterval.fixedStart.start
-                width = METRIC_SPEC_CONFIG.watchDurationParams.params.vidSamplingInterval.fixedStart.width
-              }
-          }
-          maximumWatchDurationPerUser = METRIC_SPEC_CONFIG.watchDurationParams.maximumWatchDurationPerUser
+          params =
+            MetricSpecKt.params {
+              privacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = METRIC_SPEC_CONFIG.watchDurationParams.params.privacyParams.epsilon
+                  delta = METRIC_SPEC_CONFIG.watchDurationParams.params.privacyParams.delta
+                }
+              vidSamplingInterval =
+                MetricSpecKt.vidSamplingInterval {
+                  start =
+                    METRIC_SPEC_CONFIG.watchDurationParams.params.vidSamplingInterval.fixedStart
+                      .start
+                  width =
+                    METRIC_SPEC_CONFIG.watchDurationParams.params.vidSamplingInterval.fixedStart
+                      .width
+                }
+            }
+          maximumWatchDurationPerUser =
+            METRIC_SPEC_CONFIG.watchDurationParams.maximumWatchDurationPerUser
         }
     }
     private val INTERNAL_WATCH_DURATION_METRIC_SPEC: InternalMetricSpec = internalMetricSpec {
       watchDuration =
         InternalMetricSpecKt.watchDurationParams {
-          params = InternalMetricSpecKt.params {
-            privacyParams =
-              InternalMetricSpecKt.differentialPrivacyParams {
-                epsilon = METRIC_SPEC_CONFIG.watchDurationParams.params.privacyParams.epsilon
-                delta = METRIC_SPEC_CONFIG.watchDurationParams.params.privacyParams.delta
-              }
-            vidSamplingInterval =
-              InternalMetricSpecKt.vidSamplingInterval {
-                start = METRIC_SPEC_CONFIG.watchDurationParams.params.vidSamplingInterval.fixedStart.start
-                width = METRIC_SPEC_CONFIG.watchDurationParams.params.vidSamplingInterval.fixedStart.width
-              }
-          }
-          maximumWatchDurationPerUser = METRIC_SPEC_CONFIG.watchDurationParams.maximumWatchDurationPerUser
+          params =
+            InternalMetricSpecKt.params {
+              privacyParams =
+                InternalMetricSpecKt.differentialPrivacyParams {
+                  epsilon = METRIC_SPEC_CONFIG.watchDurationParams.params.privacyParams.epsilon
+                  delta = METRIC_SPEC_CONFIG.watchDurationParams.params.privacyParams.delta
+                }
+              vidSamplingInterval =
+                InternalMetricSpecKt.vidSamplingInterval {
+                  start =
+                    METRIC_SPEC_CONFIG.watchDurationParams.params.vidSamplingInterval.fixedStart
+                      .start
+                  width =
+                    METRIC_SPEC_CONFIG.watchDurationParams.params.vidSamplingInterval.fixedStart
+                      .width
+                }
+            }
+          maximumWatchDurationPerUser =
+            METRIC_SPEC_CONFIG.watchDurationParams.maximumWatchDurationPerUser
         }
-
     }
 
     // Metrics
