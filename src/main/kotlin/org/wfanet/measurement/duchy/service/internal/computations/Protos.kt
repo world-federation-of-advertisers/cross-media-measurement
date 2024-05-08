@@ -17,6 +17,7 @@ package org.wfanet.measurement.duchy.service.internal.computations
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageResponse
 import org.wfanet.measurement.internal.duchy.ClaimWorkResponse
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
+import org.wfanet.measurement.internal.duchy.ComputationBlobDependency.INPUT
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency.OUTPUT
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency.PASS_THROUGH
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
@@ -69,6 +70,10 @@ fun ComputationToken.outputPathList(): List<String> =
   this.blobsList
     .filter { it.dependencyType == OUTPUT || it.dependencyType == PASS_THROUGH }
     .map { it.path }
+
+/** Extract the list of input blob paths from a [ComputationToken]. */
+fun ComputationToken.inputPathList(): List<String> =
+  this.blobsList.filter { it.dependencyType == INPUT }.map { it.path }
 
 /** Creates a [ComputationStageBlobMetadata] for an input blob. */
 fun newInputBlobMetadata(id: Long, key: String): ComputationStageBlobMetadata =

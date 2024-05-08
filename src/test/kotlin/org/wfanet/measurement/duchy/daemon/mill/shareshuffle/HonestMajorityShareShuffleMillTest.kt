@@ -39,6 +39,7 @@ import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
+import org.wfanet.frequencycount.frequencyVector
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.EncryptedMessage
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -99,6 +100,7 @@ import org.wfanet.measurement.internal.duchy.computationDetails
 import org.wfanet.measurement.internal.duchy.computationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation
+import org.wfanet.measurement.internal.duchy.config.honestMajorityShareShuffleSetupConfig
 import org.wfanet.measurement.internal.duchy.copy
 import org.wfanet.measurement.internal.duchy.differentialPrivacyParams
 import org.wfanet.measurement.internal.duchy.encryptionKeyPair
@@ -118,6 +120,7 @@ import org.wfanet.measurement.internal.duchy.protocol.completeAggregationPhaseRe
 import org.wfanet.measurement.internal.duchy.protocol.completeAggregationPhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.completeShufflePhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.completeShufflePhaseResponse
+import org.wfanet.measurement.internal.duchy.protocol.copy
 import org.wfanet.measurement.internal.duchy.protocol.shareShuffleSketch
 import org.wfanet.measurement.internal.duchy.protocol.shareShuffleSketchParams
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -143,9 +146,16 @@ private const val PUBLIC_API_VERSION = "v2alpha"
 private val RANDOM = SecureRandom()
 
 private const val MILL_ID_SUFFIX = " mill"
-private const val DUCHY_ONE_NAME = "worker_1"
-private const val DUCHY_TWO_NAME = "worker_2"
-private const val DUCHY_THREE_NAME = "aggregator"
+private const val DUCHY_ONE_ID = "worker1"
+private const val DUCHY_TWO_ID = "worker2"
+private const val DUCHY_THREE_ID = "aggregator"
+
+private val PROTOCOL_SETUP_CONFIG = honestMajorityShareShuffleSetupConfig {
+  role = RoleInComputation.FIRST_NON_AGGREGATOR
+  aggregatorDuchyId = DUCHY_THREE_ID
+  firstNonAggregatorDuchyId = DUCHY_ONE_ID
+  secondNonAggregatorDuchyId = DUCHY_TWO_ID
+}
 
 private const val LOCAL_ID = 1234L
 private const val GLOBAL_ID = LOCAL_ID.toString()
@@ -181,10 +191,6 @@ private val AEAD_KEY_TEMPLATE = KeyTemplates.get("AES128_GCM")
 private val KEY_ENCRYPTION_KEY = KeysetHandle.generateNew(AEAD_KEY_TEMPLATE)
 private val AEAD = KEY_ENCRYPTION_KEY.getPrimitive(Aead::class.java)
 
-private const val COMPUTATION_PARTICIPANT_1 = "worker_1"
-private const val COMPUTATION_PARTICIPANT_2 = "worker_2"
-private const val COMPUTATION_PARTICIPANT_3 = "aggregator"
-
 private val TEST_REQUISITION_1 = TestRequisition("111") { SERIALIZED_MEASUREMENT_SPEC }
 private val TEST_REQUISITION_2 = TestRequisition("222") { SERIALIZED_MEASUREMENT_SPEC }
 private val TEST_REQUISITION_3 = TestRequisition("333") { SERIALIZED_MEASUREMENT_SPEC }
@@ -199,7 +205,7 @@ private val MEASUREMENT_SPEC = measurementSpec {
 private val SERIALIZED_MEASUREMENT_SPEC: ByteString = MEASUREMENT_SPEC.toByteString()
 
 private val REQUISITION_1 =
-  TEST_REQUISITION_1.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_ONE_NAME).copy {
+  TEST_REQUISITION_1.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_ONE_ID).copy {
     details =
       details.copy {
         honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
@@ -211,9 +217,9 @@ private val REQUISITION_1 =
     secretSeedCiphertext = "secret_seed_1".toByteStringUtf8()
   }
 private val REQUISITION_2 =
-  TEST_REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED, DUCHY_TWO_NAME)
+  TEST_REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED, DUCHY_TWO_ID)
 private val REQUISITION_3 =
-  TEST_REQUISITION_3.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_ONE_NAME).copy {
+  TEST_REQUISITION_3.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_ONE_ID).copy {
     details =
       details.copy {
         honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
@@ -270,7 +276,7 @@ class HonestMajorityShareShuffleMillTest {
   private val tempDirectory = TemporaryFolder()
 
   private val grpcTestServerRule = GrpcTestServerRule {
-    DuchyInfo.setForTest(setOf(DUCHY_ONE_NAME, DUCHY_TWO_NAME, DUCHY_THREE_NAME))
+    DuchyInfo.setForTest(setOf(DUCHY_ONE_ID, DUCHY_TWO_ID, DUCHY_THREE_ID))
 
     val storageClient = FileSystemStorageClient(tempDirectory.root)
     computationStore = ComputationStore(storageClient)
@@ -295,7 +301,7 @@ class HonestMajorityShareShuffleMillTest {
         systemComputationLogEntriesStub,
         computationStore,
         requisitionStore,
-        DUCHY_THREE_NAME,
+        DUCHY_THREE_ID,
         Clock.systemUTC(),
       )
     )
@@ -334,11 +340,7 @@ class HonestMajorityShareShuffleMillTest {
 
   // Just use the same workerStub for all other duchies, since it is not relevant to this test.
   private val workerStubs =
-    mapOf(
-      DUCHY_ONE_NAME to workerStub,
-      DUCHY_TWO_NAME to workerStub,
-      DUCHY_THREE_NAME to workerStub,
-    )
+    mapOf(DUCHY_ONE_ID to workerStub, DUCHY_TWO_ID to workerStub, DUCHY_THREE_ID to workerStub)
 
   private fun createHmssMill(duchyName: String): HonestMajorityShareShuffleMill {
     val csCertificate = Certificate(DUCHY_CERT_NAME, DUCHY_SIGNING_CERT)
@@ -364,6 +366,7 @@ class HonestMajorityShareShuffleMillTest {
       privateKeyStore = privateKeyStore,
       certificateClient = certificateStub,
       workerStubs = workerStubs,
+      protocolSetupConfig = PROTOCOL_SETUP_CONFIG,
       cryptoWorker = mockCryptoWorker,
       workLockDuration = Duration.ofMinutes(5),
       openTelemetry = GlobalOpenTelemetry.get(),
@@ -385,8 +388,7 @@ class HonestMajorityShareShuffleMillTest {
         HonestMajorityShareShuffleKt.computationDetails {
           this.role = role
           parameters = HMSS_PARAMETERS
-          participants +=
-            listOf(COMPUTATION_PARTICIPANT_1, COMPUTATION_PARTICIPANT_2, COMPUTATION_PARTICIPANT_3)
+          nonAggregators += listOf(DUCHY_ONE_ID, DUCHY_TWO_ID)
 
           if (
             role == RoleInComputation.FIRST_NON_AGGREGATOR ||
@@ -418,7 +420,7 @@ class HonestMajorityShareShuffleMillTest {
       requisitions = REQUISITIONS,
     )
 
-    val mill = createHmssMill(DUCHY_ONE_NAME)
+    val mill = createHmssMill(DUCHY_ONE_ID)
     mill.pollAndProcessNextComputation()
 
     assertThat(fakeComputationDb[LOCAL_ID])
@@ -443,7 +445,7 @@ class HonestMajorityShareShuffleMillTest {
       .comparingExpectedFieldsOnly()
       .isEqualTo(
         setParticipantRequisitionParamsRequest {
-          name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_NAME).toName()
+          name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_ID).toName()
           this.requisitionParams =
             ComputationParticipantKt.requisitionParams { duchyCertificate = DUCHY_CERT_NAME }
         }
@@ -473,7 +475,7 @@ class HonestMajorityShareShuffleMillTest {
         requisitions = REQUISITIONS,
       )
 
-      val mill = createHmssMill(DUCHY_ONE_NAME)
+      val mill = createHmssMill(DUCHY_ONE_ID)
       mill.pollAndProcessNextComputation()
 
       val updatedToken = fakeComputationDb[LOCAL_ID]
@@ -529,9 +531,9 @@ class HonestMajorityShareShuffleMillTest {
   fun `The second non-aggregator setupPhase successfully sends seeds to the peer worker`() =
     runBlocking {
       val unfulfilledRequisition1 =
-        TEST_REQUISITION_1.toRequisitionMetadata(Requisition.State.UNFULFILLED, DUCHY_ONE_NAME)
+        TEST_REQUISITION_1.toRequisitionMetadata(Requisition.State.UNFULFILLED, DUCHY_ONE_ID)
       val fulfilledRequisition2 =
-        TEST_REQUISITION_1.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_TWO_NAME).copy {
+        TEST_REQUISITION_1.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_TWO_ID).copy {
           details =
             details.copy {
               honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
@@ -543,7 +545,7 @@ class HonestMajorityShareShuffleMillTest {
           secretSeedCiphertext = "secret_seed_2".toByteStringUtf8()
         }
       val unfulfilledRequisition3 =
-        TEST_REQUISITION_3.toRequisitionMetadata(Requisition.State.UNFULFILLED, DUCHY_ONE_NAME)
+        TEST_REQUISITION_3.toRequisitionMetadata(Requisition.State.UNFULFILLED, DUCHY_ONE_ID)
 
       val requisitions =
         listOf(unfulfilledRequisition1, fulfilledRequisition2, unfulfilledRequisition3)
@@ -555,7 +557,7 @@ class HonestMajorityShareShuffleMillTest {
         requisitions = requisitions,
       )
 
-      val mill = createHmssMill(DUCHY_TWO_NAME)
+      val mill = createHmssMill(DUCHY_TWO_ID)
       mill.pollAndProcessNextComputation()
 
       assertThat(fakeComputationDb[LOCAL_ID])
@@ -617,7 +619,7 @@ class HonestMajorityShareShuffleMillTest {
           this.peerRandomSeed = peerRandomSeed
           secretSeeds += secretSeed {
             requisitionId = REQUISITION_2.externalKey.externalRequisitionId
-            secretSeedCiphertext = requisitionEncryptedSeed.toByteString()
+            secretSeedCiphertext = requisitionEncryptedSeed.ciphertext
             registerCount = 100
             dataProviderCertificate = "DataProviders/2/Certificates/2"
           }
@@ -664,7 +666,7 @@ class HonestMajorityShareShuffleMillTest {
       }
     }
 
-    val mill = createHmssMill(DUCHY_ONE_NAME)
+    val mill = createHmssMill(DUCHY_ONE_ID)
     mill.pollAndProcessNextComputation()
 
     assertThat(fakeComputationDb[LOCAL_ID])
@@ -686,7 +688,7 @@ class HonestMajorityShareShuffleMillTest {
       .isEqualTo(
         completeShufflePhaseRequest {
           val hmss = computationDetails.honestMajorityShareShuffle
-          sketchParams = hmss.parameters.sketchParams
+          sketchParams = hmss.parameters.sketchParams.copy { registerCount = 100 }
           dpParams = hmss.parameters.dpParams
           noiseMechanism = hmss.parameters.noiseMechanism
           order = CompleteShufflePhaseRequest.NonAggregatorOrder.FIRST
@@ -744,9 +746,8 @@ class HonestMajorityShareShuffleMillTest {
       RequisitionBlobContext(GLOBAL_ID, REQUISITION_1.externalKey.externalRequisitionId)
     val requisitionBlobContext3 =
       RequisitionBlobContext(GLOBAL_ID, REQUISITION_3.externalKey.externalRequisitionId)
-    // TODO(@renjiez): Use ShareShuffleSketch from any-sketch-java when it is available..
-    val requisitionData1 = shareShuffleSketch { data += listOf(1, 2, 3) }.toByteString()
-    val requisitionData3 = shareShuffleSketch { data += listOf(4, 5, 6) }.toByteString()
+    val requisitionData1 = frequencyVector { data += listOf(1, 2, 3) }.toByteString()
+    val requisitionData3 = frequencyVector { data += listOf(4, 5, 6) }.toByteString()
     requisitionStore.write(requisitionBlobContext1, requisitionData1)
     requisitionStore.write(requisitionBlobContext3, requisitionData3)
 
@@ -761,7 +762,7 @@ class HonestMajorityShareShuffleMillTest {
     whenever(mockCertificates.getCertificate(any()))
       .thenThrow(Status.NOT_FOUND.asRuntimeException())
 
-    val mill = createHmssMill(DUCHY_ONE_NAME)
+    val mill = createHmssMill(DUCHY_ONE_ID)
     mill.pollAndProcessNextComputation()
 
     assertThat(fakeComputationDb[LOCAL_ID])
@@ -825,7 +826,7 @@ class HonestMajorityShareShuffleMillTest {
       }
     }
 
-    val mill = createHmssMill(DUCHY_THREE_NAME)
+    val mill = createHmssMill(DUCHY_THREE_ID)
     mill.pollAndProcessNextComputation()
 
     assertThat(fakeComputationDb[LOCAL_ID])
