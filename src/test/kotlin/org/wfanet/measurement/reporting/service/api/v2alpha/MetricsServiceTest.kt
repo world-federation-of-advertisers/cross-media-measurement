@@ -285,24 +285,24 @@ private const val RANDOM_OUTPUT_LONG = 0L
 private val SECRETS_DIR: File = run {
   val runfiles =
     Runfiles.preload(
-      buildMap {
-        put("RUNFILES_DIR", "src/main/k8s/testing/")
-        put("metric_spec_config.textproto", "metric_spec_config.textproto")
-        put("aggregator_cs_cert.der", "aggregator_cs_cert.der")
-        put("aggregator_cs_private.der", "aggregator_cs_private.der")
-        put("aggregator_root.pem", "aggregator_root.pem")
-        put("mc_root.pem", "mc_root.pem")
-        put("mc_cs_cert.der", "mc_cs_cert.der")
-        put("mc_cs_private.der", "mc_cs_private.der")
-        put("mc_enc_private.tink", "mc_enc_private.tink")
-        put("mc_enc_public.tink", "mc_enc_public.tink")
-        put("edp1_enc_public.tink", "edp1_enc_public.tink")
-        put("edp1_enc_private.tink", "edp1_enc_private.tink")
-        put("edp1_cs_cert.der", "edp1_cs_cert.der")
-        put("edp1_cs_private.der", "edp1_cs_private.der")
-        put("edp1_root.pem", "edp1_root.pem")
-      }
-    )
+        buildMap {
+          put("RUNFILES_DIR", "src/main/k8s/testing/")
+          put("metric_spec_config.textproto", "metric_spec_config.textproto")
+          put("aggregator_cs_cert.der", "aggregator_cs_cert.der")
+          put("aggregator_cs_private.der", "aggregator_cs_private.der")
+          put("aggregator_root.pem", "aggregator_root.pem")
+          put("mc_root.pem", "mc_root.pem")
+          put("mc_cs_cert.der", "mc_cs_cert.der")
+          put("mc_cs_private.der", "mc_cs_private.der")
+          put("mc_enc_private.tink", "mc_enc_private.tink")
+          put("mc_enc_public.tink", "mc_enc_public.tink")
+          put("edp1_enc_public.tink", "edp1_enc_public.tink")
+          put("edp1_enc_private.tink", "edp1_enc_private.tink")
+          put("edp1_cs_cert.der", "edp1_cs_cert.der")
+          put("edp1_cs_private.der", "edp1_cs_private.der")
+          put("edp1_root.pem", "edp1_root.pem")
+        }
+      )
       .unmapped()
   checkNotNull(runfiles.getRuntimePath(Paths.get("secretfiles"))).toFile()
 }
@@ -461,12 +461,8 @@ private val AGGREGATOR_ROOT_CERTIFICATE: X509Certificate =
 private val TRUSTED_MEASUREMENT_CONSUMER_ISSUER: X509Certificate =
   readCertificate(SECRETS_DIR.resolve("mc_root.pem"))
 private val MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE =
-  loadSigningKey(
-    SECRETS_DIR.resolve("mc_cs_cert.der"),
-    SECRETS_DIR.resolve("mc_cs_private.der"),
-  )
-private val MEASUREMENT_CONSUMER_CERTIFICATE =
-  MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE.certificate
+  loadSigningKey(SECRETS_DIR.resolve("mc_cs_cert.der"), SECRETS_DIR.resolve("mc_cs_private.der"))
+private val MEASUREMENT_CONSUMER_CERTIFICATE = MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE.certificate
 private val MEASUREMENT_CONSUMER_PRIVATE_KEY_HANDLE: PrivateKeyHandle =
   loadPrivateKey(SECRETS_DIR.resolve("mc_enc_private.tink"))
 private val MEASUREMENT_CONSUMER_PUBLIC_KEY = encryptionPublicKey {
@@ -486,8 +482,7 @@ private val MEASUREMENT_CONSUMERS: Map<MeasurementConsumerKey, MeasurementConsum
       measurementConsumer {
         name = measurementConsumerKey.toName()
         certificate = certificateKey.toName()
-        certificateDer =
-          MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE.certificate.encoded.toByteString()
+        certificateDer = MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE.certificate.encoded.toByteString()
         publicKey =
           signEncryptionPublicKey(
             MEASUREMENT_CONSUMER_PUBLIC_KEY,
@@ -509,8 +504,7 @@ private val ENCRYPTION_KEY_PAIR_STORE =
       { it.name },
       {
         listOf(
-          it.publicKey.unpack<EncryptionPublicKey>().data to
-            MEASUREMENT_CONSUMER_PRIVATE_KEY_HANDLE
+          it.publicKey.unpack<EncryptionPublicKey>().data to MEASUREMENT_CONSUMER_PRIVATE_KEY_HANDLE
         )
       },
     )
@@ -527,8 +521,7 @@ private val DATA_PROVIDER_SIGNING_KEY =
     SECRETS_DIR.resolve("edp1_cs_cert.der"),
     SECRETS_DIR.resolve("edp1_cs_private.der"),
   )
-private val DATA_PROVIDER_ROOT_CERTIFICATE =
-  readCertificate(SECRETS_DIR.resolve("edp1_root.pem"))
+private val DATA_PROVIDER_ROOT_CERTIFICATE = readCertificate(SECRETS_DIR.resolve("edp1_root.pem"))
 
 // Data providers
 
@@ -536,10 +529,7 @@ private val DATA_PROVIDERS =
   (1L..3L).associate {
     val dataProviderKey = DataProviderKey(ExternalId(it + 550L).apiId.value)
     val certificateKey =
-      DataProviderCertificateKey(
-        dataProviderKey.dataProviderId,
-        ExternalId(it + 560L).apiId.value,
-      )
+      DataProviderCertificateKey(dataProviderKey.dataProviderId, ExternalId(it + 560L).apiId.value)
     dataProviderKey to
       dataProvider {
         name = dataProviderKey.toName()
@@ -564,7 +554,6 @@ private val ALL_FILTERS =
   listOf(INCREMENTAL_REPORTING_SET_FILTER, METRIC_FILTER, PRIMITIVE_REPORTING_SET_FILTER)
 
 // Internal reporting sets
-
 
 private val INTERNAL_UNION_ALL_REPORTING_SET = internalReportingSet {
   cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
@@ -695,7 +684,6 @@ private val INTERNAL_POPULATION_REPORTING_SET = internalReportingSet {
 }
 
 // Time intervals
-
 
 private val START_INSTANT = Instant.now()
 private val TIME_RANGE = OpenEndTimeRange(START_INSTANT, START_INSTANT.plus(Duration.ofDays(1)))
@@ -849,20 +837,19 @@ private val INTERNAL_SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
   }
 
 // Internal single publisher reach-frequency measurements
-private val INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT =
-  internalMeasurement {
-    cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-    cmmsCreateMeasurementRequestId = "SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT"
-    cmmsMeasurementId = externalIdToApiId(443L)
-    timeInterval = TIME_INTERVAL
-    primitiveReportingSetBases += primitiveReportingSetBasis {
-      externalReportingSetId = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId
-      filters += METRIC_FILTER
-      filters += PRIMITIVE_REPORTING_SET_FILTER
-    }
-    state = InternalMeasurement.State.PENDING
-    isSingleDataProvider = true
+private val INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT = internalMeasurement {
+  cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+  cmmsCreateMeasurementRequestId = "SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT"
+  cmmsMeasurementId = externalIdToApiId(443L)
+  timeInterval = TIME_INTERVAL
+  primitiveReportingSetBases += primitiveReportingSetBasis {
+    externalReportingSetId = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId
+    filters += METRIC_FILTER
+    filters += PRIMITIVE_REPORTING_SET_FILTER
   }
+  state = InternalMeasurement.State.PENDING
+  isSingleDataProvider = true
+}
 
 private val INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT =
   INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.copy {
@@ -875,8 +862,7 @@ private val INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT =
               InternalMeasurementKt.ResultKt.reach {
                 value = REACH_FREQUENCY_REACH_VALUE
                 noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
-                deterministicCountDistinct =
-                  InternalDeterministicCountDistinct.getDefaultInstance()
+                deterministicCountDistinct = InternalDeterministicCountDistinct.getDefaultInstance()
               }
             frequency =
               InternalMeasurementKt.ResultKt.frequency {
@@ -1094,17 +1080,16 @@ private val REQUESTING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
         MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE,
       )
     measurementReferenceId =
-      INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
-        .cmmsCreateMeasurementRequestId
+      INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.cmmsCreateMeasurementRequestId
   }
 
 private val PENDING_UNION_ALL_REACH_MEASUREMENT =
   REQUESTING_UNION_ALL_REACH_MEASUREMENT.copy {
     name =
       MeasurementKey(
-        MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
-        INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.cmmsMeasurementId,
-      )
+          MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
+          INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.cmmsMeasurementId,
+        )
         .toName()
     protocolConfig = REACH_PROTOCOL_CONFIG
     state = Measurement.State.COMPUTING
@@ -1113,9 +1098,9 @@ private val PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
   REQUESTING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.copy {
     name =
       MeasurementKey(
-        MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
-        INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.cmmsMeasurementId,
-      )
+          MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
+          INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.cmmsMeasurementId,
+        )
         .toName()
     protocolConfig = REACH_PROTOCOL_CONFIG
     state = Measurement.State.COMPUTING
@@ -1131,10 +1116,7 @@ private val SUCCEEDED_UNION_ALL_REACH_MEASUREMENT =
           reach = MeasurementKt.ResultKt.reach { value = UNION_ALL_REACH_VALUE }
         }
       encryptedResult =
-        encryptResult(
-          signResult(result, AGGREGATOR_SIGNING_KEY),
-          MEASUREMENT_CONSUMER_PUBLIC_KEY,
-        )
+        encryptResult(signResult(result, AGGREGATOR_SIGNING_KEY), MEASUREMENT_CONSUMER_PUBLIC_KEY)
       certificate = AGGREGATOR_CERTIFICATE.name
     }
   }
@@ -1145,14 +1127,10 @@ private val SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
     results += resultOutput {
       val result =
         MeasurementKt.result {
-          reach =
-            MeasurementKt.ResultKt.reach { value = UNION_ALL_BUT_LAST_PUBLISHER_REACH_VALUE }
+          reach = MeasurementKt.ResultKt.reach { value = UNION_ALL_BUT_LAST_PUBLISHER_REACH_VALUE }
         }
       encryptedResult =
-        encryptResult(
-          signResult(result, AGGREGATOR_SIGNING_KEY),
-          MEASUREMENT_CONSUMER_PUBLIC_KEY,
-        )
+        encryptResult(signResult(result, AGGREGATOR_SIGNING_KEY), MEASUREMENT_CONSUMER_PUBLIC_KEY)
       certificate = AGGREGATOR_CERTIFICATE.name
     }
   }
@@ -1212,17 +1190,16 @@ private val REQUESTING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT =
         MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE,
       )
     measurementReferenceId =
-      INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT
-        .cmmsCreateMeasurementRequestId
+      INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.cmmsCreateMeasurementRequestId
   }
 
 private val PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT =
   REQUESTING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.copy {
     name =
       MeasurementKey(
-        MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
-        INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.cmmsMeasurementId,
-      )
+          MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
+          INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.cmmsMeasurementId,
+        )
         .toName()
     protocolConfig = REACH_FREQUENCY_PROTOCOL_CONFIG
     state = Measurement.State.COMPUTING
@@ -1252,10 +1229,7 @@ private val SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT =
             }
         }
       encryptedResult =
-        encryptResult(
-          signResult(result, AGGREGATOR_SIGNING_KEY),
-          MEASUREMENT_CONSUMER_PUBLIC_KEY,
-        )
+        encryptResult(signResult(result, AGGREGATOR_SIGNING_KEY), MEASUREMENT_CONSUMER_PUBLIC_KEY)
       certificate = AGGREGATOR_CERTIFICATE.name
     }
   }
@@ -1316,9 +1290,9 @@ private val PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
   REQUESTING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
     name =
       MeasurementKey(
-        MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
-        INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementId,
-      )
+          MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
+          INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementId,
+        )
         .toName()
     protocolConfig = IMPRESSION_PROTOCOL_CONFIG
     state = Measurement.State.COMPUTING
@@ -1338,10 +1312,7 @@ private val SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
             }
         }
       encryptedResult =
-        encryptResult(
-          signResult(result, AGGREGATOR_SIGNING_KEY),
-          MEASUREMENT_CONSUMER_PUBLIC_KEY,
-        )
+        encryptResult(signResult(result, AGGREGATOR_SIGNING_KEY), MEASUREMENT_CONSUMER_PUBLIC_KEY)
       certificate = AGGREGATOR_CERTIFICATE.name
     }
   }
@@ -1362,10 +1333,7 @@ private val SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_CUSTOM_CAP =
             }
         }
       encryptedResult =
-        encryptResult(
-          signResult(result, AGGREGATOR_SIGNING_KEY),
-          MEASUREMENT_CONSUMER_PUBLIC_KEY,
-        )
+        encryptResult(signResult(result, AGGREGATOR_SIGNING_KEY), MEASUREMENT_CONSUMER_PUBLIC_KEY)
       certificate = AGGREGATOR_CERTIFICATE.name
     }
   }
@@ -1435,9 +1403,9 @@ private val PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT =
   REQUESTING_UNION_ALL_WATCH_DURATION_MEASUREMENT.copy {
     name =
       MeasurementKey(
-        MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
-        INTERNAL_PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.cmmsMeasurementId,
-      )
+          MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
+          INTERNAL_PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.cmmsMeasurementId,
+        )
         .toName()
     protocolConfig = WATCH_DURATION_PROTOCOL_CONFIG
     state = Measurement.State.COMPUTING
@@ -1492,17 +1460,16 @@ private val REQUESTING_POPULATION_MEASUREMENT =
     measurementSpec =
       signMeasurementSpec(POPULATION_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
 
-    measurementReferenceId =
-      INTERNAL_PENDING_POPULATION_MEASUREMENT.cmmsCreateMeasurementRequestId
+    measurementReferenceId = INTERNAL_PENDING_POPULATION_MEASUREMENT.cmmsCreateMeasurementRequestId
   }
 
 private val PENDING_POPULATION_MEASUREMENT =
   REQUESTING_POPULATION_MEASUREMENT.copy {
     name =
       MeasurementKey(
-        MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
-        INTERNAL_PENDING_POPULATION_MEASUREMENT.cmmsMeasurementId,
-      )
+          MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
+          INTERNAL_PENDING_POPULATION_MEASUREMENT.cmmsMeasurementId,
+        )
         .toName()
     state = Measurement.State.COMPUTING
   }
@@ -1510,9 +1477,7 @@ private val PENDING_POPULATION_MEASUREMENT =
 // Metric Specs
 
 private val REACH_METRIC_SPEC: MetricSpec = metricSpec {
-  reach = reachParams {
-    privacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
-  }
+  reach = reachParams { privacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance() }
 }
 private val REACH_FREQUENCY_METRIC_SPEC: MetricSpec = metricSpec {
   reachAndFrequency = reachAndFrequencyParams {
@@ -1595,8 +1560,7 @@ private val INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC =
     weightedMeasurements += weightedMeasurement {
       weight = 1
       binaryRepresentation = 3
-      measurement =
-        INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.copy { clearCmmsMeasurementId() }
+      measurement = INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.copy { clearCmmsMeasurementId() }
     }
     weightedMeasurements += weightedMeasurement {
       weight = -1
@@ -1765,9 +1729,7 @@ private val INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC =
       weight = 1
       binaryRepresentation = 1
       measurement =
-        INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
-          clearCmmsMeasurementId()
-        }
+        INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy { clearCmmsMeasurementId() }
     }
   }
 
@@ -1952,9 +1914,9 @@ private val PENDING_INCREMENTAL_REACH_METRIC =
   REQUESTING_INCREMENTAL_REACH_METRIC.copy {
     name =
       MetricKey(
-        MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
-        INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId,
-      )
+          MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
+          INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId,
+        )
         .toName()
     state = Metric.State.RUNNING
     metricSpec = metricSpec {
@@ -1980,12 +1942,7 @@ private const val SINGLE_DATA_PROVIDER_VARIANCE_VALUE = 5.0
 private val FREQUENCY_VARIANCE: Map<Int, Double> =
   (1..REACH_FREQUENCY_MAXIMUM_FREQUENCY).associateWith { it.toDouble().pow(2.0) }
 private val FREQUENCY_VARIANCES =
-  FrequencyVariances(
-    FREQUENCY_VARIANCE,
-    FREQUENCY_VARIANCE,
-    FREQUENCY_VARIANCE,
-    FREQUENCY_VARIANCE,
-  )
+  FrequencyVariances(FREQUENCY_VARIANCE, FREQUENCY_VARIANCE, FREQUENCY_VARIANCE, FREQUENCY_VARIANCE)
 private val SINGLE_DATA_PROVIDER_FREQUENCY_VARIANCE: Map<Int, Double> =
   (1..REACH_FREQUENCY_MAXIMUM_FREQUENCY).associateWith { it.toDouble().pow(3.0) }
 private val SINGLE_DATA_PROVIDER_FREQUENCY_VARIANCES =
@@ -2004,9 +1961,7 @@ private val SUCCEEDED_INCREMENTAL_REACH_METRIC =
       reach =
         MetricResultKt.reachResult {
           value = INCREMENTAL_REACH_VALUE
-          univariateStatistics = univariateStatistics {
-            standardDeviation = sqrt(VARIANCE_VALUE)
-          }
+          univariateStatistics = univariateStatistics { standardDeviation = sqrt(VARIANCE_VALUE) }
         }
       cmmsMeasurements += PENDING_UNION_ALL_REACH_MEASUREMENT.name
       cmmsMeasurements += PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.name
@@ -2025,9 +1980,9 @@ private val PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC =
   REQUESTING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
     name =
       MetricKey(
-        MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
-        INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.externalMetricId,
-      )
+          MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
+          INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.externalMetricId,
+        )
         .toName()
     metricSpec = metricSpec {
       reachAndFrequency = reachAndFrequencyParams {
@@ -2077,10 +2032,7 @@ private val SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC =
                       MetricResultKt.HistogramResultKt.binResult {
                         value =
                           REACH_FREQUENCY_REACH_VALUE *
-                            REACH_FREQUENCY_FREQUENCY_VALUE.getOrDefault(
-                              frequency.toLong(),
-                              0.0,
-                            )
+                            REACH_FREQUENCY_FREQUENCY_VALUE.getOrDefault(frequency.toLong(), 0.0)
                       }
                     resultUnivariateStatistics = univariateStatistics {
                       standardDeviation =
@@ -2117,9 +2069,9 @@ private val PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC =
   REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
     name =
       MetricKey(
-        MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
-        INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId,
-      )
+          MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
+          INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId,
+        )
         .toName()
     metricSpec = metricSpec {
       impressionCount = impressionCountParams {
@@ -2163,9 +2115,7 @@ private val SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC =
       impressionCount =
         MetricResultKt.impressionCountResult {
           value = IMPRESSION_VALUE
-          univariateStatistics = univariateStatistics {
-            standardDeviation = sqrt(VARIANCE_VALUE)
-          }
+          univariateStatistics = univariateStatistics { standardDeviation = sqrt(VARIANCE_VALUE) }
         }
       cmmsMeasurements += PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name
     }
@@ -2183,9 +2133,9 @@ private val PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC =
   REQUESTING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
     name =
       MetricKey(
-        MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
-        INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.externalMetricId,
-      )
+          MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
+          INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.externalMetricId,
+        )
         .toName()
     metricSpec = metricSpec {
       watchDuration = watchDurationParams {
@@ -2246,9 +2196,9 @@ val PENDING_POPULATION_METRIC =
   REQUESTING_POPULATION_METRIC.copy {
     name =
       MetricKey(
-        MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
-        INTERNAL_PENDING_POPULATION_METRIC.externalMetricId,
-      )
+          MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
+          INTERNAL_PENDING_POPULATION_METRIC.externalMetricId,
+        )
         .toName()
     state = Metric.State.RUNNING
     metricSpec = metricSpec {
