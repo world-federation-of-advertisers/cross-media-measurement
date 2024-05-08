@@ -397,12 +397,18 @@ class MetricReader(private val readContext: ReadContext) {
       val maximumWatchDurationPerUser: PostgresInterval? = row["MaximumWatchDurationPerUser"]
       val vidSamplingStart: Float = row["VidSamplingIntervalStart"]
       val vidSamplingWidth: Float = row["VidSamplingIntervalWidth"]
-      val singleDataProviderDifferentialPrivacyEpsilon: Double? = row["SingleDataProviderDifferentialPrivacyEpsilon"]
-      val singleDataProviderDifferentialPrivacyDelta: Double? = row["SingleDataProviderDifferentialPrivacyDelta"]
-      val singleDataProviderFrequencyDifferentialPrivacyEpsilon: Double? = row["SingleDataProviderFrequencyDifferentialPrivacyEpsilon"]
-      val singleDataProviderFrequencyDifferentialPrivacyDelta: Double? = row["SingleDataProviderFrequencyDifferentialPrivacyDelta"]
-      val singleDataProviderVidSamplingStart: Float? = row["SingleDataProviderVidSamplingIntervalStart"]
-      val singleDataProviderVidSamplingWidth: Float? = row["SingleDataProviderVidSamplingIntervalWidth"]
+      val singleDataProviderDifferentialPrivacyEpsilon: Double? =
+        row["SingleDataProviderDifferentialPrivacyEpsilon"]
+      val singleDataProviderDifferentialPrivacyDelta: Double? =
+        row["SingleDataProviderDifferentialPrivacyDelta"]
+      val singleDataProviderFrequencyDifferentialPrivacyEpsilon: Double? =
+        row["SingleDataProviderFrequencyDifferentialPrivacyEpsilon"]
+      val singleDataProviderFrequencyDifferentialPrivacyDelta: Double? =
+        row["SingleDataProviderFrequencyDifferentialPrivacyDelta"]
+      val singleDataProviderVidSamplingStart: Float? =
+        row["SingleDataProviderVidSamplingIntervalStart"]
+      val singleDataProviderVidSamplingWidth: Float? =
+        row["SingleDataProviderVidSamplingIntervalWidth"]
       val metricDetails: Metric.Details =
         row.getProtoMessage("MetricDetails", Metric.Details.parser())
       val createTime: Instant = row["CreateTime"]
@@ -413,24 +419,28 @@ class MetricReader(private val readContext: ReadContext) {
           endTime = metricTimeIntervalEnd.toProtoTime()
         }
 
-        val metricSpec = buildMetricSpec(
-          metricType = metricType,
-          differentialPrivacyEpsilon = differentialPrivacyEpsilon,
-          differentialPrivacyDelta = differentialPrivacyDelta,
-          frequencyDifferentialPrivacyEpsilon = frequencyDifferentialPrivacyEpsilon,
-          frequencyDifferentialPrivacyDelta = frequencyDifferentialPrivacyDelta,
-          maximumFrequency = maximumFrequency,
-          maximumFrequencyPerUser = maximumFrequencyPerUser,
-          maximumWatchDurationPerUser = maximumWatchDurationPerUser,
-          vidSamplingStart = vidSamplingStart,
-          vidSamplingWidth = vidSamplingWidth,
-          singleDataProviderDifferentialPrivacyEpsilon = singleDataProviderDifferentialPrivacyEpsilon,
-          singleDataProviderDifferentialPrivacyDelta = singleDataProviderDifferentialPrivacyDelta,
-          singleDataProviderFrequencyDifferentialPrivacyEpsilon = singleDataProviderFrequencyDifferentialPrivacyEpsilon,
-          singleDataProviderFrequencyDifferentialPrivacyDelta = singleDataProviderFrequencyDifferentialPrivacyDelta,
-          singleDataProviderVidSamplingStart = singleDataProviderVidSamplingStart,
-          singleDataProviderVidSamplingWidth = singleDataProviderVidSamplingWidth
-        )
+        val metricSpec =
+          buildMetricSpec(
+            metricType = metricType,
+            differentialPrivacyEpsilon = differentialPrivacyEpsilon,
+            differentialPrivacyDelta = differentialPrivacyDelta,
+            frequencyDifferentialPrivacyEpsilon = frequencyDifferentialPrivacyEpsilon,
+            frequencyDifferentialPrivacyDelta = frequencyDifferentialPrivacyDelta,
+            maximumFrequency = maximumFrequency,
+            maximumFrequencyPerUser = maximumFrequencyPerUser,
+            maximumWatchDurationPerUser = maximumWatchDurationPerUser,
+            vidSamplingStart = vidSamplingStart,
+            vidSamplingWidth = vidSamplingWidth,
+            singleDataProviderDifferentialPrivacyEpsilon =
+              singleDataProviderDifferentialPrivacyEpsilon,
+            singleDataProviderDifferentialPrivacyDelta = singleDataProviderDifferentialPrivacyDelta,
+            singleDataProviderFrequencyDifferentialPrivacyEpsilon =
+              singleDataProviderFrequencyDifferentialPrivacyEpsilon,
+            singleDataProviderFrequencyDifferentialPrivacyDelta =
+              singleDataProviderFrequencyDifferentialPrivacyDelta,
+            singleDataProviderVidSamplingStart = singleDataProviderVidSamplingStart,
+            singleDataProviderVidSamplingWidth = singleDataProviderVidSamplingWidth,
+          )
 
         ReportingMetric(
           reportingMetricKey =
@@ -623,12 +633,18 @@ class MetricReader(private val readContext: ReadContext) {
       val maximumWatchDurationPerUser: PostgresInterval? = row["MaximumWatchDurationPerUser"]
       val vidSamplingStart: Float = row["VidSamplingIntervalStart"]
       val vidSamplingWidth: Float = row["VidSamplingIntervalWidth"]
-      val singleDataProviderDifferentialPrivacyEpsilon: Double? = row["SingleDataProviderDifferentialPrivacyEpsilon"]
-      val singleDataProviderDifferentialPrivacyDelta: Double? = row["SingleDataProviderDifferentialPrivacyDelta"]
-      val singleDataProviderFrequencyDifferentialPrivacyEpsilon: Double? = row["SingleDataProviderFrequencyDifferentialPrivacyEpsilon"]
-      val singleDataProviderFrequencyDifferentialPrivacyDelta: Double? = row["SingleDataProviderFrequencyDifferentialPrivacyDelta"]
-      val singleDataProviderVidSamplingStart: Float? = row["SingleDataProviderVidSamplingIntervalStart"]
-      val singleDataProviderVidSamplingWidth: Float? = row["SingleDataProviderVidSamplingIntervalWidth"]
+      val singleDataProviderDifferentialPrivacyEpsilon: Double? =
+        row["SingleDataProviderDifferentialPrivacyEpsilon"]
+      val singleDataProviderDifferentialPrivacyDelta: Double? =
+        row["SingleDataProviderDifferentialPrivacyDelta"]
+      val singleDataProviderFrequencyDifferentialPrivacyEpsilon: Double? =
+        row["SingleDataProviderFrequencyDifferentialPrivacyEpsilon"]
+      val singleDataProviderFrequencyDifferentialPrivacyDelta: Double? =
+        row["SingleDataProviderFrequencyDifferentialPrivacyDelta"]
+      val singleDataProviderVidSamplingStart: Float? =
+        row["SingleDataProviderVidSamplingIntervalStart"]
+      val singleDataProviderVidSamplingWidth: Float? =
+        row["SingleDataProviderVidSamplingIntervalWidth"]
       val createTime: Instant = row["CreateTime"]
       val metricDetails: Metric.Details =
         row.getProtoMessage("MetricDetails", Metric.Details.parser())
@@ -656,24 +672,29 @@ class MetricReader(private val readContext: ReadContext) {
             endTime = metricTimeIntervalEnd.toProtoTime()
           }
 
-          val metricSpec = buildMetricSpec(
-            metricType = metricType,
-            differentialPrivacyEpsilon = differentialPrivacyEpsilon,
-            differentialPrivacyDelta = differentialPrivacyDelta,
-            frequencyDifferentialPrivacyEpsilon = frequencyDifferentialPrivacyEpsilon,
-            frequencyDifferentialPrivacyDelta = frequencyDifferentialPrivacyDelta,
-            maximumFrequency = maximumFrequency,
-            maximumFrequencyPerUser = maximumFrequencyPerUser,
-            maximumWatchDurationPerUser = maximumWatchDurationPerUser,
-            vidSamplingStart = vidSamplingStart,
-            vidSamplingWidth = vidSamplingWidth,
-            singleDataProviderDifferentialPrivacyEpsilon = singleDataProviderDifferentialPrivacyEpsilon,
-            singleDataProviderDifferentialPrivacyDelta = singleDataProviderDifferentialPrivacyDelta,
-            singleDataProviderFrequencyDifferentialPrivacyEpsilon = singleDataProviderFrequencyDifferentialPrivacyEpsilon,
-            singleDataProviderFrequencyDifferentialPrivacyDelta = singleDataProviderFrequencyDifferentialPrivacyDelta,
-            singleDataProviderVidSamplingStart = singleDataProviderVidSamplingStart,
-            singleDataProviderVidSamplingWidth = singleDataProviderVidSamplingWidth
-          )
+          val metricSpec =
+            buildMetricSpec(
+              metricType = metricType,
+              differentialPrivacyEpsilon = differentialPrivacyEpsilon,
+              differentialPrivacyDelta = differentialPrivacyDelta,
+              frequencyDifferentialPrivacyEpsilon = frequencyDifferentialPrivacyEpsilon,
+              frequencyDifferentialPrivacyDelta = frequencyDifferentialPrivacyDelta,
+              maximumFrequency = maximumFrequency,
+              maximumFrequencyPerUser = maximumFrequencyPerUser,
+              maximumWatchDurationPerUser = maximumWatchDurationPerUser,
+              vidSamplingStart = vidSamplingStart,
+              vidSamplingWidth = vidSamplingWidth,
+              singleDataProviderDifferentialPrivacyEpsilon =
+                singleDataProviderDifferentialPrivacyEpsilon,
+              singleDataProviderDifferentialPrivacyDelta =
+                singleDataProviderDifferentialPrivacyDelta,
+              singleDataProviderFrequencyDifferentialPrivacyEpsilon =
+                singleDataProviderFrequencyDifferentialPrivacyEpsilon,
+              singleDataProviderFrequencyDifferentialPrivacyDelta =
+                singleDataProviderFrequencyDifferentialPrivacyDelta,
+              singleDataProviderVidSamplingStart = singleDataProviderVidSamplingStart,
+              singleDataProviderVidSamplingWidth = singleDataProviderVidSamplingWidth,
+            )
 
           MetricInfo(
             measurementConsumerId = measurementConsumerId,
@@ -744,22 +765,22 @@ class MetricReader(private val readContext: ReadContext) {
 
   /** Builds a [MetricSpec] givens all the necessary parameters. */
   private fun buildMetricSpec(
-                              metricType: MetricSpec.TypeCase,
-                              differentialPrivacyEpsilon: Double,
-                              differentialPrivacyDelta: Double,
-                              frequencyDifferentialPrivacyEpsilon: Double?,
-                              frequencyDifferentialPrivacyDelta: Double?,
-                              maximumFrequency: Int?,
-                              maximumFrequencyPerUser: Int?,
-                              maximumWatchDurationPerUser: PostgresInterval?,
-                              vidSamplingStart: Float,
-                              vidSamplingWidth: Float,
-                              singleDataProviderDifferentialPrivacyEpsilon: Double?,
-                              singleDataProviderDifferentialPrivacyDelta: Double?,
-                              singleDataProviderFrequencyDifferentialPrivacyEpsilon: Double?,
-                              singleDataProviderFrequencyDifferentialPrivacyDelta: Double?,
-                              singleDataProviderVidSamplingStart: Float?,
-                              singleDataProviderVidSamplingWidth: Float?,
+    metricType: MetricSpec.TypeCase,
+    differentialPrivacyEpsilon: Double,
+    differentialPrivacyDelta: Double,
+    frequencyDifferentialPrivacyEpsilon: Double?,
+    frequencyDifferentialPrivacyDelta: Double?,
+    maximumFrequency: Int?,
+    maximumFrequencyPerUser: Int?,
+    maximumWatchDurationPerUser: PostgresInterval?,
+    vidSamplingStart: Float,
+    vidSamplingWidth: Float,
+    singleDataProviderDifferentialPrivacyEpsilon: Double?,
+    singleDataProviderDifferentialPrivacyDelta: Double?,
+    singleDataProviderFrequencyDifferentialPrivacyEpsilon: Double?,
+    singleDataProviderFrequencyDifferentialPrivacyDelta: Double?,
+    singleDataProviderVidSamplingStart: Float?,
+    singleDataProviderVidSamplingWidth: Float?,
   ): MetricSpec {
     val vidSamplingInterval =
       MetricSpecKt.vidSamplingInterval {
@@ -768,7 +789,9 @@ class MetricReader(private val readContext: ReadContext) {
       }
 
     val singleDataProviderVidSamplingInterval: VidSamplingInterval? =
-      if (singleDataProviderVidSamplingStart != null && singleDataProviderVidSamplingWidth != null) {
+      if (
+        singleDataProviderVidSamplingStart != null && singleDataProviderVidSamplingWidth != null
+      ) {
         MetricSpecKt.vidSamplingInterval {
           start = singleDataProviderVidSamplingStart
           width = singleDataProviderVidSamplingWidth
@@ -784,19 +807,25 @@ class MetricReader(private val readContext: ReadContext) {
             MetricSpecKt.reachParams {
               multipleDataProviderParams =
                 MetricSpecKt.params {
-                  privacyParams = MetricSpecKt.differentialPrivacyParams {
-                    epsilon = differentialPrivacyEpsilon
-                    delta = differentialPrivacyDelta
-                  }
+                  privacyParams =
+                    MetricSpecKt.differentialPrivacyParams {
+                      epsilon = differentialPrivacyEpsilon
+                      delta = differentialPrivacyDelta
+                    }
                   this.vidSamplingInterval = vidSamplingInterval
                 }
-              if (singleDataProviderVidSamplingInterval != null && singleDataProviderDifferentialPrivacyEpsilon != null && singleDataProviderDifferentialPrivacyDelta != null) {
+              if (
+                singleDataProviderVidSamplingInterval != null &&
+                  singleDataProviderDifferentialPrivacyEpsilon != null &&
+                  singleDataProviderDifferentialPrivacyDelta != null
+              ) {
                 singleDataProviderParams =
                   MetricSpecKt.params {
-                    privacyParams = MetricSpecKt.differentialPrivacyParams {
-                      epsilon = singleDataProviderDifferentialPrivacyEpsilon
-                      delta = singleDataProviderDifferentialPrivacyDelta
-                    }
+                    privacyParams =
+                      MetricSpecKt.differentialPrivacyParams {
+                        epsilon = singleDataProviderDifferentialPrivacyEpsilon
+                        delta = singleDataProviderDifferentialPrivacyDelta
+                      }
                     this.vidSamplingInterval = singleDataProviderVidSamplingInterval
                   }
               }
@@ -804,8 +833,8 @@ class MetricReader(private val readContext: ReadContext) {
         MetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
           if (
             frequencyDifferentialPrivacyDelta == null ||
-            frequencyDifferentialPrivacyEpsilon == null ||
-            maximumFrequency == null
+              frequencyDifferentialPrivacyEpsilon == null ||
+              maximumFrequency == null
           ) {
             throw IllegalStateException()
           }
@@ -814,10 +843,11 @@ class MetricReader(private val readContext: ReadContext) {
             MetricSpecKt.reachAndFrequencyParams {
               multipleDataProviderParams =
                 MetricSpecKt.params {
-                  privacyParams = MetricSpecKt.differentialPrivacyParams {
-                    epsilon = differentialPrivacyEpsilon
-                    delta = differentialPrivacyDelta
-                  }
+                  privacyParams =
+                    MetricSpecKt.differentialPrivacyParams {
+                      epsilon = differentialPrivacyEpsilon
+                      delta = differentialPrivacyDelta
+                    }
                   frequencyPrivacyParams =
                     MetricSpecKt.differentialPrivacyParams {
                       epsilon = frequencyDifferentialPrivacyEpsilon
@@ -825,21 +855,25 @@ class MetricReader(private val readContext: ReadContext) {
                     }
                   this.vidSamplingInterval = vidSamplingInterval
                 }
-              if (singleDataProviderVidSamplingInterval != null
-                && singleDataProviderDifferentialPrivacyEpsilon != null
-                && singleDataProviderDifferentialPrivacyDelta != null
-                && singleDataProviderFrequencyDifferentialPrivacyEpsilon != null
-                && singleDataProviderFrequencyDifferentialPrivacyDelta != null) {
+              if (
+                singleDataProviderVidSamplingInterval != null &&
+                  singleDataProviderDifferentialPrivacyEpsilon != null &&
+                  singleDataProviderDifferentialPrivacyDelta != null &&
+                  singleDataProviderFrequencyDifferentialPrivacyEpsilon != null &&
+                  singleDataProviderFrequencyDifferentialPrivacyDelta != null
+              ) {
                 singleDataProviderParams =
                   MetricSpecKt.params {
-                    privacyParams = MetricSpecKt.differentialPrivacyParams {
-                      epsilon = singleDataProviderDifferentialPrivacyEpsilon
-                      delta = singleDataProviderDifferentialPrivacyDelta
-                    }
-                    frequencyPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-                      epsilon = singleDataProviderFrequencyDifferentialPrivacyEpsilon
-                      delta = singleDataProviderFrequencyDifferentialPrivacyDelta
-                    }
+                    privacyParams =
+                      MetricSpecKt.differentialPrivacyParams {
+                        epsilon = singleDataProviderDifferentialPrivacyEpsilon
+                        delta = singleDataProviderDifferentialPrivacyDelta
+                      }
+                    frequencyPrivacyParams =
+                      MetricSpecKt.differentialPrivacyParams {
+                        epsilon = singleDataProviderFrequencyDifferentialPrivacyEpsilon
+                        delta = singleDataProviderFrequencyDifferentialPrivacyDelta
+                      }
                     this.vidSamplingInterval = singleDataProviderVidSamplingInterval
                   }
               }
@@ -853,26 +887,30 @@ class MetricReader(private val readContext: ReadContext) {
 
           impressionCount =
             MetricSpecKt.impressionCountParams {
-              params = MetricSpecKt.params {
-                privacyParams = MetricSpecKt.differentialPrivacyParams {
-                  epsilon = differentialPrivacyEpsilon
-                  delta = differentialPrivacyDelta
+              params =
+                MetricSpecKt.params {
+                  privacyParams =
+                    MetricSpecKt.differentialPrivacyParams {
+                      epsilon = differentialPrivacyEpsilon
+                      delta = differentialPrivacyDelta
+                    }
+                  this.vidSamplingInterval = vidSamplingInterval
                 }
-                this.vidSamplingInterval = vidSamplingInterval
-              }
               this.maximumFrequencyPerUser = maximumFrequencyPerUser
             }
         }
         MetricSpec.TypeCase.WATCH_DURATION -> {
           watchDuration =
             MetricSpecKt.watchDurationParams {
-              params = MetricSpecKt.params {
-                privacyParams = MetricSpecKt.differentialPrivacyParams {
-                  epsilon = differentialPrivacyEpsilon
-                  delta = differentialPrivacyDelta
+              params =
+                MetricSpecKt.params {
+                  privacyParams =
+                    MetricSpecKt.differentialPrivacyParams {
+                      epsilon = differentialPrivacyEpsilon
+                      delta = differentialPrivacyDelta
+                    }
+                  this.vidSamplingInterval = vidSamplingInterval
                 }
-                this.vidSamplingInterval = vidSamplingInterval
-              }
               this.maximumWatchDurationPerUser =
                 checkNotNull(maximumWatchDurationPerUser).duration.toProtoDuration()
             }

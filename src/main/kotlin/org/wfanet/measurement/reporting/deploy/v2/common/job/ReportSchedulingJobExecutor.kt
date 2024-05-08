@@ -149,7 +149,7 @@ private fun run(
       MetricsCoroutineStub(inProcessMetricsChannel),
       metricSpecConfig,
       SecureRandom().asKotlinRandom(),
-      )
+    )
 
   val inProcessReportsServerName = InProcessServerBuilder.generateName()
   val inProcessReportsServer: Server =

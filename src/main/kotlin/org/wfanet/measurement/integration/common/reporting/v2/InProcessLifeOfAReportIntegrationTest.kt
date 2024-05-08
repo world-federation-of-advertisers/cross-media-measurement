@@ -26,7 +26,9 @@ import com.google.type.interval
 import com.google.type.timeZone
 import java.io.File
 import java.nio.file.Paths
+import java.security.SecureRandom
 import java.time.LocalDate
+import kotlin.random.asKotlinRandom
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -49,8 +51,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
-import java.security.SecureRandom
-import kotlin.random.asKotlinRandom
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
@@ -1138,17 +1138,20 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       timeInterval = EVENT_RANGE.toInterval()
       metricSpec =
         metricSpec {
-          reach = MetricSpecKt.reachParams {
-            multipleDataProviderParams = MetricSpecKt.params {
-              privacyParams = DP_PARAMS
-              vidSamplingInterval = VID_SAMPLING_INTERVAL
-            }
-            singleDataProviderParams = MetricSpecKt.params {
-              privacyParams = SINGLE_DATA_PROVIDER_DP_PARAMS
-              vidSamplingInterval = SINGLE_DATA_PROVIDER_VID_SAMPLING_INTERVAL
-            }
+            reach =
+              MetricSpecKt.reachParams {
+                multipleDataProviderParams =
+                  MetricSpecKt.params {
+                    privacyParams = DP_PARAMS
+                    vidSamplingInterval = VID_SAMPLING_INTERVAL
+                  }
+                singleDataProviderParams =
+                  MetricSpecKt.params {
+                    privacyParams = SINGLE_DATA_PROVIDER_DP_PARAMS
+                    vidSamplingInterval = SINGLE_DATA_PROVIDER_VID_SAMPLING_INTERVAL
+                  }
+              }
           }
-        }
           .withDefaults(reportingServer.metricSpecConfig, secureRandom)
     }
 
@@ -1170,7 +1173,11 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       eventGroupEntries.map { (eventGroup, filter) ->
         buildEventGroupSpec(eventGroup, filter, EVENT_RANGE.toInterval())
       }
-    val sampledVids = sampleVids(eventGroupSpecs, metric.metricSpec.reach.singleDataProviderParams.vidSamplingInterval)
+    val sampledVids =
+      sampleVids(
+        eventGroupSpecs,
+        metric.metricSpec.reach.singleDataProviderParams.vidSamplingInterval,
+      )
     val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
 
     val reachResult = retrievedMetric.result.reach

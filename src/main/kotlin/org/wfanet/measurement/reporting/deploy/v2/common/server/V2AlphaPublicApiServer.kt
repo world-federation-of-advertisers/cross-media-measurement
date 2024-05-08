@@ -245,7 +245,7 @@ private fun run(
           MetricsCoroutineStub(inProcessChannel),
           metricSpecConfig,
           SecureRandom().asKotlinRandom(),
-          )
+        )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ReportSchedulesService(
           InternalReportSchedulesCoroutineStub(channel),
@@ -260,7 +260,7 @@ private fun run(
           InternalMetricCalculationSpecsCoroutineStub(channel),
           metricSpecConfig,
           SecureRandom().asKotlinRandom(),
-          )
+        )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
     )
   CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()

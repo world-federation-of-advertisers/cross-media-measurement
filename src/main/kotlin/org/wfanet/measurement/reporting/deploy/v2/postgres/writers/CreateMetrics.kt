@@ -262,22 +262,58 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
               when (it.metric.metricSpec.typeCase) {
                 MetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
                   val reachAndFrequency = it.metric.metricSpec.reachAndFrequency
-                  bindValuesParam(8, reachAndFrequency.multipleDataProviderParams.privacyParams.epsilon)
-                  bindValuesParam(9, reachAndFrequency.multipleDataProviderParams.privacyParams.delta)
-                  bindValuesParam(10, reachAndFrequency.multipleDataProviderParams.frequencyPrivacyParams.epsilon)
-                  bindValuesParam(11, reachAndFrequency.multipleDataProviderParams.frequencyPrivacyParams.delta)
+                  bindValuesParam(
+                    8,
+                    reachAndFrequency.multipleDataProviderParams.privacyParams.epsilon,
+                  )
+                  bindValuesParam(
+                    9,
+                    reachAndFrequency.multipleDataProviderParams.privacyParams.delta,
+                  )
+                  bindValuesParam(
+                    10,
+                    reachAndFrequency.multipleDataProviderParams.frequencyPrivacyParams.epsilon,
+                  )
+                  bindValuesParam(
+                    11,
+                    reachAndFrequency.multipleDataProviderParams.frequencyPrivacyParams.delta,
+                  )
                   bindValuesParam<Long>(12, null)
                   bindValuesParam<PostgresInterval>(13, null)
                   bindValuesParam(14, reachAndFrequency.maximumFrequency)
-                  bindValuesParam(15, reachAndFrequency.multipleDataProviderParams.vidSamplingInterval.start)
-                  bindValuesParam(16, reachAndFrequency.multipleDataProviderParams.vidSamplingInterval.width)
+                  bindValuesParam(
+                    15,
+                    reachAndFrequency.multipleDataProviderParams.vidSamplingInterval.start,
+                  )
+                  bindValuesParam(
+                    16,
+                    reachAndFrequency.multipleDataProviderParams.vidSamplingInterval.width,
+                  )
                   if (reachAndFrequency.hasSingleDataProviderParams()) {
-                    bindValuesParam(21, reachAndFrequency.singleDataProviderParams.privacyParams.epsilon)
-                    bindValuesParam(22, reachAndFrequency.singleDataProviderParams.privacyParams.delta)
-                    bindValuesParam(23, reachAndFrequency.singleDataProviderParams.frequencyPrivacyParams.epsilon)
-                    bindValuesParam(24, reachAndFrequency.singleDataProviderParams.frequencyPrivacyParams.delta)
-                    bindValuesParam(25, reachAndFrequency.singleDataProviderParams.vidSamplingInterval.start)
-                    bindValuesParam(26, reachAndFrequency.singleDataProviderParams.vidSamplingInterval.width)
+                    bindValuesParam(
+                      21,
+                      reachAndFrequency.singleDataProviderParams.privacyParams.epsilon,
+                    )
+                    bindValuesParam(
+                      22,
+                      reachAndFrequency.singleDataProviderParams.privacyParams.delta,
+                    )
+                    bindValuesParam(
+                      23,
+                      reachAndFrequency.singleDataProviderParams.frequencyPrivacyParams.epsilon,
+                    )
+                    bindValuesParam(
+                      24,
+                      reachAndFrequency.singleDataProviderParams.frequencyPrivacyParams.delta,
+                    )
+                    bindValuesParam(
+                      25,
+                      reachAndFrequency.singleDataProviderParams.vidSamplingInterval.start,
+                    )
+                    bindValuesParam(
+                      26,
+                      reachAndFrequency.singleDataProviderParams.vidSamplingInterval.width,
+                    )
                   } else {
                     bindValuesParam<Double>(21, null)
                     bindValuesParam<Double>(22, null)

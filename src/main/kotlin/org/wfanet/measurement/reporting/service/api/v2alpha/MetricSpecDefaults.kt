@@ -38,13 +38,16 @@ fun MetricSpec.withDefaults(metricSpecConfig: MetricSpecConfig, secureRandom: Ra
         reach = reach.withDefaults(this@withDefaults, metricSpecConfig, secureRandom)
       }
       MetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
-        reachAndFrequency = reachAndFrequency.withDefaults(this@withDefaults, metricSpecConfig, secureRandom)
+        reachAndFrequency =
+          reachAndFrequency.withDefaults(this@withDefaults, metricSpecConfig, secureRandom)
       }
       MetricSpec.TypeCase.IMPRESSION_COUNT -> {
-        impressionCount = impressionCount.withDefaults(this@withDefaults, metricSpecConfig, secureRandom)
+        impressionCount =
+          impressionCount.withDefaults(this@withDefaults, metricSpecConfig, secureRandom)
       }
       MetricSpec.TypeCase.WATCH_DURATION -> {
-        watchDuration = watchDuration.withDefaults(this@withDefaults, metricSpecConfig, secureRandom)
+        watchDuration =
+          watchDuration.withDefaults(this@withDefaults, metricSpecConfig, secureRandom)
       }
       MetricSpec.TypeCase.POPULATION_COUNT -> {
         populationCount = MetricSpec.PopulationCountParams.getDefaultInstance()
@@ -71,53 +74,72 @@ private fun MetricSpec.ReachParams.withDefaults(
   return copy {
     if (hasMultipleDataProviderParams() && hasSingleDataProviderParams()) {
       clearPrivacyParams()
-      multipleDataProviderParams = multipleDataProviderParams.copy {
-        privacyParams = privacyParams.withDefaults(
-          defaultEpsilon = metricSpecConfig.reachParams.multipleDataProviderParams.privacyParams.epsilon,
-          defaultDelta = metricSpecConfig.reachParams.multipleDataProviderParams.privacyParams.delta,
-        )
-        vidSamplingInterval =
-          if (hasVidSamplingInterval()) {
-            vidSamplingInterval
-          } else {
-            metricSpecConfig.reachParams.multipleDataProviderParams.vidSamplingInterval.toVidSamplingInterval(secureRandom)
-          }
-        vidSamplingInterval.validate()
-      }
+      multipleDataProviderParams =
+        multipleDataProviderParams.copy {
+          privacyParams =
+            privacyParams.withDefaults(
+              defaultEpsilon =
+                metricSpecConfig.reachParams.multipleDataProviderParams.privacyParams.epsilon,
+              defaultDelta =
+                metricSpecConfig.reachParams.multipleDataProviderParams.privacyParams.delta,
+            )
+          vidSamplingInterval =
+            if (hasVidSamplingInterval()) {
+              vidSamplingInterval
+            } else {
+              metricSpecConfig.reachParams.multipleDataProviderParams.vidSamplingInterval
+                .toVidSamplingInterval(secureRandom)
+            }
+          vidSamplingInterval.validate()
+        }
 
-      singleDataProviderParams = singleDataProviderParams.copy {
-        privacyParams = privacyParams.withDefaults(
-          defaultEpsilon = metricSpecConfig.reachParams.singleDataProviderParams.privacyParams.epsilon,
-          defaultDelta = metricSpecConfig.reachParams.singleDataProviderParams.privacyParams.delta,
-        )
-        vidSamplingInterval =
-          if (hasVidSamplingInterval()) {
-            vidSamplingInterval
-          } else {
-            metricSpecConfig.reachParams.singleDataProviderParams.vidSamplingInterval.toVidSamplingInterval(secureRandom)
-          }
-        vidSamplingInterval.validate()
-      }
-    } else if (hasPrivacyParams() && !hasSingleDataProviderParams() && !hasMultipleDataProviderParams()) {
+      singleDataProviderParams =
+        singleDataProviderParams.copy {
+          privacyParams =
+            privacyParams.withDefaults(
+              defaultEpsilon =
+                metricSpecConfig.reachParams.singleDataProviderParams.privacyParams.epsilon,
+              defaultDelta =
+                metricSpecConfig.reachParams.singleDataProviderParams.privacyParams.delta,
+            )
+          vidSamplingInterval =
+            if (hasVidSamplingInterval()) {
+              vidSamplingInterval
+            } else {
+              metricSpecConfig.reachParams.singleDataProviderParams.vidSamplingInterval
+                .toVidSamplingInterval(secureRandom)
+            }
+          vidSamplingInterval.validate()
+        }
+    } else if (
+      hasPrivacyParams() && !hasSingleDataProviderParams() && !hasMultipleDataProviderParams()
+    ) {
       val source = this
-      multipleDataProviderParams = multipleDataProviderParams.copy {
-        privacyParams = source.privacyParams.withDefaults(
-          defaultEpsilon = metricSpecConfig.reachParams.multipleDataProviderParams.privacyParams.epsilon,
-          defaultDelta = metricSpecConfig.reachParams.multipleDataProviderParams.privacyParams.delta,
-        )
-        vidSamplingInterval =
-          if (metricSpec.hasVidSamplingInterval()) {
-            metricSpec.vidSamplingInterval
-          } else {
-            metricSpecConfig.reachParams.multipleDataProviderParams.vidSamplingInterval.toVidSamplingInterval(secureRandom)
-          }
-        vidSamplingInterval.validate()
-      }
+      multipleDataProviderParams =
+        multipleDataProviderParams.copy {
+          privacyParams =
+            source.privacyParams.withDefaults(
+              defaultEpsilon =
+                metricSpecConfig.reachParams.multipleDataProviderParams.privacyParams.epsilon,
+              defaultDelta =
+                metricSpecConfig.reachParams.multipleDataProviderParams.privacyParams.delta,
+            )
+          vidSamplingInterval =
+            if (metricSpec.hasVidSamplingInterval()) {
+              metricSpec.vidSamplingInterval
+            } else {
+              metricSpecConfig.reachParams.multipleDataProviderParams.vidSamplingInterval
+                .toVidSamplingInterval(secureRandom)
+            }
+          vidSamplingInterval.validate()
+        }
       clearPrivacyParams()
     } else {
       throw MetricSpecDefaultsException(
         "Invalid privacy_params",
-        IllegalArgumentException("privacy_params in reach is not set, or only one of single_data_provider_params and multiple_data_provider_params set."),
+        IllegalArgumentException(
+          "privacy_params in reach is not set, or only one of single_data_provider_params and multiple_data_provider_params set."
+        ),
       )
     }
   }
@@ -130,7 +152,7 @@ private fun MetricSpec.ReachParams.withDefaults(
 private fun MetricSpec.ReachAndFrequencyParams.withDefaults(
   metricSpec: MetricSpec,
   metricSpecConfig: MetricSpecConfig,
-  secureRandom: Random
+  secureRandom: Random,
 ): MetricSpec.ReachAndFrequencyParams {
   return copy {
     if (maximumFrequency == 0) {
@@ -140,67 +162,117 @@ private fun MetricSpec.ReachAndFrequencyParams.withDefaults(
     if (hasMultipleDataProviderParams() && hasSingleDataProviderParams()) {
       clearReachPrivacyParams()
       clearFrequencyPrivacyParams()
-      multipleDataProviderParams = multipleDataProviderParams.copy {
-        privacyParams = privacyParams.withDefaults(
-          defaultEpsilon = metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams.privacyParams.epsilon,
-          defaultDelta = metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams.privacyParams.delta,
-        )
-        frequencyPrivacyParams = frequencyPrivacyParams.withDefaults(
-          defaultEpsilon = metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams.frequencyPrivacyParams.epsilon,
-          defaultDelta = metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams.frequencyPrivacyParams.delta,
-        )
-        vidSamplingInterval =
-          if (hasVidSamplingInterval()) {
-            vidSamplingInterval
-          } else {
-            metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams.vidSamplingInterval.toVidSamplingInterval(secureRandom)
-          }
-        vidSamplingInterval.validate()
-      }
+      multipleDataProviderParams =
+        multipleDataProviderParams.copy {
+          privacyParams =
+            privacyParams.withDefaults(
+              defaultEpsilon =
+                metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams.privacyParams
+                  .epsilon,
+              defaultDelta =
+                metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams.privacyParams
+                  .delta,
+            )
+          frequencyPrivacyParams =
+            frequencyPrivacyParams.withDefaults(
+              defaultEpsilon =
+                metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams
+                  .frequencyPrivacyParams
+                  .epsilon,
+              defaultDelta =
+                metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams
+                  .frequencyPrivacyParams
+                  .delta,
+            )
+          vidSamplingInterval =
+            if (hasVidSamplingInterval()) {
+              vidSamplingInterval
+            } else {
+              metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams
+                .vidSamplingInterval
+                .toVidSamplingInterval(secureRandom)
+            }
+          vidSamplingInterval.validate()
+        }
 
-      singleDataProviderParams = singleDataProviderParams.copy {
-        privacyParams = privacyParams.withDefaults(
-          defaultEpsilon = metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams.privacyParams.epsilon,
-          defaultDelta = metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams.privacyParams.delta,
-        )
-        frequencyPrivacyParams = frequencyPrivacyParams.withDefaults(
-          defaultEpsilon = metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams.frequencyPrivacyParams.epsilon,
-          defaultDelta = metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams.frequencyPrivacyParams.delta,
-        )
-        vidSamplingInterval =
-          if (hasVidSamplingInterval()) {
-            vidSamplingInterval
-          } else {
-            metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams.vidSamplingInterval.toVidSamplingInterval(secureRandom)
-          }
-        vidSamplingInterval.validate()
-      }
-    } else if (hasReachPrivacyParams() && hasFrequencyPrivacyParams() && !hasSingleDataProviderParams() && !hasMultipleDataProviderParams()) {
+      singleDataProviderParams =
+        singleDataProviderParams.copy {
+          privacyParams =
+            privacyParams.withDefaults(
+              defaultEpsilon =
+                metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams.privacyParams
+                  .epsilon,
+              defaultDelta =
+                metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams.privacyParams
+                  .delta,
+            )
+          frequencyPrivacyParams =
+            frequencyPrivacyParams.withDefaults(
+              defaultEpsilon =
+                metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams
+                  .frequencyPrivacyParams
+                  .epsilon,
+              defaultDelta =
+                metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams
+                  .frequencyPrivacyParams
+                  .delta,
+            )
+          vidSamplingInterval =
+            if (hasVidSamplingInterval()) {
+              vidSamplingInterval
+            } else {
+              metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams.vidSamplingInterval
+                .toVidSamplingInterval(secureRandom)
+            }
+          vidSamplingInterval.validate()
+        }
+    } else if (
+      hasReachPrivacyParams() &&
+        hasFrequencyPrivacyParams() &&
+        !hasSingleDataProviderParams() &&
+        !hasMultipleDataProviderParams()
+    ) {
       val source = this
-      multipleDataProviderParams = multipleDataProviderParams.copy {
-        privacyParams = source.reachPrivacyParams.withDefaults(
-          defaultEpsilon = metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams.privacyParams.epsilon,
-          defaultDelta = metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams.privacyParams.delta,
-        )
-        frequencyPrivacyParams =
-          source.frequencyPrivacyParams.withDefaults(
-            defaultEpsilon = metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams.frequencyPrivacyParams.epsilon,
-            defaultDelta = metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams.frequencyPrivacyParams.delta,
-          )
-        vidSamplingInterval =
-          if (metricSpec.hasVidSamplingInterval()) {
-            metricSpec.vidSamplingInterval
-          } else {
-            metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams.vidSamplingInterval.toVidSamplingInterval(secureRandom)
-          }
-        vidSamplingInterval.validate()
-      }
+      multipleDataProviderParams =
+        multipleDataProviderParams.copy {
+          privacyParams =
+            source.reachPrivacyParams.withDefaults(
+              defaultEpsilon =
+                metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams.privacyParams
+                  .epsilon,
+              defaultDelta =
+                metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams.privacyParams
+                  .delta,
+            )
+          frequencyPrivacyParams =
+            source.frequencyPrivacyParams.withDefaults(
+              defaultEpsilon =
+                metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams
+                  .frequencyPrivacyParams
+                  .epsilon,
+              defaultDelta =
+                metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams
+                  .frequencyPrivacyParams
+                  .delta,
+            )
+          vidSamplingInterval =
+            if (metricSpec.hasVidSamplingInterval()) {
+              metricSpec.vidSamplingInterval
+            } else {
+              metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams
+                .vidSamplingInterval
+                .toVidSamplingInterval(secureRandom)
+            }
+          vidSamplingInterval.validate()
+        }
       clearReachPrivacyParams()
       clearFrequencyPrivacyParams()
     } else {
       throw MetricSpecDefaultsException(
         "Invalid privacy_params",
-        IllegalArgumentException("reach_privacy_params or frequency_privacy_params in reach and frequency is not set, or only one of single_data_provider_params and multiple_data_provider_params set."),
+        IllegalArgumentException(
+          "reach_privacy_params or frequency_privacy_params in reach and frequency is not set, or only one of single_data_provider_params and multiple_data_provider_params set."
+        ),
       )
     }
   }
@@ -225,34 +297,42 @@ private fun MetricSpec.WatchDurationParams.withDefaults(
 
     if (hasParams()) {
       clearPrivacyParams()
-      params = params.copy {
-        privacyParams = privacyParams.withDefaults(
-          defaultEpsilon = metricSpecConfig.watchDurationParams.params.privacyParams.epsilon,
-          defaultDelta = metricSpecConfig.watchDurationParams.params.privacyParams.delta,
-        )
-        vidSamplingInterval =
-          if (hasVidSamplingInterval()) {
-            vidSamplingInterval
-          } else {
-            metricSpecConfig.watchDurationParams.params.vidSamplingInterval.toVidSamplingInterval(secureRandom)
-          }
-        vidSamplingInterval.validate()
-      }
+      params =
+        params.copy {
+          privacyParams =
+            privacyParams.withDefaults(
+              defaultEpsilon = metricSpecConfig.watchDurationParams.params.privacyParams.epsilon,
+              defaultDelta = metricSpecConfig.watchDurationParams.params.privacyParams.delta,
+            )
+          vidSamplingInterval =
+            if (hasVidSamplingInterval()) {
+              vidSamplingInterval
+            } else {
+              metricSpecConfig.watchDurationParams.params.vidSamplingInterval.toVidSamplingInterval(
+                secureRandom
+              )
+            }
+          vidSamplingInterval.validate()
+        }
     } else if (hasPrivacyParams() && !hasParams()) {
       val source = this
-      params = params.copy {
-        privacyParams = source.privacyParams.withDefaults(
-          defaultEpsilon = metricSpecConfig.watchDurationParams.params.privacyParams.epsilon,
-          defaultDelta = metricSpecConfig.watchDurationParams.params.privacyParams.delta,
-        )
-        vidSamplingInterval =
-          if (metricSpec.hasVidSamplingInterval()) {
-            metricSpec.vidSamplingInterval
-          } else {
-            metricSpecConfig.watchDurationParams.params.vidSamplingInterval.toVidSamplingInterval(secureRandom)
-          }
-        vidSamplingInterval.validate()
-      }
+      params =
+        params.copy {
+          privacyParams =
+            source.privacyParams.withDefaults(
+              defaultEpsilon = metricSpecConfig.watchDurationParams.params.privacyParams.epsilon,
+              defaultDelta = metricSpecConfig.watchDurationParams.params.privacyParams.delta,
+            )
+          vidSamplingInterval =
+            if (metricSpec.hasVidSamplingInterval()) {
+              metricSpec.vidSamplingInterval
+            } else {
+              metricSpecConfig.watchDurationParams.params.vidSamplingInterval.toVidSamplingInterval(
+                secureRandom
+              )
+            }
+          vidSamplingInterval.validate()
+        }
       clearPrivacyParams()
     } else {
       throw MetricSpecDefaultsException(
@@ -282,34 +362,40 @@ private fun MetricSpec.ImpressionCountParams.withDefaults(
 
     if (hasParams()) {
       clearPrivacyParams()
-      params = params.copy {
-        privacyParams = privacyParams.withDefaults(
-          defaultEpsilon = metricSpecConfig.impressionCountParams.params.privacyParams.epsilon,
-          defaultDelta = metricSpecConfig.impressionCountParams.params.privacyParams.delta,
-        )
-        vidSamplingInterval =
-          if (hasVidSamplingInterval()) {
-            vidSamplingInterval
-          } else {
-            metricSpecConfig.impressionCountParams.params.vidSamplingInterval.toVidSamplingInterval(secureRandom)
-          }
-        vidSamplingInterval.validate()
-      }
+      params =
+        params.copy {
+          privacyParams =
+            privacyParams.withDefaults(
+              defaultEpsilon = metricSpecConfig.impressionCountParams.params.privacyParams.epsilon,
+              defaultDelta = metricSpecConfig.impressionCountParams.params.privacyParams.delta,
+            )
+          vidSamplingInterval =
+            if (hasVidSamplingInterval()) {
+              vidSamplingInterval
+            } else {
+              metricSpecConfig.impressionCountParams.params.vidSamplingInterval
+                .toVidSamplingInterval(secureRandom)
+            }
+          vidSamplingInterval.validate()
+        }
     } else if (hasPrivacyParams() && !hasParams()) {
       val source = this
-      params = params.copy {
-        privacyParams = source.privacyParams.withDefaults(
-          defaultEpsilon = metricSpecConfig.impressionCountParams.params.privacyParams.epsilon,
-          defaultDelta = metricSpecConfig.impressionCountParams.params.privacyParams.delta,
-        )
-        vidSamplingInterval =
-          if (metricSpec.hasVidSamplingInterval()) {
-            metricSpec.vidSamplingInterval
-          } else {
-            metricSpecConfig.impressionCountParams.params.vidSamplingInterval.toVidSamplingInterval(secureRandom)
-          }
-        vidSamplingInterval.validate()
-      }
+      params =
+        params.copy {
+          privacyParams =
+            source.privacyParams.withDefaults(
+              defaultEpsilon = metricSpecConfig.impressionCountParams.params.privacyParams.epsilon,
+              defaultDelta = metricSpecConfig.impressionCountParams.params.privacyParams.delta,
+            )
+          vidSamplingInterval =
+            if (metricSpec.hasVidSamplingInterval()) {
+              metricSpec.vidSamplingInterval
+            } else {
+              metricSpecConfig.impressionCountParams.params.vidSamplingInterval
+                .toVidSamplingInterval(secureRandom)
+            }
+          vidSamplingInterval.validate()
+        }
       clearPrivacyParams()
     } else {
       throw MetricSpecDefaultsException(
@@ -335,8 +421,9 @@ private fun MetricSpec.DifferentialPrivacyParams.withDefaults(
 }
 
 /** Converts an [MetricSpecConfig.VidSamplingInterval] to an [MetricSpec.VidSamplingInterval]. */
-private fun MetricSpecConfig.VidSamplingInterval.toVidSamplingInterval(secureRandom: Random):
-  MetricSpec.VidSamplingInterval {
+private fun MetricSpecConfig.VidSamplingInterval.toVidSamplingInterval(
+  secureRandom: Random
+): MetricSpec.VidSamplingInterval {
   val source = this
   if (source.hasFixedStart()) {
     return MetricSpecKt.vidSamplingInterval {
@@ -345,7 +432,8 @@ private fun MetricSpecConfig.VidSamplingInterval.toVidSamplingInterval(secureRan
     }
   } else {
     val maxStart = NUM_BUCKETS - (source.randomStart.width * NUM_BUCKETS).toInt()
-    // The `- 1` is in case the rounding from source.randomStart.width * NUM_BUCKETS rounds down. This
+    // The `- 1` is in case the rounding from source.randomStart.width * NUM_BUCKETS rounds down.
+    // This
     // prevents the random start from being too big if rounding down does occur.
     val randomStart = secureRandom.nextInt(maxStart - 1)
     return MetricSpecKt.vidSamplingInterval {

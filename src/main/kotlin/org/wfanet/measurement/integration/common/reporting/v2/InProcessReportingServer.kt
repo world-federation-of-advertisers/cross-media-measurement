@@ -197,8 +197,11 @@ class InProcessReportingServer(
                 celEnvCacheProvider,
               )
               .withMetadataPrincipalIdentities(measurementConsumerConfigs),
-            MetricCalculationSpecsService(internalMetricCalculationSpecsClient, METRIC_SPEC_CONFIG,       SecureRandom().asKotlinRandom(),
-            )
+            MetricCalculationSpecsService(
+                internalMetricCalculationSpecsClient,
+                METRIC_SPEC_CONFIG,
+                SecureRandom().asKotlinRandom(),
+              )
               .withMetadataPrincipalIdentities(measurementConsumerConfigs),
             MetricsService(
                 METRIC_SPEC_CONFIG,
@@ -228,7 +231,7 @@ class InProcessReportingServer(
                 PublicMetricsCoroutineStub(this@GrpcTestServerRule.channel),
                 METRIC_SPEC_CONFIG,
                 SecureRandom().asKotlinRandom(),
-                )
+              )
               .withMetadataPrincipalIdentities(measurementConsumerConfigs),
           )
           .forEach { addService(it.withVerboseLogging(verboseGrpcLogging)) }
@@ -252,77 +255,89 @@ class InProcessReportingServer(
     private val METRIC_SPEC_CONFIG = metricSpecConfig {
       reachParams =
         MetricSpecConfigKt.reachParams {
-          multipleDataProviderParams = MetricSpecConfigKt.params {
-            privacyParams =
-              MetricSpecConfigKt.differentialPrivacyParams {
-                epsilon = 0.0041
-                delta = 1e-12
-              }
-            vidSamplingInterval = MetricSpecConfigKt.vidSamplingInterval {
-              fixedStart = MetricSpecConfigKt.VidSamplingIntervalKt.fixedStart {
-                start = 0.0f
-                width = 3.0f / NUMBER_VID_BUCKETS
-              }
+          multipleDataProviderParams =
+            MetricSpecConfigKt.params {
+              privacyParams =
+                MetricSpecConfigKt.differentialPrivacyParams {
+                  epsilon = 0.0041
+                  delta = 1e-12
+                }
+              vidSamplingInterval =
+                MetricSpecConfigKt.vidSamplingInterval {
+                  fixedStart =
+                    MetricSpecConfigKt.VidSamplingIntervalKt.fixedStart {
+                      start = 0.0f
+                      width = 3.0f / NUMBER_VID_BUCKETS
+                    }
+                }
             }
-          }
         }
 
       reachAndFrequencyParams =
         MetricSpecConfigKt.reachAndFrequencyParams {
-          multipleDataProviderParams = MetricSpecConfigKt.params {
-            privacyParams =
-              MetricSpecConfigKt.differentialPrivacyParams {
-                epsilon = 0.0033
-                delta = 1e-12
-              }
-            frequencyPrivacyParams =
-              MetricSpecConfigKt.differentialPrivacyParams {
-                epsilon = 0.0033
-                delta = 1e-12
-              }
-            vidSamplingInterval = MetricSpecConfigKt.vidSamplingInterval {
-              fixedStart = MetricSpecConfigKt.VidSamplingIntervalKt.fixedStart {
-                start = 48.0f / NUMBER_VID_BUCKETS
-                width = 5.0f / NUMBER_VID_BUCKETS
-              }
+          multipleDataProviderParams =
+            MetricSpecConfigKt.params {
+              privacyParams =
+                MetricSpecConfigKt.differentialPrivacyParams {
+                  epsilon = 0.0033
+                  delta = 1e-12
+                }
+              frequencyPrivacyParams =
+                MetricSpecConfigKt.differentialPrivacyParams {
+                  epsilon = 0.0033
+                  delta = 1e-12
+                }
+              vidSamplingInterval =
+                MetricSpecConfigKt.vidSamplingInterval {
+                  fixedStart =
+                    MetricSpecConfigKt.VidSamplingIntervalKt.fixedStart {
+                      start = 48.0f / NUMBER_VID_BUCKETS
+                      width = 5.0f / NUMBER_VID_BUCKETS
+                    }
+                }
             }
-          }
           maximumFrequency = 10
         }
 
       impressionCountParams =
         MetricSpecConfigKt.impressionCountParams {
-          params = MetricSpecConfigKt.params {
-            privacyParams =
-              MetricSpecConfigKt.differentialPrivacyParams {
-                epsilon = 0.0011
-                delta = 1e-12
-              }
-            vidSamplingInterval = MetricSpecConfigKt.vidSamplingInterval {
-              fixedStart = MetricSpecConfigKt.VidSamplingIntervalKt.fixedStart {
-                start = 143.0f / NUMBER_VID_BUCKETS
-                width = 62.0f / NUMBER_VID_BUCKETS
-              }
+          params =
+            MetricSpecConfigKt.params {
+              privacyParams =
+                MetricSpecConfigKt.differentialPrivacyParams {
+                  epsilon = 0.0011
+                  delta = 1e-12
+                }
+              vidSamplingInterval =
+                MetricSpecConfigKt.vidSamplingInterval {
+                  fixedStart =
+                    MetricSpecConfigKt.VidSamplingIntervalKt.fixedStart {
+                      start = 143.0f / NUMBER_VID_BUCKETS
+                      width = 62.0f / NUMBER_VID_BUCKETS
+                    }
+                }
             }
-          }
           maximumFrequencyPerUser = 60
         }
 
       watchDurationParams =
         MetricSpecConfigKt.watchDurationParams {
-          params = MetricSpecConfigKt.params {
-            privacyParams =
-              MetricSpecConfigKt.differentialPrivacyParams {
-                epsilon = 0.001
-                delta = 1e-12
-              }
-            vidSamplingInterval = MetricSpecConfigKt.vidSamplingInterval {
-              fixedStart = MetricSpecConfigKt.VidSamplingIntervalKt.fixedStart {
-                start = 205.0f / NUMBER_VID_BUCKETS
-                width = 95.0f / NUMBER_VID_BUCKETS
-              }
+          params =
+            MetricSpecConfigKt.params {
+              privacyParams =
+                MetricSpecConfigKt.differentialPrivacyParams {
+                  epsilon = 0.001
+                  delta = 1e-12
+                }
+              vidSamplingInterval =
+                MetricSpecConfigKt.vidSamplingInterval {
+                  fixedStart =
+                    MetricSpecConfigKt.VidSamplingIntervalKt.fixedStart {
+                      start = 205.0f / NUMBER_VID_BUCKETS
+                      width = 95.0f / NUMBER_VID_BUCKETS
+                    }
+                }
             }
-          }
           maximumWatchDurationPerUser = Durations.fromSeconds(4000)
         }
     }
