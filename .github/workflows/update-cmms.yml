@@ -37,6 +37,7 @@ on:
         options:
         - dev
         - qa
+        - head
       run-tests:
         description: "Run tests"
         type: boolean
