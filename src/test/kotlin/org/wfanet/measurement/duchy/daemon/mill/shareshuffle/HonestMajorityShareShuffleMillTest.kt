@@ -94,7 +94,8 @@ import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationS
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.EncryptionPublicKey
 import org.wfanet.measurement.internal.duchy.NoiseMechanism
-import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.honestMajorityShareShuffleDetails
+import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt
+import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolKt.honestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.computationDetails
 import org.wfanet.measurement.internal.duchy.computationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.computationToken
@@ -202,13 +203,16 @@ private val REQUISITION_1 =
   TEST_REQUISITION_1.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_ONE_NAME).copy {
     details =
       details.copy {
-        honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
-          registerCount = 100
-          dataProviderCertificate = "DataProviders/1/Certificates/1"
-        }
+        protocol =
+          RequisitionDetailsKt.requisitionProtocol {
+            honestMajorityShareShuffle = honestMajorityShareShuffle {
+              secretSeedCiphertext = "secret_seed_1".toByteStringUtf8()
+              registerCount = 100
+              dataProviderCertificate = "DataProviders/1/Certificates/1"
+            }
+          }
       }
     path = RequisitionBlobContext(GLOBAL_ID, externalKey.externalRequisitionId).blobKey
-    secretSeedCiphertext = "secret_seed_1".toByteStringUtf8()
   }
 private val REQUISITION_2 =
   TEST_REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED, DUCHY_TWO_NAME)
@@ -216,13 +220,16 @@ private val REQUISITION_3 =
   TEST_REQUISITION_3.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_ONE_NAME).copy {
     details =
       details.copy {
-        honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
-          registerCount = 100
-          dataProviderCertificate = "DataProviders/3/Certificates/2"
-        }
+        protocol =
+          RequisitionDetailsKt.requisitionProtocol {
+            honestMajorityShareShuffle = honestMajorityShareShuffle {
+              registerCount = 100
+              dataProviderCertificate = "DataProviders/3/Certificates/2"
+              secretSeedCiphertext = "secret_seed_3".toByteStringUtf8()
+            }
+          }
       }
     path = RequisitionBlobContext(GLOBAL_ID, externalKey.externalRequisitionId).blobKey
-    secretSeedCiphertext = "secret_seed_3".toByteStringUtf8()
   }
 private val REQUISITIONS = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3)
 
@@ -509,17 +516,21 @@ class HonestMajorityShareShuffleMillTest {
             peerRandomSeed = computationDetails.honestMajorityShareShuffle.randomSeed
             secretSeeds += secretSeed {
               requisitionId = REQUISITION_1.externalKey.externalRequisitionId
-              secretSeedCiphertext = REQUISITION_1.secretSeedCiphertext
-              registerCount = REQUISITION_1.details.honestMajorityShareShuffle.registerCount
+              secretSeedCiphertext =
+                REQUISITION_1.details.protocol.honestMajorityShareShuffle.secretSeedCiphertext
+              registerCount =
+                REQUISITION_1.details.protocol.honestMajorityShareShuffle.registerCount
               dataProviderCertificate =
-                REQUISITION_1.details.honestMajorityShareShuffle.dataProviderCertificate
+                REQUISITION_1.details.protocol.honestMajorityShareShuffle.dataProviderCertificate
             }
             secretSeeds += secretSeed {
               requisitionId = REQUISITION_3.externalKey.externalRequisitionId
-              secretSeedCiphertext = REQUISITION_3.secretSeedCiphertext
-              registerCount = REQUISITION_3.details.honestMajorityShareShuffle.registerCount
+              secretSeedCiphertext =
+                REQUISITION_3.details.protocol.honestMajorityShareShuffle.secretSeedCiphertext
+              registerCount =
+                REQUISITION_3.details.protocol.honestMajorityShareShuffle.registerCount
               dataProviderCertificate =
-                REQUISITION_3.details.honestMajorityShareShuffle.dataProviderCertificate
+                REQUISITION_3.details.protocol.honestMajorityShareShuffle.dataProviderCertificate
             }
           }
         )
@@ -534,13 +545,16 @@ class HonestMajorityShareShuffleMillTest {
         TEST_REQUISITION_1.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_TWO_NAME).copy {
           details =
             details.copy {
-              honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
-                registerCount = 100
-                dataProviderCertificate = "DataProviders/2/Certificates/2"
-              }
+              protocol =
+                RequisitionDetailsKt.requisitionProtocol {
+                  honestMajorityShareShuffle = honestMajorityShareShuffle {
+                    secretSeedCiphertext = "secret_seed_2".toByteStringUtf8()
+                    registerCount = 100
+                    dataProviderCertificate = "DataProviders/2/Certificates/2"
+                  }
+                }
             }
           path = RequisitionBlobContext(GLOBAL_ID, externalKey.externalRequisitionId).blobKey
-          secretSeedCiphertext = "secret_seed_2".toByteStringUtf8()
         }
       val unfulfilledRequisition3 =
         TEST_REQUISITION_3.toRequisitionMetadata(Requisition.State.UNFULFILLED, DUCHY_ONE_NAME)
@@ -588,10 +602,14 @@ class HonestMajorityShareShuffleMillTest {
             peerRandomSeed = computationDetails.honestMajorityShareShuffle.randomSeed
             secretSeeds += secretSeed {
               requisitionId = fulfilledRequisition2.externalKey.externalRequisitionId
-              secretSeedCiphertext = fulfilledRequisition2.secretSeedCiphertext
-              registerCount = fulfilledRequisition2.details.honestMajorityShareShuffle.registerCount
+              secretSeedCiphertext =
+                fulfilledRequisition2.details.protocol.honestMajorityShareShuffle
+                  .secretSeedCiphertext
+              registerCount =
+                fulfilledRequisition2.details.protocol.honestMajorityShareShuffle.registerCount
               dataProviderCertificate =
-                fulfilledRequisition2.details.honestMajorityShareShuffle.dataProviderCertificate
+                fulfilledRequisition2.details.protocol.honestMajorityShareShuffle
+                  .dataProviderCertificate
             }
           }
         )
@@ -658,7 +676,7 @@ class HonestMajorityShareShuffleMillTest {
     }
     whenever(mockCertificates.getCertificate(any())).thenAnswer {
       certificate {
-        name = REQUISITION_2.details.honestMajorityShareShuffle.dataProviderCertificate
+        name = REQUISITION_2.details.protocol.honestMajorityShareShuffle.dataProviderCertificate
         x509Der = DATA_PROVIDER_CERT_DER
         this.subjectKeyIdentifier = DATA_PROVIDER_SIGNING_CERT.subjectKeyIdentifier!!
       }

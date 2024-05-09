@@ -41,6 +41,8 @@ import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoro
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
+import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt
+import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolKt.honestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.externalRequisitionKey
 import org.wfanet.measurement.internal.duchy.getComputationTokenRequest
@@ -98,6 +100,32 @@ class RequisitionFulfillmentService(
         // TODO(world-federation-of-advertisers/cross-media-measurement#85): Handle the case that it
         //  is already marked fulfilled locally.
         if (requisitionMetadata.path.isBlank()) {
+          val blob =
+            requisitionStore.write(
+              RequisitionBlobContext(computationToken.globalComputationId, key.requisitionId),
+              consumed.remaining.map { it.bodyChunk.data },
+            )
+
+          if (computationToken.computationStage.hasHonestMajorityShareShuffle()) {
+            val hmss = header.honestMajorityShareShuffle
+            grpcRequire(hmss.hasSecretSeed()) { "Secret seed not specified for HMSS protocol." }
+            grpcRequire(hmss.dataProviderCertificate.isNotBlank()) {
+              "DataProviderCertificate not specified for HMSS protocol."
+            }
+
+            val secretSeedCiphertext = hmss.secretSeed.ciphertext
+
+            recordHmssRequisitionLocally(
+              token = computationToken,
+              key = externalRequisitionKey,
+              blobPath = blob.blobKey,
+              secretSeedCiphertext = secretSeedCiphertext,
+              registerCount = hmss.registerCount,
+              dataProviderCertificate = hmss.dataProviderCertificate,
+            )
+          } else {
+            recordLlv2RequisitionLocally(computationToken, externalRequisitionKey, blob.blobKey)
+          }
           val seed =
             if (computationToken.computationStage.hasHonestMajorityShareShuffle()) {
               grpcRequire(header.honestMajorityShareShuffle.hasSecretSeed()) {
@@ -113,13 +141,6 @@ class RequisitionFulfillmentService(
             } else {
               null
             }
-
-          val blob =
-            requisitionStore.write(
-              RequisitionBlobContext(computationToken.globalComputationId, key.requisitionId),
-              consumed.remaining.map { it.bodyChunk.data },
-            )
-          recordRequisitionLocally(computationToken, externalRequisitionKey, blob.blobKey, seed)
         }
 
         fulfillRequisitionAtKingdom(
@@ -194,22 +215,45 @@ class RequisitionFulfillmentService(
     return requisitionMetadata
   }
 
-  /** Sends rpc to the duchy's internal ComputationsService to record requisition */
-  private suspend fun recordRequisitionLocally(
+  /** Sends rpc to the duchy's internal ComputationsService to record Llv2 requisition */
+  private suspend fun recordLlv2RequisitionLocally(
     token: ComputationToken,
     key: ExternalRequisitionKey,
     blobPath: String,
-    secretSeedCiphertext: ByteString?,
   ) {
     computationsClient.recordRequisitionFulfillment(
       recordRequisitionFulfillmentRequest {
         this.token = token
         this.key = key
         this.blobPath = blobPath
-        if (secretSeedCiphertext != null) {
-          this.secretSeedCiphertext = secretSeedCiphertext
-        }
         publicApiVersion = Version.V2_ALPHA.string
+      }
+    )
+  }
+
+  /** Sends rpc to the duchy's internal ComputationsService to record Hmss requisition */
+  private suspend fun recordHmssRequisitionLocally(
+    token: ComputationToken,
+    key: ExternalRequisitionKey,
+    blobPath: String,
+    secretSeedCiphertext: ByteString,
+    registerCount: Long,
+    dataProviderCertificate: String,
+  ) {
+    computationsClient.recordRequisitionFulfillment(
+      recordRequisitionFulfillmentRequest {
+        this.token = token
+        this.key = key
+        this.blobPath = blobPath
+        publicApiVersion = Version.V2_ALPHA.string
+        protocolDetails =
+          RequisitionDetailsKt.requisitionProtocol {
+            honestMajorityShareShuffle = honestMajorityShareShuffle {
+              this.secretSeedCiphertext = secretSeedCiphertext
+              this.registerCount = registerCount
+              this.dataProviderCertificate = dataProviderCertificate
+            }
+          }
       }
     )
   }
