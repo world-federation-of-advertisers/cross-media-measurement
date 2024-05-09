@@ -43,6 +43,10 @@ resource "google_spanner_database_iam_member" "internal_server" {
   database = google_spanner_database.db.name
   role     = "roles/spanner.databaseUser"
   member   = module.internal_server_user.iam_service_account.member
+
+  lifecycle {
+    replace_triggered_by = [google_spanner_database.db.id]
+  }
 }
 
 resource "google_storage_bucket_iam_member" "internal_server" {

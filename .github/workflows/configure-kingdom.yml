@@ -37,6 +37,7 @@ on:
         options:
           - dev
           - qa
+          - head
       image-tag:
         description: "Tag of container images"
         type: string
