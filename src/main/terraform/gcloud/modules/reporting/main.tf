@@ -57,4 +57,8 @@ resource "postgresql_grant" "db" {
   database    = google_sql_database.db.name
   object_type = "database"
   privileges  = local.all_db_privileges
+
+  lifecycle {
+    replace_triggered_by = [google_sql_database.db.id]
+  }
 }
