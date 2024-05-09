@@ -29,45 +29,85 @@ object SyntheticGenerationSpecs {
     Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "data")
   private val TEST_DATA_RUNTIME_PATH = getRuntimePath(TEST_DATA_PATH)!!
 
-  /** Population spec for synthetic generation. */
-  val POPULATION_SPEC: SyntheticPopulationSpec by lazy {
+  /** Population spec for synthetic generation of population ~34,000,000. */
+  val SYNTHETIC_POPULATION_SPEC_LARGE: SyntheticPopulationSpec by lazy {
     loadTestData(
-      "synthetic_population_spec.textproto",
+      "synthetic_population_spec_large.textproto",
       SyntheticPopulationSpec.getDefaultInstance(),
     )
   }
 
-  /** EventGroup specs for synthetic generation based on [POPULATION_SPEC]. */
-  val SYNTHETIC_DATA_SPECS: List<SyntheticEventGroupSpec> by lazy {
+  /** EventGroup specs for synthetic generation based on [SYNTHETIC_POPULATION_SPEC_LARGE]. */
+  val SYNTHETIC_DATA_SPECS_LARGE: List<SyntheticEventGroupSpec> by lazy {
     listOf(
       loadTestData(
-        "synthetic_event_group_spec_1.textproto",
+        "synthetic_event_group_spec_large_1.textproto",
         SyntheticEventGroupSpec.getDefaultInstance(),
       ),
       loadTestData(
-        "synthetic_event_group_spec_2.textproto",
+        "synthetic_event_group_spec_large_2.textproto",
         SyntheticEventGroupSpec.getDefaultInstance(),
       ),
     )
   }
 
   /**
-   * EventGroup specs for synthetic generation based on [POPULATION_SPEC].
+   * EventGroup specs for synthetic generation based on [SYNTHETIC_POPULATION_SPEC_LARGE].
    *
    * The total reach is ~2,000,000.
    */
-  val SYNTHETIC_DATA_SPECS_2M: List<SyntheticEventGroupSpec> by lazy {
+  val SYNTHETIC_DATA_SPECS_LARGE_2M: List<SyntheticEventGroupSpec> by lazy {
     listOf(
       loadTestData(
-        "synthetic_event_group_spec_1.textproto",
+        "synthetic_event_group_spec_large_1.textproto",
         SyntheticEventGroupSpec.getDefaultInstance(),
       ),
       loadTestData(
-        "synthetic_event_group_spec_2.textproto",
+        "synthetic_event_group_spec_large_2.textproto",
         SyntheticEventGroupSpec.getDefaultInstance(),
       ),
       loadTestData(
-        "synthetic_event_group_spec_3.textproto",
+        "synthetic_event_group_spec_large_3.textproto",
+        SyntheticEventGroupSpec.getDefaultInstance(),
+      ),
+    )
+  }
+
+  /** Population spec for synthetic generation of population ~100,000. */
+  val SYNTHETIC_POPULATION_SPEC_SMALL: SyntheticPopulationSpec by lazy {
+    loadTestData(
+      "synthetic_population_spec_small.textproto",
+      SyntheticPopulationSpec.getDefaultInstance(),
+    )
+  }
+
+  /** EventGroup specs for synthetic generation based on [SYNTHETIC_POPULATION_SPEC_SMALL]. */
+  val SYNTHETIC_DATA_SPECS_SMALL: List<SyntheticEventGroupSpec> by lazy {
+    listOf(
+      loadTestData(
+        "synthetic_event_group_spec_small_1.textproto",
+        SyntheticEventGroupSpec.getDefaultInstance(),
+      ),
+      loadTestData(
+        "synthetic_event_group_spec_small_2.textproto",
+        SyntheticEventGroupSpec.getDefaultInstance(),
+      ),
+    )
+  }
+
+  /** EventGroup specs for synthetic generation based on [SYNTHETIC_POPULATION_SPEC_SMALL]. */
+  val SYNTHETIC_DATA_SPECS_SMALL_36K: List<SyntheticEventGroupSpec> by lazy {
+    listOf(
+      loadTestData(
+        "synthetic_event_group_spec_small_1.textproto",
+        SyntheticEventGroupSpec.getDefaultInstance(),
+      ),
+      loadTestData(
+        "synthetic_event_group_spec_small_2.textproto",
+        SyntheticEventGroupSpec.getDefaultInstance(),
+      ),
+      loadTestData(
+        "synthetic_event_group_spec_small_3.textproto",
         SyntheticEventGroupSpec.getDefaultInstance(),
       ),
     )

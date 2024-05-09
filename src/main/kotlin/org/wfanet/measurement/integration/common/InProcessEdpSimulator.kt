@@ -41,6 +41,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.Measurement
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -61,6 +62,7 @@ class InProcessEdpSimulator(
   kingdomPublicApiChannel: Channel,
   duchyPublicApiChannelMap: Map<String, Channel>,
   trustedCertificates: Map<ByteString, X509Certificate>,
+  private val syntheticPopulationSpec: SyntheticPopulationSpec,
   private val syntheticDataSpec: SyntheticEventGroupSpec,
   coroutineContext: CoroutineContext = Dispatchers.Default,
 ) {
@@ -100,7 +102,7 @@ class InProcessEdpSimulator(
       eventQuery =
         object :
           SyntheticGeneratorEventQuery(
-            SyntheticGenerationSpecs.POPULATION_SPEC,
+            SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE,
             TestEvent.getDescriptor(),
           ) {
           override fun getSyntheticDataSpec(eventGroup: EventGroup) = syntheticDataSpec

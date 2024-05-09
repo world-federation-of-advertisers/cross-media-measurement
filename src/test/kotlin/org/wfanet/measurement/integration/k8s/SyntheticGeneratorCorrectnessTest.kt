@@ -44,8 +44,8 @@ import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGene
 
 /**
  * Test for correctness of an existing CMMS on Kubernetes where the EDP simulators use
- * [SyntheticGeneratorEventQuery] with [SyntheticGenerationSpecs.POPULATION_SPEC]. The computation
- * composition is using ACDP by assumption.
+ * [SyntheticGeneratorEventQuery] with [SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE].
+ * The computation composition is using ACDP by assumption.
  *
  * This currently assumes that the CMMS instance is using the certificates and keys from this Bazel
  * workspace.
@@ -93,7 +93,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
 
       val eventQuery: SyntheticGeneratorEventQuery =
         MetadataSyntheticGeneratorEventQuery(
-          SyntheticGenerationSpecs.POPULATION_SPEC,
+          SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE,
           MC_ENCRYPTION_PRIVATE_KEY,
         )
       return MeasurementConsumerSimulator(

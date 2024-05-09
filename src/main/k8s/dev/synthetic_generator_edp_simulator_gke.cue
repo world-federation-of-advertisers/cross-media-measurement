@@ -24,11 +24,11 @@ _resourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	}
 }
 
-_populationSpec: "/etc/\(#AppName)/config-files/synthetic_population_spec.textproto"
+_populationSpec: "/etc/\(#AppName)/config-files/synthetic_population_spec_small.textproto"
 _eventGroupSpecs: [
-	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_1.textproto",
-	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_2.textproto",
-	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_3.textproto",
+	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_small_1.textproto",
+	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_small_2.textproto",
+	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_small_3.textproto",
 ]
 
 edp_simulators: {

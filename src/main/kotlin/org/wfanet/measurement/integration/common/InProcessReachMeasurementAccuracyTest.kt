@@ -71,6 +71,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
     InProcessCmmsComponents(
       kingdomDataServicesRule,
       duchyDependenciesRule,
+      SYNTHETIC_POPULATION_SPEC,
       SYNTHETIC_EVENT_GROUP_SPECS,
     )
 
@@ -107,7 +108,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventQuery =
       MetadataSyntheticGeneratorEventQuery(
-        SyntheticGenerationSpecs.POPULATION_SPEC,
+        SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE,
         InProcessCmmsComponents.MC_ENCRYPTION_PRIVATE_KEY,
       )
     mcSimulator =
@@ -255,7 +256,8 @@ abstract class InProcessReachMeasurementAccuracyTest(
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
-    private val SYNTHETIC_EVENT_GROUP_SPECS = SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_2M
+    private val SYNTHETIC_POPULATION_SPEC = SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE
+    private val SYNTHETIC_EVENT_GROUP_SPECS = SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_LARGE_2M
 
     private const val DEFAULT_TEST_ROUND_NUMBER = 30
     // Multiplier for 95% confidence interval
