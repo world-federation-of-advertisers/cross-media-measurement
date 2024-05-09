@@ -78,10 +78,11 @@ object HonestMajorityShareShuffleStarter {
           parameters = systemComputation.toHonestMajorityShareShuffleParameters()
           nonAggregators += getNonAggregators(protocolSetupConfig)
           if (role != RoleInComputation.AGGREGATOR) {
+            requireNotNull(privateKeyStore) { "privateKeyStore cannot be null" }
+
             randomSeed = generateRandomSeed()
 
             val privateKeyHandle = TinkPrivateKeyHandle.generateHpke()
-            requireNotNull(privateKeyStore) { "privateKeyStore cannot be null" }
             val privateKeyId = storePrivateKey(privateKeyStore, privateKeyHandle)
             encryptionKeyPair = encryptionKeyPair {
               this.privateKeyId = privateKeyId
