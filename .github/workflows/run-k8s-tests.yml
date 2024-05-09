@@ -29,6 +29,7 @@ on:
         options:
         - dev
         - qa
+        - head
 
 permissions:
   id-token: write
