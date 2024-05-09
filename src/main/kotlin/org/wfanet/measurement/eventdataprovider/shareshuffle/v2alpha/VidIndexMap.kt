@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.eventdataprovider.shareshuffle
+package org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha
 
 import com.google.common.hash.Hashing
 import com.google.protobuf.ByteString
@@ -53,7 +53,7 @@ interface VidIndexMap {
  */
 class InMemoryVidIndexMap(
   override val populationSpec: PopulationSpec,
-  private val hashFunction: (Long, ByteString) -> Long = ::hashVidToLongWithFarmHash,
+  private val hashFunction: (Long, ByteString) -> Long = Companion::hashVidToLongWithFarmHash,
 ) : VidIndexMap {
   // TODO(@kungfucraig): Provide a constructor that reads the vid->index map from a file.
 
