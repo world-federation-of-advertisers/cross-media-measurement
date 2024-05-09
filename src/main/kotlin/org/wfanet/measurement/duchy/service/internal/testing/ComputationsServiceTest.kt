@@ -47,6 +47,8 @@ import org.wfanet.measurement.internal.duchy.CreateComputationResponse
 import org.wfanet.measurement.internal.duchy.EnqueueComputationResponse
 import org.wfanet.measurement.internal.duchy.GetComputationIdsResponse
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
+import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt
+import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolKt.honestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.advanceComputationStageRequest
 import org.wfanet.measurement.internal.duchy.claimWorkRequest
 import org.wfanet.measurement.internal.duchy.computationDetails
@@ -1029,12 +1031,21 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
 
     val blobPath = "/path/to/requisition/blob"
     val secretSeed = "encrypted seed".toByteStringUtf8()
+    val registerCount = 100L
+    val dataProviderCertificate = "dataProviders/1/certificates/2"
     val recordRequisitionFulfillmentRequest = recordRequisitionFulfillmentRequest {
       token = createComputationResponse.token
       key = DEFAULT_REQUISITION_ENTRY.key
       this.blobPath = blobPath
-      this.secretSeedCiphertext = secretSeed
       publicApiVersion = Version.V2_ALPHA.string
+      protocolDetails =
+        RequisitionDetailsKt.requisitionProtocol {
+          honestMajorityShareShuffle = honestMajorityShareShuffle {
+            this.secretSeedCiphertext = secretSeed
+            this.registerCount = registerCount
+            this.dataProviderCertificate = dataProviderCertificate
+          }
+        }
     }
     val recordRequisitionBlobResponse =
       service.recordRequisitionFulfillment(recordRequisitionFulfillmentRequest)
@@ -1044,8 +1055,18 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
         requisitions[0] =
           requisitions[0].copy {
             path = blobPath
-            this.secretSeedCiphertext = secretSeed
-            details = details.copy { publicApiVersion = Version.V2_ALPHA.string }
+            details =
+              details.copy {
+                publicApiVersion = Version.V2_ALPHA.string
+                protocol =
+                  RequisitionDetailsKt.requisitionProtocol {
+                    honestMajorityShareShuffle = honestMajorityShareShuffle {
+                      this.secretSeedCiphertext = secretSeed
+                      this.registerCount = registerCount
+                      this.dataProviderCertificate = dataProviderCertificate
+                    }
+                  }
+              }
           }
       }
     assertThat(recordRequisitionBlobResponse.token)
