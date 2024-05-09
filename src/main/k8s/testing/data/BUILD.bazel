@@ -7,3 +7,8 @@ filegroup(
     name = "synthetic_generation_specs",
     srcs = ["synthetic_population_spec.textproto"] + glob(["synthetic_event_group_spec*.textproto"]),
 )
+
+filegroup(
+    name = "service_config",
+    srcs = ["default_service_config.textproto"],
+)

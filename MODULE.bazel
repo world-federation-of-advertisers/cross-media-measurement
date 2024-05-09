@@ -126,7 +126,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.82.1",
+    version = "0.82.2",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -151,7 +151,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "any-sketch-java",
-    version = "0.5.0",
+    version = "0.6.0",
     repo_name = "any_sketch_java",
 )
 bazel_dep(
