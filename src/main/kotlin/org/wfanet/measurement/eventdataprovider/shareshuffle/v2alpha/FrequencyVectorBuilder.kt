@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// TODO(@kungfucraig): Move this and other files in this directory into a v2alpha subpackage
 package org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha
 
 import org.wfanet.frequencycount.FrequencyVector
