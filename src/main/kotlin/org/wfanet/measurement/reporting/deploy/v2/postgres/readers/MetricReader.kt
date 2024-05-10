@@ -218,6 +218,7 @@ class MetricReader(private val readContext: ReadContext) {
     }
   }
 
+  /** Read all Metrics that are associated with any Measurement with an ID in the given IDs list. */
   fun readMetricsByCmmsMeasurementId(
     measurementConsumerId: InternalId,
     cmmsMeasurementIds: Collection<String>,
@@ -235,7 +236,16 @@ class MetricReader(private val readContext: ReadContext) {
             JOIN Metrics USING(MeasurementConsumerId)
             $baseSqlJoins
           WHERE Metrics.MeasurementConsumerId = $1
-            AND CmmsMeasurementId IN (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
+            AND Metrics.MetricId IN (
+              SELECT Metrics.MetricId
+              FROM
+                MeasurementConsumers
+                JOIN Metrics USING(MeasurementConsumerId)
+                JOIN MetricMeasurements USING(MeasurementConsumerId, MetricId)
+                JOIN Measurements USING(MeasurementConsumerId, MeasurementId)
+              WHERE Metrics.MeasurementConsumerId = $1
+                AND CmmsMeasurementId IN (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
+            )
         """
           .trimIndent()
       )

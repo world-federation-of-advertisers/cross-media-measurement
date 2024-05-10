@@ -97,6 +97,8 @@ private val NONCE_HASH =
 private val REQUISITION_FINGERPRINT = "A fingerprint".toByteStringUtf8()
 private val TEST_REQUISITION_DATA = "some data".toByteStringUtf8()
 private val TEST_REQUISITION_SEED = buildSecretSeed("secret seed")
+private val REGISTER_COUNT = 100L
+private val DATA_PROVIDER_CERTIFICATE = "dataProviders/123/certificates/2"
 private val HEADER = header {
   name = CanonicalRequisitionKey(DATA_PROVIDER_API_ID, REQUISITION_API_ID).toName()
   requisitionFingerprint = REQUISITION_FINGERPRINT
@@ -106,7 +108,11 @@ private val HMSS_HEADER = header {
   name = CanonicalRequisitionKey(DATA_PROVIDER_API_ID, REQUISITION_API_ID).toName()
   requisitionFingerprint = REQUISITION_FINGERPRINT
   nonce = NONCE
-  honestMajorityShareShuffle = honestMajorityShareShuffle { secretSeed = TEST_REQUISITION_SEED }
+  honestMajorityShareShuffle = honestMajorityShareShuffle {
+    secretSeed = TEST_REQUISITION_SEED
+    registerCount = REGISTER_COUNT
+    dataProviderCertificate = DATA_PROVIDER_CERTIFICATE
+  }
 }
 private val FULFILLED_RESPONSE = fulfillRequisitionResponse { state = Requisition.State.FULFILLED }
 private val SYSTEM_REQUISITION_KEY = SystemRequisitionKey(COMPUTATION_ID, REQUISITION_API_ID)
@@ -257,8 +263,16 @@ class RequisitionFulfillmentServiceTest {
           token = fakeToken
           key = REQUISITION_KEY
           blobPath = blob.blobKey
-          secretSeedCiphertext = TEST_REQUISITION_SEED.ciphertext
           publicApiVersion = Version.V2_ALPHA.string
+          protocolDetails =
+            RequisitionDetailsKt.requisitionProtocol {
+              honestMajorityShareShuffle =
+                RequisitionDetailsKt.RequisitionProtocolKt.honestMajorityShareShuffle {
+                  secretSeedCiphertext = TEST_REQUISITION_SEED.ciphertext
+                  registerCount = REGISTER_COUNT
+                  dataProviderCertificate = DATA_PROVIDER_CERTIFICATE
+                }
+            }
         }
       )
     verifyProtoArgument(requisitionsServiceMock, RequisitionsCoroutineImplBase::fulfillRequisition)
