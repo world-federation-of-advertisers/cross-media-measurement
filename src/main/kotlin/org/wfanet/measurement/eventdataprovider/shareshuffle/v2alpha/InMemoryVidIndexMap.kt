@@ -2,10 +2,10 @@ package org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha
 
 import com.google.common.hash.Hashing
 import com.google.protobuf.ByteString
+import java.nio.ByteOrder
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator
 import org.wfanet.measurement.common.toByteString
-import java.nio.ByteOrder
 
 /**
  * An implementation of [VidIndexMap] that holds the Map in memory.
@@ -21,8 +21,8 @@ import java.nio.ByteOrder
  * @throws [PopulationSpecValidationException] if the [populationSpec] is invalid
  */
 class InMemoryVidIndexMap(
-    override val populationSpec: PopulationSpec,
-    private val hashFunction: (Long, ByteString) -> Long = Companion::hashVidToLongWithFarmHash,
+  override val populationSpec: PopulationSpec,
+  private val hashFunction: (Long, ByteString) -> Long = Companion::hashVidToLongWithFarmHash,
 ) : VidIndexMap {
   // TODO(@kungfucraig): Provide a constructor that reads the vid->index map from a file.
 

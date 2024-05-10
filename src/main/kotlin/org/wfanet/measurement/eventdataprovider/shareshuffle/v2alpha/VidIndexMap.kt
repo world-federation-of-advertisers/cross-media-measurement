@@ -29,4 +29,3 @@ interface VidIndexMap {
   /** The PopulationSpec used to create this map */
   val populationSpec: PopulationSpec
 }
-
