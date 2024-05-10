@@ -48,8 +48,10 @@ message MetricSpec {
     SamplingAndPrivacyParams single_data_provider_params = 3;
   }
   message ReachAndFrequencyParams {
-    SamplingAndPrivacyParamsForReachAndFrequency multiple_data_provider_params = 4;
-    SamplingAndPrivacyParamsForReachAndFrequency single_data_provider_params = 5;
+    SamplingAndPrivacyParamsForReachAndFrequency
+      multiple_data_provider_params = 4;
+    SamplingAndPrivacyParamsForReachAndFrequency
+      single_data_provider_params = 5;
     int32 maximum_frequency = 3;
   }
   message ImpressionCountParams {

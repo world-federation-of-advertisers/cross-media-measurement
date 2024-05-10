@@ -388,7 +388,8 @@ fun InternalMetricSpec.toMetricSpec(): MetricSpec {
                 }
             } else {
               reachPrivacyParams =
-                source.reachAndFrequency.multipleDataProviderParams.reachPrivacyParams.toPrivacyParams()
+                source.reachAndFrequency.multipleDataProviderParams.reachPrivacyParams
+                  .toPrivacyParams()
               frequencyPrivacyParams =
                 source.reachAndFrequency.multipleDataProviderParams.frequencyPrivacyParams
                   .toPrivacyParams()
@@ -492,7 +493,8 @@ fun InternalMetricSpec.ReachAndFrequencyParams.toReachAndFrequency(
   return if (isSingleDataProvider && source.hasSingleDataProviderParams()) {
     Pair(
       MeasurementSpecKt.reachAndFrequency {
-        reachPrivacyParams = source.singleDataProviderParams.reachPrivacyParams.toCmmsPrivacyParams()
+        reachPrivacyParams =
+          source.singleDataProviderParams.reachPrivacyParams.toCmmsPrivacyParams()
         frequencyPrivacyParams =
           source.singleDataProviderParams.frequencyPrivacyParams.toCmmsPrivacyParams()
         maximumFrequency = source.maximumFrequency
@@ -502,7 +504,8 @@ fun InternalMetricSpec.ReachAndFrequencyParams.toReachAndFrequency(
   } else {
     Pair(
       MeasurementSpecKt.reachAndFrequency {
-        reachPrivacyParams = source.multipleDataProviderParams.reachPrivacyParams.toCmmsPrivacyParams()
+        reachPrivacyParams =
+          source.multipleDataProviderParams.reachPrivacyParams.toCmmsPrivacyParams()
         frequencyPrivacyParams =
           source.multipleDataProviderParams.frequencyPrivacyParams.toCmmsPrivacyParams()
         maximumFrequency = source.maximumFrequency

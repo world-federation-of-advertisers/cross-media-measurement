@@ -2288,7 +2288,8 @@ private fun calculateFrequencyHistogramResults(
           weightedMeasurement = weightedMeasurement,
           vidSamplingInterval =
             reachAndFrequencyParams.multipleDataProviderParams.vidSamplingInterval,
-          reachPrivacyParams = reachAndFrequencyParams.multipleDataProviderParams.reachPrivacyParams,
+          reachPrivacyParams =
+            reachAndFrequencyParams.multipleDataProviderParams.reachPrivacyParams,
           frequencyPrivacyParams =
             reachAndFrequencyParams.multipleDataProviderParams.frequencyPrivacyParams,
           maximumFrequency = reachAndFrequencyParams.maximumFrequency,

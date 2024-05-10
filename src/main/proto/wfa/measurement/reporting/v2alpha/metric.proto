@@ -88,10 +88,12 @@ message MetricSpec {
     // Parameters for multiple DataProviders. Will be required in a future
     // release. If set, `single_data_provider_params` needs to be set. Takes
     // precedence over `reach_privacy_params` and `frequency_privacy_params`.
-    SamplingAndPrivacyParamsForReachAndFrequency multiple_data_provider_params = 4;
+    SamplingAndPrivacyParamsForReachAndFrequency
+      multiple_data_provider_params = 4;
     // Parameters for a single DataProvider. Will be required in a future
     // release. If set, `multiple_data_provider_params` needs to be set.
-    SamplingAndPrivacyParamsForReachAndFrequency single_data_provider_params = 5;
+    SamplingAndPrivacyParamsForReachAndFrequency
+      single_data_provider_params = 5;
 
     // Maximum frequency cut-off value in frequency histogram.
     //
