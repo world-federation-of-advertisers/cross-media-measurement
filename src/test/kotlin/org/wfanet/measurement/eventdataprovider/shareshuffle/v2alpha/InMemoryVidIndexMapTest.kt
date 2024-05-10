@@ -11,7 +11,8 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package org.wfanet.measurement.eventdataprovider.shareshuffle
+
+package org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
@@ -29,7 +30,7 @@ import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.toLong
 
 @RunWith(JUnit4::class)
-class VidIndexMapTest {
+class InMemoryVidIndexMapTest {
   @Test
   fun `construction throws when PopulationSpec has a VidRange with start greater than end`() {
     // The intent isn't to test the validator here, but to just ensure that any validation
