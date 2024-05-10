@@ -4367,21 +4367,15 @@ class ReportsServiceTest {
     private val START_TIME = START_INSTANT.toProtoTime()
     private val END_TIME = END_INSTANT.toProtoTime()
 
-    private val SECRET_FILES_PATH: Path = run {
-      val runfiles =
-        Runfiles.preload(
-            buildMap {
-              put("RUNFILES_DIR", "src/main/k8s/testing/")
-              put("metric_spec_config.textproto", "metric_spec_config.textproto")
-            }
-          )
-          .unmapped()
-      checkNotNull(runfiles.getRuntimePath(Paths.get("secretfiles")))
-    }
+    private val SECRETS_DIR =
+      getRuntimePath(
+        Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+      )!!
+        .toFile()
 
     private val METRIC_SPEC_CONFIG: MetricSpecConfig =
       parseTextProto(
-        SECRET_FILES_PATH.resolve("metric_spec_config.textproto").toFile(),
+        SECRETS_DIR.resolve("metric_spec_config.textproto"),
         MetricSpecConfig.getDefaultInstance(),
       )
 
@@ -4483,7 +4477,7 @@ class ReportsServiceTest {
       reachAndFrequency =
         MetricSpecKt.reachAndFrequencyParams {
           multipleDataProviderParams =
-            MetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+            MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
               reachPrivacyParams =
                 MetricSpecKt.differentialPrivacyParams {
                   epsilon =
@@ -4521,7 +4515,7 @@ class ReportsServiceTest {
                 }
             }
           singleDataProviderParams =
-            MetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+            MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
               reachPrivacyParams =
                 MetricSpecKt.differentialPrivacyParams {
                   epsilon =
@@ -4565,7 +4559,7 @@ class ReportsServiceTest {
       reachAndFrequency =
         InternalMetricSpecKt.reachAndFrequencyParams {
           multipleDataProviderParams =
-            InternalMetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+            InternalMetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
               reachPrivacyParams =
                 InternalMetricSpecKt.differentialPrivacyParams {
                   epsilon =
@@ -4603,7 +4597,7 @@ class ReportsServiceTest {
                 }
             }
           singleDataProviderParams =
-            InternalMetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+            InternalMetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
               reachPrivacyParams =
                 InternalMetricSpecKt.differentialPrivacyParams {
                   epsilon =

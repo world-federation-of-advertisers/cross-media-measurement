@@ -56,7 +56,7 @@ message MetricSpec {
     VidSamplingInterval vid_sampling_interval = 2;
   }
 
-  message SamplingAndPrivacyParamsForReachAndFrequency {
+  message ReachAndFrequencySamplingAndPrivacyParams {
     DifferentialPrivacyParams reach_privacy_params = 1;
     DifferentialPrivacyParams frequency_privacy_params = 2;
     VidSamplingInterval vid_sampling_interval = 3;
@@ -88,11 +88,11 @@ message MetricSpec {
     // Parameters for multiple DataProviders. Will be required in a future
     // release. If set, `single_data_provider_params` needs to be set. Takes
     // precedence over `reach_privacy_params` and `frequency_privacy_params`.
-    SamplingAndPrivacyParamsForReachAndFrequency multiple_data_provider_params =
+    ReachAndFrequencySamplingAndPrivacyParams multiple_data_provider_params =
         4;
     // Parameters for a single DataProvider. Will be required in a future
     // release. If set, `multiple_data_provider_params` needs to be set.
-    SamplingAndPrivacyParamsForReachAndFrequency single_data_provider_params =
+    ReachAndFrequencySamplingAndPrivacyParams single_data_provider_params =
         5;
 
     // Maximum frequency cut-off value in frequency histogram.

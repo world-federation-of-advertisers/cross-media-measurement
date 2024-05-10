@@ -36,23 +36,6 @@
 --           ├── ReportTimeIntervals
 --           └── MetricCalculationSpecReportingMetrics
 
-
-  DifferentialPrivacyEpsilon DOUBLE PRECISION NOT NULL,
-  DifferentialPrivacyDelta DOUBLE PRECISION NOT NULL,
-
-  -- Frequency has a second set of differential privacy params.
-  FrequencyDifferentialPrivacyEpsilon DOUBLE PRECISION,
-  FrequencyDifferentialPrivacyDelta DOUBLE PRECISION,
-
-  -- Must not be NULL if MetricType is REACH_AND_FREQUENCY
-  MaximumFrequency bigint,
-  -- Must not be NULL if MetricType is IMPRESSION_COUNT
-  MaximumFrequencyPerUser bigint,
-  -- Must not be NULL if MetricType is WATCH_DURATION
-  MaximumWatchDurationPerUser interval,
-
-  VidSamplingIntervalStart DOUBLE PRECISION NOT NULL,
-  VidSamplingIntervalWidth DOUBLE PRECISION NOT NULL,
 -- changeset tristanvuong2021:add-spec-columns-metrics-table dbms:postgresql
 ALTER TABLE Metrics
   ADD COLUMN SingleDataProviderDifferentialPrivacyEpsilon DOUBLE PRECISION,

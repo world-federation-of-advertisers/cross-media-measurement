@@ -282,31 +282,6 @@ private const val DIFFERENTIAL_PRIVACY_DELTA = 1e-12
 private const val RANDOM_OUTPUT_INT = 0
 private const val RANDOM_OUTPUT_LONG = 0L
 
-private val SECRETS_DIR: File = run {
-  val runfiles =
-    Runfiles.preload(
-        buildMap {
-          put("RUNFILES_DIR", "src/main/k8s/testing/")
-          put("metric_spec_config.textproto", "metric_spec_config.textproto")
-          put("aggregator_cs_cert.der", "aggregator_cs_cert.der")
-          put("aggregator_cs_private.der", "aggregator_cs_private.der")
-          put("aggregator_root.pem", "aggregator_root.pem")
-          put("mc_root.pem", "mc_root.pem")
-          put("mc_cs_cert.der", "mc_cs_cert.der")
-          put("mc_cs_private.der", "mc_cs_private.der")
-          put("mc_enc_private.tink", "mc_enc_private.tink")
-          put("mc_enc_public.tink", "mc_enc_public.tink")
-          put("edp1_enc_public.tink", "edp1_enc_public.tink")
-          put("edp1_enc_private.tink", "edp1_enc_private.tink")
-          put("edp1_cs_cert.der", "edp1_cs_cert.der")
-          put("edp1_cs_private.der", "edp1_cs_private.der")
-          put("edp1_root.pem", "edp1_root.pem")
-        }
-      )
-      .unmapped()
-  checkNotNull(runfiles.getRuntimePath(Paths.get("secretfiles"))).toFile()
-}
-
 private val METRIC_SPEC_CONFIG = metricSpecConfig {
   reachParams =
     MetricSpecConfigKt.reachParams {
@@ -348,7 +323,7 @@ private val METRIC_SPEC_CONFIG = metricSpecConfig {
   reachAndFrequencyParams =
     MetricSpecConfigKt.reachAndFrequencyParams {
       multipleDataProviderParams =
-        MetricSpecConfigKt.samplingAndPrivacyParamsForReachAndFrequency {
+        MetricSpecConfigKt.reachAndFrequencySamplingAndPrivacyParams {
           reachPrivacyParams =
             MetricSpecConfigKt.differentialPrivacyParams {
               epsilon = REACH_FREQUENCY_REACH_EPSILON
@@ -370,7 +345,7 @@ private val METRIC_SPEC_CONFIG = metricSpecConfig {
         }
 
       singleDataProviderParams =
-        MetricSpecConfigKt.samplingAndPrivacyParamsForReachAndFrequency {
+        MetricSpecConfigKt.reachAndFrequencySamplingAndPrivacyParams {
           reachPrivacyParams =
             MetricSpecConfigKt.differentialPrivacyParams {
               epsilon = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_REACH_EPSILON
@@ -437,6 +412,12 @@ private val METRIC_SPEC_CONFIG = metricSpecConfig {
 
   populationCountParams = MetricSpecConfig.PopulationCountParams.getDefaultInstance()
 }
+
+private val SECRETS_DIR =
+  getRuntimePath(
+      Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+    )!!
+    .toFile()
 
 // Authentication key
 private const val API_AUTHENTICATION_KEY = "nR5QPN7ptx"
@@ -1612,7 +1593,7 @@ private val INTERNAL_REQUESTING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC = intern
     reachAndFrequency =
       InternalMetricSpecKt.reachAndFrequencyParams {
         multipleDataProviderParams =
-          InternalMetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+          InternalMetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
             reachPrivacyParams =
               InternalMetricSpecKt.differentialPrivacyParams {
                 epsilon = REACH_FREQUENCY_REACH_EPSILON
@@ -3155,7 +3136,7 @@ class MetricsServiceTest {
         reachAndFrequency =
           InternalMetricSpecKt.reachAndFrequencyParams {
             multipleDataProviderParams =
-              InternalMetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+              InternalMetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
                 reachPrivacyParams =
                   InternalMetricSpecKt.differentialPrivacyParams {
                     epsilon = REACH_FREQUENCY_REACH_EPSILON
@@ -3173,7 +3154,7 @@ class MetricsServiceTest {
                   }
               }
             singleDataProviderParams =
-              InternalMetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+              InternalMetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
                 reachPrivacyParams =
                   InternalMetricSpecKt.differentialPrivacyParams {
                     epsilon = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_REACH_EPSILON
@@ -3221,7 +3202,7 @@ class MetricsServiceTest {
       metricSpec = metricSpec {
         reachAndFrequency = reachAndFrequencyParams {
           multipleDataProviderParams =
-            MetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+            MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
               reachPrivacyParams =
                 MetricSpecKt.differentialPrivacyParams {
                   epsilon = REACH_FREQUENCY_REACH_EPSILON
@@ -3239,7 +3220,7 @@ class MetricsServiceTest {
                 }
             }
           singleDataProviderParams =
-            MetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+            MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
               reachPrivacyParams =
                 MetricSpecKt.differentialPrivacyParams {
                   epsilon = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_REACH_EPSILON
@@ -7643,7 +7624,7 @@ class MetricsServiceTest {
           reachAndFrequency =
             InternalMetricSpecKt.reachAndFrequencyParams {
               multipleDataProviderParams =
-                InternalMetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+                InternalMetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
                   reachPrivacyParams =
                     InternalMetricSpecKt.differentialPrivacyParams {
                       epsilon = REACH_FREQUENCY_REACH_EPSILON
@@ -7661,7 +7642,7 @@ class MetricsServiceTest {
                     }
                 }
               singleDataProviderParams =
-                InternalMetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+                InternalMetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
                   reachPrivacyParams =
                     InternalMetricSpecKt.differentialPrivacyParams {
                       epsilon = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_REACH_EPSILON
@@ -7753,7 +7734,7 @@ class MetricsServiceTest {
         metricSpec = metricSpec {
           reachAndFrequency = reachAndFrequencyParams {
             multipleDataProviderParams =
-              MetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+              MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
                 reachPrivacyParams =
                   MetricSpecKt.differentialPrivacyParams {
                     epsilon = REACH_FREQUENCY_REACH_EPSILON
@@ -7771,7 +7752,7 @@ class MetricsServiceTest {
                   }
               }
             singleDataProviderParams =
-              MetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+              MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
                 reachPrivacyParams =
                   MetricSpecKt.differentialPrivacyParams {
                     epsilon = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_REACH_EPSILON

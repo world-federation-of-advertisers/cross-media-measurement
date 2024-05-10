@@ -276,7 +276,7 @@ class InProcessReportingServer(
       reachAndFrequencyParams =
         MetricSpecConfigKt.reachAndFrequencyParams {
           multipleDataProviderParams =
-            MetricSpecConfigKt.samplingAndPrivacyParamsForReachAndFrequency {
+            MetricSpecConfigKt.reachAndFrequencySamplingAndPrivacyParams {
               reachPrivacyParams =
                 MetricSpecConfigKt.differentialPrivacyParams {
                   epsilon = 0.0033

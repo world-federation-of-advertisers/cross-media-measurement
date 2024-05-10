@@ -18,11 +18,9 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.devtools.build.runfiles.Runfiles
 import com.google.type.DayOfWeek
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
-import java.nio.file.Path
 import java.nio.file.Paths
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
@@ -45,7 +43,6 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
@@ -62,6 +59,7 @@ import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRe
 import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsResponse as internalListMetricCalculationSpecsResponse
 import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec as internalMetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetricSpec
+import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.reporting.v2alpha.ListMetricCalculationSpecsPageTokenKt
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
@@ -1436,22 +1434,16 @@ class MetricCalculationSpecsServiceTest {
     private const val METRIC_CALCULATION_SPEC_NAME =
       "$MEASUREMENT_CONSUMER_NAME/metricCalculationSpecs/$METRIC_CALCULATION_SPEC_ID"
 
-    private val SECRET_FILES_PATH: Path = run {
-      val runfiles =
-        Runfiles.preload(
-            buildMap {
-              put("RUNFILES_DIR", "src/main/k8s/testing/")
-              put("metric_spec_config.textproto", "metric_spec_config.textproto")
-            }
-          )
-          .unmapped()
-      checkNotNull(runfiles.getRuntimePath(Paths.get("secretfiles")))
-    }
+    private val SECRETS_DIR =
+      getRuntimePath(
+        Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+      )!!
+        .toFile()
 
     private val METRIC_SPEC_CONFIG: MetricSpecConfig =
       parseTextProto(
-        SECRET_FILES_PATH.resolve("metric_spec_config.textproto").toFile(),
-        MetricSpecConfig.getDefaultInstance(),
+       SECRETS_DIR.resolve("metric_spec_config.textproto"),
+       MetricSpecConfig.getDefaultInstance(),
       )
 
     private val REACH_METRIC_SPEC: MetricSpec = metricSpec {

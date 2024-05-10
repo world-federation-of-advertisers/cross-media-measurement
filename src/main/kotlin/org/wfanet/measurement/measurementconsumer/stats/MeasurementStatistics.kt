@@ -90,7 +90,7 @@ data class RelativeFrequencyMeasurementVarianceParams(
  * confidence interval of the reach covers 0 or negative values. The 95% confidence interval =
  * reach_result +/- 1.96 * reach_std.
  */
-private const val REACH_THRESHOLD_CONSTANT_FOR_RELATIVE_FREQUENCY_VARIANCE = 1.96
+private const val REACH_THRESHLEGACY_CONSTANT_FOR_RELATIVE_FREQUENCY_VARIANCE = 1.96
 
 /**
  * A uniformly random number from [0, 1] has a variance equal to 1 / 12
@@ -106,7 +106,7 @@ fun isReachTooSmallForComputingRelativeFrequencyVariance(
   // A reach result is considered too small for computing variances of relative frequency if the
   // confidence interval lower bound of the reach <= 0.
   val reachConfidenceIntervalLowerBound =
-    reach - REACH_THRESHOLD_CONSTANT_FOR_RELATIVE_FREQUENCY_VARIANCE * sqrt(reachVariance)
+    reach - REACH_THRESHLEGACY_CONSTANT_FOR_RELATIVE_FREQUENCY_VARIANCE * sqrt(reachVariance)
   return reachConfidenceIntervalLowerBound <= 0
 }
 

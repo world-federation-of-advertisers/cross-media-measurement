@@ -239,7 +239,7 @@ fun MetricSpec.ReachAndFrequencyParams.toInternal(
     maximumFrequency = source.maximumFrequency
 
     multipleDataProviderParams =
-      InternalMetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+      InternalMetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
         if (source.hasReachPrivacyParams()) {
           reachPrivacyParams = source.reachPrivacyParams.toInternal()
           frequencyPrivacyParams = source.frequencyPrivacyParams.toInternal()
@@ -259,7 +259,7 @@ fun MetricSpec.ReachAndFrequencyParams.toInternal(
 
     if (source.hasSingleDataProviderParams()) {
       singleDataProviderParams =
-        InternalMetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+        InternalMetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
           reachPrivacyParams = source.singleDataProviderParams.reachPrivacyParams.toInternal()
           frequencyPrivacyParams =
             source.singleDataProviderParams.frequencyPrivacyParams.toInternal()
@@ -362,7 +362,7 @@ fun InternalMetricSpec.toMetricSpec(): MetricSpec {
             maximumFrequency = source.reachAndFrequency.maximumFrequency
             if (source.reachAndFrequency.hasSingleDataProviderParams()) {
               multipleDataProviderParams =
-                MetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+                MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
                   reachPrivacyParams =
                     source.reachAndFrequency.multipleDataProviderParams.reachPrivacyParams
                       .toPrivacyParams()
@@ -375,7 +375,7 @@ fun InternalMetricSpec.toMetricSpec(): MetricSpec {
                 }
 
               singleDataProviderParams =
-                MetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+                MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
                   reachPrivacyParams =
                     source.reachAndFrequency.singleDataProviderParams.reachPrivacyParams
                       .toPrivacyParams()
