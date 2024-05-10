@@ -127,6 +127,12 @@ class HonestMajorityShareShuffleMill(
     clock = clock,
     openTelemetry = openTelemetry,
   ) {
+  init {
+    if (protocolSetupConfig.role == AGGREGATOR) {
+      requireNotNull(privateKeyStore) { "private key store is not set up." }
+    }
+  }
+
   private val meter: Meter = openTelemetry.getMeter(HonestMajorityShareShuffleMill::class.java.name)
 
   // TODO(@renjiez): add metrics.
@@ -244,7 +250,6 @@ class HonestMajorityShareShuffleMill(
   }
 
   private fun aggregatorStub(): ComputationControlCoroutineStub {
-    // The last participant is the aggregator.
     val aggregator = protocolSetupConfig.aggregatorDuchyId
     return workerStubs[aggregator]
       ?: throw PermanentErrorException(

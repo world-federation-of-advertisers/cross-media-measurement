@@ -38,6 +38,7 @@ import org.wfanet.measurement.duchy.service.internal.computations.toGetTokenRequ
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
+import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 import org.wfanet.measurement.internal.duchy.deleteComputationRequest
 import org.wfanet.measurement.internal.duchy.finishComputationRequest
 import org.wfanet.measurement.system.v1alpha.Computation
@@ -93,6 +94,14 @@ class Herald(
       require(state in TERMINAL_STATES) {
         "Unexpected deletable computation state $state while initializing Herald."
       }
+    }
+    if (
+      protocolsSetupConfig.honestMajorityShareShuffle.role ==
+        RoleInComputation.FIRST_NON_AGGREGATOR ||
+        protocolsSetupConfig.honestMajorityShareShuffle.role ==
+          RoleInComputation.SECOND_NON_AGGREGATOR
+    ) {
+      requireNotNull(privateKeyStore) { "private key store is not set up." }
     }
   }
 
