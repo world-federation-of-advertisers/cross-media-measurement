@@ -18,7 +18,6 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.devtools.build.runfiles.Runfiles
 import com.google.protobuf.Empty
 import com.google.protobuf.duration
 import com.google.protobuf.kotlin.toByteString
@@ -29,7 +28,6 @@ import com.google.type.Interval
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
-import java.io.File
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
 import java.time.Duration

@@ -18,7 +18,6 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.devtools.build.runfiles.Runfiles
 import com.google.protobuf.duration
 import com.google.protobuf.timestamp
 import com.google.type.DayOfWeek
@@ -29,7 +28,6 @@ import com.google.type.interval
 import com.google.type.timeZone
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
-import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.Duration
 import java.time.Instant
@@ -4369,8 +4367,8 @@ class ReportsServiceTest {
 
     private val SECRETS_DIR =
       getRuntimePath(
-        Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
-      )!!
+          Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+        )!!
         .toFile()
 
     private val METRIC_SPEC_CONFIG: MetricSpecConfig =

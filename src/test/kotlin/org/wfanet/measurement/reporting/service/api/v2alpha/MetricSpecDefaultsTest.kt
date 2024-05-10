@@ -535,8 +535,7 @@ class MetricSpecDefaultsTest {
 
   @Test
   fun `buildMetricSpec builds rf spec when no fields filled in multiple and single edp fields`() {
-    val result =
-      EMPTY_REACH_AND_FREQUENCY_METRIC_SPEC.withDefaults(METRIC_SPEC_CONFIG, randomMock)
+    val result = EMPTY_REACH_AND_FREQUENCY_METRIC_SPEC.withDefaults(METRIC_SPEC_CONFIG, randomMock)
     val expected = metricSpec {
       reachAndFrequency = reachAndFrequencyParams {
         multipleDataProviderParams =
@@ -808,7 +807,8 @@ class MetricSpecDefaultsTest {
 
   @Test
   fun `buildMetricSpec builds impression count spec when no field filled in privacy_params`() {
-    val result = LEGACY_EMPTY_IMPRESSION_COUNT_METRIC_SPEC.withDefaults(METRIC_SPEC_CONFIG, randomMock)
+    val result =
+      LEGACY_EMPTY_IMPRESSION_COUNT_METRIC_SPEC.withDefaults(METRIC_SPEC_CONFIG, randomMock)
     val expected = metricSpec {
       impressionCount = impressionCountParams {
         params =
@@ -972,7 +972,8 @@ class MetricSpecDefaultsTest {
 
   @Test
   fun `buildMetricSpec builds watch duration metric spec when no field filled in privacy_params`() {
-    val result = LEGACY_EMPTY_WATCH_DURATION_METRIC_SPEC.withDefaults(METRIC_SPEC_CONFIG, randomMock)
+    val result =
+      LEGACY_EMPTY_WATCH_DURATION_METRIC_SPEC.withDefaults(METRIC_SPEC_CONFIG, randomMock)
     val expected = metricSpec {
       watchDuration = watchDurationParams {
         params =

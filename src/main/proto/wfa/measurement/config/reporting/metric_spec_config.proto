@@ -77,12 +77,10 @@ message MetricSpecConfig {
   // on a per-Measurement basis.
   message ReachAndFrequencyParams {
     // Parameters for multiple DataProviders.
-    ReachAndFrequencySamplingAndPrivacyParams multiple_data_provider_params =
-        1;
+    ReachAndFrequencySamplingAndPrivacyParams multiple_data_provider_params = 1;
 
     // Parameters for a single DataProvider.
-    ReachAndFrequencySamplingAndPrivacyParams single_data_provider_params =
-        2;
+    ReachAndFrequencySamplingAndPrivacyParams single_data_provider_params = 2;
 
     // Maximum frequency cut-off value in frequency histogram.
     //
