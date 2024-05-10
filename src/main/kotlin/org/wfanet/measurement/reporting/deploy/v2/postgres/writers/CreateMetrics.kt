@@ -264,11 +264,11 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                   val reachAndFrequency = it.metric.metricSpec.reachAndFrequency
                   bindValuesParam(
                     8,
-                    reachAndFrequency.multipleDataProviderParams.privacyParams.epsilon,
+                    reachAndFrequency.multipleDataProviderParams.reachPrivacyParams.epsilon,
                   )
                   bindValuesParam(
                     9,
-                    reachAndFrequency.multipleDataProviderParams.privacyParams.delta,
+                    reachAndFrequency.multipleDataProviderParams.reachPrivacyParams.delta,
                   )
                   bindValuesParam(
                     10,
@@ -292,11 +292,11 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                   if (reachAndFrequency.hasSingleDataProviderParams()) {
                     bindValuesParam(
                       21,
-                      reachAndFrequency.singleDataProviderParams.privacyParams.epsilon,
+                      reachAndFrequency.singleDataProviderParams.reachPrivacyParams.epsilon,
                     )
                     bindValuesParam(
                       22,
-                      reachAndFrequency.singleDataProviderParams.privacyParams.delta,
+                      reachAndFrequency.singleDataProviderParams.reachPrivacyParams.delta,
                     )
                     bindValuesParam(
                       23,

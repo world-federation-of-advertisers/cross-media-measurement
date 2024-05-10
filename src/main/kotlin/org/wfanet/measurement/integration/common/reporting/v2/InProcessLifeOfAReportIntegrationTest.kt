@@ -1141,12 +1141,12 @@ abstract class InProcessLifeOfAReportIntegrationTest(
             reach =
               MetricSpecKt.reachParams {
                 multipleDataProviderParams =
-                  MetricSpecKt.params {
+                  MetricSpecKt.samplingAndPrivacyParams {
                     privacyParams = DP_PARAMS
                     vidSamplingInterval = VID_SAMPLING_INTERVAL
                   }
                 singleDataProviderParams =
-                  MetricSpecKt.params {
+                  MetricSpecKt.samplingAndPrivacyParams {
                     privacyParams = SINGLE_DATA_PROVIDER_DP_PARAMS
                     vidSamplingInterval = SINGLE_DATA_PROVIDER_VID_SAMPLING_INTERVAL
                   }

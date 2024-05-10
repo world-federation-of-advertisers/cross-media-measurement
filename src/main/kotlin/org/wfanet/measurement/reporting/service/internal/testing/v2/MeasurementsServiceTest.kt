@@ -1366,7 +1366,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
           reach =
             MetricSpecKt.reachParams {
               multipleDataProviderParams =
-                MetricSpecKt.params {
+                MetricSpecKt.samplingAndPrivacyParams {
                   privacyParams =
                     MetricSpecKt.differentialPrivacyParams {
                       epsilon = 1.0

@@ -33,31 +33,31 @@ message MetricSpec {
     float start = 1;
     float width = 2;
   }
-  message Params {
+  message SamplingAndPrivacyParams {
     DifferentialPrivacyParams privacy_params = 1;
     VidSamplingInterval vid_sampling_interval = 2;
   }
-  message FrequencyParams {
-    DifferentialPrivacyParams privacy_params = 1;
+  message SamplingAndPrivacyParamsForReachAndFrequency {
+    DifferentialPrivacyParams reach_privacy_params = 1;
     DifferentialPrivacyParams frequency_privacy_params = 2;
     VidSamplingInterval vid_sampling_interval = 3;
   }
 
   message ReachParams {
-    Params multiple_data_provider_params = 2;
-    Params single_data_provider_params = 3;
+    SamplingAndPrivacyParams multiple_data_provider_params = 2;
+    SamplingAndPrivacyParams single_data_provider_params = 3;
   }
   message ReachAndFrequencyParams {
-    FrequencyParams multiple_data_provider_params = 4;
-    FrequencyParams single_data_provider_params = 5;
+    SamplingAndPrivacyParamsForReachAndFrequency multiple_data_provider_params = 4;
+    SamplingAndPrivacyParamsForReachAndFrequency single_data_provider_params = 5;
     int32 maximum_frequency = 3;
   }
   message ImpressionCountParams {
-    Params params = 3;
+    SamplingAndPrivacyParams params = 3;
     int32 maximum_frequency_per_user = 2;
   }
   message WatchDurationParams {
-    Params params = 3;
+    SamplingAndPrivacyParams params = 3;
     google.protobuf.Duration maximum_watch_duration_per_user = 2;
   }
   message PopulationCountParams {}

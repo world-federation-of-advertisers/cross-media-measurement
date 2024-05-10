@@ -91,7 +91,7 @@ suspend fun createMetricCalculationSpec(
           reach =
             MetricSpecKt.reachParams {
               multipleDataProviderParams =
-                MetricSpecKt.params {
+                MetricSpecKt.samplingAndPrivacyParams {
                   privacyParams =
                     MetricSpecKt.differentialPrivacyParams {
                       epsilon = 1.0

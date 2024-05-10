@@ -164,13 +164,13 @@ private fun MetricSpec.ReachAndFrequencyParams.withDefaults(
       clearFrequencyPrivacyParams()
       multipleDataProviderParams =
         multipleDataProviderParams.copy {
-          privacyParams =
-            privacyParams.withDefaults(
+          reachPrivacyParams =
+            reachPrivacyParams.withDefaults(
               defaultEpsilon =
-                metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams.privacyParams
+                metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams.reachPrivacyParams
                   .epsilon,
               defaultDelta =
-                metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams.privacyParams
+                metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams.reachPrivacyParams
                   .delta,
             )
           frequencyPrivacyParams =
@@ -197,13 +197,13 @@ private fun MetricSpec.ReachAndFrequencyParams.withDefaults(
 
       singleDataProviderParams =
         singleDataProviderParams.copy {
-          privacyParams =
-            privacyParams.withDefaults(
+          reachPrivacyParams =
+            reachPrivacyParams.withDefaults(
               defaultEpsilon =
-                metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams.privacyParams
+                metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams.reachPrivacyParams
                   .epsilon,
               defaultDelta =
-                metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams.privacyParams
+                metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams.reachPrivacyParams
                   .delta,
             )
           frequencyPrivacyParams =
@@ -235,13 +235,13 @@ private fun MetricSpec.ReachAndFrequencyParams.withDefaults(
       val source = this
       multipleDataProviderParams =
         multipleDataProviderParams.copy {
-          privacyParams =
+          reachPrivacyParams =
             source.reachPrivacyParams.withDefaults(
               defaultEpsilon =
-                metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams.privacyParams
+                metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams.reachPrivacyParams
                   .epsilon,
               defaultDelta =
-                metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams.privacyParams
+                metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams.reachPrivacyParams
                   .delta,
             )
           frequencyPrivacyParams =

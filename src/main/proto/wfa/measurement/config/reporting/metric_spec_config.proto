@@ -54,12 +54,12 @@ message MetricSpecConfig {
     }
   }
 
-  message Params {
+  message SamplingAndPrivacyParams {
     DifferentialPrivacyParams privacy_params = 1;
     VidSamplingInterval vid_sampling_interval = 2;
   }
-  message FrequencyParams {
-    DifferentialPrivacyParams privacy_params = 1;
+  message SamplingAndPrivacyParamsForReachAndFrequency {
+    DifferentialPrivacyParams reach_privacy_params = 1;
     DifferentialPrivacyParams frequency_privacy_params = 2;
     VidSamplingInterval vid_sampling_interval = 3;
   }
@@ -68,19 +68,19 @@ message MetricSpecConfig {
   // per-Measurement basis.
   message ReachParams {
     // Parameters for multiple DataProviders.
-    Params multiple_data_provider_params = 1;
+    SamplingAndPrivacyParams multiple_data_provider_params = 1;
 
     // Parameters for a single DataProvider.
-    Params single_data_provider_params = 2;
+    SamplingAndPrivacyParams single_data_provider_params = 2;
   }
   // Parameters that are used to generate `ReachAndFrequency` metrics. Applied
   // on a per-Measurement basis.
   message ReachAndFrequencyParams {
     // Parameters for multiple DataProviders.
-    FrequencyParams multiple_data_provider_params = 1;
+    SamplingAndPrivacyParamsForReachAndFrequency multiple_data_provider_params = 1;
 
     // Parameters for a single DataProvider.
-    FrequencyParams single_data_provider_params = 2;
+    SamplingAndPrivacyParamsForReachAndFrequency single_data_provider_params = 2;
 
     // Maximum frequency cut-off value in frequency histogram.
     //
@@ -91,7 +91,7 @@ message MetricSpecConfig {
   // Parameters that are used to generate `Impression Count` metrics. Applied on
   // a per-Measurement basis.
   message ImpressionCountParams {
-    Params params = 1;
+    SamplingAndPrivacyParams params = 1;
 
     // Maximum frequency per user that will be included in this metric. Enforced
     // on a per EDP basis.
@@ -106,7 +106,7 @@ message MetricSpecConfig {
   // Parameters that are used to generate `Watch Duration` metrics. Applied on a
   // per-Measurement basis.
   message WatchDurationParams {
-    Params params = 1;
+    SamplingAndPrivacyParams params = 1;
 
     // Maximum watch duration per user that will be included in this metric.
     // Enforced on a per EDP basis.

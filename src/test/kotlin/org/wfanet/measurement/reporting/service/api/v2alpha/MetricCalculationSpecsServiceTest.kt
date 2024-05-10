@@ -133,7 +133,7 @@ class MetricCalculationSpecsServiceTest {
       reach =
         MetricSpecKt.reachParams {
           multipleDataProviderParams =
-            MetricSpecKt.params {
+            MetricSpecKt.samplingAndPrivacyParams {
               privacyParams =
                 MetricSpecKt.differentialPrivacyParams {
                   epsilon =
@@ -154,7 +154,7 @@ class MetricCalculationSpecsServiceTest {
                 }
             }
           singleDataProviderParams =
-            MetricSpecKt.params {
+            MetricSpecKt.samplingAndPrivacyParams {
               privacyParams =
                 MetricSpecKt.differentialPrivacyParams {
                   epsilon =
@@ -212,7 +212,7 @@ class MetricCalculationSpecsServiceTest {
       reach =
         InternalMetricSpecKt.reachParams {
           multipleDataProviderParams =
-            InternalMetricSpecKt.params {
+            InternalMetricSpecKt.samplingAndPrivacyParams {
               privacyParams =
                 InternalMetricSpecKt.differentialPrivacyParams {
                   epsilon =
@@ -233,7 +233,7 @@ class MetricCalculationSpecsServiceTest {
                 }
             }
           singleDataProviderParams =
-            InternalMetricSpecKt.params {
+            InternalMetricSpecKt.samplingAndPrivacyParams {
               privacyParams =
                 InternalMetricSpecKt.differentialPrivacyParams {
                   epsilon =
@@ -1458,7 +1458,7 @@ class MetricCalculationSpecsServiceTest {
       reach =
         MetricSpecKt.reachParams {
           multipleDataProviderParams =
-            MetricSpecKt.params {
+            MetricSpecKt.samplingAndPrivacyParams {
               privacyParams =
                 MetricSpecKt.differentialPrivacyParams {
                   epsilon =
@@ -1479,7 +1479,7 @@ class MetricCalculationSpecsServiceTest {
                 }
             }
           singleDataProviderParams =
-            MetricSpecKt.params {
+            MetricSpecKt.samplingAndPrivacyParams {
               privacyParams =
                 MetricSpecKt.differentialPrivacyParams {
                   epsilon =
@@ -1534,7 +1534,7 @@ class MetricCalculationSpecsServiceTest {
       reach =
         InternalMetricSpecKt.reachParams {
           multipleDataProviderParams =
-            InternalMetricSpecKt.params {
+            InternalMetricSpecKt.samplingAndPrivacyParams {
               privacyParams =
                 InternalMetricSpecKt.differentialPrivacyParams {
                   epsilon =
@@ -1555,7 +1555,7 @@ class MetricCalculationSpecsServiceTest {
                 }
             }
           singleDataProviderParams =
-            InternalMetricSpecKt.params {
+            InternalMetricSpecKt.samplingAndPrivacyParams {
               privacyParams =
                 InternalMetricSpecKt.differentialPrivacyParams {
                   epsilon =

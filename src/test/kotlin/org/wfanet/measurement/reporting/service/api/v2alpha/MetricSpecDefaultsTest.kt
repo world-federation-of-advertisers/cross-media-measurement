@@ -81,7 +81,7 @@ class MetricSpecDefaultsTest {
     val expected = metricSpec {
       reach = reachParams {
         multipleDataProviderParams =
-          MetricSpecKt.params {
+          MetricSpecKt.samplingAndPrivacyParams {
             privacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon =
@@ -133,7 +133,7 @@ class MetricSpecDefaultsTest {
     val expected = metricSpec {
       reach = reachParams {
         multipleDataProviderParams =
-          MetricSpecKt.params {
+          MetricSpecKt.samplingAndPrivacyParams {
             privacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon =
@@ -166,7 +166,7 @@ class MetricSpecDefaultsTest {
     val expected = metricSpec {
       reach = reachParams {
         multipleDataProviderParams =
-          MetricSpecKt.params {
+          MetricSpecKt.samplingAndPrivacyParams {
             privacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon =
@@ -187,7 +187,7 @@ class MetricSpecDefaultsTest {
               }
           }
         singleDataProviderParams =
-          MetricSpecKt.params {
+          MetricSpecKt.samplingAndPrivacyParams {
             privacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon =
@@ -216,7 +216,7 @@ class MetricSpecDefaultsTest {
     val expected = metricSpec {
       reach = reachParams {
         multipleDataProviderParams =
-          MetricSpecKt.params {
+          MetricSpecKt.samplingAndPrivacyParams {
             privacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon =
@@ -238,7 +238,7 @@ class MetricSpecDefaultsTest {
               }
           }
         singleDataProviderParams =
-          MetricSpecKt.params {
+          MetricSpecKt.samplingAndPrivacyParams {
             privacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon =
@@ -272,7 +272,7 @@ class MetricSpecDefaultsTest {
       reach = reachParams {
         privacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
         multipleDataProviderParams =
-          MetricSpecKt.params {
+          MetricSpecKt.samplingAndPrivacyParams {
             privacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon =
@@ -294,7 +294,7 @@ class MetricSpecDefaultsTest {
               }
           }
         singleDataProviderParams =
-          MetricSpecKt.params {
+          MetricSpecKt.samplingAndPrivacyParams {
             privacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon =
@@ -352,7 +352,7 @@ class MetricSpecDefaultsTest {
     val expected = metricSpec {
       reach = reachParams {
         multipleDataProviderParams =
-          MetricSpecKt.params {
+          MetricSpecKt.samplingAndPrivacyParams {
             privacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon =
@@ -373,7 +373,7 @@ class MetricSpecDefaultsTest {
               }
           }
         singleDataProviderParams =
-          MetricSpecKt.params {
+          MetricSpecKt.samplingAndPrivacyParams {
             privacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon =
@@ -401,16 +401,16 @@ class MetricSpecDefaultsTest {
     val expected = metricSpec {
       reachAndFrequency = reachAndFrequencyParams {
         multipleDataProviderParams =
-          MetricSpecKt.frequencyParams {
-            privacyParams =
+          MetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+            reachPrivacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon =
                   METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
-                    .privacyParams
+                    .reachPrivacyParams
                     .epsilon
                 delta =
                   METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
-                    .privacyParams
+                    .reachPrivacyParams
                     .delta
               }
             frequencyPrivacyParams =
@@ -451,10 +451,10 @@ class MetricSpecDefaultsTest {
         reachPrivacyParams =
           MetricSpecKt.differentialPrivacyParams {
             epsilon =
-              METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams.privacyParams
+              METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams.reachPrivacyParams
                 .epsilon * 2
             delta =
-              METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams.privacyParams
+              METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams.reachPrivacyParams
                 .delta * 2
           }
         frequencyPrivacyParams =
@@ -488,16 +488,16 @@ class MetricSpecDefaultsTest {
     val expected = metricSpec {
       reachAndFrequency = reachAndFrequencyParams {
         multipleDataProviderParams =
-          MetricSpecKt.frequencyParams {
-            privacyParams =
+          MetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+            reachPrivacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon =
                   METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
-                    .privacyParams
+                    .reachPrivacyParams
                     .epsilon * 2
                 delta =
                   METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
-                    .privacyParams
+                    .reachPrivacyParams
                     .delta * 2
               }
             frequencyPrivacyParams =
@@ -538,16 +538,16 @@ class MetricSpecDefaultsTest {
     val expected = metricSpec {
       reachAndFrequency = reachAndFrequencyParams {
         multipleDataProviderParams =
-          MetricSpecKt.frequencyParams {
-            privacyParams =
+          MetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+            reachPrivacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon =
                   METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
-                    .privacyParams
+                    .reachPrivacyParams
                     .epsilon
                 delta =
                   METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
-                    .privacyParams
+                    .reachPrivacyParams
                     .delta
               }
             frequencyPrivacyParams =
@@ -576,14 +576,14 @@ class MetricSpecDefaultsTest {
               }
           }
         singleDataProviderParams =
-          MetricSpecKt.frequencyParams {
-            privacyParams =
+          MetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+            reachPrivacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon =
-                  METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.privacyParams
+                  METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.reachPrivacyParams
                     .epsilon
                 delta =
-                  METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.privacyParams
+                  METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.reachPrivacyParams
                     .delta
               }
             frequencyPrivacyParams =
@@ -622,16 +622,16 @@ class MetricSpecDefaultsTest {
     val expected = metricSpec {
       reachAndFrequency = reachAndFrequencyParams {
         multipleDataProviderParams =
-          MetricSpecKt.frequencyParams {
-            privacyParams =
+          MetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+            reachPrivacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon =
                   METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
-                    .privacyParams
+                    .reachPrivacyParams
                     .epsilon * 2
                 delta =
                   METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
-                    .privacyParams
+                    .reachPrivacyParams
                     .delta * 2
               }
             frequencyPrivacyParams =
@@ -660,14 +660,14 @@ class MetricSpecDefaultsTest {
               }
           }
         singleDataProviderParams =
-          MetricSpecKt.frequencyParams {
-            privacyParams =
+          MetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+            reachPrivacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon =
-                  METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.privacyParams
+                  METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.reachPrivacyParams
                     .epsilon * 2
                 delta =
-                  METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.privacyParams
+                  METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.reachPrivacyParams
                     .delta * 2
               }
             frequencyPrivacyParams =
@@ -709,16 +709,16 @@ class MetricSpecDefaultsTest {
         reachPrivacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
         frequencyPrivacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
         multipleDataProviderParams =
-          MetricSpecKt.frequencyParams {
-            privacyParams =
+          MetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+            reachPrivacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon =
                   METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
-                    .privacyParams
+                    .reachPrivacyParams
                     .epsilon * 2
                 delta =
                   METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
-                    .privacyParams
+                    .reachPrivacyParams
                     .delta * 2
               }
             frequencyPrivacyParams =
@@ -747,14 +747,14 @@ class MetricSpecDefaultsTest {
               }
           }
         singleDataProviderParams =
-          MetricSpecKt.frequencyParams {
-            privacyParams =
+          MetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+            reachPrivacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon =
-                  METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.privacyParams
+                  METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.reachPrivacyParams
                     .epsilon * 2
                 delta =
-                  METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.privacyParams
+                  METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.reachPrivacyParams
                     .delta * 2
               }
             frequencyPrivacyParams =
@@ -804,7 +804,7 @@ class MetricSpecDefaultsTest {
     val expected = metricSpec {
       impressionCount = impressionCountParams {
         params =
-          MetricSpecKt.params {
+          MetricSpecKt.samplingAndPrivacyParams {
             privacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon = METRIC_SPEC_CONFIG.impressionCountParams.params.privacyParams.epsilon
@@ -851,7 +851,7 @@ class MetricSpecDefaultsTest {
     val expected = metricSpec {
       impressionCount = impressionCountParams {
         params =
-          MetricSpecKt.params {
+          MetricSpecKt.samplingAndPrivacyParams {
             privacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon = METRIC_SPEC_CONFIG.impressionCountParams.params.privacyParams.epsilon * 2
@@ -880,7 +880,7 @@ class MetricSpecDefaultsTest {
     val expected = metricSpec {
       impressionCount = impressionCountParams {
         params =
-          MetricSpecKt.params {
+          MetricSpecKt.samplingAndPrivacyParams {
             privacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon = METRIC_SPEC_CONFIG.impressionCountParams.params.privacyParams.epsilon
@@ -907,7 +907,7 @@ class MetricSpecDefaultsTest {
     val expected = metricSpec {
       impressionCount = impressionCountParams {
         params =
-          MetricSpecKt.params {
+          MetricSpecKt.samplingAndPrivacyParams {
             privacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon = METRIC_SPEC_CONFIG.impressionCountParams.params.privacyParams.epsilon * 2
@@ -937,7 +937,7 @@ class MetricSpecDefaultsTest {
       impressionCount = impressionCountParams {
         privacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
         params =
-          MetricSpecKt.params {
+          MetricSpecKt.samplingAndPrivacyParams {
             privacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon = METRIC_SPEC_CONFIG.impressionCountParams.params.privacyParams.epsilon * 2
@@ -968,7 +968,7 @@ class MetricSpecDefaultsTest {
     val expected = metricSpec {
       watchDuration = watchDurationParams {
         params =
-          MetricSpecKt.params {
+          MetricSpecKt.samplingAndPrivacyParams {
             privacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon = METRIC_SPEC_CONFIG.watchDurationParams.params.privacyParams.epsilon
@@ -1017,7 +1017,7 @@ class MetricSpecDefaultsTest {
     val expected = metricSpec {
       watchDuration = watchDurationParams {
         params =
-          MetricSpecKt.params {
+          MetricSpecKt.samplingAndPrivacyParams {
             privacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon = METRIC_SPEC_CONFIG.watchDurationParams.params.privacyParams.epsilon * 2
@@ -1049,7 +1049,7 @@ class MetricSpecDefaultsTest {
     val expected = metricSpec {
       watchDuration = watchDurationParams {
         params =
-          MetricSpecKt.params {
+          MetricSpecKt.samplingAndPrivacyParams {
             privacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon = METRIC_SPEC_CONFIG.watchDurationParams.params.privacyParams.epsilon
@@ -1075,7 +1075,7 @@ class MetricSpecDefaultsTest {
     val expected = metricSpec {
       watchDuration = watchDurationParams {
         params =
-          MetricSpecKt.params {
+          MetricSpecKt.samplingAndPrivacyParams {
             privacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon = METRIC_SPEC_CONFIG.watchDurationParams.params.privacyParams.epsilon * 2
@@ -1108,7 +1108,7 @@ class MetricSpecDefaultsTest {
       watchDuration = watchDurationParams {
         privacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
         params =
-          MetricSpecKt.params {
+          MetricSpecKt.samplingAndPrivacyParams {
             privacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 epsilon = METRIC_SPEC_CONFIG.watchDurationParams.params.privacyParams.epsilon * 2
@@ -1164,7 +1164,7 @@ class MetricSpecDefaultsTest {
   @Test
   fun `buildMetricSpec throw MetricSpecBuildingException when single reach params not set`() {
     val metricSpec = metricSpec {
-      reach = reachParams { multipleDataProviderParams = MetricSpec.Params.getDefaultInstance() }
+      reach = reachParams { multipleDataProviderParams = MetricSpec.SamplingAndPrivacyParams.getDefaultInstance() }
     }
 
     val exception =
@@ -1179,7 +1179,7 @@ class MetricSpecDefaultsTest {
   @Test
   fun `buildMetricSpec throw MetricSpecBuildingException when multiple reach params not set`() {
     val metricSpec = metricSpec {
-      reach = reachParams { singleDataProviderParams = MetricSpec.Params.getDefaultInstance() }
+      reach = reachParams { singleDataProviderParams = MetricSpec.SamplingAndPrivacyParams.getDefaultInstance() }
     }
 
     val exception =
@@ -1227,7 +1227,7 @@ class MetricSpecDefaultsTest {
   fun `buildMetricSpec throw MetricSpecBuildingException when single rf params not set`() {
     val metricSpec = metricSpec {
       reachAndFrequency = reachAndFrequencyParams {
-        multipleDataProviderParams = MetricSpec.FrequencyParams.getDefaultInstance()
+        multipleDataProviderParams = MetricSpec.SamplingAndPrivacyParamsForReachAndFrequency.getDefaultInstance()
       }
     }
 
@@ -1244,7 +1244,7 @@ class MetricSpecDefaultsTest {
   fun `buildMetricSpec throw MetricSpecBuildingException when multiple rf params not set`() {
     val metricSpec = metricSpec {
       reachAndFrequency = reachAndFrequencyParams {
-        singleDataProviderParams = MetricSpec.FrequencyParams.getDefaultInstance()
+        singleDataProviderParams = MetricSpec.SamplingAndPrivacyParamsForReachAndFrequency.getDefaultInstance()
       }
     }
 
@@ -1356,7 +1356,7 @@ class MetricSpecDefaultsTest {
       reachParams =
         MetricSpecConfigKt.reachParams {
           multipleDataProviderParams =
-            MetricSpecConfigKt.params {
+            MetricSpecConfigKt.samplingAndPrivacyParams {
               privacyParams =
                 MetricSpecConfigKt.differentialPrivacyParams {
                   epsilon = REACH_ONLY_REACH_EPSILON
@@ -1373,7 +1373,7 @@ class MetricSpecDefaultsTest {
             }
 
           singleDataProviderParams =
-            MetricSpecConfigKt.params {
+            MetricSpecConfigKt.samplingAndPrivacyParams {
               privacyParams =
                 MetricSpecConfigKt.differentialPrivacyParams {
                   epsilon = SINGLE_DATA_PROVIDER_REACH_ONLY_REACH_EPSILON
@@ -1393,8 +1393,8 @@ class MetricSpecDefaultsTest {
       reachAndFrequencyParams =
         MetricSpecConfigKt.reachAndFrequencyParams {
           multipleDataProviderParams =
-            MetricSpecConfigKt.frequencyParams {
-              privacyParams =
+            MetricSpecConfigKt.samplingAndPrivacyParamsForReachAndFrequency {
+              reachPrivacyParams =
                 MetricSpecConfigKt.differentialPrivacyParams {
                   epsilon = REACH_FREQUENCY_REACH_EPSILON
                   delta = DIFFERENTIAL_PRIVACY_DELTA
@@ -1415,8 +1415,8 @@ class MetricSpecDefaultsTest {
             }
 
           singleDataProviderParams =
-            MetricSpecConfigKt.frequencyParams {
-              privacyParams =
+            MetricSpecConfigKt.samplingAndPrivacyParamsForReachAndFrequency {
+              reachPrivacyParams =
                 MetricSpecConfigKt.differentialPrivacyParams {
                   epsilon = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_REACH_EPSILON
                   delta = DIFFERENTIAL_PRIVACY_DELTA
@@ -1441,7 +1441,7 @@ class MetricSpecDefaultsTest {
       impressionCountParams =
         MetricSpecConfigKt.impressionCountParams {
           params =
-            MetricSpecConfigKt.params {
+            MetricSpecConfigKt.samplingAndPrivacyParams {
               privacyParams =
                 MetricSpecConfigKt.differentialPrivacyParams {
                   epsilon = IMPRESSION_EPSILON
@@ -1462,7 +1462,7 @@ class MetricSpecDefaultsTest {
       watchDurationParams =
         MetricSpecConfigKt.watchDurationParams {
           params =
-            MetricSpecConfigKt.params {
+            MetricSpecConfigKt.samplingAndPrivacyParams {
               privacyParams =
                 MetricSpecConfigKt.differentialPrivacyParams {
                   epsilon = WATCH_DURATION_EPSILON
@@ -1490,8 +1490,8 @@ class MetricSpecDefaultsTest {
     }
     private val NEW_EMPTY_REACH_METRIC_SPEC: MetricSpec = metricSpec {
       reach = reachParams {
-        multipleDataProviderParams = MetricSpec.Params.getDefaultInstance()
-        singleDataProviderParams = MetricSpec.Params.getDefaultInstance()
+        multipleDataProviderParams = MetricSpec.SamplingAndPrivacyParams.getDefaultInstance()
+        singleDataProviderParams = MetricSpec.SamplingAndPrivacyParams.getDefaultInstance()
       }
     }
     private val OLD_EMPTY_REACH_AND_FREQUENCY_METRIC_SPEC: MetricSpec = metricSpec {
@@ -1502,8 +1502,8 @@ class MetricSpecDefaultsTest {
     }
     private val NEW_EMPTY_REACH_AND_FREQUENCY_METRIC_SPEC: MetricSpec = metricSpec {
       reachAndFrequency = reachAndFrequencyParams {
-        multipleDataProviderParams = MetricSpec.FrequencyParams.getDefaultInstance()
-        singleDataProviderParams = MetricSpec.FrequencyParams.getDefaultInstance()
+        multipleDataProviderParams = MetricSpec.SamplingAndPrivacyParamsForReachAndFrequency.getDefaultInstance()
+        singleDataProviderParams = MetricSpec.SamplingAndPrivacyParamsForReachAndFrequency.getDefaultInstance()
       }
     }
     private val OLD_EMPTY_IMPRESSION_COUNT_METRIC_SPEC: MetricSpec = metricSpec {
@@ -1512,7 +1512,7 @@ class MetricSpecDefaultsTest {
       }
     }
     private val NEW_EMPTY_IMPRESSION_COUNT_METRIC_SPEC: MetricSpec = metricSpec {
-      impressionCount = impressionCountParams { params = MetricSpec.Params.getDefaultInstance() }
+      impressionCount = impressionCountParams { params = MetricSpec.SamplingAndPrivacyParams.getDefaultInstance() }
     }
     private val OLD_EMPTY_WATCH_DURATION_METRIC_SPEC: MetricSpec = metricSpec {
       watchDuration = watchDurationParams {
@@ -1520,7 +1520,7 @@ class MetricSpecDefaultsTest {
       }
     }
     private val NEW_EMPTY_WATCH_DURATION_METRIC_SPEC: MetricSpec = metricSpec {
-      watchDuration = watchDurationParams { params = MetricSpec.Params.getDefaultInstance() }
+      watchDuration = watchDurationParams { params = MetricSpec.SamplingAndPrivacyParams.getDefaultInstance() }
     }
   }
 }

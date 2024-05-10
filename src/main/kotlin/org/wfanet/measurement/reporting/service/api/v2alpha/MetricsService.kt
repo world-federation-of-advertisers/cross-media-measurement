@@ -2277,7 +2277,7 @@ private fun calculateFrequencyHistogramResults(
           weightedMeasurement = weightedMeasurement,
           vidSamplingInterval =
             reachAndFrequencyParams.singleDataProviderParams.vidSamplingInterval,
-          reachPrivacyParams = reachAndFrequencyParams.singleDataProviderParams.privacyParams,
+          reachPrivacyParams = reachAndFrequencyParams.singleDataProviderParams.reachPrivacyParams,
           frequencyPrivacyParams =
             reachAndFrequencyParams.singleDataProviderParams.frequencyPrivacyParams,
           maximumFrequency = reachAndFrequencyParams.maximumFrequency,
@@ -2288,7 +2288,7 @@ private fun calculateFrequencyHistogramResults(
           weightedMeasurement = weightedMeasurement,
           vidSamplingInterval =
             reachAndFrequencyParams.multipleDataProviderParams.vidSamplingInterval,
-          reachPrivacyParams = reachAndFrequencyParams.multipleDataProviderParams.privacyParams,
+          reachPrivacyParams = reachAndFrequencyParams.multipleDataProviderParams.reachPrivacyParams,
           frequencyPrivacyParams =
             reachAndFrequencyParams.multipleDataProviderParams.frequencyPrivacyParams,
           maximumFrequency = reachAndFrequencyParams.maximumFrequency,
@@ -2588,13 +2588,13 @@ private fun calculateReachResult(
           buildWeightedReachMeasurementVarianceParams(
             weightedMeasurement,
             reachAndFrequencyParams.singleDataProviderParams.vidSamplingInterval,
-            reachAndFrequencyParams.singleDataProviderParams.privacyParams,
+            reachAndFrequencyParams.singleDataProviderParams.reachPrivacyParams,
           )
         } else {
           buildWeightedReachMeasurementVarianceParams(
             weightedMeasurement,
             reachAndFrequencyParams.multipleDataProviderParams.vidSamplingInterval,
-            reachAndFrequencyParams.multipleDataProviderParams.privacyParams,
+            reachAndFrequencyParams.multipleDataProviderParams.reachPrivacyParams,
           )
         }
       }

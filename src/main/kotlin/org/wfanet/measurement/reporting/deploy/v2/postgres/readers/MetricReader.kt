@@ -806,7 +806,7 @@ class MetricReader(private val readContext: ReadContext) {
           reach =
             MetricSpecKt.reachParams {
               multipleDataProviderParams =
-                MetricSpecKt.params {
+                MetricSpecKt.samplingAndPrivacyParams {
                   privacyParams =
                     MetricSpecKt.differentialPrivacyParams {
                       epsilon = differentialPrivacyEpsilon
@@ -820,7 +820,7 @@ class MetricReader(private val readContext: ReadContext) {
                   singleDataProviderDifferentialPrivacyDelta != null
               ) {
                 singleDataProviderParams =
-                  MetricSpecKt.params {
+                  MetricSpecKt.samplingAndPrivacyParams {
                     privacyParams =
                       MetricSpecKt.differentialPrivacyParams {
                         epsilon = singleDataProviderDifferentialPrivacyEpsilon
@@ -842,8 +842,8 @@ class MetricReader(private val readContext: ReadContext) {
           reachAndFrequency =
             MetricSpecKt.reachAndFrequencyParams {
               multipleDataProviderParams =
-                MetricSpecKt.frequencyParams {
-                  privacyParams =
+                MetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+                  reachPrivacyParams =
                     MetricSpecKt.differentialPrivacyParams {
                       epsilon = differentialPrivacyEpsilon
                       delta = differentialPrivacyDelta
@@ -863,8 +863,8 @@ class MetricReader(private val readContext: ReadContext) {
                   singleDataProviderFrequencyDifferentialPrivacyDelta != null
               ) {
                 singleDataProviderParams =
-                  MetricSpecKt.frequencyParams {
-                    privacyParams =
+                  MetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+                    reachPrivacyParams =
                       MetricSpecKt.differentialPrivacyParams {
                         epsilon = singleDataProviderDifferentialPrivacyEpsilon
                         delta = singleDataProviderDifferentialPrivacyDelta
@@ -888,7 +888,7 @@ class MetricReader(private val readContext: ReadContext) {
           impressionCount =
             MetricSpecKt.impressionCountParams {
               params =
-                MetricSpecKt.params {
+                MetricSpecKt.samplingAndPrivacyParams {
                   privacyParams =
                     MetricSpecKt.differentialPrivacyParams {
                       epsilon = differentialPrivacyEpsilon
@@ -903,7 +903,7 @@ class MetricReader(private val readContext: ReadContext) {
           watchDuration =
             MetricSpecKt.watchDurationParams {
               params =
-                MetricSpecKt.params {
+                MetricSpecKt.samplingAndPrivacyParams {
                   privacyParams =
                     MetricSpecKt.differentialPrivacyParams {
                       epsilon = differentialPrivacyEpsilon

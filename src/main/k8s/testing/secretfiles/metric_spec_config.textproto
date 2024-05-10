@@ -28,7 +28,7 @@ reach_params {
 }
 reach_and_frequency_params {
   multiple_data_provider_params {
-    privacy_params {
+    reach_privacy_params {
       epsilon: 0.0033
       delta: 1.0E-12
     }
@@ -44,7 +44,7 @@ reach_and_frequency_params {
     }
   }
   single_data_provider_params {
-    privacy_params {
+    reach_privacy_params {
       epsilon: 0.0033
       delta: 1.0E-12
     }

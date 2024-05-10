@@ -2780,7 +2780,7 @@ class ReportSchedulesServiceTest {
       reach =
         InternalMetricSpecKt.reachParams {
           multipleDataProviderParams =
-            InternalMetricSpecKt.params {
+            InternalMetricSpecKt.samplingAndPrivacyParams {
               privacyParams =
                 InternalMetricSpecKt.differentialPrivacyParams {
                   epsilon = EPSILON

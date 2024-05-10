@@ -51,13 +51,13 @@ message MetricSpec {
     float width = 2 [(google.api.field_behavior) = REQUIRED];
   }
 
-  message Params {
+  message SamplingAndPrivacyParams {
     DifferentialPrivacyParams privacy_params = 1;
     VidSamplingInterval vid_sampling_interval = 2;
   }
 
-  message FrequencyParams {
-    DifferentialPrivacyParams privacy_params = 1;
+  message SamplingAndPrivacyParamsForReachAndFrequency {
+    DifferentialPrivacyParams reach_privacy_params = 1;
     DifferentialPrivacyParams frequency_privacy_params = 2;
     VidSamplingInterval vid_sampling_interval = 3;
   }
@@ -71,10 +71,10 @@ message MetricSpec {
     // Parameters for multiple DataProviders. Will be required in a future
     // release. If set, `single_data_provider_params` needs to be set. Takes
     // precedence over `privacy_params`.
-    Params multiple_data_provider_params = 2;
+    SamplingAndPrivacyParams multiple_data_provider_params = 2;
     // Parameters for a single DataProvider. Will be required in a future
     // release. If set, `multiple_data_provider_params` needs to be set.
-    Params single_data_provider_params = 3;
+    SamplingAndPrivacyParams single_data_provider_params = 3;
   }
 
   // Parameters that are used to generate `ReachAndFrequency` metrics. Applied
@@ -88,10 +88,10 @@ message MetricSpec {
     // Parameters for multiple DataProviders. Will be required in a future
     // release. If set, `single_data_provider_params` needs to be set. Takes
     // precedence over `reach_privacy_params` and `frequency_privacy_params`.
-    FrequencyParams multiple_data_provider_params = 4;
+    SamplingAndPrivacyParamsForReachAndFrequency multiple_data_provider_params = 4;
     // Parameters for a single DataProvider. Will be required in a future
     // release. If set, `multiple_data_provider_params` needs to be set.
-    FrequencyParams single_data_provider_params = 5;
+    SamplingAndPrivacyParamsForReachAndFrequency single_data_provider_params = 5;
 
     // Maximum frequency cut-off value in frequency histogram.
     //
@@ -107,7 +107,7 @@ message MetricSpec {
 
     // Parameters for impression. Will be required in a future release. Takes
     // precedence over `privacy_params`.
-    Params params = 3;
+    SamplingAndPrivacyParams params = 3;
 
     // Maximum frequency per user that will be included in this metric. Enforced
     // on a per EDP basis.
@@ -130,7 +130,7 @@ message MetricSpec {
 
     // Parameters for watch duration. Will be required in a future release.
     // Takes precedence over `privacy_params`.
-    Params params = 3;
+    SamplingAndPrivacyParams params = 3;
 
     // Maximum watch duration per user that will be included in this metric.
     //

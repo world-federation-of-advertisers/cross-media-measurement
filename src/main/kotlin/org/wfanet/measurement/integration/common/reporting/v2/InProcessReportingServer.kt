@@ -256,7 +256,7 @@ class InProcessReportingServer(
       reachParams =
         MetricSpecConfigKt.reachParams {
           multipleDataProviderParams =
-            MetricSpecConfigKt.params {
+            MetricSpecConfigKt.samplingAndPrivacyParams {
               privacyParams =
                 MetricSpecConfigKt.differentialPrivacyParams {
                   epsilon = 0.0041
@@ -276,8 +276,8 @@ class InProcessReportingServer(
       reachAndFrequencyParams =
         MetricSpecConfigKt.reachAndFrequencyParams {
           multipleDataProviderParams =
-            MetricSpecConfigKt.frequencyParams {
-              privacyParams =
+            MetricSpecConfigKt.samplingAndPrivacyParamsForReachAndFrequency {
+              reachPrivacyParams =
                 MetricSpecConfigKt.differentialPrivacyParams {
                   epsilon = 0.0033
                   delta = 1e-12
@@ -302,7 +302,7 @@ class InProcessReportingServer(
       impressionCountParams =
         MetricSpecConfigKt.impressionCountParams {
           params =
-            MetricSpecConfigKt.params {
+            MetricSpecConfigKt.samplingAndPrivacyParams {
               privacyParams =
                 MetricSpecConfigKt.differentialPrivacyParams {
                   epsilon = 0.0011
@@ -323,7 +323,7 @@ class InProcessReportingServer(
       watchDurationParams =
         MetricSpecConfigKt.watchDurationParams {
           params =
-            MetricSpecConfigKt.params {
+            MetricSpecConfigKt.samplingAndPrivacyParams {
               privacyParams =
                 MetricSpecConfigKt.differentialPrivacyParams {
                   epsilon = 0.001

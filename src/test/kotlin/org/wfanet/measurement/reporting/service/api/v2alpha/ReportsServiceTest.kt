@@ -4389,7 +4389,7 @@ class ReportsServiceTest {
       reach =
         MetricSpecKt.reachParams {
           multipleDataProviderParams =
-            MetricSpecKt.params {
+            MetricSpecKt.samplingAndPrivacyParams {
               privacyParams =
                 MetricSpecKt.differentialPrivacyParams {
                   epsilon =
@@ -4410,7 +4410,7 @@ class ReportsServiceTest {
                 }
             }
           singleDataProviderParams =
-            MetricSpecKt.params {
+            MetricSpecKt.samplingAndPrivacyParams {
               privacyParams =
                 MetricSpecKt.differentialPrivacyParams {
                   epsilon =
@@ -4436,7 +4436,7 @@ class ReportsServiceTest {
       reach =
         InternalMetricSpecKt.reachParams {
           multipleDataProviderParams =
-            InternalMetricSpecKt.params {
+            InternalMetricSpecKt.samplingAndPrivacyParams {
               privacyParams =
                 InternalMetricSpecKt.differentialPrivacyParams {
                   epsilon =
@@ -4457,7 +4457,7 @@ class ReportsServiceTest {
                 }
             }
           singleDataProviderParams =
-            InternalMetricSpecKt.params {
+            InternalMetricSpecKt.samplingAndPrivacyParams {
               privacyParams =
                 InternalMetricSpecKt.differentialPrivacyParams {
                   epsilon =
@@ -4483,16 +4483,16 @@ class ReportsServiceTest {
       reachAndFrequency =
         MetricSpecKt.reachAndFrequencyParams {
           multipleDataProviderParams =
-            MetricSpecKt.frequencyParams {
-              privacyParams =
+            MetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+              reachPrivacyParams =
                 MetricSpecKt.differentialPrivacyParams {
                   epsilon =
                     METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
-                      .privacyParams
+                      .reachPrivacyParams
                       .epsilon
                   delta =
                     METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
-                      .privacyParams
+                      .reachPrivacyParams
                       .delta
                 }
               frequencyPrivacyParams =
@@ -4521,16 +4521,16 @@ class ReportsServiceTest {
                 }
             }
           singleDataProviderParams =
-            MetricSpecKt.frequencyParams {
-              privacyParams =
+            MetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+              reachPrivacyParams =
                 MetricSpecKt.differentialPrivacyParams {
                   epsilon =
                     METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
-                      .privacyParams
+                      .reachPrivacyParams
                       .epsilon
                   delta =
                     METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
-                      .privacyParams
+                      .reachPrivacyParams
                       .delta
                 }
               frequencyPrivacyParams =
@@ -4565,16 +4565,16 @@ class ReportsServiceTest {
       reachAndFrequency =
         InternalMetricSpecKt.reachAndFrequencyParams {
           multipleDataProviderParams =
-            InternalMetricSpecKt.frequencyParams {
-              privacyParams =
+            InternalMetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+              reachPrivacyParams =
                 InternalMetricSpecKt.differentialPrivacyParams {
                   epsilon =
                     METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
-                      .privacyParams
+                      .reachPrivacyParams
                       .epsilon
                   delta =
                     METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
-                      .privacyParams
+                      .reachPrivacyParams
                       .delta
                 }
               frequencyPrivacyParams =
@@ -4603,16 +4603,16 @@ class ReportsServiceTest {
                 }
             }
           singleDataProviderParams =
-            InternalMetricSpecKt.frequencyParams {
-              privacyParams =
+            InternalMetricSpecKt.samplingAndPrivacyParamsForReachAndFrequency {
+              reachPrivacyParams =
                 InternalMetricSpecKt.differentialPrivacyParams {
                   epsilon =
                     METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
-                      .privacyParams
+                      .reachPrivacyParams
                       .epsilon
                   delta =
                     METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
-                      .privacyParams
+                      .reachPrivacyParams
                       .delta
                 }
               frequencyPrivacyParams =
@@ -4648,7 +4648,7 @@ class ReportsServiceTest {
       watchDuration =
         MetricSpecKt.watchDurationParams {
           params =
-            MetricSpecKt.params {
+            MetricSpecKt.samplingAndPrivacyParams {
               privacyParams =
                 MetricSpecKt.differentialPrivacyParams {
                   epsilon = METRIC_SPEC_CONFIG.watchDurationParams.params.privacyParams.epsilon
@@ -4672,7 +4672,7 @@ class ReportsServiceTest {
       watchDuration =
         InternalMetricSpecKt.watchDurationParams {
           params =
-            InternalMetricSpecKt.params {
+            InternalMetricSpecKt.samplingAndPrivacyParams {
               privacyParams =
                 InternalMetricSpecKt.differentialPrivacyParams {
                   epsilon = METRIC_SPEC_CONFIG.watchDurationParams.params.privacyParams.epsilon
