@@ -27,7 +27,6 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.EndV
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.VidRangeIndex
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.toLong
-import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.InMemoryVidIndexMap
 
 @RunWith(JUnit4::class)
 class VidIndexMapTest {
