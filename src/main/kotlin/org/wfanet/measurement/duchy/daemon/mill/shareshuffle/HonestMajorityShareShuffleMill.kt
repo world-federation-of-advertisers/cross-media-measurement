@@ -408,7 +408,7 @@ class HonestMajorityShareShuffleMill(
         val blob = requisitionBlobs[requisitionId]
         if (blob != null) {
           // Requisition in format of blob.
-          registerCounts += requisition.details.honestMajorityShareShuffle.registerCount
+          registerCounts += requisition.details.protocol.honestMajorityShareShuffle.registerCount
           sketchShares += sketchShare {
             data =
               CompleteShufflePhaseRequestKt.SketchShareKt.shareData {
