@@ -38,6 +38,7 @@ import org.wfanet.measurement.duchy.service.internal.computations.toGetTokenRequ
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
+import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 import org.wfanet.measurement.internal.duchy.deleteComputationRequest
 import org.wfanet.measurement.internal.duchy.finishComputationRequest
 import org.wfanet.measurement.system.v1alpha.Computation
@@ -75,10 +76,10 @@ class Herald(
   private val internalComputationsClient: ComputationsCoroutineStub,
   private val systemComputationsClient: SystemComputationsCoroutineStub,
   private val systemComputationParticipantClient: SystemComputationParticipantsCoroutineStub,
-  private val privateKeyStore: PrivateKeyStore<TinkKeyId, TinkPrivateKeyHandle>,
   private val continuationTokenManager: ContinuationTokenManager,
   private val protocolsSetupConfig: ProtocolsSetupConfig,
   private val clock: Clock,
+  private val privateKeyStore: PrivateKeyStore<TinkKeyId, TinkPrivateKeyHandle>? = null,
   private val blobStorageBucket: String = "computation-blob-storage",
   private val maxAttempts: Int = 5,
   private val maxStreamingAttempts: Int = 5,
@@ -93,6 +94,14 @@ class Herald(
       require(state in TERMINAL_STATES) {
         "Unexpected deletable computation state $state while initializing Herald."
       }
+    }
+    if (
+      protocolsSetupConfig.honestMajorityShareShuffle.role ==
+        RoleInComputation.FIRST_NON_AGGREGATOR ||
+        protocolsSetupConfig.honestMajorityShareShuffle.role ==
+          RoleInComputation.SECOND_NON_AGGREGATOR
+    ) {
+      requireNotNull(privateKeyStore) { "private key store is not set up." }
     }
   }
 
