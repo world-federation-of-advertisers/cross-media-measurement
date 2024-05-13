@@ -3,8 +3,8 @@
 ## Background
 
 The configuration for the [`dev` environment](../../src/main/k8s/dev) can be
-used as the basis for deploying CMMS components using Amazon Elastic Kubernetes Service (EKS)
-on another AWS Cloud project.
+used as the basis for deploying CMMS components using Amazon Elastic Kubernetes
+Service (EKS) on another AWS Cloud project.
 
 ***Disclaimer***:
 
@@ -12,9 +12,8 @@ on another AWS Cloud project.
     approach.
 -   Almost all steps can be done via either the
     [AWS Cloud Console](https://console.aws.amazon.com/) UI or the
-    [`aws` CLI](https://aws.amazon.com/cli/). The doc picks
-    the easier one for each step. But you are free to do it in an alternative
-    way.
+    [`aws` CLI](https://aws.amazon.com/cli/). The doc picks the easier one for
+    each step. But you are free to do it in an alternative way.
 -   All names used in this doc can be replaced with something else. We use
     specific names in the doc for ease of reference.
 -   All quotas and resource configs are just examples, adjust the quota and size
@@ -94,18 +93,22 @@ Applying the Terraform configuration will create a new cluster. You can use the
 aws eks update-kubeconfig --region us-west-2 --name worker2-duchy
 ```
 
+Applying the Terraform configuration will also create external IP resources and
+output the EIP allocation IDs. These will be needed in later steps.
+
 ## Build and push the container images (optional)
 
 If you aren't using
 [pre-built release images](https://github.com/orgs/world-federation-of-advertisers/packages?repo_name=cross-media-measurement),
 you can build the images yourself from source and push them to a container
 registry. For example, if you're using the
-[Amazon Elastic Container Registry](https://aws.amazon.com/ecr/), you
-would specify `<account-id>.dkr.ecr.<account-region>.amazonaws.com` as your container registry and your Cloud project name as
-your image repository prefix.
+[Amazon Elastic Container Registry](https://aws.amazon.com/ecr/), you would
+specify `<account-id>.dkr.ecr.<account-region>.amazonaws.com` as your container
+registry and your Cloud project name as your image repository prefix.
 
-Assuming a project named `halo-worker2-demo`, an image tag `build-0001` and targeting aws account `010295286036` in `us-west-2`
-region, run the following to build and push the images:
+Assuming a project named `halo-worker2-demo`, an image tag `build-0001` and
+targeting aws account `010295286036` in `us-west-2` region, run the following to
+build and push the images:
 
 ```shell
 bazel run -c opt //src/main/docker:push_all_duchy_eks_images \
@@ -141,10 +144,11 @@ bazel build //src/main/k8s/dev:worker2_duchy_aws.tar \
   --define postgres_port=5432 \
   --define postgres_region=us-west-2 \
   --define postgres_credential_secret_name="rds\!db-b4bebc1a-b72d-4d6f-96d4-d3cde3c6af91" \
-  --define computation_control_server_eips="eipalloc-09d7a0f47a1701600,eipalloc-05874583414024ddf" \
+  --define duchy_public_api_eip_allocs="eipalloc-1234abc,eipalloc-5678def" \
+  --define duchy_system_api_eip_allocs="eipalloc-1234def,eipalloc-5678abc" \
   --define container_registry=ghcr.io \
   --define image_repo_prefix=world-federation-of-advertisers \
-  --define image_tag=0.3.0
+  --define image_tag=0.5.2
 ```
 
 Extract the generated archive to some directory. It is recommended that you
@@ -285,89 +289,56 @@ worker2-internal-api-server                ClusterIP      172.20.16.155    <none
 worker2-requisition-fulfillment-server     LoadBalancer   172.20.131.74    k8s-default-worker2r-c107e4a034-81f68e7731e3ee0b.elb.us-west-2.amazonaws.com   8443:32751/TCP   27d
 ```
 
-## Make the Duchy accessible outside the cluster
-
-### Reserve the external IPs
-
-There are two external APIs in the duchy. The
-`worker2-requisition-fulfillment-server` (a.k.a. the public API) is called by
-the EDPs to fulfill their requisitions. The `worker2-computation-control-server`
-(a.k.a. the system API) is called by the other duchies to send computation
-related data. As you can see from the result in the previous step. Only these
-two services have external IPs. However, these external IPs are ephemeral. We
-need to create a reserved elastic IP and attach them to the service.
-
-For example, in the halo dev instance, we have subdomains:
-
--   `public.worker2.dev.halo-cmm.org`
--   `system.worker2.dev.halo-cmm.org`
-
-The domains/subdomains are what the EDPs and other duchies use to communicate
-with the duchy.
-
-
-Creating an [AWS elastic IP](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/elastic-ip-addresses-eip.html)
-could be done through either aws web console or using
-`aws` cli tool.
-
-For example
-
-```shell
-aws ec2 allocate-address
-```
-
-The result will be something like
-```json
-{
-  "PublicIp": "70.224.234.241",
-  "AllocationId": "eipalloc-01435ba59eEXAMPLE",
-  "PublicIpv4Pool": "amazon",
-  "NetworkBorderGroup": "us-west-2",
-  "Domain": "vpc"
-}
-```
-
-With [AWS Load Balancer Controller Addon](https://docs.aws.amazon.com/eks/latest/userguide/aws-load-balancer-controller.html)
-the created elastic IP could be attached to the load balancer service through annotations similar to:
-```yaml
-  - apiVersion: v1
-    kind: Service
-    metadata:
-      name: worker2-computation-control-server
-      annotations:
-        service.beta.kubernetes.io/aws-load-balancer-type: nlb
-        service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
-        service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
-        service.beta.kubernetes.io/aws-load-balancer-eip-allocations: eipalloc-09d7a0f47a1701600,eipalloc-05874583414024ddf
-        kubernetes.io/ingress.allow-http: "false"
-```
-
 ## Set up Athena to query the Postgres Database
 
-Follow this [instruction](https://docs.aws.amazon.com/athena/latest/ug/connectors-postgresql.html) to create 
-an athena_postgres_connector. This instruction will guide you to:
-1. create a lambda function that will be used to execute queries against Postgres. 
-Configs for creating the lambda function:
-   * The SecretNamePrefix should be `rds`.
-   * The ConnectionString should be something like `postgres://jdbc:postgresql://{postgres_hostname}:5432/postgres?secret=${secret_name}
-     `. Take QA env as example:
-     * `postgres_hostname` is `qa-postgres.cncisa22uo1o.us-west-2.rds.amazonaws.com`,
-     * `secret_name` is `rds!db-04a89418-6fe8-4c5d-a870-d281981eec5b`
-   * The Subnets should contain at two db subnet Ids, which could be found from the RDS connection console. For example:
-     * `subnet-0e3cdc48416db8801` tagged as halo-cmm-qa-db-us-west-2a
-     * `subnet-08dc813bdebc2e5c1` tagged as halo-cmm-qa-db-us-west-2b
-   * The Security should be the eks-cluster-worker2-duchy security group. e.g.
-     * `sg-035eaa8e939aa6a26` tagged as eks-cluster-sg-worker2-duchy-104327146.
-   * Other configs could be left as default.
-2. create an Athena data source with the above created connection.
-3. run Athena query in query edition. ![Athena-example](athena-usage-example.png)
+Follow this
+[instruction](https://docs.aws.amazon.com/athena/latest/ug/connectors-postgresql.html)
+to create an athena_postgres_connector. This instruction will guide you to:
 
+1.  create a lambda function that will be used to execute queries against
+    Postgres.
+
+    Configs for creating the lambda function:
+
+    *   The SecretNamePrefix should be `rds`.
+    *   The ConnectionString should be something like
+        `postgres://jdbc:postgresql://{postgres_hostname}:5432/postgres?secret=${secret_name}`.
+
+        Take QA env as example:
+
+        *   `postgres_hostname` is
+            `qa-postgres.cncisa22uo1o.us-west-2.rds.amazonaws.com`
+        *   `secret_name` is `rds!db-04a89418-6fe8-4c5d-a870-d281981eec5b`
+
+    *   The Subnets should contain at two db subnet Ids, which could be found
+        from the RDS connection console.
+
+        For example:
+
+        *   `subnet-0e3cdc48416db8801` tagged as halo-cmm-qa-db-us-west-2a
+        *   `subnet-08dc813bdebc2e5c1` tagged as halo-cmm-qa-db-us-west-2b
+
+    *   The Security should be the eks-cluster-worker2-duchy security group.
+
+        e.g.
+
+        *   `sg-035eaa8e939aa6a26` tagged as
+            eks-cluster-sg-worker2-duchy-104327146.
+
+    *   Other configs could be left as default.
+
+2.  create an Athena data source with the above created connection.
+
+3.  run Athena query in query edition.
+
+    ![Athena-example](athena-usage-example.png)
 
 ## Q/A
 
 ### Q1. How to generate certificates/key pairs?
 
-Refer to the [GKE answer](../gke/duchy-deployment.md#q1-how-to-generate-certificateskey-pairs)
+Refer to the
+[GKE answer](../gke/duchy-deployment.md#q1-how-to-generate-certificateskey-pairs)
 
 ### Q2. What if the secret or configuration files need to be updated?
 
@@ -375,8 +346,8 @@ Modify the Kustomization directory and re-apply it.
 
 ### Q3. How to test if the Duchy is working properly?
 
-Since only Duchy can be run in AWS, all other resources for correctness test still has to be
-created in GKE.
-The same ["How to complete multi-cluster correctnessTest on GKE"](../gke/correctness-test.md)
-doc could still be used to complete a correctness test using the duchy you have deployed to AWS.
-
+Since only Duchy can be run in AWS, all other resources for correctness test
+still has to be created in GKE. The same
+["How to complete multi-cluster correctnessTest on GKE"](../gke/correctness-test.md)
+doc could still be used to complete a correctness test using the duchy you have
+deployed to AWS.

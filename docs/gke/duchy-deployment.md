@@ -94,6 +94,9 @@ Applying the Terraform configuration will create a new cluster. You can use the
 gcloud container clusters get-credentials worker1-duchy
 ```
 
+Applying the Terraform configuration will also create external IP resources and
+output the resource names. These will be needed in later steps.
+
 ## Build and push the container images (optional)
 
 If you aren't using
@@ -136,10 +139,12 @@ bazel build //src/main/k8s/dev:worker1_duchy.tar \
   --define google_cloud_project=halo-kingdom-demo \
   --define spanner_instance=halo-cmms \
   --define duchy_cert_id=SVVse4xWHL0 \
+  --define duchy_public_api_address_name=worker1-duchy-v2alpha \
+  --define duchy_system_api_address_name=worker1-duchy-system-v1alpha \
   --define duchy_storage_bucket=worker1-duchy \
   --define container_registry=ghcr.io \
   --define image_repo_prefix=world-federation-of-advertisers \
-  --define image_tag=0.3.0
+  --define image_tag=0.5.2
 ```
 
 Extract the generated archive to some directory. It is recommended that you
@@ -279,28 +284,6 @@ worker1-requisition-fulfillment-server   LoadBalancer 10.123.247.78  35.202.201.
 worker1-spanner-computations-server      ClusterIP    10.123.244.10  <none>         8443/TCP       1m
 kubernetes                               ClusterIP    10.123.240.1   <none>         443/TCP        1m
 ```
-
-## Make the Duchy accessible outside the cluster
-
-### Reserve the external IPs
-
-There are two external APIs in the duchy. The
-`worker1-requisition-fulfillment-server` (a.k.a. the public API) is called by
-the EDPs to fulfill their requisitions. The `worker1-computation-control-server`
-(a.k.a. the system API) is called by the other duchies to send computation
-related data. As you can see from the result in the previous step. Only these
-two services have external IPs. However, these external IPs are ephemeral. We
-need to reserve them such that they are stable.
-
-For example, in the halo dev instance, we have subdomains:
-
--   `public.worker1.dev.halo-cmm.org`
--   `system.worker1.dev.halo-cmm.org`
-
-The domains/subdomains are what the EDPs and other duchies use to communicate
-with the duchy.
-
-See [Reserving External IPs](cluster-config.md#reserving-external-ips)
 
 ## Q/A
 

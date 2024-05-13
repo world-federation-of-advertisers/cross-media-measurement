@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.duchy.db.computation.testing
 
-import com.google.protobuf.ByteString
 import io.grpc.Status
 import java.time.Duration
 import java.time.Instant
@@ -41,6 +40,7 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTokenKt
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
+import org.wfanet.measurement.internal.duchy.RequisitionDetails
 import org.wfanet.measurement.internal.duchy.RequisitionEntry
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.copy
@@ -321,8 +321,8 @@ private constructor(
     token: ComputationEditToken<ComputationType, ComputationStage>,
     externalRequisitionKey: ExternalRequisitionKey,
     pathToBlob: String,
-    secretSeedCiphertext: ByteString?,
     publicApiVersion: String,
+    protocol: RequisitionDetails.RequisitionProtocol?,
   ) {
     @Suppress("CANDIDATE_CHOSEN_USING_OVERLOAD_RESOLUTION_BY_LAMBDA_ANNOTATION")
     updateToken(token) {
@@ -333,10 +333,13 @@ private constructor(
       requisitions[requisitionIndex] =
         requisitions[requisitionIndex].copy {
           path = pathToBlob
-          if (secretSeedCiphertext != null) {
-            this.secretSeedCiphertext = secretSeedCiphertext
-          }
-          details = details.copy { this.publicApiVersion = publicApiVersion }
+          details =
+            details.copy {
+              this.publicApiVersion = publicApiVersion
+              if (protocol != null) {
+                this.protocol = protocol
+              }
+            }
         }
     }
   }

@@ -1,0 +1,10 @@
+# proto-file: grpc/service_config/service_config.proto
+# proto-message: ServiceConfig
+
+method_config: {
+  name: { }
+  # Default timeout for all services
+  timeout: {
+  seconds: 30
+  }
+}

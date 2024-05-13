@@ -111,3 +111,18 @@ package k8s
 		volumeMount: mountPath: "/etc/java"
 	}
 }
+
+#ExternalService: {
+	// Resource name of the external IP address.
+	_ipAddressName?: string
+
+	metadata: annotations: {
+		"cloud.google.com/l4-rbs": "enabled"
+		if _ipAddressName != _|_ {
+			"networking.gke.io/load-balancer-ip-addresses": _ipAddressName
+		}
+	}
+
+	// Explicitly clear deprecated field.
+	spec: loadBalancerIP: null
+}

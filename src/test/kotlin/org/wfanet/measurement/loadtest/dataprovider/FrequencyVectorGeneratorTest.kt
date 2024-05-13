@@ -50,7 +50,7 @@ private const val DUCHY_ID = "worker1"
 private const val RANDOM_SEED: Long = 0
 
 @RunWith(JUnit4::class)
-class ShareShuffleSketchGeneratorTest {
+class FrequencyVectorGeneratorTest {
   @Test
   fun `generate returns non-wrapped around sketch with correct range`() {
     // EventGroupSpecs for female 18_TO_34
@@ -79,7 +79,7 @@ class ShareShuffleSketchGeneratorTest {
     }
 
     val hmssSketch =
-      ShareShuffleSketchGenerator(
+      FrequencyVectorGenerator(
           vidUniverse,
           salt,
           vidToIndexMap,
@@ -120,7 +120,7 @@ class ShareShuffleSketchGeneratorTest {
     }
 
     val hmssSketch =
-      ShareShuffleSketchGenerator(
+      FrequencyVectorGenerator(
           vidUniverse,
           salt,
           vidToIndexMap,
@@ -166,7 +166,7 @@ class ShareShuffleSketchGeneratorTest {
 
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        ShareShuffleSketchGenerator(
+        FrequencyVectorGenerator(
             vidUniverse,
             salt,
             vidToIndexMap,
@@ -211,7 +211,7 @@ class ShareShuffleSketchGeneratorTest {
 
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        ShareShuffleSketchGenerator(
+        FrequencyVectorGenerator(
             vidUniverse,
             salt,
             vidToIndexMap,
@@ -256,7 +256,7 @@ class ShareShuffleSketchGeneratorTest {
 
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        ShareShuffleSketchGenerator(
+        FrequencyVectorGenerator(
             vidUniverse,
             salt,
             vidToIndexMap,
@@ -303,7 +303,7 @@ class ShareShuffleSketchGeneratorTest {
 
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        ShareShuffleSketchGenerator(
+        FrequencyVectorGenerator(
             vidUniverse,
             salt,
             vidToIndexMap,
@@ -343,7 +343,7 @@ class ShareShuffleSketchGeneratorTest {
     }
 
     val hmssSketch =
-      ShareShuffleSketchGenerator(
+      FrequencyVectorGenerator(
           vidUniverse,
           salt,
           vidToIndexMap,
@@ -384,7 +384,7 @@ class ShareShuffleSketchGeneratorTest {
     }
 
     val hmssSketch =
-      ShareShuffleSketchGenerator(
+      FrequencyVectorGenerator(
           vidUniverse,
           salt,
           vidToIndexMap,
@@ -459,7 +459,7 @@ class ShareShuffleSketchGeneratorTest {
     }
 
     val hmssSketch =
-      ShareShuffleSketchGenerator(
+      FrequencyVectorGenerator(
           vidUniverse,
           salt,
           vidToIndexMap,
@@ -548,7 +548,7 @@ class ShareShuffleSketchGeneratorTest {
     }
 
     val hmssSketch =
-      ShareShuffleSketchGenerator(
+      FrequencyVectorGenerator(
           vidUniverse,
           salt,
           vidToIndexMap,
