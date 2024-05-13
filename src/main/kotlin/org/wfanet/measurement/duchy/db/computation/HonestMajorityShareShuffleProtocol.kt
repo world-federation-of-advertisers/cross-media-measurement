@@ -161,9 +161,7 @@ object HonestMajorityShareShuffleProtocol {
             computationStageDetails {
               honestMajorityShareShuffle = stageDetails {
                 waitOnAggregationInputDetails = waitOnAggregationInputDetails {
-                  val participants = computationDetails.participantsList
-                  val nonAggregators = participants.subList(0, participants.size - 1)
-                  nonAggregators.mapIndexed { idx, duchyId ->
+                  computationDetails.nonAggregatorsList.mapIndexed { idx, duchyId ->
                     externalDuchyLocalBlobId[duchyId] = idx.toLong()
                   }
                 }
