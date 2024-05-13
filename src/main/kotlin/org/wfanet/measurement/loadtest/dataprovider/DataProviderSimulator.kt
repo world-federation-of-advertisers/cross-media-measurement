@@ -153,8 +153,6 @@ abstract class DataProviderSimulator(
       throw InvalidConsentSignalException(e.message, e)
     }
 
-    // TODO(@uakyol): Validate that collection interval is not outside of privacy landscape.
-
     return Specifications(measurementSpec, requisitionSpec)
   }
 

@@ -485,6 +485,7 @@ class EdpSimulator(
 
         val (measurementSpec, requisitionSpec) =
           try {
+            // TODO(@uakyol): Validate that collection interval is not outside of privacy landscape.
             verifySpecifications(requisition, measurementConsumerCertificate)
           } catch (e: InvalidConsentSignalException) {
             logger.log(Level.WARNING, e) {
