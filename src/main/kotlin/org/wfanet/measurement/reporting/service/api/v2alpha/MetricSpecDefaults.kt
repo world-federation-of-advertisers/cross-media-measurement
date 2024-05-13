@@ -65,7 +65,9 @@ fun MetricSpecConfig.validate() {
         throw IllegalArgumentException("reach_and_frequency_params: " + e.message)
       }
     } else {
-      throw IllegalArgumentException("reach_and_frequency_params: missing multiple_data_provider_params.")
+      throw IllegalArgumentException(
+        "reach_and_frequency_params: missing multiple_data_provider_params."
+      )
     }
 
     if (reachAndFrequencyParams.hasSingleDataProviderParams()) {
@@ -75,7 +77,9 @@ fun MetricSpecConfig.validate() {
         throw IllegalArgumentException("reach_and_frequency_params: " + e.message)
       }
     } else {
-      throw IllegalArgumentException("reach_and_frequency_params: missing single_data_provider_params.")
+      throw IllegalArgumentException(
+        "reach_and_frequency_params: missing single_data_provider_params."
+      )
     }
 
     if (reachAndFrequencyParams.maximumFrequency <= 0) {
@@ -115,7 +119,9 @@ fun MetricSpecConfig.validate() {
     }
 
     if (!watchDurationParams.hasMaximumWatchDurationPerUser()) {
-      throw IllegalArgumentException("watch_duration_params: missing maximum_watch_duration_per_user.")
+      throw IllegalArgumentException(
+        "watch_duration_params: missing maximum_watch_duration_per_user."
+      )
     }
   } else {
     throw IllegalArgumentException("Missing watch_duration_params.")
@@ -154,19 +160,25 @@ fun MetricSpecConfig.ReachAndFrequencySamplingAndPrivacyParams.validate() {
   if (hasReachPrivacyParams()) {
     reachPrivacyParams.validate()
   } else {
-    throw IllegalArgumentException("ReachAndFrequencySamplingAndPrivacyParams missing reach_privacy_params.")
+    throw IllegalArgumentException(
+      "ReachAndFrequencySamplingAndPrivacyParams missing reach_privacy_params."
+    )
   }
 
   if (hasFrequencyPrivacyParams()) {
     frequencyPrivacyParams.validate()
   } else {
-    throw IllegalArgumentException("ReachAndFrequencySamplingAndPrivacyParams missing frequency_privacy_params.")
+    throw IllegalArgumentException(
+      "ReachAndFrequencySamplingAndPrivacyParams missing frequency_privacy_params."
+    )
   }
 
   if (hasVidSamplingInterval()) {
     vidSamplingInterval.validate()
   } else {
-    throw IllegalArgumentException("ReachAndFrequencySamplingAndPrivacyParams missing vid_sampling_interval.")
+    throw IllegalArgumentException(
+      "ReachAndFrequencySamplingAndPrivacyParams missing vid_sampling_interval."
+    )
   }
 }
 
@@ -198,13 +210,19 @@ fun MetricSpecConfig.VidSamplingInterval.validate() {
           throw IllegalArgumentException("VidSamplingInterval.FixedStart.start cannot be negative.")
         }
         if (fixedStart.start >= 1) {
-          throw IllegalArgumentException("VidSamplingInterval.FixedStart.start must be smaller than 1.")
+          throw IllegalArgumentException(
+            "VidSamplingInterval.FixedStart.start must be smaller than 1."
+          )
         }
         if (fixedStart.width <= 0) {
-          throw IllegalArgumentException("VidSamplingInterval.FixedStart.width must be greater than 0.")
+          throw IllegalArgumentException(
+            "VidSamplingInterval.FixedStart.width must be greater than 0."
+          )
         }
         if (fixedStart.start + fixedStart.width > 1) {
-          throw IllegalArgumentException("VidSamplingInterval.FixedStart start + width cannot be greater than 1.")
+          throw IllegalArgumentException(
+            "VidSamplingInterval.FixedStart start + width cannot be greater than 1."
+          )
         }
       } else {
         throw IllegalArgumentException("VidSamplingInterval.FixedStart.start is missing.")
@@ -215,7 +233,9 @@ fun MetricSpecConfig.VidSamplingInterval.validate() {
   } else if (hasRandomStart()) {
     if (randomStart.hasWidth()) {
       if (randomStart.width <= 0 || randomStart.width > 1) {
-        throw IllegalArgumentException("VidSamplingInterval.RandomStart.width must be greater than 0 and less than or equal to 1.")
+        throw IllegalArgumentException(
+          "VidSamplingInterval.RandomStart.width must be greater than 0 and less than or equal to 1."
+        )
       }
     } else {
       throw IllegalArgumentException("VidSamplingInterval.RandomStart.width is missing.")
@@ -270,8 +290,12 @@ private fun MetricSpec.ReachParams.withDefaults(
   secureRandom: Random,
 ): MetricSpec.ReachParams {
   return copy {
-    if (multipleDataProviderParams.hasPrivacyParams() && multipleDataProviderParams.hasVidSamplingInterval() &&
-      singleDataProviderParams.hasPrivacyParams() && singleDataProviderParams.hasVidSamplingInterval()) {
+    if (
+      multipleDataProviderParams.hasPrivacyParams() &&
+        multipleDataProviderParams.hasVidSamplingInterval() &&
+        singleDataProviderParams.hasPrivacyParams() &&
+        singleDataProviderParams.hasVidSamplingInterval()
+    ) {
       clearPrivacyParams()
       multipleDataProviderParams =
         multipleDataProviderParams.copy {
@@ -354,8 +378,14 @@ private fun MetricSpec.ReachAndFrequencyParams.withDefaults(
       maximumFrequency = metricSpecConfig.reachAndFrequencyParams.maximumFrequency
     }
 
-    if (multipleDataProviderParams.hasReachPrivacyParams() && multipleDataProviderParams.hasFrequencyPrivacyParams() && multipleDataProviderParams.hasVidSamplingInterval() &&
-      singleDataProviderParams.hasReachPrivacyParams() && singleDataProviderParams.hasFrequencyPrivacyParams() && singleDataProviderParams.hasVidSamplingInterval()) {
+    if (
+      multipleDataProviderParams.hasReachPrivacyParams() &&
+        multipleDataProviderParams.hasFrequencyPrivacyParams() &&
+        multipleDataProviderParams.hasVidSamplingInterval() &&
+        singleDataProviderParams.hasReachPrivacyParams() &&
+        singleDataProviderParams.hasFrequencyPrivacyParams() &&
+        singleDataProviderParams.hasVidSamplingInterval()
+    ) {
       clearReachPrivacyParams()
       clearFrequencyPrivacyParams()
       multipleDataProviderParams =
@@ -414,10 +444,10 @@ private fun MetricSpec.ReachAndFrequencyParams.withDefaults(
                   .delta,
             )
           vidSamplingInterval =
-           vidSamplingInterval.withDefaults(
+            vidSamplingInterval.withDefaults(
               metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams.vidSamplingInterval
                 .toVidSamplingInterval(secureRandom)
-           )
+            )
           vidSamplingInterval.validate()
         }
     } else if (
@@ -505,7 +535,7 @@ private fun MetricSpec.WatchDurationParams.withDefaults(
               metricSpecConfig.watchDurationParams.params.vidSamplingInterval.toVidSamplingInterval(
                 secureRandom
               )
-          )
+            )
           vidSamplingInterval.validate()
         }
     } else if (hasPrivacyParams() && !hasParams()) {
@@ -531,7 +561,9 @@ private fun MetricSpec.WatchDurationParams.withDefaults(
     } else {
       throw MetricSpecDefaultsException(
         "Invalid params",
-        IllegalArgumentException("privacy_params in watch duration is not set, or fields in params not set."),
+        IllegalArgumentException(
+          "privacy_params in watch duration is not set, or fields in params not set."
+        ),
       )
     }
   }
@@ -592,7 +624,9 @@ private fun MetricSpec.ImpressionCountParams.withDefaults(
     } else {
       throw MetricSpecDefaultsException(
         "Invalid params",
-        IllegalArgumentException("privacy_params in impression count is not set, or fields in params not set."),
+        IllegalArgumentException(
+          "privacy_params in impression count is not set, or fields in params not set."
+        ),
       )
     }
   }
@@ -613,11 +647,11 @@ private fun MetricSpec.DifferentialPrivacyParams.withDefaults(
 }
 
 /**
- * Specifies the values in the optional fields of [MetricSpec.VidSamplingInterval] when they
- * are not set.
+ * Specifies the values in the optional fields of [MetricSpec.VidSamplingInterval] when they are not
+ * set.
  */
 private fun MetricSpec.VidSamplingInterval.withDefaults(
-  defaultVidSamplingInterval: MetricSpec.VidSamplingInterval,
+  defaultVidSamplingInterval: MetricSpec.VidSamplingInterval
 ): MetricSpec.VidSamplingInterval {
   return copy {
     start = if (hasStart()) start else defaultVidSamplingInterval.start
