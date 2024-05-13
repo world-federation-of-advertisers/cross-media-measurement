@@ -31,21 +31,21 @@ message MetricSpecConfig {
   // foundations of differential privacy. Foundations and Trends in Theoretical
   // Computer Science, 9(3-4), pp.211-407."
   message DifferentialPrivacyParams {
-    double epsilon = 1;
-    double delta = 2;
+    optional double epsilon = 1;
+    optional double delta = 2;
   }
 
   // Specifies a range of VIDs to be sampled.
   message VidSamplingInterval {
     message FixedStart {
       // The start of the sampling interval in [0, 1)
-      float start = 1;
+      optional float start = 1;
       // The width of the sampling interval.
-      float width = 2;
+      optional float width = 2;
     }
 
     message RandomStart {
-      float width = 1;
+      optional float width = 1;
     }
 
     oneof start {

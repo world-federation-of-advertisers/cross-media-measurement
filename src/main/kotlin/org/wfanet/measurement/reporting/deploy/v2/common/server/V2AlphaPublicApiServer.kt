@@ -85,6 +85,7 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.ReportSchedulesServi
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingPrincipal
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
+import org.wfanet.measurement.reporting.service.api.v2alpha.validate
 import org.wfanet.measurement.reporting.service.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub
@@ -164,6 +165,7 @@ private fun run(
 
   val metricSpecConfig =
     parseTextProto(v2AlphaFlags.metricSpecConfigFile, MetricSpecConfig.getDefaultInstance())
+  metricSpecConfig.validate()
 
   val apiKey = measurementConsumerConfigs.configsMap.values.first().apiKey
   val celEnvCacheProvider =

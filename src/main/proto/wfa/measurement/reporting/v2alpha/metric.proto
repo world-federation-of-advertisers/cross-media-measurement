@@ -44,22 +44,27 @@ message MetricSpec {
   // Specifies a range of VIDs to be sampled.
   message VidSamplingInterval {
     // The start of the sampling interval in [0, 1)
-    float start = 1;
+    optional float start = 1;
     // The width of the sampling interval.
     //
     // start + width cannot be larger than 1
-    float width = 2 [(google.api.field_behavior) = REQUIRED];
+    optional float width = 2;
   }
 
   message SamplingAndPrivacyParams {
-    DifferentialPrivacyParams privacy_params = 1;
-    VidSamplingInterval vid_sampling_interval = 2;
+    DifferentialPrivacyParams privacy_params = 1
+        [(google.api.field_behavior) = REQUIRED];
+    VidSamplingInterval vid_sampling_interval = 2
+        [(google.api.field_behavior) = REQUIRED];
   }
 
   message ReachAndFrequencySamplingAndPrivacyParams {
-    DifferentialPrivacyParams reach_privacy_params = 1;
-    DifferentialPrivacyParams frequency_privacy_params = 2;
-    VidSamplingInterval vid_sampling_interval = 3;
+    DifferentialPrivacyParams reach_privacy_params = 1
+        [(google.api.field_behavior) = REQUIRED];
+    DifferentialPrivacyParams frequency_privacy_params = 2
+        [(google.api.field_behavior) = REQUIRED];
+    VidSamplingInterval vid_sampling_interval = 3
+        [(google.api.field_behavior) = REQUIRED];
   }
 
   // Parameters that are used to generate `Reach` metrics. Applied on a
