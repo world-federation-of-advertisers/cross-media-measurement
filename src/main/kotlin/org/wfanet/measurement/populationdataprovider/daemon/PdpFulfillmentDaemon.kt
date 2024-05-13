@@ -29,6 +29,7 @@ import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec.SubPopulation
 import org.wfanet.measurement.api.v2alpha.PopulationSpec.VidRange
+import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
@@ -107,9 +108,15 @@ class PdpFulfillmentDaemon(
         logger.log(Level.INFO, "RequisitionSpec:\n$requisitionSpec")
 
 
-        // TODO: add check for invalid population id
         val populationSpec = populationSpecMap.getValue(populationId)
+        val populationSpecValidator = PopulationSpecValidator.validateVidRangesList(populationSpec)
+        if(populationSpecValidator.isFailure){
+          throw InvalidSpecException("Population Spec $populationId is Invalid.")
+        }
+
         val subPopulationList = populationSpec.subpopulationsList
+
+
 
         val requisitionFilterExpression = requisitionSpec.population.filter.expression
 
@@ -155,7 +162,7 @@ class PdpFulfillmentDaemon(
     subPopulationList: List<SubPopulation>,
     filterExpression: String,
   ): Long {
-    return subPopulationList.sumOf { it ->
+    return subPopulationList.sumOf {
       val attributesList = it.attributesList
       val vidRanges = it.vidRangesList
       val shouldSumPopulation = isValidAttributesList(attributesList, filterExpression)

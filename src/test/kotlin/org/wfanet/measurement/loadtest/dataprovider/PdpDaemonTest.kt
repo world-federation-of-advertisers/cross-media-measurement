@@ -151,18 +151,18 @@ val ATTRIBUTE_3 = any {
 }
 
 val VID_RANGE_1 = vidRange {
-  startVid = 0
-  endVidInclusive = 99
+  startVid = 1
+  endVidInclusive = 100
 }
 
 val VID_RANGE_2 = vidRange {
-  startVid = 100
-  endVidInclusive = 299
+  startVid = 101
+  endVidInclusive = 300
 }
 
 val VID_RANGE_3 = vidRange {
-  startVid = 300
-  endVidInclusive = 599
+  startVid = 301
+  endVidInclusive = 600
 }
 
 // Male 18-34
