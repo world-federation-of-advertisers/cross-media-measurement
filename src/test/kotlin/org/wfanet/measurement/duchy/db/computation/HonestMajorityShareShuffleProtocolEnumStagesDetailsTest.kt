@@ -40,7 +40,6 @@ class HonestMajorityShareShuffleProtocolEnumStagesDetailsTest {
                 waitOnAggregationInputDetails = waitOnAggregationInputDetails {
                   externalDuchyLocalBlobId["worker_1"] = 0L
                   externalDuchyLocalBlobId["worker_2"] = 1L
-                  externalDuchyLocalBlobId["worker_3"] = 2L
                 }
               }
             }
@@ -50,10 +49,8 @@ class HonestMajorityShareShuffleProtocolEnumStagesDetailsTest {
         Details.detailsFor(
           stage,
           computationDetails {
-            participants += "worker_1"
-            participants += "worker_2"
-            participants += "worker_3"
-            participants += "aggregator"
+            nonAggregators += "worker_1"
+            nonAggregators += "worker_2"
           },
         )
       ProtoTruth.assertThat(stageProto).isEqualTo(expected)
