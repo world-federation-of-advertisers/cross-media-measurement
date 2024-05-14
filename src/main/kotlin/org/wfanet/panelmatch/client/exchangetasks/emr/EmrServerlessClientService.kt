@@ -2,22 +2,36 @@ package org.wfanet.panelmatch.client.exchangetasks.emr
 
 import java.util.logging.Logger
 import kotlin.time.Duration
-import kotlin.time.DurationUnit
+import kotlin.time.DurationUnit.SECONDS
 import kotlin.time.toDuration
 import kotlinx.coroutines.delay
 import software.amazon.awssdk.services.emrserverless.EmrServerlessClient
-import software.amazon.awssdk.services.emrserverless.model.*
+import software.amazon.awssdk.services.emrserverless.model.ApplicationState
+import software.amazon.awssdk.services.emrserverless.model.ConfigurationOverrides
+import software.amazon.awssdk.services.emrserverless.model.CreateApplicationRequest
+import software.amazon.awssdk.services.emrserverless.model.GetApplicationRequest
+import software.amazon.awssdk.services.emrserverless.model.GetJobRunRequest
+import software.amazon.awssdk.services.emrserverless.model.JobDriver
+import software.amazon.awssdk.services.emrserverless.model.JobRunState
+import software.amazon.awssdk.services.emrserverless.model.MonitoringConfiguration
+import software.amazon.awssdk.services.emrserverless.model.S3MonitoringConfiguration
+import software.amazon.awssdk.services.emrserverless.model.SparkSubmit
+import software.amazon.awssdk.services.emrserverless.model.StartApplicationRequest
+import software.amazon.awssdk.services.emrserverless.model.StartJobRunRequest
+import software.amazon.awssdk.services.emrserverless.model.StopApplicationRequest
 
 private const val EMR_RELEASE_LABEL = "emr-7.0.0"
 
 private const val MAX_STATE_CHECK = 100
-private val STATE_CHECK_SLEEP_INTERVAL: Duration = 10.toDuration(DurationUnit.SECONDS)
+private val STATE_CHECK_SLEEP_INTERVAL: Duration = 10.toDuration(SECONDS)
 
 open class EmrServerlessClientService(
   private val s3ExchangeTaskJarPath: String,
   private val s3ExchangeTaskLogPath: String,
   private val emrJobExecutionRoleArn: String,
   private val emrServerlessClient: EmrServerlessClient,
+  private val sleepTime: Duration = STATE_CHECK_SLEEP_INTERVAL,
+  private val maxStateChecks: Int = MAX_STATE_CHECK,
 ) {
   open fun createApplication(applicationName: String): String {
     val request = CreateApplicationRequest.builder().name(applicationName).releaseLabel(
@@ -30,9 +44,8 @@ open class EmrServerlessClientService(
 
   open suspend fun startOrStopApplication(applicationId: String, start: Boolean): Boolean {
     var checks = 0
-    val initialStartOrStopSleep = 30.toDuration(DurationUnit.SECONDS)
 
-    while (checks < MAX_STATE_CHECK) {
+    while (checks < maxStateChecks) {
       val request = GetApplicationRequest.builder().applicationId(applicationId).build()
       val response = emrServerlessClient.getApplication(request)
 
@@ -41,16 +54,14 @@ open class EmrServerlessClientService(
       if ((state == ApplicationState.CREATED || state == ApplicationState.STOPPED) && start) {
         val startAppReq = StartApplicationRequest.builder().applicationId(applicationId).build()
         emrServerlessClient.startApplication(startAppReq)
-        delay(initialStartOrStopSleep)
       } else if ((state == ApplicationState.STARTED) && !start) {
         val stopAppReq = StopApplicationRequest.builder().applicationId(applicationId).build()
         emrServerlessClient.stopApplication(stopAppReq)
-        delay(initialStartOrStopSleep)
       } else if (state == ApplicationState.STARTED || state == ApplicationState.STOPPED) {
         return true
       }
 
-      delay(STATE_CHECK_SLEEP_INTERVAL)
+      if (checks == 0) { delay(sleepTime * 3) } else { delay(sleepTime) }
       checks++
     }
 
@@ -69,9 +80,12 @@ open class EmrServerlessClientService(
           .entryPointArguments(arguments)
           .build()
       }.build())
-      .configurationOverrides(ConfigurationOverrides.builder()
-        .monitoringConfiguration(MonitoringConfiguration.builder()
-          .s3MonitoringConfiguration(S3MonitoringConfiguration.builder()
+      .configurationOverrides(
+        ConfigurationOverrides.builder()
+        .monitoringConfiguration(
+          MonitoringConfiguration.builder()
+          .s3MonitoringConfiguration(
+            S3MonitoringConfiguration.builder()
             .logUri(s3ExchangeTaskLogPath).build()).build()).build())
       .build()
     val startJobResp = emrServerlessClient.startJobRun(startJobReq)
@@ -79,7 +93,7 @@ open class EmrServerlessClientService(
     val jobRunId = startJobResp.jobRunId()
 
     var checks = 0
-    while (checks < MAX_STATE_CHECK) {
+    while (checks < maxStateChecks) {
       val request = GetJobRunRequest.builder()
         .applicationId(applicationId)
         .jobRunId(jobRunId)
@@ -90,7 +104,7 @@ open class EmrServerlessClientService(
       val jobState = response.jobRun().state()
 
       if (!terminalStates.contains(jobState)) {
-        delay(STATE_CHECK_SLEEP_INTERVAL)
+        delay(sleepTime)
       } else {
         if (jobState == JobRunState.SUCCESS) {
           return true

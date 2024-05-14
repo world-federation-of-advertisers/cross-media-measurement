@@ -12,13 +12,17 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.Mock
 import org.mockito.MockitoAnnotations
-import org.mockito.kotlin.*
+import org.mockito.kotlin.any
+import org.mockito.kotlin.eq
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.storage.StorageDetails
 
-const val TEST_APPLICATION_ID = "test-application-id"
-const val TEST_EXCHANGE_ATTEMPT = "recurringExchanges/test-recurring-exchange/exchanges/" +
+private const val TEST_APPLICATION_ID = "test-application-id"
+private const val TEST_EXCHANGE_ATTEMPT = "recurringExchanges/test-recurring-exchange/exchanges/" +
   "test-exchange/steps/test-step/attempts/test-step-attempt"
 
 @RunWith(JUnit4::class)
