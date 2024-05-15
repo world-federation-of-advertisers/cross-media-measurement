@@ -50,6 +50,8 @@ import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -73,12 +75,15 @@ import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequ
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.measurementKey
+import org.wfanet.measurement.internal.kingdom.measurementLogEntry
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.requisition
 import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
 import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
+import org.wfanet.measurement.internal.kingdom.stateTransitionMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
+import org.wfanet.measurement.internal.kingdom.streamStateTransitionMeasurementLogEntriesRequest
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
@@ -146,6 +151,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   protected data class Services<T>(
     val measurementsService: T,
+    val measurementLogEntriesService: MeasurementLogEntriesCoroutineImplBase,
     val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
     val dataProvidersService: DataProvidersCoroutineImplBase,
     val certificatesService: CertificatesGrpcKt.CertificatesCoroutineImplBase,
@@ -158,6 +164,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   private val population = Population(clock, idGenerator)
 
   protected lateinit var measurementsService: T
+    private set
+
+  protected lateinit var measurementLogEntriesService: MeasurementLogEntriesCoroutineImplBase
     private set
 
   protected lateinit var measurementConsumersService: MeasurementConsumersCoroutineImplBase
@@ -180,8 +189,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   @Before
   fun initService() {
     val services = newServices(idGenerator)
-    measurementConsumersService = services.measurementConsumersService
     measurementsService = services.measurementsService
+    measurementLogEntriesService = services.measurementLogEntriesService
+    measurementConsumersService = services.measurementConsumersService
     dataProvidersService = services.dataProvidersService
     certificatesService = services.certificatesService
     accountsService = services.accountsService
@@ -1060,7 +1070,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   fun `setMeasurementResult succeeds`() = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
-    val createdMeasurement =
+    val measurement =
       measurementsService.createMeasurement(
         createMeasurementRequest {
           measurement =
@@ -1075,7 +1085,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val duchyCertificate = population.createDuchyCertificate(certificatesService, aggregatorDuchyId)
 
     val request = setMeasurementResultRequest {
-      externalComputationId = createdMeasurement.externalComputationId
+      externalComputationId = measurement.externalComputationId
       externalAggregatorDuchyId = aggregatorDuchyId
       externalAggregatorCertificateId = duchyCertificate.externalCertificateId
       resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
@@ -1085,12 +1095,11 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
     val response = measurementsService.setMeasurementResult(request)
 
-    assertThat(response.updateTime.toInstant())
-      .isGreaterThan(createdMeasurement.updateTime.toInstant())
+    assertThat(response.updateTime.toInstant()).isGreaterThan(measurement.updateTime.toInstant())
     assertThat(response)
       .ignoringFields(Measurement.UPDATE_TIME_FIELD_NUMBER, Measurement.ETAG_FIELD_NUMBER)
       .isEqualTo(
-        createdMeasurement.copy {
+        measurement.copy {
           state = Measurement.State.SUCCEEDED
           results += resultInfo {
             externalAggregatorDuchyId = aggregatorDuchyId
@@ -1104,13 +1113,36 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val succeededMeasurement =
       measurementsService.getMeasurement(
         getMeasurementRequest {
-          externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
-          externalMeasurementId = createdMeasurement.externalMeasurementId
+          externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+          externalMeasurementId = measurement.externalMeasurementId
         }
       )
-
     assertThat(response).isEqualTo(succeededMeasurement)
     assertThat(succeededMeasurement.resultsList.size).isEqualTo(1)
+
+    val latestLogEntry =
+      measurementLogEntriesService
+        .streamStateTransitionMeasurementLogEntries(
+          streamStateTransitionMeasurementLogEntriesRequest {
+            externalMeasurementId = measurement.externalMeasurementId
+            externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+          }
+        )
+        .toList()
+        .last()
+    assertThat(latestLogEntry)
+      .isEqualTo(
+        stateTransitionMeasurementLogEntry {
+          logEntry = measurementLogEntry {
+            externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+            externalMeasurementId = measurement.externalMeasurementId
+            createTime = succeededMeasurement.updateTime
+            details = MeasurementLogEntryKt.details { logMessage = "Succeeded" }
+          }
+          previousState = measurement.state
+          currentState = Measurement.State.SUCCEEDED
+        }
+      )
   }
 
   @Test
