@@ -14,12 +14,10 @@
 
 package k8s
 
-import "encoding/yaml"
-
 // K8s custom resource defined by OpenTelemetry Operator used for creating
 // an OpenTelemetry Collector.
 #OpenTelemetryCollector: {
-	apiVersion: "opentelemetry.io/v1alpha1"
+	apiVersion: "opentelemetry.io/v1beta1"
 	kind:       "OpenTelemetryCollector"
 	metadata:   #ObjectMeta & {
 		_component: "metrics"
@@ -27,9 +25,24 @@ import "encoding/yaml"
 	}
 	spec: {
 		mode:             *"deployment" | "sidecar"
-		image:            string | *"ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.88.0"
+		image:            string | *"ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.99.0"
 		imagePullPolicy?: "IfNotPresent" | "Always" | "Never"
-		config:           string
+		config: {
+			exporters: {...}
+			receivers: {...}
+			service: {
+				pipelines: [string]: {
+					exporters: [...string]
+					processors: [...string]
+					receivers: [...string]
+				}
+				extensions?: [...]
+				telemetry?: {...}
+			}
+			connectors?: {...}
+			extensions?: {...}
+			processors?: {...}
+		}
 		nodeSelector?: {...}
 		podSelector?: {...}
 		serviceAccount?: string
@@ -49,7 +62,7 @@ import "encoding/yaml"
 	collectors: {
 		"default": {
 			spec: {
-				_config: {
+				config: {
 					receivers: {
 						otlp:
 							protocols:
@@ -64,7 +77,7 @@ import "encoding/yaml"
 						}
 					}
 
-					exporters: {...} | *{
+					exporters: _ | *{
 						prometheus: {
 							send_timestamps: true
 							endpoint:        "0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)"
@@ -73,7 +86,7 @@ import "encoding/yaml"
 						}
 					}
 
-					extensions: {...} | *{
+					extensions: _ | *{
 						health_check: {}
 					}
 
@@ -88,8 +101,6 @@ import "encoding/yaml"
 						}
 					}
 				}
-
-				config: yaml.Marshal(_config)
 			}
 		}
 	}
@@ -112,7 +123,7 @@ import "encoding/yaml"
 						value: "grpc"
 					}, {
 						name:  "OTEL_EXPORTER_OTLP_ENDPOINT"
-						value: #OpenTelemetryCollectorEndpoint
+						value: "http://default-collector-headless.default.svc:\(#OpenTelemetryReceiverPort)"
 					}, {
 						name:  "OTEL_EXPORTER_OTLP_TIMEOUT"
 						value: "20000"
@@ -125,9 +136,15 @@ import "encoding/yaml"
 					}, {
 						name:  "OTEL_METRIC_EXPORT_INTERVAL"
 						value: "30000"
+					}, {
+						name:  "OTEL_EXPORTER_OTLP_METRICS_DEFAULT_HISTOGRAM_AGGREGATION"
+						value: "base2_exponential_bucket_histogram"
+					}, {
+						name:  "OTEL_LOGS_EXPORTER"
+						value: "none"
 					},
 				]
-				java: image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:1.31.0"
+				java: image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:2.3.0"
 			}
 		}
 	}

@@ -14,8 +14,6 @@
 
 package k8s
 
-import "encoding/yaml"
-
 #GCloudProject: string @tag("google_cloud_project")
 
 // Name of K8s service account for OpenTelemetry collector.
@@ -48,7 +46,7 @@ collectors: openTelemetry.collectors & {
 	"default": {
 		spec: {
 			serviceAccount: #CollectorServiceAccount
-			_config: {
+			config: {
 				processors: {
 					filter: {
 						spans: {
@@ -80,8 +78,6 @@ collectors: openTelemetry.collectors & {
 					}
 				}
 			}
-
-			config: yaml.Marshal(_config)
 		}
 	}
 }

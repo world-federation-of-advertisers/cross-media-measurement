@@ -3,8 +3,6 @@ module(
     repo_name = "wfa_measurement_system",
 )
 
-OPENTELEMETRY_JAVA_VERSION = "1.32.0"
-
 PROJECTNESSIE_CEL_VERSION = "0.3.11"
 
 BORINGSSL_VERSION = "0.0.0-20230215-5c22014"
@@ -126,7 +124,6 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.82.2",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -209,10 +206,6 @@ maven.install(
         "com.google.crypto.tink:tink-gcpkms:1.9.0",
         "com.squareup.okhttp3:okhttp:4.12.0",
         "io.opentelemetry.semconv:opentelemetry-semconv:1.22.0-alpha",
-        "io.opentelemetry:opentelemetry-sdk:" + OPENTELEMETRY_JAVA_VERSION,
-        "io.opentelemetry:opentelemetry-sdk-common:" + OPENTELEMETRY_JAVA_VERSION,
-        "io.opentelemetry:opentelemetry-sdk-metrics:" + OPENTELEMETRY_JAVA_VERSION,
-        "io.opentelemetry:opentelemetry-exporter-otlp:" + OPENTELEMETRY_JAVA_VERSION,
         "io.kubernetes:client-java:" + K8S_CLIENT_VERSION,
         "io.kubernetes:client-java-extended:" + K8S_CLIENT_VERSION,
         "joda-time:joda-time:2.10.10",
@@ -322,6 +315,16 @@ archive_override(
     strip_prefix = "rules_proto-6.0.0-rc2",
     urls = [
         "https://github.com/bazelbuild/rules_proto/releases/download/6.0.0-rc2/rules_proto-6.0.0-rc2.tar.gz",
+    ],
+)
+
+# DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#251): Use version.
+archive_override(
+    module_name = "common-jvm",
+    integrity = "sha256-qJJIjVmCOml8vd5S7YiCvzxaXcPvQcPf4HlRRPdtV0o=",
+    strip_prefix = "common-jvm-9f2c0f7361ce1948fe793f38c0bec48547483209",
+    urls = [
+        "https://github.com/world-federation-of-advertisers/common-jvm/archive/9f2c0f7361ce1948fe793f38c0bec48547483209.tar.gz",
     ],
 )
 

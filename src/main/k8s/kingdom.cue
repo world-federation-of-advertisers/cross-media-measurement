@@ -87,7 +87,6 @@ import ("strings")
 	_kingdomPendingMeasurementsDryRunRetentionPolicyFlag:   "--dry-run=\(_pendingMeasurementsDryRun)"
 	_kingdomExchangesDaysToLiveFlag:                        "--days-to-live=\(_exchangesDaysToLive)"
 	_kingdomExchangesDryRunRetentionPolicyFlag:             "--dry-run=\(_exchangesDryRun)"
-	_otlpEndpoint:                                          "--otel-exporter-otlp-endpoint=\(#OpenTelemetryCollectorEndpoint)"
 
 	services: [Name=_]: #GrpcService & {
 		metadata: {
@@ -213,8 +212,6 @@ import ("strings")
 				_kingdomCompletedMeasurementsMaxToDeletePerRpcFlag,
 				_kingdomCompletedMeasurementsDryRunRetentionPolicyFlag,
 				_debug_verbose_grpc_client_logging_flag,
-				_otlpEndpoint,
-				"--otel-service-name=\(Cronjob.metadata.name)",
 			]
 			spec: schedule: "15 * * * *" // Hourly, 15 minutes past the hour
 		}
@@ -228,8 +225,6 @@ import ("strings")
 				_kingdomPendingMeasurementsTimeToLiveFlag,
 				_kingdomPendingMeasurementsDryRunRetentionPolicyFlag,
 				_debug_verbose_grpc_client_logging_flag,
-				_otlpEndpoint,
-				"--otel-service-name=\(Cronjob.metadata.name)",
 			]
 			spec: schedule: "45 * * * *" // Hourly, 45 minutes past the hour
 		}
@@ -243,8 +238,6 @@ import ("strings")
 				_kingdomExchangesDaysToLiveFlag,
 				_kingdomExchangesDryRunRetentionPolicyFlag,
 				_debug_verbose_grpc_client_logging_flag,
-				_otlpEndpoint,
-				"--otel-service-name=\(Cronjob.metadata.name)",
 			]
 			spec: schedule: "40 6 * * *" // Daily, 6:40 am
 		}
