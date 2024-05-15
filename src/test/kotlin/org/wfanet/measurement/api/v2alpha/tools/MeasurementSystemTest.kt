@@ -876,6 +876,9 @@ class MeasurementSystemTest {
       .isEqualTo(
         measurementSpec {
           measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.message
+          // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop reading this
+          // field.
+          serializedMeasurementPublicKey = MEASUREMENT_CONSUMER.publicKey.message.value
           this.nonceHashes += request.measurement.dataProvidersList.map { it.value.nonceHash }
           reachAndFrequency =
             MeasurementSpecKt.reachAndFrequency {
@@ -916,6 +919,9 @@ class MeasurementSystemTest {
       .isEqualTo(
         requisitionSpec {
           measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.message
+          // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this
+          // field.
+          serializedMeasurementPublicKey = MEASUREMENT_CONSUMER.publicKey.message.value
           events =
             RequisitionSpecKt.events {
               eventGroups +=
@@ -966,6 +972,9 @@ class MeasurementSystemTest {
       .isEqualTo(
         requisitionSpec {
           measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.message
+          // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this
+          // field.
+          serializedMeasurementPublicKey = MEASUREMENT_CONSUMER.publicKey.message.value
           events =
             RequisitionSpecKt.events {
               eventGroups +=
@@ -1081,6 +1090,9 @@ class MeasurementSystemTest {
       .isEqualTo(
         measurementSpec {
           measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.message
+          // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop reading this
+          // field.
+          serializedMeasurementPublicKey = MEASUREMENT_CONSUMER.publicKey.message.value
           this.nonceHashes += request.measurement.dataProvidersList.map { it.value.nonceHash }
           reach =
             MeasurementSpecKt.reach {
@@ -1116,6 +1128,9 @@ class MeasurementSystemTest {
       .isEqualTo(
         requisitionSpec {
           measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.message
+          // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this
+          // field.
+          serializedMeasurementPublicKey = MEASUREMENT_CONSUMER.publicKey.message.value
           events =
             RequisitionSpecKt.events {
               eventGroups +=
@@ -1166,6 +1181,9 @@ class MeasurementSystemTest {
       .isEqualTo(
         requisitionSpec {
           measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.message
+          // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this
+          // field.
+          serializedMeasurementPublicKey = MEASUREMENT_CONSUMER.publicKey.message.value
           events =
             RequisitionSpecKt.events {
               eventGroups +=
@@ -1341,6 +1359,9 @@ class MeasurementSystemTest {
       .isEqualTo(
         requisitionSpec {
           measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.message
+          // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this
+          // field.
+          serializedMeasurementPublicKey = MEASUREMENT_CONSUMER.publicKey.message.value
           population =
             RequisitionSpecKt.population {
               filter = RequisitionSpecKt.eventFilter { expression = "abcd" }

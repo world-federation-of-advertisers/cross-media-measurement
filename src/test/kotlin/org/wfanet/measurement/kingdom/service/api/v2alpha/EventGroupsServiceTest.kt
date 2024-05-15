@@ -35,6 +35,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.stub
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.Version
@@ -67,8 +68,10 @@ import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.captureFirst
@@ -89,6 +92,12 @@ import org.wfanet.measurement.internal.kingdom.eventTemplate
 import org.wfanet.measurement.internal.kingdom.getEventGroupRequest as internalGetEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.updateEventGroupRequest as internalUpdateEventGroupRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupInvalidArgsException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundByMeasurementConsumerException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupStateIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 
 private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
 
@@ -104,6 +113,8 @@ private val EVENT_GROUP_NAME_2 = "$DATA_PROVIDER_NAME/eventGroups/AAAAAAAAAJs"
 private val EVENT_GROUP_NAME_3 = "$DATA_PROVIDER_NAME/eventGroups/AAAAAAAAAKs"
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 private const val MEASUREMENT_CONSUMER_NAME_2 = "measurementConsumers/BBBBBBBBBHs"
+private val MEASUREMENT_CONSUMER_EVENT_GROUP_NAME =
+  "$MEASUREMENT_CONSUMER_NAME/eventGroups/AAAAAAAAAHs"
 private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
   "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
 private val ENCRYPTED_METADATA = encryptedMessage {
@@ -121,6 +132,10 @@ private val EVENT_GROUP_EXTERNAL_ID_3 =
 private val MEASUREMENT_CONSUMER_EXTERNAL_ID =
   apiIdToExternalId(
     MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
+  )
+private val MEASUREMENT_CONSUMER_EXTERNAL_ID_2 =
+  apiIdToExternalId(
+    MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME_2)!!.measurementConsumerId
   )
 
 private val MEASUREMENT_CONSUMER_PUBLIC_KEY = encryptionPublicKey {
@@ -1204,5 +1219,260 @@ class EventGroupsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `getEventGroup throws NOT_FOUND with event group name when event group not found`() {
+    internalEventGroupsMock.stub {
+      onBlocking { getEventGroup(any()) }
+        .thenThrow(
+          EventGroupNotFoundException(
+              ExternalId(DATA_PROVIDER_EXTERNAL_ID),
+              ExternalId(EVENT_GROUP_EXTERNAL_ID),
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "EventGroup not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.getEventGroup(getEventGroupRequest { name = EVENT_GROUP_NAME }) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("eventGroup", EVENT_GROUP_NAME)
+  }
+
+  @Test
+  fun `getEventGroup throws NOT_FOUND with event group name when event group not found by measurement consumer`() {
+    internalEventGroupsMock.stub {
+      onBlocking { getEventGroup(any()) }
+        .thenThrow(
+          EventGroupNotFoundByMeasurementConsumerException(
+              ExternalId(MEASUREMENT_CONSUMER_EXTERNAL_ID),
+              ExternalId(EVENT_GROUP_EXTERNAL_ID),
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "EventGroup not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.getEventGroup(
+              getEventGroupRequest { name = MEASUREMENT_CONSUMER_EVENT_GROUP_NAME }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("eventGroup", MEASUREMENT_CONSUMER_EVENT_GROUP_NAME)
+  }
+
+  @Test
+  fun `createEventGroup throws FAILED_PRECONDITION with measurement consumer name when measurement consumer not found`() {
+    internalEventGroupsMock.stub {
+      onBlocking { createEventGroup(any()) }
+        .thenThrow(
+          MeasurementConsumerNotFoundException(ExternalId(MEASUREMENT_CONSUMER_EXTERNAL_ID))
+            .asStatusRuntimeException(
+              Status.Code.FAILED_PRECONDITION,
+              "MeasurementConsumer not found.",
+            )
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.createEventGroup(
+              createEventGroupRequest {
+                parent = DATA_PROVIDER_NAME
+                eventGroup = EVENT_GROUP
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("measurementConsumer", MEASUREMENT_CONSUMER_NAME)
+  }
+
+  @Test
+  fun `createEventGroup throws FAILED_PRECONDITION with data provider name when data provider not found`() {
+    internalEventGroupsMock.stub {
+      onBlocking { createEventGroup(any()) }
+        .thenThrow(
+          DataProviderNotFoundException(ExternalId(DATA_PROVIDER_EXTERNAL_ID))
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "DataProvider not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.createEventGroup(
+              createEventGroupRequest {
+                parent = DATA_PROVIDER_NAME
+                eventGroup = EVENT_GROUP
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("dataProvider", DATA_PROVIDER_NAME)
+  }
+
+  @Test
+  fun `updateEventGroup throws INVALID_ARGUMENT with original and provided measurement consumer ids when event group argument invalid`() {
+    internalEventGroupsMock.stub {
+      onBlocking { updateEventGroup(any()) }
+        .thenThrow(
+          EventGroupInvalidArgsException(
+              ExternalId(MEASUREMENT_CONSUMER_EXTERNAL_ID),
+              ExternalId(MEASUREMENT_CONSUMER_EXTERNAL_ID_2),
+            )
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT, "EventGroup invalid args.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.updateEventGroup(updateEventGroupRequest { eventGroup = EVENT_GROUP })
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("originalMeasurementConsumer", MEASUREMENT_CONSUMER_NAME)
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("providedMeasurementConsumer", MEASUREMENT_CONSUMER_NAME_2)
+  }
+
+  @Test
+  fun `updateEventGroup throws NOT_FOUND with event group name when event group not found`() {
+    internalEventGroupsMock.stub {
+      onBlocking { updateEventGroup(any()) }
+        .thenThrow(
+          EventGroupNotFoundException(
+              ExternalId(DATA_PROVIDER_EXTERNAL_ID),
+              ExternalId(EVENT_GROUP_EXTERNAL_ID),
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "EventGroup not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.updateEventGroup(updateEventGroupRequest { eventGroup = EVENT_GROUP })
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("eventGroup", EVENT_GROUP_NAME)
+  }
+
+  @Test
+  fun `updateEventGroup throws NOT_FOUND with event group name when event group stated is DELETED`() {
+    internalEventGroupsMock.stub {
+      onBlocking { updateEventGroup(any()) }
+        .thenThrow(
+          EventGroupStateIllegalException(
+              ExternalId(DATA_PROVIDER_EXTERNAL_ID),
+              ExternalId(EVENT_GROUP_EXTERNAL_ID),
+              InternalEventGroup.State.DELETED,
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "EventGroup not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.updateEventGroup(updateEventGroupRequest { eventGroup = EVENT_GROUP })
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("eventGroup", EVENT_GROUP_NAME)
+  }
+
+  @Test
+  fun `deleteEventGroup throws NOT_FOUND with event group name when event group not found`() {
+    internalEventGroupsMock.stub {
+      onBlocking { deleteEventGroup(any()) }
+        .thenThrow(
+          EventGroupNotFoundException(
+              ExternalId(DATA_PROVIDER_EXTERNAL_ID),
+              ExternalId(EVENT_GROUP_EXTERNAL_ID),
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "EventGroup not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.deleteEventGroup(deleteEventGroupRequest { name = EVENT_GROUP_NAME })
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("eventGroup", EVENT_GROUP_NAME)
+  }
+
+  @Test
+  fun `deleteEventGroup throws NOT_FOUND with event group name when event group not found by measurement consumer`() {
+    internalEventGroupsMock.stub {
+      onBlocking { deleteEventGroup(any()) }
+        .thenThrow(
+          EventGroupNotFoundByMeasurementConsumerException(
+              ExternalId(MEASUREMENT_CONSUMER_EXTERNAL_ID),
+              ExternalId(EVENT_GROUP_EXTERNAL_ID),
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "EventGroup not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.deleteEventGroup(deleteEventGroupRequest { name = EVENT_GROUP_NAME })
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("eventGroup", MEASUREMENT_CONSUMER_EVENT_GROUP_NAME)
+  }
+
+  @Test
+  fun `deleteEventGroup throws NOT_FOUND with event group name when event group stated is DELETED`() {
+    internalEventGroupsMock.stub {
+      onBlocking { deleteEventGroup(any()) }
+        .thenThrow(
+          EventGroupStateIllegalException(
+              ExternalId(DATA_PROVIDER_EXTERNAL_ID),
+              ExternalId(EVENT_GROUP_EXTERNAL_ID),
+              InternalEventGroup.State.DELETED,
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "EventGroup not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.deleteEventGroup(deleteEventGroupRequest { name = EVENT_GROUP_NAME })
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("eventGroup", EVENT_GROUP_NAME)
   }
 }

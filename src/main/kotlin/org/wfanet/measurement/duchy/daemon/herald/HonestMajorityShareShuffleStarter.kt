@@ -61,13 +61,13 @@ object HonestMajorityShareShuffleStarter {
   suspend fun createComputation(
     computationStorageClient: ComputationsGrpcKt.ComputationsCoroutineStub,
     systemComputation: Computation,
-    honestMajorityShareShuffleSetupConfig: HonestMajorityShareShuffleSetupConfig,
+    protocolSetupConfig: HonestMajorityShareShuffleSetupConfig,
     blobStorageBucket: String,
-    privateKeyStore: PrivateKeyStore<TinkKeyId, TinkPrivateKeyHandle>,
+    privateKeyStore: PrivateKeyStore<TinkKeyId, TinkPrivateKeyHandle>? = null,
   ) {
     require(systemComputation.name.isNotEmpty()) { "Resource name not specified" }
     val globalId: String = systemComputation.key.computationId
-    val role = honestMajorityShareShuffleSetupConfig.role
+    val role = protocolSetupConfig.role
 
     val initialComputationDetails = computationDetails {
       blobsStoragePrefix = "$blobStorageBucket/$globalId"
@@ -76,8 +76,10 @@ object HonestMajorityShareShuffleStarter {
         HonestMajorityShareShuffleKt.computationDetails {
           this.role = role
           parameters = systemComputation.toHonestMajorityShareShuffleParameters()
-          participants += systemComputation.computationParticipantsList.map { it.key.duchyId }
+          nonAggregators += getNonAggregators(protocolSetupConfig)
           if (role != RoleInComputation.AGGREGATOR) {
+            requireNotNull(privateKeyStore) { "privateKeyStore cannot be null" }
+
             randomSeed = generateRandomSeed()
 
             val privateKeyHandle = TinkPrivateKeyHandle.generateHpke()
@@ -96,22 +98,11 @@ object HonestMajorityShareShuffleStarter {
     val requisitions =
       systemComputation.requisitionsList.toRequisitionEntries(systemComputation.measurementSpec)
 
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
-    val initialStage =
-      when (role) {
-        RoleInComputation.FIRST_NON_AGGREGATOR,
-        RoleInComputation.SECOND_NON_AGGREGATOR -> Stage.INITIALIZED.toProtocolStage()
-        RoleInComputation.AGGREGATOR -> Stage.WAIT_ON_AGGREGATION_INPUT.toProtocolStage()
-        RoleInComputation.NON_AGGREGATOR,
-        RoleInComputation.UNRECOGNIZED,
-        RoleInComputation.ROLE_IN_COMPUTATION_UNSPECIFIED -> error("Invalid role $role")
-      }
-
     computationStorageClient.createComputation(
       createComputationRequest {
         computationType = ComputationTypeEnum.ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE
         globalComputationId = globalId
-        computationStage = initialStage
+        computationStage = Stage.INITIALIZED.toProtocolStage()
         computationDetails = initialComputationDetails
         this.requisitions += requisitions
       }
@@ -206,6 +197,10 @@ object HonestMajorityShareShuffleStarter {
       Computation.MpcProtocolConfig.NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED ->
         error("Invalid system NoiseMechanism")
     }
+  }
+
+  private fun getNonAggregators(setupConfig: HonestMajorityShareShuffleSetupConfig): List<String> {
+    return listOf(setupConfig.firstNonAggregatorDuchyId, setupConfig.secondNonAggregatorDuchyId)
   }
 
   private fun generateRandomSeed(): ByteString {

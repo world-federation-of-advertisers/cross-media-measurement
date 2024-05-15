@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.duchy.db.computation
 
-import com.google.protobuf.ByteString
 import java.time.Duration
 import java.time.Instant
 import org.wfanet.measurement.internal.duchy.ComputationDetails
@@ -23,6 +22,7 @@ import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
+import org.wfanet.measurement.internal.duchy.RequisitionDetails
 import org.wfanet.measurement.internal.duchy.RequisitionEntry
 
 /**
@@ -205,8 +205,8 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
     token: ComputationEditToken<ProtocolT, StageT>,
     externalRequisitionKey: ExternalRequisitionKey,
     pathToBlob: String,
-    secretSeedCiphertext: ByteString? = null,
     publicApiVersion: String,
+    protocol: RequisitionDetails.RequisitionProtocol? = null,
   )
 
   /** Inserts the specified [ComputationStatMetric] into the database. */

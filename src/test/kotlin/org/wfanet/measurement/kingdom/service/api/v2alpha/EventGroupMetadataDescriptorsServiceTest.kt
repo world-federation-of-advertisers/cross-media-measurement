@@ -50,6 +50,7 @@ import org.wfanet.measurement.api.v2alpha.updateEventGroupMetadataDescriptorRequ
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.ExternalId
@@ -66,6 +67,8 @@ import org.wfanet.measurement.internal.kingdom.eventGroupMetadataDescriptor as i
 import org.wfanet.measurement.internal.kingdom.eventGroupMetadataDescriptorKey
 import org.wfanet.measurement.internal.kingdom.getEventGroupMetadataDescriptorRequest as internalGetEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupMetadataDescriptorsRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupMetadataDescriptorNotFoundException
 
 private const val DEFAULT_LIMIT = 50
 
@@ -794,6 +797,97 @@ class EventGroupMetadataDescriptorsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createEventGroupMetadataDescriptor throws NOT_FOUND with data provider name when data provider not found`() {
+    internalEventGroupMetadataDescriptorsMock.stub {
+      onBlocking { createEventGroupMetadataDescriptor(any()) }
+        .thenThrow(
+          DataProviderNotFoundException(DATA_PROVIDER_EXTERNAL_ID)
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.createEventGroupMetadataDescriptor(
+              createEventGroupMetadataDescriptorRequest {
+                parent = DATA_PROVIDER_NAME
+                eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR
+              }
+            )
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("dataProvider", DATA_PROVIDER_NAME)
+  }
+
+  @Test
+  fun `getEventGroupMetadataDescriptor throws NOT_FOUND with event group metadata descriptor name when event group metadata descriptor not found`() {
+    internalEventGroupMetadataDescriptorsMock.stub {
+      onBlocking { getEventGroupMetadataDescriptor(any()) }
+        .thenThrow(
+          EventGroupMetadataDescriptorNotFoundException(
+              DATA_PROVIDER_EXTERNAL_ID,
+              EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID,
+            )
+            .asStatusRuntimeException(
+              Status.Code.NOT_FOUND,
+              "EventGroupMetadataDescriptor not found.",
+            )
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.getEventGroupMetadataDescriptor(
+              getEventGroupMetadataDescriptorRequest { name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME }
+            )
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("eventGroupMetadataDescriptor", EVENT_GROUP_METADATA_DESCRIPTOR_NAME)
+  }
+
+  @Test
+  fun `updateEventGroupMetadataDescriptor throws NOT_FOUND with event group metadata descriptor name when event group metadata descriptor not found`() {
+    internalEventGroupMetadataDescriptorsMock.stub {
+      onBlocking { updateEventGroupMetadataDescriptor(any()) }
+        .thenThrow(
+          EventGroupMetadataDescriptorNotFoundException(
+              DATA_PROVIDER_EXTERNAL_ID,
+              EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID,
+            )
+            .asStatusRuntimeException(
+              Status.Code.NOT_FOUND,
+              "EventGroupMetadataDescriptor not found.",
+            )
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.updateEventGroupMetadataDescriptor(
+              updateEventGroupMetadataDescriptorRequest {
+                this.eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR
+              }
+            )
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("eventGroupMetadataDescriptor", EVENT_GROUP_METADATA_DESCRIPTOR_NAME)
   }
 
   companion object {

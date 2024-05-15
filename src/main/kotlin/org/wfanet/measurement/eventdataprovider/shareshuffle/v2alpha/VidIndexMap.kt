@@ -12,29 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.eventdataprovider.shareshuffle
+package org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha
 
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 
-class VidNotFoundException(message: String) : Exception(message)
+class VidNotFoundException(vid: Long) : Exception("Failed to find VID $vid.")
 
-/**
- * A mapping of VIDs to [FrequencyVector] indexes for a [PopulationSpec].
- *
- * @constructor Creates a [VidIndexMap] for the given [PopulationSpec]
- */
-class VidIndexMap(populationSpec: PopulationSpec) {
+/** A mapping of VIDs to [FrequencyVector] indexes for a [PopulationSpec]. */
+interface VidIndexMap {
+  /** Gets the index in the [FrequencyVector] for the given VID */
+  operator fun get(vid: Long): Int
+
   /** The number of VIDs managed by this VidIndexMap */
-  // TODO(@kungfucraig): Implement this property
-  val vidCount: Long = 0
+  val size: Long
 
-  /**
-   * Returns the index in the [FrequencyVector] for the given [vid].
-   *
-   * @throws VidNotFoundException if the [vid] does not exist in the map
-   */
-  fun getVidIndex(vid: Long): Int {
-    // TODO(@kungfucraig): Implement this method
-    return 0
-  }
+  /** The PopulationSpec used to create this map */
+  val populationSpec: PopulationSpec
 }

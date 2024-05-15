@@ -34,6 +34,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.stub
 import org.mockito.kotlin.verify
 import org.wfanet.measurement.api.v2alpha.ListModelRolloutsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelRolloutsRequest
@@ -58,9 +59,11 @@ import org.wfanet.measurement.api.v2alpha.withDuchyPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
@@ -77,6 +80,10 @@ import org.wfanet.measurement.internal.kingdom.deleteModelRolloutRequest as inte
 import org.wfanet.measurement.internal.kingdom.modelRollout as internalModelRollout
 import org.wfanet.measurement.internal.kingdom.scheduleModelRolloutFreezeRequest as internalScheduleModelRolloutFreezeRequest
 import org.wfanet.measurement.internal.kingdom.streamModelRolloutsRequest as internalStreamModelRolloutsRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelReleaseNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutInvalidArgsException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutNotFoundException
 
 private const val DEFAULT_LIMIT = 50
 
@@ -1042,5 +1049,219 @@ class ModelRolloutsServiceTest {
             }
         }
       )
+  }
+
+  @Test
+  fun `createModelRollout throws INVALID_ARGUMENT with model rollout name when model rollout argument invalid`() {
+    internalModelRolloutsMock.stub {
+      onBlocking { createModelRollout(any()) }
+        .thenThrow(
+          ModelRolloutInvalidArgsException(
+              ExternalId(EXTERNAL_MODEL_PROVIDER_ID),
+              ExternalId(EXTERNAL_MODEL_SUITE_ID),
+              ExternalId(EXTERNAL_MODEL_LINE_ID),
+              ExternalId(EXTERNAL_MODEL_ROLLOUT_ID),
+            )
+            .asStatusRuntimeException(
+              Status.Code.INVALID_ARGUMENT,
+              "ModelRollout invalid arguments.",
+            )
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking {
+            service.createModelRollout(
+              createModelRolloutRequest {
+                parent = MODEL_LINE_NAME
+                modelRollout = MODEL_ROLLOUT
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("modelRollout", MODEL_ROLLOUT_NAME)
+  }
+
+  @Test
+  fun `createModelRollout throws NOT_FOUND with model line name when model line not found`() {
+    internalModelRolloutsMock.stub {
+      onBlocking { createModelRollout(any()) }
+        .thenThrow(
+          ModelLineNotFoundException(
+              ExternalId(EXTERNAL_MODEL_PROVIDER_ID),
+              ExternalId(EXTERNAL_MODEL_SUITE_ID),
+              ExternalId(EXTERNAL_MODEL_LINE_ID),
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelLine not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking {
+            service.createModelRollout(
+              createModelRolloutRequest {
+                parent = MODEL_LINE_NAME
+                modelRollout = MODEL_ROLLOUT
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("modelLine", MODEL_LINE_NAME)
+  }
+
+  @Test
+  fun `createModelRollout throws NOT_FOUND with model release name when model release not found`() {
+    internalModelRolloutsMock.stub {
+      onBlocking { createModelRollout(any()) }
+        .thenThrow(
+          ModelReleaseNotFoundException(
+              ExternalId(EXTERNAL_MODEL_PROVIDER_ID),
+              ExternalId(EXTERNAL_MODEL_SUITE_ID),
+              ExternalId(EXTERNAL_MODEL_RELEASE_ID),
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelRelease not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking {
+            service.createModelRollout(
+              createModelRolloutRequest {
+                parent = MODEL_LINE_NAME
+                modelRollout = MODEL_ROLLOUT
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("modelRelease", MODEL_RELEASE_NAME)
+  }
+
+  @Test
+  fun `scheduleModelRolloutFreeze throws INVALID_ARGUMENT with model rollout name when model rollout argument invalid`() {
+    internalModelRolloutsMock.stub {
+      onBlocking { scheduleModelRolloutFreeze(any()) }
+        .thenThrow(
+          ModelRolloutInvalidArgsException(
+              ExternalId(EXTERNAL_MODEL_PROVIDER_ID),
+              ExternalId(EXTERNAL_MODEL_SUITE_ID),
+              ExternalId(EXTERNAL_MODEL_LINE_ID),
+              ExternalId(EXTERNAL_MODEL_ROLLOUT_ID),
+            )
+            .asStatusRuntimeException(
+              Status.Code.INVALID_ARGUMENT,
+              "ModelRollout invalid arguments.",
+            )
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking {
+            service.scheduleModelRolloutFreeze(
+              scheduleModelRolloutFreezeRequest {
+                name = MODEL_ROLLOUT_NAME
+                rolloutFreezeDate = ROLLOUT_FREEZE_DATE
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("modelRollout", MODEL_ROLLOUT_NAME)
+  }
+
+  @Test
+  fun `scheduleModelRolloutFreeze throws NOT_FOUND with model rollout name when model rollout not found`() {
+    internalModelRolloutsMock.stub {
+      onBlocking { scheduleModelRolloutFreeze(any()) }
+        .thenThrow(
+          ModelRolloutNotFoundException(
+              ExternalId(EXTERNAL_MODEL_PROVIDER_ID),
+              ExternalId(EXTERNAL_MODEL_SUITE_ID),
+              ExternalId(EXTERNAL_MODEL_LINE_ID),
+              ExternalId(EXTERNAL_MODEL_ROLLOUT_ID),
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelRollout not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking {
+            service.scheduleModelRolloutFreeze(
+              scheduleModelRolloutFreezeRequest {
+                name = MODEL_ROLLOUT_NAME
+                rolloutFreezeDate = ROLLOUT_FREEZE_DATE
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("modelRollout", MODEL_ROLLOUT_NAME)
+  }
+
+  @Test
+  fun `deleteModelRollout throws NOT_FOUND with model rollout name when model rollout not found`() {
+    internalModelRolloutsMock.stub {
+      onBlocking { deleteModelRollout(any()) }
+        .thenThrow(
+          ModelRolloutNotFoundException(
+              ExternalId(EXTERNAL_MODEL_PROVIDER_ID),
+              ExternalId(EXTERNAL_MODEL_SUITE_ID),
+              ExternalId(EXTERNAL_MODEL_LINE_ID),
+              ExternalId(EXTERNAL_MODEL_ROLLOUT_ID),
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelRollout not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking {
+            service.deleteModelRollout(deleteModelRolloutRequest { name = MODEL_ROLLOUT_NAME })
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("modelRollout", MODEL_ROLLOUT_NAME)
+  }
+
+  @Test
+  fun `deleteModelRollout throws FAILED_PRECONDITION with model rollout name when model rollout invalid args`() {
+    internalModelRolloutsMock.stub {
+      onBlocking { deleteModelRollout(any()) }
+        .thenThrow(
+          ModelRolloutInvalidArgsException(
+              ExternalId(EXTERNAL_MODEL_PROVIDER_ID),
+              ExternalId(EXTERNAL_MODEL_SUITE_ID),
+              ExternalId(EXTERNAL_MODEL_LINE_ID),
+              ExternalId(EXTERNAL_MODEL_ROLLOUT_ID),
+            )
+            .asStatusRuntimeException(
+              Status.Code.FAILED_PRECONDITION,
+              "ModelRollout invalid arguments.",
+            )
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking {
+            service.deleteModelRollout(deleteModelRolloutRequest { name = MODEL_ROLLOUT_NAME })
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("modelRollout", MODEL_ROLLOUT_NAME)
   }
 }

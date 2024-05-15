@@ -30,7 +30,6 @@ import io.grpc.StatusRuntimeException
 import java.time.Clock
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
-import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -39,10 +38,13 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
-import org.wfanet.measurement.internal.reporting.v2.BatchCreateMetricsResponse
+import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequestKt
+import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequestKt
 import org.wfanet.measurement.internal.reporting.v2.CreateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.CreateReportRequestKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.internal.reporting.v2.MeasurementKt
+import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MetricKt
@@ -59,6 +61,8 @@ import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCorouti
 import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.TimeIntervals
 import org.wfanet.measurement.internal.reporting.v2.batchCreateMetricsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportRequest
@@ -70,7 +74,6 @@ import org.wfanet.measurement.internal.reporting.v2.metricSpec
 import org.wfanet.measurement.internal.reporting.v2.report
 import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals
-import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 
 private const val MAX_BATCH_SIZE = 1000
 
@@ -85,6 +88,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
     val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
     val metricCalculationSpecsService: MetricCalculationSpecsCoroutineImplBase,
     val reportSchedulesService: ReportSchedulesCoroutineImplBase,
+    val measurementsService: MeasurementsCoroutineImplBase,
   )
 
   /** Instance of the service under test. */
@@ -95,6 +99,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
   private lateinit var measurementConsumersService: MeasurementConsumersCoroutineImplBase
   private lateinit var metricCalculationSpecsService: MetricCalculationSpecsCoroutineImplBase
   private lateinit var reportSchedulesService: ReportSchedulesCoroutineImplBase
+  private lateinit var measurementsService: MeasurementsCoroutineImplBase
 
   /** Constructs the services being tested. */
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
@@ -108,6 +113,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
     measurementConsumersService = services.measurementConsumersService
     metricCalculationSpecsService = services.metricCalculationSpecsService
     reportSchedulesService = services.reportSchedulesService
+    measurementsService = services.measurementsService
   }
 
   @Test
@@ -557,7 +563,182 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
           )
       }
 
-    val groupingPredicatesList = List(3) { listOf("predicate1", "predicate2") }
+    val groupingPredicatesList = List(1) { listOf("predicate1", "predicate2") }
+
+    val intervals: List<Interval> =
+      listOf(
+        interval {
+          startTime = timestamp { seconds = 100 }
+          endTime = timestamp { seconds = 200 }
+        },
+        interval {
+          startTime = timestamp { seconds = 100 }
+          endTime = timestamp { seconds = 200 }
+        },
+        interval {
+          startTime = timestamp { seconds = 200 }
+          endTime = timestamp { seconds = 300 }
+        },
+        interval {
+          startTime = timestamp { seconds = 100 }
+          endTime = timestamp { seconds = 300 }
+        },
+      )
+
+    val reportingMetrics =
+      groupingPredicatesList.flatMap { groupingPredicates ->
+        intervals.map { interval ->
+          ReportKt.reportingMetric {
+            details =
+              ReportKt.ReportingMetricKt.details {
+                metricSpec = metricSpec {
+                  reach =
+                    MetricSpecKt.reachParams {
+                      privacyParams =
+                        MetricSpecKt.differentialPrivacyParams {
+                          epsilon = 1.0
+                          delta = 2.0
+                        }
+                    }
+                  vidSamplingInterval =
+                    MetricSpecKt.vidSamplingInterval {
+                      start = 0.1f
+                      width = 0.5f
+                    }
+                }
+                this.timeInterval = interval
+                this.groupingPredicates += groupingPredicates
+              }
+          }
+        }
+      }
+
+    val report = report {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      reportingMetricEntries.putAll(
+        createdReportingSetsByExternalId.keys.associateWith {
+          ReportKt.reportingMetricCalculationSpec {
+            metricCalculationSpecReportingMetrics +=
+              createdMetricCalculationSpecsByExternalId.keys.map { externalMetricCalSpecId ->
+                ReportKt.metricCalculationSpecReportingMetrics {
+                  externalMetricCalculationSpecId = externalMetricCalSpecId
+                  this.reportingMetrics += reportingMetrics
+                }
+              }
+          }
+        }
+      )
+      details =
+        ReportKt.details {
+          tags.putAll(REPORT_TAGS)
+          timeIntervals = timeIntervals { this.timeIntervals += intervals }
+        }
+    }
+
+    val createdReport =
+      service.createReport(
+        createReportRequest {
+          this.report = report
+          externalReportId = "external-report-id"
+        }
+      )
+
+    var metricIndex = 0
+    val createMetricsRequests: List<CreateMetricRequest> =
+      createdReport.reportingMetricEntriesMap.entries.flatMap { entry ->
+        val reportingSet = createdReportingSetsByExternalId.getValue(entry.key)
+
+        entry.value.metricCalculationSpecReportingMetricsList.flatMap {
+          metricCalculationSpecReportingMetrics ->
+          val metricCalculationSpecFilter =
+            createdMetricCalculationSpecsByExternalId
+              .getValue(metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId)
+              .details
+              .filter
+          metricCalculationSpecReportingMetrics.reportingMetricsList.map { reportingMetric ->
+            val externalMetricId = "externalMetricId$metricIndex"
+            metricIndex++
+            buildCreateMetricRequest(
+              createdReport.cmmsMeasurementConsumerId,
+              externalMetricId,
+              reportingSet,
+              reportingMetric,
+              metricCalculationSpecFilter,
+            )
+          }
+        }
+      }
+
+    metricsService.batchCreateMetrics(
+      batchCreateMetricsRequest {
+        cmmsMeasurementConsumerId = createdReport.cmmsMeasurementConsumerId
+        requests += createMetricsRequests
+      }
+    )
+
+    val retrievedReport =
+      service.getReport(
+        getReportRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportId = createdReport.externalReportId
+        }
+      )
+
+    val createdReportReusingMetrics =
+      service.createReport(
+        createReportRequest {
+          this.report = report
+          externalReportId = "external-report-id2"
+        }
+      )
+
+    for (entry in createdReportReusingMetrics.reportingMetricEntriesMap.entries) {
+      for (metricCalculationSpecReportingMetrics in
+        entry.value.metricCalculationSpecReportingMetricsList) {
+        for (reportingMetric in metricCalculationSpecReportingMetrics.reportingMetricsList) {
+          assertThat(reportingMetric.createMetricRequestId).isNotEmpty()
+          assertThat(reportingMetric.externalMetricId).isNotEmpty()
+        }
+      }
+    }
+
+    // If metric reuse did happen during the second report creation, the second report should have
+    // the same key-value pairs in `reportingMetricEntriesMap` as what the first report has.
+    // Note that metric reuse mechanism won't produce the same order of `ReportingMetric`
+    // internally. This won't impact any immutable fields in public resources.
+    for (entry in createdReportReusingMetrics.reportingMetricEntriesMap.entries) {
+      val expected = retrievedReport.reportingMetricEntriesMap.getValue(entry.key)
+      assertThat(entry.value).ignoringRepeatedFieldOrder().isEqualTo(expected)
+    }
+  }
+
+  @Test
+  fun `createReport doesn't reuse existing FAILED metrics from the other report`() = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val createdMetricCalculationSpecsByExternalId =
+      (0 until 2).associate {
+        val externalMetricCalculationSpecId = "external-metric-calculation-spec-id$it"
+        externalMetricCalculationSpecId to
+          createMetricCalculationSpec(
+            CMMS_MEASUREMENT_CONSUMER_ID,
+            metricCalculationSpecsService,
+            externalMetricCalculationSpecId,
+          )
+      }
+    val createdReportingSetsByExternalId =
+      (0 until 2).associate {
+        val externalReportingSetId = "external-reporting-set-id$it"
+        externalReportingSetId to
+          createReportingSet(
+            CMMS_MEASUREMENT_CONSUMER_ID,
+            reportingSetsService,
+            externalReportingSetId,
+            "data-provider-id${it % 3}",
+            "event-group-id$it",
+          )
+      }
+
+    val groupingPredicatesList = List(1) { listOf("predicate1", "predicate2") }
 
     val intervals: List<Interval> =
       listOf(
@@ -659,28 +840,48 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         }
       }
 
-    val callRpc: suspend (List<CreateMetricRequest>) -> BatchCreateMetricsResponse = { items ->
-      metricsService.batchCreateMetrics(
-        batchCreateMetricsRequest {
-          cmmsMeasurementConsumerId = createdReport.cmmsMeasurementConsumerId
-          requests += items
+    val metrics =
+      metricsService
+        .batchCreateMetrics(
+          batchCreateMetricsRequest {
+            cmmsMeasurementConsumerId = createdReport.cmmsMeasurementConsumerId
+            requests += createMetricsRequests
+          }
+        )
+        .metricsList
+
+    var i = 0
+    val batchSetCmmsMeasurementIdsRequest = batchSetCmmsMeasurementIdsRequest {
+      cmmsMeasurementConsumerId = createdReport.cmmsMeasurementConsumerId
+      for (metric in metrics) {
+        for (weightedMeasurement in metric.weightedMeasurementsList) {
+          measurementIds +=
+            BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+              cmmsCreateMeasurementRequestId =
+                weightedMeasurement.measurement.cmmsCreateMeasurementRequestId
+              cmmsMeasurementId = "${i++}"
+            }
         }
-      )
-    }
-    submitBatchRequests(createMetricsRequests.asFlow(), MAX_BATCH_SIZE, callRpc) { response ->
-        response.metricsList
       }
-      .collect {}
+    }
+    measurementsService.batchSetCmmsMeasurementIds(batchSetCmmsMeasurementIdsRequest)
 
-    val retrievedReport =
-      service.getReport(
-        getReportRequest {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          externalReportId = createdReport.externalReportId
+    i = 0
+    val batchSetMeasurementFailuresRequest = batchSetMeasurementFailuresRequest {
+      cmmsMeasurementConsumerId = createdReport.cmmsMeasurementConsumerId
+      for (metric in metrics) {
+        for (weightedMeasurement in metric.weightedMeasurementsList) {
+          measurementFailures +=
+            BatchSetMeasurementFailuresRequestKt.measurementFailure {
+              cmmsMeasurementId = "${i++}"
+              failure = MeasurementKt.failure { message = "failed" }
+            }
         }
-      )
+      }
+    }
+    measurementsService.batchSetMeasurementFailures(batchSetMeasurementFailuresRequest)
 
-    val createdReportReusingMetrics =
+    val report2 =
       service.createReport(
         createReportRequest {
           this.report = report
@@ -688,23 +889,13 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         }
       )
 
-    for (entry in createdReportReusingMetrics.reportingMetricEntriesMap.entries) {
+    for (entry in report2.reportingMetricEntriesMap.entries) {
       for (metricCalculationSpecReportingMetrics in
         entry.value.metricCalculationSpecReportingMetricsList) {
         for (reportingMetric in metricCalculationSpecReportingMetrics.reportingMetricsList) {
-          assertThat(reportingMetric.createMetricRequestId).isNotEmpty()
-          assertThat(reportingMetric.externalMetricId).isNotEmpty()
+          assertThat(reportingMetric.externalMetricId).isEmpty()
         }
       }
-    }
-
-    // If metric reuse did happen during the second report creation, the second report should have
-    // the same key-value pairs in `reportingMetricEntriesMap` as what the first report has.
-    // Note that metric reuse mechanism won't produce the same order of `ReportingMetric`
-    // internally. This won't impact any immutable fields in public resources.
-    for (entry in createdReportReusingMetrics.reportingMetricEntriesMap.entries) {
-      val expected = retrievedReport.reportingMetricEntriesMap.getValue(entry.key)
-      assertThat(entry.value).ignoringRepeatedFieldOrder().isEqualTo(expected)
     }
   }
 

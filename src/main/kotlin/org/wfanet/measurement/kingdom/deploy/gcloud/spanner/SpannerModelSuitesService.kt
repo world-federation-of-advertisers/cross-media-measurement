@@ -29,6 +29,7 @@ import org.wfanet.measurement.internal.kingdom.ModelSuite
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamModelSuitesRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelProviderNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelSuiteNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelSuites
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelSuiteReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelSuite
@@ -48,13 +49,13 @@ class SpannerModelSuitesService(
   }
 
   override suspend fun getModelSuite(request: GetModelSuiteRequest): ModelSuite {
+    val externalModelProviderId = ExternalId(request.externalModelProviderId)
+    val externalModelSuiteId = ExternalId(request.externalModelSuiteId)
     return ModelSuiteReader()
-      .readByExternalModelSuiteId(
-        client.singleUse(),
-        ExternalId(request.externalModelProviderId),
-        ExternalId(request.externalModelSuiteId),
-      )
-      ?.modelSuite ?: failGrpc(Status.NOT_FOUND) { "ModelSuite not found" }
+      .readByExternalModelSuiteId(client.singleUse(), externalModelProviderId, externalModelSuiteId)
+      ?.modelSuite
+      ?: throw ModelSuiteNotFoundException(externalModelProviderId, externalModelSuiteId)
+        .asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelSuite not found.")
   }
 
   override fun streamModelSuites(request: StreamModelSuitesRequest): Flow<ModelSuite> {
