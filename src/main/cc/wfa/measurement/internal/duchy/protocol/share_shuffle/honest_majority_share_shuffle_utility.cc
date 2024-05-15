@@ -339,7 +339,7 @@ CompleteReachAndFrequencyAggregationPhase(
     const CompleteAggregationPhaseRequest& request) {
   StartedThreadCpuTimer timer;
   CompleteAggregationPhaseResponse response;
-
+  RETURN_IF_ERROR(VerifySketchParameters(request.sketch_params()));
   if (request.sketch_shares().size() != kWorkerCount) {
     return absl::InvalidArgumentError(
         "The number of share vectors must be equal to the number of "
@@ -472,7 +472,7 @@ CompleteReachOnlyAggregationPhase(
     const CompleteAggregationPhaseRequest& request) {
   StartedThreadCpuTimer timer;
   CompleteAggregationPhaseResponse response;
-
+  RETURN_IF_ERROR(VerifySketchParameters(request.sketch_params()));
   if (request.sketch_shares().size() != kWorkerCount) {
     return absl::InvalidArgumentError(
         "The number of share vectors must be equal to the number of "

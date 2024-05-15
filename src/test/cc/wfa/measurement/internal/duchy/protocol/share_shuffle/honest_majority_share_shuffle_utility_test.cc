@@ -1094,6 +1094,33 @@ class AggregationPhaseTestData {
   CompleteAggregationPhaseRequest request_;
 };
 
+TEST(AggregationPhase, InvalidRegisterCountFails) {
+  AggregationPhaseTestData test_data;
+  test_data.SetSketchParams(/*register_count=*/0, /*bytes_per_registers=*/1,
+                            /*maximum_combined_frequency=*/10,
+                            /*ring_modulus=*/128);
+  EXPECT_THAT(test_data.RunReachAndFrequencyAggregationPhase().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "register count"));
+}
+
+TEST(AggregationPhase, InvalidRingModulusFails) {
+  AggregationPhaseTestData test_data;
+  test_data.SetSketchParams(/*register_count=*/100, /*bytes_per_registers=*/1,
+                            /*maximum_combined_frequency=*/10,
+                            /*ring_modulus=*/1);
+  EXPECT_THAT(test_data.RunReachAndFrequencyAggregationPhase().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "at least 2"));
+}
+
+TEST(AggregationPhase, InvalidRingModulusAndMaxFrequencyPairFails) {
+  AggregationPhaseTestData test_data;
+  test_data.SetSketchParams(/*register_count=*/100, /*bytes_per_registers=*/1,
+                            /*maximum_combined_frequency=*/4,
+                            /*ring_modulus=*/5);
+  EXPECT_THAT(test_data.RunReachAndFrequencyAggregationPhase().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "plus one"));
+}
+
 TEST(AggregationPhase, InvalidNumberOfSketchSharesFails) {
   AggregationPhaseTestData test_data;
   std::vector<uint32_t> share_vector(10, 0);
@@ -1227,6 +1254,33 @@ TEST(AggregationPhase, AggregationPhaseNoDataNorEffectiveNoiseFails) {
   EXPECT_THAT(
       test_data.RunReachAndFrequencyAggregationPhase().status(),
       StatusIs(absl::StatusCode::kInvalidArgument, "data nor effective noise"));
+}
+
+TEST(ReachOnlyAggregationPhase, InvalidRegisterCountFails) {
+  AggregationPhaseTestData test_data;
+  test_data.SetSketchParams(/*register_count=*/0, /*bytes_per_registers=*/1,
+                            /*maximum_combined_frequency=*/10,
+                            /*ring_modulus=*/128);
+  EXPECT_THAT(test_data.RunReachOnlyAggregationPhase().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "register count"));
+}
+
+TEST(ReachOnlyAggregationPhase, InvalidRingModulusFails) {
+  AggregationPhaseTestData test_data;
+  test_data.SetSketchParams(/*register_count=*/100, /*bytes_per_registers=*/1,
+                            /*maximum_combined_frequency=*/10,
+                            /*ring_modulus=*/1);
+  EXPECT_THAT(test_data.RunReachOnlyAggregationPhase().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "at least 2"));
+}
+
+TEST(ReachOnlyAggregationPhase, InvalidRingModulusAndMaxFrequencyPairFails) {
+  AggregationPhaseTestData test_data;
+  test_data.SetSketchParams(/*register_count=*/100, /*bytes_per_registers=*/1,
+                            /*maximum_combined_frequency=*/4,
+                            /*ring_modulus=*/5);
+  EXPECT_THAT(test_data.RunReachOnlyAggregationPhase().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "plus one"));
 }
 
 TEST(ReachOnlyAggregationPhase, InvalidNumberOfSketchSharesFails) {
