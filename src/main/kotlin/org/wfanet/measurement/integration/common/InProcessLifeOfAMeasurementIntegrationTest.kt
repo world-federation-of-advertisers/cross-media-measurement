@@ -82,7 +82,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventQuery =
       MetadataSyntheticGeneratorEventQuery(
-        SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE,
+        SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
         InProcessCmmsComponents.MC_ENCRYPTION_PRIVATE_KEY,
       )
     mcSimulator =

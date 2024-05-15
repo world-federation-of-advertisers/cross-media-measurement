@@ -1721,7 +1721,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     private val SYNTHETIC_EVENT_QUERY =
       MetadataSyntheticGeneratorEventQuery(
-        SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE,
+        SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
         InProcessCmmsComponents.MC_ENCRYPTION_PRIVATE_KEY,
       )
 

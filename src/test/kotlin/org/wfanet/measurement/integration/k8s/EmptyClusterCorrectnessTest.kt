@@ -258,7 +258,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           CertificatesGrpcKt.CertificatesCoroutineStub(publicApiChannel),
           MEASUREMENT_CONSUMER_SIGNING_CERTS.trustedCertificates,
           MetadataSyntheticGeneratorEventQuery(
-            SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE,
+            SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
             MC_ENCRYPTION_PRIVATE_KEY,
           ),
           ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,

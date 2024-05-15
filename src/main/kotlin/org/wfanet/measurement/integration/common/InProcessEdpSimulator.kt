@@ -102,7 +102,7 @@ class InProcessEdpSimulator(
       eventQuery =
         object :
           SyntheticGeneratorEventQuery(
-            SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE,
+            SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
             TestEvent.getDescriptor(),
           ) {
           override fun getSyntheticDataSpec(eventGroup: EventGroup) = syntheticDataSpec

@@ -521,8 +521,8 @@ class EdpSimulatorTest {
       )
     val metadataByReferenceIdSuffix =
       mapOf(
-        "-foo" to SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_LARGE[0],
-        "-bar" to SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_LARGE[1],
+        "-foo" to SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL[0],
+        "-bar" to SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL[1],
       )
 
     runBlocking {
@@ -3139,7 +3139,7 @@ class EdpSimulatorTest {
     private val TEST_METADATA = EventGroupMetadata.testMetadata(1)
 
     private val SYNTHETIC_DATA_SPEC =
-      SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_LARGE.first().copy {
+      SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL.first().copy {
         dateSpecs.forEachIndexed { index, dateSpec ->
           dateSpecs[index] =
             dateSpec.copy {
@@ -3154,7 +3154,7 @@ class EdpSimulatorTest {
     private val syntheticGeneratorEventQuery =
       object :
         SyntheticGeneratorEventQuery(
-          SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE,
+          SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
           TestEvent.getDescriptor(),
         ) {
         override fun getSyntheticDataSpec(eventGroup: EventGroup): SyntheticEventGroupSpec {
