@@ -1,0 +1,59 @@
+# Copyright 2024 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Deploy nightly build
+
+on:
+  schedule:
+    - cron: '19 6 * * 1,2,3,4,5'  # Sun-Thu night in America/Los_Angeles.
+
+jobs:
+  deploy-nightly:
+    runs-on: ubuntu-22.04
+    steps:
+    - id: get-tag
+      run: |
+        date_string="$(TZ='America/Los_Angeles' date +'%Y%m%d')"
+        echo "tag=nightly/${date_string}.$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+    - name: create-tag
+      uses: actions/github-script@v7
+      env:
+        TAG: ${{ steps.get-tag.outputs.tag }}
+      with:
+        script: |
+          const tag = process.env['TAG'];
+          github.rest.git.createRef({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            ref: `refs/tags/${tag}`,
+            sha: context.sha,
+          });
+    # Use workflow dispatch via API so that the workflow gets the right ref.
+    - name: create-deploy-dispatch
+      uses: actions/github-script@v7
+      env:
+        TAG: ${{ steps.get-tag.outputs.tag }}
+      with:
+        script: |
+          const tag = process.env['TAG'];
+          github.rest.actions.createWorkflowDispatch({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            workflow_id: 'update-cmms.yml',
+            ref: tag,
+            inputs: {
+              environment: 'head',
+              apply: true,
+            },
+          });

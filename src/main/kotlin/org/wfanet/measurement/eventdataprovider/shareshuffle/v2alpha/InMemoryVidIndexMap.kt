@@ -12,29 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.eventdataprovider.shareshuffle
+package org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha
 
 import com.google.common.hash.Hashing
 import com.google.protobuf.ByteString
 import java.nio.ByteOrder
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
-import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException
-import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator.validateVidRangesList
+import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator
 import org.wfanet.measurement.common.toByteString
-
-class VidNotFoundException(vid: Long) : Exception("Failed to find VID $vid.")
-
-/** A mapping of VIDs to [FrequencyVector] indexes for a [PopulationSpec]. */
-interface VidIndexMap {
-  /** Gets the index in the [FrequencyVector] for the given VID */
-  operator fun get(vid: Long): Int
-
-  /** The number of VIDs managed by this VidIndexMap */
-  val size: Long
-
-  /** The PopulationSpec used to create this map */
-  val populationSpec: PopulationSpec
-}
 
 /**
  * An implementation of [VidIndexMap] that holds the Map in memory.
@@ -48,12 +33,10 @@ interface VidIndexMap {
  * @param [hashFunction] The hash function to use for hashing VIDs.
  * @constructor Creates a [VidIndexMap] for the given [PopulationSpec]
  * @throws [PopulationSpecValidationException] if the [populationSpec] is invalid
- *
- * TODO(@kungfucraig): Move this into its own file.
  */
 class InMemoryVidIndexMap(
   override val populationSpec: PopulationSpec,
-  private val hashFunction: (Long, ByteString) -> Long = ::hashVidToLongWithFarmHash,
+  private val hashFunction: (Long, ByteString) -> Long = Companion::hashVidToLongWithFarmHash,
 ) : VidIndexMap {
   // TODO(@kungfucraig): Provide a constructor that reads the vid->index map from a file.
 
@@ -77,7 +60,7 @@ class InMemoryVidIndexMap(
   }
 
   init {
-    validateVidRangesList(populationSpec).getOrThrow()
+    PopulationSpecValidator.validateVidRangesList(populationSpec).getOrThrow()
 
     val hashes = mutableListOf<VidAndHash>()
     for (subPop in populationSpec.subpopulationsList) {
