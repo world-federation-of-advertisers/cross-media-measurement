@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.postgres.writers
 
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.common.db.r2dbc.postgres.ValuesListBoundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.valuesListBoundStatement
@@ -23,9 +24,10 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.Measurement
-import org.wfanet.measurement.internal.reporting.v2.MeasurementKt
 import org.wfanet.measurement.internal.reporting.v2.Metric
+import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MeasurementConsumerReader
+import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MeasurementReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MetricReader
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.MeasurementNotFoundException
@@ -45,6 +47,11 @@ class SetMeasurementResults(private val request: BatchSetMeasurementResultsReque
           ?: throw MeasurementConsumerNotFoundException())
         .measurementConsumerId
 
+    val measurementDetailsMap =
+      MeasurementReader(transactionContext).readMeasurementsByCmmsId(measurementConsumerId, request.measurementResultsList.map { it.cmmsMeasurementId })
+        .toList()
+        .associate { it.measurement.cmmsMeasurementId to it.measurement.details }
+
     val statement =
       valuesListBoundStatement(
         valuesStartIndex = 2,
@@ -62,7 +69,12 @@ class SetMeasurementResults(private val request: BatchSetMeasurementResultsReque
         bind("$1", Measurement.State.SUCCEEDED)
         bind("$2", measurementConsumerId)
         request.measurementResultsList.forEach {
-          val details = MeasurementKt.details { results += it.resultsList }
+          val details = measurementDetailsMap[it.cmmsMeasurementId]?.
+            copy {
+              results.clear()
+              results += it.resultsList
+            }
+            ?: throw MeasurementNotFoundException()
           addValuesBinding {
             bindValuesParam(0, details)
             bindValuesParam(1, details.toJson())

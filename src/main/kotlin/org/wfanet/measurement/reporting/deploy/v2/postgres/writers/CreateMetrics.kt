@@ -78,7 +78,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
     val cmmsCreateMeasurementRequestId: UUID,
     val timeIntervalStart: OffsetDateTime,
     val timeIntervalEndExclusive: OffsetDateTime,
-    val isSingleDataProvider: Boolean,
+    val details: Measurement.Details,
   )
 
   private data class MetricMeasurementsValues(
@@ -488,7 +488,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
     val measurementsStatement =
       valuesListBoundStatement(
         valuesStartIndex = 0,
-        paramCount = 10,
+        paramCount = 9,
         """
         INSERT INTO Measurements
           (
@@ -500,8 +500,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
             TimeIntervalEndExclusive,
             State,
             MeasurementDetails,
-            MeasurementDetailsJson,
-            IsSingleDataProvider
+            MeasurementDetailsJson
           )
         VALUES
         ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER}
@@ -516,9 +515,8 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
             bindValuesParam(4, it.timeIntervalStart)
             bindValuesParam(5, it.timeIntervalEndExclusive)
             bindValuesParam(6, Measurement.State.STATE_UNSPECIFIED)
-            bindValuesParam(7, Measurement.Details.getDefaultInstance())
-            bindValuesParam(8, Measurement.Details.getDefaultInstance().toJson())
-            bindValuesParam(9, it.isSingleDataProvider)
+            bindValuesParam(7, it.details)
+            bindValuesParam(8, it.details.toJson())
           }
         }
       }
@@ -674,7 +672,8 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
             it.measurement.timeInterval.startTime.toInstant().atOffset(ZoneOffset.UTC),
           timeIntervalEndExclusive =
             it.measurement.timeInterval.endTime.toInstant().atOffset(ZoneOffset.UTC),
-          isSingleDataProvider = it.measurement.isSingleDataProvider,
+          details =
+            it.measurement.details,
         )
       )
 

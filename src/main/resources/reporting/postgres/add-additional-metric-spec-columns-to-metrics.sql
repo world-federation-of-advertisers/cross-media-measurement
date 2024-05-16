@@ -32,9 +32,12 @@
 --       ├── Measurements
 --       │   └── MeasurementPrimitiveReportingSetBases
 --       ├── MetricCalculationSpecs
---       └── Reports
---           ├── ReportTimeIntervals
---           └── MetricCalculationSpecReportingMetrics
+--       ├── Reports
+--       │   ├── ReportTimeIntervals
+--       │   └── MetricCalculationSpecReportingMetrics
+--       └── ReportSchedules
+--           ├── ReportScheduleIterations
+--           └── ReportsReportSchedules
 
 -- changeset tristanvuong2021:add-spec-columns-metrics-table dbms:postgresql
 ALTER TABLE Metrics

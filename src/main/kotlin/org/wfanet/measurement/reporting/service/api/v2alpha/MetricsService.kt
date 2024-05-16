@@ -1572,32 +1572,21 @@ class MetricsService(
         measurement = internalMeasurement {
           this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
           timeInterval = metric.timeInterval
-          val firstCmmsDataProviderId =
-            internalPrimitiveReportingSetMap
-              .getValue(
-                weightedSubsetUnion.primitiveReportingSetBasesList.first().externalReportingSetId
-              )
-              .primitive
-              .eventGroupKeysList
-              .first()
-              .cmmsDataProviderId
-          isSingleDataProvider = true
+          val dataProviderSet = mutableSetOf<String>()
           this.primitiveReportingSetBases +=
             weightedSubsetUnion.primitiveReportingSetBasesList.map { primitiveReportingSetBasis ->
-              if (isSingleDataProvider) {
-                internalPrimitiveReportingSetMap
+              internalPrimitiveReportingSetMap
                   .getValue(primitiveReportingSetBasis.externalReportingSetId)
                   .primitive
                   .eventGroupKeysList
                   .forEach {
-                    if (firstCmmsDataProviderId != it.cmmsDataProviderId) {
-                      isSingleDataProvider = false
-                      return@forEach
-                    }
+                    dataProviderSet.add(it.cmmsDataProviderId)
                   }
-              }
               primitiveReportingSetBasis.copy { filters += metric.filtersList }
             }
+          details = InternalMeasurementKt.details {
+            dataProviderCount = dataProviderSet.size
+          }
         }
       }
     }
@@ -2270,7 +2259,7 @@ private fun calculateFrequencyHistogramResults(
   val weightedMeasurementVarianceParamsList: List<WeightedFrequencyMeasurementVarianceParams> =
     weightedMeasurements.mapNotNull { weightedMeasurement ->
       if (
-        weightedMeasurement.measurement.isSingleDataProvider &&
+        weightedMeasurement.measurement.details.dataProviderCount == 1 &&
           reachAndFrequencyParams.hasSingleDataProviderParams()
       ) {
         buildWeightedFrequencyMeasurementVarianceParams(
@@ -2516,7 +2505,7 @@ private fun calculateReachResult(
     val weightedMeasurementVarianceParamsList: List<WeightedReachMeasurementVarianceParams> =
       weightedMeasurements.mapNotNull { weightedMeasurement ->
         if (
-          weightedMeasurement.measurement.isSingleDataProvider &&
+          weightedMeasurement.measurement.details.dataProviderCount == 1 &&
             reachParams.hasSingleDataProviderParams()
         ) {
           buildWeightedReachMeasurementVarianceParams(
@@ -2583,7 +2572,7 @@ private fun calculateReachResult(
     val weightedMeasurementVarianceParamsList: List<WeightedReachMeasurementVarianceParams> =
       weightedMeasurements.mapNotNull { weightedMeasurement ->
         if (
-          weightedMeasurement.measurement.isSingleDataProvider &&
+          weightedMeasurement.measurement.details.dataProviderCount == 1 &&
             reachAndFrequencyParams.hasSingleDataProviderParams()
         ) {
           buildWeightedReachMeasurementVarianceParams(

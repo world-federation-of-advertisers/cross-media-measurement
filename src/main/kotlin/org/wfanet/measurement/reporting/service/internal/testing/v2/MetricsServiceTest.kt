@@ -2244,7 +2244,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     }
 
   @Test
-  fun `batchGetMetrics succeeds when measurement has isSingleDataProvider set to true`(): Unit =
+  fun `batchGetMetrics succeeds when measurement has data_provider_count set to 1`(): Unit =
     runBlocking {
       createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
 
@@ -2269,7 +2269,9 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                         externalReportingSetId = source.metric.externalReportingSetId
                         filters += "filter1"
                       }
-                    isSingleDataProvider = true
+                    details = MeasurementKt.details {
+                      dataProviderCount = 1
+                    }
                   }
                 }
             }
@@ -2284,8 +2286,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           }
         )
 
-      assertThat(createdMetric.weightedMeasurementsList.first().measurement.isSingleDataProvider)
-        .isTrue()
+      assertThat(createdMetric.weightedMeasurementsList.first().measurement.details.dataProviderCount)
+        .isEqualTo(1)
       assertThat(retrievedMetrics.metricsList)
         .ignoringRepeatedFieldOrder()
         .containsExactly(createdMetric)

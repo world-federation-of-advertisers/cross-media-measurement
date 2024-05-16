@@ -55,6 +55,3 @@ databaseChangeLog:
 - include:
     file: add-additional-metric-spec-columns-to-metrics.sql
     relativeToChangeLogFile: true
-- include:
-    file: add-is-single-data-provider-column-to-measurements.sql
-    relativeToChangeLogFile: true

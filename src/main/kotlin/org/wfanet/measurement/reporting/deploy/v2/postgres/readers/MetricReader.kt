@@ -108,7 +108,6 @@ class MetricReader(private val readContext: ReadContext) {
     val primitiveReportingSetBasisInfoMap: MutableMap<InternalId, PrimitiveReportingSetBasisInfo>,
     val state: Measurement.State,
     val details: Measurement.Details,
-    val isSingleDataProvider: Boolean,
   )
 
   private data class PrimitiveReportingSetBasisInfo(
@@ -155,7 +154,6 @@ class MetricReader(private val readContext: ReadContext) {
       Measurements.TimeIntervalEndExclusive AS MeasurementsTimeIntervalEndExclusive,
       Measurements.State as MeasurementsState,
       Measurements.MeasurementDetails,
-      Measurements.IsSingleDataProvider,
       PrimitiveReportingSetBases.PrimitiveReportingSetBasisId,
       PrimitiveReportingSets.ExternalReportingSetId AS PrimitiveExternalReportingSetId,
       PrimitiveReportingSetBasisFilters.Filter AS PrimitiveReportingSetBasisFilter
@@ -608,7 +606,6 @@ class MetricReader(private val readContext: ReadContext) {
               if (it.measurementInfo.details != Measurement.Details.getDefaultInstance()) {
                 details = it.measurementInfo.details
               }
-              isSingleDataProvider = it.measurementInfo.isSingleDataProvider
             }
           }
       }
@@ -669,7 +666,6 @@ class MetricReader(private val readContext: ReadContext) {
         row.getProtoEnum("MeasurementsState", Measurement.State::forNumber)
       val measurementDetails: Measurement.Details =
         row.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
-      val isSingleDataProvider: Boolean = row["IsSingleDataProvider"]
       val primitiveReportingSetBasisId: InternalId = row["PrimitiveReportingSetBasisId"]
       val primitiveExternalReportingSetId: String = row["PrimitiveExternalReportingSetId"]
       val primitiveReportingSetBasisFilter: String? = row["PrimitiveReportingSetBasisFilter"]
@@ -743,7 +739,6 @@ class MetricReader(private val readContext: ReadContext) {
               state = measurementState,
               details = measurementDetails,
               primitiveReportingSetBasisInfoMap = mutableMapOf(),
-              isSingleDataProvider = isSingleDataProvider,
             )
 
           WeightedMeasurementInfo(

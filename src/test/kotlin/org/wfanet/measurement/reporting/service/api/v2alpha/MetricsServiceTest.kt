@@ -756,6 +756,9 @@ private val INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT = internalMeasurement {
     filters += ALL_FILTERS
   }
   state = InternalMeasurement.State.PENDING
+  details = InternalMeasurementKt.details {
+    dataProviderCount = 3
+  }
 }
 
 private val INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT = internalMeasurement {
@@ -769,13 +772,16 @@ private val INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT = in
     filters += ALL_FILTERS
   }
   state = InternalMeasurement.State.PENDING
+  details = InternalMeasurementKt.details {
+    dataProviderCount = 2
+  }
 }
 
 private val INTERNAL_SUCCEEDED_UNION_ALL_REACH_MEASUREMENT =
   INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.copy {
     state = InternalMeasurement.State.SUCCEEDED
     details =
-      InternalMeasurementKt.details {
+      details.copy {
         results +=
           InternalMeasurementKt.result {
             reach =
@@ -797,7 +803,7 @@ private val INTERNAL_SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
   INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.copy {
     state = InternalMeasurement.State.SUCCEEDED
     details =
-      InternalMeasurementKt.details {
+      details.copy {
         results +=
           InternalMeasurementKt.result {
             reach =
@@ -827,14 +833,16 @@ private val INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT = inte
     filters += PRIMITIVE_REPORTING_SET_FILTER
   }
   state = InternalMeasurement.State.PENDING
-  isSingleDataProvider = true
+  details = InternalMeasurementKt.details {
+    dataProviderCount = 1
+  }
 }
 
 private val INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT =
   INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.copy {
     state = InternalMeasurement.State.SUCCEEDED
     details =
-      InternalMeasurementKt.details {
+      details.copy {
         results +=
           InternalMeasurementKt.result {
             reach =
@@ -869,14 +877,16 @@ private val INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT = internalM
     filters += PRIMITIVE_REPORTING_SET_FILTER
   }
   state = InternalMeasurement.State.PENDING
-  isSingleDataProvider = true
+  details = InternalMeasurementKt.details {
+    dataProviderCount = 1
+  }
 }
 
 private val INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
   INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
     state = InternalMeasurement.State.FAILED
     details =
-      InternalMeasurementKt.details {
+      details.copy {
         failure =
           InternalMeasurementKt.failure {
             reason = InternalMeasurement.Failure.Reason.REQUISITION_REFUSED
@@ -889,7 +899,7 @@ private val INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
   INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
     state = InternalMeasurement.State.SUCCEEDED
     details =
-      InternalMeasurementKt.details {
+      details.copy {
         results +=
           InternalMeasurementKt.result {
             impression =
@@ -906,7 +916,7 @@ private val INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_CUSTOM_CA
   INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
     state = InternalMeasurement.State.SUCCEEDED
     details =
-      InternalMeasurementKt.details {
+      details.copy {
         results +=
           InternalMeasurementKt.result {
             impression =
@@ -929,6 +939,9 @@ private val INTERNAL_REQUESTING_UNION_ALL_WATCH_DURATION_MEASUREMENT = internalM
     externalReportingSetId = INTERNAL_UNION_ALL_REPORTING_SET.externalReportingSetId
     filters += listOf(METRIC_FILTER, PRIMITIVE_REPORTING_SET_FILTER)
   }
+  details = InternalMeasurementKt.details {
+    dataProviderCount = 3
+  }
 }
 
 private val INTERNAL_PENDING_NOT_CREATED_UNION_ALL_WATCH_DURATION_MEASUREMENT =
@@ -947,7 +960,7 @@ private val INTERNAL_SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT =
   INTERNAL_PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.copy {
     state = InternalMeasurement.State.SUCCEEDED
     details =
-      InternalMeasurementKt.details {
+      details.copy {
         results +=
           WATCH_DURATION_LIST.map { duration ->
             InternalMeasurementKt.result {
@@ -974,14 +987,16 @@ val INTERNAL_PENDING_POPULATION_MEASUREMENT = internalMeasurement {
     filters += INCREMENTAL_REPORTING_SET_FILTER
   }
   state = InternalMeasurement.State.PENDING
-  isSingleDataProvider = true
+  details = InternalMeasurementKt.details {
+    dataProviderCount = 1
+  }
 }
 
 val INTERNAL_SUCCEEDED_POPULATION_MEASUREMENT =
   INTERNAL_PENDING_POPULATION_MEASUREMENT.copy {
     state = InternalMeasurement.State.SUCCEEDED
     details =
-      InternalMeasurementKt.details {
+      details.copy {
         results +=
           InternalMeasurementKt.result {
             population =
@@ -2593,7 +2608,9 @@ class MetricsServiceTest {
         filters += PRIMITIVE_REPORTING_SET_FILTER
       }
       state = InternalMeasurement.State.PENDING
-      isSingleDataProvider = true
+      details = InternalMeasurementKt.details {
+        dataProviderCount = 1
+      }
     }
 
     val pendingSingleDataProviderReachMeasurementWithSingleDataProviderParams =
@@ -2862,7 +2879,9 @@ class MetricsServiceTest {
         filters += PRIMITIVE_REPORTING_SET_FILTER
       }
       state = InternalMeasurement.State.PENDING
-      isSingleDataProvider = true
+      details = InternalMeasurementKt.details {
+        dataProviderCount = 1
+      }
     }
 
     val pendingSingleDataProviderReachMeasurement =
@@ -3104,7 +3123,9 @@ class MetricsServiceTest {
         filters += PRIMITIVE_REPORTING_SET_FILTER
       }
       state = InternalMeasurement.State.PENDING
-      isSingleDataProvider = true
+      details = InternalMeasurementKt.details {
+        dataProviderCount = 1
+      }
     }
 
     val pendingSingleDataProviderReachAndFrequencyMeasurementWithSingleDataProviderParams =
@@ -3948,7 +3969,9 @@ class MetricsServiceTest {
               primitiveReportingSetBases += primitiveReportingSetBasis {
                 externalReportingSetId = internalSinglePublisherReportingSet.externalReportingSetId
               }
-              isSingleDataProvider = true
+              details = InternalMeasurementKt.details {
+                dataProviderCount = 1
+              }
             }
           }
           details = InternalMetricKt.details {}
@@ -6335,7 +6358,6 @@ class MetricsServiceTest {
           filters += PRIMITIVE_REPORTING_SET_FILTER
         }
         state = InternalMeasurement.State.SUCCEEDED
-        isSingleDataProvider = true
         details =
           InternalMeasurementKt.details {
             results +=
@@ -6348,6 +6370,7 @@ class MetricsServiceTest {
                       InternalDeterministicCountDistinct.getDefaultInstance()
                   }
               }
+            dataProviderCount = 1
           }
       }
 
@@ -6521,7 +6544,6 @@ class MetricsServiceTest {
           filters += PRIMITIVE_REPORTING_SET_FILTER
         }
         state = InternalMeasurement.State.SUCCEEDED
-        isSingleDataProvider = true
         details =
           InternalMeasurementKt.details {
             results +=
@@ -6534,6 +6556,7 @@ class MetricsServiceTest {
                       InternalDeterministicCountDistinct.getDefaultInstance()
                   }
               }
+            dataProviderCount = 1
           }
       }
 
