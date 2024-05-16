@@ -15,6 +15,7 @@
 package org.wfanet.measurement.integration.common
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import io.grpc.Channel
 import java.security.cert.X509Certificate
 import java.time.Clock
@@ -52,6 +53,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.
 import org.wfanet.measurement.loadtest.dataprovider.EdpData
 import org.wfanet.measurement.loadtest.dataprovider.EdpSimulator
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
+import org.wfanet.measurement.loadtest.dataprovider.VidToIndexMapGenerator
 
 /** An in process EDP simulator. */
 class InProcessEdpSimulator(
@@ -78,6 +80,16 @@ class InProcessEdpSimulator(
 
   // TODO(@ple13): Use the actual vidToIndexMap instead of an empty map when a smaller dataset is
   // available.
+  val vidRange =
+    requireNotNull(syntheticPopulationSpec.vidRange) {
+      "Vid range not specified in SyntheticPopulationSpec."
+    }
+  val vidIndexMap =
+    VidToIndexMapGenerator.generateMapping(
+      salt = "".toByteStringUtf8(),
+      vidUniverse = (vidRange.start until vidRange.endExclusive).toList(),
+    )
+
   private val delegate =
     EdpSimulator(
       edpData = createEdpData(displayName, resourceName),
@@ -116,7 +128,7 @@ class InProcessEdpSimulator(
           100.0f,
         ),
       trustedCertificates = trustedCertificates,
-      vidToIndexMap = emptyMap(),
+      vidToIndexMap = vidIndexMap,
       knownEventGroupMetadataTypes = listOf(SyntheticEventGroupSpec.getDescriptor().file),
       random = random,
     )
