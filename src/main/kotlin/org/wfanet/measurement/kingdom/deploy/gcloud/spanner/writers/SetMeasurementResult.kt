@@ -23,6 +23,7 @@ import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.SetMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
@@ -91,6 +92,15 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       set("State" to NEXT_MEASUREMENT_STATE)
     }
+
+    updateMeasurementState(
+      measurementConsumerId = measurementConsumerId,
+      measurementId = measurementId,
+      nextState = NEXT_MEASUREMENT_STATE,
+      previousState = measurement.state,
+      measurementLogEntryDetails =
+        MeasurementLogEntryKt.details { logMessage = "Measurement succeeded" },
+    )
 
     return measurement.copy {
       state = NEXT_MEASUREMENT_STATE
