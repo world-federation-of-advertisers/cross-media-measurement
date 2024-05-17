@@ -2269,9 +2269,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                         externalReportingSetId = source.metric.externalReportingSetId
                         filters += "filter1"
                       }
-                    details = MeasurementKt.details {
-                      dataProviderCount = 1
-                    }
+                    details = MeasurementKt.details { dataProviderCount = 1 }
                   }
                 }
             }
@@ -2286,7 +2284,9 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           }
         )
 
-      assertThat(createdMetric.weightedMeasurementsList.first().measurement.details.dataProviderCount)
+      assertThat(
+          createdMetric.weightedMeasurementsList.first().measurement.details.dataProviderCount
+        )
         .isEqualTo(1)
       assertThat(retrievedMetrics.metricsList)
         .ignoringRepeatedFieldOrder()

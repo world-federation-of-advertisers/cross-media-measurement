@@ -48,7 +48,11 @@ class SetMeasurementResults(private val request: BatchSetMeasurementResultsReque
         .measurementConsumerId
 
     val measurementDetailsMap =
-      MeasurementReader(transactionContext).readMeasurementsByCmmsId(measurementConsumerId, request.measurementResultsList.map { it.cmmsMeasurementId })
+      MeasurementReader(transactionContext)
+        .readMeasurementsByCmmsId(
+          measurementConsumerId,
+          request.measurementResultsList.map { it.cmmsMeasurementId },
+        )
         .toList()
         .associate { it.measurement.cmmsMeasurementId to it.measurement.details }
 
@@ -69,12 +73,11 @@ class SetMeasurementResults(private val request: BatchSetMeasurementResultsReque
         bind("$1", Measurement.State.SUCCEEDED)
         bind("$2", measurementConsumerId)
         request.measurementResultsList.forEach {
-          val details = measurementDetailsMap[it.cmmsMeasurementId]?.
-            copy {
+          val details =
+            measurementDetailsMap[it.cmmsMeasurementId]?.copy {
               results.clear()
               results += it.resultsList
-            }
-            ?: throw MeasurementNotFoundException()
+            } ?: throw MeasurementNotFoundException()
           addValuesBinding {
             bindValuesParam(0, details)
             bindValuesParam(1, details.toJson())

@@ -1576,17 +1576,13 @@ class MetricsService(
           this.primitiveReportingSetBases +=
             weightedSubsetUnion.primitiveReportingSetBasesList.map { primitiveReportingSetBasis ->
               internalPrimitiveReportingSetMap
-                  .getValue(primitiveReportingSetBasis.externalReportingSetId)
-                  .primitive
-                  .eventGroupKeysList
-                  .forEach {
-                    dataProviderSet.add(it.cmmsDataProviderId)
-                  }
+                .getValue(primitiveReportingSetBasis.externalReportingSetId)
+                .primitive
+                .eventGroupKeysList
+                .forEach { dataProviderSet.add(it.cmmsDataProviderId) }
               primitiveReportingSetBasis.copy { filters += metric.filtersList }
             }
-          details = InternalMeasurementKt.details {
-            dataProviderCount = dataProviderSet.size
-          }
+          details = InternalMeasurementKt.details { dataProviderCount = dataProviderSet.size }
         }
       }
     }

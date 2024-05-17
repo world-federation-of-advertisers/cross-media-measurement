@@ -672,8 +672,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
             it.measurement.timeInterval.startTime.toInstant().atOffset(ZoneOffset.UTC),
           timeIntervalEndExclusive =
             it.measurement.timeInterval.endTime.toInstant().atOffset(ZoneOffset.UTC),
-          details =
-            it.measurement.details,
+          details = it.measurement.details,
         )
       )
 

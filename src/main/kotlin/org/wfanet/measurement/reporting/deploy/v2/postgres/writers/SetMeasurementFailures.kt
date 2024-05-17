@@ -48,7 +48,11 @@ class SetMeasurementFailures(private val request: BatchSetMeasurementFailuresReq
         .measurementConsumerId
 
     val measurementDetailsMap =
-      MeasurementReader(transactionContext).readMeasurementsByCmmsId(measurementConsumerId, request.measurementFailuresList.map { it.cmmsMeasurementId })
+      MeasurementReader(transactionContext)
+        .readMeasurementsByCmmsId(
+          measurementConsumerId,
+          request.measurementFailuresList.map { it.cmmsMeasurementId },
+        )
         .toList()
         .associate { it.measurement.cmmsMeasurementId to it.measurement.details }
 
@@ -69,8 +73,9 @@ class SetMeasurementFailures(private val request: BatchSetMeasurementFailuresReq
         bind("$1", Measurement.State.FAILED)
         bind("$2", measurementConsumerId)
         request.measurementFailuresList.forEach {
-          val details = measurementDetailsMap[it.cmmsMeasurementId]?.copy { failure = it.failure }
-            ?: throw MeasurementNotFoundException()
+          val details =
+            measurementDetailsMap[it.cmmsMeasurementId]?.copy { failure = it.failure }
+              ?: throw MeasurementNotFoundException()
           addValuesBinding {
             bindValuesParam(0, details)
             bindValuesParam(1, details.toJson())
