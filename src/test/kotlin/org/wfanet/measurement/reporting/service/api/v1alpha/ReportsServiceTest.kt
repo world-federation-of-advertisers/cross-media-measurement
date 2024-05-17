@@ -1586,6 +1586,7 @@ class ReportsServiceTest {
         internalReportingSetsMock,
         InternalReportingSetsCoroutineImplBase::batchGetReportingSet,
       )
+      .ignoringRepeatedFieldOrder()
       .isEqualTo(
         batchGetReportingSetRequest {
           measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
@@ -2112,6 +2113,7 @@ class ReportsServiceTest {
         internalReportingSetsMock,
         InternalReportingSetsCoroutineImplBase::batchGetReportingSet,
       )
+      .ignoringRepeatedFieldOrder()
       .isEqualTo(
         batchGetReportingSetRequest {
           measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
@@ -2256,6 +2258,7 @@ class ReportsServiceTest {
         internalReportingSetsMock,
         InternalReportingSetsCoroutineImplBase::batchGetReportingSet,
       )
+      .ignoringRepeatedFieldOrder()
       .isEqualTo(
         batchGetReportingSetRequest {
           measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
@@ -2472,6 +2475,7 @@ class ReportsServiceTest {
         internalMeasurementsMock,
         InternalMeasurementsCoroutineImplBase::batchCreateMeasurements,
       )
+      .ignoringRepeatedFieldOrder()
       .isEqualTo(
         batchCreateMeasurementsRequest {
           measurements += INTERNAL_PENDING_REACH_MEASUREMENT
