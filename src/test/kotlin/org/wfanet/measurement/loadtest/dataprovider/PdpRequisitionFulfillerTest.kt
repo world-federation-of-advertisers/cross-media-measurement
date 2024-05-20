@@ -1,4 +1,4 @@
-// Copyright 2022 The Cross-Media Measurement Authors
+// Copyright 2024 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -89,7 +89,8 @@ import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
-import org.wfanet.measurement.populationdataprovider.daemon.PdpFulfillmentDaemon
+import org.wfanet.measurement.populationdataprovider.DataProviderData
+import org.wfanet.measurement.populationdataprovider.PdpRequisitionFulfiller
 
 private const val MC_ID = "mc"
 private const val MC_NAME = "measurementConsumers/$MC_ID"
@@ -197,19 +198,19 @@ private val POPULATION_SPEC_MAP =
   )
 
 @RunWith(JUnit4::class)
-class PdpDaemonTest {
+class PdpRequisitionFulfillerTest {
   private val certificatesServiceMock: CertificatesCoroutineImplBase = mockService {
     onBlocking {
-        getCertificate(eq(getCertificateRequest { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME }))
-      }
+      getCertificate(eq(getCertificateRequest { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME }))
+    }
       .thenReturn(MEASUREMENT_CONSUMER_CERTIFICATE)
     onBlocking {
-        getCertificate(eq(getCertificateRequest { name = DATA_PROVIDER_CERTIFICATE.name }))
-      }
+      getCertificate(eq(getCertificateRequest { name = DATA_PROVIDER_CERTIFICATE.name }))
+    }
       .thenReturn(DATA_PROVIDER_CERTIFICATE)
     onBlocking {
-        getCertificate(eq(getCertificateRequest { name = DATA_PROVIDER_CERTIFICATE.name }))
-      }
+      getCertificate(eq(getCertificateRequest { name = DATA_PROVIDER_CERTIFICATE.name }))
+    }
       .thenReturn(DATA_PROVIDER_CERTIFICATE)
   }
   private val dataProvidersServiceMock: DataProvidersCoroutineImplBase = mockService {
@@ -249,7 +250,7 @@ class PdpDaemonTest {
     }
 
     val simulator =
-      PdpFulfillmentDaemon(
+      PdpRequisitionFulfiller(
         PDP_DATA,
         certificatesStub,
         requisitionsStub,
@@ -297,7 +298,7 @@ class PdpDaemonTest {
     }
 
     val simulator =
-      PdpFulfillmentDaemon(
+      PdpRequisitionFulfiller(
         PDP_DATA,
         certificatesStub,
         requisitionsStub,
@@ -322,7 +323,7 @@ class PdpDaemonTest {
   }
 
   @Test
-  fun `gets correct population of all FEmales`() {
+  fun `gets correct population of all females`() {
     val requisitionSpec =
       REQUISITION_SPEC.copy {
         population =
@@ -345,7 +346,7 @@ class PdpDaemonTest {
     }
 
     val simulator =
-      PdpFulfillmentDaemon(
+      PdpRequisitionFulfiller(
         PDP_DATA,
         certificatesStub,
         requisitionsStub,
@@ -485,3 +486,4 @@ class PdpDaemonTest {
     }
   }
 }
+

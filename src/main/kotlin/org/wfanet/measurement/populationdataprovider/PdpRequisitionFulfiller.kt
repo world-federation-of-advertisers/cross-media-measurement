@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.populationdataprovider.daemon
+package org.wfanet.measurement.populationdataprovider
 
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
@@ -39,11 +39,11 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
-import org.wfanet.measurement.loadtest.dataprovider.DataProviderData
-import org.wfanet.measurement.loadtest.dataprovider.DataProviderSimulator
+import org.wfanet.measurement.populationdataprovider.DataProviderData
+import org.wfanet.measurement.populationdataprovider.DataProviderRequisitionFulfiller
 
-/** A simulator handling PDP businesses. */
-class PdpFulfillmentDaemon(
+/** A requisition fulfiller for PDP businesses. */
+class PdpRequisitionFulfiller(
   pdpData: DataProviderData,
   certificatesStub: CertificatesCoroutineStub,
   requisitionsStub: RequisitionsCoroutineStub,
@@ -53,7 +53,7 @@ class PdpFulfillmentDaemon(
   private val populationSpecMap: Map<PopulationKey, PopulationSpec>,
   private val populationId: PopulationKey
 ) :
-  DataProviderSimulator(
+  DataProviderRequisitionFulfiller(
     pdpData,
     certificatesStub,
     requisitionsStub,
@@ -201,3 +201,4 @@ class PdpFulfillmentDaemon(
     return (typeUrl == ProtoReflection.getTypeUrl(Person.getDescriptor()))
   }
 }
+

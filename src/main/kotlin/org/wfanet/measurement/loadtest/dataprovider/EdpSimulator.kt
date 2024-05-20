@@ -126,6 +126,8 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2al
 import org.wfanet.measurement.loadtest.common.sampleVids
 import org.wfanet.measurement.loadtest.config.TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
 import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults.computeImpression
+import org.wfanet.measurement.populationdataprovider.DataProviderData
+import org.wfanet.measurement.populationdataprovider.DataProviderRequisitionFulfiller
 
 /** A simulator handling EDP businesses. */
 class EdpSimulator(
@@ -154,7 +156,7 @@ class EdpSimulator(
   private val random: Random = Random,
   private val logSketchDetails: Boolean = false,
 ) :
-  DataProviderSimulator(
+  DataProviderRequisitionFulfiller(
     edpData,
     certificatesStub,
     requisitionsStub,
