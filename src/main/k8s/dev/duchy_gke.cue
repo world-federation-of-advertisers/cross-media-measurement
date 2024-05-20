@@ -112,7 +112,7 @@ duchy: #SpannerDuchy & {
 			spec: template: spec: #SpotVmPodSpec
 		}
 		"liquid-legions-v2-mill-daemon-deployment": {
-			_workLockDuration: "2m"
+			_workLockDuration: "5m"
 			_container: {
 				_javaOptions: maxHeapSize: #MillMaxHeapSize
 				resources: #MillResourceRequirements
