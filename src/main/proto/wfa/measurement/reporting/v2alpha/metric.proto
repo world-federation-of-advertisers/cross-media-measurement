@@ -42,6 +42,9 @@ message MetricSpec {
   }
 
   // Specifies a range of VIDs to be sampled.
+  //
+  // If any of the fields are not specified in a request message, the service
+  // implementation will choose values.
   message VidSamplingInterval {
     // The start of the sampling interval in [0, 1)
     optional float start = 1;

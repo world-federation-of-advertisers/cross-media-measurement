@@ -250,22 +250,29 @@ fun MetricSpecConfig.VidSamplingInterval.validate() {
  * not set.
  */
 fun MetricSpec.withDefaults(metricSpecConfig: MetricSpecConfig, secureRandom: Random): MetricSpec {
+  val deprecatedVidSamplingInterval: MetricSpec.VidSamplingInterval? =
+    if (this.hasVidSamplingInterval()) {
+      this.vidSamplingInterval
+    } else {
+      null
+    }
+
   return copy {
     when (typeCase) {
       MetricSpec.TypeCase.REACH -> {
-        reach = reach.withDefaults(this@withDefaults, metricSpecConfig, secureRandom)
+        reach = reach.withDefaults(deprecatedVidSamplingInterval, metricSpecConfig, secureRandom)
       }
       MetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
         reachAndFrequency =
-          reachAndFrequency.withDefaults(this@withDefaults, metricSpecConfig, secureRandom)
+          reachAndFrequency.withDefaults(deprecatedVidSamplingInterval, metricSpecConfig, secureRandom)
       }
       MetricSpec.TypeCase.IMPRESSION_COUNT -> {
         impressionCount =
-          impressionCount.withDefaults(this@withDefaults, metricSpecConfig, secureRandom)
+          impressionCount.withDefaults(deprecatedVidSamplingInterval, metricSpecConfig, secureRandom)
       }
       MetricSpec.TypeCase.WATCH_DURATION -> {
         watchDuration =
-          watchDuration.withDefaults(this@withDefaults, metricSpecConfig, secureRandom)
+          watchDuration.withDefaults(deprecatedVidSamplingInterval, metricSpecConfig, secureRandom)
       }
       MetricSpec.TypeCase.POPULATION_COUNT -> {
         populationCount = MetricSpec.PopulationCountParams.getDefaultInstance()
@@ -285,7 +292,7 @@ fun MetricSpec.withDefaults(metricSpecConfig: MetricSpecConfig, secureRandom: Ra
  * [MetricSpec.ReachParams] are not set.
  */
 private fun MetricSpec.ReachParams.withDefaults(
-  metricSpec: MetricSpec,
+  deprecatedVidSamplingInterval: MetricSpec.VidSamplingInterval?,
   metricSpecConfig: MetricSpecConfig,
   secureRandom: Random,
 ): MetricSpec.ReachParams {
@@ -344,12 +351,9 @@ private fun MetricSpec.ReachParams.withDefaults(
                 metricSpecConfig.reachParams.multipleDataProviderParams.privacyParams.delta,
             )
           vidSamplingInterval =
-            if (metricSpec.hasVidSamplingInterval()) {
-              metricSpec.vidSamplingInterval
-            } else {
-              metricSpecConfig.reachParams.multipleDataProviderParams.vidSamplingInterval
+            deprecatedVidSamplingInterval
+              ?: metricSpecConfig.reachParams.multipleDataProviderParams.vidSamplingInterval
                 .toVidSamplingInterval(secureRandom)
-            }
           vidSamplingInterval.validate()
         }
       clearPrivacyParams()
@@ -369,7 +373,7 @@ private fun MetricSpec.ReachParams.withDefaults(
  * [MetricSpec.ReachAndFrequencyParams] are not set.
  */
 private fun MetricSpec.ReachAndFrequencyParams.withDefaults(
-  metricSpec: MetricSpec,
+  deprecatedVidSamplingInterval: MetricSpec.VidSamplingInterval?,
   metricSpecConfig: MetricSpecConfig,
   secureRandom: Random,
 ): MetricSpec.ReachAndFrequencyParams {
@@ -482,13 +486,10 @@ private fun MetricSpec.ReachAndFrequencyParams.withDefaults(
                   .delta,
             )
           vidSamplingInterval =
-            if (metricSpec.hasVidSamplingInterval()) {
-              metricSpec.vidSamplingInterval
-            } else {
-              metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams
+            deprecatedVidSamplingInterval
+              ?: metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams
                 .vidSamplingInterval
                 .toVidSamplingInterval(secureRandom)
-            }
           vidSamplingInterval.validate()
         }
       clearReachPrivacyParams()
@@ -509,7 +510,7 @@ private fun MetricSpec.ReachAndFrequencyParams.withDefaults(
  * [MetricSpec.WatchDurationParams] are not set.
  */
 private fun MetricSpec.WatchDurationParams.withDefaults(
-  metricSpec: MetricSpec,
+  deprecatedVidSamplingInterval: MetricSpec.VidSamplingInterval?,
   metricSpecConfig: MetricSpecConfig,
   secureRandom: Random,
 ): MetricSpec.WatchDurationParams {
@@ -548,13 +549,10 @@ private fun MetricSpec.WatchDurationParams.withDefaults(
               defaultDelta = metricSpecConfig.watchDurationParams.params.privacyParams.delta,
             )
           vidSamplingInterval =
-            if (metricSpec.hasVidSamplingInterval()) {
-              metricSpec.vidSamplingInterval
-            } else {
-              metricSpecConfig.watchDurationParams.params.vidSamplingInterval.toVidSamplingInterval(
+            deprecatedVidSamplingInterval
+              ?: metricSpecConfig.watchDurationParams.params.vidSamplingInterval.toVidSamplingInterval(
                 secureRandom
               )
-            }
           vidSamplingInterval.validate()
         }
       clearPrivacyParams()
@@ -574,7 +572,7 @@ private fun MetricSpec.WatchDurationParams.withDefaults(
  * [MetricSpec.ImpressionCountParams] are not set.
  */
 private fun MetricSpec.ImpressionCountParams.withDefaults(
-  metricSpec: MetricSpec,
+  deprecatedVidSamplingInterval: MetricSpec.VidSamplingInterval?,
   metricSpecConfig: MetricSpecConfig,
   secureRandom: Random,
 ): MetricSpec.ImpressionCountParams {
@@ -612,12 +610,9 @@ private fun MetricSpec.ImpressionCountParams.withDefaults(
               defaultDelta = metricSpecConfig.impressionCountParams.params.privacyParams.delta,
             )
           vidSamplingInterval =
-            if (metricSpec.hasVidSamplingInterval()) {
-              metricSpec.vidSamplingInterval
-            } else {
-              metricSpecConfig.impressionCountParams.params.vidSamplingInterval
+            deprecatedVidSamplingInterval
+              ?: metricSpecConfig.impressionCountParams.params.vidSamplingInterval
                 .toVidSamplingInterval(secureRandom)
-            }
           vidSamplingInterval.validate()
         }
       clearPrivacyParams()
@@ -659,7 +654,7 @@ private fun MetricSpec.VidSamplingInterval.withDefaults(
   }
 }
 
-/** Converts an [MetricSpecConfig.VidSamplingInterval] to an [MetricSpec.VidSamplingInterval]. */
+/** Converts an [MetricSpecConfig.VidSamplingInterval] to a [MetricSpec.VidSamplingInterval]. */
 private fun MetricSpecConfig.VidSamplingInterval.toVidSamplingInterval(
   secureRandom: Random
 ): MetricSpec.VidSamplingInterval {
