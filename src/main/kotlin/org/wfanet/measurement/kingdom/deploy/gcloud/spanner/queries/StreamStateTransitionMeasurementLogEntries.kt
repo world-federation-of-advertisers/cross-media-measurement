@@ -27,8 +27,10 @@ class StreamStateTransitionMeasurementLogEntries(
     StateTransitionMeasurementLogEntryReader().fillStatementBuilder {
       appendClause(
         """
-        WHERE Measurements.ExternalMeasurementId = @externalMeasurementId
+        WHERE
+          Measurements.ExternalMeasurementId = @externalMeasurementId
           AND MeasurementConsumers.ExternalMeasurementConsumerId = @externalMeasurementConsumerId
+        ORDER BY CreateTime ASC
         """
           .trimIndent()
       )

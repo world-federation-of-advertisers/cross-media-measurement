@@ -42,6 +42,7 @@ jobs:
             image_tag="$EXISTING_IMAGE_TAG"
           elif [[ "$GITHUB_REF_TYPE" == 'tag' ]]; then
             image_tag="${GITHUB_REF_NAME#v}"
+            image_tag="${image_tag//\//-}"
           else
             image_tag="$GITHUB_SHA"
           fi
