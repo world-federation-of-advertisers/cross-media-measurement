@@ -1648,9 +1648,8 @@ class MetricSpecDefaultsTest {
       assertThrows(MetricSpecDefaultsException::class.java) {
         metricSpecWithoutPrivacyParams.withDefaults(METRIC_SPEC_CONFIG, randomMock)
       }
-    assertThat(exception).hasMessageThat().contains("params")
+    assertThat(exception).hasMessageThat().contains("reach")
     assertThat(exception).hasCauseThat().isInstanceOf(IllegalArgumentException::class.java)
-    assertThat(exception.cause).hasMessageThat().contains("reach")
   }
 
   @Test
@@ -1669,9 +1668,8 @@ class MetricSpecDefaultsTest {
       assertThrows(MetricSpecDefaultsException::class.java) {
         metricSpec.withDefaults(METRIC_SPEC_CONFIG, randomMock)
       }
-    assertThat(exception).hasMessageThat().contains("params")
+    assertThat(exception).hasMessageThat().contains("reach")
     assertThat(exception).hasCauseThat().isInstanceOf(IllegalArgumentException::class.java)
-    assertThat(exception.cause).hasMessageThat().contains("reach")
   }
 
   @Test
@@ -1690,9 +1688,8 @@ class MetricSpecDefaultsTest {
       assertThrows(MetricSpecDefaultsException::class.java) {
         metricSpec.withDefaults(METRIC_SPEC_CONFIG, randomMock)
       }
-    assertThat(exception).hasMessageThat().contains("params")
+    assertThat(exception).hasMessageThat().contains("reach")
     assertThat(exception).hasCauseThat().isInstanceOf(IllegalArgumentException::class.java)
-    assertThat(exception.cause).hasMessageThat().contains("reach")
   }
 
   @Test
@@ -1715,9 +1712,9 @@ class MetricSpecDefaultsTest {
       assertThrows(MetricSpecDefaultsException::class.java) {
         metricSpec.withDefaults(METRIC_SPEC_CONFIG, randomMock)
       }
-    assertThat(exception).hasMessageThat().contains("params")
+    assertThat(exception).hasMessageThat().contains("reach")
     assertThat(exception).hasCauseThat().isInstanceOf(IllegalArgumentException::class.java)
-    assertThat(exception.cause).hasMessageThat().contains("reach")
+    assertThat(exception.cause).hasMessageThat().contains("vid_sampling_interval")
   }
 
   @Test
@@ -1731,9 +1728,8 @@ class MetricSpecDefaultsTest {
       assertThrows(MetricSpecDefaultsException::class.java) {
         metricSpecWithoutPrivacyParams.withDefaults(METRIC_SPEC_CONFIG, randomMock)
       }
-    assertThat(exception).hasMessageThat().contains("params")
+    assertThat(exception).hasMessageThat().contains("reach_and_frequency")
     assertThat(exception).hasCauseThat().isInstanceOf(IllegalArgumentException::class.java)
-    assertThat(exception.cause).hasMessageThat().contains("frequency")
   }
 
   @Test
@@ -1747,9 +1743,8 @@ class MetricSpecDefaultsTest {
       assertThrows(MetricSpecDefaultsException::class.java) {
         metricSpecWithoutPrivacyParams.withDefaults(METRIC_SPEC_CONFIG, randomMock)
       }
-    assertThat(exception).hasMessageThat().contains("params")
+    assertThat(exception).hasMessageThat().contains("reach_and_frequency")
     assertThat(exception).hasCauseThat().isInstanceOf(IllegalArgumentException::class.java)
-    assertThat(exception.cause).hasMessageThat().contains("frequency")
   }
 
   @Test
@@ -1768,9 +1763,8 @@ class MetricSpecDefaultsTest {
       assertThrows(MetricSpecDefaultsException::class.java) {
         metricSpec.withDefaults(METRIC_SPEC_CONFIG, randomMock)
       }
-    assertThat(exception).hasMessageThat().contains("params")
+    assertThat(exception).hasMessageThat().contains("reach_and_frequency")
     assertThat(exception).hasCauseThat().isInstanceOf(IllegalArgumentException::class.java)
-    assertThat(exception.cause).hasMessageThat().contains("frequency")
   }
 
   @Test
@@ -1790,9 +1784,8 @@ class MetricSpecDefaultsTest {
       assertThrows(MetricSpecDefaultsException::class.java) {
         metricSpec.withDefaults(METRIC_SPEC_CONFIG, randomMock)
       }
-    assertThat(exception).hasMessageThat().contains("params")
+    assertThat(exception).hasMessageThat().contains("reach_and_frequency")
     assertThat(exception).hasCauseThat().isInstanceOf(IllegalArgumentException::class.java)
-    assertThat(exception.cause).hasMessageThat().contains("frequency")
   }
 
   @Test
@@ -1817,9 +1810,9 @@ class MetricSpecDefaultsTest {
       assertThrows(MetricSpecDefaultsException::class.java) {
         metricSpec.withDefaults(METRIC_SPEC_CONFIG, randomMock)
       }
-    assertThat(exception).hasMessageThat().contains("params")
+    assertThat(exception).hasMessageThat().contains("reach_and_frequency")
     assertThat(exception).hasCauseThat().isInstanceOf(IllegalArgumentException::class.java)
-    assertThat(exception.cause).hasMessageThat().contains("frequency")
+    assertThat(exception.cause).hasMessageThat().contains("vid_sampling_interval")
   }
 
   @Test
@@ -1830,9 +1823,8 @@ class MetricSpecDefaultsTest {
       assertThrows(MetricSpecDefaultsException::class.java) {
         metricSpecWithoutPrivacyParams.withDefaults(METRIC_SPEC_CONFIG, randomMock)
       }
-    assertThat(exception).hasMessageThat().contains("params")
+    assertThat(exception).hasMessageThat().contains("impression_count")
     assertThat(exception).hasCauseThat().isInstanceOf(IllegalArgumentException::class.java)
-    assertThat(exception.cause).hasMessageThat().contains("impression")
   }
 
   @Test
@@ -1850,9 +1842,9 @@ class MetricSpecDefaultsTest {
       assertThrows(MetricSpecDefaultsException::class.java) {
         metricSpecWithoutPrivacyParams.withDefaults(METRIC_SPEC_CONFIG, randomMock)
       }
-    assertThat(exception).hasMessageThat().contains("params")
+    assertThat(exception).hasMessageThat().contains("impression_count")
     assertThat(exception).hasCauseThat().isInstanceOf(IllegalArgumentException::class.java)
-    assertThat(exception.cause).hasMessageThat().contains("impression")
+    assertThat(exception.cause).hasMessageThat().contains("vid_sampling_interval")
   }
 
   @Test
@@ -1863,9 +1855,8 @@ class MetricSpecDefaultsTest {
       assertThrows(MetricSpecDefaultsException::class.java) {
         metricSpecWithoutPrivacyParams.withDefaults(METRIC_SPEC_CONFIG, randomMock)
       }
-    assertThat(exception).hasMessageThat().contains("params")
+    assertThat(exception).hasMessageThat().contains("watch_duration")
     assertThat(exception).hasCauseThat().isInstanceOf(IllegalArgumentException::class.java)
-    assertThat(exception.cause).hasMessageThat().contains("duration")
   }
 
   @Test
@@ -1883,9 +1874,9 @@ class MetricSpecDefaultsTest {
       assertThrows(MetricSpecDefaultsException::class.java) {
         metricSpecWithoutPrivacyParams.withDefaults(METRIC_SPEC_CONFIG, randomMock)
       }
-    assertThat(exception).hasMessageThat().contains("params")
+    assertThat(exception).hasMessageThat().contains("watch_duration")
     assertThat(exception).hasCauseThat().isInstanceOf(IllegalArgumentException::class.java)
-    assertThat(exception.cause).hasMessageThat().contains("duration")
+    assertThat(exception.cause).hasMessageThat().contains("vid_sampling_interval")
   }
 
   @Test

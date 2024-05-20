@@ -304,13 +304,50 @@ private fun MetricSpec.ReachParams.withDefaults(
   metricSpecConfig: MetricSpecConfig,
   secureRandom: Random,
 ): MetricSpec.ReachParams {
+  if (this.hasMultipleDataProviderParams() && this.hasSingleDataProviderParams()) {
+    if (!this.multipleDataProviderParams.hasPrivacyParams()) {
+      throw MetricSpecDefaultsException(
+        "Invalid reach.multiple_data_provider_params",
+        IllegalArgumentException(
+          "Missing privacy_params"
+        ),
+      )
+    }
+    if (!this.multipleDataProviderParams.hasVidSamplingInterval()) {
+      throw MetricSpecDefaultsException(
+        "Invalid reach.multiple_data_provider_params",
+        IllegalArgumentException(
+          "Missing vid_sampling_interval"
+        ),
+      )
+    }
+    if (!this.singleDataProviderParams.hasPrivacyParams()) {
+      throw MetricSpecDefaultsException(
+        "Invalid reach.single_data_provider_params",
+        IllegalArgumentException(
+          "Missing privacy_params"
+        ),
+      )
+    }
+    if (!this.singleDataProviderParams.hasVidSamplingInterval()) {
+      throw MetricSpecDefaultsException(
+        "Invalid reach.single_data_provider_params",
+        IllegalArgumentException(
+          "Missing vid_sampling_interval"
+        ),
+      )
+    }
+  } else if (!this.hasPrivacyParams() || (this.hasMultipleDataProviderParams() != this.hasSingleDataProviderParams())) {
+    throw MetricSpecDefaultsException(
+      "Invalid reach",
+      IllegalArgumentException(
+        "Either both single_data_provider_params and multiple_data_provider_params must be set or only privacy_params must be set."
+      ),
+    )
+  }
+
   return copy {
-    if (
-      multipleDataProviderParams.hasPrivacyParams() &&
-        multipleDataProviderParams.hasVidSamplingInterval() &&
-        singleDataProviderParams.hasPrivacyParams() &&
-        singleDataProviderParams.hasVidSamplingInterval()
-    ) {
+    if (this.hasMultipleDataProviderParams()) {
       clearPrivacyParams()
       multipleDataProviderParams =
         multipleDataProviderParams.copy {
@@ -345,9 +382,7 @@ private fun MetricSpec.ReachParams.withDefaults(
             )
           vidSamplingInterval.validate()
         }
-    } else if (
-      hasPrivacyParams() && !hasSingleDataProviderParams() && !hasMultipleDataProviderParams()
-    ) {
+    } else {
       val source = this
       multipleDataProviderParams =
         multipleDataProviderParams.copy {
@@ -365,13 +400,6 @@ private fun MetricSpec.ReachParams.withDefaults(
           vidSamplingInterval.validate()
         }
       clearPrivacyParams()
-    } else {
-      throw MetricSpecDefaultsException(
-        "Invalid params",
-        IllegalArgumentException(
-          "privacy_params in reach is not set, or fields in single_data_provider_params or multiple_data_provider_params not set."
-        ),
-      )
     }
   }
 }
@@ -385,19 +413,70 @@ private fun MetricSpec.ReachAndFrequencyParams.withDefaults(
   metricSpecConfig: MetricSpecConfig,
   secureRandom: Random,
 ): MetricSpec.ReachAndFrequencyParams {
+  if (this.hasMultipleDataProviderParams() && this.hasSingleDataProviderParams()) {
+    if (!this.multipleDataProviderParams.hasReachPrivacyParams()) {
+      throw MetricSpecDefaultsException(
+        "Invalid reach_and_frequency.multiple_data_provider_params",
+        IllegalArgumentException(
+          "Missing reach_privacy_params"
+        ),
+      )
+    }
+    if (!this.multipleDataProviderParams.hasFrequencyPrivacyParams()) {
+      throw MetricSpecDefaultsException(
+        "Invalid reach_and_frequency.multiple_data_provider_params",
+        IllegalArgumentException(
+          "Missing frequency_privacy_params"
+        ),
+      )
+    }
+    if (!this.multipleDataProviderParams.hasVidSamplingInterval()) {
+      throw MetricSpecDefaultsException(
+        "Invalid reach_and_frequency.multiple_data_provider_params",
+        IllegalArgumentException(
+          "Missing vid_sampling_interval"
+        ),
+      )
+    }
+    if (!this.multipleDataProviderParams.hasReachPrivacyParams()) {
+      throw MetricSpecDefaultsException(
+        "Invalid reach_and_frequency.single_data_provider_params",
+        IllegalArgumentException(
+          "Missing reach_privacy_params"
+        ),
+      )
+    }
+    if (!this.multipleDataProviderParams.hasFrequencyPrivacyParams()) {
+      throw MetricSpecDefaultsException(
+        "Invalid reach_and_frequency.single_data_provider_params",
+        IllegalArgumentException(
+          "Missing frequency_privacy_params"
+        ),
+      )
+    }
+    if (!this.multipleDataProviderParams.hasVidSamplingInterval()) {
+      throw MetricSpecDefaultsException(
+        "Invalid reach_and_frequency.single_data_provider_params",
+        IllegalArgumentException(
+          "Missing vid_sampling_interval"
+        ),
+      )
+    }
+  } else if (!(this.hasReachPrivacyParams() && this.hasFrequencyPrivacyParams()) || (this.hasMultipleDataProviderParams() != this.hasSingleDataProviderParams())) {
+    throw MetricSpecDefaultsException(
+      "Invalid reach_and_frequency.",
+      IllegalArgumentException(
+        "Either both single_data_provider_params and multiple_data_provider_params must be set or only both reach_privacy_params and frequency_privacy_params must be set."
+      ),
+    )
+  }
+
   return copy {
     if (maximumFrequency == 0) {
       maximumFrequency = metricSpecConfig.reachAndFrequencyParams.maximumFrequency
     }
 
-    if (
-      multipleDataProviderParams.hasReachPrivacyParams() &&
-        multipleDataProviderParams.hasFrequencyPrivacyParams() &&
-        multipleDataProviderParams.hasVidSamplingInterval() &&
-        singleDataProviderParams.hasReachPrivacyParams() &&
-        singleDataProviderParams.hasFrequencyPrivacyParams() &&
-        singleDataProviderParams.hasVidSamplingInterval()
-    ) {
+    if (multipleDataProviderParams.hasReachPrivacyParams()) {
       clearReachPrivacyParams()
       clearFrequencyPrivacyParams()
       multipleDataProviderParams =
@@ -462,12 +541,7 @@ private fun MetricSpec.ReachAndFrequencyParams.withDefaults(
             )
           vidSamplingInterval.validate()
         }
-    } else if (
-      hasReachPrivacyParams() &&
-        hasFrequencyPrivacyParams() &&
-        !hasSingleDataProviderParams() &&
-        !hasMultipleDataProviderParams()
-    ) {
+    } else {
       val source = this
       multipleDataProviderParams =
         multipleDataProviderParams.copy {
@@ -502,13 +576,6 @@ private fun MetricSpec.ReachAndFrequencyParams.withDefaults(
         }
       clearReachPrivacyParams()
       clearFrequencyPrivacyParams()
-    } else {
-      throw MetricSpecDefaultsException(
-        "Invalid params",
-        IllegalArgumentException(
-          "reach_privacy_params or frequency_privacy_params in reach and frequency is not set, or fields in single_data_provider_params and multiple_data_provider_params not set."
-        ),
-      )
     }
   }
 }
@@ -522,6 +589,32 @@ private fun MetricSpec.WatchDurationParams.withDefaults(
   metricSpecConfig: MetricSpecConfig,
   secureRandom: Random,
 ): MetricSpec.WatchDurationParams {
+  if (this.hasParams()) {
+    if (!this.params.hasPrivacyParams()) {
+      throw MetricSpecDefaultsException(
+        "Invalid watch_duration.params",
+        IllegalArgumentException(
+          "Missing privacy_params"
+        ),
+      )
+    }
+    if (!this.params.hasVidSamplingInterval()) {
+      throw MetricSpecDefaultsException(
+        "Invalid watch_duration.params",
+        IllegalArgumentException(
+          "Missing vid_sampling_interval"
+        ),
+      )
+    }
+  } else if (!this.hasPrivacyParams()) {
+    throw MetricSpecDefaultsException(
+      "Invalid watch_duration",
+      IllegalArgumentException(
+        "Either params or privacy_params must be set."
+      ),
+    )
+  }
+
   return copy {
     maximumWatchDurationPerUser =
       if (hasMaximumWatchDurationPerUser()) {
@@ -530,7 +623,7 @@ private fun MetricSpec.WatchDurationParams.withDefaults(
         metricSpecConfig.watchDurationParams.maximumWatchDurationPerUser
       }
 
-    if (params.hasPrivacyParams() && params.hasVidSamplingInterval()) {
+    if (hasParams()) {
       clearPrivacyParams()
       params =
         params.copy {
@@ -547,7 +640,7 @@ private fun MetricSpec.WatchDurationParams.withDefaults(
             )
           vidSamplingInterval.validate()
         }
-    } else if (hasPrivacyParams() && !hasParams()) {
+    } else {
       val source = this
       params =
         params.copy {
@@ -563,13 +656,6 @@ private fun MetricSpec.WatchDurationParams.withDefaults(
           vidSamplingInterval.validate()
         }
       clearPrivacyParams()
-    } else {
-      throw MetricSpecDefaultsException(
-        "Invalid params",
-        IllegalArgumentException(
-          "privacy_params in watch duration is not set, or fields in params not set."
-        ),
-      )
     }
   }
 }
@@ -583,6 +669,32 @@ private fun MetricSpec.ImpressionCountParams.withDefaults(
   metricSpecConfig: MetricSpecConfig,
   secureRandom: Random,
 ): MetricSpec.ImpressionCountParams {
+  if (this.hasParams()) {
+    if (!this.params.hasPrivacyParams()) {
+      throw MetricSpecDefaultsException(
+        "Invalid impression_count.params",
+        IllegalArgumentException(
+          "Missing privacy_params"
+        ),
+      )
+    }
+    if (!this.params.hasVidSamplingInterval()) {
+      throw MetricSpecDefaultsException(
+        "Invalid impression_count.params",
+        IllegalArgumentException(
+          "Missing vid_sampling_interval"
+        ),
+      )
+    }
+  } else if (!this.hasPrivacyParams()) {
+    throw MetricSpecDefaultsException(
+      "Invalid impression_count",
+      IllegalArgumentException(
+        "Either params or privacy_params must be set."
+      ),
+    )
+  }
+
   return copy {
     maximumFrequencyPerUser =
       if (hasMaximumFrequencyPerUser()) {
@@ -591,7 +703,7 @@ private fun MetricSpec.ImpressionCountParams.withDefaults(
         metricSpecConfig.impressionCountParams.maximumFrequencyPerUser
       }
 
-    if (params.hasPrivacyParams() && params.hasVidSamplingInterval()) {
+    if (hasParams()) {
       clearPrivacyParams()
       params =
         params.copy {
@@ -607,7 +719,7 @@ private fun MetricSpec.ImpressionCountParams.withDefaults(
             )
           vidSamplingInterval.validate()
         }
-    } else if (hasPrivacyParams() && !hasParams()) {
+    } else {
       val source = this
       params =
         params.copy {
@@ -623,13 +735,6 @@ private fun MetricSpec.ImpressionCountParams.withDefaults(
           vidSamplingInterval.validate()
         }
       clearPrivacyParams()
-    } else {
-      throw MetricSpecDefaultsException(
-        "Invalid params",
-        IllegalArgumentException(
-          "privacy_params in impression count is not set, or fields in params not set."
-        ),
-      )
     }
   }
 }
