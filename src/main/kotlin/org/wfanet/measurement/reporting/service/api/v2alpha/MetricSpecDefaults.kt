@@ -264,11 +264,19 @@ fun MetricSpec.withDefaults(metricSpecConfig: MetricSpecConfig, secureRandom: Ra
       }
       MetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
         reachAndFrequency =
-          reachAndFrequency.withDefaults(deprecatedVidSamplingInterval, metricSpecConfig, secureRandom)
+          reachAndFrequency.withDefaults(
+            deprecatedVidSamplingInterval,
+            metricSpecConfig,
+            secureRandom,
+          )
       }
       MetricSpec.TypeCase.IMPRESSION_COUNT -> {
         impressionCount =
-          impressionCount.withDefaults(deprecatedVidSamplingInterval, metricSpecConfig, secureRandom)
+          impressionCount.withDefaults(
+            deprecatedVidSamplingInterval,
+            metricSpecConfig,
+            secureRandom,
+          )
       }
       MetricSpec.TypeCase.WATCH_DURATION -> {
         watchDuration =
@@ -550,9 +558,8 @@ private fun MetricSpec.WatchDurationParams.withDefaults(
             )
           vidSamplingInterval =
             deprecatedVidSamplingInterval
-              ?: metricSpecConfig.watchDurationParams.params.vidSamplingInterval.toVidSamplingInterval(
-                secureRandom
-              )
+              ?: metricSpecConfig.watchDurationParams.params.vidSamplingInterval
+                .toVidSamplingInterval(secureRandom)
           vidSamplingInterval.validate()
         }
       clearPrivacyParams()
