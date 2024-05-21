@@ -503,10 +503,6 @@ class MetricSpecDefaultsTest {
               }
             vidSamplingInterval =
               MetricSpecKt.vidSamplingInterval {
-                start =
-                  METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams.vidSamplingInterval
-                    .fixedStart
-                    .start
                 width =
                   METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams.vidSamplingInterval
                     .fixedStart
@@ -524,10 +520,6 @@ class MetricSpecDefaultsTest {
               }
             vidSamplingInterval =
               MetricSpecKt.vidSamplingInterval {
-                start =
-                  METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams.vidSamplingInterval
-                    .fixedStart
-                    .start
                 width =
                   METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams.vidSamplingInterval
                     .fixedStart
@@ -545,12 +537,10 @@ class MetricSpecDefaultsTest {
               multipleDataProviderParams =
                 multipleDataProviderParams.copy {
                   privacyParams = privacyParams.copy { clearEpsilon() }
-                  vidSamplingInterval = vidSamplingInterval.copy { clearStart() }
                 }
               singleDataProviderParams =
                 singleDataProviderParams.copy {
                   privacyParams = privacyParams.copy { clearEpsilon() }
-                  vidSamplingInterval = vidSamplingInterval.copy { clearStart() }
                 }
             }
         }
@@ -1030,11 +1020,6 @@ class MetricSpecDefaultsTest {
               }
             vidSamplingInterval =
               MetricSpecKt.vidSamplingInterval {
-                start =
-                  METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
-                    .vidSamplingInterval
-                    .fixedStart
-                    .start
                 width =
                   METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
                     .vidSamplingInterval
@@ -1068,11 +1053,6 @@ class MetricSpecDefaultsTest {
               }
             vidSamplingInterval =
               MetricSpecKt.vidSamplingInterval {
-                start =
-                  METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
-                    .vidSamplingInterval
-                    .fixedStart
-                    .start
                 width =
                   METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
                     .vidSamplingInterval
@@ -1092,13 +1072,11 @@ class MetricSpecDefaultsTest {
                 multipleDataProviderParams.copy {
                   reachPrivacyParams = reachPrivacyParams.copy { clearEpsilon() }
                   frequencyPrivacyParams = frequencyPrivacyParams.copy { clearEpsilon() }
-                  vidSamplingInterval = vidSamplingInterval.copy { clearStart() }
                 }
               singleDataProviderParams =
                 singleDataProviderParams.copy {
                   reachPrivacyParams = reachPrivacyParams.copy { clearEpsilon() }
                   frequencyPrivacyParams = frequencyPrivacyParams.copy { clearEpsilon() }
-                  vidSamplingInterval = vidSamplingInterval.copy { clearStart() }
                 }
             }
         }
@@ -1371,7 +1349,6 @@ class MetricSpecDefaultsTest {
               params =
                 params.copy {
                   privacyParams = privacyParams.copy { clearEpsilon() }
-                  vidSamplingInterval = vidSamplingInterval.copy { clearStart() }
                 }
             }
         }
@@ -1564,8 +1541,6 @@ class MetricSpecDefaultsTest {
               }
             vidSamplingInterval =
               MetricSpecKt.vidSamplingInterval {
-                start =
-                  METRIC_SPEC_CONFIG.watchDurationParams.params.vidSamplingInterval.fixedStart.start
                 width =
                   METRIC_SPEC_CONFIG.watchDurationParams.params.vidSamplingInterval.fixedStart
                     .width / 2
@@ -1586,7 +1561,6 @@ class MetricSpecDefaultsTest {
               params =
                 params.copy {
                   privacyParams = privacyParams.copy { clearEpsilon() }
-                  vidSamplingInterval = vidSamplingInterval.copy { clearStart() }
                 }
             }
         }

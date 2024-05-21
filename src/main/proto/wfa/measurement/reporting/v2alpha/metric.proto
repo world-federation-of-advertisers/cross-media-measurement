@@ -43,15 +43,16 @@ message MetricSpec {
 
   // Specifies a range of VIDs to be sampled.
   //
-  // If any of the fields are not specified in a request message, the service
-  // implementation will choose values.
+  // If both start and width are not specified in a request message, the service
+  // implementation will choose values for both start and width. If only start
+  // is specified, it will be considered an error.
   message VidSamplingInterval {
     // The start of the sampling interval in [0, 1)
-    optional float start = 1;
+    float start = 1;
     // The width of the sampling interval.
     //
     // start + width cannot be larger than 1
-    optional float width = 2;
+    float width = 2;
   }
 
   message SamplingAndPrivacyParams {

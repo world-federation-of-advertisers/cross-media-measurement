@@ -760,9 +760,13 @@ private fun MetricSpec.DifferentialPrivacyParams.withDefaults(
 private fun MetricSpec.VidSamplingInterval.withDefaults(
   defaultVidSamplingInterval: MetricSpec.VidSamplingInterval
 ): MetricSpec.VidSamplingInterval {
-  return copy {
-    start = if (hasStart()) start else defaultVidSamplingInterval.start
-    width = if (hasWidth()) width else defaultVidSamplingInterval.width
+  return if (width > 0 || start > 0) {
+    this
+  } else {
+    MetricSpecKt.vidSamplingInterval {
+      start = defaultVidSamplingInterval.start
+      width = defaultVidSamplingInterval.width
+    }
   }
 }
 
@@ -779,8 +783,7 @@ private fun MetricSpecConfig.VidSamplingInterval.toVidSamplingInterval(
   } else {
     val maxStart = NUM_BUCKETS - (source.randomStart.width * NUM_BUCKETS).toInt()
     // The `- 1` is in case the rounding from source.randomStart.width * NUM_BUCKETS rounds down.
-    // This
-    // prevents the random start from being too big if rounding down does occur.
+    // This prevents the random start from being too big if rounding down does occur.
     val randomStart = secureRandom.nextInt(maxStart - 1)
     return MetricSpecKt.vidSamplingInterval {
       start = randomStart.toFloat() / NUM_BUCKETS
