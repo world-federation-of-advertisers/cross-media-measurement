@@ -188,12 +188,12 @@ fun MetricSpecConfig.ReachAndFrequencySamplingAndPrivacyParams.validate() {
  * @throws [IllegalArgumentException] if validation fails.
  */
 fun MetricSpecConfig.DifferentialPrivacyParams.validate() {
-  if (!hasEpsilon()) {
-    throw IllegalArgumentException("DifferentialPrivacyParams missing epsilon.")
+  if (epsilon < 0) {
+    throw IllegalArgumentException("DifferentialPrivacyParams.epsilon is invalid.")
   }
 
-  if (!hasDelta()) {
-    throw IllegalArgumentException("DifferentialPrivacyParams missing delta.")
+  if (delta < 0) {
+    throw IllegalArgumentException("DifferentialPrivacyParams.delta is invalid.")
   }
 }
 
@@ -204,39 +204,29 @@ fun MetricSpecConfig.DifferentialPrivacyParams.validate() {
  */
 fun MetricSpecConfig.VidSamplingInterval.validate() {
   if (hasFixedStart()) {
-    if (fixedStart.hasStart()) {
-      if (fixedStart.hasWidth()) {
-        if (fixedStart.start < 0) {
-          throw IllegalArgumentException("VidSamplingInterval.FixedStart.start cannot be negative.")
-        }
-        if (fixedStart.start >= 1) {
-          throw IllegalArgumentException(
-            "VidSamplingInterval.FixedStart.start must be smaller than 1."
-          )
-        }
-        if (fixedStart.width <= 0) {
-          throw IllegalArgumentException(
-            "VidSamplingInterval.FixedStart.width must be greater than 0."
-          )
-        }
-        if (fixedStart.start + fixedStart.width > 1) {
-          throw IllegalArgumentException(
-            "VidSamplingInterval.FixedStart start + width cannot be greater than 1."
-          )
-        }
-      } else {
-        throw IllegalArgumentException("VidSamplingInterval.FixedStart.start is missing.")
-      }
-    } else {
-      throw IllegalArgumentException("VidSamplingInterval.FixedStart.width is missing.")
+    if (fixedStart.start < 0) {
+      throw IllegalArgumentException("VidSamplingInterval.FixedStart.start cannot be negative.")
+    }
+    if (fixedStart.start >= 1) {
+      throw IllegalArgumentException(
+        "VidSamplingInterval.FixedStart.start must be smaller than 1."
+      )
+    }
+    if (fixedStart.width <= 0) {
+      throw IllegalArgumentException(
+        "VidSamplingInterval.FixedStart.width must be greater than 0."
+      )
+    }
+    if (fixedStart.start + fixedStart.width > 1) {
+      throw IllegalArgumentException(
+        "VidSamplingInterval.FixedStart start + width cannot be greater than 1."
+      )
     }
   } else if (hasRandomStart()) {
-    if (randomStart.hasWidth()) {
-      if (randomStart.width <= 0 || randomStart.width > 1) {
-        throw IllegalArgumentException(
-          "VidSamplingInterval.RandomStart.width must be greater than 0 and less than or equal to 1."
-        )
-      }
+    if (randomStart.width <= 0 || randomStart.width > 1) {
+      throw IllegalArgumentException(
+        "VidSamplingInterval.RandomStart.width must be greater than 0 and less than or equal to 1."
+      )
     } else {
       throw IllegalArgumentException("VidSamplingInterval.RandomStart.width is missing.")
     }
@@ -760,7 +750,7 @@ private fun MetricSpec.DifferentialPrivacyParams.withDefaults(
 private fun MetricSpec.VidSamplingInterval.withDefaults(
   defaultVidSamplingInterval: MetricSpec.VidSamplingInterval
 ): MetricSpec.VidSamplingInterval {
-  return if (width > 0 || start > 0) {
+  return if (hasWidth() || start > 0) {
     this
   } else {
     MetricSpecKt.vidSamplingInterval {

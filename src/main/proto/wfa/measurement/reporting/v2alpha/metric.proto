@@ -51,8 +51,8 @@ message MetricSpec {
     float start = 1;
     // The width of the sampling interval.
     //
-    // start + width cannot be larger than 1
-    float width = 2;
+    // start + width cannot be larger than 1. If set, must be greater than 0.
+    optional float width = 2;
   }
 
   message SamplingAndPrivacyParams {

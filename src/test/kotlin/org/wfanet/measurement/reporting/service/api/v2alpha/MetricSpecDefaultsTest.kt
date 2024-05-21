@@ -107,14 +107,14 @@ class MetricSpecDefaultsTest {
   }
 
   @Test
-  fun `MetricSpecConfig validate throws exception when epsilon missing from privacy_params`() {
+  fun `MetricSpecConfig validate throws exception when epsilon negative`() {
     val metricSpecConfig =
       METRIC_SPEC_CONFIG.copy {
         reachParams =
           reachParams.copy {
             singleDataProviderParams =
               singleDataProviderParams.copy {
-                privacyParams = privacyParams.copy { clearEpsilon() }
+                privacyParams = privacyParams.copy { epsilon = -5.0 }
               }
           }
       }
@@ -125,13 +125,13 @@ class MetricSpecDefaultsTest {
   }
 
   @Test
-  fun `MetricSpecConfig validate throws exception when delta missing from privacy_params`() {
+  fun `MetricSpecConfig validate throws exception when delta negative`() {
     val metricSpecConfig =
       METRIC_SPEC_CONFIG.copy {
         reachParams =
           reachParams.copy {
             singleDataProviderParams =
-              singleDataProviderParams.copy { privacyParams = privacyParams.copy { clearDelta() } }
+              singleDataProviderParams.copy { privacyParams = privacyParams.copy { delta = -5.0 } }
           }
       }
 
@@ -141,7 +141,7 @@ class MetricSpecDefaultsTest {
   }
 
   @Test
-  fun `MetricSpecConfig validate throws exception when width missing from vid interval`() {
+  fun `MetricSpecConfig validate throws exception when width is 0`() {
     val metricSpecConfig =
       METRIC_SPEC_CONFIG.copy {
         reachParams =
@@ -149,7 +149,7 @@ class MetricSpecDefaultsTest {
             singleDataProviderParams =
               singleDataProviderParams.copy {
                 vidSamplingInterval =
-                  vidSamplingInterval.copy { fixedStart = fixedStart.copy { clearWidth() } }
+                  vidSamplingInterval.copy { fixedStart = fixedStart.copy { width = 0f } }
               }
           }
       }
@@ -160,7 +160,7 @@ class MetricSpecDefaultsTest {
   }
 
   @Test
-  fun `MetricSpecConfig validate throws exception when start missing from vid interval`() {
+  fun `MetricSpecConfig validate throws exception when start negative`() {
     val metricSpecConfig =
       METRIC_SPEC_CONFIG.copy {
         reachParams =
@@ -168,7 +168,7 @@ class MetricSpecDefaultsTest {
             singleDataProviderParams =
               singleDataProviderParams.copy {
                 vidSamplingInterval =
-                  vidSamplingInterval.copy { fixedStart = fixedStart.copy { clearStart() } }
+                  vidSamplingInterval.copy { fixedStart = fixedStart.copy { start = -5f} }
               }
           }
       }
@@ -212,14 +212,14 @@ class MetricSpecDefaultsTest {
   }
 
   @Test
-  fun `MetricSpecConfig validate throws exception when rf freq privacy_params missing epsilon`() {
+  fun `MetricSpecConfig validate throws exception when rf freq privacy_params epsilon negative`() {
     val metricSpecConfig =
       METRIC_SPEC_CONFIG.copy {
         reachAndFrequencyParams =
           reachAndFrequencyParams.copy {
             singleDataProviderParams =
               singleDataProviderParams.copy {
-                frequencyPrivacyParams = frequencyPrivacyParams.copy { clearEpsilon() }
+                frequencyPrivacyParams = frequencyPrivacyParams.copy { epsilon = -5.0 }
               }
           }
       }
@@ -230,14 +230,14 @@ class MetricSpecDefaultsTest {
   }
 
   @Test
-  fun `MetricSpecConfig validate throws exception when rf freq privacy_params missing delta`() {
+  fun `MetricSpecConfig validate throws exception when rf freq privacy_params delta negative`() {
     val metricSpecConfig =
       METRIC_SPEC_CONFIG.copy {
         reachAndFrequencyParams =
           reachAndFrequencyParams.copy {
             singleDataProviderParams =
               singleDataProviderParams.copy {
-                frequencyPrivacyParams = frequencyPrivacyParams.copy { clearDelta() }
+                frequencyPrivacyParams = frequencyPrivacyParams.copy { delta = -5.0 }
               }
           }
       }
@@ -267,7 +267,7 @@ class MetricSpecDefaultsTest {
   }
 
   @Test
-  fun `MetricSpecConfig validate throws exception when rf vid interval missing start`() {
+  fun `MetricSpecConfig validate throws exception when rf vid interval start is 1`() {
     val metricSpecConfig =
       METRIC_SPEC_CONFIG.copy {
         reachAndFrequencyParams =
@@ -275,7 +275,7 @@ class MetricSpecDefaultsTest {
             singleDataProviderParams =
               singleDataProviderParams.copy {
                 vidSamplingInterval =
-                  vidSamplingInterval.copy { fixedStart = fixedStart.copy { clearStart() } }
+                  vidSamplingInterval.copy { fixedStart = fixedStart.copy { start = 1f } }
               }
           }
       }
@@ -2049,6 +2049,9 @@ class MetricSpecDefaultsTest {
             }
           maximumWatchDurationPerUser = MAXIMUM_WATCH_DURATION_PER_USER
         }
+
+      populationCountParams =
+        MetricSpecConfigKt.populationCountParams {  }
     }
 
     // Metric Specs
