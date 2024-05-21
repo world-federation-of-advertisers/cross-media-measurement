@@ -637,8 +637,9 @@ private fun MetricSpec.ImpressionCountParams.withDefaults(
               defaultDelta = metricSpecConfig.impressionCountParams.params.privacyParams.delta,
             )
           if (!hasVidSamplingInterval()) {
-            vidSamplingInterval = metricSpecConfig.impressionCountParams.params.vidSamplingInterval
-              .toVidSamplingInterval(secureRandom)
+            vidSamplingInterval =
+              metricSpecConfig.impressionCountParams.params.vidSamplingInterval
+                .toVidSamplingInterval(secureRandom)
           }
           vidSamplingInterval.validate()
         }
