@@ -168,7 +168,7 @@ class MetricSpecDefaultsTest {
             singleDataProviderParams =
               singleDataProviderParams.copy {
                 vidSamplingInterval =
-                  vidSamplingInterval.copy { fixedStart = fixedStart.copy { start = -5f} }
+                  vidSamplingInterval.copy { fixedStart = fixedStart.copy { start = -5f } }
               }
           }
       }
@@ -1346,10 +1346,7 @@ class MetricSpecDefaultsTest {
         .copy {
           impressionCount =
             impressionCount.copy {
-              params =
-                params.copy {
-                  privacyParams = privacyParams.copy { clearEpsilon() }
-                }
+              params = params.copy { privacyParams = privacyParams.copy { clearEpsilon() } }
             }
         }
         .withDefaults(METRIC_SPEC_CONFIG, randomMock)
@@ -1558,10 +1555,7 @@ class MetricSpecDefaultsTest {
         .copy {
           watchDuration =
             watchDuration.copy {
-              params =
-                params.copy {
-                  privacyParams = privacyParams.copy { clearEpsilon() }
-                }
+              params = params.copy { privacyParams = privacyParams.copy { clearEpsilon() } }
             }
         }
         .withDefaults(METRIC_SPEC_CONFIG, randomMock)
@@ -2050,8 +2044,7 @@ class MetricSpecDefaultsTest {
           maximumWatchDurationPerUser = MAXIMUM_WATCH_DURATION_PER_USER
         }
 
-      populationCountParams =
-        MetricSpecConfigKt.populationCountParams {  }
+      populationCountParams = MetricSpecConfigKt.populationCountParams {}
     }
 
     // Metric Specs
