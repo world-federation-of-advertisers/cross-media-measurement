@@ -1661,31 +1661,6 @@ class MetricSpecDefaultsTest {
   }
 
   @Test
-  fun `buildMetricSpec throw MetricSpecBuildingException when multiple reach params vid not set`() {
-    val metricSpec = metricSpec {
-      reach = reachParams {
-        multipleDataProviderParams =
-          MetricSpecKt.samplingAndPrivacyParams {
-            privacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
-          }
-        singleDataProviderParams =
-          MetricSpecKt.samplingAndPrivacyParams {
-            privacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
-            vidSamplingInterval = MetricSpec.VidSamplingInterval.getDefaultInstance()
-          }
-      }
-    }
-
-    val exception =
-      assertThrows(MetricSpecDefaultsException::class.java) {
-        metricSpec.withDefaults(METRIC_SPEC_CONFIG, randomMock)
-      }
-    assertThat(exception).hasMessageThat().contains("reach")
-    assertThat(exception).hasCauseThat().isInstanceOf(IllegalArgumentException::class.java)
-    assertThat(exception.cause).hasMessageThat().contains("vid_sampling_interval")
-  }
-
-  @Test
   fun `buildMetricSpec throw MetricSpecBuildingException when reach privacy params in reach and frequency is not set`() {
     val metricSpecWithoutPrivacyParams =
       LEGACY_EMPTY_REACH_AND_FREQUENCY_METRIC_SPEC.copy {
@@ -1757,33 +1732,6 @@ class MetricSpecDefaultsTest {
   }
 
   @Test
-  fun `buildMetricSpec throw MetricSpecBuildingException when multiple rf params vid not set`() {
-    val metricSpec = metricSpec {
-      reachAndFrequency = reachAndFrequencyParams {
-        multipleDataProviderParams =
-          MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
-            reachPrivacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
-            frequencyPrivacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
-          }
-        singleDataProviderParams =
-          MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
-            reachPrivacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
-            frequencyPrivacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
-            vidSamplingInterval = MetricSpec.VidSamplingInterval.getDefaultInstance()
-          }
-      }
-    }
-
-    val exception =
-      assertThrows(MetricSpecDefaultsException::class.java) {
-        metricSpec.withDefaults(METRIC_SPEC_CONFIG, randomMock)
-      }
-    assertThat(exception).hasMessageThat().contains("reach_and_frequency")
-    assertThat(exception).hasCauseThat().isInstanceOf(IllegalArgumentException::class.java)
-    assertThat(exception.cause).hasMessageThat().contains("vid_sampling_interval")
-  }
-
-  @Test
   fun `buildMetricSpec throw MetricSpecBuildingException when impression params not set`() {
     val metricSpecWithoutPrivacyParams = metricSpec { impressionCount = impressionCountParams {} }
 
@@ -1796,26 +1744,6 @@ class MetricSpecDefaultsTest {
   }
 
   @Test
-  fun `buildMetricSpec throw MetricSpecBuildingException when impression params vid not set`() {
-    val metricSpecWithoutPrivacyParams = metricSpec {
-      impressionCount = impressionCountParams {
-        params =
-          MetricSpecKt.samplingAndPrivacyParams {
-            privacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
-          }
-      }
-    }
-
-    val exception =
-      assertThrows(MetricSpecDefaultsException::class.java) {
-        metricSpecWithoutPrivacyParams.withDefaults(METRIC_SPEC_CONFIG, randomMock)
-      }
-    assertThat(exception).hasMessageThat().contains("impression_count")
-    assertThat(exception).hasCauseThat().isInstanceOf(IllegalArgumentException::class.java)
-    assertThat(exception.cause).hasMessageThat().contains("vid_sampling_interval")
-  }
-
-  @Test
   fun `buildMetricSpec throw MetricSpecBuildingException when watch duration params not set`() {
     val metricSpecWithoutPrivacyParams = metricSpec { watchDuration = watchDurationParams {} }
 
@@ -1825,26 +1753,6 @@ class MetricSpecDefaultsTest {
       }
     assertThat(exception).hasMessageThat().contains("watch_duration")
     assertThat(exception).hasCauseThat().isInstanceOf(IllegalArgumentException::class.java)
-  }
-
-  @Test
-  fun `buildMetricSpec throw MetricSpecBuildingException when watch duration params vid not set`() {
-    val metricSpecWithoutPrivacyParams = metricSpec {
-      watchDuration = watchDurationParams {
-        params =
-          MetricSpecKt.samplingAndPrivacyParams {
-            privacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
-          }
-      }
-    }
-
-    val exception =
-      assertThrows(MetricSpecDefaultsException::class.java) {
-        metricSpecWithoutPrivacyParams.withDefaults(METRIC_SPEC_CONFIG, randomMock)
-      }
-    assertThat(exception).hasMessageThat().contains("watch_duration")
-    assertThat(exception).hasCauseThat().isInstanceOf(IllegalArgumentException::class.java)
-    assertThat(exception.cause).hasMessageThat().contains("vid_sampling_interval")
   }
 
   @Test
@@ -1880,7 +1788,7 @@ class MetricSpecDefaultsTest {
   }
 
   @Test
-  fun `buildMetricSpec throw MetricSpecBuildingException when vidSamplingInterval width is not larger than 0`() {
+  fun `buildMetricSpec throw MetricSpecBuildingException when vidSamplingInterval width is 0`() {
     val metricSpec =
       LEGACY_EMPTY_REACH_METRIC_SPEC.copy {
         vidSamplingInterval = MetricSpecKt.vidSamplingInterval { width = 0f }
@@ -2059,12 +1967,10 @@ class MetricSpecDefaultsTest {
         multipleDataProviderParams =
           MetricSpecKt.samplingAndPrivacyParams {
             privacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
-            vidSamplingInterval = MetricSpec.VidSamplingInterval.getDefaultInstance()
           }
         singleDataProviderParams =
           MetricSpecKt.samplingAndPrivacyParams {
             privacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
-            vidSamplingInterval = MetricSpec.VidSamplingInterval.getDefaultInstance()
           }
       }
     }
@@ -2080,13 +1986,11 @@ class MetricSpecDefaultsTest {
           MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
             reachPrivacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
             frequencyPrivacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
-            vidSamplingInterval = MetricSpec.VidSamplingInterval.getDefaultInstance()
           }
         singleDataProviderParams =
           MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
             reachPrivacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
             frequencyPrivacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
-            vidSamplingInterval = MetricSpec.VidSamplingInterval.getDefaultInstance()
           }
       }
     }
@@ -2100,7 +2004,6 @@ class MetricSpecDefaultsTest {
         params =
           MetricSpecKt.samplingAndPrivacyParams {
             privacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
-            vidSamplingInterval = MetricSpec.VidSamplingInterval.getDefaultInstance()
           }
       }
     }
@@ -2114,7 +2017,6 @@ class MetricSpecDefaultsTest {
         params =
           MetricSpecKt.samplingAndPrivacyParams {
             privacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
-            vidSamplingInterval = MetricSpec.VidSamplingInterval.getDefaultInstance()
           }
       }
     }

@@ -297,22 +297,10 @@ private fun MetricSpec.ReachParams.withDefaults(
         IllegalArgumentException("Missing privacy_params"),
       )
     }
-    if (!this.multipleDataProviderParams.hasVidSamplingInterval()) {
-      throw MetricSpecDefaultsException(
-        "Invalid reach.multiple_data_provider_params",
-        IllegalArgumentException("Missing vid_sampling_interval"),
-      )
-    }
     if (!this.singleDataProviderParams.hasPrivacyParams()) {
       throw MetricSpecDefaultsException(
         "Invalid reach.single_data_provider_params",
         IllegalArgumentException("Missing privacy_params"),
-      )
-    }
-    if (!this.singleDataProviderParams.hasVidSamplingInterval()) {
-      throw MetricSpecDefaultsException(
-        "Invalid reach.single_data_provider_params",
-        IllegalArgumentException("Missing vid_sampling_interval"),
       )
     }
   } else if (
@@ -339,11 +327,11 @@ private fun MetricSpec.ReachParams.withDefaults(
               defaultDelta =
                 metricSpecConfig.reachParams.multipleDataProviderParams.privacyParams.delta,
             )
-          vidSamplingInterval =
-            vidSamplingInterval.withDefaults(
+          if (!hasVidSamplingInterval()) {
+            vidSamplingInterval =
               metricSpecConfig.reachParams.multipleDataProviderParams.vidSamplingInterval
                 .toVidSamplingInterval(secureRandom)
-            )
+          }
           vidSamplingInterval.validate()
         }
 
@@ -356,11 +344,11 @@ private fun MetricSpec.ReachParams.withDefaults(
               defaultDelta =
                 metricSpecConfig.reachParams.singleDataProviderParams.privacyParams.delta,
             )
-          vidSamplingInterval =
-            vidSamplingInterval.withDefaults(
+          if (!hasVidSamplingInterval()) {
+            vidSamplingInterval =
               metricSpecConfig.reachParams.singleDataProviderParams.vidSamplingInterval
                 .toVidSamplingInterval(secureRandom)
-            )
+          }
           vidSamplingInterval.validate()
         }
     } else {
@@ -407,12 +395,6 @@ private fun MetricSpec.ReachAndFrequencyParams.withDefaults(
         IllegalArgumentException("Missing frequency_privacy_params"),
       )
     }
-    if (!this.multipleDataProviderParams.hasVidSamplingInterval()) {
-      throw MetricSpecDefaultsException(
-        "Invalid reach_and_frequency.multiple_data_provider_params",
-        IllegalArgumentException("Missing vid_sampling_interval"),
-      )
-    }
     if (!this.multipleDataProviderParams.hasReachPrivacyParams()) {
       throw MetricSpecDefaultsException(
         "Invalid reach_and_frequency.single_data_provider_params",
@@ -423,12 +405,6 @@ private fun MetricSpec.ReachAndFrequencyParams.withDefaults(
       throw MetricSpecDefaultsException(
         "Invalid reach_and_frequency.single_data_provider_params",
         IllegalArgumentException("Missing frequency_privacy_params"),
-      )
-    }
-    if (!this.multipleDataProviderParams.hasVidSamplingInterval()) {
-      throw MetricSpecDefaultsException(
-        "Invalid reach_and_frequency.single_data_provider_params",
-        IllegalArgumentException("Missing vid_sampling_interval"),
       )
     }
   } else if (
@@ -475,12 +451,12 @@ private fun MetricSpec.ReachAndFrequencyParams.withDefaults(
                   .frequencyPrivacyParams
                   .delta,
             )
-          vidSamplingInterval =
-            vidSamplingInterval.withDefaults(
+          if (!hasVidSamplingInterval()) {
+            vidSamplingInterval =
               metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams
                 .vidSamplingInterval
                 .toVidSamplingInterval(secureRandom)
-            )
+          }
           vidSamplingInterval.validate()
         }
 
@@ -506,11 +482,11 @@ private fun MetricSpec.ReachAndFrequencyParams.withDefaults(
                   .frequencyPrivacyParams
                   .delta,
             )
-          vidSamplingInterval =
-            vidSamplingInterval.withDefaults(
+          if (!hasVidSamplingInterval()) {
+            vidSamplingInterval =
               metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams.vidSamplingInterval
                 .toVidSamplingInterval(secureRandom)
-            )
+          }
           vidSamplingInterval.validate()
         }
     } else {
@@ -568,12 +544,6 @@ private fun MetricSpec.WatchDurationParams.withDefaults(
         IllegalArgumentException("Missing privacy_params"),
       )
     }
-    if (!this.params.hasVidSamplingInterval()) {
-      throw MetricSpecDefaultsException(
-        "Invalid watch_duration.params",
-        IllegalArgumentException("Missing vid_sampling_interval"),
-      )
-    }
   } else if (!this.hasPrivacyParams()) {
     throw MetricSpecDefaultsException(
       "Invalid watch_duration",
@@ -598,12 +568,12 @@ private fun MetricSpec.WatchDurationParams.withDefaults(
               defaultEpsilon = metricSpecConfig.watchDurationParams.params.privacyParams.epsilon,
               defaultDelta = metricSpecConfig.watchDurationParams.params.privacyParams.delta,
             )
-          vidSamplingInterval =
-            vidSamplingInterval.withDefaults(
+          if (!hasVidSamplingInterval()) {
+            vidSamplingInterval =
               metricSpecConfig.watchDurationParams.params.vidSamplingInterval.toVidSamplingInterval(
                 secureRandom
               )
-            )
+          }
           vidSamplingInterval.validate()
         }
     } else {
@@ -642,12 +612,6 @@ private fun MetricSpec.ImpressionCountParams.withDefaults(
         IllegalArgumentException("Missing privacy_params"),
       )
     }
-    if (!this.params.hasVidSamplingInterval()) {
-      throw MetricSpecDefaultsException(
-        "Invalid impression_count.params",
-        IllegalArgumentException("Missing vid_sampling_interval"),
-      )
-    }
   } else if (!this.hasPrivacyParams()) {
     throw MetricSpecDefaultsException(
       "Invalid impression_count",
@@ -672,11 +636,10 @@ private fun MetricSpec.ImpressionCountParams.withDefaults(
               defaultEpsilon = metricSpecConfig.impressionCountParams.params.privacyParams.epsilon,
               defaultDelta = metricSpecConfig.impressionCountParams.params.privacyParams.delta,
             )
-          vidSamplingInterval =
-            vidSamplingInterval.withDefaults(
-              metricSpecConfig.impressionCountParams.params.vidSamplingInterval
-                .toVidSamplingInterval(secureRandom)
-            )
+          if (!hasVidSamplingInterval()) {
+            vidSamplingInterval = metricSpecConfig.impressionCountParams.params.vidSamplingInterval
+              .toVidSamplingInterval(secureRandom)
+          }
           vidSamplingInterval.validate()
         }
     } else {
@@ -710,23 +673,6 @@ private fun MetricSpec.DifferentialPrivacyParams.withDefaults(
   return copy {
     epsilon = if (hasEpsilon()) epsilon else defaultEpsilon
     delta = if (hasDelta()) delta else defaultDelta
-  }
-}
-
-/**
- * Specifies the values in the optional fields of [MetricSpec.VidSamplingInterval] when they are not
- * set.
- */
-private fun MetricSpec.VidSamplingInterval.withDefaults(
-  defaultVidSamplingInterval: MetricSpec.VidSamplingInterval
-): MetricSpec.VidSamplingInterval {
-  return if (hasWidth() || start > 0) {
-    this
-  } else {
-    MetricSpecKt.vidSamplingInterval {
-      start = defaultVidSamplingInterval.start
-      width = defaultVidSamplingInterval.width
-    }
   }
 }
 
