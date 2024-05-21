@@ -22,8 +22,6 @@ import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.copy
 
-private const val NUM_BUCKETS = 10000
-
 class MetricSpecDefaultsException(message: String? = null, cause: Throwable? = null) :
   Exception(message, cause)
 
@@ -290,7 +288,15 @@ private fun MetricSpec.ReachParams.withDefaults(
   metricSpecConfig: MetricSpecConfig,
   secureRandom: Random,
 ): MetricSpec.ReachParams {
-  if (this.hasMultipleDataProviderParams() && this.hasSingleDataProviderParams()) {
+  if (this.hasMultipleDataProviderParams() || this.hasSingleDataProviderParams()) {
+    if (this.hasMultipleDataProviderParams() != this.hasSingleDataProviderParams()) {
+      throw MetricSpecDefaultsException(
+        "Invalid reach",
+        IllegalArgumentException(
+          "Both single_data_provider_params and multiple_data_provider_params must be set."
+        ),
+      )
+    }
     if (!this.multipleDataProviderParams.hasPrivacyParams()) {
       throw MetricSpecDefaultsException(
         "Invalid reach.multiple_data_provider_params",
@@ -303,10 +309,7 @@ private fun MetricSpec.ReachParams.withDefaults(
         IllegalArgumentException("Missing privacy_params"),
       )
     }
-  } else if (
-    !this.hasPrivacyParams() ||
-      (this.hasMultipleDataProviderParams() != this.hasSingleDataProviderParams())
-  ) {
+  } else if (!this.hasPrivacyParams()) {
     throw MetricSpecDefaultsException(
       "Invalid reach",
       IllegalArgumentException(
@@ -315,6 +318,7 @@ private fun MetricSpec.ReachParams.withDefaults(
     )
   }
 
+  val source = this
   return copy {
     if (this.hasMultipleDataProviderParams()) {
       clearPrivacyParams()
@@ -352,7 +356,6 @@ private fun MetricSpec.ReachParams.withDefaults(
           vidSamplingInterval.validate()
         }
     } else {
-      val source = this
       multipleDataProviderParams =
         multipleDataProviderParams.copy {
           privacyParams =
@@ -382,7 +385,15 @@ private fun MetricSpec.ReachAndFrequencyParams.withDefaults(
   metricSpecConfig: MetricSpecConfig,
   secureRandom: Random,
 ): MetricSpec.ReachAndFrequencyParams {
-  if (this.hasMultipleDataProviderParams() && this.hasSingleDataProviderParams()) {
+  if (this.hasMultipleDataProviderParams() || this.hasSingleDataProviderParams()) {
+    if (this.hasMultipleDataProviderParams() != this.hasSingleDataProviderParams()) {
+      throw MetricSpecDefaultsException(
+        "Invalid reach_and_frequency.",
+        IllegalArgumentException(
+          "Both single_data_provider_params and multiple_data_provider_params must be set."
+        ),
+      )
+    }
     if (!this.multipleDataProviderParams.hasReachPrivacyParams()) {
       throw MetricSpecDefaultsException(
         "Invalid reach_and_frequency.multiple_data_provider_params",
@@ -407,10 +418,7 @@ private fun MetricSpec.ReachAndFrequencyParams.withDefaults(
         IllegalArgumentException("Missing frequency_privacy_params"),
       )
     }
-  } else if (
-    !(this.hasReachPrivacyParams() && this.hasFrequencyPrivacyParams()) ||
-      (this.hasMultipleDataProviderParams() != this.hasSingleDataProviderParams())
-  ) {
+  } else if (!(this.hasReachPrivacyParams() && this.hasFrequencyPrivacyParams())) {
     throw MetricSpecDefaultsException(
       "Invalid reach_and_frequency.",
       IllegalArgumentException(
@@ -419,6 +427,7 @@ private fun MetricSpec.ReachAndFrequencyParams.withDefaults(
     )
   }
 
+  val source = this
   return copy {
     if (maximumFrequency == 0) {
       maximumFrequency = metricSpecConfig.reachAndFrequencyParams.maximumFrequency
@@ -490,7 +499,6 @@ private fun MetricSpec.ReachAndFrequencyParams.withDefaults(
           vidSamplingInterval.validate()
         }
     } else {
-      val source = this
       multipleDataProviderParams =
         multipleDataProviderParams.copy {
           reachPrivacyParams =
@@ -551,6 +559,7 @@ private fun MetricSpec.WatchDurationParams.withDefaults(
     )
   }
 
+  val source = this
   return copy {
     maximumWatchDurationPerUser =
       if (hasMaximumWatchDurationPerUser()) {
@@ -577,7 +586,6 @@ private fun MetricSpec.WatchDurationParams.withDefaults(
           vidSamplingInterval.validate()
         }
     } else {
-      val source = this
       params =
         params.copy {
           privacyParams =
@@ -619,6 +627,7 @@ private fun MetricSpec.ImpressionCountParams.withDefaults(
     )
   }
 
+  val source = this
   return copy {
     maximumFrequencyPerUser =
       if (hasMaximumFrequencyPerUser()) {
@@ -644,7 +653,6 @@ private fun MetricSpec.ImpressionCountParams.withDefaults(
           vidSamplingInterval.validate()
         }
     } else {
-      val source = this
       params =
         params.copy {
           privacyParams =
@@ -688,12 +696,13 @@ private fun MetricSpecConfig.VidSamplingInterval.toVidSamplingInterval(
       width = source.fixedStart.width
     }
   } else {
-    val maxStart = NUM_BUCKETS - (source.randomStart.width * NUM_BUCKETS).toInt()
+    // The 10000 is to help turn the float into an int without losing too much data.
+    val maxStart = 10000 - (source.randomStart.width * 10000).toInt()
     // The `- 1` is in case the rounding from source.randomStart.width * NUM_BUCKETS rounds down.
     // This prevents the random start from being too big if rounding down does occur.
     val randomStart = secureRandom.nextInt(maxStart - 1)
     return MetricSpecKt.vidSamplingInterval {
-      start = randomStart.toFloat() / NUM_BUCKETS
+      start = randomStart.toFloat() / 10000
       width = source.randomStart.width
     }
   }

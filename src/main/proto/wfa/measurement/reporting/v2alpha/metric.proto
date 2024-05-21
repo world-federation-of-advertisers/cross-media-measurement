@@ -30,9 +30,6 @@ option java_outer_classname = "MetricProto";
 message MetricSpec {
   // Parameters for differential privacy (DP).
   //
-  // If any of the fields are not specified in a request message, the service
-  // implementation will choose values.
-  //
   // For detail, refer to "Dwork, C. and Roth, A., 2014. The algorithmic
   // foundations of differential privacy. Foundations and Trends in Theoretical
   // Computer Science, 9(3-4), pp.211-407."
@@ -42,9 +39,6 @@ message MetricSpec {
   }
 
   // Specifies a range of VIDs to be sampled.
-  //
-  // If both start and width are not specified, the service implementation will
-  // choose values for both start and width.
   message VidSamplingInterval {
     // The start of the sampling interval in [0, 1)
     float start = 1;
@@ -55,16 +49,28 @@ message MetricSpec {
   }
 
   message SamplingAndPrivacyParams {
+    // If any of the fields are not specified, the service implementation will
+    // choose values.
     DifferentialPrivacyParams privacy_params = 1
         [(google.api.field_behavior) = REQUIRED];
+
+    // If both start and width are not specified, the service implementation
+    // will choose values for both start and width.
     VidSamplingInterval vid_sampling_interval = 2;
   }
 
   message ReachAndFrequencySamplingAndPrivacyParams {
+    // If any of the fields are not specified, the service implementation will
+    // choose values.
     DifferentialPrivacyParams reach_privacy_params = 1
         [(google.api.field_behavior) = REQUIRED];
+    // If any of the fields are not specified, the service implementation will
+    // choose values.
     DifferentialPrivacyParams frequency_privacy_params = 2
         [(google.api.field_behavior) = REQUIRED];
+
+    // If both start and width are not specified, the service implementation
+    // will choose values for both start and width.
     VidSamplingInterval vid_sampling_interval = 3;
   }
 
