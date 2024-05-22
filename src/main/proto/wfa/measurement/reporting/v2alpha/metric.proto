@@ -49,28 +49,39 @@ message MetricSpec {
   }
 
   message SamplingAndPrivacyParams {
+    // Differential privacy parameters.
+    //
     // If any of the fields are not specified, the service implementation will
     // choose values.
     DifferentialPrivacyParams privacy_params = 1
         [(google.api.field_behavior) = REQUIRED];
 
-    // If both start and width are not specified, the service implementation
-    // will choose values for both start and width.
+    // Specifies the range of VIDs to be sampled.
+    //
+    // If not specified, the service implementation will choose values for all
+    // the fields in the message.
     VidSamplingInterval vid_sampling_interval = 2;
   }
 
   message ReachAndFrequencySamplingAndPrivacyParams {
+    // Differential privacy parameters for reach.
+    //
     // If any of the fields are not specified, the service implementation will
     // choose values.
     DifferentialPrivacyParams reach_privacy_params = 1
         [(google.api.field_behavior) = REQUIRED];
+
+    // Differential privacy parameters for frequency.
+    //
     // If any of the fields are not specified, the service implementation will
     // choose values.
     DifferentialPrivacyParams frequency_privacy_params = 2
         [(google.api.field_behavior) = REQUIRED];
 
-    // If both start and width are not specified, the service implementation
-    // will choose values for both start and width.
+    // Specifies the range of VIDs to be sampled.
+    //
+    // If not specified, the service implementation will choose values for all
+    // the fields in the message.
     VidSamplingInterval vid_sampling_interval = 3;
   }
 
@@ -84,6 +95,7 @@ message MetricSpec {
     // release. If set, `single_data_provider_params` needs to be set. Takes
     // precedence over `privacy_params`.
     SamplingAndPrivacyParams multiple_data_provider_params = 2;
+
     // Parameters for a single DataProvider. Will be required in a future
     // release. If set, `multiple_data_provider_params` needs to be set.
     SamplingAndPrivacyParams single_data_provider_params = 3;
@@ -101,6 +113,7 @@ message MetricSpec {
     // release. If set, `single_data_provider_params` needs to be set. Takes
     // precedence over `reach_privacy_params` and `frequency_privacy_params`.
     ReachAndFrequencySamplingAndPrivacyParams multiple_data_provider_params = 4;
+
     // Parameters for a single DataProvider. Will be required in a future
     // release. If set, `multiple_data_provider_params` needs to be set.
     ReachAndFrequencySamplingAndPrivacyParams single_data_provider_params = 5;
