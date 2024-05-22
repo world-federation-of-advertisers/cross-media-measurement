@@ -133,7 +133,6 @@ kt_jvm_library(
 kt_jvm_library(
     name = "measurement_results",
     srcs = ["MeasurementResults.kt"],
-    testonly = False,
 )
 
 kt_jvm_library(

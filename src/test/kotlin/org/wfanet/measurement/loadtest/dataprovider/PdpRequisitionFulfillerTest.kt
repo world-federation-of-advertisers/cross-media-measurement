@@ -16,6 +16,7 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.TypeRegistry
 import com.google.protobuf.any
 import com.google.protobuf.kotlin.toByteString
 import java.lang.UnsupportedOperationException
@@ -56,6 +57,7 @@ import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
@@ -91,6 +93,7 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurement
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.populationdataprovider.DataProviderData
 import org.wfanet.measurement.populationdataprovider.PdpRequisitionFulfiller
+import org.wfanet.measurement.populationdataprovider.PopulationInfo
 
 private const val MC_ID = "mc"
 private const val MC_NAME = "measurementConsumers/$MC_ID"
@@ -192,9 +195,17 @@ val POPULATION_ID = "1234"
 
 val POPULATION_ID_1 = PopulationKey(DP_NAME, POPULATION_ID)
 
-private val POPULATION_SPEC_MAP =
-  mapOf<PopulationKey, PopulationSpec>(
-    POPULATION_ID_1 to POPULATION_SPEC_1,
+val TYPE_REGISTRY = TypeRegistry.newBuilder().add(Person.getDescriptor()).build()
+
+val POPULATION_INFO_1 = PopulationInfo(
+  POPULATION_SPEC_1,
+  TestEvent.getDescriptor(),
+  TYPE_REGISTRY
+)
+
+private val POPULATION_INFO =
+  mapOf<PopulationKey, PopulationInfo>(
+    POPULATION_ID_1 to POPULATION_INFO_1,
   )
 
 @RunWith(JUnit4::class)
@@ -257,7 +268,7 @@ class PdpRequisitionFulfillerTest {
         dummyThrottler,
         TRUSTED_CERTIFICATES,
         MC_NAME,
-        POPULATION_SPEC_MAP,
+        POPULATION_INFO,
         POPULATION_ID_1
       )
 
@@ -305,7 +316,7 @@ class PdpRequisitionFulfillerTest {
         dummyThrottler,
         TRUSTED_CERTIFICATES,
         MC_NAME,
-        POPULATION_SPEC_MAP,
+        POPULATION_INFO,
         POPULATION_ID_1
       )
 
@@ -353,7 +364,7 @@ class PdpRequisitionFulfillerTest {
         dummyThrottler,
         TRUSTED_CERTIFICATES,
         MC_NAME,
-        POPULATION_SPEC_MAP,
+        POPULATION_INFO,
         POPULATION_ID_1
       )
 

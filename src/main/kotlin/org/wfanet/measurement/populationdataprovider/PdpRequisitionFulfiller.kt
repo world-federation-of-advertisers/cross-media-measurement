@@ -16,7 +16,11 @@ package org.wfanet.measurement.populationdataprovider
 
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
-import com.google.protobuf.kotlin.unpack
+import com.google.protobuf.DescriptorProtos
+import com.google.protobuf.Descriptors.Descriptor
+import com.google.protobuf.DynamicMessage
+import com.google.protobuf.Message
+import com.google.protobuf.TypeRegistry
 import java.security.cert.X509Certificate
 import java.util.logging.Level
 import org.wfanet.measurement.api.v2alpha.Certificate
@@ -27,21 +31,20 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
-import org.wfanet.measurement.api.v2alpha.PopulationSpec.SubPopulation
 import org.wfanet.measurement.api.v2alpha.PopulationSpec.VidRange
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
-import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
-import org.wfanet.measurement.populationdataprovider.DataProviderData
-import org.wfanet.measurement.populationdataprovider.DataProviderRequisitionFulfiller
 
+
+data class PopulationInfo (
+  val populationSpec: PopulationSpec,
+  val eventDescriptor: Descriptor,
+  val typeRegistry: TypeRegistry
+)
 /** A requisition fulfiller for PDP businesses. */
 class PdpRequisitionFulfiller(
   pdpData: DataProviderData,
@@ -50,7 +53,7 @@ class PdpRequisitionFulfiller(
   throttler: Throttler,
   trustedCertificates: Map<ByteString, X509Certificate>,
   measurementConsumerName: String,
-  private val populationSpecMap: Map<PopulationKey, PopulationSpec>,
+  private val populationSpecMap: Map<PopulationKey, PopulationInfo>,
   private val populationId: PopulationKey
 ) :
   DataProviderRequisitionFulfiller(
@@ -108,14 +111,11 @@ class PdpRequisitionFulfiller(
         logger.log(Level.INFO, "RequisitionSpec:\n$requisitionSpec")
 
 
-        val populationSpec = populationSpecMap.getValue(populationId)
-        val populationSpecValidator = PopulationSpecValidator.validateVidRangesList(populationSpec)
+        val populationInfo = populationSpecMap.getValue(populationId)
+        val populationSpecValidator = PopulationSpecValidator.validateVidRangesList(populationInfo.populationSpec)
         if(populationSpecValidator.isFailure){
           throw InvalidSpecException("Population Spec $populationId is Invalid.")
         }
-
-        val subPopulationList = populationSpec.subpopulationsList
-
 
 
         val requisitionFilterExpression = requisitionSpec.population.filter.expression
@@ -124,8 +124,8 @@ class PdpRequisitionFulfiller(
           requisition,
           requisitionSpec,
           measurementSpec,
-          subPopulationList,
           requisitionFilterExpression,
+          populationInfo
         )
       } catch (refusalException: RequisitionRefusalException) {
         refuseRequisition(
@@ -141,11 +141,11 @@ class PdpRequisitionFulfiller(
     requisition: Requisition,
     requisitionSpec: RequisitionSpec,
     measurementSpec: MeasurementSpec,
-    subPopulationList: List<SubPopulation>,
     filterExpression: String,
+    populationInfo: PopulationInfo
   ) {
     // Filters populationBucketsList through a CEL program and sums the result.
-    val populationSum = getTotalPopulation(subPopulationList, filterExpression)
+    val populationSum = getTotalPopulation(populationInfo, filterExpression)
 
     // Create measurement result with sum of valid populations.
     val measurementResult =
@@ -159,13 +159,14 @@ class PdpRequisitionFulfiller(
 
   /** Returns the total sum of populations that reflect the filter expression. */
   private fun getTotalPopulation(
-    subPopulationList: List<SubPopulation>,
+    populationInfo: PopulationInfo,
     filterExpression: String,
   ): Long {
+    val subPopulationList = populationInfo.populationSpec.subpopulationsList
     return subPopulationList.sumOf {
       val attributesList = it.attributesList
       val vidRanges = it.vidRangesList
-      val shouldSumPopulation = isValidAttributesList(attributesList, filterExpression)
+      val shouldSumPopulation = isValidAttributesList(attributesList, filterExpression, populationInfo.eventDescriptor, populationInfo.typeRegistry)
       if (shouldSumPopulation) {
         getSumOfVidRanges(vidRanges)
       } else {
@@ -180,25 +181,74 @@ class PdpRequisitionFulfiller(
   }
 
   /**
-   * Returns a [Boolean] representing whether any of the attributes in the list pass a check against
+   * Returns a [Boolean] representing whether the attributes in the list pass a check against
    * the filter expression after being run through a program.
    */
-  private fun isValidAttributesList(attributeList: List<Any>, filterExpression: String): Boolean {
-    val program = EventFilters.compileProgram(TestEvent.getDescriptor(), filterExpression)
-    return attributeList.any {
-      if (isPerson(it)) {
-        val event: TestEvent = testEvent { person = it.unpack<Person>() }
-        EventFilters.matches(event, program)
-      } else {
-        false
+  private fun isValidAttributesList(attributeList: List<Any>, filterExpression: String, eventDescriptor: Descriptor, typeRegistry: TypeRegistry): Boolean {
+    // CEL program that will check the event against the filter expression
+    val program = EventFilters.compileProgram(eventDescriptor, filterExpression)
+    val eventMessage = DynamicMessage.newBuilder(eventDescriptor)
+
+    // Populate event message that will be used in the program
+    attributeList.forEach {attribute ->
+      val attributeDescriptor = typeRegistry.getDescriptorForTypeUrl(attribute.typeUrl)
+
+      // Create the attribute message by converting the type `Any` to the type specified in the descriptor.
+      val attributeMessage = createAttributeMessage(attribute, attributeDescriptor)
+
+      // Ensure attribute is a field in the event descriptor.
+      if(!isAttributeFieldInEvent(attributeMessage, eventDescriptor)){
+        throw InvalidSpecException("Attribute is not part of Event Descriptor")
       }
+
+      // Validate attribute message with descriptor from type registry.
+      if(!isValidAttribute(attributeMessage, attributeDescriptor)){
+        throw InvalidSpecException("Invalid Subpopulation Attribute")
+      }
+
+      // Find corresponding field descriptor for this attribute.
+      val fieldDescriptor = eventDescriptor.fields.first {eventField ->
+        eventField.messageType.name === attributeDescriptor.name
+      }
+
+      // Set field in event message with typed attribute message.
+      eventMessage.setField(fieldDescriptor, attributeMessage)
+    }
+
+    return EventFilters.matches(eventMessage.build(), program)
+  }
+
+  private fun isAttributeFieldInEvent(attributeMessage: Message, eventDescriptor: Descriptor): Boolean {
+    return eventDescriptor.fields.any {
+      it.messageType.name === attributeMessage.descriptorForType.name
     }
   }
 
-  /** Returns a [Boolean] representing whether an attribute is of type Person. */
-  private fun isPerson(attribute: Any): Boolean {
-    val typeUrl = attribute.typeUrl
-    return (typeUrl == ProtoReflection.getTypeUrl(Person.getDescriptor()))
+  /**
+   *  Returns a [Boolean] representing whether an attribute contains the correct field options when compared
+   *  against those in the attribute descriptor
+   * */
+  private fun isValidAttribute(attributeMessage: Message, attributeDescriptor: Descriptor): Boolean {
+    val attributeFieldOptions = attributeDescriptor.fields.associateBy { it.options }
+
+    // Checks all the field options in the attribute message against those required in the attribute descriptor.
+    // If the field option does not exist in the attribute descriptor, the attribute is not valid.
+    attributeMessage.allFields.forEach {
+      if(!attributeFieldOptions.contains(it.key.options)){
+        return false
+      }
+    }
+
+    return true
+  }
+
+  private fun createAttributeMessage(attribute: Any, attributeDescriptor: Descriptor): Message {
+    val attributeMessage = DynamicMessage.parseFrom(attributeDescriptor, attribute.toByteString()).toBuilder()
+
+    attributeDescriptor.fields.forEach {
+      attributeMessage.setField(it, attribute.unpackSameTypeAs(attributeMessage.build()).getField(it))
+    }
+
+    return attributeMessage.build()
   }
 }
-
