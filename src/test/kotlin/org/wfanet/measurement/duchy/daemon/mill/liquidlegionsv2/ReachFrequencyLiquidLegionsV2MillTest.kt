@@ -713,8 +713,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
             localComputationId = LOCAL_ID
             attempt = 3
             computationStage = COMPLETE.toProtocolStage()
-            version = 8 // claimTask + updateComputationDetails + enqueueComputation + claimTask +
-            // EndComputation
+            version = 7 // claimTask + updateComputationDetails + claimTask + EndComputation
             computationDetails =
               initialComputationDetails
                 .toBuilder()
@@ -733,6 +732,8 @@ class ReachFrequencyLiquidLegionsV2MillTest {
           }
           .build()
       )
+
+    assertThat(fakeComputationDb.claimedComputationIds).isEmpty()
   }
 
   @Test
