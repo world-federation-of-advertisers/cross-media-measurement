@@ -15,7 +15,6 @@
 package org.wfanet.measurement.integration.common
 
 import com.google.protobuf.ByteString
-import com.google.protobuf.kotlin.toByteStringUtf8
 import io.grpc.Channel
 import java.security.cert.X509Certificate
 import java.time.Clock
@@ -78,58 +77,61 @@ class InProcessEdpSimulator(
         }
     )
 
-  val vidRange =
-    requireNotNull(syntheticPopulationSpec.vidRange) {
-      "Vid range not specified in SyntheticPopulationSpec."
-    }
-  val vidIndexMap =
-    VidToIndexMapGenerator.generateMapping(
-      salt = "".toByteStringUtf8(),
-      vidUniverse = (vidRange.start until vidRange.endExclusive).toList(),
-    )
+  private val delegate: EdpSimulator
 
-  private val delegate =
-    EdpSimulator(
-      edpData = createEdpData(displayName, resourceName),
-      measurementConsumerName = mcResourceName,
-      measurementConsumersStub =
-        MeasurementConsumersCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
-      certificatesStub =
-        CertificatesCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
-      dataProvidersStub =
-        DataProvidersCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
-      eventGroupsStub =
-        EventGroupsCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
-      eventGroupMetadataDescriptorsStub =
-        EventGroupMetadataDescriptorsCoroutineStub(kingdomPublicApiChannel)
-          .withPrincipalName(resourceName),
-      requisitionsStub =
-        RequisitionsCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
-      requisitionFulfillmentStubsByDuchyName =
-        duchyPublicApiChannelMap.mapValues {
-          RequisitionFulfillmentCoroutineStub(it.value).withPrincipalName(resourceName)
-        },
-      eventQuery =
-        object :
-          SyntheticGeneratorEventQuery(
-            SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
-            TestEvent.getDescriptor(),
-          ) {
-          override fun getSyntheticDataSpec(eventGroup: EventGroup) = syntheticDataSpec
-        },
-      throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
-      privacyBudgetManager =
-        PrivacyBudgetManager(
-          PrivacyBucketFilter(TestPrivacyBucketMapper()),
-          InMemoryBackingStore(),
-          10.0f,
-          100.0f,
-        ),
-      trustedCertificates = trustedCertificates,
-      vidToIndexMap = vidIndexMap,
-      knownEventGroupMetadataTypes = listOf(SyntheticEventGroupSpec.getDescriptor().file),
-      random = random,
-    )
+  init {
+    val vidRangeStart = syntheticPopulationSpec.vidRange.start
+    val vidRangeEndExclusive = syntheticPopulationSpec.vidRange.endExclusive
+    val vidIndexMap =
+      VidToIndexMapGenerator.generateMapping(
+        salt = ByteString.EMPTY,
+        vidUniverse = (vidRangeStart until vidRangeEndExclusive).toList(),
+      )
+
+    delegate =
+      EdpSimulator(
+        edpData = createEdpData(displayName, resourceName),
+        measurementConsumerName = mcResourceName,
+        measurementConsumersStub =
+          MeasurementConsumersCoroutineStub(kingdomPublicApiChannel)
+            .withPrincipalName(resourceName),
+        certificatesStub =
+          CertificatesCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
+        dataProvidersStub =
+          DataProvidersCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
+        eventGroupsStub =
+          EventGroupsCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
+        eventGroupMetadataDescriptorsStub =
+          EventGroupMetadataDescriptorsCoroutineStub(kingdomPublicApiChannel)
+            .withPrincipalName(resourceName),
+        requisitionsStub =
+          RequisitionsCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
+        requisitionFulfillmentStubsByDuchyName =
+          duchyPublicApiChannelMap.mapValues {
+            RequisitionFulfillmentCoroutineStub(it.value).withPrincipalName(resourceName)
+          },
+        eventQuery =
+          object :
+            SyntheticGeneratorEventQuery(
+              SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
+              TestEvent.getDescriptor(),
+            ) {
+            override fun getSyntheticDataSpec(eventGroup: EventGroup) = syntheticDataSpec
+          },
+        throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        privacyBudgetManager =
+          PrivacyBudgetManager(
+            PrivacyBucketFilter(TestPrivacyBucketMapper()),
+            InMemoryBackingStore(),
+            10.0f,
+            100.0f,
+          ),
+        trustedCertificates = trustedCertificates,
+        vidToIndexMap = vidIndexMap,
+        knownEventGroupMetadataTypes = listOf(SyntheticEventGroupSpec.getDescriptor().file),
+        random = random,
+      )
+  }
 
   private lateinit var edpJob: Job
 
