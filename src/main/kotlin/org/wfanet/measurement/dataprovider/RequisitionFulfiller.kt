@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.populationdataprovider
+package org.wfanet.measurement.dataprovider
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.unpack
@@ -68,7 +68,7 @@ data class DataProviderData(
   val certificateKey: DataProviderCertificateKey,
 )
 
-abstract class DataProviderRequisitionFulfiller(
+abstract class RequisitionFulfiller(
   val dataProviderData: DataProviderData,
   private val certificatesStub: CertificatesCoroutineStub,
   private val requisitionsStub: RequisitionsCoroutineStub,

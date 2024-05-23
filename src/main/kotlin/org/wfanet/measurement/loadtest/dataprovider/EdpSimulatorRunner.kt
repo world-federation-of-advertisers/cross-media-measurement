@@ -35,7 +35,7 @@ import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.loadtest.config.PrivacyBudgets.createNoOpPrivacyBudgetManager
-import org.wfanet.measurement.populationdataprovider.DataProviderData
+import org.wfanet.measurement.dataprovider.DataProviderData
 import picocli.CommandLine
 
 /** The base class of the EdpSimulator runner. */

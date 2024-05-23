@@ -144,7 +144,7 @@ kt_jvm_library(
         ":share_shuffle_sketch_generator",
         ":sketch_encrypter",
         ":sketch_generator",
-        "//src/main/kotlin/org/wfanet/measurement/populationdataprovider:data_provider_requisition_fulfiller",
+        "//src/main/kotlin/org/wfanet/measurement/dataprovider:requisition_fulfiller",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/api/v2alpha:privacy_query_mapper",

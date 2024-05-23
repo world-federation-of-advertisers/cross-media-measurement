@@ -47,7 +47,6 @@ import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCorou
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.PopulationKey
-import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
@@ -101,8 +100,8 @@ import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
-import org.wfanet.measurement.populationdataprovider.DataProviderData
-import org.wfanet.measurement.populationdataprovider.PdpRequisitionFulfiller
+import org.wfanet.measurement.dataprovider.DataProviderData
+import org.wfanet.measurement.populationdataprovider.PopulationRequisitionFulfiller
 import org.wfanet.measurement.populationdataprovider.PopulationInfo
 
 private const val MC_ID = "mc"
@@ -231,7 +230,7 @@ val POPULATION_INFO_1 = PopulationInfo(
 )
 
 @RunWith(JUnit4::class)
-class PdpRequisitionFulfillerTest {
+class PopulationRequisitionFulfillerTest {
   private val certificatesServiceMock: CertificatesCoroutineImplBase = mockService {
     onBlocking {
       getCertificate(eq(getCertificateRequest { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME }))
@@ -311,7 +310,7 @@ class PdpRequisitionFulfillerTest {
       )
 
     val simulator =
-      PdpRequisitionFulfiller(
+      PopulationRequisitionFulfiller(
         PDP_DATA,
         certificatesStub,
         requisitionsStub,
@@ -367,7 +366,7 @@ class PdpRequisitionFulfillerTest {
       )
 
     val simulator =
-      PdpRequisitionFulfiller(
+      PopulationRequisitionFulfiller(
         PDP_DATA,
         certificatesStub,
         requisitionsStub,
@@ -423,7 +422,7 @@ class PdpRequisitionFulfillerTest {
       )
 
     val simulator =
-      PdpRequisitionFulfiller(
+      PopulationRequisitionFulfiller(
         PDP_DATA,
         certificatesStub,
         requisitionsStub,
@@ -564,4 +563,3 @@ class PdpRequisitionFulfillerTest {
     }
   }
 }
-

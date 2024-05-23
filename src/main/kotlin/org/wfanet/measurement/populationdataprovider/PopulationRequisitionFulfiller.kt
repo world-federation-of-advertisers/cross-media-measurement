@@ -45,6 +45,9 @@ import org.wfanet.measurement.api.v2alpha.listModelRolloutsRequest
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
+import org.wfanet.measurement.dataprovider.RequisitionFulfiller
+import org.wfanet.measurement.dataprovider.DataProviderData
+
 
 
 data class PopulationInfo (
@@ -53,7 +56,7 @@ data class PopulationInfo (
   val typeRegistry: TypeRegistry
 )
 /** A requisition fulfiller for PDP businesses. */
-class PdpRequisitionFulfiller(
+class PopulationRequisitionFulfiller(
   pdpData: DataProviderData,
   certificatesStub: CertificatesCoroutineStub,
   requisitionsStub: RequisitionsCoroutineStub,
@@ -64,7 +67,7 @@ class PdpRequisitionFulfiller(
   private val modelReleasesStub: ModelReleasesCoroutineStub,
   private val populationSpecMap: Map<PopulationKey, PopulationInfo>,
 ) :
-  DataProviderRequisitionFulfiller(
+  RequisitionFulfiller(
     pdpData,
     certificatesStub,
     requisitionsStub,
