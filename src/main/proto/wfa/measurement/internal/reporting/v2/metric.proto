@@ -44,19 +44,24 @@ message MetricSpec {
   }
 
   message ReachParams {
+    reserved = 1;
     SamplingAndPrivacyParams multiple_data_provider_params = 2;
     SamplingAndPrivacyParams single_data_provider_params = 3;
   }
   message ReachAndFrequencyParams {
+    reserved = 1;
+    reserved = 2;
     ReachAndFrequencySamplingAndPrivacyParams multiple_data_provider_params = 4;
     ReachAndFrequencySamplingAndPrivacyParams single_data_provider_params = 5;
     int32 maximum_frequency = 3;
   }
   message ImpressionCountParams {
+    reserved = 1;
     SamplingAndPrivacyParams params = 3;
     int32 maximum_frequency_per_user = 2;
   }
   message WatchDurationParams {
+    reserved = 1;
     SamplingAndPrivacyParams params = 3;
     google.protobuf.Duration maximum_watch_duration_per_user = 2;
   }
@@ -69,6 +74,8 @@ message MetricSpec {
     WatchDurationParams watch_duration = 4;
     PopulationCountParams population_count = 5;
   }
+
+  reserved = 6;
 }
 
 // Proto representation of the internal Metric entity type.
