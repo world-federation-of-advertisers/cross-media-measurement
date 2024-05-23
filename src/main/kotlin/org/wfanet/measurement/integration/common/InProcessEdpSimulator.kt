@@ -78,8 +78,6 @@ class InProcessEdpSimulator(
         }
     )
 
-  // TODO(@ple13): Use the actual vidToIndexMap instead of an empty map when a smaller dataset is
-  // available.
   val vidRange =
     requireNotNull(syntheticPopulationSpec.vidRange) {
       "Vid range not specified in SyntheticPopulationSpec."
