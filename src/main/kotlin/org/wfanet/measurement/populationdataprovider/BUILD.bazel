@@ -40,6 +40,8 @@ kt_jvm_library(
     srcs = ["PdpRequisitionFulfiller.kt"],
     deps = [
         ":data_provider_requisition_fulfiller",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_releases_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_rollouts_service_kt_jvm_grpc_proto",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:population_spec_validator",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
         "//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_grpc_proto",

@@ -16,6 +16,7 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.Timestamp
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.any
 import com.google.protobuf.kotlin.toByteString
@@ -23,6 +24,7 @@ import java.lang.UnsupportedOperationException
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
+import java.time.Instant
 import kotlin.random.Random
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -40,6 +42,10 @@ import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
+import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
@@ -61,8 +67,11 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
+import org.wfanet.measurement.api.v2alpha.listModelRolloutsResponse
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.modelRelease
+import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.requisition
@@ -86,6 +95,7 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
@@ -106,8 +116,6 @@ private val SECRET_FILES_PATH: Path =
   )
 private const val PDP_ID = "somePopulationDataProvider"
 private const val PDP_NAME = "dataProviders/$PDP_ID"
-private const val DP_ID = "someDataProvider"
-private const val DP_NAME = "dataProviders/$DP_ID"
 
 private val MEASUREMENT_CONSUMER_CERTIFICATE_DER =
   SECRET_FILES_PATH.resolve("mc_cs_cert.der").toFile().readByteString()
@@ -120,9 +128,30 @@ private val MEASUREMENT_CONSUMER_CERTIFICATE = certificate {
   x509Der = MEASUREMENT_CONSUMER_CERTIFICATE_DER
 }
 
+private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
+
+private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
+private const val POPULATION_NAME = "$DATA_PROVIDER_NAME/populations/AAAAAAAAAHs"
+
 private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
 private const val MODEL_SUITE_NAME = "$MODEL_PROVIDER_NAME/modelSuites/AAAAAAAAAHs"
+private const val MODEL_RELEASE_NAME = "$MODEL_SUITE_NAME/modelReleases/AAAAAAAAAHs"
+
+
 private const val MODEL_LINE_NAME = "${MODEL_SUITE_NAME}/modelLines/AAAAAAAAAHs"
+private const val MODEL_ROLLOUT_NAME = "${MODEL_LINE_NAME}/modelRollouts/AAAAAAAAAHs"
+
+private val MODEL_RELEASE_1 = modelRelease {
+  name = MODEL_RELEASE_NAME
+  createTime = CREATE_TIME
+  population = POPULATION_NAME
+}
+
+private val MODEL_ROLLOUT = modelRollout {
+  name = MODEL_ROLLOUT_NAME
+  modelRelease = MODEL_RELEASE_NAME
+}
+
 
 private val PERSON_1 = person {
   ageGroup = Person.AgeGroup.YEARS_18_TO_34
@@ -191,9 +220,7 @@ val POPULATION_SPEC_1 = populationSpec {
   subpopulations += listOf(SUB_POPULATION_1, SUB_POPULATION_2, SUB_POPULATION_3)
 }
 
-val POPULATION_ID = "1234"
-
-val POPULATION_ID_1 = PopulationKey(DP_NAME, POPULATION_ID)
+val POPULATION_ID_1 = PopulationKey.fromName(POPULATION_NAME)
 
 val TYPE_REGISTRY = TypeRegistry.newBuilder().add(Person.getDescriptor()).build()
 
@@ -202,11 +229,6 @@ val POPULATION_INFO_1 = PopulationInfo(
   TestEvent.getDescriptor(),
   TYPE_REGISTRY
 )
-
-private val POPULATION_INFO =
-  mapOf<PopulationKey, PopulationInfo>(
-    POPULATION_ID_1 to POPULATION_INFO_1,
-  )
 
 @RunWith(JUnit4::class)
 class PdpRequisitionFulfillerTest {
@@ -238,11 +260,24 @@ class PdpRequisitionFulfillerTest {
     onBlocking { fulfillDirectRequisition(any()) }.thenReturn(fulfillDirectRequisitionResponse {})
   }
 
+  private val modelRolloutsServiceStub: ModelRolloutsCoroutineImplBase = mockService {
+    onBlocking { listModelRollouts(any()) }
+      .thenReturn(listModelRolloutsResponse { modelRollouts += listOf(MODEL_ROLLOUT) })
+  }
+
+  private val modelReleasesServiceStub: ModelReleasesCoroutineImplBase = mockService {
+    onBlocking { getModelRelease(any()) }.thenReturn(MODEL_RELEASE_1)
+  }
+
+
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     addService(certificatesServiceMock)
     addService(dataProvidersServiceMock)
     addService(requisitionsServiceMock)
+    addService(modelRolloutsServiceStub)
+    addService(modelReleasesServiceStub)
+
   }
 
   private val certificatesStub: CertificatesCoroutineStub by lazy {
@@ -253,12 +288,27 @@ class PdpRequisitionFulfillerTest {
     RequisitionsCoroutineStub(grpcTestServerRule.channel)
   }
 
+  private val modelRolloutsStub: ModelRolloutsCoroutineStub by lazy {
+    ModelRolloutsCoroutineStub(grpcTestServerRule.channel)
+  }
+
+  private val modelReleasesStub: ModelReleasesCoroutineStub by lazy {
+    ModelReleasesCoroutineStub(grpcTestServerRule.channel)
+  }
+
+
   @Test
   fun `gets correct population of all 18-34 age range`() {
     requisitionsServiceMock.stub {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += REQUISITION })
     }
+    require(POPULATION_ID_1 != null)
+
+    val POPULATION_SPEC_MAP =
+      mapOf<PopulationKey, PopulationInfo>(
+        POPULATION_ID_1 to POPULATION_INFO_1,
+      )
 
     val simulator =
       PdpRequisitionFulfiller(
@@ -268,8 +318,9 @@ class PdpRequisitionFulfillerTest {
         dummyThrottler,
         TRUSTED_CERTIFICATES,
         MC_NAME,
-        POPULATION_INFO,
-        POPULATION_ID_1
+        modelRolloutsStub,
+        modelReleasesStub,
+        POPULATION_SPEC_MAP
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -308,6 +359,13 @@ class PdpRequisitionFulfillerTest {
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
 
+    require(POPULATION_ID_1 != null)
+
+    val POPULATION_SPEC_MAP =
+      mapOf<PopulationKey, PopulationInfo>(
+        POPULATION_ID_1 to POPULATION_INFO_1,
+      )
+
     val simulator =
       PdpRequisitionFulfiller(
         PDP_DATA,
@@ -316,8 +374,9 @@ class PdpRequisitionFulfillerTest {
         dummyThrottler,
         TRUSTED_CERTIFICATES,
         MC_NAME,
-        POPULATION_INFO,
-        POPULATION_ID_1
+        modelRolloutsStub,
+        modelReleasesStub,
+        POPULATION_SPEC_MAP
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -356,6 +415,13 @@ class PdpRequisitionFulfillerTest {
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
 
+    require(POPULATION_ID_1 != null)
+
+    val POPULATION_SPEC_MAP =
+      mapOf<PopulationKey, PopulationInfo>(
+        POPULATION_ID_1 to POPULATION_INFO_1,
+      )
+
     val simulator =
       PdpRequisitionFulfiller(
         PDP_DATA,
@@ -364,8 +430,9 @@ class PdpRequisitionFulfillerTest {
         dummyThrottler,
         TRUSTED_CERTIFICATES,
         MC_NAME,
-        POPULATION_INFO,
-        POPULATION_ID_1
+        modelRolloutsStub,
+        modelReleasesStub,
+        POPULATION_SPEC_MAP
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }

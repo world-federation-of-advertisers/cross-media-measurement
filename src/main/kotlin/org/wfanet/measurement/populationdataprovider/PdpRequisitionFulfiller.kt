@@ -16,11 +16,12 @@ package org.wfanet.measurement.populationdataprovider
 
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
-import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.DynamicMessage
 import com.google.protobuf.Message
 import com.google.protobuf.TypeRegistry
+import io.grpc.Status
+import io.grpc.StatusException
 import java.security.cert.X509Certificate
 import java.util.logging.Level
 import org.wfanet.measurement.api.v2alpha.Certificate
@@ -29,6 +30,9 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.ModelRelease
+import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec.VidRange
@@ -36,7 +40,10 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.getModelReleaseRequest
+import org.wfanet.measurement.api.v2alpha.listModelRolloutsRequest
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 
@@ -53,8 +60,9 @@ class PdpRequisitionFulfiller(
   throttler: Throttler,
   trustedCertificates: Map<ByteString, X509Certificate>,
   measurementConsumerName: String,
+  private val modelRolloutsStub: ModelRolloutsCoroutineStub,
+  private val modelReleasesStub: ModelReleasesCoroutineStub,
   private val populationSpecMap: Map<PopulationKey, PopulationInfo>,
-  private val populationId: PopulationKey
 ) :
   DataProviderRequisitionFulfiller(
     pdpData,
@@ -110,6 +118,12 @@ class PdpRequisitionFulfiller(
         logger.log(Level.INFO, "MeasurementSpec:\n$measurementSpec")
         logger.log(Level.INFO, "RequisitionSpec:\n$requisitionSpec")
 
+        val modelRelease = getModelRelease(measurementSpec)
+
+        val populationId = PopulationKey.fromName(modelRelease.population)
+        if(populationId === null){
+          throw InvalidSpecException("Measurement spec model line does not contain a valid Population for the model release of its latest model rollout.")
+        }
 
         val populationInfo = populationSpecMap.getValue(populationId)
         val populationSpecValidator = PopulationSpecValidator.validateVidRangesList(populationInfo.populationSpec)
@@ -136,6 +150,53 @@ class PdpRequisitionFulfiller(
       }
     }
   }
+
+  /**
+   * Returns the [ModelRelease] associated with the latest `ModelRollout` that is connected to the
+   * `ModelLine` provided in the MeasurementSpec`
+   */
+  private suspend fun getModelRelease(measurementSpec: MeasurementSpec): ModelRelease {
+    val measurementSpecModelLineName = measurementSpec.modelLine
+
+    // Returns list of ModelRollouts.
+    val listModelRolloutsResponse =
+      try {
+        modelRolloutsStub.listModelRollouts(
+          listModelRolloutsRequest { parent = measurementSpecModelLineName }
+        )
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.NOT_FOUND ->
+            InvalidSpecException("ModelLine $measurementSpecModelLineName not found", e)
+          else -> Exception("Error retrieving ModelLine $measurementSpecModelLineName", e)
+        }
+      }
+
+    // Sort list of ModelRollouts by descending updateTime.
+    val sortedModelRolloutsList =
+      listModelRolloutsResponse.modelRolloutsList.sortedWith { a, b ->
+        val aDate =
+          if (a.hasGradualRolloutPeriod()) a.gradualRolloutPeriod.endDate else a.instantRolloutDate
+        val bDate =
+          if (b.hasGradualRolloutPeriod()) b.gradualRolloutPeriod.endDate else b.instantRolloutDate
+        if (aDate.toLocalDate().isBefore(bDate.toLocalDate())) -1 else 1
+      }
+
+    // Retrieves latest ModelRollout from list.
+    val latestModelRollout = sortedModelRolloutsList.first()
+    val modelReleaseName = latestModelRollout.modelRelease
+
+    // Returns ModelRelease associated with latest ModelRollout.
+    return try {
+      modelReleasesStub.getModelRelease(getModelReleaseRequest { name = modelReleaseName })
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.NOT_FOUND -> InvalidSpecException("ModelRelease $modelReleaseName not found", e)
+        else -> Exception("Error retrieving ModelLine $modelReleaseName", e)
+      }
+    }
+  }
+
 
   private suspend fun fulfillPopulationMeasurement(
     requisition: Requisition,
