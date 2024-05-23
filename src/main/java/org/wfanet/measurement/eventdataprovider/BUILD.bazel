@@ -5,7 +5,7 @@ load("@rules_jvm_external//:defs.bzl", "java_export")
 
 java_export(
     name = "exported_edp_libs",
-    maven_coordinates = "com.amazon.wfaedp:edp-java-libs:0.0.4",
+    maven_coordinates = "com.amazon.wfaedp:edp-java-libs:0.0.5",
     tags = ["manual"],
     runtime_deps = [
         ":edp_java_libs",
