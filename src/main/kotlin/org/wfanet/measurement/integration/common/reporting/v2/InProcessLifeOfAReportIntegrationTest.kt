@@ -1789,7 +1789,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     private val SYNTHETIC_EVENT_QUERY =
       MetadataSyntheticGeneratorEventQuery(
-        SyntheticGenerationSpecs.POPULATION_SPEC,
+        SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
         InProcessCmmsComponents.MC_ENCRYPTION_PRIVATE_KEY,
       )
 

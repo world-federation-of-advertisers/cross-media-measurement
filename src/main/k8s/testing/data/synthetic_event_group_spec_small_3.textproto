@@ -1,7 +1,8 @@
 # proto-file: wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto
 # proto-message: SyntheticEventGroupSpec
 
-# Spec for use with synthetic_population_spec.textproto.
+# Spec for use with synthetic_population_spec_small.textproto.
+# Reach of this spec is ~36K.
 
 date_specs {
   date_range {
@@ -20,8 +21,8 @@ date_specs {
     frequency: 1
     vid_range_specs {
       vid_range {
-        start: 501
-        end_exclusive: 1501
+        start: 1001
+        end_exclusive: 8000
       }
       non_population_field_values {
         key: "video_ad.viewed_fraction"
@@ -35,8 +36,8 @@ date_specs {
     frequency: 2
     vid_range_specs {
       vid_range {
-        start: 1501
-        end_exclusive: 2501
+        start: 20001
+        end_exclusive: 29999
       }
       non_population_field_values {
         key: "video_ad.viewed_fraction"
@@ -50,8 +51,68 @@ date_specs {
     frequency: 1
     vid_range_specs {
       vid_range {
-        start: 18000501
-        end_exclusive: 18001501
+        start: 50001
+        end_exclusive: 55001
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.75
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 70001
+        end_exclusive: 78000
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.25
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 80001
+        end_exclusive: 82001
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.5
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 91001
+        end_exclusive: 93001
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.75
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 96001
+        end_exclusive: 97001
       }
       non_population_field_values {
         key: "video_ad.viewed_fraction"
@@ -65,43 +126,13 @@ date_specs {
     frequency: 2
     vid_range_specs {
       vid_range {
-        start: 18001501
-        end_exclusive: 18002501
+        start: 99001
+        end_exclusive: 99999
       }
       non_population_field_values {
         key: "video_ad.viewed_fraction"
         value {
           double_value: 0.5
-        }
-      }
-    }
-  }
-  frequency_specs {
-    frequency: 1
-    vid_range_specs {
-      vid_range {
-        start: 9000001
-        end_exclusive: 9001001
-      }
-      non_population_field_values {
-        key: "video_ad.viewed_fraction"
-        value {
-          double_value: 0.25
-        }
-      }
-    }
-  }
-  frequency_specs {
-    frequency: 1
-    vid_range_specs {
-      vid_range {
-        start: 25000001
-        end_exclusive: 25001001
-      }
-      non_population_field_values {
-        key: "video_ad.viewed_fraction"
-        value {
-          double_value: 0.25
         }
       }
     }
