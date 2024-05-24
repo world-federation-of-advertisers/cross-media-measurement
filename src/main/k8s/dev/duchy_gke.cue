@@ -51,6 +51,7 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 }
 #MillMaxHeapSize:        "1G"
 #MillReplicas:           15
+#ApiServerReplicas:      2
 #FulfillmentMaxHeapSize: "96M"
 
 objectSets: [
@@ -101,8 +102,11 @@ duchy: #SpannerDuchy & {
 			_container: {
 				resources: #InternalServerResourceRequirements
 			}
-			spec: template: spec: #ServiceAccountPodSpec & {
-				serviceAccountName: #InternalServerServiceAccount
+			spec: {
+				replicas: #ApiServerReplicas
+				template: spec: #ServiceAccountPodSpec & {
+					serviceAccountName: #InternalServerServiceAccount
+				}
 			}
 		}
 		"herald-daemon-deployment": {
@@ -125,16 +129,22 @@ duchy: #SpannerDuchy & {
 			}
 		}
 		"computation-control-server-deployment": {
-			spec: template: spec: #ServiceAccountPodSpec & {
-				serviceAccountName: #StorageServiceAccount
+			spec: {
+				replicas: #ApiServerReplicas
+				template: spec: #ServiceAccountPodSpec & {
+					serviceAccountName: #StorageServiceAccount
+				}
 			}
 		}
 		"requisition-fulfillment-server-deployment": {
 			_container: {
 				_javaOptions: maxHeapSize: #FulfillmentMaxHeapSize
 			}
-			spec: template: spec: #ServiceAccountPodSpec & {
-				serviceAccountName: #StorageServiceAccount
+			spec: {
+				replicas: #ApiServerReplicas
+				template: spec: #ServiceAccountPodSpec & {
+					serviceAccountName: #StorageServiceAccount
+				}
 			}
 		}
 	}
