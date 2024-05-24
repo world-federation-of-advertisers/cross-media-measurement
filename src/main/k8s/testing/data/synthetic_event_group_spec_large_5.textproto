@@ -1,7 +1,7 @@
 # proto-file: wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto
 # proto-message: SyntheticEventGroupSpec
 
-# Spec for use with synthetic_population_spec.textproto.
+# Spec for use with synthetic_population_spec_large.textproto.
 # Reach of this spec is ~5.5M.
 # Total reach of spec_4, spec_5, spec_6 is ~12M.
 
