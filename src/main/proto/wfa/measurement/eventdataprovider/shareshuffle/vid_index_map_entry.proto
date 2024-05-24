@@ -29,6 +29,6 @@ message VidIndexMapEntry {
   int32 index = 2;
 
   // The position of the VID on the unit interval.
-  // This value can be used by a client to filter VIDs with respect to a  VidSamplingInterval
+  // This value can be used by a client to filter VIDs with respect to a VidSamplingInterval
   double value = 3;
 }
