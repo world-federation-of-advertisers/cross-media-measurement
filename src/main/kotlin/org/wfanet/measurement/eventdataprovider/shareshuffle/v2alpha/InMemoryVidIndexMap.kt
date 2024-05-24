@@ -20,63 +20,70 @@ import java.nio.ByteOrder
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator
 import org.wfanet.measurement.common.toByteString
+import org.wfanet.measurement.eventdataprovider.shareshuffle.VidIndexMapEntry
+import org.wfanet.measurement.eventdataprovider.shareshuffle.vidIndexMapEntry
+
+/**
+ * An exception that encapsulates the inconsistency between a PopulationSpec and a VID index map.
+ */
+class InconsistentIndexMapAndPopulationSpecException(
+  vidsNotInPopulationSpec: List<Long>,
+  vidsNotInIndexMap: List<Long>,
+) : Exception(buildMessage(vidsNotInPopulationSpec, vidsNotInIndexMap)) {
+  companion object {
+    const val MAX_LIST_SIZE = 10
+
+    private fun buildMessage(
+      vidsNotInPopulationSpec: List<Long>,
+      vidsNotInIndexMap: List<Long>,
+    ): String {
+      return buildString {
+        appendLine("The provided IndexMap and PopulationSpec are inconsistent.")
+        if (vidsNotInPopulationSpec.isNotEmpty()) {
+          appendLine("IDs in the indexMap, but not in the populationSpec:")
+          appendLine(
+            if (vidsNotInPopulationSpec.size > MAX_LIST_SIZE) {
+                vidsNotInPopulationSpec.take(MAX_LIST_SIZE)
+              } else {
+                vidsNotInPopulationSpec
+              }
+              .joinToString()
+          )
+        }
+
+        if (vidsNotInIndexMap.isNotEmpty()) {
+          appendLine("IDs in the populationSpec , but not in the indexMap:")
+          appendLine(
+            if (vidsNotInIndexMap.size > MAX_LIST_SIZE) {
+                vidsNotInIndexMap.take(MAX_LIST_SIZE)
+              } else {
+                vidsNotInIndexMap
+              }
+              .joinToString()
+          )
+        }
+      }
+    }
+  }
+}
 
 /**
  * An implementation of [VidIndexMap] that holds the Map in memory.
  *
- * This implementation of [VidIndexMap] creates the mapping from scratch given a [PopulationSpec]
+ * See build methods in the companion object.
  *
- * Overriding the default hash function can cause incompatibilities between EDPs which can lead to
- * bad measurement. The [hashFunction] is exposed only for testing.
- *
- * @param[populationSpec] The [PopulationSpec] to build the map for.
- * @param [hashFunction] The hash function to use for hashing VIDs.
- * @constructor Creates a [VidIndexMap] for the given [PopulationSpec]
+ * @param[populationSpec] The [PopulationSpec] represented by this map
+ * @param[indexMap] The map of VIDs to indexes
+ * @constructor Create a [VidIndexMap] for the given [PopulationSpec] and indexMap
  * @throws [PopulationSpecValidationException] if the [populationSpec] is invalid
  */
-class InMemoryVidIndexMap(
+class InMemoryVidIndexMap
+private constructor(
   override val populationSpec: PopulationSpec,
-  private val hashFunction: (Long, ByteString) -> Long = Companion::hashVidToLongWithFarmHash,
+  private val indexMap: HashMap<Long, Int>,
 ) : VidIndexMap {
-  // TODO(@kungfucraig): Provide a constructor that reads the vid->index map from a file.
-
   override val size
     get() = indexMap.size.toLong()
-
-  /** A map of a VID to its index in the [Frequency Vector]. */
-  private val indexMap = hashMapOf<Long, Int>()
-
-  /**
-   * A salt value to ensure the output of the hash used by the VidIndexMap is different from other
-   * functions that hash VIDs (e.g. the labeler). These are the first several digits of phi (the
-   * golden ratio) added to the date this value was created.
-   */
-  private val salt = (1_618_033L + 20_240_417L).toByteString(ByteOrder.BIG_ENDIAN)
-
-  /** A data class for a VID and its hash value. */
-  data class VidAndHash(val vid: Long, val hash: Long) : Comparable<VidAndHash> {
-    override operator fun compareTo(other: VidAndHash): Int =
-      compareValuesBy(this, other, { it.hash }, { it.vid })
-  }
-
-  init {
-    PopulationSpecValidator.validateVidRangesList(populationSpec).getOrThrow()
-
-    val hashes = mutableListOf<VidAndHash>()
-    for (subPop in populationSpec.subpopulationsList) {
-      for (range in subPop.vidRangesList) {
-        for (vid in range.startVid..range.endVidInclusive) {
-          hashes.add(VidAndHash(vid, hashFunction(vid, salt)))
-        }
-      }
-    }
-
-    hashes.sortWith(compareBy<VidAndHash>() { it })
-
-    for ((index, vidAndHash) in hashes.withIndex()) {
-      indexMap[vidAndHash.vid] = index
-    }
-  }
 
   /**
    * Returns the index in the [FrequencyVector] for the given [vid].
@@ -85,7 +92,23 @@ class InMemoryVidIndexMap(
    */
   override operator fun get(vid: Long): Int = indexMap[vid] ?: throw VidNotFoundException(vid)
 
+  /** Get an Iterator for the VidIndexMapEntries of this VidIndexMap. */
+  override operator fun iterator(): Iterator = Iterator()
+
   companion object {
+    /** A data class for a VID and its hash value. */
+    data class VidAndHash(val vid: Long, val hash: Long) : Comparable<VidAndHash> {
+      override operator fun compareTo(other: VidAndHash): Int =
+        compareValuesBy(this, other, { it.hash }, { it.vid })
+    }
+
+    /**
+     * A salt value to ensure the output of the hash used by the VidIndexMap is different from other
+     * functions that hash VIDs (e.g. the labeler). These are the first several digits of phi (the
+     * golden ratio) added to the date this value was created.
+     */
+    private val salt = (1_618_033L + 20_240_417L).toByteString(ByteOrder.BIG_ENDIAN)
+
     /**
      * Hash a VID with FarmHash and return the output as a [Long]
      *
@@ -103,6 +126,113 @@ class InMemoryVidIndexMap(
     fun hashVidToLongWithFarmHash(vid: Long, salt: ByteString): Long {
       val hashInput = vid.toByteString(ByteOrder.BIG_ENDIAN).concat(salt)
       return Hashing.farmHashFingerprint64().hashBytes(hashInput.toByteArray()).asLong()
+    }
+
+    /**
+     * Create a [InMemoryVidIndexMap] given a [PopulationSpec] and a hash function
+     *
+     * Overriding the default hash function can cause incompatibilities between EDPs which can lead
+     * to bad measurement. The [hashFunction] is exposed only for testing.
+     *
+     * @param[populationSpec] The [PopulationSpec] represented by this map
+     * @param [hashFunction] The hash function to use for hashing VIDs.
+     * @throws [PopulationSpecValidationException] if the [populationSpec] is invalid
+     */
+    fun build(
+      populationSpec: PopulationSpec,
+      hashFunction: (Long, ByteString) -> Long = ::hashVidToLongWithFarmHash,
+    ): InMemoryVidIndexMap {
+      PopulationSpecValidator.validateVidRangesList(populationSpec).getOrThrow()
+      val indexMap = hashMapOf<Long, Int>()
+      val hashes = mutableListOf<VidAndHash>()
+      for (subPop in populationSpec.subpopulationsList) {
+        for (range in subPop.vidRangesList) {
+          for (vid in range.startVid..range.endVidInclusive) {
+            hashes.add(VidAndHash(vid, hashFunction(vid, salt)))
+          }
+        }
+      }
+      hashes.sortWith(compareBy { it })
+
+      for ((index, vidAndHash) in hashes.withIndex()) {
+        indexMap[vidAndHash.vid] = index
+      }
+      return InMemoryVidIndexMap(populationSpec, indexMap)
+    }
+
+    /**
+     * Create an [InMemoryVidIndexMap] for the given [PopulationSpec] and indexMap.
+     *
+     * This method requires that the VIDs in the indexMap match exactly the VIDs in the
+     * populationSpec.
+     *
+     * @throws [PopulationSpecValidationException] if the [populationSpec] is invalid
+     * @throws [InconsistentIndexMapAndPopulationSpecException] if the inputs are inconsistent.
+     */
+    fun build(populationSpec: PopulationSpec, indexMap: Map<Long, Int>): InMemoryVidIndexMap {
+      PopulationSpecValidator.validateVidRangesList(populationSpec).getOrThrow()
+
+      // Ensure the indexMap is contained by the population spec
+      val populationRanges: List<LongRange> =
+        populationSpec.subpopulationsList.flatMap { subPop ->
+          subPop.vidRangesList.map { (it.startVid..it.endVidInclusive) }
+        }
+
+      val vidsNotInPopulationSpec = mutableListOf<Long>()
+      for (vid in indexMap.keys) {
+        var vidFound = false
+        for (range in populationRanges) {
+          // Ensure the VID is in one of the ranges. We already know the ranges are disjoint.
+          if (range.contains(vid)) {
+            vidFound = true
+            break
+          }
+        }
+        if (
+          !vidFound &&
+            vidsNotInPopulationSpec.size <
+              InconsistentIndexMapAndPopulationSpecException.MAX_LIST_SIZE
+        ) {
+          vidsNotInPopulationSpec.add(vid)
+        }
+      }
+
+      // Ensure the populationSpec is contained by the indexMap
+      val vidsNotInIndexMap = mutableListOf<Long>()
+      for (range in populationRanges) {
+        for (vid in range) {
+          if (
+            !indexMap.containsKey(vid) &&
+              vidsNotInPopulationSpec.size <
+                InconsistentIndexMapAndPopulationSpecException.MAX_LIST_SIZE
+          ) {
+            vidsNotInIndexMap.add(vid)
+          }
+        }
+      }
+      if (vidsNotInPopulationSpec.isNotEmpty() || vidsNotInIndexMap.isNotEmpty()) {
+        throw InconsistentIndexMapAndPopulationSpecException(
+          vidsNotInPopulationSpec,
+          vidsNotInIndexMap,
+        )
+      }
+      return InMemoryVidIndexMap(populationSpec, HashMap(indexMap))
+    }
+  }
+
+  /** An iterator over the VidIndexMapEntries of this VidIndexMap */
+  inner class Iterator : kotlin.collections.Iterator<VidIndexMapEntry> {
+    private val vidIndexIterator = this@InMemoryVidIndexMap.indexMap.iterator()
+
+    override fun hasNext(): Boolean = vidIndexIterator.hasNext()
+
+    override fun next(): VidIndexMapEntry {
+      val (k, v) = vidIndexIterator.next()
+      return vidIndexMapEntry {
+        vid = k
+        index = v
+        value = v.toDouble() / this@InMemoryVidIndexMap.size
+      }
     }
   }
 }
