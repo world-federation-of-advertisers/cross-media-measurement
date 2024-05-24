@@ -39,8 +39,8 @@ class InconsistentIndexMapAndPopulationSpecException(
     ): String {
       return buildString {
         appendLine("The provided IndexMap and PopulationSpec are inconsistent.")
+        appendLine("First IDs in the indexMap, but not in the populationSpec (max $MAX_LIST_SIZE):")
         if (vidsNotInPopulationSpec.isNotEmpty()) {
-          appendLine("IDs in the indexMap, but not in the populationSpec:")
           appendLine(
             if (vidsNotInPopulationSpec.size > MAX_LIST_SIZE) {
                 vidsNotInPopulationSpec.take(MAX_LIST_SIZE)
@@ -52,7 +52,7 @@ class InconsistentIndexMapAndPopulationSpecException(
         }
 
         if (vidsNotInIndexMap.isNotEmpty()) {
-          appendLine("IDs in the populationSpec , but not in the indexMap:")
+          appendLine("IDs in the populationSpec, but not in the indexMap (max $MAX_LIST_SIZE):")
           appendLine(
             if (vidsNotInIndexMap.size > MAX_LIST_SIZE) {
                 vidsNotInIndexMap.take(MAX_LIST_SIZE)
