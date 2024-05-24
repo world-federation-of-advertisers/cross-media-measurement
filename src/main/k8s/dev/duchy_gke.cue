@@ -50,7 +50,7 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 	}
 }
 #MillMaxHeapSize:        "1G"
-#MillReplicas:           1
+#MillReplicas:           15
 #FulfillmentMaxHeapSize: "96M"
 
 objectSets: [

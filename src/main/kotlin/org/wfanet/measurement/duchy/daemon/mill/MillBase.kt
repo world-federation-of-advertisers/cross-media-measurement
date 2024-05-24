@@ -164,6 +164,7 @@ abstract class MillBase(
           token,
           "Failing computation due to too many failed ComputationStageAttempts.",
         )
+        return
       }
 
       val wallDurationLogger = wallDurationLogger()
