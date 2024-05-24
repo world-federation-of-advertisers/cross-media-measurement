@@ -61,13 +61,13 @@ object HonestMajorityShareShuffleStarter {
   suspend fun createComputation(
     computationStorageClient: ComputationsGrpcKt.ComputationsCoroutineStub,
     systemComputation: Computation,
-    honestMajorityShareShuffleSetupConfig: HonestMajorityShareShuffleSetupConfig,
+    protocolSetupConfig: HonestMajorityShareShuffleSetupConfig,
     blobStorageBucket: String,
-    privateKeyStore: PrivateKeyStore<TinkKeyId, TinkPrivateKeyHandle>,
+    privateKeyStore: PrivateKeyStore<TinkKeyId, TinkPrivateKeyHandle>? = null,
   ) {
     require(systemComputation.name.isNotEmpty()) { "Resource name not specified" }
     val globalId: String = systemComputation.key.computationId
-    val role = honestMajorityShareShuffleSetupConfig.role
+    val role = protocolSetupConfig.role
 
     val initialComputationDetails = computationDetails {
       blobsStoragePrefix = "$blobStorageBucket/$globalId"
@@ -76,8 +76,10 @@ object HonestMajorityShareShuffleStarter {
         HonestMajorityShareShuffleKt.computationDetails {
           this.role = role
           parameters = systemComputation.toHonestMajorityShareShuffleParameters()
-          participants += systemComputation.computationParticipantsList.map { it.key.duchyId }
+          nonAggregators += getNonAggregators(protocolSetupConfig)
           if (role != RoleInComputation.AGGREGATOR) {
+            requireNotNull(privateKeyStore) { "privateKeyStore cannot be null" }
+
             randomSeed = generateRandomSeed()
 
             val privateKeyHandle = TinkPrivateKeyHandle.generateHpke()
@@ -195,6 +197,10 @@ object HonestMajorityShareShuffleStarter {
       Computation.MpcProtocolConfig.NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED ->
         error("Invalid system NoiseMechanism")
     }
+  }
+
+  private fun getNonAggregators(setupConfig: HonestMajorityShareShuffleSetupConfig): List<String> {
+    return listOf(setupConfig.firstNonAggregatorDuchyId, setupConfig.secondNonAggregatorDuchyId)
   }
 
   private fun generateRandomSeed(): ByteString {
