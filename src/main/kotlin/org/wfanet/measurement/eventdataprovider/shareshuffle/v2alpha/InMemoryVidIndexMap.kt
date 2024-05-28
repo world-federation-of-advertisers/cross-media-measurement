@@ -110,67 +110,34 @@ private constructor(
     private val salt = (1_618_033L + 20_240_417L).toByteString(ByteOrder.BIG_ENDIAN)
 
     /**
-     * Hash a VID with FarmHash and return the output as a [Long]
-     *
-     * The input of the hash function is determined by converting the [vid] to a byte array with big
-     * endian ordering and concatenating the [salt] to it.
-     *
-     * This input is passed to farmHashFingerprint64() whose output is a byte array.
-     *
-     * The bytearray is converted to a long in little endian order, which is then returned.
-     *
-     * @param [vid] the vid to hash
-     * @param [salt] the value concatenated to the [vid] prior to hashing
-     * @returns the hash of the vid
-     */
-    fun hashVidToLongWithFarmHash(vid: Long, salt: ByteString): Long {
-      val hashInput = vid.toByteString(ByteOrder.BIG_ENDIAN).concat(salt)
-      return Hashing.farmHashFingerprint64().hashBytes(hashInput.toByteArray()).asLong()
-    }
-
-    /**
      * Create a [InMemoryVidIndexMap] given a [PopulationSpec] and a hash function
-     *
-     * Overriding the default hash function can cause incompatibilities between EDPs which can lead
-     * to bad measurement. The [hashFunction] is exposed only for testing.
      *
      * @param[populationSpec] The [PopulationSpec] represented by this map
      * @param [hashFunction] The hash function to use for hashing VIDs.
      * @throws [PopulationSpecValidationException] if the [populationSpec] is invalid
      */
-    fun build(
-      populationSpec: PopulationSpec,
-      hashFunction: (Long, ByteString) -> Long = ::hashVidToLongWithFarmHash,
-    ): InMemoryVidIndexMap {
-      PopulationSpecValidator.validateVidRangesList(populationSpec).getOrThrow()
-      val indexMap = hashMapOf<Long, Int>()
-      val hashes = mutableListOf<VidAndHash>()
-      for (subPop in populationSpec.subpopulationsList) {
-        for (range in subPop.vidRangesList) {
-          for (vid in range.startVid..range.endVidInclusive) {
-            hashes.add(VidAndHash(vid, hashFunction(vid, salt)))
-          }
-        }
-      }
-      hashes.sortWith(compareBy { it })
-
-      for ((index, vidAndHash) in hashes.withIndex()) {
-        indexMap[vidAndHash.vid] = index
-      }
-      return InMemoryVidIndexMap(populationSpec, indexMap)
+    fun build(populationSpec: PopulationSpec): InMemoryVidIndexMap {
+      return buildInternal(populationSpec, ::hashVidToLongWithFarmHash)
     }
 
     /**
-     * Create an [InMemoryVidIndexMap] for the given [PopulationSpec] and indexMap.
+     * Create an [InMemoryVidIndexMap] for the given [PopulationSpec] and Sequence of
+     * VidIndexMapEntries.
      *
-     * This method requires that the VIDs in the indexMap match exactly the VIDs in the
+     * This method requires that the VIDs in the Sequence match exactly the VIDs in the
      * populationSpec.
      *
      * @throws [PopulationSpecValidationException] if the [populationSpec] is invalid
      * @throws [InconsistentIndexMapAndPopulationSpecException] if the inputs are inconsistent.
      */
-    fun build(populationSpec: PopulationSpec, indexMap: Map<Long, Int>): InMemoryVidIndexMap {
+    // VidIndexMapEntry
+    fun build(
+      populationSpec: PopulationSpec,
+      indexMapEntries: Sequence<VidIndexMapEntry>,
+    ): InMemoryVidIndexMap {
       PopulationSpecValidator.validateVidRangesList(populationSpec).getOrThrow()
+
+      val indexMap = hashMapOf<Long, Int>()
 
       // Ensure the indexMap is contained by the population spec
       val populationRanges: List<LongRange> =
@@ -179,7 +146,9 @@ private constructor(
         }
 
       val vidsNotInPopulationSpec = mutableListOf<Long>()
-      for (vid in indexMap.keys) {
+      for (vidEntry in indexMapEntries) {
+        val vid = vidEntry.vid
+        indexMap[vid] = vidEntry.index
         var vidFound = false
         for (range in populationRanges) {
           // Ensure the VID is in one of the ranges. We already know the ranges are disjoint.
@@ -216,7 +185,53 @@ private constructor(
           vidsNotInIndexMap,
         )
       }
-      return InMemoryVidIndexMap(populationSpec, HashMap(indexMap))
+      return InMemoryVidIndexMap(populationSpec, indexMap)
+    }
+
+    /**
+     * Hash a VID with FarmHash and return the output as a [Long]
+     *
+     * The input of the hash function is determined by converting the [vid] to a byte array with big
+     * endian ordering and concatenating the [salt] to it.
+     *
+     * This input is passed to farmHashFingerprint64() whose output is a byte array.
+     *
+     * The bytearray is converted to a long in little endian order, which is then returned.
+     *
+     * @param [vid] the vid to hash
+     * @param [salt] the value concatenated to the [vid] prior to hashing
+     * @returns the hash of the vid
+     */
+    private fun hashVidToLongWithFarmHash(vid: Long, salt: ByteString): Long {
+      val hashInput = vid.toByteString(ByteOrder.BIG_ENDIAN).concat(salt)
+      return Hashing.farmHashFingerprint64().hashBytes(hashInput.toByteArray()).asLong()
+    }
+
+    /**
+     * Same as the build function above that takes a populationSpec with the addition that this
+     * function allows the client to specify the VID hash function. This function is exposed for
+     * testing and should not be used by client code.
+     */
+    fun buildInternal(
+      populationSpec: PopulationSpec,
+      hashFunction: (Long, ByteString) -> Long,
+    ): InMemoryVidIndexMap {
+      PopulationSpecValidator.validateVidRangesList(populationSpec).getOrThrow()
+      val indexMap = hashMapOf<Long, Int>()
+      val hashes = mutableListOf<VidAndHash>()
+      for (subPop in populationSpec.subpopulationsList) {
+        for (range in subPop.vidRangesList) {
+          for (vid in range.startVid..range.endVidInclusive) {
+            hashes.add(VidAndHash(vid, hashFunction(vid, salt)))
+          }
+        }
+      }
+      hashes.sortWith(compareBy { it })
+
+      for ((index, vidAndHash) in hashes.withIndex()) {
+        indexMap[vidAndHash.vid] = index
+      }
+      return InMemoryVidIndexMap(populationSpec, indexMap)
     }
   }
 

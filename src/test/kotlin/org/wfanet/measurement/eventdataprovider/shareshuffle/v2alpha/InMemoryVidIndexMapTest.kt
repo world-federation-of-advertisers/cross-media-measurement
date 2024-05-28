@@ -28,6 +28,7 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.EndV
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.VidRangeIndex
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.toLong
+import org.wfanet.measurement.eventdataprovider.shareshuffle.vidIndexMapEntry
 
 @RunWith(JUnit4::class)
 class InMemoryVidIndexMapTest {
@@ -69,7 +70,19 @@ class InMemoryVidIndexMapTest {
       }
     }
     assertFailsWith<InconsistentIndexMapAndPopulationSpecException>("Expected exception") {
-      InMemoryVidIndexMap.build(testPopulationSpec, hashMapOf(1L to 3, 2L to 6))
+      InMemoryVidIndexMap.build(
+        testPopulationSpec,
+        sequenceOf(
+          vidIndexMapEntry {
+            vid = 1L
+            index = 3
+          },
+          vidIndexMapEntry {
+            vid = 2L
+            index = 6
+          },
+        ),
+      )
     }
   }
 
@@ -84,7 +97,7 @@ class InMemoryVidIndexMapTest {
       }
     }
     assertFailsWith<InconsistentIndexMapAndPopulationSpecException>("Expected exception") {
-      InMemoryVidIndexMap.build(testPopulationSpec, hashMapOf())
+      InMemoryVidIndexMap.build(testPopulationSpec, sequenceOf())
     }
   }
 
@@ -98,7 +111,17 @@ class InMemoryVidIndexMapTest {
         }
       }
     }
-    val vidIndexMap = InMemoryVidIndexMap.build(testPopulationSpec, hashMapOf(1L to 2))
+    val vidIndexMap =
+      InMemoryVidIndexMap.build(
+        testPopulationSpec,
+        sequenceOf(
+          vidIndexMapEntry {
+            vid = 1L
+            index = 2
+          }
+        ),
+      )
+
     assertThat(vidIndexMap.size).isEqualTo(1)
     assertThat(vidIndexMap.get(1L)).isEqualTo(2)
   }
@@ -141,7 +164,7 @@ class InMemoryVidIndexMapTest {
     // ordering of the indexes of the VIDs follows the ordering of
     // the VIDs themselves.
     val hashFunction = { _: Long, salt: ByteString -> salt.toLong(ByteOrder.BIG_ENDIAN) }
-    val vidIndexMap = InMemoryVidIndexMap.build(testPopulationSpec, hashFunction)
+    val vidIndexMap = InMemoryVidIndexMap.buildInternal(testPopulationSpec, hashFunction)
 
     assertThat(vidIndexMap.size).isEqualTo(vidCount)
     for (entry in vidIndexMap) {
