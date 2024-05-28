@@ -113,7 +113,6 @@ private constructor(
      * Create a [InMemoryVidIndexMap] given a [PopulationSpec] and a hash function
      *
      * @param[populationSpec] The [PopulationSpec] represented by this map
-     * @param [hashFunction] The hash function to use for hashing VIDs.
      * @throws [PopulationSpecValidationException] if the [populationSpec] is invalid
      */
     fun build(populationSpec: PopulationSpec): InMemoryVidIndexMap {
@@ -127,10 +126,12 @@ private constructor(
      * This method requires that the VIDs in the Sequence match exactly the VIDs in the
      * populationSpec.
      *
+     * @param[populationSpec] The [PopulationSpec] represented by this map
+     * @param[indexMapEntries] The complete set of entries for the PopulationSpec. The [value] field
+     *   of each [VidIndexMapEntry] is ignored.
      * @throws [PopulationSpecValidationException] if the [populationSpec] is invalid
      * @throws [InconsistentIndexMapAndPopulationSpecException] if the inputs are inconsistent.
      */
-    // VidIndexMapEntry
     fun build(
       populationSpec: PopulationSpec,
       indexMapEntries: Sequence<VidIndexMapEntry>,
