@@ -49,10 +49,12 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#MillMaxHeapSize:        "1G"
-#MillReplicas:           15
-#ApiServerReplicas:      2
-#FulfillmentMaxHeapSize: "96M"
+#MillMaxHeapSize:          "1G"
+#MillReplicas:             15
+#ApiServerReplicas:        2
+#HeraldMaxHeapSize:        "200M"
+#FulfillmentMaxHeapSize:   "200M"
+#ControlServerMaxHeapSize: "200M"
 
 objectSets: [
 	default_deny_ingress_and_egress,
@@ -111,6 +113,7 @@ duchy: #SpannerDuchy & {
 		}
 		"herald-daemon-deployment": {
 			_container: {
+				_javaOptions: maxHeapSize: #HeraldMaxHeapSize
 				resources: #HeraldResourceRequirements
 			}
 			spec: template: spec: #SpotVmPodSpec
@@ -129,6 +132,9 @@ duchy: #SpannerDuchy & {
 			}
 		}
 		"computation-control-server-deployment": {
+			_container: {
+				_javaOptions: maxHeapSize: #ControlServerMaxHeapSize
+			}
 			spec: {
 				replicas: #ApiServerReplicas
 				template: spec: #ServiceAccountPodSpec & {
