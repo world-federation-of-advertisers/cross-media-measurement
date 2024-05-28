@@ -35,11 +35,16 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 		cpu: "75m"
 	}
 }
-#HeraldResourceRequirements: #ResourceRequirements & {
+#HeraldResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
-		cpu: "25m"
+		cpu:    "25m"
+		memory: "500M"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
 	}
 }
+#HeraldMaxHeapSize:        "350M"
 #MillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "3"
@@ -52,7 +57,6 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 #MillMaxHeapSize:          "1G"
 #MillReplicas:             15
 #ApiServerReplicas:        2
-#HeraldMaxHeapSize:        "200M"
 #FulfillmentMaxHeapSize:   "200M"
 #ControlServerMaxHeapSize: "200M"
 
