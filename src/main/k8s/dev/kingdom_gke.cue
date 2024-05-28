@@ -35,7 +35,7 @@ _systemApiAddressName: string @tag("system_api_address_name")
 #InternalServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "500m"
-		memory: "352Mi"
+		memory: "1024Mi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
@@ -71,7 +71,7 @@ kingdom: #Kingdom & {
 			_container: {
 				_grpcThreadPoolSize: #InternalServerGrpcThreads
 				resources:           #InternalServerResourceRequirements
-				_javaOptions: maxHeapSize: "250M"
+				_javaOptions: maxHeapSize: "800M"
 			}
 			spec: {
 				replicas: #ApiServerReplicas
