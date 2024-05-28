@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/*
+
 package org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha
 
 // import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
@@ -145,4 +147,5 @@ data class EdpData(
   /** The CertificateKey to use for result signing. */
   val certificateKey: DataProviderCertificateKey,
 )
+
 */
