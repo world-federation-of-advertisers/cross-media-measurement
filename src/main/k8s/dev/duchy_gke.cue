@@ -24,10 +24,12 @@ _systemApiAddressName:         string @tag("system_api_address_name")
 _aggregatorSystemApiTarget:    string @tag("aggregator_system_api_target")
 _worker1SystemApiTarget:       string @tag("worker1_system_api_target")
 _worker2SystemApiTarget:       string @tag("worker2_system_api_target")
+_duchyKeyEncryptionKeyFile:    string @tag("duchy_key_encryption_key_file")
 
 _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 
 #KingdomSystemApiTarget:             string @tag("kingdom_system_api_target")
+#KingdomPublicApiTarget:             string @tag("kingdom_public_api_target")
 #InternalServerServiceAccount:       "internal-server"
 #StorageServiceAccount:              "storage"
 #InternalServerResourceRequirements: #ResourceRequirements & {
@@ -35,23 +37,37 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 		cpu: "75m"
 	}
 }
-#HeraldResourceRequirements: #ResourceRequirements & {
+#HeraldResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
-		cpu: "25m"
-	}
-}
-#MillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
-	requests: {
-		cpu:    "3"
-		memory: "2.5Gi"
+		cpu:    "25m"
+		memory: "512M"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#MillMaxHeapSize:        "1G"
-#MillReplicas:           1
-#FulfillmentMaxHeapSize: "96M"
+#HeraldMaxHeapSize:        "400M"
+#MillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "3"
+		memory: "6Gi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+#MillMaxHeapSize:                 "5G"
+#MillReplicas:                    1
+#FulfillmentResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "200m"
+		memory: "512Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+#FulfillmentMaxHeapSize: "350M"
 
 objectSets: [
 	default_deny_ingress_and_egress,
@@ -72,6 +88,9 @@ duchy: #SpannerDuchy & {
 		name:                   _duchy_name
 		protocols_setup_config: _duchy_protocols_setup_config
 		cs_cert_resource_name:  _duchy_cert_name
+		if (_duchyKeyEncryptionKeyFile != _|_) {
+			duchyKeyEncryptionKeyFile: _duchyKeyEncryptionKeyFile
+		}
 	}
 	_duchy_secret_name: _secret_name
 	_computation_control_targets: {
@@ -80,6 +99,7 @@ duchy: #SpannerDuchy & {
 		"worker2":    _worker2SystemApiTarget
 	}
 	_kingdom_system_api_target: #KingdomSystemApiTarget
+	_kingdom_public_api_target: #KingdomPublicApiTarget
 	_blob_storage_flags:        _cloudStorageConfig.flags
 	_verbose_grpc_logging:      "false"
 	_duchyMillParallelism:      4
@@ -107,12 +127,28 @@ duchy: #SpannerDuchy & {
 		}
 		"herald-daemon-deployment": {
 			_container: {
+				_javaOptions: maxHeapSize: #HeraldMaxHeapSize
 				resources: #HeraldResourceRequirements
 			}
-			spec: template: spec: #SpotVmPodSpec
+			spec: template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {
+				serviceAccountName: #StorageServiceAccount
+			}
 		}
 		"liquid-legions-v2-mill-daemon-deployment": {
 			_workLockDuration: "10m"
+			_container: {
+				_javaOptions: maxHeapSize: #MillMaxHeapSize
+				resources: #MillResourceRequirements
+			}
+			spec: {
+				replicas: #MillReplicas
+				template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {
+					serviceAccountName: #StorageServiceAccount
+				}
+			}
+		}
+		"honest-majority-share-shuffle-mill-daemon-deployment": {
+			_workLockDuration: "5m"
 			_container: {
 				_javaOptions: maxHeapSize: #MillMaxHeapSize
 				resources: #MillResourceRequirements
@@ -132,6 +168,7 @@ duchy: #SpannerDuchy & {
 		"requisition-fulfillment-server-deployment": {
 			_container: {
 				_javaOptions: maxHeapSize: #FulfillmentMaxHeapSize
+				resources: #FulfillmentResourceRequirements
 			}
 			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #StorageServiceAccount
