@@ -42,6 +42,16 @@ _systemApiAddressName: string @tag("system_api_address_name")
 	}
 }
 
+#PublicServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "500m"
+		memory: "1024Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+
 objectSets: [
 	default_deny_ingress_and_egress,
 	kingdom.serviceAccounts,
@@ -89,7 +99,8 @@ kingdom: #Kingdom & {
 		"v2alpha-public-api-server": {
 			spec: replicas: #ApiServerReplicas
 			_container: {
-				_javaOptions: maxHeapSize: "250M"
+				resources: #PublicServerResourceRequirements
+				_javaOptions: maxHeapSize: "800M"
 			}
 		}
 	}
