@@ -71,6 +71,7 @@ kingdom: #Kingdom & {
 			_container: {
 				_grpcThreadPoolSize: #InternalServerGrpcThreads
 				resources:           #InternalServerResourceRequirements
+				_javaOptions: maxHeapSize: "250M"
 			}
 			spec: {
 				replicas: #ApiServerReplicas
@@ -87,6 +88,9 @@ kingdom: #Kingdom & {
 		}
 		"v2alpha-public-api-server": {
 			spec: replicas: #ApiServerReplicas
+			_container: {
+				_javaOptions: maxHeapSize: "250M"
+			}
 		}
 	}
 
