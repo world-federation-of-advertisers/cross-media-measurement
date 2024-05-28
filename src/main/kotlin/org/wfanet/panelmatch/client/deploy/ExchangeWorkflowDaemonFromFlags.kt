@@ -97,7 +97,7 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
 
   override val throttler: Throttler by lazy { createThrottler() }
 
-  private val taskContext: TaskParameters by lazy {
+  protected val taskContext: TaskParameters by lazy {
     TaskParameters(
       setOf(
         PreprocessingParameters(
@@ -136,7 +136,7 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
 
   override val identity: Identity by lazy { Identity(flags.id, flags.partyType) }
 
-  private fun createThrottler(): Throttler = MinimumIntervalThrottler(clock, flags.pollingInterval)
+  protected fun createThrottler(): Throttler = MinimumIntervalThrottler(clock, flags.pollingInterval)
 
   companion object {
     @JvmStatic protected val logger by loggerFor()

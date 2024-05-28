@@ -37,6 +37,7 @@ import org.wfanet.panelmatch.client.exchangetasks.CopyFromPreviousExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.CopyFromSharedStorageTask
 import org.wfanet.panelmatch.client.exchangetasks.CopyToSharedStorageTask
 import org.wfanet.panelmatch.client.exchangetasks.DeterministicCommutativeCipherTask
+import org.wfanet.panelmatch.client.exchangetasks.EmrExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 import org.wfanet.panelmatch.client.exchangetasks.GenerateAsymmetricKeyPairTask
@@ -53,6 +54,7 @@ import org.wfanet.panelmatch.client.exchangetasks.copyToSharedStorage
 import org.wfanet.panelmatch.client.exchangetasks.decryptPrivateMembershipResults
 import org.wfanet.panelmatch.client.exchangetasks.executePrivateMembershipQueries
 import org.wfanet.panelmatch.client.exchangetasks.preprocessEvents
+import org.wfanet.panelmatch.client.exchangetasks.emr.EmrExchangeTaskService
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.JniPrivateMembershipCryptor
@@ -78,6 +80,8 @@ open class ProductionExchangeTaskMapper(
   private val certificateManager: CertificateManager,
   private val makePipelineOptions: () -> PipelineOptions,
   private val taskContext: TaskParameters,
+  private val emrBeamTaskExecutorOnDaemon: Boolean = false,
+  private val emrService: EmrExchangeTaskService? = null,
 ) : ExchangeTaskMapper() {
   override suspend fun ExchangeContext.commutativeDeterministicEncrypt(): ExchangeTask {
     return DeterministicCommutativeCipherTask.forEncryption(JniDeterministicCommutativeCipher())
@@ -176,12 +180,25 @@ open class ProductionExchangeTaskMapper(
     check(
       step.stepCase == ExchangeWorkflow.Step.StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP
     )
-    val stepDetails = step.decryptPrivateMembershipQueryResultsStep
 
-    val outputManifests = mapOf("decrypted-event-data" to stepDetails.decryptEventDataSetFileCount)
+    return if (emrBeamTaskExecutorOnDaemon) {
+      requireNotNull(emrService)
+      EmrExchangeTask(emrService,
+        exchangeDateKey.recurringExchangeId,
+        workflow.stepsList.indexOfFirst {
+          it.stepCase == ExchangeWorkflow.Step.StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP
+        },
+        attemptKey,
+        exchangeDateKey.date,
+      )
+    } else {
+      val stepDetails = step.decryptPrivateMembershipQueryResultsStep
 
-    return apacheBeamTaskFor(outputManifests, emptyList()) {
-      decryptPrivateMembershipResults(stepDetails.parameters, JniQueryResultsDecryptor())
+      val outputManifests = mapOf("decrypted-event-data" to stepDetails.decryptEventDataSetFileCount)
+
+      apacheBeamTaskFor(outputManifests, emptyList()) {
+        decryptPrivateMembershipResults(stepDetails.parameters, JniQueryResultsDecryptor())
+      }
     }
   }
 
