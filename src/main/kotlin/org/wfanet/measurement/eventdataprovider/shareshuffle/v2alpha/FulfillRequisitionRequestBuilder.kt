@@ -21,39 +21,73 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.frequencycount.FrequencyVector
 import org.wfanet.frequencycount.frequencyVector
-import org.wfanet.measurement.api.v2alpha.*
+import org.wfanet.frequencycount.secretShareGeneratorRequest
+import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.EncryptedMessage
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.honestMajorityShareShuffle
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig.HonestMajorityShareShuffle
+import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.encryptedMessage
 import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
 import org.wfanet.measurement.common.asBufferedFlow
 
 /**
- * Builds a Flow of FulfillRequisitionRequests to be used with the Kotlin gRPC client stub.
+ * A exception with a justification for why a requisition cannot be fulfilled.
  */
-class FulfillRequisitionRequestBuilder(val requisition: Requisition, val frequencyVector: FrequencyVector) {
+class RequisitionRefusalException(
+  val justification: Requisition.Refusal.Justification,
+  message: String,
+) : Exception(message)
 
+/**
+ * Build a Flow of FulfillRequisitionRequests to be used with the Kotlin gRPC client stub.
+ *
+ * @param requisition
+ * @param frequencyVector
+ * @param dataProviderCertificateKey
+ * @throws RequisitionRefusalException with an appropriate justification if the Request cannot be built
+ */
+class FulfillRequisitionRequestBuilder(
+  val requisition: Requisition, val frequencyVector: FrequencyVector, val dataProviderCertificateKey: DataProviderCertificateKey
+) {
+
+  val protocolConfig : HonestMajorityShareShuffle
   init {
     var requisitionAllowsHmss = false
     for (protocol in requisition.protocolConfig.protocolsList) {
       if (protocol.hasHonestMajorityShareShuffle()) {
-        requisitionAllowsHmss = true
+        protocolConfig = protocol.honestMajorityShareShuffle
+        break
       }
     }
-    require(requisitionAllowsHmss)
-    {"Honest Majority Share Shuffle is not a valid Protocol for this requisition."}
-
-
-
+    if (!requisitionAllowsHmss) {
+      throw RequisitionRefusalException(
+        Requisition.Refusal.Justification.SPEC_INVALID,
+        "Expected the protocol config to allow HonestMajorityShareShuffle")
+    }
     //verifyProtocolConfig()
     //verifyDuchyEntries()
-
   }
   val requisitionFingerprint: ByteString = computeRequisitionFingerprint(requisition)
 
   val shareVector: FrequencyVector
   val encryptedSignedSeed: EncryptedMessage
   init {
+    val secretShareGeneratorRequest = secretShareGeneratorRequest {
+      data += frequencyVector.dataList
+      ringModulus = protocolConfig.sketchParams.ringModulus
+    }
+
+    val secretShare =
+      SecretShare.parseFrom(
+        SecretShareGeneratorAdapter.generateSecretShares(secretShareGeneratorRequest.toByteArray())
+      )
+
+    val shareSeed = randomSeed { data = secretShare.shareSeed.key.concat(secretShare.shareSeed.iv) }
      shareVector = frequencyVector{}
     encryptedSignedSeed = encryptedMessage {}
   }
@@ -69,7 +103,7 @@ class FulfillRequisitionRequestBuilder(val requisition: Requisition, val frequen
             this.honestMajorityShareShuffle = honestMajorityShareShuffle {
               secretSeed = encryptedSignedSeed
               registerCount = shareVector.dataList.size.toLong()
-              dataProviderCertificate = edpData.certificateKey.toName()
+              dataProviderCertificate = dataProviderCertificateKey.toName()
             }
           }
         }
@@ -88,5 +122,3 @@ class FulfillRequisitionRequestBuilder(val requisition: Requisition, val frequen
     }
 
   }
-
-}
