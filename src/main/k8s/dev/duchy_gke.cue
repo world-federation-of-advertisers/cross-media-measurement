@@ -67,7 +67,16 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 	}
 }
 #FulfillmentMaxHeapSize:   "2000M"
-#ControlServerMaxHeapSize: "200M"
+#ControlServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "500m"
+		memory: "3000Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+#ControlServerMaxHeapSize: "2500M"
 
 objectSets: [
 	default_deny_ingress_and_egress,
@@ -146,6 +155,7 @@ duchy: #SpannerDuchy & {
 		}
 		"computation-control-server-deployment": {
 			_container: {
+				resources: #ControlServerResourceRequirements
 				_javaOptions: maxHeapSize: #ControlServerMaxHeapSize
 			}
 			spec: {
