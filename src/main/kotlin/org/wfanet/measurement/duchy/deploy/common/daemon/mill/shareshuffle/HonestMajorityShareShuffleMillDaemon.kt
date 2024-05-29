@@ -61,7 +61,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.storage.TinkKeyStore
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
-import org.wfanet.measurement.internal.duchy.config.HonestMajorityShareShuffleSetupConfig
+import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub as SystemComputationLogEntriesCoroutineStub
@@ -231,7 +231,7 @@ abstract class HonestMajorityShareShuffleMillDaemon : Runnable {
         cryptoWorker = JniHonestMajorityShareShuffleCryptor(),
         protocolSetupConfig =
           flags.protocolsSetupConfig.reader().use {
-            parseTextProto(it, HonestMajorityShareShuffleSetupConfig.getDefaultInstance())
+            parseTextProto(it, ProtocolsSetupConfig.getDefaultInstance()).honestMajorityShareShuffle
           },
         workLockDuration = flags.workLockDuration,
         openTelemetry = openTelemetry,

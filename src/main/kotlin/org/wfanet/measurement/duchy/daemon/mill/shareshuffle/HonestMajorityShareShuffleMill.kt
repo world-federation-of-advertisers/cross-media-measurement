@@ -128,7 +128,7 @@ class HonestMajorityShareShuffleMill(
     openTelemetry = openTelemetry,
   ) {
   init {
-    if (protocolSetupConfig.role == AGGREGATOR) {
+    if (protocolSetupConfig.role != AGGREGATOR) {
       requireNotNull(privateKeyStore) { "private key store is not set up." }
     }
   }
