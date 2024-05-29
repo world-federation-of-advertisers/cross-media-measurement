@@ -156,3 +156,7 @@ object PopulationSpecValidator {
     return details
   }
 }
+
+fun VidRange.size(): Long {
+  return this.endVidInclusive - this.startVid + 1
+}

@@ -24,8 +24,11 @@ import io.grpc.Status
 import io.grpc.StatusException
 import java.security.cert.X509Certificate
 import java.util.logging.Level
+import org.projectnessie.cel.Program
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.DeterministicCount
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
@@ -35,13 +38,13 @@ import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCorou
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
-import org.wfanet.measurement.api.v2alpha.PopulationSpec.VidRange
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.getModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsRequest
+import org.wfanet.measurement.api.v2alpha.size
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
@@ -53,7 +56,8 @@ import org.wfanet.measurement.dataprovider.DataProviderData
 data class PopulationInfo (
   val populationSpec: PopulationSpec,
   val eventDescriptor: Descriptor,
-  val typeRegistry: TypeRegistry
+  val typeRegistry: TypeRegistry,
+  val attributeClassMap: Map<String, Class<Message>>,
 )
 /** A requisition fulfiller for PDP businesses. */
 class PopulationRequisitionFulfiller(
@@ -65,7 +69,7 @@ class PopulationRequisitionFulfiller(
   measurementConsumerName: String,
   private val modelRolloutsStub: ModelRolloutsCoroutineStub,
   private val modelReleasesStub: ModelReleasesCoroutineStub,
-  private val populationSpecMap: Map<PopulationKey, PopulationInfo>,
+  private val populationInfoMap: Map<PopulationKey, PopulationInfo>,
 ) :
   RequisitionFulfiller(
     pdpData,
@@ -123,17 +127,13 @@ class PopulationRequisitionFulfiller(
 
         val modelRelease = getModelRelease(measurementSpec)
 
-        val populationId = PopulationKey.fromName(modelRelease.population)
-        if(populationId === null){
+        val populationId = requireNotNull(PopulationKey.fromName(modelRelease.population)) {
           throw InvalidSpecException("Measurement spec model line does not contain a valid Population for the model release of its latest model rollout.")
         }
 
-        val populationInfo = populationSpecMap.getValue(populationId)
-        val populationSpecValidator = PopulationSpecValidator.validateVidRangesList(populationInfo.populationSpec)
-        if(populationSpecValidator.isFailure){
-          throw InvalidSpecException("Population Spec $populationId is Invalid.")
-        }
+        val populationInfo = populationInfoMap.getValue(populationId)
 
+        PopulationSpecValidator.validateVidRangesList(populationInfo.populationSpec).getOrThrow()
 
         val requisitionFilterExpression = requisitionSpec.population.filter.expression
 
@@ -208,65 +208,67 @@ class PopulationRequisitionFulfiller(
     filterExpression: String,
     populationInfo: PopulationInfo
   ) {
+
+    // CEL program that will check the event against the filter expression
+    val program = EventFilters.compileProgram(populationInfo.eventDescriptor, filterExpression)
+
     // Filters populationBucketsList through a CEL program and sums the result.
-    val populationSum = getTotalPopulation(populationInfo, filterExpression)
+    val populationSum = populationInfo.populationSpec.subpopulationsList.sumOf {
+      val attributesList = it.attributesList
+      val vidRanges = it.vidRangesList
+      val shouldSumPopulation = isValidAttributesList(attributesList, populationInfo, program)
+      if (shouldSumPopulation) {
+        vidRanges.sumOf { jt -> jt.size() }
+      } else {
+        0L
+      }
+    }
 
     // Create measurement result with sum of valid populations.
     val measurementResult =
       MeasurementKt.result {
-        population = MeasurementKt.ResultKt.population { value = populationSum }
+        population = MeasurementKt.ResultKt.population {
+          value = populationSum
+          deterministicCount = DeterministicCount.getDefaultInstance()
+        }
       }
 
     // Fulfill the measurement.
     fulfillDirectMeasurement(requisition, measurementSpec, requisitionSpec.nonce, measurementResult)
   }
 
-  /** Returns the total sum of populations that reflect the filter expression. */
-  private fun getTotalPopulation(
-    populationInfo: PopulationInfo,
-    filterExpression: String,
-  ): Long {
-    val subPopulationList = populationInfo.populationSpec.subpopulationsList
-    return subPopulationList.sumOf {
-      val attributesList = it.attributesList
-      val vidRanges = it.vidRangesList
-      val shouldSumPopulation = isValidAttributesList(attributesList, filterExpression, populationInfo.eventDescriptor, populationInfo.typeRegistry)
-      if (shouldSumPopulation) {
-        getSumOfVidRanges(vidRanges)
-      } else {
-        0L
-      }
-    }
-  }
-
-  /** Returns the total sum given a list of VID ranges. */
-  private fun getSumOfVidRanges(vidRanges: List<VidRange>): Long {
-    return vidRanges.sumOf { it.endVidInclusive - it.startVid + 1 }
-  }
-
   /**
-   * Returns a [Boolean] representing whether the attributes in the list pass a check against
-   * the filter expression after being run through a program.
+   * Returns a [Boolean] representing whether the attributes in the list are 1) the correct type and
+   * 2) pass a check against the filter expression after being run through a CEL program.
    */
-  private fun isValidAttributesList(attributeList: List<Any>, filterExpression: String, eventDescriptor: Descriptor, typeRegistry: TypeRegistry): Boolean {
-    // CEL program that will check the event against the filter expression
-    val program = EventFilters.compileProgram(eventDescriptor, filterExpression)
+  private fun isValidAttributesList(attributeList: List<Any>, populationInfo: PopulationInfo, program: Program): Boolean {
+    val eventDescriptor = populationInfo.eventDescriptor
+    val typeRegistry = populationInfo.typeRegistry
+    val classMap = populationInfo.attributeClassMap
+
+    // Event message that will be passed to CEL program
     val eventMessage = DynamicMessage.newBuilder(eventDescriptor)
 
-    // Populate event message that will be used in the program
+    // Populate event message that will be used in the program if attribute is valid
     attributeList.forEach {attribute ->
       val attributeDescriptor = typeRegistry.getDescriptorForTypeUrl(attribute.typeUrl)
 
-      // Create the attribute message by converting the type `Any` to the type specified in the descriptor.
-      val attributeMessage = createAttributeMessage(attribute, attributeDescriptor)
+      // Unpack the attribute message using the class specified by the attribute descriptor.
+      val attributeMessage = attribute.unpack(classMap[attributeDescriptor.name])
 
-      // Ensure attribute is a field in the event descriptor.
-      if(!isAttributeFieldInEvent(attributeMessage, eventDescriptor)){
-        throw InvalidSpecException("Attribute is not part of Event Descriptor")
+      // If the attribute type is not a field in the event message, it is not valid.
+      val isAttributeFieldInEvent = eventDescriptor.fields.any {
+        it.messageType.name === attributeMessage.descriptorForType.name
+      }
+      require(isAttributeFieldInEvent) {
+        throw InvalidSpecException("Subpopulation attribute is not a field in the Event Descriptor")
       }
 
-      // Validate attribute message with descriptor from type registry.
-      if(!isValidAttribute(attributeMessage, attributeDescriptor)){
+      // If the population_attribute option in the attribute message is set to true, we do not allow the value to be unspecified(enum value 0)
+      val isValidAttribute = attributeMessage.allFields.all {
+        !(it.key.options.getExtension(EventAnnotationsProto.templateField).populationAttribute && it.key.enumType.values.indexOf(it.value) == 0)
+      }
+      require(isValidAttribute){
         throw InvalidSpecException("Invalid Subpopulation Attribute")
       }
 
@@ -280,39 +282,5 @@ class PopulationRequisitionFulfiller(
     }
 
     return EventFilters.matches(eventMessage.build(), program)
-  }
-
-  private fun isAttributeFieldInEvent(attributeMessage: Message, eventDescriptor: Descriptor): Boolean {
-    return eventDescriptor.fields.any {
-      it.messageType.name === attributeMessage.descriptorForType.name
-    }
-  }
-
-  /**
-   *  Returns a [Boolean] representing whether an attribute contains the correct field options when compared
-   *  against those in the attribute descriptor
-   * */
-  private fun isValidAttribute(attributeMessage: Message, attributeDescriptor: Descriptor): Boolean {
-    val attributeFieldOptions = attributeDescriptor.fields.associateBy { it.options }
-
-    // Checks all the field options in the attribute message against those required in the attribute descriptor.
-    // If the field option does not exist in the attribute descriptor, the attribute is not valid.
-    attributeMessage.allFields.forEach {
-      if(!attributeFieldOptions.contains(it.key.options)){
-        return false
-      }
-    }
-
-    return true
-  }
-
-  private fun createAttributeMessage(attribute: Any, attributeDescriptor: Descriptor): Message {
-    val attributeMessage = DynamicMessage.parseFrom(attributeDescriptor, attribute.toByteString()).toBuilder()
-
-    attributeDescriptor.fields.forEach {
-      attributeMessage.setField(it, attribute.unpackSameTypeAs(attributeMessage.build()).getField(it))
-    }
-
-    return attributeMessage.build()
   }
 }

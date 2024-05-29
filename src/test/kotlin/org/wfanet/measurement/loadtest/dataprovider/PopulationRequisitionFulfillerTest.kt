@@ -16,9 +16,9 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.Message
 import com.google.protobuf.Timestamp
 import com.google.protobuf.TypeRegistry
-import com.google.protobuf.any
 import com.google.protobuf.kotlin.toByteString
 import java.lang.UnsupportedOperationException
 import java.nio.file.Path
@@ -75,8 +75,8 @@ import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
+import org.wfanet.measurement.api.v2alpha.size
 import org.wfanet.measurement.api.v2alpha.unpack
-import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
@@ -167,20 +167,11 @@ private val PERSON_3 = person {
   gender = Person.Gender.FEMALE
 }
 
-val ATTRIBUTE_1 = any {
-  typeUrl = ProtoReflection.getTypeUrl(Person.getDescriptor())
-  value = PERSON_1.toByteString()
-}
+val ATTRIBUTE_1 = PERSON_1.pack()
 
-val ATTRIBUTE_2 = any {
-  typeUrl = ProtoReflection.getTypeUrl(Person.getDescriptor())
-  value = PERSON_2.toByteString()
-}
+val ATTRIBUTE_2 = PERSON_2.pack()
 
-val ATTRIBUTE_3 = any {
-  typeUrl = ProtoReflection.getTypeUrl(Person.getDescriptor())
-  value = PERSON_3.toByteString()
-}
+val ATTRIBUTE_3 = PERSON_3.pack()
 
 val VID_RANGE_1 = vidRange {
   startVid = 1
@@ -223,10 +214,13 @@ val POPULATION_ID_1 = PopulationKey.fromName(POPULATION_NAME)
 
 val TYPE_REGISTRY = TypeRegistry.newBuilder().add(Person.getDescriptor()).build()
 
+val CLASS_MAP: Map<String, Class<Message>> = mapOf(Person.getDescriptor().name to Person.getDefaultInstance().javaClass)
+
 val POPULATION_INFO_1 = PopulationInfo(
   POPULATION_SPEC_1,
   TestEvent.getDescriptor(),
-  TYPE_REGISTRY
+  TYPE_REGISTRY,
+  CLASS_MAP,
 )
 
 @RunWith(JUnit4::class)
@@ -332,7 +326,7 @@ class PopulationRequisitionFulfillerTest {
     val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
 
     // Result should be the sum of SUB_POPULATION_1 and SUB_POPULATION_3
-    assertThat(result.population.value).isEqualTo(400)
+    assertThat(result.population.value).isEqualTo(VID_RANGE_1.size() + VID_RANGE_3.size())
   }
 
   @Test
@@ -388,7 +382,7 @@ class PopulationRequisitionFulfillerTest {
     val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
 
     // Result should be the sum of SUB_POPULATION_1 and SUB_POPULATION_2
-    assertThat(result.population.value).isEqualTo(300)
+    assertThat(result.population.value).isEqualTo(VID_RANGE_1.size() + VID_RANGE_2.size())
   }
 
   @Test
@@ -443,8 +437,8 @@ class PopulationRequisitionFulfillerTest {
       )
     val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
 
-    // Result should be SUB_POPULATION_2
-    assertThat(result.population.value).isEqualTo(300)
+    // Result should be SUB_POPULATION_3
+    assertThat(result.population.value).isEqualTo(VID_RANGE_3.size())
   }
 
   companion object {
