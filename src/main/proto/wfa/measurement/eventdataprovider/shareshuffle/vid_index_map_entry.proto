@@ -23,6 +23,7 @@ option java_outer_classname = "VidIndexMapEntryProto";
 // An entry in a VidIndexMap
 //
 // This message helps support serialization of VidIndexMaps.
+// Only populations of up to about 2B are supported.
 message VidIndexMapEntry {
   // The VID
   int64 vid = 1;

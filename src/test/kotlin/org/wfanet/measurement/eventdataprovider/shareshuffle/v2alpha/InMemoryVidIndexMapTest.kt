@@ -18,6 +18,8 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import java.nio.ByteOrder
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -60,71 +62,74 @@ class InMemoryVidIndexMapTest {
   }
 
   @Test
-  fun `build throws when PopulationSpec does not contain the indexMap`() {
-    val testPopulationSpec = populationSpec {
-      subpopulations += subPopulation {
-        vidRanges += vidRange {
-          startVid = 1
-          endVidInclusive = 1
-        }
-      }
-    }
-    assertFailsWith<InconsistentIndexMapAndPopulationSpecException>("Expected exception") {
-      InMemoryVidIndexMap.build(
-        testPopulationSpec,
-        sequenceOf(
-          vidIndexMapEntry {
-            vid = 1L
-            index = 3
-          },
-          vidIndexMapEntry {
-            vid = 2L
-            index = 6
-          },
-        ),
-      )
-    }
-  }
-
-  @Test
-  fun `build throws when the indexMap does not contain the PopulationSpec`() {
-    val testPopulationSpec = populationSpec {
-      subpopulations += subPopulation {
-        vidRanges += vidRange {
-          startVid = 1
-          endVidInclusive = 1
-        }
-      }
-    }
-    assertFailsWith<InconsistentIndexMapAndPopulationSpecException>("Expected exception") {
-      InMemoryVidIndexMap.build(testPopulationSpec, sequenceOf())
-    }
-  }
-
-  @Test
-  fun `build an InMemoryVidIndexMap with a consistent populationSpec and indexMap`() {
-    val testPopulationSpec = populationSpec {
-      subpopulations += subPopulation {
-        vidRanges += vidRange {
-          startVid = 1
-          endVidInclusive = 1
-        }
-      }
-    }
-    val vidIndexMap =
-      InMemoryVidIndexMap.build(
-        testPopulationSpec,
-        sequenceOf(
-          vidIndexMapEntry {
-            vid = 1L
-            index = 2
+  fun `build throws when PopulationSpec does not contain the indexMap`() =
+    runBlocking<Unit> {
+      val testPopulationSpec = populationSpec {
+        subpopulations += subPopulation {
+          vidRanges += vidRange {
+            startVid = 1
+            endVidInclusive = 1
           }
-        ),
-      )
+        }
+      }
+      assertFailsWith<InconsistentIndexMapAndPopulationSpecException>("Expected exception") {
+        InMemoryVidIndexMap.build(
+          testPopulationSpec,
+          flowOf(
+            vidIndexMapEntry {
+              vid = 1L
+              index = 3
+            },
+            vidIndexMapEntry {
+              vid = 2L
+              index = 6
+            },
+          ),
+        )
+      }
+    }
 
-    assertThat(vidIndexMap.size).isEqualTo(1)
-    assertThat(vidIndexMap.get(1L)).isEqualTo(2)
-  }
+  @Test
+  fun `build throws when the indexMap does not contain the PopulationSpec`() =
+    runBlocking<Unit> {
+      val testPopulationSpec = populationSpec {
+        subpopulations += subPopulation {
+          vidRanges += vidRange {
+            startVid = 1
+            endVidInclusive = 1
+          }
+        }
+      }
+      assertFailsWith<InconsistentIndexMapAndPopulationSpecException>("Expected exception") {
+        InMemoryVidIndexMap.build(testPopulationSpec, flowOf())
+      }
+    }
+
+  @Test
+  fun `build an InMemoryVidIndexMap with a consistent populationSpec and indexMap`() =
+    runBlocking<Unit> {
+      val testPopulationSpec = populationSpec {
+        subpopulations += subPopulation {
+          vidRanges += vidRange {
+            startVid = 1
+            endVidInclusive = 1
+          }
+        }
+      }
+      val vidIndexMap =
+        InMemoryVidIndexMap.build(
+          testPopulationSpec,
+          flowOf(
+            vidIndexMapEntry {
+              vid = 1L
+              index = 2
+            }
+          ),
+        )
+
+      assertThat(vidIndexMap.size).isEqualTo(1)
+      assertThat(vidIndexMap.get(1L)).isEqualTo(2)
+    }
 
   @Test
   fun `create a InMemoryVidIndexMap of size one`() {
