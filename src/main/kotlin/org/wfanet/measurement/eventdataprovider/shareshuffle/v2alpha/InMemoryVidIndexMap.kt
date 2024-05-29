@@ -17,6 +17,7 @@ package org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha
 import com.google.common.hash.Hashing
 import com.google.protobuf.ByteString
 import java.nio.ByteOrder
+import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator
 import org.wfanet.measurement.common.toByteString
@@ -132,9 +133,9 @@ private constructor(
      * @throws [PopulationSpecValidationException] if the [populationSpec] is invalid
      * @throws [InconsistentIndexMapAndPopulationSpecException] if the inputs are inconsistent.
      */
-    fun build(
+    suspend fun build(
       populationSpec: PopulationSpec,
-      indexMapEntries: Sequence<VidIndexMapEntry>,
+      indexMapEntries: Flow<VidIndexMapEntry>,
     ): InMemoryVidIndexMap {
       PopulationSpecValidator.validateVidRangesList(populationSpec).getOrThrow()
 
@@ -147,7 +148,7 @@ private constructor(
         }
 
       val vidsNotInPopulationSpec = mutableListOf<Long>()
-      for (vidEntry in indexMapEntries) {
+      indexMapEntries.collect { vidEntry ->
         val vid = vidEntry.vid
         indexMap[vid] = vidEntry.index
         var vidFound = false
