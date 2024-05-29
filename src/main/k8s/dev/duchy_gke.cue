@@ -54,10 +54,19 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#MillMaxHeapSize:          "1G"
-#MillReplicas:             15
-#ApiServerReplicas:        2
-#FulfillmentMaxHeapSize:   "200M"
+#MillMaxHeapSize:                 "1G"
+#MillReplicas:                    15
+#ApiServerReplicas:               2
+#FulfillmentResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "500m"
+		memory: "512Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+#FulfillmentMaxHeapSize:   "400M"
 #ControlServerMaxHeapSize: "200M"
 
 objectSets: [
@@ -149,6 +158,7 @@ duchy: #SpannerDuchy & {
 		"requisition-fulfillment-server-deployment": {
 			_container: {
 				_javaOptions: maxHeapSize: #FulfillmentMaxHeapSize
+				resources: #FulfillmentResourceRequirements
 			}
 			spec: {
 				replicas: #ApiServerReplicas
