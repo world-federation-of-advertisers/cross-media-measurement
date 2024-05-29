@@ -1,0 +1,272 @@
+// Copyright 2024 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.panelmatch.client.internal;
+
+import "google/protobuf/any.proto";
+import "google/type/date.proto";
+
+option java_package = "org.wfanet.panelmatch.client.internal";
+option java_multiple_files = true;
+
+// The representation for the Panel Matching Workflow. These are unique per
+// recurring exchange as they contain the identities of each party.
+message ExchangeWorkflow {
+  // The type of participant that executes each step.
+  enum Party {
+    // Default value used if the party is omitted.
+    PARTY_UNSPECIFIED = 0;
+    MODEL_PROVIDER = 1;
+    DATA_PROVIDER = 2;
+  }
+
+  // The type of storage used for shared storage in a workflow.
+  enum StorageType {
+    // Default value used if the storage type is omitted.
+    STORAGE_TYPE_UNSPECIFIED = 0;
+    GOOGLE_CLOUD_STORAGE = 1;
+    AMAZON_S3 = 2;
+  }
+
+  // Building blocks of the ExchangeWorkflow.
+  message Step {
+    // Identifier unique in the ExchangeWorkflow.
+    string step_id = 1;
+
+    // The party that should execute this step.
+    Party party = 2;
+
+    // Each step expects some inputs of certain names. This is a map from
+    // the step-specific name to a label for the input. The step is ready to run
+    // when, for each input label, there is a completed step with the same
+    // output label.
+    map<string, string> input_labels = 3;
+    // Map from the step-specific name to a label for the output.
+    map<string, string> output_labels = 4;
+
+    // Copies blobs from private to shared storage.
+    //
+    // The keys of input_labels and output_labels must be the same. For each
+    // input, it copies it to an output given by the value in the output_labels.
+    //
+    // For example, if input_labels maps "a" to "b" and output_labels maps "a"
+    // to "c", this would result in creating a shared blob with label "c". The
+    // only way to read "c" would be to use a `CopyFromSharedStorageStep` with
+    // input_labels and output_labels swapped.
+    message CopyToSharedStorageStep {
+      CopyOptions copy_options = 1;
+    }
+
+    // Copies blobs from shared storage to private storage. See documentation
+    // for `CopyToSharedStorageStep`.
+    message CopyFromSharedStorageStep {
+      CopyOptions copy_options = 1;
+    }
+
+    message GenerateCommutativeDeterministicKeyStep {}
+
+    message GenerateSerializedRlweKeyPairStep {
+      // This is generally an instance of private_membership.batch.Parameters.
+      google.protobuf.Any parameters = 1;
+    }
+
+    message CopyOptions {
+      enum LabelType {
+        // Default value used if the label type is omitted.
+        LABEL_TYPE_UNSPECIFIED = 0;
+
+        // Indicates the blob should be treated as an opaque blob.
+        BLOB = 1;
+
+        // Indicates the blob for a label is a "manifest" -- the blob is treated
+        // as a UTF-8 plaintext file containing a file glob referencing other
+        // files that should be copied. The referenced files should be in the
+        // same directory as the manifest blob itself -- and thus the glob
+        // should not have any protocol specified or any directory separators.
+        MANIFEST = 2;
+      }
+      LabelType label_type = 1;
+    }
+
+    // Compares the inputs to determine if they overlap sufficiently.
+    message IntersectAndValidateStep {
+      // The maximum number of items in to allow.
+      int32 max_size = 1;
+
+      // The maximum number of items allowed that do not exist in the previous
+      // day's set of items.
+      int32 maximum_new_items_allowed = 2;
+    }
+
+    // Applies deterministic, commutative encryption to the input plaintext
+    // join keys.
+    message CommutativeDeterministicEncryptStep {}
+
+    // Applies an additional layer of deterministic, commutative encryption to
+    // already encrypted join keys.
+    message CommutativeDeterministicReEncryptStep {}
+
+    // Removes a layer of deterministic, commutative encryption from a set of
+    // encrypted join keys.
+    message CommutativeDeterministicDecryptStep {}
+
+    // Represents an input to the protocol derived from some unknown process by
+    // the `party`.
+    //
+    // These steps are used as placeholders to allow parties to signal when
+    // their inputs are ready.
+    message InputStep {}
+
+    // Executes Private Membership queries.
+    message ExecutePrivateMembershipQueriesStep {
+      // This is generally an instance of private_membership.batch.Parameters.
+      google.protobuf.Any parameters = 1;
+      int32 encrypted_query_result_file_count = 2;
+      int32 shard_count = 3;
+      int32 buckets_per_shard = 4;
+      int32 max_queries_per_shard = 5;
+    }
+
+    // Builds Private Membership queries.
+    message BuildPrivateMembershipQueriesStep {
+      // This is generally an instance of private_membership.batch.Parameters.
+      google.protobuf.Any parameters = 1;
+      int32 encrypted_query_bundle_file_count = 2;
+      int32 query_id_to_ids_file_count = 3;
+      int32 shard_count = 4;
+      int32 buckets_per_shard = 5;
+      int32 queries_per_shard = 6;
+      bool add_padding_queries = 7;
+    }
+
+    // Decrypts results from Private Membership queries.
+    message DecryptPrivateMembershipQueryResultsStep {
+      // This is generally an instance of private_membership.batch.Parameters.
+      google.protobuf.Any parameters = 1;
+      int32 decrypt_event_data_set_file_count = 2;
+    }
+
+    // Generates an X509 Certificate to use. This should take no inputs and
+    // produces a single output "certificate", which should be the
+    // serialization of the `Certificate` resource.
+    message GenerateCertificateStep {}
+
+    // Preprocesses data for later use by ExecutePrivateMembershipQueriesStep
+    message PreprocessEventsStep {}
+
+    // Copies a blob from a previous exchange into this one. Requires a single
+    // output label "output".
+    //
+    // If this is the first exchange in a recurring exchange, this step is
+    // treated as an `InputStep` that awaits the existence of the indicated
+    // output blob key. For all subsequent exchanges, this step copies the blob
+    // named `previous_blob_key` from the previous exchange and writes it to
+    // the indicated output blob key.
+    message CopyFromPreviousExchangeStep {
+      string previous_blob_key = 1;
+    }
+
+    // Hashes a set of decrypted join keys
+    message GenerateLookupKeysStep {}
+
+    // Hybrid encrypts input given a public key
+    message HybridEncryptStep {}
+
+    // Hybrid decrypts input given a private key
+    message HybridDecryptStep {}
+
+    // Generates an decrypted blob from a source encrypted blob
+    message GenerateHybridEncryptionKeyPairStep {}
+
+    // Generates random bytes
+    message GenerateRandomBytesStep {
+      int32 byte_count = 1;
+    }
+
+    // Assigns JoinKey Ids
+    message AssignJoinKeyIdsStep {}
+
+    oneof step {
+      CopyFromSharedStorageStep copy_from_shared_storage_step = 5;
+      CopyToSharedStorageStep copy_to_shared_storage_step = 6;
+      IntersectAndValidateStep intersect_and_validate_step = 7;
+      CommutativeDeterministicEncryptStep
+          commutative_deterministic_encrypt_step = 8;
+      CommutativeDeterministicReEncryptStep
+          commutative_deterministic_reencrypt_step = 9;
+      CommutativeDeterministicDecryptStep
+          commutative_deterministic_decrypt_step = 10;
+      InputStep input_step = 11;
+      GenerateCommutativeDeterministicKeyStep
+          generate_commutative_deterministic_key_step = 12;
+      GenerateSerializedRlweKeyPairStep generate_serialized_rlwe_key_pair_step =
+          13;
+      ExecutePrivateMembershipQueriesStep
+          execute_private_membership_queries_step = 14;
+      BuildPrivateMembershipQueriesStep build_private_membership_queries_step =
+          15;
+      DecryptPrivateMembershipQueryResultsStep
+          decrypt_private_membership_query_results_step = 16;
+      GenerateCertificateStep generate_certificate_step = 17;
+      PreprocessEventsStep preprocess_events_step = 18;
+      CopyFromPreviousExchangeStep copy_from_previous_exchange_step = 19;
+      GenerateLookupKeysStep generate_lookup_keys_step = 20;
+      HybridEncryptStep hybrid_encrypt_step = 21;
+      HybridDecryptStep hybrid_decrypt_step = 22;
+      GenerateHybridEncryptionKeyPairStep
+          generate_hybrid_encryption_key_pair_step = 23;
+      GenerateRandomBytesStep generate_random_bytes_step = 24;
+      AssignJoinKeyIdsStep assign_join_key_ids_step = 25;
+    }
+  }
+
+  // Sequence of steps of the workflow.
+  repeated Step steps = 1;
+
+  // Identifiers for an `Exchange`.
+  message ExchangeIdentifiers {
+    // ID of the Data Provider for the recurring exchange.
+    string data_provider_id = 1;
+
+    // ID of the Model Provider for the recurring exchange.
+    string model_provider_id = 2;
+
+    // Identifies which party is managing the shared storage client.
+    Party shared_storage_owner = 3;
+
+    // Identifies what chosen storage will be used to back the underlying
+    // StorageClient for shared storage.
+    StorageType storage = 4;
+  }
+
+  // Identifiers for the `Exchange`.
+  ExchangeIdentifiers exchange_identifiers = 2;
+
+  // The date of the first Exchange.
+  google.type.Date first_exchange_date = 3;
+
+  message Schedule {
+    // Expects a valid CRON expression.
+    // See https://en.wikipedia.org/wiki/Cron#CRON_expression.
+    //
+    // Currently, only "@daily", "@weekly", "@monthly" and "@yearly" are
+    // supported.
+    string cron_expression = 1;
+  }
+
+  // How often to run the `exchange_workflow`.
+  Schedule repetition_schedule = 4;
+}
