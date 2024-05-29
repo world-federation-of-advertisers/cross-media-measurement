@@ -124,14 +124,14 @@ duchies: [
 					cs_cert_resource_name:     duchyConfig.certificateResourceName
 					duchyKeyEncryptionKeyFile: duchyConfig.duchyKeyEncryptionKeyFile
 				}
-				deployments: {
-					"honest-majority-share-shuffle-mill-daemon-deployment": {
-						_container: {
-							_javaOptions: maxHeapSize: #MillMaxHeapSize
-							resources: #MillResourceRequirements
-						}
-					}
-				}
+//				deployments: {
+//					"honest-majority-share-shuffle-mill-daemon-deployment": {
+//						_container: {
+//							_javaOptions: maxHeapSize: #MillMaxHeapSize
+//							resources: #MillResourceRequirements
+//						}
+//					}
+//				}
 			}
 		}
 		if (duchyConfig.databaseType == "postgres") {
@@ -155,12 +155,12 @@ duchies: [
 						_container: _envVars:             EnvVars
 						_updateSchemaContainer: _envVars: EnvVars
 					}
-					"honest-majority-share-shuffle-mill-daemon-deployment": {
-						_container: {
-							_javaOptions: maxHeapSize: #MillMaxHeapSize
-							resources: #MillResourceRequirements
-						}
-					}
+//					"honest-majority-share-shuffle-mill-daemon-deployment": {
+//						_container: {
+//							_javaOptions: maxHeapSize: #MillMaxHeapSize
+//							resources: #MillResourceRequirements
+//						}
+//					}
 				}
 			}
 		}
