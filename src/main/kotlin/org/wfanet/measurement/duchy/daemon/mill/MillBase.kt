@@ -526,6 +526,20 @@ abstract class MillBase(
     )
   }
 
+  /** Executes the block and records the wall clock duration. */
+  protected suspend fun <T> logWallClockDuration(
+    token: ComputationToken,
+    metricName: String,
+    histogram: LongHistogram,
+    block: suspend () -> T,
+  ): T {
+    val durationLogger = wallDurationLogger()
+
+    val result = block()
+    durationLogger.logStageDurationMetric(token, metricName, histogram)
+    return result
+  }
+
   /** Reads all input blobs and combines all the bytes together. */
   protected suspend fun readAndCombineAllInputBlobs(
     token: ComputationToken,
@@ -675,6 +689,7 @@ const val CRYPTO_LIB_CPU_DURATION = "crypto_lib_cpu_duration_ms"
 const val JNI_WALL_CLOCK_DURATION = "jni_wall_clock_duration_ms"
 const val STAGE_CPU_DURATION = "stage_cpu_duration_ms"
 const val STAGE_WALL_CLOCK_DURATION = "stage_wall_clock_duration_ms"
+const val DATA_TRANSMISSION_WALL_CLOCK_DURATION = "data_transmission_wall_clock_duration_ms"
 const val BYTES_OF_DATA_IN_RPC = "bytes_of_data_in_rpc"
 const val CURRENT_RUNTIME_MEMORY_MAXIMUM = "current_runtime_memory_maximum"
 const val CURRENT_RUNTIME_MEMORY_TOTAL = "current_runtime_memory_total"

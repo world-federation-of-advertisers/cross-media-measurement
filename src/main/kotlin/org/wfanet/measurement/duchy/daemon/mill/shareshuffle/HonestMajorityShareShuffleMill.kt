@@ -18,6 +18,7 @@ import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.api.metrics.LongHistogram
 import io.opentelemetry.api.metrics.Meter
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
@@ -46,7 +47,10 @@ import org.wfanet.measurement.common.xor
 import org.wfanet.measurement.consent.client.duchy.decryptRandomSeed
 import org.wfanet.measurement.consent.client.duchy.signEncryptionPublicKey
 import org.wfanet.measurement.consent.client.duchy.verifyRandomSeed
+import org.wfanet.measurement.duchy.daemon.mill.CRYPTO_LIB_CPU_DURATION
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
+import org.wfanet.measurement.duchy.daemon.mill.DATA_TRANSMISSION_WALL_CLOCK_DURATION
+import org.wfanet.measurement.duchy.daemon.mill.JNI_WALL_CLOCK_DURATION
 import org.wfanet.measurement.duchy.daemon.mill.MillBase
 import org.wfanet.measurement.duchy.daemon.mill.shareshuffle.crypto.HonestMajorityShareShuffleCryptor
 import org.wfanet.measurement.duchy.daemon.utils.ReachAndFrequencyResult
@@ -135,7 +139,20 @@ class HonestMajorityShareShuffleMill(
 
   private val meter: Meter = openTelemetry.getMeter(HonestMajorityShareShuffleMill::class.java.name)
 
-  // TODO(@renjiez): add metrics.
+  private val shufflePhaseCryptoCpuTimeDurationHistogram: LongHistogram =
+    meter.histogramBuilder("shuffle_phase_crypto_cpu_time_duration_millis").ofLongs().build()
+
+  private val shufflePhaseWallClockDurationHistogram: LongHistogram =
+    meter.histogramBuilder("shuffle_phase_crypto_wall_clock_duration_millis").ofLongs().build()
+
+  private val shufflePhaseTransmissionDurationHistogram: LongHistogram =
+    meter.histogramBuilder("shuffle_phase_transmission_duration_millis").ofLongs().build()
+
+  private val aggregationPhaseCryptoCpuTimeDurationHistogram: LongHistogram =
+    meter.histogramBuilder("aggregation_phase_crypto_cpu_time_duration_millis").ofLongs().build()
+
+  private val aggregationPhaseWallClockDurationHistogram: LongHistogram =
+    meter.histogramBuilder("aggregation_phase_crypto_wall_clock_duration_millis").ofLongs().build()
 
   override val endingStage = Stage.COMPLETE.toProtocolStage()
 
@@ -435,18 +452,34 @@ class HonestMajorityShareShuffleMill(
       sketchParams = hmss.parameters.sketchParams.copy { registerCount = registerCounts.first() }
     }
 
-    val result = cryptoWorker.completeShufflePhase(request)
+    val result =
+      logWallClockDuration(token, JNI_WALL_CLOCK_DURATION, shufflePhaseWallClockDurationHistogram) {
+        cryptoWorker.completeShufflePhase(request)
+      }
+
+    logStageDurationMetric(
+      token,
+      CRYPTO_LIB_CPU_DURATION,
+      result.elapsedCpuDuration.seconds * 1000,
+      shufflePhaseCryptoCpuTimeDurationHistogram,
+    )
 
     val aggregationPhaseInput = aggregationPhaseInput {
       combinedSketch += result.combinedSketchList
     }
 
-    sendAdvanceComputationRequest(
-      header =
-        advanceComputationHeader(Description.AGGREGATION_PHASE_INPUT, token.globalComputationId),
-      content = addLoggingHook(token, flowOf(aggregationPhaseInput.toByteString())),
-      stub = aggregatorStub(),
-    )
+    logWallClockDuration(
+      token,
+      DATA_TRANSMISSION_WALL_CLOCK_DURATION,
+      shufflePhaseTransmissionDurationHistogram,
+    ) {
+      sendAdvanceComputationRequest(
+        header =
+          advanceComputationHeader(Description.AGGREGATION_PHASE_INPUT, token.globalComputationId),
+        content = addLoggingHook(token, flowOf(aggregationPhaseInput.toByteString())),
+        stub = aggregatorStub(),
+      )
+    }
 
     return completeComputation(token, ComputationDetails.CompletedReason.SUCCEEDED)
   }
@@ -479,7 +512,21 @@ class HonestMajorityShareShuffleMill(
       }
     }
 
-    val result = cryptoWorker.completeAggregationPhase(request)
+    val result =
+      logWallClockDuration(
+        token,
+        JNI_WALL_CLOCK_DURATION,
+        aggregationPhaseWallClockDurationHistogram,
+      ) {
+        cryptoWorker.completeAggregationPhase(request)
+      }
+
+    logStageDurationMetric(
+      token,
+      CRYPTO_LIB_CPU_DURATION,
+      result.elapsedCpuDuration.seconds * 1000,
+      aggregationPhaseCryptoCpuTimeDurationHistogram,
+    )
 
     sendResultToKingdom(
       token,
