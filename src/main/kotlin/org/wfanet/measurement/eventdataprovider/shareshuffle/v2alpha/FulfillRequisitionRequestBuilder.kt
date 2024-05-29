@@ -20,6 +20,8 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.frequencycount.FrequencyVector
+import org.wfanet.frequencycount.SecretShare
+import org.wfanet.frequencycount.SecretShareGeneratorAdapter
 import org.wfanet.frequencycount.frequencyVector
 import org.wfanet.frequencycount.secretShareGeneratorRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
@@ -32,6 +34,7 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig.HonestMajorityShareShuf
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.encryptedMessage
+import org.wfanet.measurement.api.v2alpha.randomSeed
 import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
 import org.wfanet.measurement.common.asBufferedFlow
 
@@ -57,18 +60,24 @@ class FulfillRequisitionRequestBuilder(
 
   val protocolConfig : HonestMajorityShareShuffle
   init {
-    var requisitionAllowsHmss = false
+    var tempProtocolConfig: HonestMajorityShareShuffle? = null
     for (protocol in requisition.protocolConfig.protocolsList) {
       if (protocol.hasHonestMajorityShareShuffle()) {
-        protocolConfig = protocol.honestMajorityShareShuffle
+        if (tempProtocolConfig == null) {
+          throw RequisitionRefusalException(
+            Requisition.Refusal.Justification.SPEC_INVALID,
+            "Found multiple configs for HonestMajorityShareShuffle")
+        }
+        tempProtocolConfig = protocol.honestMajorityShareShuffle
         break
       }
     }
-    if (!requisitionAllowsHmss) {
+    if (tempProtocolConfig == null) {
       throw RequisitionRefusalException(
         Requisition.Refusal.Justification.SPEC_INVALID,
         "Expected the protocol config to allow HonestMajorityShareShuffle")
     }
+    protocolConfig = tempProtocolConfig
     //verifyProtocolConfig()
     //verifyDuchyEntries()
   }
