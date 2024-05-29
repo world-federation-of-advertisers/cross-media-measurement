@@ -48,25 +48,25 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 #MillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "3"
-		memory: "2.5Gi"
+		memory: "6Gi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#MillMaxHeapSize:                 "1G"
+#MillMaxHeapSize:                 "5G"
 #MillReplicas:                    15
 #ApiServerReplicas:               2
 #FulfillmentResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "500m"
-		memory: "512Mi"
+		memory: "2000Mi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#FulfillmentMaxHeapSize:   "400M"
+#FulfillmentMaxHeapSize:   "2000M"
 #ControlServerMaxHeapSize: "200M"
 
 objectSets: [
