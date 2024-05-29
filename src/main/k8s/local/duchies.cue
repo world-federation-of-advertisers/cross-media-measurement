@@ -24,18 +24,6 @@ _worker2_cert_name:    string @tag("worker2_cert_name")
 #KingdomPublicApiTarget: (#Target & {name: "v2alpha-public-api-server"}).target
 #SpannerEmulatorHost:    (#Target & {name: "spanner-emulator"}).target
 
-#MillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
-	requests: {
-		cpu:    "3"
-		memory: "4Gi"
-	}
-	limits: {
-		memory: ResourceRequirements.requests.memory
-	}
-}
-#MillMaxHeapSize: "3500M"
-#MillReplicas:    1
-
 #DuchyConfig: {
 	let duchyName = name
 	name:                            string
@@ -124,14 +112,6 @@ duchies: [
 					cs_cert_resource_name:     duchyConfig.certificateResourceName
 					duchyKeyEncryptionKeyFile: duchyConfig.duchyKeyEncryptionKeyFile
 				}
-//				deployments: {
-//					"honest-majority-share-shuffle-mill-daemon-deployment": {
-//						_container: {
-//							_javaOptions: maxHeapSize: #MillMaxHeapSize
-//							resources: #MillResourceRequirements
-//						}
-//					}
-//				}
 			}
 		}
 		if (duchyConfig.databaseType == "postgres") {
@@ -155,12 +135,6 @@ duchies: [
 						_container: _envVars:             EnvVars
 						_updateSchemaContainer: _envVars: EnvVars
 					}
-//					"honest-majority-share-shuffle-mill-daemon-deployment": {
-//						_container: {
-//							_javaOptions: maxHeapSize: #MillMaxHeapSize
-//							resources: #MillResourceRequirements
-//						}
-//					}
 				}
 			}
 		}
