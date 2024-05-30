@@ -26,19 +26,21 @@ import org.wfanet.measurement.internal.duchy.protocol.shareshuffle.HonestMajorit
  */
 class JniHonestMajorityShareShuffleCryptor : HonestMajorityShareShuffleCryptor {
 
-  override fun completeShufflePhase(
+  override fun completeReachAndFrequencyShufflePhase(
     request: CompleteShufflePhaseRequest
   ): CompleteShufflePhaseResponse {
     return CompleteShufflePhaseResponse.parseFrom(
-      HonestMajorityShareShuffleUtility.completeShufflePhase(request.toByteArray())
+      HonestMajorityShareShuffleUtility.completeReachAndFrequencyShufflePhase(request.toByteArray())
     )
   }
 
-  override fun completeAggregationPhase(
+  override fun completeReachAndFrequencyAggregationPhase(
     request: CompleteAggregationPhaseRequest
   ): CompleteAggregationPhaseResponse {
     return CompleteAggregationPhaseResponse.parseFrom(
-      HonestMajorityShareShuffleUtility.completeAggregationPhase(request.toByteArray())
+      HonestMajorityShareShuffleUtility.completeReachAndFrequencyAggregationPhase(
+        request.toByteArray()
+      )
     )
   }
 

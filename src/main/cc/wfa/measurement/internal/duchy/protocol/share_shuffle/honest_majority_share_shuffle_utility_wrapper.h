@@ -25,11 +25,18 @@
 // honest_majority_share_shuffle_utility methods.
 namespace wfa::measurement::internal::duchy::protocol::share_shuffle {
 
-absl::StatusOr<std::string> CompleteShufflePhase(
+absl::StatusOr<std::string> CompleteReachAndFrequencyShufflePhase(
     const std::string& serialized_request);
 
-absl::StatusOr<std::string> CompleteAggregationPhase(
+absl::StatusOr<std::string> CompleteReachOnlyShufflePhase(
     const std::string& serialized_request);
+
+absl::StatusOr<std::string> CompleteReachAndFrequencyAggregationPhase(
+    const std::string& serialized_request);
+
+absl::StatusOr<std::string> CompleteReachOnlyAggregationPhase(
+    const std::string& serialized_request);
+
 }  // namespace wfa::measurement::internal::duchy::protocol::share_shuffle
 
 #endif  // SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_SHARE_SHUFFLE_HONEST_MAJORITY_SHARE_SHUFFLE_UTILITY_WRAPPER_H_
