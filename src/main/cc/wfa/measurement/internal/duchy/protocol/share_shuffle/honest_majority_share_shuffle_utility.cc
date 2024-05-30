@@ -243,7 +243,6 @@ absl::StatusOr<CompleteShufflePhaseResponse> CompleteReachOnlyShufflePhase(
                      VectorAddMod(combined_sketch, share_vector,
                                   request.sketch_params().ring_modulus()));
   }
-
   ASSIGN_OR_RETURN(PrngSeed seed,
                    GetPrngSeedFromString(request.common_random_seed()));
   // Initializes the pseudo-random generator with the common random seed.

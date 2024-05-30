@@ -848,7 +848,7 @@ TEST(ReachOnlyShufflePhaseAtNonAggregator, ShufflePhaseWithDpNoiseSucceeds) {
   std::vector<uint32_t> combined_sketch(ret.combined_sketch().begin(),
                                         ret.combined_sketch().end());
   DifferentialPrivacyParams dp_params;
-  dp_params.set_epsilon(kEpsilon);
+  dp_params.set_epsilon(kEpsilon/10.0);
   dp_params.set_delta(kDelta);
   auto noiser = GetBlindHistogramNoiser(dp_params,
                                         /*contributors_count=*/2,
@@ -1015,7 +1015,7 @@ TEST(ReachOnlyShufflePhaseAtNonAggregator,
   }
 
   DifferentialPrivacyParams dp_params;
-  dp_params.set_epsilon(kEpsilon);
+  dp_params.set_epsilon(kEpsilon/10.0);
   dp_params.set_delta(kDelta);
   auto noiser = GetBlindHistogramNoiser(dp_params,
                                         /*contributors_count=*/2,
@@ -1371,7 +1371,7 @@ TEST(ReachOnlyAggregationPhase, AggregationPhaseWithDPNoiseSucceeds) {
                             /*ring_modulus=*/7);
   test_data.SetMaximumFrequency(2);
   // Computed offset = 2.
-  test_data.SetDifferentialPrivacyParams(10.0, 1.0);
+  test_data.SetDifferentialPrivacyParams(100.0, 1.0);
   // The combined sketch is {0, 0, 0, 0, 1, 2, 3, 4, 0, 0, 1, 1, 2, 2, 3, 3, 4,
   // 4}.
   std::vector<uint32_t> share_vector_1 = {2, 3, 2, 5, 1, 6, 2, 0, 0,
@@ -1420,12 +1420,12 @@ class EndToEndHmssTest {
 
     if (has_dp_noise) {
       DifferentialPrivacyParams reach_dp_params;
-      reach_dp_params.set_epsilon(kEpsilon / 10.0);
-      reach_dp_params.set_delta(kDelta);
+      reach_dp_params.set_epsilon(epsilon / 10.0);
+      reach_dp_params.set_delta(delta);
 
       DifferentialPrivacyParams frequency_dp_params;
-      frequency_dp_params.set_epsilon(kEpsilon);
-      frequency_dp_params.set_delta(kDelta);
+      frequency_dp_params.set_epsilon(epsilon);
+      frequency_dp_params.set_delta(delta);
 
       auto reach_noiser = GetBlindHistogramNoiser(
           reach_dp_params,
@@ -1599,8 +1599,8 @@ class EndToEndReachOnlyHmssTest {
 
     if (has_dp_noise) {
       DifferentialPrivacyParams dp_params;
-      dp_params.set_epsilon(kEpsilon);
-      dp_params.set_delta(kDelta);
+      dp_params.set_epsilon(epsilon/10.0);
+      dp_params.set_delta(delta);
       auto noiser = GetBlindHistogramNoiser(dp_params,
                                             /*contributors_count=*/2,
                                             NoiseMechanism::DISCRETE_GAUSSIAN);
