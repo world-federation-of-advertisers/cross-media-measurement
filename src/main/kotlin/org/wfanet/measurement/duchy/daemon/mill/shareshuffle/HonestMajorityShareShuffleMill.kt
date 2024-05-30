@@ -66,6 +66,7 @@ import org.wfanet.measurement.internal.duchy.config.RoleInComputation.AGGREGATOR
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation.FIRST_NON_AGGREGATOR
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation.SECOND_NON_AGGREGATOR
 import org.wfanet.measurement.internal.duchy.differentialPrivacyParams
+import org.wfanet.measurement.internal.duchy.protocol.hmssDifferentialPrivacyParams
 import org.wfanet.measurement.internal.duchy.protocol.CompleteAggregationPhaseRequestKt
 import org.wfanet.measurement.internal.duchy.protocol.CompleteShufflePhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteShufflePhaseRequestKt
@@ -395,9 +396,9 @@ class HonestMajorityShareShuffleMill(
         } else {
           CompleteShufflePhaseRequest.NonAggregatorOrder.SECOND
         }
-      dpParams = differentialPrivacyParams {
-        delta = hmss.parameters.dpParams.delta
-        epsilon = hmss.parameters.dpParams.epsilon
+      dpParams = hmssDifferentialPrivacyParams {
+        reachDpParams = hmss.parameters.reachDpParams
+        frequencyDpParams = hmss.parameters.frequencyDpParams
       }
       noiseMechanism = hmss.parameters.noiseMechanism
 
@@ -467,9 +468,9 @@ class HonestMajorityShareShuffleMill(
           vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width
         }
       }
-      dpParams = differentialPrivacyParams {
-        delta = hmss.parameters.dpParams.delta
-        epsilon = hmss.parameters.dpParams.epsilon
+      dpParams = hmssDifferentialPrivacyParams {
+        reachDpParams = hmss.parameters.reachDpParams
+        frequencyDpParams = hmss.parameters.frequencyDpParams
       }
       noiseMechanism = hmss.parameters.noiseMechanism
 

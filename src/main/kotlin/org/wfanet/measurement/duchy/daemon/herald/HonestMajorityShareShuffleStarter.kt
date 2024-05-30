@@ -168,12 +168,15 @@ object HonestMajorityShareShuffleStarter {
       if (measurementSpec.hasReachAndFrequency()) {
         maximumFrequency = measurementSpec.reachAndFrequency.maximumFrequency
         require(maximumFrequency > 1) { "Maximum frequency must be greater than 1" }
-        dpParams =
+        reachDpParams =
+          measurementSpec.reachAndFrequency.reachPrivacyParams
+            .toDuchyDifferentialPrivacyParams()
+        frequencyDpParams =
           measurementSpec.reachAndFrequency.frequencyPrivacyParams
             .toDuchyDifferentialPrivacyParams()
       } else {
         maximumFrequency = 1
-        dpParams = measurementSpec.reach.privacyParams.toDuchyDifferentialPrivacyParams()
+        reachDpParams = measurementSpec.reach.privacyParams.toDuchyDifferentialPrivacyParams()
       }
 
       sketchParams = shareShuffleSketchParams {

@@ -29,6 +29,11 @@ option java_multiple_files = true;
 // majority share shuffle protocol methods, which are to be
 // called via kotlin or JNI in the Mill.
 
+message HmssDifferentialPrivacyParams {
+  DifferentialPrivacyParams reach_dp_params = 1;
+  DifferentialPrivacyParams frequency_dp_params = 2;
+}
+
 // Request to complete shuffle phase by a non-aggregator.
 message CompleteShufflePhaseRequest {
   // The sketch params for the Computation.
@@ -49,7 +54,7 @@ message CompleteShufflePhaseRequest {
   }
   NonAggregatorOrder order = 3;
 
-  DifferentialPrivacyParams dp_params = 4;
+  HmssDifferentialPrivacyParams dp_params = 4;
 
   // Noise mechanism used for generating noise.
   NoiseMechanism noise_mechanism = 5;
@@ -100,7 +105,7 @@ message CompleteAggregationPhaseRequest {
   float vid_sampling_interval_width = 4;
 
   // Differential privacy parameters used to calculate the offset of noise.
-  DifferentialPrivacyParams dp_params = 5;
+  HmssDifferentialPrivacyParams dp_params = 5;
 
   // Noise mechanism used to calculate the offset of noise.
   NoiseMechanism noise_mechanism = 6;

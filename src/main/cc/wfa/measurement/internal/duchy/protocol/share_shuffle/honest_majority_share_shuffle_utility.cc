@@ -118,15 +118,19 @@ absl::StatusOr<CompleteShufflePhaseResponse> CompleteShufflePhase(
 
   // Adds noise registers to the combined input share.
   if (request.has_dp_params()) {
-    // Initializes the noiser, which will generate blind histogram noise to hide
-    // the actual frequency histogram counts.
-    auto noiser = GetBlindHistogramNoiser(request.dp_params(),
-                                          /*contributors_count=*/2,
-                                          request.noise_mechanism());
-
+    // Initializes the reach noiser, which will generate reach noise.
+    auto reach_noiser =
+        GetBlindHistogramNoiser(request.dp_params().reach_dp_params(),
+                                kWorkerCount, request.noise_mechanism());
+    // Initializes the frequency noiser, which will generate noise to hide the
+    // actual frequency histogram counts for frequency 1+.
+    auto frequency_noiser =
+        GetBlindHistogramNoiser(request.dp_params().frequency_dp_params(),
+                                kWorkerCount, request.noise_mechanism());
     // Generates local noise registers.
     ASSIGN_OR_RETURN(std::vector<uint32_t> noise_registers,
-                     GenerateNoiseRegisters(request.sketch_params(), *noiser));
+                     GenerateNoiseRegisters(request.sketch_params(),
+                                            *reach_noiser, *frequency_noiser));
 
     // Both workers generate common random vectors from the common random seed.
     // rand_vec_1 || rand_vec_2 <-- PRNG(seed).
@@ -195,6 +199,8 @@ absl::StatusOr<CompleteAggregationPhaseResponse> CompleteAggregationPhase(
   StartedThreadCpuTimer timer;
   CompleteAggregationPhaseResponse response;
 
+  RETURN_IF_ERROR(VerifySketchParameters(request.sketch_params()));
+
   if (request.sketch_shares().size() != kWorkerCount) {
     return absl::InvalidArgumentError(
         "The number of share vectors must be equal to the number of "
@@ -219,10 +225,8 @@ absl::StatusOr<CompleteAggregationPhaseResponse> CompleteAggregationPhase(
         x != (request.sketch_params().ring_modulus() - 1)) {
       return absl::InternalError(absl::Substitute(
           "The combined register value, which is $0, is not valid. It must be "
-          "either the "
-          "sentinel value, which is $1, or less that or equal to the combined "
-          "maximum "
-          "frequency, which is $2.",
+          "either the sentinel value, which is $1, or less that or equal to "
+          "the combined maximum frequency, which is $2.",
           x, request.sketch_params().ring_modulus() - 1,
           request.sketch_params().maximum_combined_frequency()));
     }
@@ -242,17 +246,27 @@ absl::StatusOr<CompleteAggregationPhaseResponse> CompleteAggregationPhase(
   // Adjusts the frequency histogram and non empty register count according the
   // noise baseline for the frequencies from 0 to {maximum_frequency - 1}.
   if (request.has_dp_params()) {
-    auto noiser = GetBlindHistogramNoiser(request.dp_params(), kWorkerCount,
-                                          request.noise_mechanism());
-    int64_t noise_baseline_per_bucket =
-        noiser->options().shift_offset * kWorkerCount;
+    auto reach_noiser =
+        GetBlindHistogramNoiser(request.dp_params().reach_dp_params(),
+                                kWorkerCount, request.noise_mechanism());
+    auto frequency_noiser =
+        GetBlindHistogramNoiser(request.dp_params().frequency_dp_params(),
+                                kWorkerCount, request.noise_mechanism());
+    int64_t reach_noise_baseline =
+        reach_noiser->options().shift_offset * kWorkerCount;
+    int64_t noise_baseline_per_frequency =
+        frequency_noiser->options().shift_offset * kWorkerCount;
     // Removes the noise baseline from the frequency histogram.
     for (auto it = frequency_histogram.begin(); it != frequency_histogram.end();
          it++) {
-      it->second = std::max(0L, it->second - noise_baseline_per_bucket);
+      if (it->first == 0) {
+        it->second = std::max(0L, it->second - reach_noise_baseline);
+      } else {
+        it->second = std::max(0L, it->second - noise_baseline_per_frequency);
+      }
     }
     // Adjusts the non empty register count.
-    non_empty_register_count += noise_baseline_per_bucket;
+    non_empty_register_count += reach_noise_baseline;
 
     // Ensures that non_empty_register_count is at least 0.
     non_empty_register_count = std::max(0L, non_empty_register_count);

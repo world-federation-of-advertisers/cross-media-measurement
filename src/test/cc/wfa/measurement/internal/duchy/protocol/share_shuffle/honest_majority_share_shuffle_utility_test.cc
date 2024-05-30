@@ -132,8 +132,13 @@ class ShufflePhaseTestData {
   }
 
   void SetDifferentialPrivacyParams(double eps, double delta) {
-    request_.mutable_dp_params()->set_epsilon(eps);
-    request_.mutable_dp_params()->set_delta(delta);
+    request_.mutable_dp_params()->mutable_reach_dp_params()->set_epsilon(eps /
+                                                                         10.0);
+    request_.mutable_dp_params()->mutable_reach_dp_params()->set_delta(delta);
+    request_.mutable_dp_params()->mutable_frequency_dp_params()->set_epsilon(
+        eps);
+    request_.mutable_dp_params()->mutable_frequency_dp_params()->set_delta(
+        delta);
   }
 
   void ClearDifferentialPrivacyParams() { request_.clear_dp_params(); }
@@ -378,14 +383,23 @@ TEST(ShufflePhaseAtNonAggregator, ShufflePhaseWithDpNoiseSucceeds) {
                        test_data.RunShufflePhase());
   std::vector<uint32_t> combined_sketch(ret.combined_sketch().begin(),
                                         ret.combined_sketch().end());
-  DifferentialPrivacyParams dp_params;
-  dp_params.set_epsilon(kEpsilon);
-  dp_params.set_delta(kDelta);
-  auto noiser = GetBlindHistogramNoiser(dp_params,
-                                        /*contributors_count=*/2,
-                                        NoiseMechanism::DISCRETE_GAUSSIAN);
+  DifferentialPrivacyParams reach_dp_params;
+  reach_dp_params.set_epsilon(kEpsilon / 10.0);
+  reach_dp_params.set_delta(kDelta);
+
+  DifferentialPrivacyParams frequency_dp_params;
+  frequency_dp_params.set_epsilon(kEpsilon);
+  frequency_dp_params.set_delta(kDelta);
+
+  auto reach_noiser = GetBlindHistogramNoiser(
+      reach_dp_params,
+      /*contributors_count=*/2, NoiseMechanism::DISCRETE_GAUSSIAN);
+  auto frequency_noiser = GetBlindHistogramNoiser(
+      frequency_dp_params,
+      /*contributors_count=*/2, NoiseMechanism::DISCRETE_GAUSSIAN);
   int64_t total_noise_registers_count_per_duchy =
-      noiser->options().shift_offset * 2 * (1 + kMaxCombinedFrequency);
+      reach_noiser->options().shift_offset * 2 +
+      kMaxCombinedFrequency * frequency_noiser->options().shift_offset * 2;
 
   ASSERT_THAT(
       combined_sketch,
@@ -519,14 +533,23 @@ TEST(ShufflePhaseAtNonAggregator,
     combined_input[i] = (input_a[i] + input_b[i] % kRingModulus);
   }
 
-  DifferentialPrivacyParams dp_params;
-  dp_params.set_epsilon(kEpsilon);
-  dp_params.set_delta(kDelta);
-  auto noiser = GetBlindHistogramNoiser(dp_params,
-                                        /*contributors_count=*/2,
-                                        NoiseMechanism::DISCRETE_GAUSSIAN);
+  DifferentialPrivacyParams reach_dp_params;
+  reach_dp_params.set_epsilon(kEpsilon / 10.0);
+  reach_dp_params.set_delta(kDelta);
+
+  DifferentialPrivacyParams frequency_dp_params;
+  frequency_dp_params.set_epsilon(kEpsilon);
+  frequency_dp_params.set_delta(kDelta);
+
+  auto reach_noiser = GetBlindHistogramNoiser(
+      reach_dp_params,
+      /*contributors_count=*/2, NoiseMechanism::DISCRETE_GAUSSIAN);
+  auto frequency_noiser = GetBlindHistogramNoiser(
+      frequency_dp_params,
+      /*contributors_count=*/2, NoiseMechanism::DISCRETE_GAUSSIAN);
   int64_t total_noise_registers_count_per_duchy =
-      noiser->options().shift_offset * 2 * (1 + kMaxCombinedFrequency);
+      reach_noiser->options().shift_offset * 2 +
+      kMaxCombinedFrequency * frequency_noiser->options().shift_offset * 2;
 
   ASSERT_THAT(
       combined_sketch,
@@ -543,13 +566,18 @@ TEST(ShufflePhaseAtNonAggregator,
     noisy_frequency[x]++;
   }
 
-  int total_noise_added = 2 * total_noise_registers_count_per_duchy;
+  int total_reach_noise_per_duchy = reach_noiser->options().shift_offset * 2;
+  int total_frequency_noise_per_bucket_per_duchy =
+      frequency_noiser->options().shift_offset * 2;
 
   // Verifies that all noises are within the bound.
-  for (int i = 0; i <= kMaxCombinedFrequency; i++) {
+  EXPECT_LE(combined_input_frequency[0], noisy_frequency[0]);
+  EXPECT_LE(noisy_frequency[0] - combined_input_frequency[0],
+            2 * total_reach_noise_per_duchy);
+  for (int i = 1; i <= kMaxCombinedFrequency; i++) {
     EXPECT_LE(combined_input_frequency[i], noisy_frequency[i]);
     EXPECT_LE(noisy_frequency[i] - combined_input_frequency[i],
-              total_noise_added);
+              2 * total_frequency_noise_per_bucket_per_duchy);
   }
 
   // The noisy frequency map [f_0, ..., f_{kMaxCombinedFrequency},
@@ -591,8 +619,13 @@ class AggregationPhaseTestData {
   void ClearDifferentialPrivacyParams() { request_.clear_dp_params(); }
 
   void SetDifferentialPrivacyParams(double eps, double delta) {
-    request_.mutable_dp_params()->set_epsilon(eps);
-    request_.mutable_dp_params()->set_delta(delta);
+    request_.mutable_dp_params()->mutable_reach_dp_params()->set_epsilon(eps /
+                                                                         10.0);
+    request_.mutable_dp_params()->mutable_reach_dp_params()->set_delta(delta);
+    request_.mutable_dp_params()->mutable_frequency_dp_params()->set_epsilon(
+        eps);
+    request_.mutable_dp_params()->mutable_frequency_dp_params()->set_delta(
+        delta);
   }
 
   void AddShareToSketchShares(absl::Span<const uint32_t> data) {
@@ -711,10 +744,10 @@ TEST(AggregationPhase, AggregationPhaseWithDPNoiseSucceeds) {
                             /*max_combined_frequency=*/4,
                             /*ring_modulus=*/8);
   test_data.SetMaximumFrequency(2);
-  // Computed offset = 2.
+  // Frequency offset = 2 and reach offset = 6.
   test_data.SetDifferentialPrivacyParams(10.0, 1.0);
   // The combined sketch is {0, 0, 0, 0, 1, 2, 3, 4, 0, 0, 1, 1, 2, 2, 3, 3, 4,
-  // 4}. The frequency histogram after removing offset is {f[0] = 4,
+  // 4}. The frequency histogram after removing offset is {f[0] = 0,
   // f[1] = f[2] = f[3] = f[4] = 1}.
   std::vector<uint32_t> share_vector_1 = {3, 4, 3, 6, 1, 7, 4, 2, 0,
                                           0, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -726,11 +759,11 @@ TEST(AggregationPhase, AggregationPhaseWithDPNoiseSucceeds) {
 
   ASSERT_OK_AND_ASSIGN(MpcResult result, test_data.RunAggregationPhase());
   ASSERT_OK_AND_ASSIGN(int64_t expected_reach,
-                       EstimateReach(4.0, kVidSamplingIntervalWidth));
+                       EstimateReach(8.0, kVidSamplingIntervalWidth));
   EXPECT_EQ(result.reach, expected_reach);
   ASSERT_THAT(result.frequency_distribution, SizeIs(2));
-  EXPECT_EQ(result.frequency_distribution[1], 0.25);
-  EXPECT_EQ(result.frequency_distribution[2], 0.75);
+  EXPECT_EQ(result.frequency_distribution[1], 0.125);
+  EXPECT_EQ(result.frequency_distribution[2], 0.875);
 }
 
 TEST(AggregationPhase, AggregationPhaseNoDataNorEffectiveNoiseFails) {
@@ -740,12 +773,14 @@ TEST(AggregationPhase, AggregationPhaseNoDataNorEffectiveNoiseFails) {
                             /*max_combined_frequency=*/4,
                             /*ring_modulus=*/8);
   test_data.SetMaximumFrequency(2);
-  // Computed offset = 2.
+  // Frequency offset = 2 and reach offset = 6.
   test_data.SetDifferentialPrivacyParams(10.0, 1.0);
-  // The combined sketch is {0, 0, 0, 0, 0, 0, 2, 2, 2}. The frequency histogram
-  // after removing offset is {f[0] = 4, f[2] = 1}.
-  std::vector<uint32_t> share_vector_1 = {0, 3, 4, 3, 6, 1, 7, 4, 3};
-  std::vector<uint32_t> share_vector_2 = {0, 5, 4, 5, 2, 7, 3, 6, 7};
+  // The combined sketch is {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2}. The
+  // frequency histogram after removing offset is {f[0] = 4, f[2] = 1}.
+  std::vector<uint32_t> share_vector_1 = {1, 2, 3, 4, 0, 3, 4,
+                                          3, 6, 1, 7, 4, 3};
+  std::vector<uint32_t> share_vector_2 = {7, 6, 5, 4, 0, 5, 4,
+                                          5, 2, 7, 3, 6, 7};
 
   test_data.AddShareToSketchShares(share_vector_1);
   test_data.AddShareToSketchShares(share_vector_2);
@@ -780,19 +815,33 @@ class EndToEndHmssTest {
     SecretShareParameter secret_share_params;
     secret_share_params.set_modulus(ring_modulus);
 
-    int64_t shift_offset = 0;
+    int64_t reach_shift_offset = 0;
+    int64_t frequency_shift_offset = 0;
     int64_t total_noise_registers_count_per_duchy = 0;
 
     if (has_dp_noise) {
-      DifferentialPrivacyParams dp_params;
-      dp_params.set_epsilon(kEpsilon);
-      dp_params.set_delta(kDelta);
-      auto noiser = GetBlindHistogramNoiser(dp_params,
-                                            /*contributors_count=*/2,
-                                            NoiseMechanism::DISCRETE_GAUSSIAN);
-      shift_offset = noiser->options().shift_offset;
+      DifferentialPrivacyParams reach_dp_params;
+      reach_dp_params.set_epsilon(kEpsilon / 10.0);
+      reach_dp_params.set_delta(kDelta);
+
+      DifferentialPrivacyParams frequency_dp_params;
+      frequency_dp_params.set_epsilon(kEpsilon);
+      frequency_dp_params.set_delta(kDelta);
+
+      auto reach_noiser = GetBlindHistogramNoiser(
+          reach_dp_params,
+          /*contributors_count=*/2, NoiseMechanism::DISCRETE_GAUSSIAN);
+      auto frequency_noiser = GetBlindHistogramNoiser(
+          frequency_dp_params,
+          /*contributors_count=*/2, NoiseMechanism::DISCRETE_GAUSSIAN);
+
+      reach_shift_offset = reach_noiser->options().shift_offset;
+      frequency_shift_offset = frequency_noiser->options().shift_offset;
+
       total_noise_registers_count_per_duchy =
-          noiser->options().shift_offset * 2 * (1 + maximum_combined_frequency);
+          reach_noiser->options().shift_offset * 2 +
+          frequency_noiser->options().shift_offset * 2 *
+              maximum_combined_frequency;
     } else {
       worker_1.ClearDifferentialPrivacyParams();
       worker_2.ClearDifferentialPrivacyParams();
@@ -869,23 +918,25 @@ class EndToEndHmssTest {
                                    kVidSamplingIntervalWidth));
 
     // When there is no differential noise, the shift offset is 0.
-    int64_t max_reach_error = 2 * shift_offset / kVidSamplingIntervalWidth;
+    int64_t max_reach_error =
+        2 * reach_shift_offset / kVidSamplingIntervalWidth;
 
     ASSIGN_OR_RETURN(MpcResult result, aggregator.RunAggregationPhase());
 
     EXPECT_LE(std::abs(expected_reach - result.reach), max_reach_error);
 
+    int min_reach = std::max(
+        1L, register_count - frequency_histogram[0] - 2 * reach_shift_offset);
+    int max_reach =
+        register_count - frequency_histogram[0] + 2 * reach_shift_offset;
+
     for (int i = 1; i < kMaxFrequencyPerEdp; i++) {
       if (frequency_histogram.count(i)) {
-        int min_reach = std::max(
-            1L, register_count - frequency_histogram[0] - 2 * shift_offset);
-        int max_reach =
-            register_count - frequency_histogram[0] + 2 * shift_offset;
         double upper_bound =
-            0.00001 + (frequency_histogram[i] + 2 * shift_offset) /
+            0.00001 + (frequency_histogram[i] + 2 * frequency_shift_offset) /
                           static_cast<double>(min_reach);
         double lower_bound =
-            -0.00001 + (frequency_histogram[i] - 2 * shift_offset) /
+            -0.00001 + (frequency_histogram[i] - 2 * frequency_shift_offset) /
                            static_cast<double>(max_reach);
         EXPECT_LE(result.frequency_distribution[i], upper_bound);
         EXPECT_GE(result.frequency_distribution[i], lower_bound);

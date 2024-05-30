@@ -46,7 +46,8 @@ using ::wfa::math::UniformPseudorandomGenerator;
 
 absl::StatusOr<std::vector<uint32_t>> GenerateNoiseRegisters(
     const ShareShuffleSketchParams& sketch_param,
-    const math::DistributedNoiser& distributed_noiser) {
+    const math::DistributedNoiser& distributed_reach_noiser,
+    const math::DistributedNoiser& distributed_frequency_noiser) {
   if (sketch_param.ring_modulus() <=
       sketch_param.maximum_combined_frequency() + 1) {
     return absl::InvalidArgumentError(
@@ -54,16 +55,26 @@ absl::StatusOr<std::vector<uint32_t>> GenerateNoiseRegisters(
   }
 
   int64_t total_noise_registers_count =
-      distributed_noiser.options().shift_offset * 2 *
-      (1 + sketch_param.maximum_combined_frequency());
+      distributed_reach_noiser.options().shift_offset * 2 +
+      distributed_frequency_noiser.options().shift_offset * 2 *
+          sketch_param.maximum_combined_frequency();
   // Sets all noise registers to the sentinel value (q-1).
   std::vector<uint32_t> noise_registers(total_noise_registers_count,
                                         sketch_param.ring_modulus() - 1);
 
   int current_index = 0;
-  for (int k = 0; k <= sketch_param.maximum_combined_frequency(); k++) {
+  // Sample noise registers for reach.
+  ASSIGN_OR_RETURN(int64_t noise_register_count_for_bucket_0,
+                   distributed_reach_noiser.GenerateNoiseComponent());
+  for (int i = 0; i < noise_register_count_for_bucket_0; i++) {
+    noise_registers[current_index] = 0;
+    current_index++;
+  }
+
+  // Sample noise registers for 1+ frequency.
+  for (int k = 1; k <= sketch_param.maximum_combined_frequency(); k++) {
     ASSIGN_OR_RETURN(int64_t noise_register_count_for_bucket_k,
-                     distributed_noiser.GenerateNoiseComponent());
+                     distributed_frequency_noiser.GenerateNoiseComponent());
     for (int i = 0; i < noise_register_count_for_bucket_k; i++) {
       noise_registers[current_index] = k;
       current_index++;
