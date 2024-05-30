@@ -16,9 +16,6 @@
 
 package org.wfanet.measurement.measurementconsumer.stats
 
-import kotlin.math.max
-import kotlin.math.min
-
 /** Functions to compute different covariances. */
 object Covariances {
   /**
@@ -185,23 +182,48 @@ object Covariances {
     )
   }
 
-  /** Computes the width of the union of two sampling intervals. */
+  /** Returns a list of non-wrapping interval represented by pairs of <start, end> */
+  private fun VidSamplingInterval.toNonWrappingIntervals(): List<Pair<Double, Double>> {
+    val start = this.start
+    val end = this.start + this.width
+
+    return if (end > 1.0) {
+      listOf(Pair(0.0, start), Pair(end, 1.0))
+    } else {
+      listOf(Pair(start, end))
+    }
+  }
+
+  /** Computes the width of the union of two sampling intervals which could wrap around 1. */
   private fun computeUnionSamplingWidth(
     vidSamplingInterval: VidSamplingInterval,
     otherVidSamplingInterval: VidSamplingInterval,
   ): Double {
-    return max(
-      vidSamplingInterval.start + vidSamplingInterval.width,
-      otherVidSamplingInterval.start + otherVidSamplingInterval.width,
-    ) -
-      min(vidSamplingInterval.start, otherVidSamplingInterval.start) -
-      max(
-        0.0,
-        otherVidSamplingInterval.start - vidSamplingInterval.start - vidSamplingInterval.width,
-      ) -
-      max(
-        0.0,
-        vidSamplingInterval.start - otherVidSamplingInterval.start - otherVidSamplingInterval.width,
-      )
+    val intervals = mutableListOf<Pair<Double, Double>>()
+
+    intervals += vidSamplingInterval.toNonWrappingIntervals()
+    intervals += otherVidSamplingInterval.toNonWrappingIntervals()
+
+    intervals.sortWith(compareBy { it.first })
+
+    var currentStart = intervals[0].first
+    var currentEnd = intervals[0].second
+    var totalWidth = 0.0
+
+    for (i in 1 until intervals.size) {
+      val interval = intervals[i]
+      if (interval.first <= currentEnd) {
+        // Overlap
+        currentEnd = maxOf(currentEnd, interval.second)
+      } else {
+        // No overlap
+        totalWidth += currentEnd - currentStart
+        currentStart = interval.first
+        currentEnd = interval.second
+      }
+    }
+    totalWidth += currentEnd - currentStart
+
+    return totalWidth
   }
 }
