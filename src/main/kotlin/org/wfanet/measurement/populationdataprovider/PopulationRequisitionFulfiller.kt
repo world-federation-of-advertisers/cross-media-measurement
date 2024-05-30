@@ -248,11 +248,12 @@ class PopulationRequisitionFulfiller(
 
     // Event message that will be passed to CEL program
     val eventMessage = DynamicMessage.newBuilder(eventDescriptor)
-
     // Populate event message that will be used in the program if attribute is valid
     attributeList.forEach {attribute ->
       val attributeDescriptor = typeRegistry.getDescriptorForTypeUrl(attribute.typeUrl)
-
+      val requiredAttributes = attributeDescriptor.fields.filter {
+        it.options.getExtension(EventAnnotationsProto.templateField).populationAttribute
+      }
       // Unpack the attribute message using the class specified by the attribute descriptor.
       val attributeMessage = attribute.unpack(classMap[attributeDescriptor.name])
 
@@ -261,15 +262,14 @@ class PopulationRequisitionFulfiller(
         it.messageType.name === attributeMessage.descriptorForType.name
       }
       require(isAttributeFieldInEvent) {
-        throw InvalidSpecException("Subpopulation attribute is not a field in the Event Descriptor")
+        throw InvalidSpecException("Subpopulation attribute is not a field in the event descriptor.")
       }
 
-      // If the population_attribute option in the attribute message is set to true, we do not allow the value to be unspecified(enum value 0)
-      val isValidAttribute = attributeMessage.allFields.all {
-        !(it.key.options.getExtension(EventAnnotationsProto.templateField).populationAttribute && it.key.enumType.values.indexOf(it.value) == 0)
-      }
+
+      // If the population_attribute option in the attribute message is set to true, we do not allow the value to be unspecified.
+      val isValidAttribute = attributeMessage.allFields.keys.containsAll(requiredAttributes)
       require(isValidAttribute){
-        throw InvalidSpecException("Invalid Subpopulation Attribute")
+        throw InvalidSpecException("Subpopulation population attribute cannot be unspecified.")
       }
 
       // Find corresponding field descriptor for this attribute.

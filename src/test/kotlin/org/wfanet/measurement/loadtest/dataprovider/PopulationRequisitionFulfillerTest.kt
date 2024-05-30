@@ -26,6 +26,7 @@ import java.nio.file.Paths
 import java.security.cert.X509Certificate
 import java.time.Instant
 import kotlin.random.Random
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -61,6 +62,7 @@ import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Dummy
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
@@ -127,44 +129,63 @@ private val MEASUREMENT_CONSUMER_CERTIFICATE = certificate {
   x509Der = MEASUREMENT_CONSUMER_CERTIFICATE_DER
 }
 
-private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
+private val CREATE_TIME_1: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
+private val CREATE_TIME_2: Timestamp = Instant.ofEpochSecond(456).toProtoTime()
+
 
 private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
-private const val POPULATION_NAME = "$DATA_PROVIDER_NAME/populations/AAAAAAAAAHs"
+private const val POPULATION_NAME_1 = "$DATA_PROVIDER_NAME/populations/AAAAAAAAAHs"
+private const val POPULATION_NAME_2 = "$DATA_PROVIDER_NAME/populations/AAAAAAAAAJs"
 
 private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
 private const val MODEL_SUITE_NAME = "$MODEL_PROVIDER_NAME/modelSuites/AAAAAAAAAHs"
-private const val MODEL_RELEASE_NAME = "$MODEL_SUITE_NAME/modelReleases/AAAAAAAAAHs"
-
+private const val MODEL_RELEASE_NAME_1 = "$MODEL_SUITE_NAME/modelReleases/AAAAAAAAAHs"
+private const val MODEL_RELEASE_NAME_2 = "$MODEL_SUITE_NAME/modelReleases/AAAAAAAAAJs"
 
 private const val MODEL_LINE_NAME = "${MODEL_SUITE_NAME}/modelLines/AAAAAAAAAHs"
 private const val MODEL_ROLLOUT_NAME = "${MODEL_LINE_NAME}/modelRollouts/AAAAAAAAAHs"
 
 private val MODEL_RELEASE_1 = modelRelease {
-  name = MODEL_RELEASE_NAME
-  createTime = CREATE_TIME
-  population = POPULATION_NAME
+  name = MODEL_RELEASE_NAME_1
+  createTime = CREATE_TIME_1
+  population = POPULATION_NAME_1
 }
+
+private val MODEL_RELEASE_2 = modelRelease {
+  name = MODEL_RELEASE_NAME_2
+  createTime = CREATE_TIME_2
+  population = POPULATION_NAME_2
+}
+
 
 private val MODEL_ROLLOUT = modelRollout {
   name = MODEL_ROLLOUT_NAME
-  modelRelease = MODEL_RELEASE_NAME
+  modelRelease = MODEL_RELEASE_NAME_1
 }
 
 
 private val PERSON_1 = person {
   ageGroup = Person.AgeGroup.YEARS_18_TO_34
   gender = Person.Gender.MALE
+  socialGradeGroup = Person.SocialGradeGroup.A_B_C1
 }
 
 private val PERSON_2 = person {
   ageGroup = Person.AgeGroup.YEARS_35_TO_54
   gender = Person.Gender.MALE
+  socialGradeGroup = Person.SocialGradeGroup.A_B_C1
 }
 
 private val PERSON_3 = person {
   ageGroup = Person.AgeGroup.YEARS_18_TO_34
   gender = Person.Gender.FEMALE
+  socialGradeGroup = Person.SocialGradeGroup.A_B_C1
+}
+
+private val INVALID_PERSON = person {
+  gender = Person.Gender.FEMALE
+  ageGroup = Person.AgeGroup.AGE_GROUP_UNSPECIFIED
+  socialGradeGroup = Person.SocialGradeGroup.A_B_C1
 }
 
 val ATTRIBUTE_1 = PERSON_1.pack()
@@ -172,6 +193,12 @@ val ATTRIBUTE_1 = PERSON_1.pack()
 val ATTRIBUTE_2 = PERSON_2.pack()
 
 val ATTRIBUTE_3 = PERSON_3.pack()
+
+val INVALID_ATTRIBUTE_1 = Dummy.getDefaultInstance().pack()
+
+val INVALID_ATTRIBUTE_2 = INVALID_PERSON.pack()
+
+
 
 val VID_RANGE_1 = vidRange {
   startVid = 1
@@ -207,14 +234,37 @@ val SUB_POPULATION_3 = subPopulation {
 }
 
 val POPULATION_SPEC_1 = populationSpec {
-  subpopulations += listOf(SUB_POPULATION_1, SUB_POPULATION_2, SUB_POPULATION_3)
+  subpopulations += listOf(SUB_POPULATION_1, SUB_POPULATION_2)
 }
 
-val POPULATION_ID_1 = PopulationKey.fromName(POPULATION_NAME)
+val POPULATION_SPEC_2 = populationSpec {
+  subpopulations += listOf(SUB_POPULATION_3)
+}
 
-val TYPE_REGISTRY = TypeRegistry.newBuilder().add(Person.getDescriptor()).build()
+val INVALID_POPULATION_SPEC_1 = populationSpec {
+  subpopulations += listOf(
+    subPopulation {
+      attributes += listOf(INVALID_ATTRIBUTE_1)
+      vidRanges += listOf(VID_RANGE_1)
+    }
+  )
+}
 
-val CLASS_MAP: Map<String, Class<Message>> = mapOf(Person.getDescriptor().name to Person.getDefaultInstance().javaClass)
+val INVALID_POPULATION_SPEC_2 = populationSpec {
+  subpopulations += listOf(
+    subPopulation {
+      attributes += listOf(INVALID_ATTRIBUTE_2)
+      vidRanges += listOf(VID_RANGE_1)
+    }
+  )
+}
+
+val POPULATION_ID_1 = requireNotNull(PopulationKey.fromName(POPULATION_NAME_1))
+val POPULATION_ID_2 = requireNotNull(PopulationKey.fromName(POPULATION_NAME_2))
+
+val TYPE_REGISTRY = TypeRegistry.newBuilder().add(Person.getDescriptor()).add(Dummy.getDescriptor()).build()
+
+val CLASS_MAP: Map<String, Class<Message>> = mapOf(Person.getDescriptor().name to Person.getDefaultInstance().javaClass, Dummy.getDescriptor().name to Dummy.getDefaultInstance().javaClass)
 
 val POPULATION_INFO_1 = PopulationInfo(
   POPULATION_SPEC_1,
@@ -222,6 +272,34 @@ val POPULATION_INFO_1 = PopulationInfo(
   TYPE_REGISTRY,
   CLASS_MAP,
 )
+
+val POPULATION_INFO_2 = PopulationInfo(
+  POPULATION_SPEC_2,
+  TestEvent.getDescriptor(),
+  TYPE_REGISTRY,
+  CLASS_MAP,
+)
+
+val INVALID_POPULATION_INFO_1 = PopulationInfo(
+  INVALID_POPULATION_SPEC_1,
+  TestEvent.getDescriptor(),
+  TYPE_REGISTRY,
+  CLASS_MAP,
+)
+
+val INVALID_POPULATION_INFO_2 = PopulationInfo(
+  INVALID_POPULATION_SPEC_2,
+  TestEvent.getDescriptor(),
+  TYPE_REGISTRY,
+  CLASS_MAP,
+)
+
+
+val POPULATION_INFO_MAP =
+  mapOf<PopulationKey, PopulationInfo>(
+    POPULATION_ID_1 to POPULATION_INFO_1,
+    POPULATION_ID_2 to POPULATION_INFO_2,
+  )
 
 @RunWith(JUnit4::class)
 class PopulationRequisitionFulfillerTest {
@@ -296,12 +374,6 @@ class PopulationRequisitionFulfillerTest {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += REQUISITION })
     }
-    require(POPULATION_ID_1 != null)
-
-    val POPULATION_SPEC_MAP =
-      mapOf<PopulationKey, PopulationInfo>(
-        POPULATION_ID_1 to POPULATION_INFO_1,
-      )
 
     val simulator =
       PopulationRequisitionFulfiller(
@@ -313,7 +385,7 @@ class PopulationRequisitionFulfillerTest {
         MC_NAME,
         modelRolloutsStub,
         modelReleasesStub,
-        POPULATION_SPEC_MAP
+        POPULATION_INFO_MAP
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -326,7 +398,7 @@ class PopulationRequisitionFulfillerTest {
     val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
 
     // Result should be the sum of SUB_POPULATION_1 and SUB_POPULATION_3
-    assertThat(result.population.value).isEqualTo(VID_RANGE_1.size() + VID_RANGE_3.size())
+    assertThat(result.population.value).isEqualTo(VID_RANGE_1.size())
   }
 
   @Test
@@ -352,13 +424,6 @@ class PopulationRequisitionFulfillerTest {
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
 
-    require(POPULATION_ID_1 != null)
-
-    val POPULATION_SPEC_MAP =
-      mapOf<PopulationKey, PopulationInfo>(
-        POPULATION_ID_1 to POPULATION_INFO_1,
-      )
-
     val simulator =
       PopulationRequisitionFulfiller(
         PDP_DATA,
@@ -369,7 +434,7 @@ class PopulationRequisitionFulfillerTest {
         MC_NAME,
         modelRolloutsStub,
         modelReleasesStub,
-        POPULATION_SPEC_MAP
+        POPULATION_INFO_MAP
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -386,7 +451,11 @@ class PopulationRequisitionFulfillerTest {
   }
 
   @Test
-  fun `gets correct population of all females`() {
+  fun `gets correct population of all females with different ModelRelease`() {
+    modelReleasesServiceStub.stub {
+      onBlocking { getModelRelease(any()) }.thenReturn(MODEL_RELEASE_2)
+    }
+
     val requisitionSpec =
       REQUISITION_SPEC.copy {
         population =
@@ -408,13 +477,6 @@ class PopulationRequisitionFulfillerTest {
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
 
-    require(POPULATION_ID_1 != null)
-
-    val POPULATION_SPEC_MAP =
-      mapOf<PopulationKey, PopulationInfo>(
-        POPULATION_ID_1 to POPULATION_INFO_1,
-      )
-
     val simulator =
       PopulationRequisitionFulfiller(
         PDP_DATA,
@@ -425,7 +487,7 @@ class PopulationRequisitionFulfillerTest {
         MC_NAME,
         modelRolloutsStub,
         modelReleasesStub,
-        POPULATION_SPEC_MAP
+        POPULATION_INFO_MAP
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -439,6 +501,164 @@ class PopulationRequisitionFulfillerTest {
 
     // Result should be SUB_POPULATION_3
     assertThat(result.population.value).isEqualTo(VID_RANGE_3.size())
+  }
+
+  @Test
+  fun `throws error when attribute is not part of event descriptor`() {
+    val requisitionSpec =
+      REQUISITION_SPEC.copy {
+        population =
+          RequisitionSpecKt.population {
+            filter = eventFilter { expression = "person.gender == ${Person.Gender.FEMALE_VALUE}" }
+          }
+      }
+
+    val encryptedRequisitionSpec =
+      encryptRequisitionSpec(
+        signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
+        DATA_PROVIDER_PUBLIC_KEY,
+      )
+
+    val requisition = REQUISITION.copy { this.encryptedRequisitionSpec = encryptedRequisitionSpec }
+
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
+
+    val INVALID_POPULATION_INFO_MAP =
+      mapOf(
+        POPULATION_ID_1 to INVALID_POPULATION_INFO_1,
+      )
+
+    val simulator =
+      PopulationRequisitionFulfiller(
+        PDP_DATA,
+        certificatesStub,
+        requisitionsStub,
+        dummyThrottler,
+        TRUSTED_CERTIFICATES,
+        MC_NAME,
+        modelRolloutsStub,
+        modelReleasesStub,
+        INVALID_POPULATION_INFO_MAP
+      )
+
+    val exception =
+      assertFailsWith<Exception> {
+        runBlocking {
+          simulator.executeRequisitionFulfillingWorkflow()
+        }
+      }
+
+    // Result should throw InvalidSpecException
+    assertThat(exception).hasMessageThat().contains("Subpopulation attribute is not a field in the event descriptor.")
+
+  }
+
+  @Test
+  fun `throws error when population attribute is unspecified`() {
+    val requisitionSpec =
+      REQUISITION_SPEC.copy {
+        population =
+          RequisitionSpecKt.population {
+            filter = eventFilter { expression = "person.gender == ${Person.Gender.FEMALE_VALUE}" }
+          }
+      }
+
+    val encryptedRequisitionSpec =
+      encryptRequisitionSpec(
+        signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
+        DATA_PROVIDER_PUBLIC_KEY,
+      )
+
+    val requisition = REQUISITION.copy { this.encryptedRequisitionSpec = encryptedRequisitionSpec }
+
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
+
+    val INVALID_POPULATION_INFO_MAP =
+      mapOf(
+        POPULATION_ID_1 to INVALID_POPULATION_INFO_2,
+      )
+
+    val simulator =
+      PopulationRequisitionFulfiller(
+        PDP_DATA,
+        certificatesStub,
+        requisitionsStub,
+        dummyThrottler,
+        TRUSTED_CERTIFICATES,
+        MC_NAME,
+        modelRolloutsStub,
+        modelReleasesStub,
+        INVALID_POPULATION_INFO_MAP
+      )
+
+    val exception =
+      assertFailsWith<Exception> {
+        runBlocking {
+          simulator.executeRequisitionFulfillingWorkflow()
+        }
+      }
+
+    // Result should throw InvalidSpecException
+    assertThat(exception).hasMessageThat().contains("Subpopulation population attribute cannot be unspecified.")
+  }
+
+  @Test
+  fun `throws error when ModelRelease population id is not found in PopulationInfoMap`() {
+    val requisitionSpec =
+      REQUISITION_SPEC.copy {
+        population =
+          RequisitionSpecKt.population {
+            filter = eventFilter { expression = "person.gender == ${Person.Gender.FEMALE_VALUE}" }
+          }
+      }
+
+    val encryptedRequisitionSpec =
+      encryptRequisitionSpec(
+        signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
+        DATA_PROVIDER_PUBLIC_KEY,
+      )
+
+    val requisition = REQUISITION.copy { this.encryptedRequisitionSpec = encryptedRequisitionSpec }
+
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
+
+    val INVALID_POPULATION_ID = PopulationKey.defaultValue
+    val INVALID_POPULATION_INFO_MAP =
+      mapOf(
+        INVALID_POPULATION_ID to POPULATION_INFO_2,
+      )
+
+    val simulator =
+      PopulationRequisitionFulfiller(
+        PDP_DATA,
+        certificatesStub,
+        requisitionsStub,
+        dummyThrottler,
+        TRUSTED_CERTIFICATES,
+        MC_NAME,
+        modelRolloutsStub,
+        modelReleasesStub,
+        INVALID_POPULATION_INFO_MAP
+      )
+
+    val exception =
+      assertFailsWith<NoSuchElementException> {
+        runBlocking {
+          simulator.executeRequisitionFulfillingWorkflow()
+        }
+      }
+
+    // Result should throw NoSuchElementException
+    assertThat(exception).hasMessageThat().contains("Key $POPULATION_ID_1 is missing in the map.")
   }
 
   companion object {
