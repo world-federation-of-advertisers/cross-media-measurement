@@ -164,6 +164,7 @@ abstract class MillBase(
           token,
           "Failing computation due to too many failed ComputationStageAttempts.",
         )
+        return
       }
 
       val wallDurationLogger = wallDurationLogger()
@@ -585,6 +586,9 @@ abstract class MillBase(
 
   /** Enqueue a computation with a delay. */
   private suspend fun enqueueComputation(token: ComputationToken) {
+    require(token.computationStage != endingStage) {
+      "Computation with ending stage cannot be enqueued."
+    }
     // Exponential backoff
     val baseDelay = minOf(600.0, (2.0.pow(token.attempt))).toInt()
     // A random delay in the range of [baseDelay, 2*baseDelay]

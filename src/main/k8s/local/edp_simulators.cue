@@ -41,10 +41,10 @@ _worker2Id: "worker2"
 objectSets: [ for simulator in edpSimulators {[simulator.deployment]}] +
 	[ for simulator in edpSimulators {simulator.networkPolicies}]
 
-_populationSpec: "/etc/\(#AppName)/config-files/synthetic_population_spec.textproto"
+_populationSpec: "/etc/\(#AppName)/config-files/synthetic_population_spec_small.textproto"
 _eventGroupSpecs: [
-	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_1.textproto",
-	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_2.textproto",
+	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_small_1.textproto",
+	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_small_2.textproto",
 ]
 
 #EdpConfig: {

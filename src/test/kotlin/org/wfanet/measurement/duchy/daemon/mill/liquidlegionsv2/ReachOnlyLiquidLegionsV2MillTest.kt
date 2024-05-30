@@ -664,8 +664,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
           localComputationId = LOCAL_ID
           attempt = 3
           computationStage = COMPLETE.toProtocolStage()
-          version = 8 // claimTask + updateComputationDetails + enqueueComputation + claimTask +
-          // EndComputation
+          version = 7 // claimTask + updateComputationDetails + claimTask + EndComputation
           this.computationDetails = computationDetails {
             kingdomComputation = initialComputationDetails.kingdomComputation
             endingState = CompletedReason.FAILED
