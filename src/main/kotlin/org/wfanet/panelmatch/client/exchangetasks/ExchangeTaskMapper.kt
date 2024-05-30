@@ -14,15 +14,14 @@
 
 package org.wfanet.panelmatch.client.exchangetasks
 
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.StepCase
 import org.wfanet.panelmatch.client.common.ExchangeContext
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Step.StepCase
 
 /** Maps join key exchange steps to exchange tasks */
 abstract class ExchangeTaskMapper {
 
   suspend fun getExchangeTaskForStep(context: ExchangeContext): ExchangeTask {
     return with(context) {
-      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       when (step.stepCase) {
         StepCase.COMMUTATIVE_DETERMINISTIC_ENCRYPT_STEP -> commutativeDeterministicEncrypt()
         StepCase.COMMUTATIVE_DETERMINISTIC_REENCRYPT_STEP -> commutativeDeterministicReEncrypt()

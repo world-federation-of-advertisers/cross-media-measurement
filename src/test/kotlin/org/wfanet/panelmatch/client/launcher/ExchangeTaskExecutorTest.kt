@@ -34,10 +34,7 @@ import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt.State
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.commutativeDeterministicEncryptStep
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
 import org.wfanet.measurement.api.v2alpha.exchangeStep
-import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toProtoDate
@@ -48,6 +45,9 @@ import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 import org.wfanet.panelmatch.client.exchangetasks.testing.FakeExchangeTaskMapper
 import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidatedExchangeStep
 import org.wfanet.panelmatch.client.launcher.testing.FakeTimeout
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.commutativeDeterministicEncryptStep
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.step
+import org.wfanet.panelmatch.client.internal.exchangeWorkflow
 import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.StorageDetailsKt
 import org.wfanet.panelmatch.client.storage.storageDetails

@@ -20,8 +20,8 @@ import java.time.Clock
 import java.time.ZoneOffset
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.common.toLocalDate
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow
 import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidatedExchangeStep
 import org.wfanet.panelmatch.client.launcher.InvalidExchangeStepException.FailureType.PERMANENT
 import org.wfanet.panelmatch.client.launcher.InvalidExchangeStepException.FailureType.TRANSIENT

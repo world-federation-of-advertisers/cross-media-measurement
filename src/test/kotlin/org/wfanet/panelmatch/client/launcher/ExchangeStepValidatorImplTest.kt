@@ -25,16 +25,17 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party.DATA_PROVIDER
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party.MODEL_PROVIDER
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.exchangeStep
-import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.panelmatch.client.launcher.InvalidExchangeStepException.FailureType.PERMANENT
 import org.wfanet.panelmatch.client.launcher.InvalidExchangeStepException.FailureType.TRANSIENT
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Party.DATA_PROVIDER
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Party.MODEL_PROVIDER
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.step
+import org.wfanet.panelmatch.client.internal.copy
+import org.wfanet.panelmatch.client.internal.exchangeWorkflow
 import org.wfanet.panelmatch.common.secrets.testing.TestSecretMap
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 

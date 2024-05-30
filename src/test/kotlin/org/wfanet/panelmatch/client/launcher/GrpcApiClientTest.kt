@@ -43,7 +43,6 @@ import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeSte
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party
 import org.wfanet.measurement.api.v2alpha.FinishExchangeStepAttemptRequest
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.appendExchangeStepAttemptLogEntryRequest
@@ -57,6 +56,7 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.panelmatch.client.common.Identity
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Party
 
 private const val RECURRING_EXCHANGE_ID = "some-recurring-exchange-id"
 private const val EXCHANGE_ID = "some-exchange-id"

@@ -16,10 +16,10 @@ package org.wfanet.panelmatch.client.storage.testing
 
 import java.time.LocalDate
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.exchangeIdentifiers
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
-import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.exchangeIdentifiers
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.step
+import org.wfanet.panelmatch.client.internal.exchangeWorkflow
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.client.common.ExchangeContext
@@ -71,8 +71,8 @@ fun makeTestSharedStorageSelector(
 
 private val WORKFLOW = exchangeWorkflow {
   exchangeIdentifiers = exchangeIdentifiers {
-    modelProvider = "some-model-provider"
-    dataProvider = "some-data-provider"
+    modelProviderId = "some-model-provider"
+    dataProviderId = "some-data-provider"
   }
   steps += step { party = ExchangeWorkflow.Party.DATA_PROVIDER }
 }

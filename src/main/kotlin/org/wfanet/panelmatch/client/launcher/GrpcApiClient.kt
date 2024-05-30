@@ -23,7 +23,6 @@ import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKt.debugLogEntry
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.RecurringExchangeParentKey
 import org.wfanet.measurement.api.v2alpha.appendExchangeStepAttemptLogEntryRequest
@@ -32,6 +31,7 @@ import org.wfanet.measurement.api.v2alpha.finishExchangeStepAttemptRequest
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.panelmatch.client.common.Identity
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Party
 import org.wfanet.panelmatch.client.launcher.ApiClient.ClaimedExchangeStep
 
 class GrpcApiClient(

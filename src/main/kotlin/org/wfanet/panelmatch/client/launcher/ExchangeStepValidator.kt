@@ -17,7 +17,7 @@ package org.wfanet.panelmatch.client.launcher
 import java.time.LocalDate
 import kotlin.jvm.Throws
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow
 
 /** Determines whether an ExchangeStep is valid and can be safely executed. */
 interface ExchangeStepValidator {

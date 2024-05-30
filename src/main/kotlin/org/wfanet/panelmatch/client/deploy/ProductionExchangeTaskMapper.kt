@@ -18,9 +18,6 @@ import com.google.protobuf.kotlin.toByteStringUtf8
 import java.time.format.DateTimeFormatter
 import org.apache.beam.sdk.Pipeline
 import org.apache.beam.sdk.options.PipelineOptions
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions.LabelType.BLOB
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions.LabelType.MANIFEST
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.panelmatch.client.common.ExchangeContext
@@ -53,6 +50,9 @@ import org.wfanet.panelmatch.client.exchangetasks.copyToSharedStorage
 import org.wfanet.panelmatch.client.exchangetasks.decryptPrivateMembershipResults
 import org.wfanet.panelmatch.client.exchangetasks.executePrivateMembershipQueries
 import org.wfanet.panelmatch.client.exchangetasks.preprocessEvents
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Step.CopyOptions.LabelType.BLOB
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Step.CopyOptions.LabelType.MANIFEST
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.JniPrivateMembershipCryptor

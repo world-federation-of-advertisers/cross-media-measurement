@@ -15,9 +15,9 @@
 package org.wfanet.panelmatch.client.common
 
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.common.api.ResourceKey
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Party
 
 /** Set of valid parties -- to allow excluding unknown or unspecified proto enum values. */
 private val VALID_PARTIES = setOf(Party.DATA_PROVIDER, Party.MODEL_PROVIDER)

@@ -28,7 +28,7 @@ import org.apache.beam.sdk.options.PipelineOptions
 import org.apache.beam.sdk.options.PipelineOptionsFactory
 import org.apache.beam.sdk.options.SdkHarnessOptions
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow as V2AlphaExchangeWorkflow
 import org.wfanet.measurement.aws.s3.S3Flags
 import org.wfanet.measurement.aws.s3.S3StorageClient
 import org.wfanet.measurement.common.commandLineMain
@@ -39,10 +39,12 @@ import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.panelmatch.client.common.ExchangeContext
 import org.wfanet.panelmatch.client.common.TaskParameters
+import org.wfanet.panelmatch.client.common.toInternal
 import org.wfanet.panelmatch.client.deploy.ProductionExchangeTaskMapper
 import org.wfanet.panelmatch.client.eventpreprocessing.PreprocessingParameters
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow
 import org.wfanet.panelmatch.client.storage.FileSystemStorageFactory
 import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
 import org.wfanet.panelmatch.client.storage.SharedStorageSelector
@@ -104,11 +106,18 @@ class BeamJobsMain : Runnable {
   )
   private lateinit var exchangeWorkflowBlobKey: String
 
+  @Option(
+    names = ["--exchange-workflow-format"],
+    description = ["The format of the serialized exchange workflow."],
+    required = true,
+  )
+  private lateinit var exchangeWorkflowFormat: ExchangeWorkflowFormat
+
   @set:Option(names = ["--step-index"], description = ["Index of step."], required = true)
   var stepIndex by Delegates.notNull<Int>()
     private set
 
-  private val serializedExchangeWorkflow by lazy {
+  private val serializedExchangeWorkflow: ByteString by lazy {
     runBlocking { rootStorageClient.getBlob(exchangeWorkflowBlobKey)!!.toByteString() }
   }
 
@@ -188,7 +197,7 @@ class BeamJobsMain : Runnable {
   }
 
   override fun run() = runBlocking {
-    val exchangeWorkflow = ExchangeWorkflow.parseFrom(serializedExchangeWorkflow)
+    val exchangeWorkflow = exchangeWorkflowFormat.parseBytes(serializedExchangeWorkflow)
     val step = exchangeWorkflow.getSteps(stepIndex)!!
 
     require(
