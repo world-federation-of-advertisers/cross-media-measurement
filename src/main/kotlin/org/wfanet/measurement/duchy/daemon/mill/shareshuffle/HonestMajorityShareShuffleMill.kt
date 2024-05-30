@@ -435,7 +435,7 @@ class HonestMajorityShareShuffleMill(
       sketchParams = hmss.parameters.sketchParams.copy { registerCount = registerCounts.first() }
     }
 
-    val result = cryptoWorker.completeShufflePhase(request)
+    val result = cryptoWorker.completeReachAndFrequencyShufflePhase(request)
 
     val aggregationPhaseInput = aggregationPhaseInput {
       combinedSketch += result.combinedSketchList
@@ -479,7 +479,7 @@ class HonestMajorityShareShuffleMill(
       }
     }
 
-    val result = cryptoWorker.completeAggregationPhase(request)
+    val result = cryptoWorker.completeReachAndFrequencyAggregationPhase(request)
 
     sendResultToKingdom(
       token,

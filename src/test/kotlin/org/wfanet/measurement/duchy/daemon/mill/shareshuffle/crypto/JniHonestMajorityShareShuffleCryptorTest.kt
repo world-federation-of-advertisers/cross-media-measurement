@@ -26,7 +26,7 @@ class JniHonestMajorityShareShuffleCryptorTest {
     val e1 =
       assertFailsWith(RuntimeException::class) {
         JniHonestMajorityShareShuffleCryptor()
-          .completeShufflePhase(CompleteShufflePhaseRequest.getDefaultInstance())
+          .completeReachAndFrequencyShufflePhase(CompleteShufflePhaseRequest.getDefaultInstance())
       }
     assertThat(e1.message).contains("register count")
   }

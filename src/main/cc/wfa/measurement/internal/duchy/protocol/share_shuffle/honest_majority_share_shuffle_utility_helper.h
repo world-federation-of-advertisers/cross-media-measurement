@@ -26,7 +26,11 @@
 
 namespace wfa::measurement::internal::duchy::protocol::share_shuffle {
 
-absl::StatusOr<std::vector<uint32_t>> GenerateNoiseRegisters(
+absl::StatusOr<std::vector<uint32_t>> GenerateReachAndFrequencyNoiseRegisters(
+    const ShareShuffleSketchParams& sketch_param,
+    const math::DistributedNoiser& distributed_noiser);
+
+absl::StatusOr<std::vector<uint32_t>> GenerateReachOnlyNoiseRegisters(
     const ShareShuffleSketchParams& sketch_param,
     const math::DistributedNoiser& distributed_noiser);
 
