@@ -24,17 +24,30 @@
 
 namespace wfa::measurement::internal::duchy::protocol::share_shuffle {
 
-absl::StatusOr<std::string> CompleteShufflePhase(
+absl::StatusOr<std::string> CompleteReachAndFrequencyShufflePhase(
     const std::string& serialized_request) {
   return JniWrap<CompleteShufflePhaseRequest, CompleteShufflePhaseResponse>(
-      serialized_request, CompleteShufflePhase);
+      serialized_request, CompleteReachAndFrequencyShufflePhase);
 }
 
-absl::StatusOr<std::string> CompleteAggregationPhase(
+absl::StatusOr<std::string> CompleteReachOnlyShufflePhase(
+    const std::string& serialized_request) {
+  return JniWrap<CompleteShufflePhaseRequest, CompleteShufflePhaseResponse>(
+      serialized_request, CompleteReachOnlyShufflePhase);
+}
+
+absl::StatusOr<std::string> CompleteReachAndFrequencyAggregationPhase(
     const std::string& serialized_request) {
   return JniWrap<CompleteAggregationPhaseRequest,
-                 CompleteAggregationPhaseResponse>(serialized_request,
-                                                   CompleteAggregationPhase);
+                 CompleteAggregationPhaseResponse>(
+      serialized_request, CompleteReachAndFrequencyAggregationPhase);
+}
+
+absl::StatusOr<std::string> CompleteReachOnlyAggregationPhase(
+    const std::string& serialized_request) {
+  return JniWrap<CompleteAggregationPhaseRequest,
+                 CompleteAggregationPhaseResponse>(
+      serialized_request, CompleteReachOnlyAggregationPhase);
 }
 
 }  // namespace wfa::measurement::internal::duchy::protocol::share_shuffle

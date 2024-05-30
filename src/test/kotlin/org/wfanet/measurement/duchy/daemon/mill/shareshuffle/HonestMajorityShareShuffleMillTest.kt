@@ -677,7 +677,7 @@ class HonestMajorityShareShuffleMillTest {
     )
 
     var cryptoRequest = CompleteShufflePhaseRequest.getDefaultInstance()
-    whenever(mockCryptoWorker.completeShufflePhase(any())).thenAnswer {
+    whenever(mockCryptoWorker.completeReachAndFrequencyShufflePhase(any())).thenAnswer {
       cryptoRequest = it.getArgument(0)
       completeShufflePhaseResponse { combinedSketch += listOf(1, 2, 3) }
     }
@@ -841,7 +841,7 @@ class HonestMajorityShareShuffleMillTest {
     val expectedReach = 100L
     val expectedFrequency = mapOf(0L to 0.1, 1L to 0.5, 2L to 0.4)
     var cryptoRequest = CompleteAggregationPhaseRequest.getDefaultInstance()
-    whenever(mockCryptoWorker.completeAggregationPhase(any())).thenAnswer {
+    whenever(mockCryptoWorker.completeReachAndFrequencyAggregationPhase(any())).thenAnswer {
       cryptoRequest = it.getArgument(0)
       completeAggregationPhaseResponse {
         reach = expectedReach
