@@ -4,6 +4,18 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library")
 package(default_visibility = ["//visibility:public"])
 
 proto_library(
+    name = "exchange_step_attempt_proto",
+    srcs = ["exchange_step_attempt.proto"],
+    strip_import_prefix = "/src/main/proto",
+    deps = [],
+)
+
+kt_jvm_proto_library(
+    name = "exchange_step_attempt_kt_jvm_proto",
+    deps = [":exchange_step_attempt_proto"],
+)
+
+proto_library(
     name = "exchange_workflow_proto",
     srcs = ["exchange_workflow.proto"],
     strip_import_prefix = "/src/main/proto",
