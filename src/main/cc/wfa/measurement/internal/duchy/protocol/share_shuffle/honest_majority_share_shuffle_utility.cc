@@ -384,7 +384,10 @@ CompleteReachAndFrequencyAggregationPhase(
   // the input sketch size. Another way to compute it is to add up all
   // frequencies from 1 to the maximum combined frequency. However, the latter
   // approach will have a lot more noise.
-  int64_t non_empty_register_count = register_count - frequency_histogram[0];
+  int64_t non_empty_register_count =
+      (frequency_histogram.find(0) == frequency_histogram.end())
+          ? register_count
+          : register_count - frequency_histogram[0];
 
   // Adjusts the frequency histogram and non empty register count according the
   // noise baseline for the frequencies from 0 to {maximum_frequency - 1}.
@@ -509,11 +512,11 @@ CompleteReachOnlyAggregationPhase(
     auto reach_noiser =
         GetBlindHistogramNoiser(request.dp_params().reach_dp_params(),
                                 kWorkerCount, request.noise_mechanism());
-    int64_t noise_baseline =
+    int64_t reach_noise_baseline =
         reach_noiser->options().shift_offset * kWorkerCount;
 
     // Removes the noise baseline from the non empty register count.
-    non_empty_register_count -= noise_baseline;
+    non_empty_register_count -= reach_noise_baseline;
 
     // Ensures that non_empty_register_count is at least 0.
     non_empty_register_count = std::max(0L, non_empty_register_count);

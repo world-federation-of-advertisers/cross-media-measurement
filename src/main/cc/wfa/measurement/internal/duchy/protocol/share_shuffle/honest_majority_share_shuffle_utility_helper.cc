@@ -64,9 +64,9 @@ absl::StatusOr<std::vector<uint32_t>> GenerateReachAndFrequencyNoiseRegisters(
 
   int current_index = 0;
   // Sample noise registers for reach.
-  ASSIGN_OR_RETURN(int64_t noise_register_count_for_bucket_0,
+  ASSIGN_OR_RETURN(int64_t noise_register_count_for_reach,
                    distributed_reach_noiser.GenerateNoiseComponent());
-  for (int i = 0; i < noise_register_count_for_bucket_0; i++) {
+  for (int i = 0; i < noise_register_count_for_reach; i++) {
     noise_registers[current_index] = 0;
     current_index++;
   }
