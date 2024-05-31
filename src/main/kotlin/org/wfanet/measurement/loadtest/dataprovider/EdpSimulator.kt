@@ -857,7 +857,7 @@ class EdpSimulator(
             eventGroupSpecs,
           )
         } else if (protocols.any { it.hasHonestMajorityShareShuffle() }) {
-          // TODO(@ple13): Add support for reach-only.
+          // TODO(@ple13): Extend support for reach only hmss.
           if (!measurementSpec.hasReachAndFrequency()) {
             logger.log(
               Level.WARNING,
