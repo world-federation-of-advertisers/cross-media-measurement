@@ -54,7 +54,7 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#MillMaxHeapSize:                 "9G"
+#MillMaxHeapSize:                 "5G"
 #MillReplicas:                    15
 #ApiServerReplicas:               2
 #FulfillmentResourceRequirements: ResourceRequirements=#ResourceRequirements & {
