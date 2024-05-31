@@ -4,8 +4,13 @@ package(
 )
 
 filegroup(
-    name = "synthetic_generation_specs",
-    srcs = ["synthetic_population_spec.textproto"] + glob(["synthetic_event_group_spec*.textproto"]),
+    name = "synthetic_generation_specs_small",
+    srcs = ["synthetic_population_spec_small.textproto"] + glob(["synthetic_event_group_spec_small*.textproto"]),
+)
+
+filegroup(
+    name = "synthetic_generation_specs_large",
+    srcs = ["synthetic_population_spec_large.textproto"] + glob(["synthetic_event_group_spec_large*.textproto"]),
 )
 
 filegroup(

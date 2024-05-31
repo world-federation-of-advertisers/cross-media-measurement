@@ -60,7 +60,7 @@ constexpr int kRingModulus = 128;
 constexpr double kEpsilon = 1.0;
 constexpr double kDelta = 0.000001;
 
-TEST(GenerateNoiseRegisters, InvalidSketchParamsFails) {
+TEST(GenerateReachAndFrequencyNoiseRegisters, InvalidSketchParamsFails) {
   ShareShuffleSketchParams sketch_params;
   sketch_params.set_maximum_combined_frequency(kMaxCombinedFrequency);
   sketch_params.set_ring_modulus(kMaxCombinedFrequency + 1);
@@ -71,12 +71,12 @@ TEST(GenerateNoiseRegisters, InvalidSketchParamsFails) {
                                         /*contributors_count=*/2,
                                         NoiseMechanism::DISCRETE_GAUSSIAN);
   EXPECT_THAT(
-      GenerateNoiseRegisters(sketch_params, *noiser).status(),
+      GenerateReachAndFrequencyNoiseRegisters(sketch_params, *noiser).status(),
       StatusIs(absl::StatusCode::kInvalidArgument,
                "must be greater than maximum combined frequency plus 1"));
 }
 
-TEST(GenerateNoiseRegisters, ValidSketchParamsSucceeds) {
+TEST(GenerateReachAndFrequencyNoiseRegisters, ValidSketchParamsSucceeds) {
   ShareShuffleSketchParams sketch_params;
   sketch_params.set_maximum_combined_frequency(kMaxCombinedFrequency);
   sketch_params.set_ring_modulus(kRingModulus);
@@ -89,8 +89,9 @@ TEST(GenerateNoiseRegisters, ValidSketchParamsSucceeds) {
   int total_noise_per_frequency = noiser->options().shift_offset * 2;
   int total_noise = (1 + sketch_params.maximum_combined_frequency()) *
                     total_noise_per_frequency;
-  ASSERT_OK_AND_ASSIGN(std::vector<uint32_t> noise_registers,
-                       GenerateNoiseRegisters(sketch_params, *noiser));
+  ASSERT_OK_AND_ASSIGN(
+      std::vector<uint32_t> noise_registers,
+      GenerateReachAndFrequencyNoiseRegisters(sketch_params, *noiser));
   std::unordered_map<int, int> noise_frequency;
   for (auto x : noise_registers) {
     noise_frequency[x]++;
@@ -104,6 +105,39 @@ TEST(GenerateNoiseRegisters, ValidSketchParamsSucceeds) {
     sentinel_count -= noise_frequency[i];
   }
   EXPECT_EQ(noise_frequency[sketch_params.ring_modulus() - 1], sentinel_count);
+}
+
+TEST(GenerateReachOnlyNoiseRegisters, InvalidSketchParamsFails) {
+  ShareShuffleSketchParams sketch_params;
+  sketch_params.set_maximum_combined_frequency(kMaxCombinedFrequency);
+  sketch_params.set_ring_modulus(kMaxCombinedFrequency + 1);
+  DifferentialPrivacyParams dp_params;
+  dp_params.set_epsilon(kEpsilon);
+  dp_params.set_delta(kDelta);
+  auto noiser = GetBlindHistogramNoiser(dp_params,
+                                        /*contributors_count=*/2,
+                                        NoiseMechanism::DISCRETE_GAUSSIAN);
+  EXPECT_THAT(
+      GenerateReachOnlyNoiseRegisters(sketch_params, *noiser).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               "must be greater than maximum combined frequency plus 1"));
+}
+
+TEST(GenerateReachOnlyNoiseRegisters, ValidSketchParamsSucceeds) {
+  ShareShuffleSketchParams sketch_params;
+  sketch_params.set_maximum_combined_frequency(kMaxCombinedFrequency);
+  sketch_params.set_ring_modulus(kRingModulus);
+  DifferentialPrivacyParams dp_params;
+  dp_params.set_epsilon(kEpsilon);
+  dp_params.set_delta(kDelta);
+  auto noiser = GetBlindHistogramNoiser(dp_params,
+                                        /*contributors_count=*/2,
+                                        NoiseMechanism::DISCRETE_GAUSSIAN);
+  int total_noise = noiser->options().shift_offset * 2;
+  ASSERT_OK_AND_ASSIGN(std::vector<uint32_t> noise_registers,
+                       GenerateReachOnlyNoiseRegisters(sketch_params, *noiser));
+
+  EXPECT_THAT(noise_registers, SizeIs(total_noise));
 }
 
 TEST(GetShareVectorFromSketchShare, SketchShareTypeNotSetFails) {
