@@ -131,6 +131,11 @@ class ShufflePhaseTestData {
     request_.mutable_sketch_params()->set_ring_modulus(ring_modulus);
   }
 
+  void SetReachOnlyDifferentialPrivacyParams(double eps, double delta) {
+    request_.mutable_dp_params()->mutable_reach_dp_params()->set_epsilon(eps);
+    request_.mutable_dp_params()->mutable_reach_dp_params()->set_delta(delta);
+  }
+
   void SetDifferentialPrivacyParams(double eps, double delta) {
     request_.mutable_dp_params()->mutable_reach_dp_params()->set_epsilon(eps /
                                                                          10.0);
@@ -680,7 +685,7 @@ TEST(ReachOnlyShufflePhaseAtNonAggregator,
   ShufflePhaseTestData test_data;
   test_data.SetSketchParams(kRegisterCount, kBytesPerRegister,
                             kMaxCombinedFrequency, kRingModulus);
-  test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
+  test_data.SetReachOnlyDifferentialPrivacyParams(kEpsilon, kDelta);
   std::vector<uint32_t> share_data(kRegisterCount, 1);
   test_data.AddShareToSketchShares(share_data);
   EXPECT_THAT(test_data.RunReachOnlyShufflePhase().status(),
@@ -832,7 +837,7 @@ TEST(ReachOnlyShufflePhaseAtNonAggregator, ShufflePhaseWithDpNoiseSucceeds) {
   ShufflePhaseTestData test_data;
   test_data.SetSketchParams(kRegisterCount, kBytesPerRegister,
                             kMaxCombinedFrequency, kRingModulus);
-  test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
+  test_data.SetReachOnlyDifferentialPrivacyParams(kEpsilon, kDelta);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
 
   ASSERT_OK_AND_ASSIGN(
@@ -848,7 +853,7 @@ TEST(ReachOnlyShufflePhaseAtNonAggregator, ShufflePhaseWithDpNoiseSucceeds) {
   std::vector<uint32_t> combined_sketch(ret.combined_sketch().begin(),
                                         ret.combined_sketch().end());
   DifferentialPrivacyParams dp_params;
-  dp_params.set_epsilon(kEpsilon/10.0);
+  dp_params.set_epsilon(kEpsilon);
   dp_params.set_delta(kDelta);
   auto noiser = GetBlindHistogramNoiser(dp_params,
                                         /*contributors_count=*/2,
@@ -967,9 +972,11 @@ TEST(ReachOnlyShufflePhaseAtNonAggregator,
      ShufflePhaseSimulationForTwoDuchiesWithDpNoiseSucceeds) {
   ShufflePhaseTestData test_data_1;
   test_data_1.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
+  test_data_1.SetReachOnlyDifferentialPrivacyParams(kEpsilon, kDelta);
 
   ShufflePhaseTestData test_data_2;
   test_data_2.SetNonAggregatorOrder(CompleteShufflePhaseRequest::SECOND);
+  test_data_2.SetReachOnlyDifferentialPrivacyParams(kEpsilon, kDelta);
 
   ASSERT_OK_AND_ASSIGN(std::vector<uint32_t> input_a,
                        test_data_1.GenerateUniformRandomRange(
@@ -1015,7 +1022,7 @@ TEST(ReachOnlyShufflePhaseAtNonAggregator,
   }
 
   DifferentialPrivacyParams dp_params;
-  dp_params.set_epsilon(kEpsilon/10.0);
+  dp_params.set_epsilon(kEpsilon);
   dp_params.set_delta(kDelta);
   auto noiser = GetBlindHistogramNoiser(dp_params,
                                         /*contributors_count=*/2,
@@ -1080,6 +1087,11 @@ class AggregationPhaseTestData {
   }
 
   void ClearDifferentialPrivacyParams() { request_.clear_dp_params(); }
+
+  void SetReachOnlyDifferentialPrivacyParams(double eps, double delta) {
+    request_.mutable_dp_params()->mutable_reach_dp_params()->set_epsilon(eps);
+    request_.mutable_dp_params()->mutable_reach_dp_params()->set_delta(delta);
+  }
 
   void SetDifferentialPrivacyParams(double eps, double delta) {
     request_.mutable_dp_params()->mutable_reach_dp_params()->set_epsilon(eps /
@@ -1371,7 +1383,7 @@ TEST(ReachOnlyAggregationPhase, AggregationPhaseWithDPNoiseSucceeds) {
                             /*ring_modulus=*/7);
   test_data.SetMaximumFrequency(2);
   // Computed offset = 2.
-  test_data.SetDifferentialPrivacyParams(100.0, 1.0);
+  test_data.SetReachOnlyDifferentialPrivacyParams(10.0, 1.0);
   // The combined sketch is {0, 0, 0, 0, 1, 2, 3, 4, 0, 0, 1, 1, 2, 2, 3, 3, 4,
   // 4}.
   std::vector<uint32_t> share_vector_1 = {2, 3, 2, 5, 1, 6, 2, 0, 0,
@@ -1584,10 +1596,13 @@ class EndToEndReachOnlyHmssTest {
 
     worker_1.SetSketchParams(register_count, bytes_per_register, edp_count,
                              ring_modulus);
+    worker_1.SetReachOnlyDifferentialPrivacyParams(epsilon, delta);
     worker_2.SetSketchParams(register_count, bytes_per_register, edp_count,
                              ring_modulus);
+    worker_2.SetReachOnlyDifferentialPrivacyParams(epsilon, delta);
     aggregator.SetSketchParams(register_count, bytes_per_register, edp_count,
                                ring_modulus);
+    aggregator.SetReachOnlyDifferentialPrivacyParams(epsilon, delta);
     worker_1.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
     worker_2.SetNonAggregatorOrder(CompleteShufflePhaseRequest::SECOND);
 
@@ -1598,10 +1613,10 @@ class EndToEndReachOnlyHmssTest {
     int64_t total_noise_registers_count_per_duchy = 0;
 
     if (has_dp_noise) {
-      DifferentialPrivacyParams dp_params;
-      dp_params.set_epsilon(epsilon/10.0);
-      dp_params.set_delta(delta);
-      auto noiser = GetBlindHistogramNoiser(dp_params,
+      DifferentialPrivacyParams reach_dp_params;
+      reach_dp_params.set_epsilon(epsilon);
+      reach_dp_params.set_delta(delta);
+      auto noiser = GetBlindHistogramNoiser(reach_dp_params,
                                             /*contributors_count=*/2,
                                             NoiseMechanism::DISCRETE_GAUSSIAN);
       shift_offset = noiser->options().shift_offset;
