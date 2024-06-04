@@ -459,16 +459,19 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
             metricSpecs += metricSpec {
               reach =
                 MetricSpecKt.reachParams {
-                  privacyParams =
-                    MetricSpecKt.differentialPrivacyParams {
-                      epsilon = 1.0
-                      delta = 2.0
+                  multipleDataProviderParams =
+                    MetricSpecKt.samplingAndPrivacyParams {
+                      privacyParams =
+                        MetricSpecKt.differentialPrivacyParams {
+                          epsilon = 1.0
+                          delta = 2.0
+                        }
+                      vidSamplingInterval =
+                        MetricSpecKt.vidSamplingInterval {
+                          start = 0.1f
+                          width = 0.5f
+                        }
                     }
-                }
-              vidSamplingInterval =
-                MetricSpecKt.vidSamplingInterval {
-                  start = 0.1f
-                  width = 0.5f
                 }
             }
             groupings += MetricCalculationSpecKt.grouping { predicates += "age > 10" }

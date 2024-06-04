@@ -52,3 +52,6 @@ databaseChangeLog:
 - include:
     file: add-indexes-for-metric-reuse.sql
     relativeToChangeLogFile: true
+- include:
+    file: add-additional-metric-spec-columns-to-metrics.sql
+    relativeToChangeLogFile: true
