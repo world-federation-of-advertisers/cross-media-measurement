@@ -128,7 +128,6 @@ import org.wfanet.measurement.internal.reporting.v2.Metric.WeightedMeasurement
 import org.wfanet.measurement.internal.reporting.v2.MetricKt as InternalMetricKt
 import org.wfanet.measurement.internal.reporting.v2.MetricKt.weightedMeasurement
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec as InternalMetricSpec
-import org.wfanet.measurement.internal.reporting.v2.MetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineStub as InternalMetricsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
@@ -222,7 +221,7 @@ class MetricsService(
   certificatesStub: CertificatesCoroutineStub,
   measurementConsumersStub: MeasurementConsumersCoroutineStub,
   encryptionKeyPairStore: EncryptionKeyPairStore,
-  secureRandom: Random,
+  private val secureRandom: Random,
   signingPrivateKeyDir: File,
   trustedCertificates: Map<ByteString, X509Certificate>,
   certificateCacheExpirationDuration: Duration = Duration.ofMinutes(60),
@@ -239,7 +238,6 @@ class MetricsService(
 
   private val measurementSupplier =
     MeasurementSupplier(
-      internalReportingSetsStub,
       internalMeasurementsStub,
       measurementsStub,
       dataProvidersStub,
@@ -256,7 +254,6 @@ class MetricsService(
     )
 
   private class MeasurementSupplier(
-    private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
     private val internalMeasurementsStub: InternalMeasurementsCoroutineStub,
     private val measurementsStub: MeasurementsCoroutineStub,
     private val dataProvidersStub: DataProvidersCoroutineStub,
@@ -300,55 +297,13 @@ class MetricsService(
         getDataProvider(name = key.name, apiAuthenticationKey = key.apiAuthenticationKey)
       }
 
-    /**
-     * Creates CMM public [Measurement]s and [InternalMeasurement]s from a list of [InternalMetric].
-     */
+    /** Creates CMM public [Measurement]s from a list of [InternalMetric]. */
     suspend fun createCmmsMeasurements(
       internalMetricsList: List<InternalMetric>,
+      internalPrimitiveReportingSetMap: Map<String, InternalReportingSet>,
       principal: MeasurementConsumerPrincipal,
     ) {
       val measurementConsumer: MeasurementConsumer = getMeasurementConsumer(principal)
-
-      // Gets all external IDs of primitive reporting sets from the metric list.
-      val externalPrimitiveReportingSetIds: Flow<String> = flow {
-        buildSet {
-          for (internalMetric in internalMetricsList) {
-            for (weightedMeasurement in internalMetric.weightedMeasurementsList) {
-              for (primitiveReportingSetBasis in
-                weightedMeasurement.measurement.primitiveReportingSetBasesList) {
-                // Checks if the set already contains the ID
-                if (!contains(primitiveReportingSetBasis.externalReportingSetId)) {
-                  // If the set doesn't contain the ID, emit it and add it to the set so it won't
-                  // get emitted again.
-                  emit(primitiveReportingSetBasis.externalReportingSetId)
-                  add(primitiveReportingSetBasis.externalReportingSetId)
-                }
-              }
-            }
-          }
-        }
-      }
-
-      val callBatchGetInternalReportingSetsRpc:
-        suspend (List<String>) -> BatchGetReportingSetsResponse =
-        { items ->
-          batchGetInternalReportingSets(principal.resourceKey.measurementConsumerId, items)
-        }
-
-      val internalPrimitiveReportingSetMap: Map<String, InternalReportingSet> = buildMap {
-        submitBatchRequests(
-            externalPrimitiveReportingSetIds,
-            BATCH_GET_REPORTING_SETS_LIMIT,
-            callBatchGetInternalReportingSetsRpc,
-          ) { response: BatchGetReportingSetsResponse ->
-            response.reportingSetsList
-          }
-          .collect { reportingSets: List<InternalReportingSet> ->
-            for (reportingSet in reportingSets) {
-              computeIfAbsent(reportingSet.externalReportingSetId) { reportingSet }
-            }
-          }
-      }
 
       val dataProviderNames = mutableSetOf<String>()
       for (internalPrimitiveReportingSet in internalPrimitiveReportingSetMap.values) {
@@ -536,6 +491,8 @@ class MetricsService(
       nonceHashes: List<ByteString>,
       metricSpec: InternalMetricSpec,
     ): MeasurementSpec {
+      val isSingleDataProvider: Boolean = nonceHashes.size == 1
+
       return measurementSpec {
         measurementPublicKey = packedMeasurementEncryptionPublicKey
         // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this
@@ -546,16 +503,25 @@ class MetricsService(
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
         when (metricSpec.typeCase) {
           InternalMetricSpec.TypeCase.REACH -> {
-            reach = metricSpec.reach.toReach()
+            val reachPair = metricSpec.reach.toReach(isSingleDataProvider)
+            reach = reachPair.first
+            vidSamplingInterval = reachPair.second
           }
           InternalMetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
-            reachAndFrequency = metricSpec.reachAndFrequency.toReachAndFrequency()
+            val reachAndFrequencyPair =
+              metricSpec.reachAndFrequency.toReachAndFrequency(isSingleDataProvider)
+            reachAndFrequency = reachAndFrequencyPair.first
+            vidSamplingInterval = reachAndFrequencyPair.second
           }
           InternalMetricSpec.TypeCase.IMPRESSION_COUNT -> {
-            impression = metricSpec.impressionCount.toImpression()
+            val impressionPair = metricSpec.impressionCount.toImpression()
+            impression = impressionPair.first
+            vidSamplingInterval = impressionPair.second
           }
           InternalMetricSpec.TypeCase.WATCH_DURATION -> {
-            duration = metricSpec.watchDuration.toDuration()
+            val durationPair = metricSpec.watchDuration.toDuration()
+            duration = durationPair.first
+            vidSamplingInterval = durationPair.second
           }
           InternalMetricSpec.TypeCase.POPULATION_COUNT -> {
             population = MeasurementSpec.Population.getDefaultInstance()
@@ -565,7 +531,6 @@ class MetricsService(
               "Unset metric type should've already raised error."
             }
         }
-        vidSamplingInterval = metricSpec.vidSamplingInterval.toCmmsVidSamplingInterval()
         // TODO(@jojijac0b): Add modelLine
       }
     }
@@ -750,31 +715,6 @@ class MetricsService(
             else ->
               Status.UNKNOWN.withDescription(
                 "Unable to retrieve the measurement consumer [${principal.resourceKey.toName()}]."
-              )
-          }
-          .withCause(e)
-          .asRuntimeException()
-      }
-    }
-
-    /** Gets a batch of [InternalReportingSet]s. */
-    private suspend fun batchGetInternalReportingSets(
-      cmmsMeasurementConsumerId: String,
-      externalReportingSetIds: List<String>,
-    ): BatchGetReportingSetsResponse {
-      return try {
-        internalReportingSetsStub.batchGetReportingSets(
-          batchGetReportingSetsRequest {
-            this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-            this.externalReportingSetIds += externalReportingSetIds
-          }
-        )
-      } catch (e: StatusException) {
-        throw when (e.status.code) {
-            Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription("Reporting Set not found.")
-            else ->
-              Status.UNKNOWN.withDescription(
-                "Unable to retrieve ReportingSets used in the requesting metric."
               )
           }
           .withCause(e)
@@ -1215,8 +1155,6 @@ class MetricsService(
     }
     val listMetricsPageToken: ListMetricsPageToken = request.toListMetricsPageToken()
 
-    val apiAuthenticationKey: String = principal.config.apiKey
-
     val streamInternalMetricRequest: StreamMetricsRequest =
       listMetricsPageToken.toStreamMetricsRequest()
 
@@ -1305,10 +1243,27 @@ class MetricsService(
 
     grpcRequire(request.hasMetric()) { "Metric is not specified." }
 
+    val reportingSetKey =
+      grpcRequireNotNull(ReportingSetKey.fromName(request.metric.reportingSet)) {
+        "Invalid reporting set name ${request.metric.reportingSet}."
+      }
+
+    if (reportingSetKey.cmmsMeasurementConsumerId != parentKey.measurementConsumerId) {
+      failGrpc(Status.PERMISSION_DENIED) {
+        "No access to the reporting set [${request.metric.reportingSet}]."
+      }
+    }
+
     val batchGetReportingSetsResponse =
       batchGetInternalReportingSets(
         parentKey.measurementConsumerId,
-        listOf(request.metric.reportingSet),
+        listOf(reportingSetKey.reportingSetId),
+      )
+
+    val internalPrimitiveReportingSetMap: Map<String, InternalReportingSet> =
+      buildInternalPrimitiveReportingSetMap(
+        parentKey.measurementConsumerId,
+        batchGetReportingSetsResponse.reportingSetsList,
       )
 
     val internalCreateMetricRequest: InternalCreateMetricRequest =
@@ -1316,6 +1271,7 @@ class MetricsService(
         principal.resourceKey.measurementConsumerId,
         request,
         batchGetReportingSetsResponse.reportingSetsList.single(),
+        internalPrimitiveReportingSetMap,
       )
 
     val internalMetric =
@@ -1340,7 +1296,11 @@ class MetricsService(
       }
 
     if (internalMetric.state == InternalMetric.State.RUNNING) {
-      measurementSupplier.createCmmsMeasurements(listOf(internalMetric), principal)
+      measurementSupplier.createCmmsMeasurements(
+        listOf(internalMetric),
+        internalPrimitiveReportingSetMap,
+        principal,
+      )
     }
 
     // Convert the internal metric to public and return it.
@@ -1387,7 +1347,18 @@ class MetricsService(
         .distinct()
 
     val callRpc: suspend (List<String>) -> BatchGetReportingSetsResponse = { items ->
-      batchGetInternalReportingSets(parentKey.measurementConsumerId, items)
+      val externalReportingSetIds: List<String> =
+        items.map {
+          val reportingSetKey =
+            grpcRequireNotNull(ReportingSetKey.fromName(it)) { "Invalid reporting set name $it." }
+
+          if (reportingSetKey.cmmsMeasurementConsumerId != parentKey.measurementConsumerId) {
+            failGrpc(Status.PERMISSION_DENIED) { "No access to the reporting set [$it]." }
+          }
+
+          reportingSetKey.reportingSetId
+        }
+      batchGetInternalReportingSets(parentKey.measurementConsumerId, externalReportingSetIds)
     }
 
     val reportingSetNameToInternalReportingSetMap: Map<String, InternalReportingSet> = buildMap {
@@ -1406,6 +1377,12 @@ class MetricsService(
         }
     }
 
+    val internalPrimitiveReportingSetMap: Map<String, InternalReportingSet> =
+      buildInternalPrimitiveReportingSetMap(
+        parentKey.measurementConsumerId,
+        reportingSetNameToInternalReportingSetMap.values,
+      )
+
     val internalCreateMetricRequestsList: List<Deferred<InternalCreateMetricRequest>> =
       coroutineScope {
         request.requestsList.map { createMetricRequest ->
@@ -1416,6 +1393,7 @@ class MetricsService(
               reportingSetNameToInternalReportingSetMap.getValue(
                 createMetricRequest.metric.reportingSet
               ),
+              internalPrimitiveReportingSetMap,
             )
           }
         }
@@ -1450,7 +1428,11 @@ class MetricsService(
         internalMetric.state == InternalMetric.State.RUNNING
       }
     if (internalRunningMetrics.isNotEmpty()) {
-      measurementSupplier.createCmmsMeasurements(internalRunningMetrics, principal)
+      measurementSupplier.createCmmsMeasurements(
+        internalRunningMetrics,
+        internalPrimitiveReportingSetMap,
+        principal,
+      )
     }
 
     // Convert the internal metric to public and return it.
@@ -1462,6 +1444,7 @@ class MetricsService(
     cmmsMeasurementConsumerId: String,
     request: CreateMetricRequest,
     internalReportingSet: InternalReportingSet,
+    internalPrimitiveReportingSetMap: Map<String, InternalReportingSet>,
   ): InternalCreateMetricRequest {
     grpcRequire(request.metricId.matches(RESOURCE_ID_REGEX)) { "Metric ID is invalid." }
     grpcRequire(request.metric.reportingSet.isNotEmpty()) {
@@ -1508,7 +1491,7 @@ class MetricsService(
         timeInterval = request.metric.timeInterval
         metricSpec =
           try {
-            request.metric.metricSpec.withDefaults(metricSpecConfig).toInternal()
+            request.metric.metricSpec.withDefaults(metricSpecConfig, secureRandom).toInternal()
           } catch (e: MetricSpecDefaultsException) {
             failGrpc(Status.INVALID_ARGUMENT) {
               listOfNotNull("Invalid metric spec.", e.message, e.cause?.message)
@@ -1522,9 +1505,56 @@ class MetricsService(
             cmmsMeasurementConsumerId,
             request.metric,
             internalReportingSet,
+            internalPrimitiveReportingSetMap,
           )
         details = InternalMetricKt.details { filters += request.metric.filtersList }
       }
+    }
+  }
+
+  /** Build a map of external ReportingSetId to Primitive [InternalReportingSet]. */
+  private suspend fun buildInternalPrimitiveReportingSetMap(
+    measurementConsumerId: String,
+    internalReportingSetsList: Collection<InternalReportingSet>,
+  ): Map<String, InternalReportingSet> {
+    // Gets all external IDs of primitive reporting sets from the metric list.
+    val externalPrimitiveReportingSetIds: Flow<String> = flow {
+      buildSet {
+        for (internalReportingSet in internalReportingSetsList) {
+          for (weightedSubsetUnion in internalReportingSet.weightedSubsetUnionsList) {
+            for (primitiveReportingSetBasis in weightedSubsetUnion.primitiveReportingSetBasesList) {
+              // Checks if the set already contains the ID
+              if (!contains(primitiveReportingSetBasis.externalReportingSetId)) {
+                // If the set doesn't contain the ID, emit it and add it to the set so it won't
+                // get emitted again.
+                emit(primitiveReportingSetBasis.externalReportingSetId)
+                add(primitiveReportingSetBasis.externalReportingSetId)
+              }
+            }
+          }
+        }
+      }
+    }
+
+    val callBatchGetInternalReportingSetsRpc:
+      suspend (List<String>) -> BatchGetReportingSetsResponse =
+      { items ->
+        batchGetInternalReportingSets(measurementConsumerId, items)
+      }
+
+    return buildMap {
+      submitBatchRequests(
+          externalPrimitiveReportingSetIds,
+          BATCH_GET_REPORTING_SETS_LIMIT,
+          callBatchGetInternalReportingSetsRpc,
+        ) { response: BatchGetReportingSetsResponse ->
+          response.reportingSetsList
+        }
+        .collect { reportingSets: List<InternalReportingSet> ->
+          for (reportingSet in reportingSets) {
+            computeIfAbsent(reportingSet.externalReportingSetId) { reportingSet }
+          }
+        }
     }
   }
 
@@ -1533,6 +1563,7 @@ class MetricsService(
     cmmsMeasurementConsumerId: String,
     metric: Metric,
     internalReportingSet: InternalReportingSet,
+    internalPrimitiveReportingSetMap: Map<String, InternalReportingSet>,
   ): List<WeightedMeasurement> {
     return internalReportingSet.weightedSubsetUnionsList.map { weightedSubsetUnion ->
       weightedMeasurement {
@@ -1541,32 +1572,27 @@ class MetricsService(
         measurement = internalMeasurement {
           this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
           timeInterval = metric.timeInterval
+          val dataProviderSet = mutableSetOf<String>()
           this.primitiveReportingSetBases +=
             weightedSubsetUnion.primitiveReportingSetBasesList.map { primitiveReportingSetBasis ->
+              internalPrimitiveReportingSetMap
+                .getValue(primitiveReportingSetBasis.externalReportingSetId)
+                .primitive
+                .eventGroupKeysList
+                .forEach { dataProviderSet.add(it.cmmsDataProviderId) }
               primitiveReportingSetBasis.copy { filters += metric.filtersList }
             }
+          details = InternalMeasurementKt.details { dataProviderCount = dataProviderSet.size }
         }
       }
     }
   }
 
-  /** Batch get [InternalReportingSet]s based on [ReportingSet] names. */
+  /** Batch get [InternalReportingSet]s based on external IDs. */
   private suspend fun batchGetInternalReportingSets(
     cmmsMeasurementConsumerId: String,
-    reportingSetNames: List<String>,
+    externalReportingSetIds: List<String>,
   ): BatchGetReportingSetsResponse {
-    val externalReportingSetIds: List<String> =
-      reportingSetNames.map {
-        val reportingSetKey =
-          grpcRequireNotNull(ReportingSetKey.fromName(it)) { "Invalid reporting set name $it." }
-
-        if (reportingSetKey.cmmsMeasurementConsumerId != cmmsMeasurementConsumerId) {
-          failGrpc(Status.PERMISSION_DENIED) { "No access to the reporting set [$it]." }
-        }
-
-        reportingSetKey.reportingSetId
-      }
-
     return try {
       internalReportingSetsStub.batchGetReportingSets(
         batchGetReportingSetsRequest {
@@ -1715,39 +1741,37 @@ private fun buildMetricResult(metric: InternalMetric, variances: Variances): Met
     when (metric.metricSpec.typeCase) {
       InternalMetricSpec.TypeCase.REACH -> {
         reach =
-          calculateReachResult(
-            metric.weightedMeasurementsList,
-            metric.metricSpec.vidSamplingInterval,
-            metric.metricSpec.reach.privacyParams,
-            variances,
-          )
+          calculateReachResult(metric.weightedMeasurementsList, metric.metricSpec.reach, variances)
       }
       InternalMetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
         reachAndFrequency = reachAndFrequencyResult {
           reach =
             calculateReachResult(
               metric.weightedMeasurementsList,
-              metric.metricSpec.vidSamplingInterval,
-              metric.metricSpec.reachAndFrequency.reachPrivacyParams,
+              metric.metricSpec.reachAndFrequency,
               variances,
             )
           frequencyHistogram =
             calculateFrequencyHistogramResults(
               metric.weightedMeasurementsList,
-              metric.metricSpec,
+              metric.metricSpec.reachAndFrequency,
               variances,
             )
         }
       }
       InternalMetricSpec.TypeCase.IMPRESSION_COUNT -> {
         impressionCount =
-          calculateImpressionResult(metric.weightedMeasurementsList, metric.metricSpec, variances)
+          calculateImpressionResult(
+            metric.weightedMeasurementsList,
+            metric.metricSpec.impressionCount,
+            variances,
+          )
       }
       InternalMetricSpec.TypeCase.WATCH_DURATION -> {
         watchDuration =
           calculateWatchDurationResult(
             metric.weightedMeasurementsList,
-            metric.metricSpec,
+            metric.metricSpec.watchDuration,
             variances,
           )
       }
@@ -1837,7 +1861,7 @@ private fun aggregateResults(
 /** Calculates the watch duration result from [WeightedMeasurement]s. */
 private fun calculateWatchDurationResult(
   weightedMeasurements: List<WeightedMeasurement>,
-  metricSpec: InternalMetricSpec,
+  watchDurationParams: InternalMetricSpec.WatchDurationParams,
   variances: Variances,
 ): MetricResult.WatchDurationResult {
   for (weightedMeasurement in weightedMeasurements) {
@@ -1865,7 +1889,7 @@ private fun calculateWatchDurationResult(
         List<WeightedWatchDurationMeasurementVarianceParams?> =
         buildWeightedWatchDurationMeasurementVarianceParamsPerResult(
           weightedMeasurement,
-          metricSpec,
+          watchDurationParams,
         )
 
       // If any measurement result contains insufficient data for variance calculation, univariate
@@ -1924,7 +1948,7 @@ private fun ProtoDuration.toDoubleSecond(): Double {
  */
 fun buildWeightedWatchDurationMeasurementVarianceParamsPerResult(
   weightedMeasurement: WeightedMeasurement,
-  metricSpec: MetricSpec,
+  watchDurationParams: InternalMetricSpec.WatchDurationParams,
 ): List<WeightedWatchDurationMeasurementVarianceParams?> {
   val watchDurationResults: List<InternalMeasurement.Result.WatchDuration> =
     weightedMeasurement.measurement.details.resultsList.map { it.watchDuration }
@@ -1967,10 +1991,11 @@ fun buildWeightedWatchDurationMeasurementVarianceParamsPerResult(
           duration = max(0.0, watchDurationResult.value.toDoubleSecond()),
           measurementParams =
             WatchDurationMeasurementParams(
-              vidSamplingInterval = metricSpec.vidSamplingInterval.toStatsVidSamplingInterval(),
-              dpParams = metricSpec.watchDuration.privacyParams.toNoiserDpParams(),
+              vidSamplingInterval =
+                watchDurationParams.params.vidSamplingInterval.toStatsVidSamplingInterval(),
+              dpParams = watchDurationParams.params.privacyParams.toNoiserDpParams(),
               maximumDurationPerUser =
-                metricSpec.watchDuration.maximumWatchDurationPerUser.toDoubleSecond(),
+                watchDurationParams.maximumWatchDurationPerUser.toDoubleSecond(),
               noiseMechanism = statsNoiseMechanism,
             ),
         ),
@@ -2020,7 +2045,7 @@ fun buildStatsMethodology(
 /** Calculates the impression result from [WeightedMeasurement]s. */
 private fun calculateImpressionResult(
   weightedMeasurements: List<WeightedMeasurement>,
-  metricSpec: InternalMetricSpec,
+  impressionParams: InternalMetricSpec.ImpressionCountParams,
   variances: Variances,
 ): MetricResult.ImpressionCountResult {
   for (weightedMeasurement in weightedMeasurements) {
@@ -2043,7 +2068,10 @@ private fun calculateImpressionResult(
       val weightedMeasurement = weightedMeasurements.single()
       val weightedMeasurementVarianceParamsList:
         List<WeightedImpressionMeasurementVarianceParams?> =
-        buildWeightedImpressionMeasurementVarianceParamsPerResult(weightedMeasurement, metricSpec)
+        buildWeightedImpressionMeasurementVarianceParamsPerResult(
+          weightedMeasurement,
+          impressionParams,
+        )
 
       // If any measurement result contains insufficient data for variance calculation, univariate
       // statistics won't be computed.
@@ -2085,7 +2113,7 @@ private fun calculateImpressionResult(
  */
 fun buildWeightedImpressionMeasurementVarianceParamsPerResult(
   weightedMeasurement: WeightedMeasurement,
-  metricSpec: MetricSpec,
+  impressionParams: InternalMetricSpec.ImpressionCountParams,
 ): List<WeightedImpressionMeasurementVarianceParams?> {
   val impressionResults: List<InternalMeasurement.Result.Impression> =
     weightedMeasurement.measurement.details.resultsList.map { it.impression }
@@ -2124,7 +2152,7 @@ fun buildWeightedImpressionMeasurementVarianceParamsPerResult(
       if (impressionResult.deterministicCount.customMaximumFrequencyPerUser != 0) {
         impressionResult.deterministicCount.customMaximumFrequencyPerUser
       } else {
-        metricSpec.impressionCount.maximumFrequencyPerUser
+        impressionParams.maximumFrequencyPerUser
       }
 
     WeightedImpressionMeasurementVarianceParams(
@@ -2135,8 +2163,9 @@ fun buildWeightedImpressionMeasurementVarianceParamsPerResult(
           impression = max(0L, impressionResult.value),
           measurementParams =
             ImpressionMeasurementParams(
-              vidSamplingInterval = metricSpec.vidSamplingInterval.toStatsVidSamplingInterval(),
-              dpParams = metricSpec.impressionCount.privacyParams.toNoiserDpParams(),
+              vidSamplingInterval =
+                impressionParams.params.vidSamplingInterval.toStatsVidSamplingInterval(),
+              dpParams = impressionParams.params.privacyParams.toNoiserDpParams(),
               maximumFrequencyPerUser = maxFrequencyPerUser,
               noiseMechanism = statsNoiseMechanism,
             ),
@@ -2185,7 +2214,7 @@ fun buildStatsMethodology(impressionResult: InternalMeasurement.Result.Impressio
 /** Calculates the frequency histogram result from [WeightedMeasurement]s. */
 private fun calculateFrequencyHistogramResults(
   weightedMeasurements: List<WeightedMeasurement>,
-  metricSpec: InternalMetricSpec,
+  reachAndFrequencyParams: InternalMetricSpec.ReachAndFrequencyParams,
   variances: Variances,
 ): MetricResult.HistogramResult {
   val aggregatedFrequencyHistogramMap: MutableMap<Long, Double> =
@@ -2217,7 +2246,7 @@ private fun calculateFrequencyHistogramResults(
       }
 
   // Fill the buckets that don't have any count with zeros.
-  for (frequency in (1L..metricSpec.reachAndFrequency.maximumFrequency)) {
+  for (frequency in (1L..reachAndFrequencyParams.maximumFrequency)) {
     if (!aggregatedFrequencyHistogramMap.containsKey(frequency)) {
       aggregatedFrequencyHistogramMap[frequency] = 0.0
     }
@@ -2225,7 +2254,33 @@ private fun calculateFrequencyHistogramResults(
 
   val weightedMeasurementVarianceParamsList: List<WeightedFrequencyMeasurementVarianceParams> =
     weightedMeasurements.mapNotNull { weightedMeasurement ->
-      buildWeightedFrequencyMeasurementVarianceParams(weightedMeasurement, metricSpec, variances)
+      if (
+        weightedMeasurement.measurement.details.dataProviderCount == 1 &&
+          reachAndFrequencyParams.hasSingleDataProviderParams()
+      ) {
+        buildWeightedFrequencyMeasurementVarianceParams(
+          weightedMeasurement = weightedMeasurement,
+          vidSamplingInterval =
+            reachAndFrequencyParams.singleDataProviderParams.vidSamplingInterval,
+          reachPrivacyParams = reachAndFrequencyParams.singleDataProviderParams.reachPrivacyParams,
+          frequencyPrivacyParams =
+            reachAndFrequencyParams.singleDataProviderParams.frequencyPrivacyParams,
+          maximumFrequency = reachAndFrequencyParams.maximumFrequency,
+          variances = variances,
+        )
+      } else {
+        buildWeightedFrequencyMeasurementVarianceParams(
+          weightedMeasurement = weightedMeasurement,
+          vidSamplingInterval =
+            reachAndFrequencyParams.multipleDataProviderParams.vidSamplingInterval,
+          reachPrivacyParams =
+            reachAndFrequencyParams.multipleDataProviderParams.reachPrivacyParams,
+          frequencyPrivacyParams =
+            reachAndFrequencyParams.multipleDataProviderParams.frequencyPrivacyParams,
+          maximumFrequency = reachAndFrequencyParams.maximumFrequency,
+          variances = variances,
+        )
+      }
     }
 
   val frequencyVariances: FrequencyVariances? =
@@ -2286,15 +2341,18 @@ private fun calculateFrequencyHistogramResults(
  */
 fun buildWeightedFrequencyMeasurementVarianceParams(
   weightedMeasurement: WeightedMeasurement,
-  metricSpec: MetricSpec,
+  vidSamplingInterval: InternalMetricSpec.VidSamplingInterval,
+  reachPrivacyParams: InternalMetricSpec.DifferentialPrivacyParams,
+  frequencyPrivacyParams: InternalMetricSpec.DifferentialPrivacyParams,
+  maximumFrequency: Int,
   variances: Variances,
 ): WeightedFrequencyMeasurementVarianceParams? {
   // Get reach measurement variance params
   val weightedReachMeasurementVarianceParams: WeightedReachMeasurementVarianceParams =
     buildWeightedReachMeasurementVarianceParams(
       weightedMeasurement,
-      metricSpec.vidSamplingInterval,
-      metricSpec.reachAndFrequency.reachPrivacyParams,
+      vidSamplingInterval,
+      reachPrivacyParams,
     ) ?: return null
 
   val reachMeasurementVariance: Double =
@@ -2353,10 +2411,10 @@ fun buildWeightedFrequencyMeasurementVarianceParams(
           frequencyResult.relativeFrequencyDistributionMap.mapKeys { it.key.toInt() },
         measurementParams =
           FrequencyMeasurementParams(
-            vidSamplingInterval = metricSpec.vidSamplingInterval.toStatsVidSamplingInterval(),
-            dpParams = metricSpec.reachAndFrequency.frequencyPrivacyParams.toNoiserDpParams(),
+            vidSamplingInterval = vidSamplingInterval.toStatsVidSamplingInterval(),
+            dpParams = frequencyPrivacyParams.toNoiserDpParams(),
             noiseMechanism = frequencyStatsNoiseMechanism,
-            maximumFrequency = metricSpec.reachAndFrequency.maximumFrequency,
+            maximumFrequency = maximumFrequency,
           ),
       ),
     methodology = frequencyMethodology,
@@ -2422,8 +2480,7 @@ fun buildStatsMethodology(frequencyResult: InternalMeasurement.Result.Frequency)
 /** Calculates the reach result from [WeightedMeasurement]s. */
 private fun calculateReachResult(
   weightedMeasurements: List<WeightedMeasurement>,
-  vidSamplingInterval: InternalMetricSpec.VidSamplingInterval,
-  privacyParams: InternalMetricSpec.DifferentialPrivacyParams,
+  reachParams: InternalMetricSpec.ReachParams,
   variances: Variances,
 ): MetricResult.ReachResult {
   for (weightedMeasurement in weightedMeasurements) {
@@ -2443,11 +2500,89 @@ private fun calculateReachResult(
 
     val weightedMeasurementVarianceParamsList: List<WeightedReachMeasurementVarianceParams> =
       weightedMeasurements.mapNotNull { weightedMeasurement ->
-        buildWeightedReachMeasurementVarianceParams(
-          weightedMeasurement,
-          vidSamplingInterval,
-          privacyParams,
-        )
+        if (
+          weightedMeasurement.measurement.details.dataProviderCount == 1 &&
+            reachParams.hasSingleDataProviderParams()
+        ) {
+          buildWeightedReachMeasurementVarianceParams(
+            weightedMeasurement,
+            reachParams.singleDataProviderParams.vidSamplingInterval,
+            reachParams.singleDataProviderParams.privacyParams,
+          )
+        } else {
+          buildWeightedReachMeasurementVarianceParams(
+            weightedMeasurement,
+            reachParams.multipleDataProviderParams.vidSamplingInterval,
+            reachParams.multipleDataProviderParams.privacyParams,
+          )
+        }
+      }
+
+    // If any measurement contains insufficient data for variance calculation, univariate statistics
+    // won't be computed.
+    if (weightedMeasurementVarianceParamsList.size == weightedMeasurements.size) {
+      univariateStatistics = univariateStatistics {
+        standardDeviation =
+          sqrt(
+            try {
+              variances.computeMetricVariance(
+                ReachMetricVarianceParams(weightedMeasurementVarianceParamsList)
+              )
+            } catch (e: Throwable) {
+              failGrpc(Status.UNKNOWN) {
+                listOfNotNull(
+                    "Unable to compute variance of reach metric.",
+                    e.message,
+                    e.cause?.message,
+                  )
+                  .joinToString(separator = "\n")
+              }
+            }
+          )
+      }
+    }
+  }
+}
+
+/** Calculates the reach result from [WeightedMeasurement]s. */
+private fun calculateReachResult(
+  weightedMeasurements: List<WeightedMeasurement>,
+  reachAndFrequencyParams: InternalMetricSpec.ReachAndFrequencyParams,
+  variances: Variances,
+): MetricResult.ReachResult {
+  for (weightedMeasurement in weightedMeasurements) {
+    if (weightedMeasurement.measurement.details.resultsList.any { !it.hasReach() }) {
+      failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
+        "Reach measurement result is missing."
+      }
+    }
+  }
+
+  return reachResult {
+    value =
+      weightedMeasurements.sumOf { weightedMeasurement ->
+        aggregateResults(weightedMeasurement.measurement.details.resultsList).reach.value *
+          weightedMeasurement.weight
+      }
+
+    val weightedMeasurementVarianceParamsList: List<WeightedReachMeasurementVarianceParams> =
+      weightedMeasurements.mapNotNull { weightedMeasurement ->
+        if (
+          weightedMeasurement.measurement.details.dataProviderCount == 1 &&
+            reachAndFrequencyParams.hasSingleDataProviderParams()
+        ) {
+          buildWeightedReachMeasurementVarianceParams(
+            weightedMeasurement,
+            reachAndFrequencyParams.singleDataProviderParams.vidSamplingInterval,
+            reachAndFrequencyParams.singleDataProviderParams.reachPrivacyParams,
+          )
+        } else {
+          buildWeightedReachMeasurementVarianceParams(
+            weightedMeasurement,
+            reachAndFrequencyParams.multipleDataProviderParams.vidSamplingInterval,
+            reachAndFrequencyParams.multipleDataProviderParams.reachPrivacyParams,
+          )
+        }
       }
 
     // If any measurement contains insufficient data for variance calculation, univariate statistics

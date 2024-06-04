@@ -133,6 +133,8 @@ message Measurement {
     // per data provider. For LLV2 and reach-only LLV2, there is only one
     // result.
     repeated Result results = 2;
+
+    int32 data_provider_count = 3;
   }
   Details details = 7;
 }

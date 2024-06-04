@@ -2779,16 +2779,19 @@ class ReportSchedulesServiceTest {
     private val INTERNAL_METRIC_SPEC: InternalMetricSpec = internalMetricSpec {
       reach =
         InternalMetricSpecKt.reachParams {
-          privacyParams =
-            InternalMetricSpecKt.differentialPrivacyParams {
-              epsilon = EPSILON
-              delta = DELTA
+          multipleDataProviderParams =
+            InternalMetricSpecKt.samplingAndPrivacyParams {
+              privacyParams =
+                InternalMetricSpecKt.differentialPrivacyParams {
+                  epsilon = EPSILON
+                  delta = DELTA
+                }
+              vidSamplingInterval =
+                InternalMetricSpecKt.vidSamplingInterval {
+                  start = VID_SAMPLING_START
+                  width = VID_SAMPLING_WIDTH
+                }
             }
-        }
-      vidSamplingInterval =
-        InternalMetricSpecKt.vidSamplingInterval {
-          start = VID_SAMPLING_START
-          width = VID_SAMPLING_WIDTH
         }
     }
 

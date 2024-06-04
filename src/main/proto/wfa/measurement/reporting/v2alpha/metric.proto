@@ -30,9 +30,6 @@ option java_outer_classname = "MetricProto";
 message MetricSpec {
   // Parameters for differential privacy (DP).
   //
-  // If any of the fields are not specified in a request message, the service
-  // implementation will choose values.
-  //
   // For detail, refer to "Dwork, C. and Roth, A., 2014. The algorithmic
   // foundations of differential privacy. Foundations and Trends in Theoretical
   // Computer Science, 9(3-4), pp.211-407."
@@ -41,31 +38,102 @@ message MetricSpec {
     optional double delta = 2;
   }
 
-  // Parameters that are used to generate `Reach` metric.
-  message ReachParams {
-    // Differential privacy parameters for reach.
+  // Specifies a range of VIDs to be sampled.
+  message VidSamplingInterval {
+    // The start of the sampling interval in [0, 1)
+    float start = 1;
+    // The width of the sampling interval.
+    //
+    // start + width cannot be larger than 1.
+    float width = 2 [(google.api.field_behavior) = REQUIRED];
+  }
+
+  message SamplingAndPrivacyParams {
+    // Differential privacy parameters.
+    //
+    // If any of the fields are not specified, the service implementation will
+    // choose values.
     DifferentialPrivacyParams privacy_params = 1
         [(google.api.field_behavior) = REQUIRED];
+
+    // Specifies the range of VIDs to be sampled.
+    //
+    // If not specified, the service implementation will choose values for all
+    // the fields in the message.
+    VidSamplingInterval vid_sampling_interval = 2;
   }
-  // Parameters that are used to generate `ReachAndFrequency` metric.
-  message ReachAndFrequencyParams {
+
+  message ReachAndFrequencySamplingAndPrivacyParams {
     // Differential privacy parameters for reach.
+    //
+    // If any of the fields are not specified, the service implementation will
+    // choose values.
     DifferentialPrivacyParams reach_privacy_params = 1
         [(google.api.field_behavior) = REQUIRED];
-    // Differential privacy parameters for frequency distribution.
+
+    // Differential privacy parameters for frequency.
+    //
+    // If any of the fields are not specified, the service implementation will
+    // choose values.
     DifferentialPrivacyParams frequency_privacy_params = 2
         [(google.api.field_behavior) = REQUIRED];
+
+    // Specifies the range of VIDs to be sampled.
+    //
+    // If not specified, the service implementation will choose values for all
+    // the fields in the message.
+    VidSamplingInterval vid_sampling_interval = 3;
+  }
+
+  // Parameters that are used to generate `Reach` metrics. Applied on a
+  // per-Measurement basis.
+  message ReachParams {
+    // Differential privacy parameters for reach.
+    DifferentialPrivacyParams privacy_params = 1 [deprecated = true];
+
+    // Parameters for multiple DataProviders. Will be required in a future
+    // release. If set, `single_data_provider_params` needs to be set. Takes
+    // precedence over `privacy_params`.
+    SamplingAndPrivacyParams multiple_data_provider_params = 2;
+
+    // Parameters for a single DataProvider. Will be required in a future
+    // release. If set, `multiple_data_provider_params` needs to be set.
+    SamplingAndPrivacyParams single_data_provider_params = 3;
+  }
+
+  // Parameters that are used to generate `ReachAndFrequency` metrics. Applied
+  // on a per-Measurement basis.
+  message ReachAndFrequencyParams {
+    // Differential privacy parameters for reach and multiple DataProviders.
+    DifferentialPrivacyParams reach_privacy_params = 1 [deprecated = true];
+    // Differential privacy parameters for frequency distribution.
+    DifferentialPrivacyParams frequency_privacy_params = 2 [deprecated = true];
+
+    // Parameters for multiple DataProviders. Will be required in a future
+    // release. If set, `single_data_provider_params` needs to be set. Takes
+    // precedence over `reach_privacy_params` and `frequency_privacy_params`.
+    ReachAndFrequencySamplingAndPrivacyParams multiple_data_provider_params = 4;
+
+    // Parameters for a single DataProvider. Will be required in a future
+    // release. If set, `multiple_data_provider_params` needs to be set.
+    ReachAndFrequencySamplingAndPrivacyParams single_data_provider_params = 5;
+
     // Maximum frequency cut-off value in frequency histogram.
     //
     // Counts with frequency higher than `maximum_frequency` will be aggregated
     // together. If not set, the default value will be used and outputted here.
     int32 maximum_frequency = 3;
   }
-  // Parameters that are used to generate `Impression Count` metric.
+  // Parameters that are used to generate `Impression Count` metrics. Applied on
+  // a per-Measurement basis.
   message ImpressionCountParams {
     // Differential privacy parameters.
-    DifferentialPrivacyParams privacy_params = 1
-        [(google.api.field_behavior) = REQUIRED];
+    DifferentialPrivacyParams privacy_params = 1 [deprecated = true];
+
+    // Parameters for impression. Will be required in a future release. Takes
+    // precedence over `privacy_params`.
+    SamplingAndPrivacyParams params = 3;
+
     // Maximum frequency per user that will be included in this metric. Enforced
     // on a per EDP basis.
     //
@@ -79,11 +147,16 @@ message MetricSpec {
     // If not set, the default value will be used and outputted here.
     optional int32 maximum_frequency_per_user = 2;
   }
-  // Parameters that are used to generate `Watch Duration` metric.
+  // Parameters that are used to generate `Watch Duration` metrics. Applied on a
+  // per-Measurement basis.
   message WatchDurationParams {
     // Differential privacy parameters.
-    DifferentialPrivacyParams privacy_params = 1
-        [(google.api.field_behavior) = REQUIRED];
+    DifferentialPrivacyParams privacy_params = 1 [deprecated = true];
+
+    // Parameters for watch duration. Will be required in a future release.
+    // Takes precedence over `privacy_params`.
+    SamplingAndPrivacyParams params = 3;
+
     // Maximum watch duration per user that will be included in this metric.
     //
     // Recommended maximum_watch_duration_per_user = cap on the total watch
@@ -93,7 +166,7 @@ message MetricSpec {
     google.protobuf.Duration maximum_watch_duration_per_user = 2;
   }
 
-  // Parameters that are used to generate `Population` metric.
+  // Parameters that are used to generate `Population` metrics.
   message PopulationCountParams {}
 
   // Types of metric with parameters.
@@ -117,20 +190,11 @@ message MetricSpec {
         [(google.api.field_behavior) = IMMUTABLE];
   }
 
-  // Specifies a range of VIDs to be sampled.
-  message VidSamplingInterval {
-    // The start of the sampling interval in [0, 1)
-    float start = 1 [(google.api.field_behavior) = REQUIRED];
-    // The width of the sampling interval.
-    //
-    // start + width cannot be larger than 1
-    float width = 2 [(google.api.field_behavior) = REQUIRED];
-  }
   // Range of VIDs that will be included in this measurement
   //
   // If this field is unspecified in a request message, the service
   // implementation will use the value specified in the system defaults.
-  VidSamplingInterval vid_sampling_interval = 6;
+  VidSamplingInterval vid_sampling_interval = 6 [deprecated = true];
 }
 
 // Statistics of a scalar value
