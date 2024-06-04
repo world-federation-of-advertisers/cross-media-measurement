@@ -266,11 +266,14 @@ val TYPE_REGISTRY = TypeRegistry.newBuilder().add(Person.getDescriptor()).add(Du
 
 val CLASS_MAP: Map<String, Class<Message>> = mapOf(Person.getDescriptor().name to Person.getDefaultInstance().javaClass, Dummy.getDescriptor().name to Dummy.getDefaultInstance().javaClass)
 
+val OPERATIVE_FIELDS = setOf("person.ageGroup.value", "person.socialGradeGroup.value", "person.genderGroup.value")
+
 val POPULATION_INFO_1 = PopulationInfo(
   POPULATION_SPEC_1,
   TestEvent.getDescriptor(),
   TYPE_REGISTRY,
   CLASS_MAP,
+  OPERATIVE_FIELDS,
 )
 
 val POPULATION_INFO_2 = PopulationInfo(
@@ -278,6 +281,7 @@ val POPULATION_INFO_2 = PopulationInfo(
   TestEvent.getDescriptor(),
   TYPE_REGISTRY,
   CLASS_MAP,
+  OPERATIVE_FIELDS,
 )
 
 val INVALID_POPULATION_INFO_1 = PopulationInfo(
@@ -285,6 +289,7 @@ val INVALID_POPULATION_INFO_1 = PopulationInfo(
   TestEvent.getDescriptor(),
   TYPE_REGISTRY,
   CLASS_MAP,
+  OPERATIVE_FIELDS,
 )
 
 val INVALID_POPULATION_INFO_2 = PopulationInfo(
@@ -292,6 +297,7 @@ val INVALID_POPULATION_INFO_2 = PopulationInfo(
   TestEvent.getDescriptor(),
   TYPE_REGISTRY,
   CLASS_MAP,
+  OPERATIVE_FIELDS,
 )
 
 
@@ -397,8 +403,8 @@ class PopulationRequisitionFulfillerTest {
       )
     val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
 
-    // Result should be the sum of SUB_POPULATION_1 and SUB_POPULATION_3
-    assertThat(result.population.value).isEqualTo(VID_RANGE_1.size())
+    // Result should be the sum of SUB_POPULATION_1 and SUB_POPULATION_2
+    assertThat(result.population.value).isEqualTo(VID_RANGE_1.size() + VID_RANGE_2.size())
   }
 
   @Test

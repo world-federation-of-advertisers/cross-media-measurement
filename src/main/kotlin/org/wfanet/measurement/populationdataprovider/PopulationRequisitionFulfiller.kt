@@ -58,6 +58,7 @@ data class PopulationInfo (
   val eventDescriptor: Descriptor,
   val typeRegistry: TypeRegistry,
   val attributeClassMap: Map<String, Class<Message>>,
+  val operativeFields: Set<String>,
 )
 /** A requisition fulfiller for PDP businesses. */
 class PopulationRequisitionFulfiller(
@@ -210,7 +211,7 @@ class PopulationRequisitionFulfiller(
   ) {
 
     // CEL program that will check the event against the filter expression
-    val program = EventFilters.compileProgram(populationInfo.eventDescriptor, filterExpression)
+    val program = EventFilters.compileProgram(populationInfo.eventDescriptor, filterExpression, populationInfo.operativeFields)
 
     // Filters populationBucketsList through a CEL program and sums the result.
     val populationSum = populationInfo.populationSpec.subpopulationsList.sumOf {
