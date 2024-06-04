@@ -18,6 +18,7 @@ kt_jvm_library(
     name = "testing",
     srcs = glob(["*.kt"]),
     deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/common",
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
         "//src/main/kotlin/org/wfanet/panelmatch/common",
         "//src/main/kotlin/org/wfanet/panelmatch/common/certificates/testing",

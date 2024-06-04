@@ -18,6 +18,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.time.Clock
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -37,12 +38,14 @@ import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepKey
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
-import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
+import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt as V2AlphaExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKt.debugLogEntry
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.exchangeIdentifiers
 import org.wfanet.measurement.api.v2alpha.FinishExchangeStepAttemptRequest
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.appendExchangeStepAttemptLogEntryRequest
@@ -50,12 +53,17 @@ import org.wfanet.measurement.api.v2alpha.claimReadyExchangeStepRequest
 import org.wfanet.measurement.api.v2alpha.claimReadyExchangeStepResponse
 import org.wfanet.measurement.api.v2alpha.exchangeStep
 import org.wfanet.measurement.api.v2alpha.exchangeStepAttempt
+import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.finishExchangeStepAttemptRequest
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.panelmatch.client.common.ExchangeStepAttemptKey
 import org.wfanet.panelmatch.client.common.Identity
+import org.wfanet.panelmatch.client.internal.ExchangeStepAttempt
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Party
 
 private const val RECURRING_EXCHANGE_ID = "some-recurring-exchange-id"
@@ -64,8 +72,10 @@ private const val EXCHANGE_STEP_ID = "some-step-id"
 private const val EXCHANGE_STEP_ATTEMPT_ID = "some-attempt-id"
 private const val DATA_PROVIDER_ID = "some-data-provider-id"
 private const val MODEL_PROVIDER_ID = "some-model-provider-id"
+private const val STEP_INDEX = 3
 private val DATA_PROVIDER_IDENTITY = Identity(DATA_PROVIDER_ID, Party.DATA_PROVIDER)
 private val MODEL_PROVIDER_IDENTITY = Identity(MODEL_PROVIDER_ID, Party.MODEL_PROVIDER)
+private val DATE = LocalDate.parse("2024-06-01")
 
 private val EXCHANGE_STEP_KEY =
   CanonicalExchangeStepKey(
@@ -76,10 +86,22 @@ private val EXCHANGE_STEP_KEY =
 
 private val EXCHANGE_STEP: ExchangeStep = exchangeStep {
   name = EXCHANGE_STEP_KEY.toName()
+  stepIndex = STEP_INDEX
+  exchangeDate = DATE.toProtoDate()
   state = ExchangeStep.State.READY_FOR_RETRY
+  exchangeWorkflow =
+    exchangeWorkflow {
+      exchangeIdentifiers = exchangeIdentifiers {
+        dataProvider = "dataProviders/some-data-provider"
+        modelProvider = "modelProviders/some-model-provider"
+        sharedStorageOwner = ExchangeWorkflow.Party.DATA_PROVIDER
+        storage = ExchangeWorkflow.StorageType.GOOGLE_CLOUD_STORAGE
+      }
+    }
+    .pack()
 }
 
-private val EXCHANGE_STEP_ATTEMPT_KEY: CanonicalExchangeStepAttemptKey =
+private val V2ALPHA_EXCHANGE_STEP_ATTEMPT_KEY: CanonicalExchangeStepAttemptKey =
   CanonicalExchangeStepAttemptKey(
     recurringExchangeId = RECURRING_EXCHANGE_ID,
     exchangeId = EXCHANGE_ID,
@@ -87,9 +109,18 @@ private val EXCHANGE_STEP_ATTEMPT_KEY: CanonicalExchangeStepAttemptKey =
     exchangeStepAttemptId = EXCHANGE_STEP_ATTEMPT_ID,
   )
 
+private val EXCHANGE_STEP_ATTEMPT_KEY: ExchangeStepAttemptKey =
+  ExchangeStepAttemptKey(
+    recurringExchangeId = RECURRING_EXCHANGE_ID,
+    exchangeId = EXCHANGE_ID,
+    stepId = EXCHANGE_STEP_ID,
+    attemptId = EXCHANGE_STEP_ATTEMPT_ID,
+    simpleName = V2ALPHA_EXCHANGE_STEP_ATTEMPT_KEY.toName(),
+  )
+
 private val FULL_CLAIM_READY_EXCHANGE_STEP_RESPONSE = claimReadyExchangeStepResponse {
   exchangeStep = EXCHANGE_STEP
-  exchangeStepAttempt = EXCHANGE_STEP_ATTEMPT_KEY.toName()
+  exchangeStepAttempt = V2ALPHA_EXCHANGE_STEP_ATTEMPT_KEY.toName()
 }
 
 private val EMPTY_CLAIM_READY_EXCHANGE_STEP_RESPONSE = claimReadyExchangeStepResponse {}
@@ -121,7 +152,7 @@ class GrpcApiClientTest {
     return GrpcApiClient(identity, exchangeStepsStub, exchangeStepAttemptsStub, clock, 1)
   }
 
-  private fun makeLogEntry(message: String): ExchangeStepAttempt.DebugLogEntry {
+  private fun makeLogEntry(message: String): V2AlphaExchangeStepAttempt.DebugLogEntry {
     return debugLogEntry {
       entryTime = clock.instant().toProtoTime()
       this.message = message
@@ -139,10 +170,10 @@ class GrpcApiClientTest {
 
     val result: ApiClient.ClaimedExchangeStep? = runBlocking { client.claimExchangeStep() }
     assertNotNull(result)
-    val (exchangeStep, attemptKey) = result
 
-    assertThat(exchangeStep).isEqualTo(EXCHANGE_STEP)
-    assertThat(attemptKey).isEqualTo(EXCHANGE_STEP_ATTEMPT_KEY)
+    assertThat(result.attemptKey).isEqualTo(EXCHANGE_STEP_ATTEMPT_KEY)
+    assertThat(result.exchangeDate).isEqualTo(DATE)
+    assertThat(result.stepIndex).isEqualTo(STEP_INDEX)
 
     verifyProtoArgument(
         exchangeStepsServiceMock,
@@ -177,10 +208,10 @@ class GrpcApiClientTest {
 
     val result: ApiClient.ClaimedExchangeStep? = runBlocking { client.claimExchangeStep() }
     assertNotNull(result)
-    val (exchangeStep, attemptKey) = result
 
-    assertThat(exchangeStep).isEqualTo(EXCHANGE_STEP)
-    assertThat(attemptKey).isEqualTo(EXCHANGE_STEP_ATTEMPT_KEY)
+    assertThat(result.attemptKey).isEqualTo(EXCHANGE_STEP_ATTEMPT_KEY)
+    assertThat(result.exchangeDate).isEqualTo(DATE)
+    assertThat(result.stepIndex).isEqualTo(STEP_INDEX)
 
     verifyProtoArgument(
         exchangeStepsServiceMock,
@@ -207,7 +238,7 @@ class GrpcApiClientTest {
       )
       .isEqualTo(
         appendExchangeStepAttemptLogEntryRequest {
-          name = EXCHANGE_STEP_ATTEMPT_KEY.toName()
+          name = V2ALPHA_EXCHANGE_STEP_ATTEMPT_KEY.toName()
           logEntries += makeLogEntry("message-1")
           logEntries += makeLogEntry("message-2")
         }
@@ -239,8 +270,8 @@ class GrpcApiClientTest {
     assertThat(requestCaptor.firstValue)
       .isEqualTo(
         finishExchangeStepAttemptRequest {
-          name = EXCHANGE_STEP_ATTEMPT_KEY.toName()
-          finalState = ExchangeStepAttempt.State.SUCCEEDED
+          name = V2ALPHA_EXCHANGE_STEP_ATTEMPT_KEY.toName()
+          finalState = V2AlphaExchangeStepAttempt.State.SUCCEEDED
           logEntries += makeLogEntry("message-1")
           logEntries += makeLogEntry("message-2")
         }
@@ -248,8 +279,8 @@ class GrpcApiClientTest {
     assertThat(requestCaptor.secondValue)
       .isEqualTo(
         finishExchangeStepAttemptRequest {
-          name = EXCHANGE_STEP_ATTEMPT_KEY.toName()
-          finalState = ExchangeStepAttempt.State.FAILED_STEP
+          name = V2ALPHA_EXCHANGE_STEP_ATTEMPT_KEY.toName()
+          finalState = V2AlphaExchangeStepAttempt.State.FAILED_STEP
         }
       )
   }

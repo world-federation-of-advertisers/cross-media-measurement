@@ -14,7 +14,7 @@
 
 package org.wfanet.panelmatch.client.exchangetasks
 
-import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt.State
+import org.wfanet.panelmatch.client.internal.ExchangeStepAttempt.State
 
 /**
  * Exception to be thrown by exchange tasks upon failure. Allows the task to specify [attemptState],

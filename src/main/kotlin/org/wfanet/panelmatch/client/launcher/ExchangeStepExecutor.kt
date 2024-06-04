@@ -14,12 +14,8 @@
 
 package org.wfanet.panelmatch.client.launcher
 
-import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
-import org.wfanet.measurement.api.v2alpha.ExchangeStep
-import org.wfanet.panelmatch.client.internal.ExchangeWorkflow
-
-/** Executes [ExchangeWorkflow.Step]s. */
+/** Executes [ApiClient.ClaimedExchangeStep]s. */
 interface ExchangeStepExecutor {
-  /** Executes [step]. */
-  suspend fun execute(exchangeStep: ExchangeStep, attemptKey: CanonicalExchangeStepAttemptKey)
+  /** Executes [exchangeStep]. */
+  suspend fun execute(exchangeStep: ApiClient.ClaimedExchangeStep)
 }

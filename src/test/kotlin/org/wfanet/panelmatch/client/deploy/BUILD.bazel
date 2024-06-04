@@ -6,6 +6,7 @@ kt_jvm_test(
     srcs = ["ProductionExchangeTaskMapperTest.kt"],
     test_class = "org.wfanet.panelmatch.client.deploy.ProductionExchangeTaskMapperTest",
     deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/common",
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy",
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy/testing",
         "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing/testing",

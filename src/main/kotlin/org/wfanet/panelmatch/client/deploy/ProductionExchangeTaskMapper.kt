@@ -357,7 +357,7 @@ open class ProductionExchangeTaskMapper(
           exchangeDateKey.recurringExchangeId,
           exchangeDateKey.date.format(DateTimeFormatter.ofPattern("yyyyMMdd")),
           step.stepId,
-          attemptKey.exchangeStepAttemptId,
+          attemptKey.attemptId,
         )
         .joinToString("-")
         .replace('_', '-')

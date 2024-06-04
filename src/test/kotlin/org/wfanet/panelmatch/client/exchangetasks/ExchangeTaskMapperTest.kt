@@ -20,8 +20,8 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
 import org.wfanet.panelmatch.client.common.ExchangeContext
+import org.wfanet.panelmatch.client.common.ExchangeStepAttemptKey
 import org.wfanet.panelmatch.client.exchangetasks.testing.FakeExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.testing.FakeExchangeTaskMapper
 import org.wfanet.panelmatch.client.launcher.testing.inputStep
@@ -45,11 +45,12 @@ private val DATE: LocalDate = LocalDate.of(2021, 11, 1)
 
 private const val RECURRING_EXCHANGE_ID = "some-recurring-exchange-id"
 private val ATTEMPT_KEY =
-  CanonicalExchangeStepAttemptKey(
-    RECURRING_EXCHANGE_ID,
-    "some-exchange",
-    "some-step",
-    "some-attempt",
+  ExchangeStepAttemptKey(
+    recurringExchangeId = RECURRING_EXCHANGE_ID,
+    exchangeId = "some-exchange",
+    stepId = "some-step",
+    attemptId = "some-attempt",
+    simpleName = "some-name",
   )
 
 @RunWith(JUnit4::class)
