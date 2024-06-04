@@ -41,6 +41,7 @@ kt_jvm_library(
 )
 
 # TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
+# Using kt_jvm_test directly does not correctly set the the path for loading native libraries.
 java_test(
     name = "EdpSimulatorTest",
     test_class = "org.wfanet.measurement.loadtest.dataprovider.EdpSimulatorTest",
