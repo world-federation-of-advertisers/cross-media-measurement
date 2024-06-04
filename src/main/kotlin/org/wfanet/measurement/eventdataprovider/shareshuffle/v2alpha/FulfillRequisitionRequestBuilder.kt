@@ -41,19 +41,16 @@ import org.wfanet.measurement.consent.client.dataprovider.encryptRandomSeed
 import org.wfanet.measurement.consent.client.dataprovider.signRandomSeed
 
 /**
+ * Builds a Flow of FulfillRequisitionRequests
+ *
  * This class assumes that the client has verified the identities of all Duchies.
  *
- * @param requisition
- * @param frequencyVector
- * @param dataProviderCertificateKey
- * @param signingKeyHandle
- * @throws IllegalArgumentException if the requisition does not have a protocol config with an
- *   HonestMajorityShareShuffle
- * @throws IllegalArgumentException if the requisition does not have a duchy list of size two where
- *   one exactly one has a public key HonestMajorityShareShuffle
- *
- * TODO: update docs Build a Flow of FulfillRequisitionRequests to be used with the Kotlin gRPC
- *   client stub.
+ * @param requisition The requisition being fulfilled
+ * @param frequencyVector The payload for the fulfillment
+ * @param dataProviderCertificateKey The certificate key of the data provider fulfilling the
+ *   requisition
+ * @param signingKeyHandle The handle of the EDP's key that is used to sign the random seed
+ * @throws IllegalArgumentException if the requisition is malformed or the frequency vector is empty
  */
 class FulfillRequisitionRequestBuilder(
   private val requisition: Requisition,
