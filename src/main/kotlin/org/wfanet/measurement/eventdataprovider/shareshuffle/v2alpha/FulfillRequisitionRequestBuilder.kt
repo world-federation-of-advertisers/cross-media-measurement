@@ -72,7 +72,6 @@ class FulfillRequisitionRequestBuilder(
           "Expected to find exactly one config for HonestMajorityShareShuffle. Found ${hmssProtocolList.size}"
         )
 
-    println(protocolConfig)
     require(protocolConfig.sketchParams.ringModulus > 1) {
       "HMSS ring modulus must be greater than one. Found: ${protocolConfig.sketchParams.ringModulus}"
     }
@@ -81,10 +80,9 @@ class FulfillRequisitionRequestBuilder(
   private val shareSeedEncryptionKey: EncryptionPublicKey
 
   init {
-
     if (requisition.duchiesList.size != 2) {
       throw IllegalArgumentException(
-        "Two duchy entries are expected, but there are ${requisition.duchiesList.size}."
+        "Two duchy entries are expected. Found: ${requisition.duchiesList.size}."
       )
     }
 
@@ -96,7 +94,7 @@ class FulfillRequisitionRequestBuilder(
     val publicKeyBlob =
       publicKeyList.singleOrNull()
         ?: throw IllegalArgumentException(
-          "Exactly one duchy entry is expected to have the encryption public key, but ${publicKeyList.size} duchy entries do."
+          "Exactly one duchy entry is expected to have the encryption public key. Found: ${publicKeyList.size}"
         )
     shareSeedEncryptionKey = EncryptionPublicKey.parseFrom(publicKeyBlob.message.value)
   }
