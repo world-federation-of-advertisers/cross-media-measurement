@@ -9,9 +9,7 @@ package(
 
 kt_jvm_library(
     name = "requisitions",
-    srcs = glob([
-        "Requisitions.kt",
-    ]),
+    srcs = ["Requisitions.kt",],
     data = [
         "//src/main/k8s/testing/secretfiles:all_configs",
         "//src/main/k8s/testing/secretfiles:all_der_files",
