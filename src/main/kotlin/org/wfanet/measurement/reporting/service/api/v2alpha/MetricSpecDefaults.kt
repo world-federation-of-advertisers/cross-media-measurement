@@ -698,9 +698,7 @@ private fun MetricSpecConfig.VidSamplingInterval.toVidSamplingInterval(
   } else {
     // The 10000 is to help turn the float into an int without losing too much data.
     val maxStart = 10000 - (source.randomStart.width * 10000).toInt()
-    // The `- 1` is in case the rounding from source.randomStart.width * NUM_BUCKETS rounds down.
-    // This prevents the random start from being too big if rounding down does occur.
-    val randomStart = secureRandom.nextInt(maxStart - 1)
+    val randomStart = secureRandom.nextInt(maxStart) % maxStart
     return MetricSpecKt.vidSamplingInterval {
       start = randomStart.toFloat() / 10000
       width = source.randomStart.width
