@@ -76,10 +76,6 @@ package k8s
 		"reporting-public-api-v1alpha-server": #ExternalService
 	}
 
-	jobs: [Name=_]: #Job & {
-		_name: Name
-	}
-
 	deployments: [Name=_]: #ServerDeployment & {
 		_name:       Name
 		_secretName: Reporting._secretName
