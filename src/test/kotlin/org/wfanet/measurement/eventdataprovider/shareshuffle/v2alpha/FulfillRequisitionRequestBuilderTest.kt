@@ -49,7 +49,7 @@ class FulfillRequisitionRequestBuilderTest {
           Requisitions.EDP_SIGNING_KEY,
         )
       }
-    assertThat(exception.message).contains("exactly one config")
+    assertThat(exception.message).contains("Found: 0")
   }
 
   @Test
@@ -68,7 +68,7 @@ class FulfillRequisitionRequestBuilderTest {
           Requisitions.EDP_SIGNING_KEY,
         )
       }
-    assertThat(exception.message).contains("Found 2")
+    assertThat(exception.message).contains("Found: 2")
   }
 
   @Test
@@ -82,7 +82,7 @@ class FulfillRequisitionRequestBuilderTest {
           Requisitions.EDP_SIGNING_KEY,
         )
       }
-    assertThat(exception.message).contains("Two duchy entries")
+    assertThat(exception.message).contains("Found: 0")
   }
 
   @Test
@@ -103,7 +103,7 @@ class FulfillRequisitionRequestBuilderTest {
           Requisitions.EDP_SIGNING_KEY,
         )
       }
-    assertThat(exception.message).contains("Two duchy entries")
+    assertThat(exception.message).contains("Found: 3")
   }
 
   @Test

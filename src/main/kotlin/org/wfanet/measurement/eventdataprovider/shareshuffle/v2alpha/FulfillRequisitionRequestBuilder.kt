@@ -69,7 +69,7 @@ class FulfillRequisitionRequestBuilder(
     protocolConfig =
       hmssProtocolList.singleOrNull()
         ?: throw IllegalArgumentException(
-          "Expected to find exactly one config for HonestMajorityShareShuffle. Found ${hmssProtocolList.size}"
+          "Expected to find exactly one config for HonestMajorityShareShuffle. Found: ${hmssProtocolList.size}"
         )
 
     require(protocolConfig.sketchParams.ringModulus > 1) {
