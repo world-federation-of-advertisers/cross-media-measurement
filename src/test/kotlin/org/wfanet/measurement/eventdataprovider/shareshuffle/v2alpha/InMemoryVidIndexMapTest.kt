@@ -30,6 +30,7 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.EndV
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.VidRangeIndex
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.toLong
+import org.wfanet.measurement.eventdataprovider.shareshuffle.VidIndexMapEntryKt.value
 import org.wfanet.measurement.eventdataprovider.shareshuffle.vidIndexMapEntry
 
 @RunWith(JUnit4::class)
@@ -77,12 +78,12 @@ class InMemoryVidIndexMapTest {
           testPopulationSpec,
           flowOf(
             vidIndexMapEntry {
-              vid = 1L
-              index = 3
+              key = 1L
+              value = value { index = 3 }
             },
             vidIndexMapEntry {
-              vid = 2L
-              index = 6
+              key = 2L
+              value = value { index = 6 }
             },
           ),
         )
@@ -121,8 +122,8 @@ class InMemoryVidIndexMapTest {
           testPopulationSpec,
           flowOf(
             vidIndexMapEntry {
-              vid = 1L
-              index = 2
+              key = 1L
+              value = value { index = 2 }
             }
           ),
         )
@@ -173,8 +174,9 @@ class InMemoryVidIndexMapTest {
 
     assertThat(vidIndexMap.size).isEqualTo(vidCount)
     for (entry in vidIndexMap) {
-      assertThat(entry.index).isEqualTo(entry.vid - 1)
-      assertThat(entry.value).isEqualTo(entry.index.toDouble() / vidIndexMap.size)
+      assertThat(entry.value.index).isEqualTo(entry.key - 1)
+      assertThat(entry.value.unitIntervalValue)
+        .isEqualTo(entry.value.index.toDouble() / vidIndexMap.size)
     }
   }
 }

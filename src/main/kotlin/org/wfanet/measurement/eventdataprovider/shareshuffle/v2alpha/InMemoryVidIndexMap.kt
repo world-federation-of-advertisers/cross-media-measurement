@@ -22,6 +22,7 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator
 import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.eventdataprovider.shareshuffle.VidIndexMapEntry
+import org.wfanet.measurement.eventdataprovider.shareshuffle.VidIndexMapEntryKt.value
 import org.wfanet.measurement.eventdataprovider.shareshuffle.vidIndexMapEntry
 
 /**
@@ -149,8 +150,8 @@ private constructor(
 
       val vidsNotInPopulationSpec = mutableListOf<Long>()
       indexMapEntries.collect { vidEntry ->
-        val vid = vidEntry.vid
-        indexMap[vid] = vidEntry.index
+        val vid = vidEntry.key
+        indexMap[vid] = vidEntry.value.index
         var vidFound = false
         for (range in populationRanges) {
           // Ensure the VID is in one of the ranges. We already know the ranges are disjoint.
@@ -246,9 +247,11 @@ private constructor(
     override fun next(): VidIndexMapEntry {
       val (k, v) = vidIndexIterator.next()
       return vidIndexMapEntry {
-        vid = k
-        index = v
-        value = v.toDouble() / this@InMemoryVidIndexMap.size
+        key = k
+        value = value {
+          index = v
+          unitIntervalValue = v.toDouble() / this@InMemoryVidIndexMap.size
+        }
       }
     }
   }
