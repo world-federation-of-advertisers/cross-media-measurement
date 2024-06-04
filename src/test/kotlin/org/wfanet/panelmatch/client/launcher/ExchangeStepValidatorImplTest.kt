@@ -26,14 +26,14 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.panelmatch.client.common.ExchangeStepAttemptKey
-import org.wfanet.panelmatch.client.common.Fingerprinters
-import org.wfanet.panelmatch.client.launcher.InvalidExchangeStepException.FailureType.PERMANENT
-import org.wfanet.panelmatch.client.launcher.InvalidExchangeStepException.FailureType.TRANSIENT
+import org.wfanet.panelmatch.client.common.Fingerprinters.farmHashFingerprint64
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Party.DATA_PROVIDER
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Party.MODEL_PROVIDER
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.step
 import org.wfanet.panelmatch.client.internal.copy
 import org.wfanet.panelmatch.client.internal.exchangeWorkflow
+import org.wfanet.panelmatch.client.launcher.InvalidExchangeStepException.FailureType.PERMANENT
+import org.wfanet.panelmatch.client.launcher.InvalidExchangeStepException.FailureType.TRANSIENT
 import org.wfanet.panelmatch.common.secrets.testing.TestSecretMap
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 
@@ -64,20 +64,21 @@ private val VALID_EXCHANGE_WORKFLOWS =
     OTHER_RECURRING_EXCHANGE_ID to ByteString.EMPTY,
   )
 
-private val EXCHANGE_STEP = ApiClient.ClaimedExchangeStep(
-  attemptKey =
-    ExchangeStepAttemptKey(
-      recurringExchangeId = RECURRING_EXCHANGE_ID,
-      exchangeId = EXCHANGE_ID,
-      stepId = EXCHANGE_STEP_ID,
-      attemptId = "some-attempt-id",
-      simpleName = "some-name",
-    ),
-  exchangeDate = TODAY,
-  stepIndex = 1,
-  workflow = EXCHANGE_WORKFLOW,
-  workflowFingerprint = Fingerprinters.farmHashFingerprint64(EXCHANGE_WORKFLOW.toByteString()),
-)
+private val EXCHANGE_STEP =
+  ApiClient.ClaimedExchangeStep(
+    attemptKey =
+      ExchangeStepAttemptKey(
+        recurringExchangeId = RECURRING_EXCHANGE_ID,
+        exchangeId = EXCHANGE_ID,
+        stepId = EXCHANGE_STEP_ID,
+        attemptId = "some-attempt-id",
+        simpleName = "some-name",
+      ),
+    exchangeDate = TODAY,
+    stepIndex = 1,
+    workflow = EXCHANGE_WORKFLOW,
+    workflowFingerprint = EXCHANGE_WORKFLOW.farmHashFingerprint64(),
+  )
 
 @RunWith(JUnit4::class)
 class ExchangeStepValidatorImplTest {
@@ -118,7 +119,11 @@ class ExchangeStepValidatorImplTest {
   fun differentExchangeWorkflow() {
     val wrongExchangeWorkflow =
       EXCHANGE_WORKFLOW.copy { firstExchangeDate = FIRST_EXCHANGE_DATE.minusDays(1).toProtoDate() }
-    val wrongExchangeStep = EXCHANGE_STEP.copy(workflow = wrongExchangeWorkflow, workflowFingerprint = wrongExchangeWorkflow.toByteString())
+    val wrongExchangeStep =
+      EXCHANGE_STEP.copy(
+        workflow = wrongExchangeWorkflow,
+        workflowFingerprint = wrongExchangeWorkflow.toByteString(),
+      )
     assertValidationFailsPermanently(wrongExchangeStep)
   }
 
@@ -126,7 +131,8 @@ class ExchangeStepValidatorImplTest {
   fun missingRecurringExchange() {
     val wrongExchangeStep =
       EXCHANGE_STEP.copy(
-        attemptKey = EXCHANGE_STEP.attemptKey.copy(recurringExchangeId = MISSING_RECURRING_EXCHANGE_ID)
+        attemptKey =
+          EXCHANGE_STEP.attemptKey.copy(recurringExchangeId = MISSING_RECURRING_EXCHANGE_ID)
       )
     assertValidationFailsTransiently(wrongExchangeStep)
   }
@@ -135,15 +141,15 @@ class ExchangeStepValidatorImplTest {
   fun invalidExchangeWorkflow() {
     val exchangeStep =
       EXCHANGE_STEP.copy(
-        attemptKey = EXCHANGE_STEP.attemptKey.copy(recurringExchangeId = OTHER_RECURRING_EXCHANGE_ID)
+        attemptKey =
+          EXCHANGE_STEP.attemptKey.copy(recurringExchangeId = OTHER_RECURRING_EXCHANGE_ID)
       )
     assertValidationFailsPermanently(exchangeStep)
   }
 
   @Test
   fun dateBeforeStart() {
-    val exchangeStep =
-      EXCHANGE_STEP.copy(exchangeDate = FIRST_EXCHANGE_DATE.minusDays(1))
+    val exchangeStep = EXCHANGE_STEP.copy(exchangeDate = FIRST_EXCHANGE_DATE.minusDays(1))
     assertValidationFailsPermanently(exchangeStep)
   }
 

@@ -37,12 +37,12 @@ import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskFailedException
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 import org.wfanet.panelmatch.client.exchangetasks.testing.FakeExchangeTaskMapper
-import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidatedExchangeStep
-import org.wfanet.panelmatch.client.launcher.testing.FakeTimeout
 import org.wfanet.panelmatch.client.internal.ExchangeStepAttempt.State
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.commutativeDeterministicEncryptStep
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.step
 import org.wfanet.panelmatch.client.internal.exchangeWorkflow
+import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidatedExchangeStep
+import org.wfanet.panelmatch.client.launcher.testing.FakeTimeout
 import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.StorageDetailsKt
 import org.wfanet.panelmatch.client.storage.storageDetails
@@ -73,13 +73,14 @@ private val WORKFLOW = exchangeWorkflow {
   }
 }
 
-private val CLAIMED_EXCHANGE_STEP = ApiClient.ClaimedExchangeStep(
-  attemptKey = ATTEMPT_KEY,
-  exchangeDate = DATE,
-  stepIndex = 0,
-  workflow = WORKFLOW,
-  workflowFingerprint = "some-fingerprint".toByteStringUtf8(),
-)
+private val CLAIMED_EXCHANGE_STEP =
+  ApiClient.ClaimedExchangeStep(
+    attemptKey = ATTEMPT_KEY,
+    exchangeDate = DATE,
+    stepIndex = 0,
+    workflow = WORKFLOW,
+    workflowFingerprint = "some-fingerprint".toByteStringUtf8(),
+  )
 
 private val VALIDATED_EXCHANGE_STEP = ValidatedExchangeStep(WORKFLOW, WORKFLOW.getSteps(0), DATE)
 

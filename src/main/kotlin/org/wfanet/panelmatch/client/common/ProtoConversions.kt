@@ -15,31 +15,29 @@
 package org.wfanet.panelmatch.client.common
 
 import com.google.protobuf.Message
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow as V2AlphaExchangeWorkflow
 import kotlin.reflect.KMutableProperty
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow as V2AlphaExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.common.ProtoReflection.getDefaultInstance
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflow
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt
-import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.step
-import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.exchangeIdentifiers
-import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.schedule
-import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.copyFromSharedStorageStep
-import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.copyToSharedStorageStep
-import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.intersectAndValidateStep
-import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.generateSerializedRlweKeyPairStep
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.buildPrivateMembershipQueriesStep
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.copyFromPreviousExchangeStep
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.copyFromSharedStorageStep
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.copyOptions
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.copyToSharedStorageStep
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.decryptPrivateMembershipQueryResultsStep
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.executePrivateMembershipQueriesStep
-import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.copyOptions
-import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.copyFromPreviousExchangeStep
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.generateRandomBytesStep
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.generateSerializedRlweKeyPairStep
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.intersectAndValidateStep
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.exchangeIdentifiers
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.schedule
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.step
 import org.wfanet.panelmatch.client.internal.exchangeWorkflow
 
-/**
- * Converts this [V2AlphaExchangeWorkflow] into a panel match internal [ExchangeWorkflow].
- */
+/** Converts this [V2AlphaExchangeWorkflow] into a panel match internal [ExchangeWorkflow]. */
 fun V2AlphaExchangeWorkflow.toInternal(): ExchangeWorkflow {
   val source = this
   return exchangeWorkflow {
@@ -71,8 +69,7 @@ private fun V2AlphaExchangeWorkflow.Step.toInternal(): ExchangeWorkflow.Step {
         this::commutativeDeterministicReencryptStep.setDefaultInstance()
       V2AlphaExchangeWorkflow.Step.StepCase.COMMUTATIVE_DETERMINISTIC_DECRYPT_STEP ->
         this::commutativeDeterministicDecryptStep.setDefaultInstance()
-      V2AlphaExchangeWorkflow.Step.StepCase.INPUT_STEP ->
-        this::inputStep.setDefaultInstance()
+      V2AlphaExchangeWorkflow.Step.StepCase.INPUT_STEP -> this::inputStep.setDefaultInstance()
       V2AlphaExchangeWorkflow.Step.StepCase.GENERATE_COMMUTATIVE_DETERMINISTIC_KEY_STEP ->
         this::generateCommutativeDeterministicKeyStep.setDefaultInstance()
       V2AlphaExchangeWorkflow.Step.StepCase.GENERATE_SERIALIZED_RLWE_KEY_PAIR_STEP ->
@@ -106,25 +103,31 @@ private fun V2AlphaExchangeWorkflow.Step.toInternal(): ExchangeWorkflow.Step {
   }
 }
 
-private inline fun <reified  T : Message> KMutableProperty<T>.setDefaultInstance() {
+private inline fun <reified T : Message> KMutableProperty<T>.setDefaultInstance() {
   setter.call(getDefaultInstance<T>())
 }
 
-private fun V2AlphaExchangeWorkflow.Step.CopyFromSharedStorageStep.copyTo(dsl: ExchangeWorkflowKt.StepKt.Dsl) {
+private fun V2AlphaExchangeWorkflow.Step.CopyFromSharedStorageStep.copyTo(
+  dsl: ExchangeWorkflowKt.StepKt.Dsl
+) {
   val source = this
   dsl.copyFromSharedStorageStep = copyFromSharedStorageStep {
     copyOptions = source.copyOptions.toInternal()
   }
 }
 
-private fun V2AlphaExchangeWorkflow.Step.CopyToSharedStorageStep.copyTo(dsl: ExchangeWorkflowKt.StepKt.Dsl) {
+private fun V2AlphaExchangeWorkflow.Step.CopyToSharedStorageStep.copyTo(
+  dsl: ExchangeWorkflowKt.StepKt.Dsl
+) {
   val source = this
   dsl.copyToSharedStorageStep = copyToSharedStorageStep {
     copyOptions = source.copyOptions.toInternal()
   }
 }
 
-private fun V2AlphaExchangeWorkflow.Step.IntersectAndValidateStep.copyTo(dsl: ExchangeWorkflowKt.StepKt.Dsl) {
+private fun V2AlphaExchangeWorkflow.Step.IntersectAndValidateStep.copyTo(
+  dsl: ExchangeWorkflowKt.StepKt.Dsl
+) {
   val source = this
   dsl.intersectAndValidateStep = intersectAndValidateStep {
     maxSize = source.maxSize
@@ -132,14 +135,18 @@ private fun V2AlphaExchangeWorkflow.Step.IntersectAndValidateStep.copyTo(dsl: Ex
   }
 }
 
-private fun V2AlphaExchangeWorkflow.Step.GenerateSerializedRlweKeyPairStep.copyTo(dsl: ExchangeWorkflowKt.StepKt.Dsl) {
+private fun V2AlphaExchangeWorkflow.Step.GenerateSerializedRlweKeyPairStep.copyTo(
+  dsl: ExchangeWorkflowKt.StepKt.Dsl
+) {
   val source = this
   dsl.generateSerializedRlweKeyPairStep = generateSerializedRlweKeyPairStep {
     parameters = source.parameters
   }
 }
 
-private fun V2AlphaExchangeWorkflow.Step.ExecutePrivateMembershipQueriesStep.copyTo(dsl: ExchangeWorkflowKt.StepKt.Dsl) {
+private fun V2AlphaExchangeWorkflow.Step.ExecutePrivateMembershipQueriesStep.copyTo(
+  dsl: ExchangeWorkflowKt.StepKt.Dsl
+) {
   val source = this
   dsl.executePrivateMembershipQueriesStep = executePrivateMembershipQueriesStep {
     parameters = source.parameters
@@ -150,7 +157,9 @@ private fun V2AlphaExchangeWorkflow.Step.ExecutePrivateMembershipQueriesStep.cop
   }
 }
 
-private fun V2AlphaExchangeWorkflow.Step.BuildPrivateMembershipQueriesStep.copyTo(dsl: ExchangeWorkflowKt.StepKt.Dsl) {
+private fun V2AlphaExchangeWorkflow.Step.BuildPrivateMembershipQueriesStep.copyTo(
+  dsl: ExchangeWorkflowKt.StepKt.Dsl
+) {
   val source = this
   dsl.buildPrivateMembershipQueriesStep = buildPrivateMembershipQueriesStep {
     parameters = source.parameters
@@ -163,7 +172,9 @@ private fun V2AlphaExchangeWorkflow.Step.BuildPrivateMembershipQueriesStep.copyT
   }
 }
 
-private fun V2AlphaExchangeWorkflow.Step.DecryptPrivateMembershipQueryResultsStep.copyTo(dsl: ExchangeWorkflowKt.StepKt.Dsl) {
+private fun V2AlphaExchangeWorkflow.Step.DecryptPrivateMembershipQueryResultsStep.copyTo(
+  dsl: ExchangeWorkflowKt.StepKt.Dsl
+) {
   val source = this
   dsl.decryptPrivateMembershipQueryResultsStep = decryptPrivateMembershipQueryResultsStep {
     parameters = source.parameters
@@ -171,50 +182,58 @@ private fun V2AlphaExchangeWorkflow.Step.DecryptPrivateMembershipQueryResultsSte
   }
 }
 
-private fun V2AlphaExchangeWorkflow.Step.CopyFromPreviousExchangeStep.copyTo(dsl: ExchangeWorkflowKt.StepKt.Dsl) {
+private fun V2AlphaExchangeWorkflow.Step.CopyFromPreviousExchangeStep.copyTo(
+  dsl: ExchangeWorkflowKt.StepKt.Dsl
+) {
   val source = this
   dsl.copyFromPreviousExchangeStep = copyFromPreviousExchangeStep {
     previousBlobKey = source.previousBlobKey
   }
 }
 
-private fun V2AlphaExchangeWorkflow.Step.GenerateRandomBytesStep.copyTo(dsl: ExchangeWorkflowKt.StepKt.Dsl) {
+private fun V2AlphaExchangeWorkflow.Step.GenerateRandomBytesStep.copyTo(
+  dsl: ExchangeWorkflowKt.StepKt.Dsl
+) {
   val source = this
-  dsl.generateRandomBytesStep = generateRandomBytesStep {
-    byteCount = source.byteCount
-  }
+  dsl.generateRandomBytesStep = generateRandomBytesStep { byteCount = source.byteCount }
 }
 
-private fun V2AlphaExchangeWorkflow.Step.CopyOptions.toInternal(): ExchangeWorkflow.Step.CopyOptions {
+private fun V2AlphaExchangeWorkflow.Step.CopyOptions.toInternal():
+  ExchangeWorkflow.Step.CopyOptions {
   val source = this
   return copyOptions {
-    labelType = when (source.labelType) {
-      V2AlphaExchangeWorkflow.Step.CopyOptions.LabelType.BLOB -> ExchangeWorkflow.Step.CopyOptions.LabelType.BLOB
-      V2AlphaExchangeWorkflow.Step.CopyOptions.LabelType.MANIFEST -> ExchangeWorkflow.Step.CopyOptions.LabelType.MANIFEST
-      else -> error("Invalid label type: ${source.labelType}")
-    }
+    labelType =
+      when (source.labelType) {
+        V2AlphaExchangeWorkflow.Step.CopyOptions.LabelType.BLOB ->
+          ExchangeWorkflow.Step.CopyOptions.LabelType.BLOB
+        V2AlphaExchangeWorkflow.Step.CopyOptions.LabelType.MANIFEST ->
+          ExchangeWorkflow.Step.CopyOptions.LabelType.MANIFEST
+        else -> error("Invalid label type: ${source.labelType}")
+      }
   }
 }
 
-private fun V2AlphaExchangeWorkflow.ExchangeIdentifiers.toInternal(): ExchangeWorkflow.ExchangeIdentifiers {
+private fun V2AlphaExchangeWorkflow.ExchangeIdentifiers.toInternal():
+  ExchangeWorkflow.ExchangeIdentifiers {
   val source = this
   return exchangeIdentifiers {
     dataProviderId = requireNotNull(DataProviderKey.fromName(source.dataProvider)).dataProviderId
-    modelProviderId = requireNotNull(ModelProviderKey.fromName(source.modelProvider)).modelProviderId
+    modelProviderId =
+      requireNotNull(ModelProviderKey.fromName(source.modelProvider)).modelProviderId
     sharedStorageOwner = source.sharedStorageOwner.toInternal()
-    storage = when (source.storage) {
-      V2AlphaExchangeWorkflow.StorageType.GOOGLE_CLOUD_STORAGE -> ExchangeWorkflow.StorageType.GOOGLE_CLOUD_STORAGE
-      V2AlphaExchangeWorkflow.StorageType.AMAZON_S3 -> ExchangeWorkflow.StorageType.AMAZON_S3
-      else -> error("Invalid storage type: ${source.storage}")
-    }
+    storage =
+      when (source.storage) {
+        V2AlphaExchangeWorkflow.StorageType.GOOGLE_CLOUD_STORAGE ->
+          ExchangeWorkflow.StorageType.GOOGLE_CLOUD_STORAGE
+        V2AlphaExchangeWorkflow.StorageType.AMAZON_S3 -> ExchangeWorkflow.StorageType.AMAZON_S3
+        else -> error("Invalid storage type: ${source.storage}")
+      }
   }
 }
 
 private fun V2AlphaExchangeWorkflow.Schedule.toInternal(): ExchangeWorkflow.Schedule {
   val source = this
-  return schedule {
-    cronExpression = source.cronExpression
-  }
+  return schedule { cronExpression = source.cronExpression }
 }
 
 private fun V2AlphaExchangeWorkflow.Party.toInternal(): ExchangeWorkflow.Party {

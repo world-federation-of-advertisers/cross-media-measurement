@@ -25,8 +25,6 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
-import org.wfanet.measurement.common.pack
-import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.panelmatch.client.common.ExchangeStepAttemptKey
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.step
 import org.wfanet.panelmatch.client.internal.exchangeWorkflow
@@ -56,13 +54,14 @@ private val WORKFLOW = exchangeWorkflow {
   steps += step {}
 }
 
-private val CLAIMED_EXCHANGE_STEP: ClaimedExchangeStep = ClaimedExchangeStep(
-  attemptKey = EXCHANGE_STEP_ATTEMPT_KEY,
-  exchangeDate = DATE,
-  stepIndex = 2,
-  workflow = WORKFLOW,
-  workflowFingerprint = WORKFLOW.toByteString(),
-)
+private val CLAIMED_EXCHANGE_STEP: ClaimedExchangeStep =
+  ClaimedExchangeStep(
+    attemptKey = EXCHANGE_STEP_ATTEMPT_KEY,
+    exchangeDate = DATE,
+    stepIndex = 2,
+    workflow = WORKFLOW,
+    workflowFingerprint = WORKFLOW.toByteString(),
+  )
 
 @RunWith(JUnit4::class)
 class ExchangeStepLauncherTest {

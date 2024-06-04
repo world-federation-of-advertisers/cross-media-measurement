@@ -33,7 +33,7 @@ import org.wfanet.measurement.api.v2alpha.finishExchangeStepAttemptRequest
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.panelmatch.client.common.ExchangeStepAttemptKey
-import org.wfanet.panelmatch.client.common.Fingerprinters
+import org.wfanet.panelmatch.client.common.Fingerprinters.farmHashFingerprint64
 import org.wfanet.panelmatch.client.common.Identity
 import org.wfanet.panelmatch.client.common.toInternal
 import org.wfanet.panelmatch.client.internal.ExchangeStepAttempt
@@ -70,12 +70,13 @@ class GrpcApiClient(
       val v2AlphaAttemptKey =
         requireNotNull(V2AlphaExchangeStepAttemptKey.fromName(response.exchangeStepAttempt))
       val exchangeStep = response.exchangeStep
+      val v2AlphaExchangeWorkflow = exchangeStep.exchangeWorkflow.unpack<V2AlphaExchangeWorkflow>()
       return ClaimedExchangeStep(
         attemptKey = v2AlphaAttemptKey.toInternal(),
         exchangeDate = exchangeStep.exchangeDate.toLocalDate(),
         stepIndex = exchangeStep.stepIndex,
-        workflow = exchangeStep.exchangeWorkflow.unpack<V2AlphaExchangeWorkflow>().toInternal(),
-        workflowFingerprint = Fingerprinters.farmHashFingerprint64(exchangeStep.exchangeWorkflow.value),
+        workflow = v2AlphaExchangeWorkflow.toInternal(),
+        workflowFingerprint = v2AlphaExchangeWorkflow.farmHashFingerprint64(),
       )
     }
     semaphore?.release()

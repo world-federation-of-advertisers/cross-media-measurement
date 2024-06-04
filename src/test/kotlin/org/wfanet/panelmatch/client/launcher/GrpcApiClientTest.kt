@@ -91,14 +91,14 @@ private val EXCHANGE_STEP: ExchangeStep = exchangeStep {
   state = ExchangeStep.State.READY_FOR_RETRY
   exchangeWorkflow =
     exchangeWorkflow {
-      exchangeIdentifiers = exchangeIdentifiers {
-        dataProvider = "dataProviders/some-data-provider"
-        modelProvider = "modelProviders/some-model-provider"
-        sharedStorageOwner = ExchangeWorkflow.Party.DATA_PROVIDER
-        storage = ExchangeWorkflow.StorageType.GOOGLE_CLOUD_STORAGE
+        exchangeIdentifiers = exchangeIdentifiers {
+          dataProvider = "dataProviders/some-data-provider"
+          modelProvider = "modelProviders/some-model-provider"
+          sharedStorageOwner = ExchangeWorkflow.Party.DATA_PROVIDER
+          storage = ExchangeWorkflow.StorageType.GOOGLE_CLOUD_STORAGE
+        }
       }
-    }
-    .pack()
+      .pack()
 }
 
 private val V2ALPHA_EXCHANGE_STEP_ATTEMPT_KEY: CanonicalExchangeStepAttemptKey =

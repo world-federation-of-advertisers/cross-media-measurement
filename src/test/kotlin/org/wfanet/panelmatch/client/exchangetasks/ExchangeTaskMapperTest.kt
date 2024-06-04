@@ -24,10 +24,10 @@ import org.wfanet.panelmatch.client.common.ExchangeContext
 import org.wfanet.panelmatch.client.common.ExchangeStepAttemptKey
 import org.wfanet.panelmatch.client.exchangetasks.testing.FakeExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.testing.FakeExchangeTaskMapper
-import org.wfanet.panelmatch.client.launcher.testing.inputStep
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.commutativeDeterministicEncryptStep
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.step
 import org.wfanet.panelmatch.client.internal.exchangeWorkflow
+import org.wfanet.panelmatch.client.launcher.testing.inputStep
 import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.StorageDetailsKt.gcsStorage
 import org.wfanet.panelmatch.client.storage.storageDetails

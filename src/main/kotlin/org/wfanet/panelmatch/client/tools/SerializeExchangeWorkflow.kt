@@ -48,11 +48,7 @@ class SerializeExchangeWorkflow : Runnable {
   )
   private lateinit var output: File
 
-  @Option(
-    names = ["--format"],
-    description = ["Format of the ExchangeWorkflow."],
-    required = true,
-  )
+  @Option(names = ["--format"], description = ["Format of the ExchangeWorkflow."], required = true)
   private lateinit var format: ExchangeWorkflowFormat
 
   override fun run() {

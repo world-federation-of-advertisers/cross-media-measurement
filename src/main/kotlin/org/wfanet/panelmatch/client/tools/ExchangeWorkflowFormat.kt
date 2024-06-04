@@ -10,9 +10,7 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.panelmatch.client.common.toInternal
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflow
 
-/**
- * Formats for serializing and deserializing an exchange workflow.
- */
+/** Formats for serializing and deserializing an exchange workflow. */
 enum class ExchangeWorkflowFormat {
   /**
    * A serialized [V2AlphaExchangeWorkflow] for exchanges that are Kingdom-based and use the
@@ -49,6 +47,7 @@ enum class ExchangeWorkflowFormat {
   abstract fun parseTextProto(file: File): Message
 
   companion object {
-    private val TYPE_REGISTRY = TypeRegistry.newBuilder().apply { add(Parameters.getDescriptor()) }.build()
+    private val TYPE_REGISTRY =
+      TypeRegistry.newBuilder().apply { add(Parameters.getDescriptor()) }.build()
   }
 }
