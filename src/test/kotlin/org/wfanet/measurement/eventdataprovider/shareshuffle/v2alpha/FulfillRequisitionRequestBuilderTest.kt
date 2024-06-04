@@ -15,23 +15,147 @@
 package org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha
 
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.ByteString
-import java.nio.ByteOrder
+import com.google.protobuf.kotlin.toByteString
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
-import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
-import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException
-import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.EndVidInclusiveLessThanVidStartDetail
-import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.VidRangeIndex
-import org.wfanet.measurement.api.v2alpha.populationSpec
-import org.wfanet.measurement.common.toLong
+import org.wfanet.frequencycount.frequencyVector
+import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.honestMajorityShareShuffle
+import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.protocol
+import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt
+import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
+import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
+import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.protocolConfig
+import org.wfanet.measurement.api.v2alpha.requisition
+import org.wfanet.measurement.api.v2alpha.signedMessage
+import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
+import org.wfanet.measurement.testing.Requisitions
+import org.wfanet.measurement.testing.Requisitions.HMSS_REQUISITION
 
 @RunWith(JUnit4::class)
 class FulfillRequisitionRequestBuilderTest {
   @Test
-  fun `do the test`() {
+  fun `construction fails when there is no HMSS protocol config`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException>("expected exception") {
+        FulfillRequisitionRequestBuilder.build(
+          requisition {},
+          frequencyVector { data += 1 },
+          Requisitions.DATA_PROVIDER_CERTIFICATE_KEY,
+          Requisitions.EDP_SIGNING_KEY,
+        )
+      }
+    assertThat(exception.message).contains("exactly one config")
   }
+
+  @Test
+  fun `construction fails when there is more than one HMSS protocol config`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException>("expected exception") {
+        FulfillRequisitionRequestBuilder.build(
+          requisition {
+            protocolConfig = protocolConfig {
+              protocols += protocol { honestMajorityShareShuffle = honestMajorityShareShuffle {} }
+              protocols += protocol { honestMajorityShareShuffle = honestMajorityShareShuffle {} }
+            }
+          },
+          frequencyVector { data += 1 },
+          Requisitions.DATA_PROVIDER_CERTIFICATE_KEY,
+          Requisitions.EDP_SIGNING_KEY,
+        )
+      }
+    assertThat(exception.message).contains("Found 2")
+  }
+
+  @Test
+  fun `construction fails when there is not exactly two duchies`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException>("expected exception") {
+        FulfillRequisitionRequestBuilder.build(
+          HMSS_REQUISITION.copy { duchies.clear() },
+          frequencyVector { data += 1 },
+          Requisitions.DATA_PROVIDER_CERTIFICATE_KEY,
+          Requisitions.EDP_SIGNING_KEY,
+        )
+      }
+    assertThat(exception.message).contains("Two duchy entries")
+  }
+
+  @Test
+  fun `construction fails when there is not exactly one duchy with a public key`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException>("expected exception") {
+        FulfillRequisitionRequestBuilder.build(
+          HMSS_REQUISITION.copy {
+            duchies += duchyEntry {
+              this.value = value {
+                honestMajorityShareShuffle =
+                  DuchyEntryKt.honestMajorityShareShuffle { publicKey = signedMessage {} }
+              }
+            }
+          },
+          frequencyVector { data += 1 },
+          Requisitions.DATA_PROVIDER_CERTIFICATE_KEY,
+          Requisitions.EDP_SIGNING_KEY,
+        )
+      }
+    assertThat(exception.message).contains("Two duchy entries")
+  }
+
+  @Test
+  fun `construction fails when frequency vector is empty`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException>("expected exception") {
+        FulfillRequisitionRequestBuilder.build(
+          HMSS_REQUISITION,
+          frequencyVector {},
+          Requisitions.DATA_PROVIDER_CERTIFICATE_KEY,
+          Requisitions.EDP_SIGNING_KEY,
+        )
+      }
+    assertThat(exception.message).contains("must have size")
+  }
+
+  @Test
+  fun `build fulfillment requests`() =
+    runBlocking<Unit> {
+      val nonce = 123L
+      val inputFrequencyVector = frequencyVector { data += listOf(0, 1, 2, 3, 4) }
+      val requisition = HMSS_REQUISITION.copy { this.nonce = nonce }
+
+      val requests =
+        FulfillRequisitionRequestBuilder.build(
+            requisition,
+            inputFrequencyVector,
+            Requisitions.DATA_PROVIDER_CERTIFICATE_KEY,
+            Requisitions.EDP_SIGNING_KEY,
+          )
+          .toList()
+
+      assertThat(requests.size).isEqualTo(2)
+      val firstRequest = requests[0]
+      val secondRequest = requests[1]
+
+      assertThat(firstRequest.header.name).isEqualTo(HMSS_REQUISITION.name)
+      assertThat(firstRequest.header.requisitionFingerprint)
+        .isEqualTo(computeRequisitionFingerprint(HMSS_REQUISITION))
+      assertThat(firstRequest.header.nonce).isEqualTo(nonce)
+      assertThat(firstRequest.header.honestMajorityShareShuffle.secretSeed.ciphertext.size())
+        .isGreaterThan(0)
+      assertThat(firstRequest.header.honestMajorityShareShuffle.secretSeed.typeUrl).isNotEmpty()
+
+      assertThat(firstRequest.header.honestMajorityShareShuffle.registerCount).isEqualTo(5)
+      assertThat(firstRequest.header.honestMajorityShareShuffle.dataProviderCertificate)
+        .isEqualTo(Requisitions.DATA_PROVIDER_CERTIFICATE_KEY.toName())
+
+      assertThat(secondRequest.bodyChunk.data.size())
+        .isEqualTo(inputFrequencyVector.toByteString().size())
+      // TODO(@kungfucraig): Reconstitute the frequency vector and ensure it's correct
+    }
+
+  companion object {}
 }

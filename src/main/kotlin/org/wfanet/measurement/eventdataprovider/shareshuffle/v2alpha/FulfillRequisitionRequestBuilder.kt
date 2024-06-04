@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha
 
-import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
@@ -26,6 +25,7 @@ import org.wfanet.frequencycount.frequencyVector
 import org.wfanet.frequencycount.secretShareGeneratorRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptedMessage
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.honestMajorityShareShuffle
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
@@ -33,59 +33,83 @@ import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.HonestMajorityShareShuffle
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
-import org.wfanet.measurement.api.v2alpha.encryptedMessage
 import org.wfanet.measurement.api.v2alpha.randomSeed
-import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
 import org.wfanet.measurement.common.asBufferedFlow
+import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
+import org.wfanet.measurement.consent.client.dataprovider.encryptRandomSeed
+import org.wfanet.measurement.consent.client.dataprovider.signRandomSeed
 
 /**
- * A exception with a justification for why a requisition cannot be fulfilled.
- */
-class RequisitionRefusalException(
-  val justification: Requisition.Refusal.Justification,
-  message: String,
-) : Exception(message)
-
-/**
- * Build a Flow of FulfillRequisitionRequests to be used with the Kotlin gRPC client stub.
+ * This class assumes that the client has verified the identities of all Duchies.
  *
  * @param requisition
  * @param frequencyVector
  * @param dataProviderCertificateKey
- * @throws RequisitionRefusalException with an appropriate justification if the Request cannot be built
+ * @param signingKeyHandle
+ * @throws IllegalArgumentException if the requisition does not have a protocol config with an
+ *   HonestMajorityShareShuffle
+ * @throws IllegalArgumentException if the requisition does not have a duchy list of size two where
+ *   one exactly one has a public key HonestMajorityShareShuffle
+ *
+ * TODO: update docs Build a Flow of FulfillRequisitionRequests to be used with the Kotlin gRPC
+ *   client stub.
  */
 class FulfillRequisitionRequestBuilder(
-  val requisition: Requisition, val frequencyVector: FrequencyVector, val dataProviderCertificateKey: DataProviderCertificateKey
+  private val requisition: Requisition,
+  private val frequencyVector: FrequencyVector,
+  private val dataProviderCertificateKey: DataProviderCertificateKey,
+  private val signingKeyHandle: SigningKeyHandle,
 ) {
+  private val protocolConfig: HonestMajorityShareShuffle
 
-  val protocolConfig : HonestMajorityShareShuffle
   init {
-    var tempProtocolConfig: HonestMajorityShareShuffle? = null
-    for (protocol in requisition.protocolConfig.protocolsList) {
-      if (protocol.hasHonestMajorityShareShuffle()) {
-        if (tempProtocolConfig == null) {
-          throw RequisitionRefusalException(
-            Requisition.Refusal.Justification.SPEC_INVALID,
-            "Found multiple configs for HonestMajorityShareShuffle")
-        }
-        tempProtocolConfig = protocol.honestMajorityShareShuffle
-        break
-      }
+    val hmssProtocolList =
+      requisition.protocolConfig.protocolsList
+        .filter { it.hasHonestMajorityShareShuffle() }
+        .map { it.honestMajorityShareShuffle }
+
+    protocolConfig =
+      hmssProtocolList.singleOrNull()
+        ?: throw IllegalArgumentException(
+          "Expected to find exactly one config for HonestMajorityShareShuffle. Found ${hmssProtocolList.size}"
+        )
+
+    println(protocolConfig)
+    require(protocolConfig.sketchParams.ringModulus > 1) {
+      "HMSS ring modulus must be greater than one. Found: ${protocolConfig.sketchParams.ringModulus}"
     }
-    if (tempProtocolConfig == null) {
-      throw RequisitionRefusalException(
-        Requisition.Refusal.Justification.SPEC_INVALID,
-        "Expected the protocol config to allow HonestMajorityShareShuffle")
-    }
-    protocolConfig = tempProtocolConfig
-    //verifyProtocolConfig()
-    //verifyDuchyEntries()
   }
-  val requisitionFingerprint: ByteString = computeRequisitionFingerprint(requisition)
 
-  val shareVector: FrequencyVector
-  val encryptedSignedSeed: EncryptedMessage
+  private val shareSeedEncryptionKey: EncryptionPublicKey
+
   init {
+
+    if (requisition.duchiesList.size != 2) {
+      throw IllegalArgumentException(
+        "Two duchy entries are expected, but there are ${requisition.duchiesList.size}."
+      )
+    }
+
+    val publicKeyList =
+      requisition.duchiesList
+        .filter { it.value.honestMajorityShareShuffle.hasPublicKey() }
+        .map { it.value.honestMajorityShareShuffle.publicKey }
+
+    val publicKeyBlob =
+      publicKeyList.singleOrNull()
+        ?: throw IllegalArgumentException(
+          "Exactly one duchy entry is expected to have the encryption public key, but ${publicKeyList.size} duchy entries do."
+        )
+    shareSeedEncryptionKey = EncryptionPublicKey.parseFrom(publicKeyBlob.message.value)
+  }
+
+  private val shareVector: FrequencyVector
+  private val encryptedSignedShareSeed: EncryptedMessage
+
+  init {
+    require(frequencyVector.dataCount > 0) { "FrequencyVector must have size > 0" }
+
     val secretShareGeneratorRequest = secretShareGeneratorRequest {
       data += frequencyVector.dataList
       ringModulus = protocolConfig.sketchParams.ringModulus
@@ -96,21 +120,24 @@ class FulfillRequisitionRequestBuilder(
         SecretShareGeneratorAdapter.generateSecretShares(secretShareGeneratorRequest.toByteArray())
       )
 
+    shareVector = frequencyVector { data += secretShare.shareVectorList }
+
     val shareSeed = randomSeed { data = secretShare.shareSeed.key.concat(secretShare.shareSeed.iv) }
-     shareVector = frequencyVector{}
-    encryptedSignedSeed = encryptedMessage {}
+    val signedShareSeed =
+      signRandomSeed(shareSeed, signingKeyHandle, signingKeyHandle.defaultAlgorithm)
+    encryptedSignedShareSeed = encryptRandomSeed(signedShareSeed, shareSeedEncryptionKey)
   }
 
-  fun build() : Flow<FulfillRequisitionRequest> {
+  fun build(): Flow<FulfillRequisitionRequest> {
     return flow {
       emit(
         fulfillRequisitionRequest {
           header = header {
             name = requisition.name
-            this.requisitionFingerprint = requisitionFingerprint
-            this.nonce = nonce
+            requisitionFingerprint = computeRequisitionFingerprint(requisition)
+            nonce = requisition.nonce
             this.honestMajorityShareShuffle = honestMajorityShareShuffle {
-              secretSeed = encryptedSignedSeed
+              secretSeed = encryptedSignedShareSeed
               registerCount = shareVector.dataList.size.toLong()
               dataProviderCertificate = dataProviderCertificateKey.toName()
             }
@@ -119,15 +146,33 @@ class FulfillRequisitionRequestBuilder(
       )
       emitAll(
         shareVector.toByteString().asBufferedFlow(RPC_CHUNK_SIZE_BYTES).map {
-          fulfillRequisitionRequest { bodyChunk = bodyChunk { this.data = it } }
+          fulfillRequisitionRequest { bodyChunk = bodyChunk { data = it } }
         }
       )
-
     }
   }
 
   companion object {
-      private const val RPC_CHUNK_SIZE_BYTES = 32 * 1024 // 32 KiB
+    private const val RPC_CHUNK_SIZE_BYTES = 32 * 1024 // 32 KiB
+
+    init {
+      // This is required to create secret shares out of the frequency vector
+      System.loadLibrary("secret_share_generator_adapter")
     }
 
+    /** A convenience function for building the Flow of Requests. */
+    fun build(
+      requisition: Requisition,
+      frequencyVector: FrequencyVector,
+      dataProviderCertificateKey: DataProviderCertificateKey,
+      signingKeyHandle: SigningKeyHandle,
+    ): Flow<FulfillRequisitionRequest> =
+      FulfillRequisitionRequestBuilder(
+          requisition,
+          frequencyVector,
+          dataProviderCertificateKey,
+          signingKeyHandle,
+        )
+        .build()
   }
+}

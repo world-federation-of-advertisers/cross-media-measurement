@@ -3108,6 +3108,7 @@ class EdpSimulatorTest {
       value = value { duchyCertificate = DUCHY_TWO_CERTIFICATE.name }
     }
 
+    // TODO(@kungfucraig): Replace this with the object in HmmsRequisitions.kt
     private val HMSS_REQUISITION = requisition {
       name = "${EDP_NAME}/requisitions/foo"
       measurement = MEASUREMENT_NAME
