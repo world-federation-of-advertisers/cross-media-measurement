@@ -268,7 +268,9 @@ private val AGGREGATOR_PROTOCOLS_SETUP_CONFIG = protocolsSetupConfig {
   }
   honestMajorityShareShuffle = honestMajorityShareShuffleSetupConfig {
     role = RoleInComputation.AGGREGATOR
-    externalAggregatorDuchyId = DUCHY_ONE
+    aggregatorDuchyId = DUCHY_ONE
+    firstNonAggregatorDuchyId = DUCHY_TWO
+    secondNonAggregatorDuchyId = DUCHY_THREE
   }
 }
 
@@ -283,8 +285,9 @@ private val NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG = protocolsSetupConfig {
   }
   honestMajorityShareShuffle = honestMajorityShareShuffleSetupConfig {
     role = RoleInComputation.FIRST_NON_AGGREGATOR
-    externalAggregatorDuchyId = DUCHY_ONE
-    externalPeerNonAggregatorDuchyId = DUCHY_THREE
+    aggregatorDuchyId = DUCHY_ONE
+    firstNonAggregatorDuchyId = DUCHY_TWO
+    secondNonAggregatorDuchyId = DUCHY_THREE
   }
 }
 
@@ -839,7 +842,7 @@ class HeraldTest {
               }
               noiseMechanism = NoiseMechanism.DISCRETE_GAUSSIAN
             }
-          participants += listOf(DUCHY_ONE, DUCHY_TWO, DUCHY_THREE)
+          nonAggregators += listOf(DUCHY_TWO, DUCHY_THREE)
         }
       )
     assertThat(hmssDetails.randomSeed).isNotEmpty()
@@ -879,7 +882,7 @@ class HeraldTest {
 
     fakeComputationDatabase.addComputation(
       globalId = confirmingKnown.key.computationId,
-      stage = HonestMajorityShareShuffle.Stage.WAIT_ON_AGGREGATION_INPUT.toProtocolStage(),
+      stage = HonestMajorityShareShuffle.Stage.INITIALIZED.toProtocolStage(),
       computationDetails = HMSS_FIRST_NON_AGGREGATOR_COMPUTATION_DETAILS,
     )
 
@@ -895,9 +898,9 @@ class HeraldTest {
       )
       .containsExactly(
         confirmingKnown.key.computationId.toLong(),
-        HonestMajorityShareShuffle.Stage.WAIT_ON_AGGREGATION_INPUT.toProtocolStage(),
+        HonestMajorityShareShuffle.Stage.INITIALIZED.toProtocolStage(),
         confirmingUnknown.key.computationId.toLong(),
-        HonestMajorityShareShuffle.Stage.WAIT_ON_AGGREGATION_INPUT.toProtocolStage(),
+        HonestMajorityShareShuffle.Stage.INITIALIZED.toProtocolStage(),
       )
 
     assertThat(
@@ -942,7 +945,7 @@ class HeraldTest {
               }
               noiseMechanism = NoiseMechanism.DISCRETE_GAUSSIAN
             }
-          participants += listOf(DUCHY_ONE, DUCHY_TWO, DUCHY_THREE)
+          nonAggregators += listOf(DUCHY_TWO, DUCHY_THREE)
         }
       )
   }
@@ -1425,7 +1428,7 @@ class HeraldTest {
         privateKeyStore = privateKeyStore,
         continuationTokenManager = ContinuationTokenManager(continuationTokensStub),
         protocolsSetupConfig = NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
-        Clock.systemUTC(),
+        clock = Clock.systemUTC(),
         maxAttempts = 2,
       )
 

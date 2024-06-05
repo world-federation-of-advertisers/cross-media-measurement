@@ -15,24 +15,17 @@
 module "reporting_cluster" {
   source = "../modules/cluster"
 
-  name       = local.reporting_cluster_name
-  location   = local.cluster_location
-  secret_key = module.common.cluster_secret_key
-}
-
-data "google_container_cluster" "reporting" {
-  name     = local.reporting_cluster_name
-  location = local.cluster_location
-
-  # Defer reading of cluster resource until it exists.
-  depends_on = [module.reporting_cluster]
+  name            = local.reporting_cluster_name
+  location        = local.cluster_location
+  release_channel = var.cluster_release_channel
+  secret_key      = module.common.cluster_secret_key
 }
 
 module "reporting_default_node_pool" {
   source = "../modules/node-pool"
 
   name            = "default"
-  cluster         = data.google_container_cluster.reporting
+  cluster         = module.reporting_cluster.cluster
   service_account = module.common.cluster_service_account
   machine_type    = "e2-small"
   max_node_count  = 8
@@ -44,4 +37,8 @@ module "reporting" {
   iam_service_account_name = "reporting-internal"
   postgres_instance        = google_sql_database_instance.postgres
   postgres_database_name   = "reporting"
+}
+
+resource "google_compute_address" "reporting_v1alpha" {
+  name = "reporting-v1alpha"
 }

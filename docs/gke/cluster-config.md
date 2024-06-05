@@ -138,38 +138,3 @@ for more information.
 
 For the `dev` environment, we use
 [resource_requirements.yaml](../../src/main/k8s/dev/resource_requirements.yaml)
-
-## Reserving External IPs
-
-If you already have an IP that was assigned to a `LoadBalancer` service, you can
-reserve the IP address to make it static. You can find the assigned external IP
-using
-
-```shell
-kubectl get services
-```
-
-You can find the entry for that IP in the
-[Cloud Console](https://console.cloud.google.com/networking/addresses/list) and
-click the `RESERVE` button.
-
-### Attaching to Service
-
-If you want to ensure that a service always uses the same static load balancer
-IP, you can specify the `loadBalancerIP` field in its
-[`ServiceSpec`](https://kubernetes.io/docs/reference/kubernetes-api/service-resources/service-v1/#ServiceSpec).
-
-For example, the `ServiceSpec` for the Kingdom public API server might look
-something like
-
-```yaml
-type: LoadBalancer
-loadBalancerIP: 34.123.211.251
-selector:
-  app: v2alpha-public-api-server-app
-ports:
-  - name: grpc-port
-    port: 8443
-    protocol: TCP
-    targetPort: 8443
-```

@@ -31,4 +31,18 @@ resource "google_spanner_database_iam_member" "kingdom_internal" {
   database = google_spanner_database.kingdom.name
   role     = "roles/spanner.databaseUser"
   member   = module.kingdom_internal.iam_service_account.member
+
+  lifecycle {
+    replace_triggered_by = [google_spanner_database.kingdom.id]
+  }
+}
+
+resource "google_compute_address" "v2alpha" {
+  name    = "kingdom-v2alpha"
+  address = var.v2alpha_ip_address
+}
+
+resource "google_compute_address" "system_v1alpha" {
+  name    = "kingdom-system-v1alpha"
+  address = var.system_v1alpha_ip_address
 }

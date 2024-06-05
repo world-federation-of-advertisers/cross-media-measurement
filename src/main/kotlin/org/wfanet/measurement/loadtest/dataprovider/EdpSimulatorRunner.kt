@@ -23,6 +23,7 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
@@ -71,11 +72,11 @@ abstract class EdpSimulatorRunner : Runnable {
     val certificatesStub = CertificatesCoroutineStub(v2AlphaPublicApiChannel)
     val dataProvidersStub = DataProvidersCoroutineStub(v2AlphaPublicApiChannel)
 
-    val requisitionFulfillmentStubMap =
+    val requisitionFulfillmentStubsByDuchyName =
       flags.requisitionFulfillmentServiceFlags.associate {
         val channel = buildMutualTlsChannel(it.target, clientCerts, it.certHost)
         val stub = RequisitionFulfillmentCoroutineStub(channel)
-        it.duchyId to stub
+        DuchyKey(it.duchyId).toName() to stub
       }
 
     val signingKeyHandle =
@@ -99,6 +100,8 @@ abstract class EdpSimulatorRunner : Runnable {
         Random.Default
       }
 
+    // TODO(@ple13): Use the actual vidToIndexMap instead of an empty map when a smaller dataset is
+    // available.
     val edpSimulator =
       EdpSimulator(
         edpData,
@@ -109,11 +112,12 @@ abstract class EdpSimulatorRunner : Runnable {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStubMap,
+        requisitionFulfillmentStubsByDuchyName,
         eventQuery,
         MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval),
         createNoOpPrivacyBudgetManager(),
         clientCerts.trustedCertificates,
+        vidToIndexMap = emptyMap(),
         knownEventGroupMetadataTypes = knownEventGroupMetadataTypes,
         random = random,
         logSketchDetails = flags.logSketchDetails,

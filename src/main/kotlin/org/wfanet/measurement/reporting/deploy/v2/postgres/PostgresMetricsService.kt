@@ -60,12 +60,6 @@ class PostgresMetricsService(
       "Metric Spec missing type."
     }
 
-    if (!request.metric.metricSpec.hasPopulationCount()) {
-      grpcRequire(request.metric.metricSpec.hasVidSamplingInterval()) {
-        "Metric Spec missing vid sampling interval."
-      }
-    }
-
     grpcRequire(request.metric.weightedMeasurementsCount > 0) {
       "Metric missing weighted measurements."
     }
@@ -95,10 +89,6 @@ class PostgresMetricsService(
 
       grpcRequire(!it.metric.metricSpec.typeCase.equals(MetricSpec.TypeCase.TYPE_NOT_SET)) {
         "Metric Spec missing type."
-      }
-
-      grpcRequire(it.metric.metricSpec.hasVidSamplingInterval()) {
-        "Metric Spec missing vid sampling interval."
       }
 
       grpcRequire(it.metric.weightedMeasurementsCount > 0) {

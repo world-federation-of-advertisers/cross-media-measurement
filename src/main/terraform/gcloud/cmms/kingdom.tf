@@ -15,24 +15,17 @@
 module "kingdom_cluster" {
   source = "../modules/cluster"
 
-  name       = local.kingdom_cluster_name
-  location   = local.cluster_location
-  secret_key = module.common.cluster_secret_key
-}
-
-data "google_container_cluster" "kingdom" {
-  name     = local.kingdom_cluster_name
-  location = local.cluster_location
-
-  # Defer reading of cluster resource until it exists.
-  depends_on = [module.kingdom_cluster]
+  name            = local.kingdom_cluster_name
+  location        = local.cluster_location
+  release_channel = var.cluster_release_channel
+  secret_key      = module.common.cluster_secret_key
 }
 
 module "kingdom_default_node_pool" {
   source = "../modules/node-pool"
 
   name            = "default"
-  cluster         = data.google_container_cluster.kingdom
+  cluster         = module.kingdom_cluster.cluster
   service_account = module.common.cluster_service_account
   machine_type    = "e2-custom-2-4096"
   max_node_count  = 3

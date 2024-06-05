@@ -66,12 +66,14 @@ package k8s
 	_debugVerboseGrpcServerLoggingFlag: "--debug-verbose-grpc-server-logging=\(_verboseGrpcServerLogging)"
 
 	services: [Name=_]: #GrpcService & {
-		_name:   Name
-		_system: "reporting"
+		metadata: {
+			_component: "reporting"
+			name:       Name
+		}
 	}
 	services: {
 		"postgres-reporting-data-server": {}
-		"reporting-public-api-v1alpha-server": _type: "LoadBalancer"
+		"reporting-public-api-v1alpha-server": #ExternalService
 	}
 
 	jobs: [Name=_]: #Job & {
