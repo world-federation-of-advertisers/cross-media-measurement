@@ -424,34 +424,29 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         val MEASUREMENT_CONSUMER_ID = "measurementConsumerId"
         val CREATE_REQUEST_ID = "createRequestId"
       }
-    val fromClause =
+    val whereClause =
       """
-      FROM
-        Measurements@{FORCE_INDEX=MeasurementsByCreateRequestId}
-        JOIN MeasurementConsumers ON Measurements.MeasurementConsumerId = @${params.MEASUREMENT_CONSUMER_ID}
-          AND Measurements.CreateRequestId IS NOT NULL
-          AND Measurements.CreateRequestId IN UNNEST(@${params.CREATE_REQUEST_ID})
-          AND Measurements.MeasurementConsumerId = MeasurementConsumers.MeasurementConsumerId
-        JOIN MeasurementConsumerCertificates ON Measurements.MeasurementConsumerId = MeasurementConsumerCertificates.MeasurementConsumerId
-          AND Measurements.CertificateId = MeasurementConsumerCertificates.CertificateId
+      WHERE MeasurementConsumerId = @${params.MEASUREMENT_CONSUMER_ID}
+        AND CreateRequestId IS NOT NULL
+        AND CreateRequestId IN UNNEST(@${params.CREATE_REQUEST_ID})
       """
         .trimIndent()
 
     val requestIds = createMeasurementRequests.map { it.requestId }
     return buildMap {
       if (requestIds.isNotEmpty()) {
-        MeasurementReader(Measurement.View.DEFAULT, false)
+        MeasurementReader(Measurement.View.DEFAULT, MeasurementReader.Index.CREATE_REQUEST_ID)
           .fillStatementBuilder {
-            appendClause(fromClause)
+            appendClause(whereClause)
             bind(params.MEASUREMENT_CONSUMER_ID to measurementConsumerId)
-            bind(params.CREATE_REQUEST_ID).toStringArray(requestIds)
+            bind(params.CREATE_REQUEST_ID)
+              .toStringArray(requestIds)
           }
           .execute(transactionContext)
           .collect {
             if (it.createRequestId != null) {
               put(it.createRequestId, it.measurement)
-            }
-          }
+            } }
       }
     }
   }

@@ -44,7 +44,7 @@ import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader.Companion.getEtag
 
-class MeasurementReader(private val view: Measurement.View, includeFromClause: Boolean = true) :
+class MeasurementReader(private val view: Measurement.View, measurementsIndex: Index = Index.NONE) :
   SpannerReader<MeasurementReader.Result>() {
 
   data class Result(
@@ -54,26 +54,73 @@ class MeasurementReader(private val view: Measurement.View, includeFromClause: B
     val measurement: Measurement,
   )
 
-  private fun constructBaseSql(view: Measurement.View, includeFromClause: Boolean): String {
+  enum class Index(internal val sql: String) {
+    NONE(""),
+    CREATE_REQUEST_ID("@{FORCE_INDEX=MeasurementsByCreateRequestId}"),
+  }
+
+  private val defaultViewBaseSql =
+    """
+        @{spanner_emulator.disable_query_null_filtered_index_check=true}
+    SELECT
+      Measurements.MeasurementId,
+      Measurements.MeasurementConsumerId,
+      Measurements.ExternalMeasurementId,
+      Measurements.ExternalComputationId,
+      Measurements.ProvidedMeasurementId,
+      Measurements.CreateRequestId,
+      Measurements.MeasurementDetails,
+      Measurements.CreateTime,
+      Measurements.UpdateTime,
+      Measurements.State AS MeasurementState,
+      MeasurementConsumers.ExternalMeasurementConsumerId,
+      MeasurementConsumerCertificates.ExternalMeasurementConsumerCertificateId,
+      ARRAY(
+        SELECT AS STRUCT
+          ExternalDataProviderId,
+          ExternalDataProviderCertificateId,
+          RequisitionDetails
+        FROM
+          Requisitions
+          JOIN DataProviders USING (DataProviderId)
+          JOIN DataProviderCertificates ON (
+            DataProviderCertificates.DataProviderId = Requisitions.DataProviderId
+            AND DataProviderCertificates.CertificateId = Requisitions.DataProviderCertificateId
+          )
+        WHERE
+          Requisitions.MeasurementConsumerId = Measurements.MeasurementConsumerId
+          AND Requisitions.MeasurementId = Measurements.MeasurementId
+      ) AS Requisitions,
+      ARRAY(
+        SELECT AS STRUCT
+          DuchyMeasurementResults.DuchyId,
+          ExternalDuchyCertificateId,
+          EncryptedResult,
+          PublicApiVersion
+        FROM
+          DuchyMeasurementResults
+          JOIN DuchyCertificates USING (DuchyId, CertificateId)
+        WHERE
+          DuchyMeasurementResults.MeasurementConsumerId = Measurements.MeasurementConsumerId
+          AND DuchyMeasurementResults.MeasurementId = Measurements.MeasurementId
+      ) AS DuchyResults
+    FROM
+      Measurements${measurementsIndex.sql}
+      JOIN MeasurementConsumers USING (MeasurementConsumerId)
+      JOIN MeasurementConsumerCertificates USING(MeasurementConsumerId, CertificateId)
+    """
+      .trimIndent()
+
+  private fun constructBaseSql(view: Measurement.View): String {
     return when (view) {
-      Measurement.View.DEFAULT -> {
-        if (includeFromClause) {
-          """
-            $defaultViewBaseSelectSql
-            $defaultViewBaseFromSql
-          """
-            .trimIndent()
-        } else {
-          defaultViewBaseSelectSql
-        }
-      }
+      Measurement.View.DEFAULT -> defaultViewBaseSql
       Measurement.View.COMPUTATION -> computationViewBaseSql
       Measurement.View.UNRECOGNIZED ->
         throw IllegalArgumentException("View field of GetMeasurementRequest is not set")
     }
   }
 
-  override val baseSql: String = constructBaseSql(view, includeFromClause)
+  override val baseSql: String = constructBaseSql(view)
 
   override suspend fun translate(struct: Struct): Result =
     Result(
@@ -237,63 +284,6 @@ class MeasurementReader(private val view: Measurement.View, includeFromClause: B
         )
       return "W/\"${hash}\""
     }
-
-    private val defaultViewBaseSelectSql =
-      """
-        @{spanner_emulator.disable_query_null_filtered_index_check=true}
-    SELECT
-      Measurements.MeasurementId,
-      Measurements.MeasurementConsumerId,
-      Measurements.ExternalMeasurementId,
-      Measurements.ExternalComputationId,
-      Measurements.ProvidedMeasurementId,
-      Measurements.CreateRequestId,
-      Measurements.MeasurementDetails,
-      Measurements.CreateTime,
-      Measurements.UpdateTime,
-      Measurements.State AS MeasurementState,
-      MeasurementConsumers.ExternalMeasurementConsumerId,
-      MeasurementConsumerCertificates.ExternalMeasurementConsumerCertificateId,
-      ARRAY(
-        SELECT AS STRUCT
-          ExternalDataProviderId,
-          ExternalDataProviderCertificateId,
-          RequisitionDetails
-        FROM
-          Requisitions
-          JOIN DataProviders USING (DataProviderId)
-          JOIN DataProviderCertificates ON (
-            DataProviderCertificates.DataProviderId = Requisitions.DataProviderId
-            AND DataProviderCertificates.CertificateId = Requisitions.DataProviderCertificateId
-          )
-        WHERE
-          Requisitions.MeasurementConsumerId = Measurements.MeasurementConsumerId
-          AND Requisitions.MeasurementId = Measurements.MeasurementId
-      ) AS Requisitions,
-      ARRAY(
-        SELECT AS STRUCT
-          DuchyMeasurementResults.DuchyId,
-          ExternalDuchyCertificateId,
-          EncryptedResult,
-          PublicApiVersion
-        FROM
-          DuchyMeasurementResults
-          JOIN DuchyCertificates USING (DuchyId, CertificateId)
-        WHERE
-          DuchyMeasurementResults.MeasurementConsumerId = Measurements.MeasurementConsumerId
-          AND DuchyMeasurementResults.MeasurementId = Measurements.MeasurementId
-      ) AS DuchyResults
-    """
-        .trimIndent()
-
-    private val defaultViewBaseFromSql =
-      """
-        FROM
-          Measurements
-          JOIN MeasurementConsumers USING (MeasurementConsumerId)
-          JOIN MeasurementConsumerCertificates USING(MeasurementConsumerId, CertificateId)
-      """
-        .trimIndent()
 
     private val computationViewBaseSql =
       """
