@@ -362,7 +362,7 @@ class FrequencyVectorBuilderTest {
       }
     }
     val SMALL_POPULATION_VID_INDEX_MAP =
-      InMemoryVidIndexMap.build(SMALL_POPULATION_SPEC, hashFunction)
+      InMemoryVidIndexMap.buildInternal(SMALL_POPULATION_SPEC, hashFunction)
 
     private val SMALL_COMPLEX_POPULATION_SPEC = populationSpec {
       subpopulations += subPopulation {
@@ -381,7 +381,7 @@ class FrequencyVectorBuilderTest {
       }
     }
     val SMALL_COMPLEX_POPULATION_VID_INDEX_MAP =
-      InMemoryVidIndexMap.build(SMALL_POPULATION_SPEC, hashFunction)
+      InMemoryVidIndexMap.buildInternal(SMALL_POPULATION_SPEC, hashFunction)
 
     private val FULL_SAMPLING_INTERVAL = vidSamplingInterval {
       start = 0f

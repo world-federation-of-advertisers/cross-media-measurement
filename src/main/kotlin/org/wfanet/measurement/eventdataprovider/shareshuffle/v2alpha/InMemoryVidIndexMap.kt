@@ -18,6 +18,8 @@ import com.google.common.hash.Hashing
 import com.google.protobuf.ByteString
 import java.nio.ByteOrder
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filter
+import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator
 import org.wfanet.measurement.common.toByteString
@@ -97,19 +99,19 @@ private constructor(
   /** Get an Iterator for the VidIndexMapEntries of this VidIndexMap. */
   override operator fun iterator(): Iterator = Iterator()
 
-  companion object {
-    /** A data class for a VID and its hash value. */
-    data class VidAndHash(val vid: Long, val hash: Long) : Comparable<VidAndHash> {
-      override operator fun compareTo(other: VidAndHash): Int =
-        compareValuesBy(this, other, { it.hash }, { it.vid })
-    }
+  /** A data class for a VID and its hash value. */
+  data class VidAndHash(val vid: Long, val hash: Long) : Comparable<VidAndHash> {
+    override operator fun compareTo(other: VidAndHash): Int =
+      compareValuesBy(this, other, { it.hash }, { it.vid })
+  }
 
+  companion object {
     /**
      * A salt value to ensure the output of the hash used by the VidIndexMap is different from other
      * functions that hash VIDs (e.g. the labeler). These are the first several digits of phi (the
      * golden ratio) added to the date this value was created.
      */
-    private val salt = (1_618_033L + 20_240_417L).toByteString(ByteOrder.BIG_ENDIAN)
+    private val SALT = (1_618_033L + 20_240_417L).toByteString(ByteOrder.BIG_ENDIAN)
 
     /**
      * Create a [InMemoryVidIndexMap] given a [PopulationSpec] and a hash function
@@ -170,18 +172,15 @@ private constructor(
       }
 
       // Ensure the populationSpec is contained by the indexMap
-      val vidsNotInIndexMap = mutableListOf<Long>()
-      for (range in populationRanges) {
-        for (vid in range) {
-          if (
+      val vidsNotInIndexMap: List<Long> =
+        populationRanges.flatMap { range ->
+          range.filter { vid ->
             !indexMap.containsKey(vid) &&
               vidsNotInPopulationSpec.size <
                 InconsistentIndexMapAndPopulationSpecException.MAX_LIST_SIZE
-          ) {
-            vidsNotInIndexMap.add(vid)
           }
         }
-      }
+
       if (vidsNotInPopulationSpec.isNotEmpty() || vidsNotInIndexMap.isNotEmpty()) {
         throw InconsistentIndexMapAndPopulationSpecException(
           vidsNotInPopulationSpec,
@@ -215,6 +214,7 @@ private constructor(
      * function allows the client to specify the VID hash function. This function is exposed for
      * testing and should not be used by client code.
      */
+    @VisibleForTesting
     fun buildInternal(
       populationSpec: PopulationSpec,
       hashFunction: (Long, ByteString) -> Long,
@@ -225,7 +225,7 @@ private constructor(
       for (subPop in populationSpec.subpopulationsList) {
         for (range in subPop.vidRangesList) {
           for (vid in range.startVid..range.endVidInclusive) {
-            hashes.add(VidAndHash(vid, hashFunction(vid, salt)))
+            hashes.add(VidAndHash(vid, hashFunction(vid, SALT)))
           }
         }
       }
