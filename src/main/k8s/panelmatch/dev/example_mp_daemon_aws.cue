@@ -18,11 +18,11 @@ _exchangeDaemonConfig: {
 	secretName:         string @tag("secret_name")
 	partyName:          string @tag("party_name")
 	partyType:          "MODEL_PROVIDER"
-	cloudStorageBucket: "halo-edp-test-bucket"
+	cloudStorageBucket: "mp-blob-storage"
 	serviceAccountName: "mp-workflow"
 	clientTls: {
-		certFile: ""
-		keyFile:  ""
+		certFile: "/var/run/secrets/files/mp1_tls.pem"
+		keyFile:  "/var/run/secrets/files/mp1_tls.key"
 	}
 	tinkKeyUri: ""
 }
@@ -38,4 +38,5 @@ _defaultAwsConfig: {
 	commonName:      ""
 	orgName:         ""
 	dns:             ""
+	emrExecRoleArn:  ""
 }

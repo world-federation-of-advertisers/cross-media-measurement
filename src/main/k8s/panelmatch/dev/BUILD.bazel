@@ -1,7 +1,7 @@
-load("//build:variables.bzl", "EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG")
 load("@wfa_rules_cue//cue:defs.bzl", "cue_library")
-load("//src/main/k8s:macros.bzl", "cue_dump")
+load("//build:variables.bzl", "EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG")
 load("//build/k8s:defs.bzl", "kustomization_dir")
+load("//src/main/k8s:macros.bzl", "cue_dump")
 
 SECRET_NAME = "certs-and-configs"
 
@@ -93,7 +93,7 @@ cue_dump(
     srcs = ["example_edp_daemon_aws.cue"],
     cue_tags = {
         "party_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.edp_name,
-        "secret_name": SECRET_NAME,
+        "secret_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.edp_secret_name,
     },
     tags = ["manual"],
     deps = [":example_daemon_aws"],
@@ -115,7 +115,7 @@ cue_dump(
     srcs = ["example_mp_daemon_aws.cue"],
     cue_tags = {
         "party_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.mp_name,
-        "secret_name": SECRET_NAME,
+        "secret_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.mp_secret_name,
     },
     tags = ["manual"],
     deps = [":example_daemon_aws"],

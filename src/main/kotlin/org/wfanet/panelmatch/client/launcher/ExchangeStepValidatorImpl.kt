@@ -18,6 +18,7 @@ import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.kotlin.unpack
 import java.time.Clock
 import java.time.ZoneOffset
+import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
@@ -82,4 +83,6 @@ class ExchangeStepValidatorImpl(
 
     return ValidatedExchangeStep(workflow, step, exchangeDate)
   }
+
+  val logger = Logger.getLogger(ExchangeStepValidatorImpl::class.java.name)
 }

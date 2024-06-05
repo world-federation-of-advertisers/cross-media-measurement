@@ -70,6 +70,7 @@ import "strings"
 	region:          string
 	storageBucket:   string
 	certArn:         string
+	emrExecRoleArn:  string
 	kingdomApi:      string
 	commonName:      string
 	orgName:         string
@@ -105,7 +106,6 @@ deployments: {
 			args:            _exchangeDaemonConfig.args + [
 						"--cert-collection-file=/var/run/secrets/files/trusted_certs.pem",
 						"--blob-size-limit-bytes=1000000000",
-						"--storage-signing-algorithm=EC",
 						"--task-timeout=24h",
 						"--exchange-api-target=" + _defaultAwsConfig.kingdomApi,
 						"--exchange-api-cert-host=localhost",
@@ -114,7 +114,6 @@ deployments: {
 						"--polling-interval=1m",
 						"--preprocessing-max-byte-size=1000000",
 						"--preprocessing-file-count=1000",
-						"--max-parallel-claimed-exchange-steps=1",
 						"--x509-common-name=" + _defaultAwsConfig.commonName,
 						"--x509-organization=" + _defaultAwsConfig.orgName,
 						"--x509-dns-name=" + _defaultAwsConfig.dns,
@@ -122,6 +121,7 @@ deployments: {
 						"--s3-region=" + _defaultAwsConfig.region,
 						"--s3-storage-bucket=" + _defaultAwsConfig.storageBucket,
 						"--certificate-authority-arn=" + _defaultAwsConfig.certArn,
+						"--emr-executor-role-arn=" + _defaultAwsConfig.emrExecRoleArn,
 			]
 		}
 	}

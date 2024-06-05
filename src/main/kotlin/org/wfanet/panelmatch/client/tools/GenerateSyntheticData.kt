@@ -111,9 +111,10 @@ class GenerateSyntheticData : Runnable {
 
   /** Creates a [JoinKeyAndId] proto from the given [UnprocessedEvent] proto. */
   fun UnprocessedEvent.toJoinKeyAndId(): JoinKeyAndId {
+    val eventId = this.id
     return joinKeyAndId {
-      this.joinKey = joinKey { key = id }
-      this.joinKeyIdentifier = joinKeyIdentifier { this.id = "$id-join-key-id".toByteStringUtf8() }
+      this.joinKey = joinKey { key = eventId }
+      this.joinKeyIdentifier = joinKeyIdentifier { this.id = "$eventId-join-key-id".toByteStringUtf8() }
     }
   }
 

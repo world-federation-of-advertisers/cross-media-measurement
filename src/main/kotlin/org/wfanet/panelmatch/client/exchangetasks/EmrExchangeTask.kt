@@ -10,6 +10,7 @@ import org.wfanet.panelmatch.client.exchangetasks.emr.EmrExchangeTaskService
 class EmrExchangeTask(
   private val emrExchangeTaskService: EmrExchangeTaskService,
   private val exchangeId: String,
+  private val exchangeStepName: String,
   private val exchangeStepIndex: Int,
   private val exchangeStepAttempt: CanonicalExchangeStepAttemptKey,
   private val exchangeDate: LocalDate,
@@ -18,6 +19,7 @@ class EmrExchangeTask(
     try {
       emrExchangeTaskService.runPanelExchangeStepOnEmrApp(
         exchangeId,
+        exchangeStepName,
         exchangeStepIndex,
         exchangeStepAttempt,
         exchangeDate,

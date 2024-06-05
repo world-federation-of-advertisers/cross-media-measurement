@@ -68,7 +68,7 @@ sed -i 's|"--certificate-authority-arn="|"--certificate-authority-arn=${var.ca_a
   # build and push the Docker image to ECR
   provisioner "local-exec" {
     working_dir = "../../../"
-    command = "bazel run src/main/docker/${var.image_name} -c opt --define container_registry=${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com"
+    command = "bazel run //src/main/docker/panel_exchange_client:${var.image_name} -c opt --define container_registry=${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com --define image_repo_prefix= --define image_tag=build-0001"
   }
 
   # create a k8s service account
@@ -90,9 +90,9 @@ regex="(certs-and-configs-\S*)"
 [[ $str =~ $regex ]]
 secret_name=$${BASH_REMATCH[0]}
 
-bazel build //src/main/k8s/dev:${var.build_target_name} --define=edp_name=dataProviders/c-8OD6eW4x8 --define=edp_k8s_secret_name=$secret_name
+bazel build //src/main/k8s/panelmatch/dev:${var.build_target_name} --define=edp_name=dataProviders/c-8OD6eW4x8 --define=edp_k8s_secret_name=$secret_name
 
-kubectl apply -f ../../../bazel-bin/src/main/k8s/dev/${var.manifest_name}
+kubectl apply -f ../../../../bazel-bin/src/main/k8s/panelmatch/dev/${var.manifest_name}
     EOF
     interpreter = ["bash", "-c"]
   }

@@ -183,13 +183,17 @@ open class ProductionExchangeTaskMapper(
 
     return if (emrBeamTaskExecutorOnDaemon) {
       requireNotNull(emrService)
+      val exchangeId = exchangeDateKey.recurringExchangeId
+      val date = exchangeDateKey.date
+
       EmrExchangeTask(emrService,
-        exchangeDateKey.recurringExchangeId,
+        exchangeId,
+        "${ExchangeWorkflow.Step.StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP.name.lowercase()}-$exchangeId-${date.format(DateTimeFormatter.ISO_LOCAL_DATE)}",
         workflow.stepsList.indexOfFirst {
           it.stepCase == ExchangeWorkflow.Step.StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP
         },
         attemptKey,
-        exchangeDateKey.date,
+        date,
       )
     } else {
       val stepDetails = step.decryptPrivateMembershipQueryResultsStep

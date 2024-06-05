@@ -138,6 +138,8 @@ GRAFANA_K8S_SETTINGS = struct(
 EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG = struct(
     edp_name = "$(edp_name)",
     mp_name = "$(mp_name)",
+    edp_secret_name = "$(edp_k8s_secret_name)",
+    mp_secret_name = "$(mp_k8s_secret_name)",
 )
 
 # Settings for deploying tests to Google Cloud.

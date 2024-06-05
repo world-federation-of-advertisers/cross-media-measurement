@@ -76,11 +76,10 @@ resource "aws_iam_role_policy_attachment" "node_AmazonEC2ContainerRegistryReadOn
   role = aws_iam_role.node_role.name
 }
 
-resource "aws_iam_policy" "mp_policy" {
-  name        = "model-provider-policies"
+resource "aws_iam_policy" "panel_exchange_aws_resource_access_policy" {
+  name        = "PanelExchangeAwsResourceAccessPolicy"
   path        = "/"
-  description = "Additional policies for the model provider"
-
+  description = "Additional policies for the panel exchange service to access AWS resources."
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -101,11 +100,48 @@ resource "aws_iam_policy" "mp_policy" {
           "${aws_s3_bucket.blob_storage.arn}/*",
         ]
       },
+      {
+        Action = [
+          "emr-serverless:*",
+        ]
+        Effect   = "Allow"
+        Resource = [
+          "arn:aws:emr-serverless:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:/*"
+        ]
+      },
+      {
+        Action = [
+          "acm-pca:*",
+        ]
+        Effect   = "Allow"
+        Resource = [
+          "arn:aws:acm-pca:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:certificate-authority/*"
+        ]
+      },
+      {
+        "Effect": "Allow",
+        "Action": [
+          "iam:PassRole"
+        ],
+        "Resource": [
+          aws_iam_role.emr_serverless_access_role.arn
+        ]
+      }
     ]
   })
 }
 
-resource "aws_iam_role_policy_attachment" "test-attach" {
-  role       = aws_iam_role.node_role.name
-  policy_arn = aws_iam_policy.mp_policy.arn
+resource "aws_iam_role" "service_access_role" {
+  assume_role_policy = data.aws_iam_policy_document.pod_assume_role_policy.json
+  name               = "ServiceAccessRole"
+}
+
+resource "aws_iam_role_policy_attachment" "pod_sa_access_role_panel_exchange_aws_resource_access_policy" {
+  role       = aws_iam_role.service_access_role.name
+  policy_arn = aws_iam_policy.panel_exchange_aws_resource_access_policy.arn
+}
+
+resource "aws_iam_role_policy_attachment" "node_role_panel_exchange_aws_resource_access_policy" {
+  policy_arn = aws_iam_role.service_access_role.name
+  role = aws_iam_role.node_role.name
 }

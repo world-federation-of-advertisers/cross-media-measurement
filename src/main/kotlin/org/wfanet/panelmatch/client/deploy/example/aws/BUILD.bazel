@@ -12,7 +12,6 @@ kt_jvm_library(
         "//imports/java/org/apache/beam/runners/direct",
         "//imports/java/software/amazon/awssdk/auth",
         "//imports/java/software/amazon/awssdk/emrserverless",
-        "//imports/java/software/amazon/awssdk/urlconnclient",
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy",
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy/example",
         "//src/main/kotlin/org/wfanet/panelmatch/client/exchangetasks/emr",

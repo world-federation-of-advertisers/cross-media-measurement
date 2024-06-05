@@ -17,6 +17,7 @@ package org.wfanet.panelmatch.common.certificates.aws
 import java.security.KeyPair
 import java.security.PrivateKey
 import java.security.cert.X509Certificate
+import java.util.logging.Logger
 import org.wfanet.measurement.common.crypto.generateKeyPair
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.panelmatch.common.certificates.CertificateAuthority
@@ -84,7 +85,6 @@ class CertificateAuthority(
 
   override suspend fun generateX509CertificateAndPrivateKey(): Pair<X509Certificate, PrivateKey> {
     val keyPair: KeyPair = generateKeyPair()
-    val privateKey: PrivateKey = keyPair.private
 
     val issueRequest =
       IssueCertificateRequest.builder()
@@ -93,7 +93,7 @@ class CertificateAuthority(
         .certificateAuthorityArn(certificateAuthorityArn)
         .csr(
           SdkBytes.fromByteArray(
-            generateCsrFromPrivateKey(privateKey, context.commonName, context.organization)
+            generateCsrFromPrivateKey(keyPair, context.organization, context.commonName)
               .toByteArray()
           )
         )
@@ -113,6 +113,6 @@ class CertificateAuthority(
 
     val getResponse = client.getCertificate(getRequest)
 
-    return readCertificate(getResponse.certificate().byteInputStream()) to privateKey
+    return readCertificate(getResponse.certificate().byteInputStream()) to keyPair.private
   }
 }

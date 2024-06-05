@@ -7,6 +7,7 @@ import kotlin.time.toDuration
 import kotlinx.coroutines.delay
 import software.amazon.awssdk.services.emrserverless.EmrServerlessClient
 import software.amazon.awssdk.services.emrserverless.model.ApplicationState
+import software.amazon.awssdk.services.emrserverless.model.Configuration
 import software.amazon.awssdk.services.emrserverless.model.ConfigurationOverrides
 import software.amazon.awssdk.services.emrserverless.model.CreateApplicationRequest
 import software.amazon.awssdk.services.emrserverless.model.GetApplicationRequest
@@ -20,7 +21,7 @@ import software.amazon.awssdk.services.emrserverless.model.StartApplicationReque
 import software.amazon.awssdk.services.emrserverless.model.StartJobRunRequest
 import software.amazon.awssdk.services.emrserverless.model.StopApplicationRequest
 
-private const val EMR_RELEASE_LABEL = "emr-7.0.0"
+private const val EMR_RELEASE_LABEL = "emr-7.1.0"
 
 private const val MAX_STATE_CHECK = 100
 private val STATE_CHECK_SLEEP_INTERVAL: Duration = 10.toDuration(SECONDS)
@@ -70,23 +71,38 @@ open class EmrServerlessClientService(
     return false
   }
 
-  open suspend fun startAndWaitJobRunCompletion(applicationId: String, arguments: List<String>): Boolean {
+  open suspend fun startAndWaitJobRunCompletion(
+    jobRunName: String,
+    applicationId: String,
+    arguments: List<String>
+  ): Boolean {
     val startJobReq = StartJobRunRequest.builder()
+      .name(jobRunName)
       .applicationId(applicationId)
       .executionRoleArn(emrJobExecutionRoleArn)
-      .jobDriver(JobDriver.builder().sparkSubmit {
+      .jobDriver(JobDriver.builder().sparkSubmit(
         SparkSubmit.builder()
           .entryPoint(s3ExchangeTaskJarPath)
           .entryPointArguments(arguments)
           .build()
-      }.build())
-      .configurationOverrides(
-        ConfigurationOverrides.builder()
+      ).build())
+      .configurationOverrides(ConfigurationOverrides.builder()
+        .applicationConfiguration(
+          Configuration.builder()
+            .classification("spark-defaults")
+            .properties(mapOf(
+              "spark.executor.cores" to "4",
+              "spark.executor.memory" to "20g",
+              "spark.driver.cores" to "4",
+              "spark.driver.memory" to "20g",
+              "spark.emr-serverless.driverEnv.JAVA_HOME" to "/usr/lib/jvm/java-17-amazon-corretto.x86_64/",
+              "spark.executorEnv.JAVA_HOME" to "/usr/lib/jvm/java-17-amazon-corretto.x86_64/",
+            )).build()
+        )
         .monitoringConfiguration(
-          MonitoringConfiguration.builder()
-          .s3MonitoringConfiguration(
+          MonitoringConfiguration.builder().s3MonitoringConfiguration(
             S3MonitoringConfiguration.builder()
-            .logUri(s3ExchangeTaskLogPath).build()).build()).build())
+              .logUri(s3ExchangeTaskLogPath).build()).build()).build())
       .build()
     val startJobResp = emrServerlessClient.startJobRun(startJobReq)
 

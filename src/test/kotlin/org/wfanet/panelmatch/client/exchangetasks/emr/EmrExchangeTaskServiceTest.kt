@@ -56,6 +56,8 @@ class EmrExchangeTaskServiceTest {
         exchangeWorkflowPrefix = "",
         storageClient = mockStorageClient1,
         storageType = StorageDetails.PlatformCase.AWS,
+        storageBucket = "",
+        storageRegion = "",
         emrServerlessClientService = emrServerlessClientService1
       )
     }
@@ -86,6 +88,8 @@ class EmrExchangeTaskServiceTest {
         exchangeWorkflowPrefix = "",
         storageClient = mockStorageClient2,
         storageType = StorageDetails.PlatformCase.AWS,
+        storageBucket = "",
+        storageRegion = "",
         emrServerlessClientService = emrServerlessClientService2
       )
 
@@ -99,9 +103,10 @@ class EmrExchangeTaskServiceTest {
   fun testRunPanelExchangeStepOnEmrAppFor() {
     runBlocking {
       whenever(emrServerlessClientService1.startOrStopApplication(any(), any())).thenReturn(true)
-      whenever(emrServerlessClientService1.startAndWaitJobRunCompletion(any(), any())).thenReturn(true)
+      whenever(emrServerlessClientService1.startAndWaitJobRunCompletion(any(), any(), any())).thenReturn(true)
 
       emrExchangeTaskService.runPanelExchangeStepOnEmrApp(
+        "",
         "",
         0,
         CanonicalExchangeStepAttemptKey.fromName(TEST_EXCHANGE_ATTEMPT)!!,
@@ -112,7 +117,7 @@ class EmrExchangeTaskServiceTest {
       verify(emrServerlessClientService1, times(1)).createApplication(any())
       verify(mockStorageClient1, times(1)).writeBlob(any(), eq(TEST_APPLICATION_ID.toByteStringUtf8()))
       verify(emrServerlessClientService1, times(2)).startOrStopApplication(any(), any())
-      verify(emrServerlessClientService1, times(1)).startAndWaitJobRunCompletion(any(), any())
+      verify(emrServerlessClientService1, times(1)).startAndWaitJobRunCompletion(any(), any(), any())
     }
   }
 
@@ -122,6 +127,7 @@ class EmrExchangeTaskServiceTest {
       whenever(emrServerlessClientService1.startOrStopApplication(any(), eq(true))).thenReturn(false)
 
       emrExchangeTaskService.runPanelExchangeStepOnEmrApp(
+        "",
         "",
         0,
         CanonicalExchangeStepAttemptKey.fromName(TEST_EXCHANGE_ATTEMPT)!!,
@@ -134,10 +140,11 @@ class EmrExchangeTaskServiceTest {
   fun testRunPanelExchangeStepOnEmrAppThrowsExceptionWhenRunApplicationFails() {
     runBlocking {
       whenever(emrServerlessClientService1.startOrStopApplication(any(), any())).thenReturn(true)
-      whenever(emrServerlessClientService1.startAndWaitJobRunCompletion(any(), any())).thenReturn(false)
+      whenever(emrServerlessClientService1.startAndWaitJobRunCompletion(any(),  any(), any())).thenReturn(false)
 
 
       emrExchangeTaskService.runPanelExchangeStepOnEmrApp(
+        "",
         "",
         0,
         CanonicalExchangeStepAttemptKey.fromName(TEST_EXCHANGE_ATTEMPT)!!,
@@ -150,11 +157,12 @@ class EmrExchangeTaskServiceTest {
   fun testRunPanelExchangeStepOnEmrAppThrowsExceptionWhenStopApplicationFails() {
     runBlocking {
       whenever(emrServerlessClientService1.startOrStopApplication(any(), eq(true))).thenReturn(true)
-      whenever(emrServerlessClientService1.startAndWaitJobRunCompletion(any(), any())).thenReturn(true)
+      whenever(emrServerlessClientService1.startAndWaitJobRunCompletion(any(),  any(), any())).thenReturn(true)
       whenever(emrServerlessClientService1.startOrStopApplication(any(), eq(false))).thenReturn(false)
 
 
       emrExchangeTaskService.runPanelExchangeStepOnEmrApp(
+        "",
         "",
         0,
         CanonicalExchangeStepAttemptKey.fromName(TEST_EXCHANGE_ATTEMPT)!!,

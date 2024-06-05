@@ -41,6 +41,7 @@ import software.amazon.awssdk.services.emrserverless.model.StopApplicationRespon
 
 private const val TEST_APPLICATION_NAME = "test-application-name"
 private const val TEST_APPLICATION_ID = "test-application-id"
+private const val TEST_JOB_RUN_NAME = "test-job-run-name"
 private const val TEST_JOB_RUN_ID = "test-job-run-id"
 private const val EXCHANGE_TASK_JAR_PATH = "exchange-task-jar-path"
 private const val EXCHANGE_TASK_LOG_PATH = "exchange-task-log-path"
@@ -147,7 +148,7 @@ class EmrServerlessClientServiceTest {
       .thenReturn(GetJobRunResponse.builder().jobRun(JobRun.builder().state(SUCCESS).build()).build())
 
     runBlocking {
-      val success = emrServerlessClientService.startAndWaitJobRunCompletion(TEST_APPLICATION_ID, emptyList())
+      val success = emrServerlessClientService.startAndWaitJobRunCompletion(TEST_JOB_RUN_NAME, TEST_APPLICATION_ID, emptyList())
 
       assertEquals(success, true)
 
@@ -167,7 +168,7 @@ class EmrServerlessClientServiceTest {
       .thenReturn(GetJobRunResponse.builder().jobRun(JobRun.builder().state(FAILED).build()).build())
 
     runBlocking {
-      val success = emrServerlessClientService.startAndWaitJobRunCompletion(TEST_APPLICATION_ID, emptyList())
+      val success = emrServerlessClientService.startAndWaitJobRunCompletion(TEST_JOB_RUN_NAME, TEST_APPLICATION_ID, emptyList())
 
       assertEquals(success, false)
     }
@@ -184,7 +185,7 @@ class EmrServerlessClientServiceTest {
       .thenReturn(GetJobRunResponse.builder().jobRun(JobRun.builder().state(RUNNING).build()).build())
 
     runBlocking {
-      val success = emrServerlessClientService.startAndWaitJobRunCompletion(TEST_APPLICATION_ID, emptyList())
+      val success = emrServerlessClientService.startAndWaitJobRunCompletion(TEST_JOB_RUN_NAME, TEST_APPLICATION_ID, emptyList())
 
       assertEquals(success, false)
     }

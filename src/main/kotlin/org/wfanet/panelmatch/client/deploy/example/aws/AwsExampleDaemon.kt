@@ -45,7 +45,6 @@ import picocli.CommandLine.Mixin
 import picocli.CommandLine.Option
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider
-import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.emrserverless.EmrServerlessClient
 import software.amazon.awssdk.services.s3.S3AsyncClient
@@ -104,17 +103,18 @@ private class AwsExampleDaemon : ExampleDaemon() {
       taskContext = taskContext,
       emrBeamTaskExecutorOnDaemon = true,
       emrService = EmrExchangeTaskService(
-        exchangeTaskAppIdPath = "s3://${s3Bucket}/exchange-tasks/emr/application",
-        exchangeWorkflowPrefix = "s3://${s3Bucket}/valid-exchange-workflows",
+        exchangeTaskAppIdPath = "exchange-tasks/emr/application/${flags.id}",
+        exchangeWorkflowPrefix = "valid-exchange-workflows",
         storageClient = rootStorageClient,
         storageType = StorageDetails.PlatformCase.AWS,
+        storageBucket = s3Bucket,
+        storageRegion = s3Region,
         emrServerlessClientService = EmrServerlessClientService(
           s3ExchangeTaskJarPath = "s3://${s3Bucket}/exchange-tasks/jars/beam-exchange-tasks.jar",
           s3ExchangeTaskLogPath = "s3://${s3Bucket}/exchange-tasks/logs",
           emrJobExecutionRoleArn = emrExecutorRoleArn,
           emrServerlessClient = EmrServerlessClient.builder()
             .credentialsProvider(DefaultCredentialsProvider.create())
-            .httpClient(UrlConnectionHttpClient.create())
             .build()
         ),
       )

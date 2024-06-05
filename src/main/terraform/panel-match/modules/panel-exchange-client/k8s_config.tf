@@ -55,16 +55,17 @@ aws ecr get-login-password --region ${data.aws_region.current.name} | \
   # update the CUE file to have the right AWS KMS key and CA arn
   provisioner "local-exec" {
     command = <<EOF
-sed -i -E 's|serviceAccountName: ".*"|serviceAccountName: "${var.k8s_account_service_name}"|' ${var.path_to_cue}
 sed -i -E 's|containerPrefix: ".*"|containerPrefix: "${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com"|' ${var.path_to_cue}
 sed -i -E 's|tinkKeyUri: ".*"|tinkKeyUri: "${aws_kms_key.k8s_key.arn}"|' ${var.path_to_cue}
 sed -i -E 's|region: ".*"|region: "${data.aws_region.current.name}"|' ${var.path_to_cue}
-sed -i -E 's|storageBucket: ".*"|storageBucket: "hello-storage"|' ${var.path_to_cue}
+sed -i -E 's|storageBucket: ".*"|storageBucket: "${var.bucket_name}"|' ${var.path_to_cue}
 sed -i -E 's|kingdomApi: ".*"|kingdomApi: "${var.kingdom_endpoint}"|' ${var.path_to_cue}
 sed -i -E 's|certArn: ".*"|certArn: "${aws_acmpca_certificate_authority.root_ca.arn}"|' ${var.path_to_cue}
 sed -i -E 's|commonName: ".*"|commonName: "${var.ca_common_name}"|' ${var.path_to_cue}
 sed -i -E 's|orgName: ".*"|orgName: "${var.ca_org_name}"|' ${var.path_to_cue}
 sed -i -E 's|dns: ".*"|dns: "${var.ca_dns}"|' ${var.path_to_cue}
+sed -i -E 's|dns: ".*"|dns: "${var.ca_dns}"|' ${var.path_to_cue}
+sed -i -E 's|emrExecRoleArn: ".*"|emrExecRoleArn: "${aws_iam_role.emr_serverless_access_role.arn}"|' ${var.path_to_cue}
     EOF
   }
 
@@ -80,7 +81,7 @@ sed -i -E 's|path_to_secrets=".*"|path_to_secrets="${var.path_to_secrets}"|' cer
   # build and push the Docker image to ECR
   provisioner "local-exec" {
     working_dir = "../../../"
-    command = "bazel run src/main/docker/${var.image_name} -c opt --define container_registry=${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com"
+    command = "bazel run //src/main/docker/panel_exchange_client:${var.image_name} -c opt --define container_registry=${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com --define image_repo_prefix= --define image_tag=build-0001"
   }
 
   # create a k8s service account
@@ -97,9 +98,9 @@ regex="(certs-and-configs-\S*)"
 [[ $str =~ $regex ]]
 secret_name=$${BASH_REMATCH[0]}
 
-bazel build //src/main/k8s/dev:${var.build_target_name} --define=mp_name=dataProviders/c-8OD6eW4x8 --define=mp_k8s_secret_name=$secret_name
+bazel build //src/main/k8s/panelmatch/dev:${var.build_target_name} --define=mp_name=dataProviders/c-8OD6eW4x8 --define=mp_k8s_secret_name=$secret_name
 
-kubectl apply -f ../../../bazel-bin/src/main/k8s/dev/${var.manifest_name}
+kubectl apply -f ../../../../bazel-bin/src/main/k8s/panelmatch/dev/${var.manifest_name}
     EOF
     interpreter = ["bash", "-c"]
   }

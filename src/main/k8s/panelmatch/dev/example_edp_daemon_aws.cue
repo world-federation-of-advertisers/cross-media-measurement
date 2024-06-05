@@ -18,16 +18,25 @@ _exchangeDaemonConfig: {
 	secretName:         string @tag("secret_name")
 	partyName:          string @tag("party_name")
 	partyType:          "DATA_PROVIDER"
-	cloudStorageBucket: "halo-edp-test-bucket"
+	cloudStorageBucket: "edp-blob-storage"
 	serviceAccountName: "edp-workflow"
 	clientTls: {
 		certFile: "/var/run/secrets/files/edp1_tls.pem"
 		keyFile:  "/var/run/secrets/files/edp1_tls.key"
 	}
 	tinkKeyUri: ""
-	privateCa: {
-		name:     "20220302-51i-yj4"
-		poolId:   "EdpTestPool"
-		location: "us-central1"
-	}
+}
+
+// Blank strings are populated by the Terraform-backed deployment supporting
+// the AWS daemon.
+_defaultAwsConfig: {
+	containerPrefix: ""
+	region:          ""
+	storageBucket:   ""
+	kingdomApi:      ""
+	certArn:         ""
+	commonName:      ""
+	orgName:         ""
+	dns:             ""
+	emrExecRoleArn:  ""
 }

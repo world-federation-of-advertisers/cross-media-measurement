@@ -17,6 +17,11 @@ resource "aws_vpc" "vpc" {
 
   enable_dns_hostnames = true
   enable_dns_support = true
+
+  tags = {
+    terraform = "true"
+    Name = "${var.project}-vpc"
+  }
 }
 
 resource "aws_subnet" "public_subnet" {
@@ -27,6 +32,11 @@ resource "aws_subnet" "public_subnet" {
   availability_zone = data.aws_availability_zones.available.names[count.index]
 
   map_public_ip_on_launch = true
+
+  tags = {
+    terraform = "true"
+    Name = "${var.project}-public-subnet"
+  }
 }
 
 resource "aws_subnet" "private_subnet" {
@@ -35,11 +45,21 @@ resource "aws_subnet" "private_subnet" {
   vpc_id = aws_vpc.vpc.id
   cidr_block = cidrsubnet(var.vpc_cidr, var.subnet_cidr_bits, count.index + var.availability_zones_count)
   availability_zone = data.aws_availability_zones.available.names[count.index]
+
+  tags = {
+    terraform = "true"
+    Name = "${var.project}-private-subnet"
+  }
 }
 
 resource "aws_internet_gateway" "gateway" {
   vpc_id = aws_vpc.vpc.id
   depends_on = [aws_vpc.vpc]
+
+  tags = {
+    terraform = "true"
+    Name = "${var.project}-gateway"
+  }
 }
 
 resource "aws_route_table" "main" {
@@ -48,6 +68,11 @@ resource "aws_route_table" "main" {
   route {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.gateway.id
+  }
+
+  tags = {
+    terraform = "true"
+    Name = "${var.project}-route-table"
   }
 }
 

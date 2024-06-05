@@ -5,6 +5,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.StorageType
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.storage.StorageDetails.PlatformCase
 import org.wfanet.panelmatch.common.storage.toStringUtf8
@@ -16,6 +17,8 @@ open class EmrExchangeTaskService(
   val exchangeWorkflowPrefix: String,
   val storageClient: StorageClient,
   val storageType: PlatformCase,
+  val storageBucket: String,
+  val storageRegion: String,
   val emrServerlessClientService: EmrServerlessClientService
 ) {
 
@@ -34,6 +37,7 @@ open class EmrExchangeTaskService(
 
   suspend fun runPanelExchangeStepOnEmrApp(
     exchangeWorkflowId: String,
+    exchangeStepName: String,
     exchangeStepIndex: Int,
     exchangeStepAttempt: CanonicalExchangeStepAttemptKey,
     exchangeDate: LocalDate,
@@ -44,13 +48,20 @@ open class EmrExchangeTaskService(
       throw RuntimeException("Panel exchange app was not started successfully")
     }
 
-    val successful = emrServerlessClientService.startAndWaitJobRunCompletion(appId, listOf(
-      "--exchange-workflow-blob-key=$exchangeWorkflowPrefix/$exchangeWorkflowId",
-      "--step-index=$exchangeStepIndex",
-      "--exchange-step-attempt-resource-id=${exchangeStepAttempt.toName()}",
-      "--exchange-date=${exchangeDate.format(DateTimeFormatter.ISO_LOCAL_DATE)}",
-      "--storage-type=${storageType.name}",
-    ))
+    val successful = emrServerlessClientService.startAndWaitJobRunCompletion(
+      exchangeStepName,
+      appId,
+      listOf(
+        "--exchange-workflow-blob-key=$exchangeWorkflowPrefix/$exchangeWorkflowId",
+        "--step-index=$exchangeStepIndex",
+        "--exchange-step-attempt-resource-id=${exchangeStepAttempt.toName()}",
+        "--exchange-date=${exchangeDate.format(DateTimeFormatter.ISO_LOCAL_DATE)}",
+        "--storage-type=${storageType.name}",
+        "--s3-region=${storageRegion}",
+        "--s3-storage-bucket=${storageBucket}",
+        "--google-cloud-storage-bucket=",
+        "--google-cloud-storage-project=",
+      ))
 
     if (!successful) {
       throw RuntimeException("Panel exchange step was not executed successfully")
