@@ -61,7 +61,8 @@ class MeasurementReader(private val view: Measurement.View, includeFromClause: B
           """
             $defaultViewBaseSelectSql
             $defaultViewBaseFromSql
-          """.trimIndent()
+          """
+            .trimIndent()
         } else {
           defaultViewBaseSelectSql
         }

@@ -434,7 +434,8 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
           AND Measurements.MeasurementConsumerId = MeasurementConsumers.MeasurementConsumerId
         JOIN MeasurementConsumerCertificates ON Measurements.MeasurementConsumerId = MeasurementConsumerCertificates.MeasurementConsumerId
           AND Measurements.CertificateId = MeasurementConsumerCertificates.CertificateId
-      """.trimIndent()
+      """
+        .trimIndent()
 
     val requestIds = createMeasurementRequests.map { it.requestId }
     return buildMap {
@@ -443,14 +444,14 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
           .fillStatementBuilder {
             appendClause(fromClause)
             bind(params.MEASUREMENT_CONSUMER_ID to measurementConsumerId)
-            bind(params.CREATE_REQUEST_ID)
-              .toStringArray(requestIds)
+            bind(params.CREATE_REQUEST_ID).toStringArray(requestIds)
           }
           .execute(transactionContext)
           .collect {
             if (it.createRequestId != null) {
               put(it.createRequestId, it.measurement)
-            } }
+            }
+          }
       }
     }
   }
