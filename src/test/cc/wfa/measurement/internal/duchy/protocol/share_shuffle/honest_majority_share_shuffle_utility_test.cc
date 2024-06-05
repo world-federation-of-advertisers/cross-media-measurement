@@ -192,7 +192,7 @@ class ShufflePhaseTestData {
   CompleteShufflePhaseRequest request_;
 };
 
-TEST(ShufflePhaseAtNonAggregator, InvalidRegisterCountFails) {
+TEST(ReachAndFrequencyShufflePhaseAtNonAggregator, InvalidRegisterCountFails) {
   ShufflePhaseTestData test_data;
   test_data.SetSketchParams(/*register_count=*/0, /*bytes_per_registers=*/1,
                             /*maximum_combined_frequency=*/10,
@@ -202,7 +202,7 @@ TEST(ShufflePhaseAtNonAggregator, InvalidRegisterCountFails) {
               StatusIs(absl::StatusCode::kInvalidArgument, "register count"));
 }
 
-TEST(ShufflePhaseAtNonAggregator, InvalidRingModulusFails) {
+TEST(ReachAndFrequencyShufflePhaseAtNonAggregator, InvalidRingModulusFails) {
   ShufflePhaseTestData test_data;
   test_data.SetSketchParams(/*register_count=*/100, /*bytes_per_registers=*/1,
                             /*maximum_combined_frequency=*/10,
@@ -212,7 +212,8 @@ TEST(ShufflePhaseAtNonAggregator, InvalidRingModulusFails) {
               StatusIs(absl::StatusCode::kInvalidArgument, "at least 2"));
 }
 
-TEST(ShufflePhaseAtNonAggregator, InvalidRingModulusAndMaxFrequencyPairFails) {
+TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
+     InvalidRingModulusAndMaxFrequencyPairFails) {
   ShufflePhaseTestData test_data;
   test_data.SetSketchParams(/*register_count=*/100, /*bytes_per_registers=*/1,
                             /*maximum_combined_frequency=*/4,
@@ -222,7 +223,8 @@ TEST(ShufflePhaseAtNonAggregator, InvalidRingModulusAndMaxFrequencyPairFails) {
               StatusIs(absl::StatusCode::kInvalidArgument, "plus one"));
 }
 
-TEST(ShufflePhaseAtNonAggregator, RingModulusDoesNotFitTheRegisterFails) {
+TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
+     RingModulusDoesNotFitTheRegisterFails) {
   ShufflePhaseTestData test_data;
   test_data.SetSketchParams(/*register_count=*/100, /*bytes_per_registers=*/1,
                             /*maximum_combined_frequency=*/127,
@@ -232,7 +234,8 @@ TEST(ShufflePhaseAtNonAggregator, RingModulusDoesNotFitTheRegisterFails) {
               StatusIs(absl::StatusCode::kInvalidArgument, "bit length"));
 }
 
-TEST(ShufflePhaseAtNonAggregator, InputSizeDoesNotMatchTheConfigFails) {
+TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
+     InputSizeDoesNotMatchTheConfigFails) {
   ShufflePhaseTestData test_data;
   test_data.SetSketchParams(kRegisterCount, kBytesPerRegister,
                             kMaxCombinedFrequency, kRingModulus);
@@ -243,7 +246,7 @@ TEST(ShufflePhaseAtNonAggregator, InputSizeDoesNotMatchTheConfigFails) {
               StatusIs(absl::StatusCode::kInvalidArgument, "invalid size"));
 }
 
-TEST(ShufflePhaseAtNonAggregator, EmptySketchSharesFails) {
+TEST(ReachAndFrequencyShufflePhaseAtNonAggregator, EmptySketchSharesFails) {
   ShufflePhaseTestData test_data;
   test_data.SetSketchParams(kRegisterCount, kBytesPerRegister,
                             kMaxCombinedFrequency, kRingModulus);
@@ -252,7 +255,7 @@ TEST(ShufflePhaseAtNonAggregator, EmptySketchSharesFails) {
               StatusIs(absl::StatusCode::kInvalidArgument, "empty"));
 }
 
-TEST(ShufflePhaseAtNonAggregator,
+TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
      NonAggregatorOrderNotSpecifiedAndDpParamsNotSpecifiedSucceeds) {
   ShufflePhaseTestData test_data;
   test_data.ClearDifferentialPrivacyParams();
@@ -262,7 +265,7 @@ TEST(ShufflePhaseAtNonAggregator,
             absl::OkStatus());
 }
 
-TEST(ShufflePhaseAtNonAggregator,
+TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
      NonAggregatorOrderNotSpecifiedAndDpParamsSpecifiedFails) {
   ShufflePhaseTestData test_data;
   test_data.SetSketchParams(kRegisterCount, kBytesPerRegister,
@@ -274,7 +277,7 @@ TEST(ShufflePhaseAtNonAggregator,
               StatusIs(absl::StatusCode::kInvalidArgument, "order"));
 }
 
-TEST(ShufflePhaseAtNonAggregator,
+TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
      SketchSharesContainOnlyShareVectorAndNoDpNoiseSucceeds) {
   ShufflePhaseTestData test_data;
   test_data.ClearDifferentialPrivacyParams();
@@ -302,7 +305,7 @@ TEST(ShufflePhaseAtNonAggregator,
               testing::UnorderedElementsAreArray(expected_combined_sketch));
 }
 
-TEST(ShufflePhaseAtNonAggregator,
+TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
      SketchSharesContainOnlySeedsAndNoDpNoiseSucceeds) {
   ShufflePhaseTestData test_data;
   test_data.ClearDifferentialPrivacyParams();
@@ -337,7 +340,7 @@ TEST(ShufflePhaseAtNonAggregator,
               testing::UnorderedElementsAreArray(expected_combined_sketch));
 }
 
-TEST(ShufflePhaseAtNonAggregator,
+TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
      SketchSharesContainShareVectorAndSeedsAndNoDpNoiseSucceeds) {
   ShufflePhaseTestData test_data;
   test_data.ClearDifferentialPrivacyParams();
@@ -377,7 +380,8 @@ TEST(ShufflePhaseAtNonAggregator,
               testing::UnorderedElementsAreArray(expected_combined_sketch));
 }
 
-TEST(ShufflePhaseAtNonAggregator, ShufflePhaseWithDpNoiseSucceeds) {
+TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
+     ShufflePhaseWithDpNoiseSucceeds) {
   ShufflePhaseTestData test_data;
   test_data.SetSketchParams(kRegisterCount, kBytesPerRegister,
                             kMaxCombinedFrequency, kRingModulus);
@@ -438,7 +442,7 @@ TEST(ShufflePhaseAtNonAggregator, ShufflePhaseWithDpNoiseSucceeds) {
               testing::IsSupersetOf(expected_combined_sketch_without_noise));
 }
 
-TEST(ShufflePhaseAtNonAggregator,
+TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
      ShufflePhaseSimulationForTwoDuchiesWithoutDpNoiseSucceeds) {
   ShufflePhaseTestData test_data_1;
   test_data_1.ClearDifferentialPrivacyParams();
@@ -495,7 +499,7 @@ TEST(ShufflePhaseAtNonAggregator,
               testing::UnorderedElementsAreArray(combined_input));
 }
 
-TEST(ShufflePhaseAtNonAggregator,
+TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
      ShufflePhaseSimulationForTwoDuchiesWithDpNoiseSucceeds) {
   ShufflePhaseTestData test_data_1;
   test_data_1.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
@@ -1139,7 +1143,7 @@ class AggregationPhaseTestData {
   CompleteAggregationPhaseRequest request_;
 };
 
-TEST(AggregationPhase, InvalidRegisterCountFails) {
+TEST(ReachAndFrequencyAggregationPhase, InvalidRegisterCountFails) {
   AggregationPhaseTestData test_data;
   test_data.SetSketchParams(/*register_count=*/0, /*bytes_per_registers=*/1,
                             /*maximum_combined_frequency=*/10,
@@ -1148,7 +1152,7 @@ TEST(AggregationPhase, InvalidRegisterCountFails) {
               StatusIs(absl::StatusCode::kInvalidArgument, "register count"));
 }
 
-TEST(AggregationPhase, InvalidRingModulusFails) {
+TEST(ReachAndFrequencyAggregationPhase, InvalidRingModulusFails) {
   AggregationPhaseTestData test_data;
   test_data.SetSketchParams(/*register_count=*/100, /*bytes_per_registers=*/1,
                             /*maximum_combined_frequency=*/10,
@@ -1157,7 +1161,8 @@ TEST(AggregationPhase, InvalidRingModulusFails) {
               StatusIs(absl::StatusCode::kInvalidArgument, "at least 2"));
 }
 
-TEST(AggregationPhase, InvalidRingModulusAndMaxFrequencyPairFails) {
+TEST(ReachAndFrequencyAggregationPhase,
+     InvalidRingModulusAndMaxFrequencyPairFails) {
   AggregationPhaseTestData test_data;
   test_data.SetSketchParams(/*register_count=*/100, /*bytes_per_registers=*/1,
                             /*maximum_combined_frequency=*/4,
@@ -1166,7 +1171,7 @@ TEST(AggregationPhase, InvalidRingModulusAndMaxFrequencyPairFails) {
               StatusIs(absl::StatusCode::kInvalidArgument, "plus one"));
 }
 
-TEST(AggregationPhase, InvalidNumberOfSketchSharesFails) {
+TEST(ReachAndFrequencyAggregationPhase, InvalidNumberOfSketchSharesFails) {
   AggregationPhaseTestData test_data;
   std::vector<uint32_t> share_vector(10, 0);
   test_data.AddShareToSketchShares(share_vector);
@@ -1174,7 +1179,7 @@ TEST(AggregationPhase, InvalidNumberOfSketchSharesFails) {
               StatusIs(absl::StatusCode::kInvalidArgument, "non-aggregators"));
 }
 
-TEST(AggregationPhase, InvalidMaximumFrequencyFails) {
+TEST(ReachAndFrequencyAggregationPhase, InvalidMaximumFrequencyFails) {
   AggregationPhaseTestData test_data;
   ASSERT_OK_AND_ASSIGN(
       std::vector<uint32_t> share_vector_1,
@@ -1189,7 +1194,8 @@ TEST(AggregationPhase, InvalidMaximumFrequencyFails) {
               StatusIs(absl::StatusCode::kInvalidArgument, "maximum"));
 }
 
-TEST(AggregationPhase, SketchShareVectorsHaveDifferentSizeFails) {
+TEST(ReachAndFrequencyAggregationPhase,
+     SketchShareVectorsHaveDifferentSizeFails) {
   AggregationPhaseTestData test_data;
   ASSERT_OK_AND_ASSIGN(
       std::vector<uint32_t> share_vector_1,
@@ -1204,7 +1210,8 @@ TEST(AggregationPhase, SketchShareVectorsHaveDifferentSizeFails) {
               StatusIs(absl::StatusCode::kInvalidArgument, "same length"));
 }
 
-TEST(AggregationPhase, CombinedSketchElementExceedsMaxCombinedFrequencyFails) {
+TEST(ReachAndFrequencyAggregationPhase,
+     CombinedSketchElementExceedsMaxCombinedFrequencyFails) {
   AggregationPhaseTestData test_data;
   int register_count = 1;
   test_data.SetSketchParams(register_count, /*bytes_per_register=*/1,
@@ -1222,7 +1229,8 @@ TEST(AggregationPhase, CombinedSketchElementExceedsMaxCombinedFrequencyFails) {
               StatusIs(absl::StatusCode::kInternal, "5"));
 }
 
-TEST(AggregationPhase, AggregationPhaseWithoutDPNoiseSucceeds) {
+TEST(ReachAndFrequencyAggregationPhase,
+     AggregationPhaseWithoutDPNoiseSucceeds) {
   AggregationPhaseTestData test_data;
   int register_count = 8;
   test_data.SetSketchParams(register_count, /*bytes_per_register=*/1,
@@ -1241,15 +1249,14 @@ TEST(AggregationPhase, AggregationPhaseWithoutDPNoiseSucceeds) {
 
   ASSERT_OK_AND_ASSIGN(MpcResult result,
                        test_data.RunReachAndFrequencyAggregationPhase());
-  ASSERT_OK_AND_ASSIGN(int64_t expected_reach,
-                       EstimateReach(4.0, kVidSamplingIntervalWidth));
+  int64_t expected_reach = 4.0 / kVidSamplingIntervalWidth;
   EXPECT_EQ(result.reach, expected_reach);
   ASSERT_THAT(result.frequency_distribution, SizeIs(2));
   EXPECT_EQ(result.frequency_distribution[1], 0.25);
   EXPECT_EQ(result.frequency_distribution[2], 0.75);
 }
 
-TEST(AggregationPhase, AggregationPhaseWithDPNoiseSucceeds) {
+TEST(ReachAndFrequencyAggregationPhase, AggregationPhaseWithDPNoiseSucceeds) {
   AggregationPhaseTestData test_data;
   int register_count = 8;
   test_data.SetSketchParams(register_count, /*bytes_per_register=*/1,
@@ -1271,15 +1278,15 @@ TEST(AggregationPhase, AggregationPhaseWithDPNoiseSucceeds) {
 
   ASSERT_OK_AND_ASSIGN(MpcResult result,
                        test_data.RunReachAndFrequencyAggregationPhase());
-  ASSERT_OK_AND_ASSIGN(int64_t expected_reach,
-                       EstimateReach(8.0, kVidSamplingIntervalWidth));
+  int64_t expected_reach = 8.0 / kVidSamplingIntervalWidth;
   EXPECT_EQ(result.reach, expected_reach);
   ASSERT_THAT(result.frequency_distribution, SizeIs(2));
   EXPECT_EQ(result.frequency_distribution[1], 0.125);
   EXPECT_EQ(result.frequency_distribution[2], 0.875);
 }
 
-TEST(AggregationPhase, AggregationPhaseNoDataNorEffectiveNoiseFails) {
+TEST(ReachAndFrequencyAggregationPhase,
+     AggregationPhaseNoDataNorEffectiveNoiseFails) {
   AggregationPhaseTestData test_data;
   int register_count = 4;
   test_data.SetSketchParams(register_count, /*bytes_per_register=*/1,
@@ -1370,8 +1377,7 @@ TEST(ReachOnlyAggregationPhase, AggregationPhaseWithoutDPNoiseSucceeds) {
 
   ASSERT_OK_AND_ASSIGN(MpcResult result,
                        test_data.RunReachOnlyAggregationPhase());
-  ASSERT_OK_AND_ASSIGN(int64_t expected_reach,
-                       EstimateReach(4.0, kVidSamplingIntervalWidth));
+  int64_t expected_reach = 4.0 / kVidSamplingIntervalWidth;
   EXPECT_EQ(result.reach, expected_reach);
 }
 
@@ -1396,8 +1402,7 @@ TEST(ReachOnlyAggregationPhase, AggregationPhaseWithDPNoiseSucceeds) {
 
   ASSERT_OK_AND_ASSIGN(MpcResult result,
                        test_data.RunReachOnlyAggregationPhase());
-  ASSERT_OK_AND_ASSIGN(int64_t expected_reach,
-                       EstimateReach(8.0, kVidSamplingIntervalWidth));
+  int64_t expected_reach = 8.0 / kVidSamplingIntervalWidth;
   EXPECT_EQ(result.reach, expected_reach);
 }
 
@@ -1524,9 +1529,8 @@ class EndToEndHmssTest {
       frequency_histogram[reg]++;
     }
 
-    ASSIGN_OR_RETURN(int64_t expected_reach,
-                     EstimateReach(register_count - frequency_histogram[0],
-                                   kVidSamplingIntervalWidth));
+    int64_t expected_reach =
+        (register_count - frequency_histogram[0]) / kVidSamplingIntervalWidth;
 
     // When there is no differential noise, the shift offset is 0.
     int64_t max_reach_error =
@@ -1694,9 +1698,8 @@ class EndToEndReachOnlyHmssTest {
       }
     }
 
-    ASSIGN_OR_RETURN(int64_t expected_reach,
-                     EstimateReach(expected_non_empty_register_count,
-                                   kVidSamplingIntervalWidth));
+    int64_t expected_reach =
+        expected_non_empty_register_count / kVidSamplingIntervalWidth;
 
     // When there is no differential noise, the shift offset is 0.
     int64_t max_reach_error = 2 * shift_offset / kVidSamplingIntervalWidth;
