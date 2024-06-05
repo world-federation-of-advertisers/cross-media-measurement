@@ -29,7 +29,7 @@ openTelemetry: #OpenTelemetry & {
 		"default": {
 			spec: {
 				serviceAccount: "adot-collector"
-				_config: {
+				config: {
 					exporters: {
 						prometheusremotewrite: {
 							endpoint: #AMPIngestEndpoint
