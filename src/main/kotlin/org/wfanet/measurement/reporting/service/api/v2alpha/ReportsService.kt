@@ -35,6 +35,7 @@ import java.time.temporal.Temporal
 import java.time.temporal.TemporalAdjusters
 import java.time.zone.ZoneRulesException
 import kotlin.math.min
+import kotlin.random.Random
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
@@ -103,6 +104,7 @@ class ReportsService(
   private val internalMetricCalculationSpecsStub: MetricCalculationSpecsCoroutineStub,
   private val metricsStub: MetricsCoroutineStub,
   private val metricSpecConfig: MetricSpecConfig,
+  private val secureRandom: Random,
 ) : ReportsCoroutineImplBase() {
   private data class CreateReportInfo(
     val parent: String,
@@ -813,7 +815,10 @@ class ReportsService(
                   InternalReportKt.ReportingMetricKt.details {
                     this.metricSpec =
                       try {
-                        metricSpec.toMetricSpec().withDefaults(metricSpecConfig).toInternal()
+                        metricSpec
+                          .toMetricSpec()
+                          .withDefaults(metricSpecConfig, secureRandom)
+                          .toInternal()
                       } catch (e: MetricSpecDefaultsException) {
                         failGrpc(Status.INVALID_ARGUMENT) {
                           listOfNotNull("Invalid metric spec.", e.message, e.cause?.message)

@@ -21,19 +21,11 @@ module "simulators_cluster" {
   secret_key      = module.common.cluster_secret_key
 }
 
-data "google_container_cluster" "simulators" {
-  name     = local.simulators_cluster_name
-  location = local.cluster_location
-
-  # Defer reading of cluster resource until it exists.
-  depends_on = [module.simulators_cluster]
-}
-
 module "simulators_default_node_pool" {
   source = "../modules/node-pool"
 
   name            = "default"
-  cluster         = data.google_container_cluster.simulators
+  cluster         = module.simulators_cluster.cluster
   service_account = module.common.cluster_service_account
   machine_type    = "e2-standard-2"
   max_node_count  = 2
@@ -43,7 +35,7 @@ module "simulators_spot_node_pool" {
   source = "../modules/node-pool"
 
   name            = "spot"
-  cluster         = data.google_container_cluster.simulators
+  cluster         = module.simulators_cluster.cluster
   service_account = module.common.cluster_service_account
   machine_type    = "c2-standard-4"
   max_node_count  = 3
