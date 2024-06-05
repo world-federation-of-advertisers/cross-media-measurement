@@ -43,12 +43,13 @@ class CompletedMeasurementsDeletion(
   private val timeToLive: Duration,
   private val dryRun: Boolean = false,
   private val clock: Clock = Clock.systemUTC(),
-  private val openTelemetry: OpenTelemetry = GlobalOpenTelemetry.get(),
+  openTelemetry: OpenTelemetry = GlobalOpenTelemetry.get(),
 ) {
-  private val meter: Meter = openTelemetry.getMeter(CompletedMeasurementsDeletion::class.java.name)
+  private val meter: Meter = openTelemetry.getMeter(this::class.qualifiedName!!)
   private val completedMeasurementDeletionCounter: LongCounter =
     meter
-      .counterBuilder("completed_measurements_deletion_total")
+      .counterBuilder("halo_cmm.retention.deleted_measurements")
+      .setUnit("{measurement}")
       .setDescription("Total number of completed measurements deleted under retention policy")
       .build()
 

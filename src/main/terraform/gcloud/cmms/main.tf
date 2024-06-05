@@ -19,11 +19,11 @@ terraform {
 }
 
 locals {
-  kingdom_cluster_name       = "kingdom"
-  duchy_names                = toset(["aggregator", "worker1"])
-  reporting_cluster_name     = "reporting"
-  reporting_v2_cluster_name  = "reporting-v2"
-  simulators_cluster_name    = "simulators"
+  kingdom_cluster_name      = "kingdom"
+  duchy_names               = toset(["aggregator", "worker1"])
+  reporting_cluster_name    = "reporting"
+  reporting_v2_cluster_name = "reporting-v2"
+  simulators_cluster_name   = "simulators"
 
   cluster_location        = var.cluster_location == null ? data.google_client_config.default.zone : var.cluster_location
   key_ring_location       = var.key_ring_location == null ? data.google_client_config.default.region : var.key_ring_location
@@ -94,5 +94,11 @@ module "open_telemetry" {
 resource "google_project_iam_member" "cloud_traces_agent" {
   project = data.google_client_config.default.project
   role    = "roles/cloudtrace.agent"
+  member  = module.open_telemetry.iam_service_account.member
+}
+
+resource "google_project_iam_member" "otel_metric_writer" {
+  project = data.google_client_config.default.project
+  role    = "roles/monitoring.metricWriter"
   member  = module.open_telemetry.iam_service_account.member
 }
