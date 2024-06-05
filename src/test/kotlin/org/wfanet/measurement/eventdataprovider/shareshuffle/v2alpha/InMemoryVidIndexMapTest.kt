@@ -18,6 +18,8 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import java.nio.ByteOrder
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -28,11 +30,13 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.EndV
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.VidRangeIndex
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.toLong
+import org.wfanet.measurement.eventdataprovider.shareshuffle.VidIndexMapEntryKt.value
+import org.wfanet.measurement.eventdataprovider.shareshuffle.vidIndexMapEntry
 
 @RunWith(JUnit4::class)
 class InMemoryVidIndexMapTest {
   @Test
-  fun `construction throws when PopulationSpec has a VidRange with start greater than end`() {
+  fun `build throws when PopulationSpec has a VidRange with start greater than end`() {
     // The intent isn't to test the validator here, but to just ensure that any validation
     // error results in an exception being thrown.
     val testPopulationSpec = populationSpec {
@@ -45,18 +49,88 @@ class InMemoryVidIndexMapTest {
     }
     val exception =
       assertFailsWith<PopulationSpecValidationException>("Expected exception") {
-        InMemoryVidIndexMap(testPopulationSpec)
+        InMemoryVidIndexMap.build(testPopulationSpec)
       }
     val details = exception.details[0] as EndVidInclusiveLessThanVidStartDetail
     assertThat(details.index).isEqualTo(VidRangeIndex(0, 0))
   }
 
   @Test
-  fun `create a InMemoryVidIndexMap of size zero with an empty PopulationSpec`() {
+  fun `build a InMemoryVidIndexMap of size zero with an empty PopulationSpec`() {
     val emptyPopulationSpec = populationSpec {}
-    val vidIndexMap = InMemoryVidIndexMap(emptyPopulationSpec)
+    val vidIndexMap = InMemoryVidIndexMap.build(emptyPopulationSpec)
     assertThat(vidIndexMap.size).isEqualTo(0)
   }
+
+  @Test
+  fun `build throws when PopulationSpec does not contain the indexMap`() =
+    runBlocking<Unit> {
+      val testPopulationSpec = populationSpec {
+        subpopulations += subPopulation {
+          vidRanges += vidRange {
+            startVid = 1
+            endVidInclusive = 1
+          }
+        }
+      }
+      assertFailsWith<InconsistentIndexMapAndPopulationSpecException>("Expected exception") {
+        InMemoryVidIndexMap.build(
+          testPopulationSpec,
+          flowOf(
+            vidIndexMapEntry {
+              key = 1L
+              value = value { index = 3 }
+            },
+            vidIndexMapEntry {
+              key = 2L
+              value = value { index = 6 }
+            },
+          ),
+        )
+      }
+    }
+
+  @Test
+  fun `build throws when the indexMap does not contain the PopulationSpec`() =
+    runBlocking<Unit> {
+      val testPopulationSpec = populationSpec {
+        subpopulations += subPopulation {
+          vidRanges += vidRange {
+            startVid = 1
+            endVidInclusive = 1
+          }
+        }
+      }
+      assertFailsWith<InconsistentIndexMapAndPopulationSpecException>("Expected exception") {
+        InMemoryVidIndexMap.build(testPopulationSpec, flowOf())
+      }
+    }
+
+  @Test
+  fun `build an InMemoryVidIndexMap with a consistent populationSpec and indexMap`() =
+    runBlocking<Unit> {
+      val testPopulationSpec = populationSpec {
+        subpopulations += subPopulation {
+          vidRanges += vidRange {
+            startVid = 1
+            endVidInclusive = 1
+          }
+        }
+      }
+      val vidIndexMap =
+        InMemoryVidIndexMap.build(
+          testPopulationSpec,
+          flowOf(
+            vidIndexMapEntry {
+              key = 1L
+              value = value { index = 2 }
+            }
+          ),
+        )
+
+      assertThat(vidIndexMap.size).isEqualTo(1)
+      assertThat(vidIndexMap.get(1L)).isEqualTo(2)
+    }
 
   @Test
   fun `create a InMemoryVidIndexMap of size one`() {
@@ -68,7 +142,7 @@ class InMemoryVidIndexMapTest {
         }
       }
     }
-    val vidIndexMap = InMemoryVidIndexMap(testPopulationSpec)
+    val vidIndexMap = InMemoryVidIndexMap.build(testPopulationSpec)
     assertThat(vidIndexMap.size).isEqualTo(1)
     assertThat(vidIndexMap[1]).isEqualTo(0)
   }
@@ -96,12 +170,13 @@ class InMemoryVidIndexMapTest {
     // ordering of the indexes of the VIDs follows the ordering of
     // the VIDs themselves.
     val hashFunction = { _: Long, salt: ByteString -> salt.toLong(ByteOrder.BIG_ENDIAN) }
-    val vidIndexMap = InMemoryVidIndexMap(testPopulationSpec, hashFunction)
+    val vidIndexMap = InMemoryVidIndexMap.buildInternal(testPopulationSpec, hashFunction)
 
     assertThat(vidIndexMap.size).isEqualTo(vidCount)
-    for (vid in 1..vidCount) {
-      val index = vidIndexMap[vid]
-      assertThat(index).isEqualTo(vid - 1)
+    for (entry in vidIndexMap) {
+      assertThat(entry.value.index).isEqualTo(entry.key - 1)
+      assertThat(entry.value.unitIntervalValue)
+        .isEqualTo(entry.value.index.toDouble() / vidIndexMap.size)
     }
   }
 }
