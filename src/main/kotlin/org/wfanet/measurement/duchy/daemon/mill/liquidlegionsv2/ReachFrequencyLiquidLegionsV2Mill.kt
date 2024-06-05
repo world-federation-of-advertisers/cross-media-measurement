@@ -18,8 +18,6 @@ import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.OpenTelemetry
-import io.opentelemetry.api.metrics.LongHistogram
-import io.opentelemetry.api.metrics.Meter
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
@@ -30,7 +28,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.consent.client.duchy.signElgamalPublicKey
-import org.wfanet.measurement.duchy.daemon.mill.CRYPTO_LIB_CPU_DURATION
+import org.wfanet.measurement.duchy.daemon.mill.CRYPTO_CPU_DURATION
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.LiquidLegionsV2Encryption
 import org.wfanet.measurement.duchy.daemon.utils.ReachAndFrequencyResult
@@ -150,27 +148,6 @@ class ReachFrequencyLiquidLegionsV2Mill(
     maximumAttempts,
     clock,
   ) {
-  private val meter: Meter =
-    openTelemetry.getMeter(ReachFrequencyLiquidLegionsV2Mill::class.java.name)
-
-  private val initializationPhaseCryptoCpuTimeDurationHistogram: LongHistogram =
-    meter.histogramBuilder("initialization_phase_crypto_cpu_time_duration_millis").ofLongs().build()
-
-  private val setupPhaseCryptoCpuTimeDurationHistogram: LongHistogram =
-    meter.histogramBuilder("setup_phase_crypto_cpu_time_duration_millis").ofLongs().build()
-
-  private val executionPhaseOneCryptoCpuTimeDurationHistogram: LongHistogram =
-    meter.histogramBuilder("execution_phase_one_crypto_cpu_time_duration_millis").ofLongs().build()
-
-  private val executionPhaseTwoCryptoCpuTimeDurationHistogram: LongHistogram =
-    meter.histogramBuilder("execution_phase_two_crypto_cpu_time_duration_millis").ofLongs().build()
-
-  private val executionPhaseThreeCryptoCpuTimeDurationHistogram: LongHistogram =
-    meter
-      .histogramBuilder("execution_phase_three_crypto_cpu_time_duration_millis")
-      .ofLongs()
-      .build()
-
   override val endingStage: ComputationStage =
     ComputationStage.newBuilder()
       .apply { liquidLegionsSketchAggregationV2 = Stage.COMPLETE }
@@ -265,9 +242,9 @@ class ReachFrequencyLiquidLegionsV2Mill(
         val cryptoResult = cryptoWorker.completeInitializationPhase(request)
         logStageDurationMetric(
           token,
-          CRYPTO_LIB_CPU_DURATION,
-          cryptoResult.elapsedCpuTimeMillis,
-          initializationPhaseCryptoCpuTimeDurationHistogram,
+          CRYPTO_CPU_DURATION,
+          Duration.ofMillis(cryptoResult.elapsedCpuTimeMillis),
+          cryptoCpuDurationHistogram,
         )
 
         // Updates the newly generated localElgamalKey to the ComputationDetails.
@@ -419,9 +396,9 @@ class ReachFrequencyLiquidLegionsV2Mill(
         val cryptoResult: CompleteSetupPhaseResponse = cryptoWorker.completeSetupPhase(request)
         logStageDurationMetric(
           token,
-          CRYPTO_LIB_CPU_DURATION,
-          cryptoResult.elapsedCpuTimeMillis,
-          setupPhaseCryptoCpuTimeDurationHistogram,
+          CRYPTO_CPU_DURATION,
+          Duration.ofMillis(cryptoResult.elapsedCpuTimeMillis),
+          cryptoCpuDurationHistogram,
         )
         cryptoResult.combinedRegisterVector
       }
@@ -460,9 +437,9 @@ class ReachFrequencyLiquidLegionsV2Mill(
         val cryptoResult: CompleteSetupPhaseResponse = cryptoWorker.completeSetupPhase(request)
         logStageDurationMetric(
           token,
-          CRYPTO_LIB_CPU_DURATION,
-          cryptoResult.elapsedCpuTimeMillis,
-          setupPhaseCryptoCpuTimeDurationHistogram,
+          CRYPTO_CPU_DURATION,
+          Duration.ofMillis(cryptoResult.elapsedCpuTimeMillis),
+          cryptoCpuDurationHistogram,
         )
         cryptoResult.combinedRegisterVector
       }
@@ -509,9 +486,9 @@ class ReachFrequencyLiquidLegionsV2Mill(
           cryptoWorker.completeExecutionPhaseOneAtAggregator(request)
         logStageDurationMetric(
           token,
-          CRYPTO_LIB_CPU_DURATION,
-          cryptoResult.elapsedCpuTimeMillis,
-          executionPhaseOneCryptoCpuTimeDurationHistogram,
+          CRYPTO_CPU_DURATION,
+          Duration.ofMillis(cryptoResult.elapsedCpuTimeMillis),
+          cryptoCpuDurationHistogram,
         )
         cryptoResult.flagCountTuples
       }
@@ -555,9 +532,9 @@ class ReachFrequencyLiquidLegionsV2Mill(
           )
         logStageDurationMetric(
           token,
-          CRYPTO_LIB_CPU_DURATION,
-          cryptoResult.elapsedCpuTimeMillis,
-          executionPhaseOneCryptoCpuTimeDurationHistogram,
+          CRYPTO_CPU_DURATION,
+          Duration.ofMillis(cryptoResult.elapsedCpuTimeMillis),
+          cryptoCpuDurationHistogram,
         )
         cryptoResult.combinedRegisterVector
       }
@@ -634,9 +611,9 @@ class ReachFrequencyLiquidLegionsV2Mill(
           cryptoWorker.completeExecutionPhaseTwoAtAggregator(request)
         logStageDurationMetric(
           token,
-          CRYPTO_LIB_CPU_DURATION,
-          cryptoResult.elapsedCpuTimeMillis,
-          executionPhaseTwoCryptoCpuTimeDurationHistogram,
+          CRYPTO_CPU_DURATION,
+          Duration.ofMillis(cryptoResult.elapsedCpuTimeMillis),
+          cryptoCpuDurationHistogram,
         )
         reach = cryptoResult.reach
         cryptoResult.sameKeyAggregatorMatrix
@@ -714,9 +691,9 @@ class ReachFrequencyLiquidLegionsV2Mill(
           cryptoWorker.completeExecutionPhaseTwo(request)
         logStageDurationMetric(
           token,
-          CRYPTO_LIB_CPU_DURATION,
-          cryptoResult.elapsedCpuTimeMillis,
-          executionPhaseTwoCryptoCpuTimeDurationHistogram,
+          CRYPTO_CPU_DURATION,
+          Duration.ofMillis(cryptoResult.elapsedCpuTimeMillis),
+          cryptoCpuDurationHistogram,
         )
         cryptoResult.flagCountTuples
       }
@@ -771,9 +748,9 @@ class ReachFrequencyLiquidLegionsV2Mill(
           cryptoWorker.completeExecutionPhaseThreeAtAggregator(request)
         logStageDurationMetric(
           token,
-          CRYPTO_LIB_CPU_DURATION,
-          cryptoResult.elapsedCpuTimeMillis,
-          executionPhaseThreeCryptoCpuTimeDurationHistogram,
+          CRYPTO_CPU_DURATION,
+          Duration.ofMillis(cryptoResult.elapsedCpuTimeMillis),
+          cryptoCpuDurationHistogram,
         )
         cryptoResult.toByteString()
       }
@@ -810,9 +787,9 @@ class ReachFrequencyLiquidLegionsV2Mill(
           )
         logStageDurationMetric(
           token,
-          CRYPTO_LIB_CPU_DURATION,
-          cryptoResult.elapsedCpuTimeMillis,
-          executionPhaseThreeCryptoCpuTimeDurationHistogram,
+          CRYPTO_CPU_DURATION,
+          Duration.ofMillis(cryptoResult.elapsedCpuTimeMillis),
+          cryptoCpuDurationHistogram,
         )
         cryptoResult.sameKeyAggregatorMatrix
       }

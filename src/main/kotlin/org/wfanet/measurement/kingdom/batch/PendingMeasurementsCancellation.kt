@@ -48,13 +48,13 @@ class PendingMeasurementsCancellation(
   private val timeToLive: Duration,
   private val dryRun: Boolean = false,
   private val clock: Clock = Clock.systemUTC(),
-  private val openTelemetry: OpenTelemetry = GlobalOpenTelemetry.get(),
+  openTelemetry: OpenTelemetry = GlobalOpenTelemetry.get(),
 ) {
-  private val meter: Meter =
-    openTelemetry.getMeter(PendingMeasurementsCancellation::class.java.name)
+  private val meter: Meter = openTelemetry.getMeter(this::class.qualifiedName!!)
   private val pendingMeasurementCancellationCounter: LongCounter =
     meter
-      .counterBuilder("pending_measurements_cancellation_total")
+      .counterBuilder("halo_cmm.retention.cancelled_measurements")
+      .setUnit("{measurement}")
       .setDescription("Total number of pending measurements cancelled under retention policy")
       .build()
 
