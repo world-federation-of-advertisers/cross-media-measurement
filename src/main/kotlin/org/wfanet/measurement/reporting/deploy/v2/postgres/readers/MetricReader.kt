@@ -162,16 +162,21 @@ class MetricReader(private val readContext: ReadContext) {
 
   private val baseSqlJoins: String =
     """
-    JOIN ReportingSets USING(MeasurementConsumerId, ReportingSetId)
-    JOIN MetricMeasurements USING(MeasurementConsumerId, MetricId)
-    JOIN Measurements USING(MeasurementConsumerId, MeasurementId)
-    JOIN MeasurementPrimitiveReportingSetBases USING(MeasurementConsumerId, MeasurementId)
-    JOIN PrimitiveReportingSetBases USING(MeasurementConsumerId, PrimitiveReportingSetBasisId)
+    JOIN ReportingSets ON Metrics.MeasurementConsumerId = ReportingSets.MeasurementConsumerId
+      AND Metrics.ReportingSetId = ReportingSets.ReportingSetId
+    JOIN MetricMeasurements ON Metrics.MeasurementConsumerId = MetricMeasurements.MeasurementConsumerId
+      AND Metrics.MetricId = MetricMeasurements.MetricId
+    JOIN Measurements ON Metrics.MeasurementConsumerId = Measurements.MeasurementConsumerId
+      AND MetricMeasurements.MeasurementId = Measurements.MeasurementId
+    JOIN MeasurementPrimitiveReportingSetBases ON Metrics.MeasurementConsumerId = MeasurementPrimitiveReportingSetBases.MeasurementConsumerId
+      AND Measurements.MeasurementId = MeasurementPrimitiveReportingSetBases.MeasurementId
+    JOIN PrimitiveReportingSetBases ON Metrics.MeasurementConsumerId = PrimitiveReportingSetBases.MeasurementConsumerId
+      AND MeasurementPrimitiveReportingSetBases.PrimitiveReportingSetBasisId = PrimitiveReportingSetBases.PrimitiveReportingSetBasisId
     JOIN ReportingSets AS PrimitiveReportingSets
-      ON PrimitiveReportingSetBases.MeasurementConsumerId = PrimitiveReportingSets.MeasurementConsumerId
+      ON Metrics.MeasurementConsumerId = PrimitiveReportingSets.MeasurementConsumerId
       AND PrimitiveReportingSetBases.PrimitiveReportingSetId = PrimitiveReportingSets.ReportingSetId
     LEFT JOIN PrimitiveReportingSetBasisFilters
-      ON PrimitiveReportingSetBases.MeasurementConsumerId = PrimitiveReportingSetBasisFilters.MeasurementConsumerId
+      ON Metrics.MeasurementConsumerId = PrimitiveReportingSetBasisFilters.MeasurementConsumerId
       AND PrimitiveReportingSetBases.PrimitiveReportingSetBasisId = PrimitiveReportingSetBasisFilters.PrimitiveReportingSetBasisId
     """
       .trimIndent()
@@ -190,10 +195,15 @@ class MetricReader(private val readContext: ReadContext) {
           $baseSqlSelect
           FROM
             MeasurementConsumers
-            JOIN Metrics USING(MeasurementConsumerId)
+            JOIN Metrics ON MeasurementConsumers.MeasurementConsumerId = $1
+              AND MeasurementConsumers.MeasurementConsumerId = Metrics.MeasurementConsumerId
+              AND Metrics.MetricId IN (
+                SELECT MetricId
+                FROM Metrics
+                WHERE MeasurementConsumerId = $1
+                  AND CreateMetricRequestId IN (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
+              )
             $baseSqlJoins
-          WHERE Metrics.MeasurementConsumerId = $1
-            AND CreateMetricRequestId IN (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
         """
           .trimIndent()
       )
@@ -240,19 +250,23 @@ class MetricReader(private val readContext: ReadContext) {
           $baseSqlSelect
           FROM
             MeasurementConsumers
-            JOIN Metrics USING(MeasurementConsumerId)
+            JOIN Metrics ON MeasurementConsumers.MeasurementConsumerId = $1
+              AND MeasurementConsumers.MeasurementConsumerId = Metrics.MeasurementConsumerId
+              AND Metrics.MetricId IN (
+                SELECT Metrics.MetricId
+                FROM
+                  (
+                    SELECT MeasurementId
+                    FROM Measurements
+                    WHERE MeasurementConsumerId = $1
+                      AND CmmsMeasurementId IN (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
+                  ) as MeasurementIds
+                  JOIN Metrics ON Metrics.MeasurementConsumerId = $1
+                  JOIN MetricMeasurements ON Metrics.MeasurementConsumerId = MetricMeasurements.MeasurementConsumerId
+                    AND Metrics.MetricId = MetricMeasurements.MetricId
+                    AND MeasurementIds.MeasurementId = MetricMeasurements.MeasurementId
+              )
             $baseSqlJoins
-          WHERE Metrics.MeasurementConsumerId = $1
-            AND Metrics.MetricId IN (
-              SELECT Metrics.MetricId
-              FROM
-                MeasurementConsumers
-                JOIN Metrics USING(MeasurementConsumerId)
-                JOIN MetricMeasurements USING(MeasurementConsumerId, MetricId)
-                JOIN Measurements USING(MeasurementConsumerId, MeasurementId)
-              WHERE Metrics.MeasurementConsumerId = $1
-                AND CmmsMeasurementId IN (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
-            )
         """
           .trimIndent()
       )
@@ -476,31 +490,29 @@ class MetricReader(private val readContext: ReadContext) {
     val sql =
       StringBuilder(
         """
+          WITH MeasurementConsumerForMetrics AS (
+            SELECT *
+            FROM MeasurementConsumers
+            WHERE CmmsMeasurementConsumerId = $1
+          )
           $baseSqlSelect
-          FROM MeasurementConsumers
-            JOIN Metrics USING(MeasurementConsumerId)
-          $baseSqlJoins
-          WHERE CmmsMeasurementConsumerId = $1
-            AND ExternalMetricId IN
+          FROM MeasurementConsumerForMetrics
+            JOIN Metrics ON MeasurementConsumerForMetrics.MeasurementConsumerId = Metrics.MeasurementConsumerId
+              AND Metrics.MetricId IN (
+                SELECT MetricId
+                FROM Metrics
+                WHERE MeasurementConsumerId IN (SELECT MeasurementConsumerId FROM MeasurementConsumerForMetrics)
+                  AND ExternalMetricId IN (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
+              )
+            $baseSqlJoins
         """
           .trimIndent()
       )
 
-    var i = 2
-    val bindingMap = mutableMapOf<String, String>()
-    val inList =
-      request.externalMetricIdsList.joinToString(separator = ",", prefix = "(", postfix = ")") {
-        val index = "$$i"
-        bindingMap[it] = index
-        i++
-        index
-      }
-    sql.append(inList)
-
     val statement =
-      boundStatement(sql.toString()) {
+      valuesListBoundStatement(valuesStartIndex = 1, paramCount = 1, sql.toString()) {
         bind("$1", request.cmmsMeasurementConsumerId)
-        request.externalMetricIdsList.forEach { bind(bindingMap.getValue(it), it) }
+        request.externalMetricIdsList.forEach { addValuesBinding { bindValuesParam(0, it) } }
       }
 
     return flow {
