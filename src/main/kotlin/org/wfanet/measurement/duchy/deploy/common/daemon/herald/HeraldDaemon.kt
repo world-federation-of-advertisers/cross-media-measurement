@@ -88,6 +88,7 @@ class HeraldFlags {
     description = ["The key encryption key file (binary format) used for private key store."],
   )
   var keyEncryptionKeyTinkFile: File? = null
+    private set
 
   @CommandLine.Option(
     names = ["--deletable-computation-state"],
@@ -154,6 +155,7 @@ abstract class HeraldDaemon : Runnable {
     // This will be the name of the pod when deployed to Kubernetes.
     val heraldId = System.getenv("HOSTNAME")
 
+    // TODO(@renjiez): Read from a KMS-encrypted store instead.
     val privateKeyStore =
       flags.keyEncryptionKeyTinkFile?.let { file ->
         val keyUri = FakeKmsClient.KEY_URI_PREFIX + "kek"

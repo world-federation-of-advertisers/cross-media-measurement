@@ -137,7 +137,7 @@ abstract class HonestMajorityShareShuffleMillDaemon : Runnable {
     val csX509Certificate =
       flags.csCertificateDerFile.inputStream().use { input -> readCertificate(input) }
     val csCertificate = Certificate(flags.csCertificateName, csX509Certificate)
-    // TODO: Read from a KMS-encrypted store instead.
+    // TODO(@renjiez): Read from a KMS-encrypted store instead.
     val csSigningKey =
       SigningKeyHandle(
         csX509Certificate,

@@ -103,6 +103,7 @@ class MeasurementsService(
   private val internalDataProvidersStub: InternalDataProvidersCoroutineStub,
   private val noiseMechanisms: List<NoiseMechanism>,
   private val reachOnlyLlV2Enabled: Boolean = false,
+  // TODO(@renjiez): merge the two options below once implementing reach-only HMSS.
   private val reachAndFrequencyHmssEnabled: Boolean = false,
   private val reachOnlyHmssEnabled: Boolean = false,
 ) : MeasurementsCoroutineImplBase() {
