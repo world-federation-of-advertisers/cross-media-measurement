@@ -439,14 +439,14 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
           .fillStatementBuilder {
             appendClause(whereClause)
             bind(params.MEASUREMENT_CONSUMER_ID to measurementConsumerId)
-            bind(params.CREATE_REQUEST_ID)
-              .toStringArray(requestIds)
+            bind(params.CREATE_REQUEST_ID).toStringArray(requestIds)
           }
           .execute(transactionContext)
           .collect {
             if (it.createRequestId != null) {
               put(it.createRequestId, it.measurement)
-            } }
+            }
+          }
       }
     }
   }
