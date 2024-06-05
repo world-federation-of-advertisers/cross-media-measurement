@@ -44,7 +44,7 @@ import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader.Companion.getEtag
 
-class MeasurementReader(private val view: Measurement.View) :
+class MeasurementReader(private val view: Measurement.View, includeFromClause: Boolean = true) :
   SpannerReader<MeasurementReader.Result>() {
 
   data class Result(
@@ -54,16 +54,25 @@ class MeasurementReader(private val view: Measurement.View) :
     val measurement: Measurement,
   )
 
-  private fun constructBaseSql(view: Measurement.View): String {
+  private fun constructBaseSql(view: Measurement.View, includeFromClause: Boolean): String {
     return when (view) {
-      Measurement.View.DEFAULT -> defaultViewBaseSql
+      Measurement.View.DEFAULT -> {
+        if (includeFromClause) {
+          """
+            $defaultViewBaseSelectSql
+            $defaultViewBaseFromSql
+          """.trimIndent()
+        } else {
+          defaultViewBaseSelectSql
+        }
+      }
       Measurement.View.COMPUTATION -> computationViewBaseSql
       Measurement.View.UNRECOGNIZED ->
         throw IllegalArgumentException("View field of GetMeasurementRequest is not set")
     }
   }
 
-  override val baseSql: String = constructBaseSql(view)
+  override val baseSql: String = constructBaseSql(view, includeFromClause)
 
   override suspend fun translate(struct: Struct): Result =
     Result(
@@ -228,8 +237,9 @@ class MeasurementReader(private val view: Measurement.View) :
       return "W/\"${hash}\""
     }
 
-    private val defaultViewBaseSql =
+    private val defaultViewBaseSelectSql =
       """
+        @{spanner_emulator.disable_query_null_filtered_index_check=true}
     SELECT
       Measurements.MeasurementId,
       Measurements.MeasurementConsumerId,
@@ -272,11 +282,16 @@ class MeasurementReader(private val view: Measurement.View) :
           DuchyMeasurementResults.MeasurementConsumerId = Measurements.MeasurementConsumerId
           AND DuchyMeasurementResults.MeasurementId = Measurements.MeasurementId
       ) AS DuchyResults
-    FROM
-      Measurements
-      JOIN MeasurementConsumers USING (MeasurementConsumerId)
-      JOIN MeasurementConsumerCertificates USING(MeasurementConsumerId, CertificateId)
     """
+        .trimIndent()
+
+    private val defaultViewBaseFromSql =
+      """
+        FROM
+          Measurements
+          JOIN MeasurementConsumers USING (MeasurementConsumerId)
+          JOIN MeasurementConsumerCertificates USING(MeasurementConsumerId, CertificateId)
+      """
         .trimIndent()
 
     private val computationViewBaseSql =

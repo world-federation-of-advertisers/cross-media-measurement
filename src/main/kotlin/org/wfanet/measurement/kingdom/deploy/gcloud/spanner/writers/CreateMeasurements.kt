@@ -424,23 +424,34 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         val MEASUREMENT_CONSUMER_ID = "measurementConsumerId"
         val CREATE_REQUEST_ID = "createRequestId"
       }
-    val whereClause =
+    val fromClause =
       """
-      WHERE MeasurementConsumerId = @${params.MEASUREMENT_CONSUMER_ID}
-        AND CreateRequestId IN UNNEST(@${params.CREATE_REQUEST_ID})
-      """
-        .trimIndent()
+      FROM
+        Measurements@{FORCE_INDEX=MeasurementsByCreateRequestId}
+        JOIN MeasurementConsumers ON Measurements.MeasurementConsumerId = @${params.MEASUREMENT_CONSUMER_ID}
+          AND Measurements.CreateRequestId IS NOT NULL
+          AND Measurements.CreateRequestId IN UNNEST(@${params.CREATE_REQUEST_ID})
+          AND Measurements.MeasurementConsumerId = MeasurementConsumers.MeasurementConsumerId
+        JOIN MeasurementConsumerCertificates ON Measurements.MeasurementConsumerId = MeasurementConsumerCertificates.MeasurementConsumerId
+          AND Measurements.CertificateId = MeasurementConsumerCertificates.CertificateId
+      """.trimIndent()
 
+    val requestIds = createMeasurementRequests.map { it.requestId }
     return buildMap {
-      MeasurementReader(Measurement.View.DEFAULT)
-        .fillStatementBuilder {
-          appendClause(whereClause)
-          bind(params.MEASUREMENT_CONSUMER_ID to measurementConsumerId)
-          bind(params.CREATE_REQUEST_ID)
-            .toStringArray(createMeasurementRequests.map { it.requestId })
-        }
-        .execute(transactionContext)
-        .collect { put(it.createRequestId, it.measurement) }
+      if (requestIds.isNotEmpty()) {
+        MeasurementReader(Measurement.View.DEFAULT, false)
+          .fillStatementBuilder {
+            appendClause(fromClause)
+            bind(params.MEASUREMENT_CONSUMER_ID to measurementConsumerId)
+            bind(params.CREATE_REQUEST_ID)
+              .toStringArray(requestIds)
+          }
+          .execute(transactionContext)
+          .collect {
+            if (it.createRequestId != null) {
+              put(it.createRequestId, it.measurement)
+            } }
+      }
     }
   }
 
