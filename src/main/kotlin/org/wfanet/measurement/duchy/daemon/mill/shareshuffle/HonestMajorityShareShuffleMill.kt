@@ -18,7 +18,6 @@ import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.OpenTelemetry
-import io.opentelemetry.api.metrics.Meter
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
@@ -132,8 +131,6 @@ class HonestMajorityShareShuffleMill(
       requireNotNull(privateKeyStore) { "private key store is not set up." }
     }
   }
-
-  private val meter: Meter = openTelemetry.getMeter(HonestMajorityShareShuffleMill::class.java.name)
 
   // TODO(@renjiez): add metrics.
 
