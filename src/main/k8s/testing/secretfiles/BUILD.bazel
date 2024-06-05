@@ -46,6 +46,7 @@ filegroup(
     srcs = [
         "aggregator_root.pem",
         "kingdom_root.pem",
+        "pdp1_root.pem"
     ] + glob(["*edp*_root.pem"]),
 )
 
