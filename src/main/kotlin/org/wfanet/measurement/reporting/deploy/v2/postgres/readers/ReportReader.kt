@@ -199,13 +199,16 @@ class ReportReader(private val readContext: ReadContext) {
 
     val sql =
       StringBuilder("")
-        .appendLine("""
+        .appendLine(
+          """
           WITH MeasurementConsumerForReports AS (
             SELECT *
             FROM MeasurementConsumers
             WHERE CmmsMeasurementConsumerId = $1
           )
-        """.trimIndent())
+        """
+            .trimIndent()
+        )
         .appendLine(baseSqlSelect)
         .appendLine(fromClause)
         .appendLine(baseSqlJoins)
