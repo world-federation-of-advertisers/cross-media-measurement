@@ -107,6 +107,8 @@ class ReportReader(private val readContext: ReadContext) {
     measurementConsumerId: InternalId,
     createReportRequestId: String,
   ): Result? {
+    // There is an index using CreateReportRequestId, but only for Reports. The other tables only
+    // have an index using ReportId.
     val sql =
       """
         $baseSqlSelect
@@ -136,6 +138,8 @@ class ReportReader(private val readContext: ReadContext) {
     cmmsMeasurementConsumerId: String,
     externalReportId: String,
   ): Result? {
+    // There is an index using ExternalReportId, but only for Reports. The other tables only
+    // have an index using ReportId.
     val sql =
       """
         WITH MeasurementConsumerForReport AS (

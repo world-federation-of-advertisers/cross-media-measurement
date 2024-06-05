@@ -189,6 +189,8 @@ class MetricReader(private val readContext: ReadContext) {
       return emptyFlow()
     }
 
+    // There is an index using CreateMetricRequestId, but only for Metrics. MetricMeasurements only
+    // has an index using MetricId.
     val sql =
       StringBuilder(
         """
@@ -244,6 +246,8 @@ class MetricReader(private val readContext: ReadContext) {
       return emptyFlow()
     }
 
+    // There is an index using CmmsMeasurementId, but only for Measurements. The other tables only
+    // have an index using MeasurementId.
     val sql =
       StringBuilder(
         """
@@ -487,6 +491,8 @@ class MetricReader(private val readContext: ReadContext) {
   }
 
   fun batchGetMetrics(request: BatchGetMetricsRequest): Flow<Result> {
+    // There is an index using ExternalMetricId, but only for Metrics. MetricMeasurements only
+    // has an index using MetricId.
     val sql =
       StringBuilder(
         """
