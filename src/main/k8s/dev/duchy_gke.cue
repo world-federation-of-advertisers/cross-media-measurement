@@ -32,26 +32,51 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 #StorageServiceAccount:              "storage"
 #InternalServerResourceRequirements: #ResourceRequirements & {
 	requests: {
-		cpu: "75m"
+		cpu: "500m"
 	}
 }
-#HeraldResourceRequirements: #ResourceRequirements & {
+#HeraldResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
-		cpu: "25m"
-	}
-}
-#MillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
-	requests: {
-		cpu:    "3"
-		memory: "2.5Gi"
+		cpu:    "25m"
+		memory: "500M"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#MillMaxHeapSize:        "1G"
-#MillReplicas:           1
-#FulfillmentMaxHeapSize: "96M"
+#HeraldMaxHeapSize:        "350M"
+#MillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "3"
+		memory: "5Gi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+#MillMaxHeapSize:                 "4G"
+#MillReplicas:                    15
+#ApiServerReplicas:               2
+#FulfillmentResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "500m"
+		memory: "2000Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+#FulfillmentMaxHeapSize:            "2000M"
+#ControlServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "500m"
+		memory: "3000Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+#ControlServerMaxHeapSize: "2500M"
 
 objectSets: [
 	default_deny_ingress_and_egress,
@@ -101,18 +126,22 @@ duchy: #SpannerDuchy & {
 			_container: {
 				resources: #InternalServerResourceRequirements
 			}
-			spec: template: spec: #ServiceAccountPodSpec & {
-				serviceAccountName: #InternalServerServiceAccount
+			spec: {
+				replicas: #ApiServerReplicas
+				template: spec: #ServiceAccountPodSpec & {
+					serviceAccountName: #InternalServerServiceAccount
+				}
 			}
 		}
 		"herald-daemon-deployment": {
 			_container: {
+				_javaOptions: maxHeapSize: #HeraldMaxHeapSize
 				resources: #HeraldResourceRequirements
 			}
 			spec: template: spec: #SpotVmPodSpec
 		}
 		"liquid-legions-v2-mill-daemon-deployment": {
-			_workLockDuration: "10m"
+			_workLockDuration: "240m"
 			_container: {
 				_javaOptions: maxHeapSize: #MillMaxHeapSize
 				resources: #MillResourceRequirements
@@ -125,16 +154,27 @@ duchy: #SpannerDuchy & {
 			}
 		}
 		"computation-control-server-deployment": {
-			spec: template: spec: #ServiceAccountPodSpec & {
-				serviceAccountName: #StorageServiceAccount
+			_container: {
+				resources: #ControlServerResourceRequirements
+				_javaOptions: maxHeapSize: #ControlServerMaxHeapSize
+			}
+			spec: {
+				replicas: #ApiServerReplicas
+				template: spec: #ServiceAccountPodSpec & {
+					serviceAccountName: #StorageServiceAccount
+				}
 			}
 		}
 		"requisition-fulfillment-server-deployment": {
 			_container: {
 				_javaOptions: maxHeapSize: #FulfillmentMaxHeapSize
+				resources: #FulfillmentResourceRequirements
 			}
-			spec: template: spec: #ServiceAccountPodSpec & {
-				serviceAccountName: #StorageServiceAccount
+			spec: {
+				replicas: #ApiServerReplicas
+				template: spec: #ServiceAccountPodSpec & {
+					serviceAccountName: #StorageServiceAccount
+				}
 			}
 		}
 	}

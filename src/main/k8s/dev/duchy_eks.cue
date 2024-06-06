@@ -95,7 +95,7 @@ duchy: #PostgresDuchy & {
 			spec: template: spec: #PodSpec
 		}
 		"liquid-legions-v2-mill-daemon-deployment": {
-			_workLockDuration: "10m"
+			_workLockDuration: "240m"
 			_container: {
 				_javaOptions: maxHeapSize: #MillMaxHeapSize
 				resources: #MillResourceRequirements

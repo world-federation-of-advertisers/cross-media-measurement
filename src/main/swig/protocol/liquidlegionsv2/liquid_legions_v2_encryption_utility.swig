@@ -47,6 +47,10 @@
   $1 = new std::string((const char*) temp_bytes, temp_length);
   JCALL3(ReleaseByteArrayElements, jenv, $input, temp_bytes, JNI_ABORT);
 }
+%typemap(freearg) const std::string& {
+  delete $1;
+}
+
 // Convert C++ std::string to a Java byte array.
 %clear std::string;
 %typemap(jni) std::string "jbyteArray"
