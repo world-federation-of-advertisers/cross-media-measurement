@@ -66,7 +66,7 @@ object PrivacyQueryMapper {
                 measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon,
                 measurementSpec.reachAndFrequency.reachPrivacyParams.delta,
               ),
-              contributorCount
+              contributorCount,
             )
           val acdpChargeForFrequency =
             AcdpParamsConverter.getLlv2AcdpCharge(
@@ -74,11 +74,11 @@ object PrivacyQueryMapper {
                 measurementSpec.reachAndFrequency.frequencyPrivacyParams.epsilon,
                 measurementSpec.reachAndFrequency.frequencyPrivacyParams.delta,
               ),
-              contributorCount
+              contributorCount,
             )
           AcdpCharge(
             acdpChargeForReach.rho + acdpChargeForFrequency.rho,
-            acdpChargeForReach.theta + acdpChargeForFrequency.theta
+            acdpChargeForReach.theta + acdpChargeForFrequency.theta,
           )
         }
         else ->
@@ -130,7 +130,7 @@ object PrivacyQueryMapper {
                 measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon,
                 measurementSpec.reachAndFrequency.reachPrivacyParams.delta,
               ),
-              contributorCount
+              contributorCount,
             )
           val acdpChargeForFrequency =
             AcdpParamsConverter.getLlv2AcdpCharge(
@@ -138,11 +138,11 @@ object PrivacyQueryMapper {
                 measurementSpec.reachAndFrequency.frequencyPrivacyParams.epsilon,
                 measurementSpec.reachAndFrequency.frequencyPrivacyParams.delta,
               ),
-              contributorCount
+              contributorCount,
             )
           AcdpCharge(
             acdpChargeForReach.rho + acdpChargeForFrequency.rho,
-            acdpChargeForReach.theta + acdpChargeForFrequency.theta
+            acdpChargeForReach.theta + acdpChargeForFrequency.theta,
           )
         }
         else ->
@@ -198,7 +198,7 @@ object PrivacyQueryMapper {
                 measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon,
                 measurementSpec.reachAndFrequency.reachPrivacyParams.delta,
               ),
-              SENSITIVITY
+              SENSITIVITY,
             )
           val acdpChargeForFrequency =
             AcdpParamsConverter.getDirectAcdpCharge(
@@ -206,11 +206,11 @@ object PrivacyQueryMapper {
                 measurementSpec.reachAndFrequency.frequencyPrivacyParams.epsilon,
                 measurementSpec.reachAndFrequency.frequencyPrivacyParams.delta,
               ),
-              SENSITIVITY
+              SENSITIVITY,
             )
           AcdpCharge(
             acdpChargeForReach.rho + acdpChargeForFrequency.rho,
-            acdpChargeForReach.theta + acdpChargeForFrequency.theta
+            acdpChargeForReach.theta + acdpChargeForFrequency.theta,
           )
         }
         MeasurementTypeCase.IMPRESSION ->
