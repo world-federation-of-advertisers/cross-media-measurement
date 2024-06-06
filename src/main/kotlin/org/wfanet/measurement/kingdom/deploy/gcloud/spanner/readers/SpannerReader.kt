@@ -22,7 +22,7 @@ abstract class SpannerReader<T : Any> : BaseSpannerReader<T>() {
 
   override val builder: Statement.Builder by lazy { Statement.newBuilder(baseSql) }
 
-  fun fillStatementBuilder(block: Statement.Builder.() -> Unit): SpannerReader<T> {
+  open fun fillStatementBuilder(block: Statement.Builder.() -> Unit): SpannerReader<T> {
     builder.block()
     return this
   }
