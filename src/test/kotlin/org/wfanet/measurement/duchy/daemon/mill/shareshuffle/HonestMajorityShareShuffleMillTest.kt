@@ -246,9 +246,13 @@ private val HMSS_PARAMETERS =
       maximumCombinedFrequency = 11
       ringModulus = 13
     }
-    dpParams = differentialPrivacyParams {
-      epsilon = 1.0
-      delta = 1.0
+    reachDpParams = differentialPrivacyParams {
+      epsilon = 1.1
+      delta = 0.1
+    }
+    frequencyDpParams = differentialPrivacyParams {
+      epsilon = 2.1
+      delta = 0.1
     }
     noiseMechanism = NoiseMechanism.DISCRETE_GAUSSIAN
   }
@@ -707,7 +711,8 @@ class HonestMajorityShareShuffleMillTest {
         completeShufflePhaseRequest {
           val hmss = computationDetails.honestMajorityShareShuffle
           sketchParams = hmss.parameters.sketchParams.copy { registerCount = 100 }
-          dpParams = hmss.parameters.dpParams
+          reachDpParams = hmss.parameters.reachDpParams
+          frequencyDpParams = hmss.parameters.frequencyDpParams
           noiseMechanism = hmss.parameters.noiseMechanism
           order = CompleteShufflePhaseRequest.NonAggregatorOrder.FIRST
 
@@ -881,7 +886,8 @@ class HonestMajorityShareShuffleMillTest {
           sketchParams = hmss.parameters.sketchParams
           maximumFrequency = hmss.parameters.maximumFrequency
           vidSamplingIntervalWidth = MEASUREMENT_SPEC.vidSamplingInterval.width
-          dpParams = hmss.parameters.dpParams
+          reachDpParams = hmss.parameters.reachDpParams
+          frequencyDpParams = hmss.parameters.frequencyDpParams
           noiseMechanism = hmss.parameters.noiseMechanism
 
           sketchShares +=
