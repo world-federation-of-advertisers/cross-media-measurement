@@ -28,11 +28,12 @@ namespace wfa::measurement::internal::duchy::protocol::share_shuffle {
 
 absl::StatusOr<std::vector<uint32_t>> GenerateReachAndFrequencyNoiseRegisters(
     const ShareShuffleSketchParams& sketch_param,
-    const math::DistributedNoiser& distributed_noiser);
+    const math::DistributedNoiser& distributed_reach_noiser,
+    const math::DistributedNoiser& distributed_frequency_noiser);
 
 absl::StatusOr<std::vector<uint32_t>> GenerateReachOnlyNoiseRegisters(
     const ShareShuffleSketchParams& sketch_param,
-    const math::DistributedNoiser& distributed_noiser);
+    const math::DistributedNoiser& distributed_reach_noiser);
 
 absl::StatusOr<frequency_count::PrngSeed> GetPrngSeedFromString(
     const std::string& seed_str);
