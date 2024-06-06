@@ -248,12 +248,21 @@ private const val NUMBER_VID_BUCKETS = 300
 private const val REACH_ONLY_VID_SAMPLING_WIDTH = 3.0f / NUMBER_VID_BUCKETS
 private const val REACH_ONLY_VID_SAMPLING_START = 0.0f
 private const val REACH_ONLY_REACH_EPSILON = 0.0041
+private const val SINGLE_DATA_PROVIDER_REACH_ONLY_VID_SAMPLING_WIDTH = 4.0f / NUMBER_VID_BUCKETS
+private const val SINGLE_DATA_PROVIDER_REACH_ONLY_VID_SAMPLING_START = 0.01f
+private const val SINGLE_DATA_PROVIDER_REACH_ONLY_REACH_EPSILON = 0.0042
 
 private const val REACH_FREQUENCY_VID_SAMPLING_WIDTH = 5.0f / NUMBER_VID_BUCKETS
 private const val REACH_FREQUENCY_VID_SAMPLING_START = 48.0f / NUMBER_VID_BUCKETS
 private const val REACH_FREQUENCY_REACH_EPSILON = 0.0033
 private const val REACH_FREQUENCY_FREQUENCY_EPSILON = 0.115
 private const val REACH_FREQUENCY_MAXIMUM_FREQUENCY = 5
+private const val SINGLE_DATA_PROVIDER_REACH_FREQUENCY_VID_SAMPLING_WIDTH =
+  5.1f / NUMBER_VID_BUCKETS
+private const val SINGLE_DATA_PROVIDER_REACH_FREQUENCY_VID_SAMPLING_START =
+  48.1f / NUMBER_VID_BUCKETS
+private const val SINGLE_DATA_PROVIDER_REACH_FREQUENCY_REACH_EPSILON = 0.0034
+private const val SINGLE_DATA_PROVIDER_REACH_FREQUENCY_FREQUENCY_EPSILON = 0.116
 
 private const val IMPRESSION_VID_SAMPLING_WIDTH = 62.0f / NUMBER_VID_BUCKETS
 private const val IMPRESSION_VID_SAMPLING_START = 143.0f / NUMBER_VID_BUCKETS
@@ -274,66 +283,129 @@ private const val RANDOM_OUTPUT_LONG = 0L
 private val METRIC_SPEC_CONFIG = metricSpecConfig {
   reachParams =
     MetricSpecConfigKt.reachParams {
-      privacyParams =
-        MetricSpecConfigKt.differentialPrivacyParams {
-          epsilon = REACH_ONLY_REACH_EPSILON
-          delta = DIFFERENTIAL_PRIVACY_DELTA
+      multipleDataProviderParams =
+        MetricSpecConfigKt.samplingAndPrivacyParams {
+          privacyParams =
+            MetricSpecConfigKt.differentialPrivacyParams {
+              epsilon = REACH_ONLY_REACH_EPSILON
+              delta = DIFFERENTIAL_PRIVACY_DELTA
+            }
+          vidSamplingInterval =
+            MetricSpecConfigKt.vidSamplingInterval {
+              fixedStart =
+                MetricSpecConfigKt.VidSamplingIntervalKt.fixedStart {
+                  start = REACH_ONLY_VID_SAMPLING_START
+                  width = REACH_ONLY_VID_SAMPLING_WIDTH
+                }
+            }
         }
-    }
-  reachVidSamplingInterval =
-    MetricSpecConfigKt.vidSamplingInterval {
-      start = REACH_ONLY_VID_SAMPLING_START
-      width = REACH_ONLY_VID_SAMPLING_WIDTH
+
+      singleDataProviderParams =
+        MetricSpecConfigKt.samplingAndPrivacyParams {
+          privacyParams =
+            MetricSpecConfigKt.differentialPrivacyParams {
+              epsilon = SINGLE_DATA_PROVIDER_REACH_ONLY_REACH_EPSILON
+              delta = DIFFERENTIAL_PRIVACY_DELTA
+            }
+          vidSamplingInterval =
+            MetricSpecConfigKt.vidSamplingInterval {
+              fixedStart =
+                MetricSpecConfigKt.VidSamplingIntervalKt.fixedStart {
+                  start = SINGLE_DATA_PROVIDER_REACH_ONLY_VID_SAMPLING_START
+                  width = SINGLE_DATA_PROVIDER_REACH_ONLY_VID_SAMPLING_WIDTH
+                }
+            }
+        }
     }
 
   reachAndFrequencyParams =
     MetricSpecConfigKt.reachAndFrequencyParams {
-      reachPrivacyParams =
-        MetricSpecConfigKt.differentialPrivacyParams {
-          epsilon = REACH_FREQUENCY_REACH_EPSILON
-          delta = DIFFERENTIAL_PRIVACY_DELTA
+      multipleDataProviderParams =
+        MetricSpecConfigKt.reachAndFrequencySamplingAndPrivacyParams {
+          reachPrivacyParams =
+            MetricSpecConfigKt.differentialPrivacyParams {
+              epsilon = REACH_FREQUENCY_REACH_EPSILON
+              delta = DIFFERENTIAL_PRIVACY_DELTA
+            }
+          frequencyPrivacyParams =
+            MetricSpecConfigKt.differentialPrivacyParams {
+              epsilon = REACH_FREQUENCY_FREQUENCY_EPSILON
+              delta = DIFFERENTIAL_PRIVACY_DELTA
+            }
+          vidSamplingInterval =
+            MetricSpecConfigKt.vidSamplingInterval {
+              fixedStart =
+                MetricSpecConfigKt.VidSamplingIntervalKt.fixedStart {
+                  start = REACH_FREQUENCY_VID_SAMPLING_START
+                  width = REACH_FREQUENCY_VID_SAMPLING_WIDTH
+                }
+            }
         }
-      frequencyPrivacyParams =
-        MetricSpecConfigKt.differentialPrivacyParams {
-          epsilon = REACH_FREQUENCY_FREQUENCY_EPSILON
-          delta = DIFFERENTIAL_PRIVACY_DELTA
+
+      singleDataProviderParams =
+        MetricSpecConfigKt.reachAndFrequencySamplingAndPrivacyParams {
+          reachPrivacyParams =
+            MetricSpecConfigKt.differentialPrivacyParams {
+              epsilon = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_REACH_EPSILON
+              delta = DIFFERENTIAL_PRIVACY_DELTA
+            }
+          frequencyPrivacyParams =
+            MetricSpecConfigKt.differentialPrivacyParams {
+              epsilon = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_FREQUENCY_EPSILON
+              delta = DIFFERENTIAL_PRIVACY_DELTA
+            }
+          vidSamplingInterval =
+            MetricSpecConfigKt.vidSamplingInterval {
+              fixedStart =
+                MetricSpecConfigKt.VidSamplingIntervalKt.fixedStart {
+                  start = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_VID_SAMPLING_START
+                  width = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_VID_SAMPLING_WIDTH
+                }
+            }
         }
       maximumFrequency = REACH_FREQUENCY_MAXIMUM_FREQUENCY
-    }
-  reachAndFrequencyVidSamplingInterval =
-    MetricSpecConfigKt.vidSamplingInterval {
-      start = REACH_FREQUENCY_VID_SAMPLING_START
-      width = REACH_FREQUENCY_VID_SAMPLING_WIDTH
     }
 
   impressionCountParams =
     MetricSpecConfigKt.impressionCountParams {
-      privacyParams =
-        MetricSpecConfigKt.differentialPrivacyParams {
-          epsilon = IMPRESSION_EPSILON
-          delta = DIFFERENTIAL_PRIVACY_DELTA
+      params =
+        MetricSpecConfigKt.samplingAndPrivacyParams {
+          privacyParams =
+            MetricSpecConfigKt.differentialPrivacyParams {
+              epsilon = IMPRESSION_EPSILON
+              delta = DIFFERENTIAL_PRIVACY_DELTA
+            }
+          vidSamplingInterval =
+            MetricSpecConfigKt.vidSamplingInterval {
+              fixedStart =
+                MetricSpecConfigKt.VidSamplingIntervalKt.fixedStart {
+                  start = IMPRESSION_VID_SAMPLING_START
+                  width = IMPRESSION_VID_SAMPLING_WIDTH
+                }
+            }
         }
       maximumFrequencyPerUser = IMPRESSION_MAXIMUM_FREQUENCY_PER_USER
-    }
-  impressionCountVidSamplingInterval =
-    MetricSpecConfigKt.vidSamplingInterval {
-      start = IMPRESSION_VID_SAMPLING_START
-      width = IMPRESSION_VID_SAMPLING_WIDTH
     }
 
   watchDurationParams =
     MetricSpecConfigKt.watchDurationParams {
-      privacyParams =
-        MetricSpecConfigKt.differentialPrivacyParams {
-          epsilon = WATCH_DURATION_EPSILON
-          delta = DIFFERENTIAL_PRIVACY_DELTA
+      params =
+        MetricSpecConfigKt.samplingAndPrivacyParams {
+          privacyParams =
+            MetricSpecConfigKt.differentialPrivacyParams {
+              epsilon = WATCH_DURATION_EPSILON
+              delta = DIFFERENTIAL_PRIVACY_DELTA
+            }
+          vidSamplingInterval =
+            MetricSpecConfigKt.vidSamplingInterval {
+              fixedStart =
+                MetricSpecConfigKt.VidSamplingIntervalKt.fixedStart {
+                  start = WATCH_DURATION_VID_SAMPLING_START
+                  width = WATCH_DURATION_VID_SAMPLING_WIDTH
+                }
+            }
         }
       maximumWatchDurationPerUser = MAXIMUM_WATCH_DURATION_PER_USER
-    }
-  watchDurationVidSamplingInterval =
-    MetricSpecConfigKt.vidSamplingInterval {
-      start = WATCH_DURATION_VID_SAMPLING_START
-      width = WATCH_DURATION_VID_SAMPLING_WIDTH
     }
 
   populationCountParams = MetricSpecConfig.PopulationCountParams.getDefaultInstance()
@@ -684,6 +756,7 @@ private val INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT = internalMeasurement {
     filters += ALL_FILTERS
   }
   state = InternalMeasurement.State.PENDING
+  details = InternalMeasurementKt.details { dataProviderCount = 3 }
 }
 
 private val INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT = internalMeasurement {
@@ -697,13 +770,14 @@ private val INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT = in
     filters += ALL_FILTERS
   }
   state = InternalMeasurement.State.PENDING
+  details = InternalMeasurementKt.details { dataProviderCount = 2 }
 }
 
 private val INTERNAL_SUCCEEDED_UNION_ALL_REACH_MEASUREMENT =
   INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.copy {
     state = InternalMeasurement.State.SUCCEEDED
     details =
-      InternalMeasurementKt.details {
+      details.copy {
         results +=
           InternalMeasurementKt.result {
             reach =
@@ -725,7 +799,7 @@ private val INTERNAL_SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
   INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.copy {
     state = InternalMeasurement.State.SUCCEEDED
     details =
-      InternalMeasurementKt.details {
+      details.copy {
         results +=
           InternalMeasurementKt.result {
             reach =
@@ -744,7 +818,6 @@ private val INTERNAL_SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
   }
 
 // Internal single publisher reach-frequency measurements
-
 private val INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT = internalMeasurement {
   cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
   cmmsCreateMeasurementRequestId = "SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT"
@@ -756,13 +829,14 @@ private val INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT = inte
     filters += PRIMITIVE_REPORTING_SET_FILTER
   }
   state = InternalMeasurement.State.PENDING
+  details = InternalMeasurementKt.details { dataProviderCount = 1 }
 }
 
 private val INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT =
   INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.copy {
     state = InternalMeasurement.State.SUCCEEDED
     details =
-      InternalMeasurementKt.details {
+      details.copy {
         results +=
           InternalMeasurementKt.result {
             reach =
@@ -797,13 +871,14 @@ private val INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT = internalM
     filters += PRIMITIVE_REPORTING_SET_FILTER
   }
   state = InternalMeasurement.State.PENDING
+  details = InternalMeasurementKt.details { dataProviderCount = 1 }
 }
 
 private val INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
   INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
     state = InternalMeasurement.State.FAILED
     details =
-      InternalMeasurementKt.details {
+      details.copy {
         failure =
           InternalMeasurementKt.failure {
             reason = InternalMeasurement.Failure.Reason.REQUISITION_REFUSED
@@ -816,7 +891,7 @@ private val INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
   INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
     state = InternalMeasurement.State.SUCCEEDED
     details =
-      InternalMeasurementKt.details {
+      details.copy {
         results +=
           InternalMeasurementKt.result {
             impression =
@@ -833,7 +908,7 @@ private val INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_CUSTOM_CA
   INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
     state = InternalMeasurement.State.SUCCEEDED
     details =
-      InternalMeasurementKt.details {
+      details.copy {
         results +=
           InternalMeasurementKt.result {
             impression =
@@ -856,6 +931,7 @@ private val INTERNAL_REQUESTING_UNION_ALL_WATCH_DURATION_MEASUREMENT = internalM
     externalReportingSetId = INTERNAL_UNION_ALL_REPORTING_SET.externalReportingSetId
     filters += listOf(METRIC_FILTER, PRIMITIVE_REPORTING_SET_FILTER)
   }
+  details = InternalMeasurementKt.details { dataProviderCount = 3 }
 }
 
 private val INTERNAL_PENDING_NOT_CREATED_UNION_ALL_WATCH_DURATION_MEASUREMENT =
@@ -874,7 +950,7 @@ private val INTERNAL_SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT =
   INTERNAL_PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.copy {
     state = InternalMeasurement.State.SUCCEEDED
     details =
-      InternalMeasurementKt.details {
+      details.copy {
         results +=
           WATCH_DURATION_LIST.map { duration ->
             InternalMeasurementKt.result {
@@ -901,13 +977,14 @@ val INTERNAL_PENDING_POPULATION_MEASUREMENT = internalMeasurement {
     filters += INCREMENTAL_REPORTING_SET_FILTER
   }
   state = InternalMeasurement.State.PENDING
+  details = InternalMeasurementKt.details { dataProviderCount = 1 }
 }
 
 val INTERNAL_SUCCEEDED_POPULATION_MEASUREMENT =
   INTERNAL_PENDING_POPULATION_MEASUREMENT.copy {
     state = InternalMeasurement.State.SUCCEEDED
     details =
-      InternalMeasurementKt.details {
+      details.copy {
         results +=
           InternalMeasurementKt.result {
             population =
@@ -917,6 +994,7 @@ val INTERNAL_SUCCEEDED_POPULATION_MEASUREMENT =
   }
 
 // CMMS measurements
+
 private val BASE_MEASUREMENT_SPEC = measurementSpec {
   measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
   // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this field.
@@ -926,6 +1004,8 @@ private val BASE_MEASUREMENT_SPEC = measurementSpec {
 // CMMS incremental reach measurements
 private val UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC =
   BASE_MEASUREMENT_SPEC.copy {
+    measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
+
     nonceHashes +=
       listOf(Hashing.hashSha256(RANDOM_OUTPUT_LONG), Hashing.hashSha256(RANDOM_OUTPUT_LONG))
 
@@ -1040,6 +1120,8 @@ private val SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
 // CMMS single publisher reach-frequency measurements
 private val SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT_SPEC =
   BASE_MEASUREMENT_SPEC.copy {
+    measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
+
     nonceHashes.add(Hashing.hashSha256(RANDOM_OUTPUT_LONG))
 
     reachAndFrequency =
@@ -1137,6 +1219,8 @@ private val SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT =
 // CMMS single publisher impression measurements
 private val SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC =
   BASE_MEASUREMENT_SPEC.copy {
+    measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
+
     nonceHashes.add(Hashing.hashSha256(RANDOM_OUTPUT_LONG))
 
     impression =
@@ -1239,6 +1323,8 @@ private val SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_CUSTOM_CAP =
 // CMMS cross publisher watch duration measurements
 private val UNION_ALL_WATCH_DURATION_MEASUREMENT_SPEC =
   BASE_MEASUREMENT_SPEC.copy {
+    measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
+
     nonceHashes +=
       listOf(
         Hashing.hashSha256(RANDOM_OUTPUT_LONG),
@@ -1337,6 +1423,8 @@ private val SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT =
 // CMMS population measurements
 private val POPULATION_MEASUREMENT_SPEC =
   BASE_MEASUREMENT_SPEC.copy {
+    measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
+
     nonceHashes +=
       listOf(
         Hashing.hashSha256(RANDOM_OUTPUT_LONG),
@@ -1345,8 +1433,6 @@ private val POPULATION_MEASUREMENT_SPEC =
       )
 
     population = MeasurementSpec.Population.getDefaultInstance()
-
-    vidSamplingInterval = MeasurementSpec.VidSamplingInterval.getDefaultInstance()
   }
 
 private val REQUESTING_POPULATION_MEASUREMENT =
@@ -1409,16 +1495,19 @@ private val INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC = internalMetric {
   metricSpec = internalMetricSpec {
     reach =
       InternalMetricSpecKt.reachParams {
-        privacyParams =
-          InternalMetricSpecKt.differentialPrivacyParams {
-            epsilon = REACH_ONLY_REACH_EPSILON
-            delta = DIFFERENTIAL_PRIVACY_DELTA
+        multipleDataProviderParams =
+          InternalMetricSpecKt.samplingAndPrivacyParams {
+            privacyParams =
+              InternalMetricSpecKt.differentialPrivacyParams {
+                epsilon = REACH_ONLY_REACH_EPSILON
+                delta = DIFFERENTIAL_PRIVACY_DELTA
+              }
+            vidSamplingInterval =
+              InternalMetricSpecKt.vidSamplingInterval {
+                start = REACH_ONLY_VID_SAMPLING_START
+                width = REACH_ONLY_VID_SAMPLING_WIDTH
+              }
           }
-      }
-    vidSamplingInterval =
-      InternalMetricSpecKt.vidSamplingInterval {
-        start = REACH_ONLY_VID_SAMPLING_START
-        width = REACH_ONLY_VID_SAMPLING_WIDTH
       }
   }
   weightedMeasurements += weightedMeasurement {
@@ -1504,22 +1593,25 @@ private val INTERNAL_REQUESTING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC = intern
   metricSpec = internalMetricSpec {
     reachAndFrequency =
       InternalMetricSpecKt.reachAndFrequencyParams {
-        reachPrivacyParams =
-          InternalMetricSpecKt.differentialPrivacyParams {
-            epsilon = REACH_FREQUENCY_REACH_EPSILON
-            delta = DIFFERENTIAL_PRIVACY_DELTA
-          }
-        frequencyPrivacyParams =
-          InternalMetricSpecKt.differentialPrivacyParams {
-            epsilon = REACH_FREQUENCY_FREQUENCY_EPSILON
-            delta = DIFFERENTIAL_PRIVACY_DELTA
+        multipleDataProviderParams =
+          InternalMetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
+            reachPrivacyParams =
+              InternalMetricSpecKt.differentialPrivacyParams {
+                epsilon = REACH_FREQUENCY_REACH_EPSILON
+                delta = DIFFERENTIAL_PRIVACY_DELTA
+              }
+            frequencyPrivacyParams =
+              InternalMetricSpecKt.differentialPrivacyParams {
+                epsilon = REACH_FREQUENCY_FREQUENCY_EPSILON
+                delta = DIFFERENTIAL_PRIVACY_DELTA
+              }
+            vidSamplingInterval =
+              InternalMetricSpecKt.vidSamplingInterval {
+                start = REACH_FREQUENCY_VID_SAMPLING_START
+                width = REACH_FREQUENCY_VID_SAMPLING_WIDTH
+              }
           }
         maximumFrequency = REACH_FREQUENCY_MAXIMUM_FREQUENCY
-      }
-    vidSamplingInterval =
-      InternalMetricSpecKt.vidSamplingInterval {
-        start = REACH_FREQUENCY_VID_SAMPLING_START
-        width = REACH_FREQUENCY_VID_SAMPLING_WIDTH
       }
   }
   weightedMeasurements += weightedMeasurement {
@@ -1580,17 +1672,20 @@ private val INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC = internalMet
   metricSpec = internalMetricSpec {
     impressionCount =
       InternalMetricSpecKt.impressionCountParams {
-        privacyParams =
-          InternalMetricSpecKt.differentialPrivacyParams {
-            epsilon = IMPRESSION_EPSILON
-            delta = DIFFERENTIAL_PRIVACY_DELTA
+        params =
+          InternalMetricSpecKt.samplingAndPrivacyParams {
+            privacyParams =
+              InternalMetricSpecKt.differentialPrivacyParams {
+                epsilon = IMPRESSION_EPSILON
+                delta = DIFFERENTIAL_PRIVACY_DELTA
+              }
+            vidSamplingInterval =
+              InternalMetricSpecKt.vidSamplingInterval {
+                start = IMPRESSION_VID_SAMPLING_START
+                width = IMPRESSION_VID_SAMPLING_WIDTH
+              }
           }
         maximumFrequencyPerUser = IMPRESSION_MAXIMUM_FREQUENCY_PER_USER
-      }
-    vidSamplingInterval =
-      InternalMetricSpecKt.vidSamplingInterval {
-        start = IMPRESSION_VID_SAMPLING_START
-        width = IMPRESSION_VID_SAMPLING_WIDTH
       }
   }
   weightedMeasurements += weightedMeasurement {
@@ -1671,17 +1766,21 @@ private val INTERNAL_REQUESTING_CROSS_PUBLISHER_WATCH_DURATION_METRIC = internal
   metricSpec = internalMetricSpec {
     watchDuration =
       InternalMetricSpecKt.watchDurationParams {
-        privacyParams =
-          InternalMetricSpecKt.differentialPrivacyParams {
-            epsilon = WATCH_DURATION_EPSILON
-            delta = DIFFERENTIAL_PRIVACY_DELTA
+        params =
+          InternalMetricSpecKt.samplingAndPrivacyParams {
+            privacyParams =
+              InternalMetricSpecKt.differentialPrivacyParams {
+                epsilon = WATCH_DURATION_EPSILON
+                delta = DIFFERENTIAL_PRIVACY_DELTA
+              }
+            vidSamplingInterval =
+              InternalMetricSpecKt.vidSamplingInterval {
+                start = WATCH_DURATION_VID_SAMPLING_START
+                width = WATCH_DURATION_VID_SAMPLING_WIDTH
+              }
           }
+
         maximumWatchDurationPerUser = MAXIMUM_WATCH_DURATION_PER_USER
-      }
-    vidSamplingInterval =
-      InternalMetricSpecKt.vidSamplingInterval {
-        start = WATCH_DURATION_VID_SAMPLING_START
-        width = WATCH_DURATION_VID_SAMPLING_WIDTH
       }
   }
   weightedMeasurements += weightedMeasurement {
@@ -1820,11 +1919,21 @@ private val PENDING_INCREMENTAL_REACH_METRIC =
   }
 
 private const val VARIANCE_VALUE = 4.0
+private const val SINGLE_DATA_PROVIDER_VARIANCE_VALUE = 5.0
 
 private val FREQUENCY_VARIANCE: Map<Int, Double> =
   (1..REACH_FREQUENCY_MAXIMUM_FREQUENCY).associateWith { it.toDouble().pow(2.0) }
 private val FREQUENCY_VARIANCES =
   FrequencyVariances(FREQUENCY_VARIANCE, FREQUENCY_VARIANCE, FREQUENCY_VARIANCE, FREQUENCY_VARIANCE)
+private val SINGLE_DATA_PROVIDER_FREQUENCY_VARIANCE: Map<Int, Double> =
+  (1..REACH_FREQUENCY_MAXIMUM_FREQUENCY).associateWith { it.toDouble().pow(3.0) }
+private val SINGLE_DATA_PROVIDER_FREQUENCY_VARIANCES =
+  FrequencyVariances(
+    SINGLE_DATA_PROVIDER_FREQUENCY_VARIANCE,
+    SINGLE_DATA_PROVIDER_FREQUENCY_VARIANCE,
+    SINGLE_DATA_PROVIDER_FREQUENCY_VARIANCE,
+    SINGLE_DATA_PROVIDER_FREQUENCY_VARIANCE,
+  )
 
 private val SUCCEEDED_INCREMENTAL_REACH_METRIC =
   PENDING_INCREMENTAL_REACH_METRIC.copy {
@@ -1948,6 +2057,19 @@ private val PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC =
         .toName()
     metricSpec = metricSpec {
       impressionCount = impressionCountParams {
+        params =
+          params.copy {
+            privacyParams =
+              MetricSpecKt.differentialPrivacyParams {
+                epsilon = IMPRESSION_EPSILON
+                delta = DIFFERENTIAL_PRIVACY_DELTA
+              }
+            vidSamplingInterval =
+              MetricSpecKt.vidSamplingInterval {
+                start = IMPRESSION_VID_SAMPLING_START
+                width = IMPRESSION_VID_SAMPLING_WIDTH
+              }
+          }
         privacyParams =
           MetricSpecKt.differentialPrivacyParams {
             epsilon = IMPRESSION_EPSILON
@@ -1999,6 +2121,19 @@ private val PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC =
         .toName()
     metricSpec = metricSpec {
       watchDuration = watchDurationParams {
+        params =
+          params.copy {
+            privacyParams =
+              MetricSpecKt.differentialPrivacyParams {
+                epsilon = WATCH_DURATION_EPSILON
+                delta = DIFFERENTIAL_PRIVACY_DELTA
+              }
+            vidSamplingInterval =
+              MetricSpecKt.vidSamplingInterval {
+                start = WATCH_DURATION_VID_SAMPLING_START
+                width = WATCH_DURATION_VID_SAMPLING_WIDTH
+              }
+          }
         privacyParams =
           MetricSpecKt.differentialPrivacyParams {
             epsilon = WATCH_DURATION_EPSILON
@@ -2065,7 +2200,6 @@ val SUCCEEDED_POPULATION_METRIC =
 
 @RunWith(JUnit4::class)
 class MetricsServiceTest {
-
   private val internalMetricsMock: MetricsCoroutineImplBase = mockService {
     onBlocking { createMetric(any()) }.thenReturn(INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC)
     onBlocking { batchCreateMetrics(any()) }
@@ -2216,15 +2350,40 @@ class MetricsServiceTest {
   private val randomMock: Random = mock()
 
   private object VariancesMock : Variances {
-    override fun computeMetricVariance(params: ReachMetricVarianceParams): Double = VARIANCE_VALUE
+    override fun computeMetricVariance(params: ReachMetricVarianceParams): Double {
+      val epsilon =
+        params.weightedMeasurementVarianceParamsList
+          .first()
+          .measurementVarianceParams
+          .measurementParams
+          .dpParams
+          .epsilon
+      return if (epsilon == REACH_ONLY_REACH_EPSILON || epsilon == REACH_FREQUENCY_REACH_EPSILON) {
+        VARIANCE_VALUE
+      } else {
+        SINGLE_DATA_PROVIDER_VARIANCE_VALUE
+      }
+    }
 
     override fun computeMeasurementVariance(
       methodology: Methodology,
       measurementVarianceParams: ReachMeasurementVarianceParams,
     ): Double = VARIANCE_VALUE
 
-    override fun computeMetricVariance(params: FrequencyMetricVarianceParams): FrequencyVariances =
-      FREQUENCY_VARIANCES
+    override fun computeMetricVariance(params: FrequencyMetricVarianceParams): FrequencyVariances {
+      val epsilon =
+        params.weightedMeasurementVarianceParamsList
+          .first()
+          .measurementVarianceParams
+          .measurementParams
+          .dpParams
+          .epsilon
+      return if (epsilon == REACH_FREQUENCY_FREQUENCY_EPSILON) {
+        FREQUENCY_VARIANCES
+      } else {
+        SINGLE_DATA_PROVIDER_FREQUENCY_VARIANCES
+      }
+    }
 
     override fun computeMeasurementVariance(
       methodology: Methodology,
@@ -2405,7 +2564,812 @@ class MetricsServiceTest {
   }
 
   @Test
-  fun `createMetric creates CMMS measurements for single pub reach frequency metric`() =
+  fun `createMetric creates measurements for single pub reach when single edp params set`() {
+    val cmmsMeasurementSpec =
+      BASE_MEASUREMENT_SPEC.copy {
+        measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
+
+        nonceHashes.add(Hashing.hashSha256(RANDOM_OUTPUT_LONG))
+
+        reach =
+          MeasurementSpecKt.reach {
+            privacyParams = differentialPrivacyParams {
+              epsilon = SINGLE_DATA_PROVIDER_REACH_ONLY_REACH_EPSILON
+              delta = DIFFERENTIAL_PRIVACY_DELTA
+            }
+          }
+        vidSamplingInterval =
+          MeasurementSpecKt.vidSamplingInterval {
+            start = SINGLE_DATA_PROVIDER_REACH_ONLY_VID_SAMPLING_START
+            width = SINGLE_DATA_PROVIDER_REACH_ONLY_VID_SAMPLING_WIDTH
+          }
+      }
+
+    val internalMeasurement = internalMeasurement {
+      cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+      cmmsMeasurementId = "cmms_id"
+      cmmsCreateMeasurementRequestId = "SINGLE_PUBLISHER_REACH_MEASUREMENT"
+      timeInterval = TIME_INTERVAL
+      primitiveReportingSetBases += primitiveReportingSetBasis {
+        externalReportingSetId = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId
+        filters += METRIC_FILTER
+        filters += PRIMITIVE_REPORTING_SET_FILTER
+      }
+      state = InternalMeasurement.State.PENDING
+      details = InternalMeasurementKt.details { dataProviderCount = 1 }
+    }
+
+    val pendingSingleDataProviderReachMeasurementWithSingleDataProviderParams =
+      BASE_MEASUREMENT.copy {
+        dataProviders += DATA_PROVIDER_ENTRIES.getValue(DATA_PROVIDERS.keys.first())
+
+        measurementSpec =
+          signMeasurementSpec(cmmsMeasurementSpec, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
+        measurementReferenceId = internalMeasurement.cmmsCreateMeasurementRequestId
+
+        name =
+          MeasurementKey(
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
+              internalMeasurement.cmmsMeasurementId,
+            )
+            .toName()
+        protocolConfig = REACH_PROTOCOL_CONFIG
+        state = Measurement.State.COMPUTING
+      }
+
+    val internalPendingReachMetricWithSingleDataProviderParams = internalMetric {
+      cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+      externalMetricId = "metric-id"
+      externalReportingSetId = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId
+      timeInterval = TIME_INTERVAL
+      metricSpec = internalMetricSpec {
+        reach =
+          InternalMetricSpecKt.reachParams {
+            multipleDataProviderParams =
+              InternalMetricSpecKt.samplingAndPrivacyParams {
+                privacyParams =
+                  InternalMetricSpecKt.differentialPrivacyParams {
+                    epsilon = REACH_ONLY_REACH_EPSILON
+                    delta = DIFFERENTIAL_PRIVACY_DELTA
+                  }
+                vidSamplingInterval =
+                  InternalMetricSpecKt.vidSamplingInterval {
+                    start = REACH_ONLY_VID_SAMPLING_START
+                    width = REACH_ONLY_VID_SAMPLING_WIDTH
+                  }
+              }
+            singleDataProviderParams =
+              InternalMetricSpecKt.samplingAndPrivacyParams {
+                privacyParams =
+                  InternalMetricSpecKt.differentialPrivacyParams {
+                    epsilon = SINGLE_DATA_PROVIDER_REACH_ONLY_REACH_EPSILON
+                    delta = DIFFERENTIAL_PRIVACY_DELTA
+                  }
+                vidSamplingInterval =
+                  InternalMetricSpecKt.vidSamplingInterval {
+                    start = SINGLE_DATA_PROVIDER_REACH_ONLY_VID_SAMPLING_START
+                    width = SINGLE_DATA_PROVIDER_REACH_ONLY_VID_SAMPLING_WIDTH
+                  }
+              }
+          }
+      }
+      weightedMeasurements += weightedMeasurement {
+        weight = 1
+        binaryRepresentation = 1
+        measurement = internalMeasurement.copy { clearCmmsMeasurementId() }
+      }
+      details = InternalMetricKt.details { filters += METRIC_FILTER }
+      createTime = INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.createTime
+      state = InternalMetric.State.RUNNING
+    }
+
+    runBlocking {
+      whenever(internalMetricsMock.createMetric(any()))
+        .thenReturn(internalPendingReachMetricWithSingleDataProviderParams)
+      whenever(measurementsMock.batchCreateMeasurements(any()))
+        .thenReturn(
+          batchCreateMeasurementsResponse {
+            measurements += pendingSingleDataProviderReachMeasurementWithSingleDataProviderParams
+          }
+        )
+    }
+
+    val requestingReachMetricWithSingleDataProviderParams = metric {
+      reportingSet = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.resourceName
+      timeInterval = TIME_INTERVAL
+      metricSpec = metricSpec {
+        reach = reachParams {
+          multipleDataProviderParams =
+            MetricSpecKt.samplingAndPrivacyParams {
+              privacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = REACH_ONLY_REACH_EPSILON
+                  delta = DIFFERENTIAL_PRIVACY_DELTA
+                }
+              vidSamplingInterval =
+                MetricSpecKt.vidSamplingInterval {
+                  start = REACH_ONLY_VID_SAMPLING_START
+                  width = REACH_ONLY_VID_SAMPLING_WIDTH
+                }
+            }
+          singleDataProviderParams =
+            MetricSpecKt.samplingAndPrivacyParams {
+              privacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = SINGLE_DATA_PROVIDER_REACH_ONLY_REACH_EPSILON
+                  delta = DIFFERENTIAL_PRIVACY_DELTA
+                }
+              vidSamplingInterval =
+                MetricSpecKt.vidSamplingInterval {
+                  start = SINGLE_DATA_PROVIDER_REACH_ONLY_VID_SAMPLING_START
+                  width = SINGLE_DATA_PROVIDER_REACH_ONLY_VID_SAMPLING_WIDTH
+                }
+            }
+        }
+      }
+      filters += METRIC_FILTER
+    }
+
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric = requestingReachMetricWithSingleDataProviderParams
+      metricId = "metric-id"
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(request.parent, CONFIG) {
+        runBlocking { service.createMetric(request) }
+      }
+
+    val pendingReachMetricWithSingleDataProviderParams =
+      requestingReachMetricWithSingleDataProviderParams.copy {
+        name =
+          MetricKey(MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId, request.metricId)
+            .toName()
+        state = Metric.State.RUNNING
+        createTime = INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.createTime
+      }
+
+    assertThat(result).isEqualTo(pendingReachMetricWithSingleDataProviderParams)
+
+    // Verify proto argument of the internal MetricsCoroutineImplBase::createMetric
+    verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::createMetric)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        internalCreateMetricRequest {
+          metric =
+            internalPendingReachMetricWithSingleDataProviderParams.copy {
+              clearState()
+              clearCreateTime()
+              clearExternalMetricId()
+              weightedMeasurements.clear()
+              weightedMeasurements +=
+                internalPendingReachMetricWithSingleDataProviderParams.weightedMeasurementsList
+                  .first()
+                  .copy {
+                    measurement =
+                      measurement.copy {
+                        clearCmmsMeasurementId()
+                        clearState()
+                        clearCmmsCreateMeasurementRequestId()
+                      }
+                  }
+            }
+          externalMetricId = request.metricId
+        }
+      )
+
+    // Verify proto argument of MeasurementsCoroutineImplBase::batchCreateMeasurements
+    val measurementsCaptor: KArgumentCaptor<BatchCreateMeasurementsRequest> = argumentCaptor()
+    verifyBlocking(measurementsMock, times(1)) {
+      batchCreateMeasurements(measurementsCaptor.capture())
+    }
+    val capturedMeasurementRequests = measurementsCaptor.allValues
+    assertThat(capturedMeasurementRequests)
+      .ignoringRepeatedFieldOrder()
+      .ignoringFieldDescriptors(MEASUREMENT_SPEC_FIELD, ENCRYPTED_REQUISITION_SPEC_FIELD)
+      .containsExactly(
+        batchCreateMeasurementsRequest {
+          parent = request.parent
+          requests += createMeasurementRequest {
+            parent = request.parent
+            measurement =
+              pendingSingleDataProviderReachMeasurementWithSingleDataProviderParams.copy {
+                clearState()
+                clearProtocolConfig()
+                clearName()
+              }
+            requestId = internalMeasurement.cmmsCreateMeasurementRequestId
+          }
+        }
+      )
+
+    capturedMeasurementRequests.single().requestsList.forEach { createMeasurementRequest ->
+      verifyMeasurementSpec(
+        createMeasurementRequest.measurement.measurementSpec,
+        MEASUREMENT_CONSUMER_CERTIFICATE,
+        TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
+      )
+
+      val dataProvidersList =
+        createMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
+
+      val measurementSpec: MeasurementSpec =
+        createMeasurementRequest.measurement.measurementSpec.unpack()
+      assertThat(measurementSpec).isEqualTo(cmmsMeasurementSpec)
+
+      dataProvidersList.map { dataProviderEntry ->
+        val signedRequisitionSpec =
+          decryptRequisitionSpec(
+            dataProviderEntry.value.encryptedRequisitionSpec,
+            DATA_PROVIDER_PRIVATE_KEY_HANDLE,
+          )
+        val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
+        verifyRequisitionSpec(
+          signedRequisitionSpec,
+          requisitionSpec,
+          measurementSpec,
+          MEASUREMENT_CONSUMER_CERTIFICATE,
+          TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
+        )
+      }
+    }
+
+    // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds
+    verifyProtoArgument(
+        internalMeasurementsMock,
+        InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds,
+      )
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        batchSetCmmsMeasurementIdsRequest {
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          this.measurementIds += measurementIds {
+            cmmsCreateMeasurementRequestId = internalMeasurement.cmmsCreateMeasurementRequestId
+            cmmsMeasurementId = internalMeasurement.cmmsMeasurementId
+          }
+        }
+      )
+  }
+
+  @Test
+  fun `createMetric creates measurements for single pub reach when single edp params not set`() {
+    val cmmsMeasurementSpec =
+      BASE_MEASUREMENT_SPEC.copy {
+        measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
+
+        nonceHashes.add(Hashing.hashSha256(RANDOM_OUTPUT_LONG))
+
+        reach =
+          MeasurementSpecKt.reach {
+            privacyParams = differentialPrivacyParams {
+              epsilon = REACH_ONLY_REACH_EPSILON
+              delta = DIFFERENTIAL_PRIVACY_DELTA
+            }
+          }
+        vidSamplingInterval =
+          MeasurementSpecKt.vidSamplingInterval {
+            start = REACH_ONLY_VID_SAMPLING_START
+            width = REACH_ONLY_VID_SAMPLING_WIDTH
+          }
+      }
+
+    val internalMeasurement = internalMeasurement {
+      cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+      cmmsMeasurementId = "cmms_id"
+      cmmsCreateMeasurementRequestId = "SINGLE_PUBLISHER_REACH_MEASUREMENT"
+      timeInterval = TIME_INTERVAL
+      primitiveReportingSetBases += primitiveReportingSetBasis {
+        externalReportingSetId = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId
+        filters += METRIC_FILTER
+        filters += PRIMITIVE_REPORTING_SET_FILTER
+      }
+      state = InternalMeasurement.State.PENDING
+      details = InternalMeasurementKt.details { dataProviderCount = 1 }
+    }
+
+    val pendingSingleDataProviderReachMeasurement =
+      BASE_MEASUREMENT.copy {
+        dataProviders += DATA_PROVIDER_ENTRIES.getValue(DATA_PROVIDERS.keys.first())
+
+        measurementSpec =
+          signMeasurementSpec(cmmsMeasurementSpec, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
+        measurementReferenceId = internalMeasurement.cmmsCreateMeasurementRequestId
+
+        name =
+          MeasurementKey(
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
+              internalMeasurement.cmmsMeasurementId,
+            )
+            .toName()
+        protocolConfig = REACH_PROTOCOL_CONFIG
+        state = Measurement.State.COMPUTING
+      }
+
+    val internalPendingReachMetric = internalMetric {
+      cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+      externalMetricId = "metric-id"
+      externalReportingSetId = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId
+      timeInterval = TIME_INTERVAL
+      metricSpec = internalMetricSpec {
+        reach =
+          InternalMetricSpecKt.reachParams {
+            multipleDataProviderParams =
+              InternalMetricSpecKt.samplingAndPrivacyParams {
+                privacyParams =
+                  InternalMetricSpecKt.differentialPrivacyParams {
+                    epsilon = REACH_ONLY_REACH_EPSILON
+                    delta = DIFFERENTIAL_PRIVACY_DELTA
+                  }
+                vidSamplingInterval =
+                  InternalMetricSpecKt.vidSamplingInterval {
+                    start = REACH_ONLY_VID_SAMPLING_START
+                    width = REACH_ONLY_VID_SAMPLING_WIDTH
+                  }
+              }
+          }
+      }
+      weightedMeasurements += weightedMeasurement {
+        weight = 1
+        binaryRepresentation = 1
+        measurement = internalMeasurement.copy { clearCmmsMeasurementId() }
+      }
+      details = InternalMetricKt.details { filters += METRIC_FILTER }
+      createTime = INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.createTime
+      state = InternalMetric.State.RUNNING
+    }
+
+    runBlocking {
+      whenever(internalMetricsMock.createMetric(any())).thenReturn(internalPendingReachMetric)
+      whenever(measurementsMock.batchCreateMeasurements(any()))
+        .thenReturn(
+          batchCreateMeasurementsResponse {
+            measurements += pendingSingleDataProviderReachMeasurement
+          }
+        )
+    }
+
+    val requestingReachMetric = metric {
+      reportingSet = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.resourceName
+      timeInterval = TIME_INTERVAL
+      metricSpec = metricSpec {
+        reach = reachParams {
+          privacyParams =
+            MetricSpecKt.differentialPrivacyParams {
+              epsilon = REACH_ONLY_REACH_EPSILON
+              delta = DIFFERENTIAL_PRIVACY_DELTA
+            }
+        }
+        vidSamplingInterval =
+          MetricSpecKt.vidSamplingInterval {
+            start = REACH_ONLY_VID_SAMPLING_START
+            width = REACH_ONLY_VID_SAMPLING_WIDTH
+          }
+      }
+      filters += METRIC_FILTER
+    }
+
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric = requestingReachMetric
+      metricId = "metric-id"
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(request.parent, CONFIG) {
+        runBlocking { service.createMetric(request) }
+      }
+
+    val pendingReachMetric =
+      requestingReachMetric.copy {
+        name =
+          MetricKey(MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId, request.metricId)
+            .toName()
+        state = Metric.State.RUNNING
+        createTime = INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.createTime
+      }
+
+    assertThat(result).isEqualTo(pendingReachMetric)
+
+    // Verify proto argument of the internal MetricsCoroutineImplBase::createMetric
+    verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::createMetric)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        internalCreateMetricRequest {
+          metric =
+            internalPendingReachMetric.copy {
+              clearState()
+              clearCreateTime()
+              clearExternalMetricId()
+              weightedMeasurements.clear()
+              weightedMeasurements +=
+                internalPendingReachMetric.weightedMeasurementsList.first().copy {
+                  measurement =
+                    measurement.copy {
+                      clearCmmsMeasurementId()
+                      clearState()
+                      clearCmmsCreateMeasurementRequestId()
+                    }
+                }
+            }
+          externalMetricId = request.metricId
+        }
+      )
+
+    // Verify proto argument of MeasurementsCoroutineImplBase::batchCreateMeasurements
+    val measurementsCaptor: KArgumentCaptor<BatchCreateMeasurementsRequest> = argumentCaptor()
+    verifyBlocking(measurementsMock, times(1)) {
+      batchCreateMeasurements(measurementsCaptor.capture())
+    }
+    val capturedMeasurementRequests = measurementsCaptor.allValues
+    assertThat(capturedMeasurementRequests)
+      .ignoringRepeatedFieldOrder()
+      .ignoringFieldDescriptors(MEASUREMENT_SPEC_FIELD, ENCRYPTED_REQUISITION_SPEC_FIELD)
+      .containsExactly(
+        batchCreateMeasurementsRequest {
+          parent = request.parent
+          requests += createMeasurementRequest {
+            parent = request.parent
+            measurement =
+              pendingSingleDataProviderReachMeasurement.copy {
+                clearState()
+                clearProtocolConfig()
+                clearName()
+              }
+            requestId = internalMeasurement.cmmsCreateMeasurementRequestId
+          }
+        }
+      )
+
+    capturedMeasurementRequests.single().requestsList.forEach { createMeasurementRequest ->
+      verifyMeasurementSpec(
+        createMeasurementRequest.measurement.measurementSpec,
+        MEASUREMENT_CONSUMER_CERTIFICATE,
+        TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
+      )
+
+      val dataProvidersList =
+        createMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
+
+      val measurementSpec: MeasurementSpec =
+        createMeasurementRequest.measurement.measurementSpec.unpack()
+      assertThat(measurementSpec).isEqualTo(cmmsMeasurementSpec)
+
+      dataProvidersList.map { dataProviderEntry ->
+        val signedRequisitionSpec =
+          decryptRequisitionSpec(
+            dataProviderEntry.value.encryptedRequisitionSpec,
+            DATA_PROVIDER_PRIVATE_KEY_HANDLE,
+          )
+        val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
+        verifyRequisitionSpec(
+          signedRequisitionSpec,
+          requisitionSpec,
+          measurementSpec,
+          MEASUREMENT_CONSUMER_CERTIFICATE,
+          TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
+        )
+      }
+    }
+
+    // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds
+    verifyProtoArgument(
+        internalMeasurementsMock,
+        InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds,
+      )
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        batchSetCmmsMeasurementIdsRequest {
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          this.measurementIds += measurementIds {
+            cmmsCreateMeasurementRequestId = internalMeasurement.cmmsCreateMeasurementRequestId
+            cmmsMeasurementId = internalMeasurement.cmmsMeasurementId
+          }
+        }
+      )
+  }
+
+  @Test
+  fun `createMetric creates measurements for single pub rf when single edp params set`() {
+    val cmmsMeasurementSpec =
+      BASE_MEASUREMENT_SPEC.copy {
+        measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
+
+        nonceHashes.add(Hashing.hashSha256(RANDOM_OUTPUT_LONG))
+
+        reachAndFrequency =
+          MeasurementSpecKt.reachAndFrequency {
+            reachPrivacyParams = differentialPrivacyParams {
+              epsilon = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_REACH_EPSILON
+              delta = DIFFERENTIAL_PRIVACY_DELTA
+            }
+            frequencyPrivacyParams = differentialPrivacyParams {
+              epsilon = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_FREQUENCY_EPSILON
+              delta = DIFFERENTIAL_PRIVACY_DELTA
+            }
+            maximumFrequency = REACH_FREQUENCY_MAXIMUM_FREQUENCY
+          }
+        vidSamplingInterval =
+          MeasurementSpecKt.vidSamplingInterval {
+            start = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_VID_SAMPLING_START
+            width = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_VID_SAMPLING_WIDTH
+          }
+      }
+
+    val internalMeasurement = internalMeasurement {
+      cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+      cmmsMeasurementId = "cmms_id"
+      cmmsCreateMeasurementRequestId = "SINGLE_PUBLISHER_REACH_MEASUREMENT"
+      timeInterval = TIME_INTERVAL
+      primitiveReportingSetBases += primitiveReportingSetBasis {
+        externalReportingSetId = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId
+        filters += METRIC_FILTER
+        filters += PRIMITIVE_REPORTING_SET_FILTER
+      }
+      state = InternalMeasurement.State.PENDING
+      details = InternalMeasurementKt.details { dataProviderCount = 1 }
+    }
+
+    val pendingSingleDataProviderReachAndFrequencyMeasurementWithSingleDataProviderParams =
+      BASE_MEASUREMENT.copy {
+        dataProviders += DATA_PROVIDER_ENTRIES.getValue(DATA_PROVIDERS.keys.first())
+
+        measurementSpec =
+          signMeasurementSpec(cmmsMeasurementSpec, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
+        measurementReferenceId = internalMeasurement.cmmsCreateMeasurementRequestId
+
+        name =
+          MeasurementKey(
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
+              internalMeasurement.cmmsMeasurementId,
+            )
+            .toName()
+        protocolConfig = REACH_FREQUENCY_PROTOCOL_CONFIG
+        state = Measurement.State.COMPUTING
+      }
+
+    val internalPendingReachAndFrequencyMetricWithSingleDataProviderParams = internalMetric {
+      cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+      externalMetricId = "metric-id"
+      externalReportingSetId = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId
+      timeInterval = TIME_INTERVAL
+      metricSpec = internalMetricSpec {
+        reachAndFrequency =
+          InternalMetricSpecKt.reachAndFrequencyParams {
+            multipleDataProviderParams =
+              InternalMetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
+                reachPrivacyParams =
+                  InternalMetricSpecKt.differentialPrivacyParams {
+                    epsilon = REACH_FREQUENCY_REACH_EPSILON
+                    delta = DIFFERENTIAL_PRIVACY_DELTA
+                  }
+                frequencyPrivacyParams =
+                  InternalMetricSpecKt.differentialPrivacyParams {
+                    epsilon = REACH_FREQUENCY_FREQUENCY_EPSILON
+                    delta = DIFFERENTIAL_PRIVACY_DELTA
+                  }
+                vidSamplingInterval =
+                  InternalMetricSpecKt.vidSamplingInterval {
+                    start = REACH_FREQUENCY_VID_SAMPLING_START
+                    width = REACH_FREQUENCY_VID_SAMPLING_WIDTH
+                  }
+              }
+            singleDataProviderParams =
+              InternalMetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
+                reachPrivacyParams =
+                  InternalMetricSpecKt.differentialPrivacyParams {
+                    epsilon = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_REACH_EPSILON
+                    delta = DIFFERENTIAL_PRIVACY_DELTA
+                  }
+                frequencyPrivacyParams =
+                  InternalMetricSpecKt.differentialPrivacyParams {
+                    epsilon = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_FREQUENCY_EPSILON
+                    delta = DIFFERENTIAL_PRIVACY_DELTA
+                  }
+                vidSamplingInterval =
+                  InternalMetricSpecKt.vidSamplingInterval {
+                    start = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_VID_SAMPLING_START
+                    width = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_VID_SAMPLING_WIDTH
+                  }
+              }
+            maximumFrequency = REACH_FREQUENCY_MAXIMUM_FREQUENCY
+          }
+      }
+      weightedMeasurements += weightedMeasurement {
+        weight = 1
+        binaryRepresentation = 1
+        measurement = internalMeasurement.copy { clearCmmsMeasurementId() }
+      }
+      details = InternalMetricKt.details { filters += METRIC_FILTER }
+      createTime = INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.createTime
+      state = InternalMetric.State.RUNNING
+    }
+
+    runBlocking {
+      whenever(internalMetricsMock.createMetric(any()))
+        .thenReturn(internalPendingReachAndFrequencyMetricWithSingleDataProviderParams)
+      whenever(measurementsMock.batchCreateMeasurements(any()))
+        .thenReturn(
+          batchCreateMeasurementsResponse {
+            measurements +=
+              pendingSingleDataProviderReachAndFrequencyMeasurementWithSingleDataProviderParams
+          }
+        )
+    }
+
+    val requestingReachAndFrequencyMetricWithSingleDataProviderParams = metric {
+      reportingSet = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.resourceName
+      timeInterval = TIME_INTERVAL
+      metricSpec = metricSpec {
+        reachAndFrequency = reachAndFrequencyParams {
+          multipleDataProviderParams =
+            MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
+              reachPrivacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = REACH_FREQUENCY_REACH_EPSILON
+                  delta = DIFFERENTIAL_PRIVACY_DELTA
+                }
+              frequencyPrivacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = REACH_FREQUENCY_FREQUENCY_EPSILON
+                  delta = DIFFERENTIAL_PRIVACY_DELTA
+                }
+              vidSamplingInterval =
+                MetricSpecKt.vidSamplingInterval {
+                  start = REACH_FREQUENCY_VID_SAMPLING_START
+                  width = REACH_FREQUENCY_VID_SAMPLING_WIDTH
+                }
+            }
+          singleDataProviderParams =
+            MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
+              reachPrivacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_REACH_EPSILON
+                  delta = DIFFERENTIAL_PRIVACY_DELTA
+                }
+              frequencyPrivacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_FREQUENCY_EPSILON
+                  delta = DIFFERENTIAL_PRIVACY_DELTA
+                }
+              vidSamplingInterval =
+                MetricSpecKt.vidSamplingInterval {
+                  start = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_VID_SAMPLING_START
+                  width = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_VID_SAMPLING_WIDTH
+                }
+            }
+          maximumFrequency = REACH_FREQUENCY_MAXIMUM_FREQUENCY
+        }
+      }
+      filters += METRIC_FILTER
+    }
+
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric = requestingReachAndFrequencyMetricWithSingleDataProviderParams
+      metricId = "metric-id"
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(request.parent, CONFIG) {
+        runBlocking { service.createMetric(request) }
+      }
+
+    val pendingReachAndFrequencyMetricWithSingleDataProviderParams =
+      requestingReachAndFrequencyMetricWithSingleDataProviderParams.copy {
+        name =
+          MetricKey(MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId, request.metricId)
+            .toName()
+        state = Metric.State.RUNNING
+        createTime = INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.createTime
+      }
+
+    assertThat(result).isEqualTo(pendingReachAndFrequencyMetricWithSingleDataProviderParams)
+
+    // Verify proto argument of the internal MetricsCoroutineImplBase::createMetric
+    verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::createMetric)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        internalCreateMetricRequest {
+          metric =
+            internalPendingReachAndFrequencyMetricWithSingleDataProviderParams.copy {
+              clearState()
+              clearCreateTime()
+              clearExternalMetricId()
+              weightedMeasurements.clear()
+              weightedMeasurements +=
+                internalPendingReachAndFrequencyMetricWithSingleDataProviderParams
+                  .weightedMeasurementsList
+                  .first()
+                  .copy {
+                    measurement =
+                      measurement.copy {
+                        clearCmmsMeasurementId()
+                        clearState()
+                        clearCmmsCreateMeasurementRequestId()
+                      }
+                  }
+            }
+          externalMetricId = request.metricId
+        }
+      )
+
+    // Verify proto argument of MeasurementsCoroutineImplBase::batchCreateMeasurements
+    val measurementsCaptor: KArgumentCaptor<BatchCreateMeasurementsRequest> = argumentCaptor()
+    verifyBlocking(measurementsMock, times(1)) {
+      batchCreateMeasurements(measurementsCaptor.capture())
+    }
+    val capturedMeasurementRequests = measurementsCaptor.allValues
+    assertThat(capturedMeasurementRequests)
+      .ignoringRepeatedFieldOrder()
+      .ignoringFieldDescriptors(MEASUREMENT_SPEC_FIELD, ENCRYPTED_REQUISITION_SPEC_FIELD)
+      .containsExactly(
+        batchCreateMeasurementsRequest {
+          parent = request.parent
+          requests += createMeasurementRequest {
+            parent = request.parent
+            measurement =
+              pendingSingleDataProviderReachAndFrequencyMeasurementWithSingleDataProviderParams
+                .copy {
+                  clearState()
+                  clearProtocolConfig()
+                  clearName()
+                }
+            requestId = internalMeasurement.cmmsCreateMeasurementRequestId
+          }
+        }
+      )
+
+    capturedMeasurementRequests.single().requestsList.forEach { createMeasurementRequest ->
+      verifyMeasurementSpec(
+        createMeasurementRequest.measurement.measurementSpec,
+        MEASUREMENT_CONSUMER_CERTIFICATE,
+        TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
+      )
+
+      val dataProvidersList =
+        createMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
+
+      val measurementSpec: MeasurementSpec =
+        createMeasurementRequest.measurement.measurementSpec.unpack()
+      assertThat(measurementSpec).isEqualTo(cmmsMeasurementSpec)
+
+      dataProvidersList.map { dataProviderEntry ->
+        val signedRequisitionSpec =
+          decryptRequisitionSpec(
+            dataProviderEntry.value.encryptedRequisitionSpec,
+            DATA_PROVIDER_PRIVATE_KEY_HANDLE,
+          )
+        val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
+        verifyRequisitionSpec(
+          signedRequisitionSpec,
+          requisitionSpec,
+          measurementSpec,
+          MEASUREMENT_CONSUMER_CERTIFICATE,
+          TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
+        )
+      }
+    }
+
+    // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds
+    verifyProtoArgument(
+        internalMeasurementsMock,
+        InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds,
+      )
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        batchSetCmmsMeasurementIdsRequest {
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          this.measurementIds += measurementIds {
+            cmmsCreateMeasurementRequestId = internalMeasurement.cmmsCreateMeasurementRequestId
+            cmmsMeasurementId = internalMeasurement.cmmsMeasurementId
+          }
+        }
+      )
+  }
+
+  @Test
+  fun `createMetric creates CMMS measurements for single pub rf when single edp params not set`() =
     runBlocking {
       whenever(internalMetricsMock.createMetric(any()))
         .thenReturn(INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC)
@@ -2634,17 +3598,20 @@ class MetricsServiceTest {
     val internalMetricSpec = internalMetricSpec {
       impressionCount =
         InternalMetricSpecKt.impressionCountParams {
-          privacyParams =
-            InternalMetricSpecKt.differentialPrivacyParams {
-              this.epsilon = epsilon
-              this.delta = delta
+          params =
+            InternalMetricSpecKt.samplingAndPrivacyParams {
+              privacyParams =
+                InternalMetricSpecKt.differentialPrivacyParams {
+                  this.epsilon = epsilon
+                  this.delta = delta
+                }
+              vidSamplingInterval =
+                InternalMetricSpecKt.vidSamplingInterval {
+                  start = vidSamplingIntervalStart
+                  width = vidSamplingIntervalWidth
+                }
             }
           this.maximumFrequencyPerUser = maximumFrequencyPerUser
-        }
-      vidSamplingInterval =
-        InternalMetricSpecKt.vidSamplingInterval {
-          start = vidSamplingIntervalStart
-          width = vidSamplingIntervalWidth
         }
     }
     val internalRequestingSinglePublisherImpressionMetric =
@@ -2726,6 +3693,19 @@ class MetricsServiceTest {
       PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
         metricSpec = metricSpec {
           impressionCount = impressionCountParams {
+            params =
+              MetricSpecKt.samplingAndPrivacyParams {
+                privacyParams =
+                  MetricSpecKt.differentialPrivacyParams {
+                    this.epsilon = epsilon
+                    this.delta = delta
+                  }
+                vidSamplingInterval =
+                  MetricSpecKt.vidSamplingInterval {
+                    start = vidSamplingIntervalStart
+                    width = vidSamplingIntervalWidth
+                  }
+              }
             privacyParams =
               MetricSpecKt.differentialPrivacyParams {
                 this.epsilon = epsilon
@@ -2971,6 +3951,7 @@ class MetricsServiceTest {
               primitiveReportingSetBases += primitiveReportingSetBasis {
                 externalReportingSetId = internalSinglePublisherReportingSet.externalReportingSetId
               }
+              details = InternalMeasurementKt.details { dataProviderCount = 1 }
             }
           }
           details = InternalMetricKt.details {}
@@ -3062,6 +4043,35 @@ class MetricsServiceTest {
     val numberBatchReportingSets = expectedNumberBatchGetReportingSetsRequests - 1
     val numberInternalReportingSets = BATCH_GET_REPORTING_SETS_LIMIT * numberBatchReportingSets
 
+    whenever(internalReportingSetsMock.batchGetReportingSets(any()))
+      .thenAnswer {
+        val batchGetReportingSetsRequest = it.arguments[0] as BatchGetReportingSetsRequest
+        batchGetReportingSetsResponse {
+          reportingSets +=
+            batchGetReportingSetsRequest.externalReportingSetIdsList.map { externalReportingSetId ->
+              INTERNAL_INCREMENTAL_REPORTING_SET.copy {
+                this.externalReportingSetId = externalReportingSetId
+                weightedSubsetUnions.clear()
+                weightedSubsetUnions += weightedSubsetUnion {
+                  (0 until numberInternalReportingSets).forEach {
+                    primitiveReportingSetBases += primitiveReportingSetBasis {
+                      this.externalReportingSetId = it.toString()
+                    }
+                  }
+                }
+              }
+            }
+        }
+      }
+      .thenReturn(
+        batchGetReportingSetsResponse {
+          (0 until numberInternalReportingSets).forEach {
+            reportingSets +=
+              INTERNAL_UNION_ALL_REPORTING_SET.copy { this.externalReportingSetId = it.toString() }
+          }
+        }
+      )
+
     whenever(internalMetricsMock.createMetric(any()))
       .thenReturn(
         INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC.copy {
@@ -3082,18 +4092,6 @@ class MetricsServiceTest {
           }
         }
       )
-
-    whenever(internalReportingSetsMock.batchGetReportingSets(any())).thenAnswer {
-      val batchGetReportingSetsRequest = it.arguments[0] as BatchGetReportingSetsRequest
-      batchGetReportingSetsResponse {
-        reportingSets +=
-          batchGetReportingSetsRequest.externalReportingSetIdsList.map { externalReportingSetId ->
-            INTERNAL_INCREMENTAL_REPORTING_SET.copy {
-              this.externalReportingSetId = externalReportingSetId
-            }
-          }
-      }
-    }
 
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
@@ -3290,7 +4288,7 @@ class MetricsServiceTest {
   }
 
   @Test
-  fun `createMetric with request ID when the metric exists and in terminate state`() = runBlocking {
+  fun `createMetric with request ID when the metric exists and in terminalstate`() = runBlocking {
     whenever(internalMetricsMock.createMetric(any()))
       .thenReturn(INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC)
 
@@ -3311,7 +4309,7 @@ class MetricsServiceTest {
     // Verify proto argument of the internal ReportingSetsCoroutineImplBase::batchGetReportingSets
     val batchGetReportingSetsCaptor: KArgumentCaptor<BatchGetReportingSetsRequest> =
       argumentCaptor()
-    verifyBlocking(internalReportingSetsMock, times(1)) {
+    verifyBlocking(internalReportingSetsMock, times(2)) {
       batchGetReportingSets(batchGetReportingSetsCaptor.capture())
     }
 
@@ -5327,6 +6325,343 @@ class MetricsServiceTest {
     }
 
   @Test
+  fun `getMetric returns SUCCEEDED metric when metric already succeeded and single params set`() =
+    runBlocking {
+      val internalMeasurement = internalMeasurement {
+        cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+        cmmsMeasurementId = "cmms_id"
+        cmmsCreateMeasurementRequestId = "SINGLE_PUBLISHER_REACH_MEASUREMENT"
+        timeInterval = TIME_INTERVAL
+        primitiveReportingSetBases += primitiveReportingSetBasis {
+          externalReportingSetId = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId
+          filters += METRIC_FILTER
+          filters += PRIMITIVE_REPORTING_SET_FILTER
+        }
+        state = InternalMeasurement.State.SUCCEEDED
+        details =
+          InternalMeasurementKt.details {
+            results +=
+              InternalMeasurementKt.result {
+                reach =
+                  InternalMeasurementKt.ResultKt.reach {
+                    value = INCREMENTAL_REACH_VALUE
+                    noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
+                    deterministicCountDistinct =
+                      InternalDeterministicCountDistinct.getDefaultInstance()
+                  }
+              }
+            dataProviderCount = 1
+          }
+      }
+
+      val internalSucceededReachMetricWithSingleDataProviderParams = internalMetric {
+        cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+        externalMetricId = "metric-id"
+        externalReportingSetId = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId
+        timeInterval = TIME_INTERVAL
+        metricSpec = internalMetricSpec {
+          reach =
+            InternalMetricSpecKt.reachParams {
+              multipleDataProviderParams =
+                InternalMetricSpecKt.samplingAndPrivacyParams {
+                  privacyParams =
+                    InternalMetricSpecKt.differentialPrivacyParams {
+                      epsilon = REACH_ONLY_REACH_EPSILON
+                      delta = DIFFERENTIAL_PRIVACY_DELTA
+                    }
+                  vidSamplingInterval =
+                    InternalMetricSpecKt.vidSamplingInterval {
+                      start = REACH_ONLY_VID_SAMPLING_START
+                      width = REACH_ONLY_VID_SAMPLING_WIDTH
+                    }
+                }
+              singleDataProviderParams =
+                InternalMetricSpecKt.samplingAndPrivacyParams {
+                  privacyParams =
+                    InternalMetricSpecKt.differentialPrivacyParams {
+                      epsilon = SINGLE_DATA_PROVIDER_REACH_ONLY_REACH_EPSILON
+                      delta = DIFFERENTIAL_PRIVACY_DELTA
+                    }
+                  vidSamplingInterval =
+                    InternalMetricSpecKt.vidSamplingInterval {
+                      start = SINGLE_DATA_PROVIDER_REACH_ONLY_VID_SAMPLING_START
+                      width = SINGLE_DATA_PROVIDER_REACH_ONLY_VID_SAMPLING_WIDTH
+                    }
+                }
+            }
+        }
+        weightedMeasurements += weightedMeasurement {
+          weight = 1
+          binaryRepresentation = 1
+          measurement = internalMeasurement
+        }
+        details = InternalMetricKt.details { filters += METRIC_FILTER }
+        createTime = INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.createTime
+        state = InternalMetric.State.SUCCEEDED
+      }
+
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics += internalSucceededReachMetricWithSingleDataProviderParams
+          }
+        )
+
+      val metricName =
+        MetricKey(
+            internalSucceededReachMetricWithSingleDataProviderParams.cmmsMeasurementConsumerId,
+            internalSucceededReachMetricWithSingleDataProviderParams.externalMetricId,
+          )
+          .toName()
+
+      val request = getMetricRequest { name = metricName }
+
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+
+      // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
+      val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMetricsMock, times(1)) {
+        batchGetMetrics(batchGetInternalMetricsCaptor.capture())
+      }
+      val capturedInternalGetMetricRequests = batchGetInternalMetricsCaptor.allValues
+      assertThat(capturedInternalGetMetricRequests)
+        .containsExactly(
+          internalBatchGetMetricsRequest {
+            cmmsMeasurementConsumerId =
+              internalSucceededReachMetricWithSingleDataProviderParams.cmmsMeasurementConsumerId
+            externalMetricIds +=
+              internalSucceededReachMetricWithSingleDataProviderParams.externalMetricId
+          }
+        )
+
+      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMeasurementsMock, never()) {
+        batchSetMeasurementResults(batchSetMeasurementResultsCaptor.capture())
+      }
+
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementFailures
+      val batchSetMeasurementFailuresCaptor: KArgumentCaptor<BatchSetMeasurementFailuresRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMeasurementsMock, never()) {
+        batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
+      }
+
+      val succeededReachMetricWithSingleDataProviderParams = metric {
+        name = metricName
+        reportingSet = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.resourceName
+        timeInterval = TIME_INTERVAL
+        metricSpec = metricSpec {
+          reach = reachParams {
+            multipleDataProviderParams =
+              MetricSpecKt.samplingAndPrivacyParams {
+                privacyParams =
+                  MetricSpecKt.differentialPrivacyParams {
+                    epsilon = REACH_ONLY_REACH_EPSILON
+                    delta = DIFFERENTIAL_PRIVACY_DELTA
+                  }
+                vidSamplingInterval =
+                  MetricSpecKt.vidSamplingInterval {
+                    start = REACH_ONLY_VID_SAMPLING_START
+                    width = REACH_ONLY_VID_SAMPLING_WIDTH
+                  }
+              }
+            singleDataProviderParams =
+              MetricSpecKt.samplingAndPrivacyParams {
+                privacyParams =
+                  MetricSpecKt.differentialPrivacyParams {
+                    epsilon = SINGLE_DATA_PROVIDER_REACH_ONLY_REACH_EPSILON
+                    delta = DIFFERENTIAL_PRIVACY_DELTA
+                  }
+                vidSamplingInterval =
+                  MetricSpecKt.vidSamplingInterval {
+                    start = SINGLE_DATA_PROVIDER_REACH_ONLY_VID_SAMPLING_START
+                    width = SINGLE_DATA_PROVIDER_REACH_ONLY_VID_SAMPLING_WIDTH
+                  }
+              }
+          }
+        }
+        filters += METRIC_FILTER
+        state = Metric.State.SUCCEEDED
+        createTime = INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.createTime
+        this.result = metricResult {
+          reach =
+            MetricResultKt.reachResult {
+              value = INCREMENTAL_REACH_VALUE
+              univariateStatistics = univariateStatistics {
+                standardDeviation = sqrt(SINGLE_DATA_PROVIDER_VARIANCE_VALUE)
+              }
+            }
+          cmmsMeasurements +=
+            MeasurementKey(
+                internalMeasurement.cmmsMeasurementConsumerId,
+                internalMeasurement.cmmsMeasurementId,
+              )
+              .toName()
+        }
+      }
+
+      assertThat(result).isEqualTo(succeededReachMetricWithSingleDataProviderParams)
+    }
+
+  @Test
+  fun `getMetric returns SUCCEEDED metric when metric already succeeded and no single params`() =
+    runBlocking {
+      val internalMeasurement = internalMeasurement {
+        cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+        cmmsMeasurementId = "cmms_id"
+        cmmsCreateMeasurementRequestId = "SINGLE_PUBLISHER_REACH_MEASUREMENT"
+        timeInterval = TIME_INTERVAL
+        primitiveReportingSetBases += primitiveReportingSetBasis {
+          externalReportingSetId = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId
+          filters += METRIC_FILTER
+          filters += PRIMITIVE_REPORTING_SET_FILTER
+        }
+        state = InternalMeasurement.State.SUCCEEDED
+        details =
+          InternalMeasurementKt.details {
+            results +=
+              InternalMeasurementKt.result {
+                reach =
+                  InternalMeasurementKt.ResultKt.reach {
+                    value = INCREMENTAL_REACH_VALUE
+                    noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
+                    deterministicCountDistinct =
+                      InternalDeterministicCountDistinct.getDefaultInstance()
+                  }
+              }
+            dataProviderCount = 1
+          }
+      }
+
+      val internalSucceededReachMetric = internalMetric {
+        cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+        externalMetricId = "metric-id"
+        externalReportingSetId = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId
+        timeInterval = TIME_INTERVAL
+        metricSpec = internalMetricSpec {
+          reach =
+            InternalMetricSpecKt.reachParams {
+              multipleDataProviderParams =
+                InternalMetricSpecKt.samplingAndPrivacyParams {
+                  privacyParams =
+                    InternalMetricSpecKt.differentialPrivacyParams {
+                      epsilon = REACH_ONLY_REACH_EPSILON
+                      delta = DIFFERENTIAL_PRIVACY_DELTA
+                    }
+                  vidSamplingInterval =
+                    InternalMetricSpecKt.vidSamplingInterval {
+                      start = REACH_ONLY_VID_SAMPLING_START
+                      width = REACH_ONLY_VID_SAMPLING_WIDTH
+                    }
+                }
+            }
+        }
+        weightedMeasurements += weightedMeasurement {
+          weight = 1
+          binaryRepresentation = 1
+          measurement = internalMeasurement
+        }
+        details = InternalMetricKt.details { filters += METRIC_FILTER }
+        createTime = INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.createTime
+        state = InternalMetric.State.SUCCEEDED
+      }
+
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(internalBatchGetMetricsResponse { metrics += internalSucceededReachMetric })
+
+      val metricName =
+        MetricKey(
+            internalSucceededReachMetric.cmmsMeasurementConsumerId,
+            internalSucceededReachMetric.externalMetricId,
+          )
+          .toName()
+
+      val request = getMetricRequest { name = metricName }
+
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+
+      // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
+      val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMetricsMock, times(1)) {
+        batchGetMetrics(batchGetInternalMetricsCaptor.capture())
+      }
+      val capturedInternalGetMetricRequests = batchGetInternalMetricsCaptor.allValues
+      assertThat(capturedInternalGetMetricRequests)
+        .containsExactly(
+          internalBatchGetMetricsRequest {
+            cmmsMeasurementConsumerId = internalSucceededReachMetric.cmmsMeasurementConsumerId
+            externalMetricIds += internalSucceededReachMetric.externalMetricId
+          }
+        )
+
+      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMeasurementsMock, never()) {
+        batchSetMeasurementResults(batchSetMeasurementResultsCaptor.capture())
+      }
+
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementFailures
+      val batchSetMeasurementFailuresCaptor: KArgumentCaptor<BatchSetMeasurementFailuresRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMeasurementsMock, never()) {
+        batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
+      }
+
+      val succeededReachMetric = metric {
+        name = metricName
+        reportingSet = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.resourceName
+        timeInterval = TIME_INTERVAL
+        metricSpec = metricSpec {
+          reach = reachParams {
+            privacyParams =
+              MetricSpecKt.differentialPrivacyParams {
+                epsilon = REACH_ONLY_REACH_EPSILON
+                delta = DIFFERENTIAL_PRIVACY_DELTA
+              }
+          }
+          vidSamplingInterval =
+            MetricSpecKt.vidSamplingInterval {
+              start = REACH_ONLY_VID_SAMPLING_START
+              width = REACH_ONLY_VID_SAMPLING_WIDTH
+            }
+        }
+        filters += METRIC_FILTER
+        state = Metric.State.SUCCEEDED
+        createTime = INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.createTime
+        this.result = metricResult {
+          reach =
+            MetricResultKt.reachResult {
+              value = INCREMENTAL_REACH_VALUE
+              univariateStatistics = univariateStatistics {
+                standardDeviation = sqrt(VARIANCE_VALUE)
+              }
+            }
+          cmmsMeasurements +=
+            MeasurementKey(
+                internalMeasurement.cmmsMeasurementConsumerId,
+                internalMeasurement.cmmsMeasurementId,
+              )
+              .toName()
+        }
+      }
+
+      assertThat(result).isEqualTo(succeededReachMetric)
+    }
+
+  @Test
   fun `getMetric returns the metric with SUCCEEDED when the metric is already succeeded`() =
     runBlocking {
       whenever(internalMetricsMock.batchGetMetrics(any()))
@@ -6276,6 +7611,236 @@ class MetricsServiceTest {
       }
 
       assertThat(result).isEqualTo(SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC)
+    }
+
+  @Test
+  fun `getMetric returns SUCCEEDED rf when metric already succeeded and single params set`() =
+    runBlocking {
+      val internalSucceededReachAndFrequencyMetricWithSingleDataProviderParams = internalMetric {
+        cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+        externalMetricId = "metric-id"
+        externalReportingSetId = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId
+        timeInterval = TIME_INTERVAL
+        metricSpec = internalMetricSpec {
+          reachAndFrequency =
+            InternalMetricSpecKt.reachAndFrequencyParams {
+              multipleDataProviderParams =
+                InternalMetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
+                  reachPrivacyParams =
+                    InternalMetricSpecKt.differentialPrivacyParams {
+                      epsilon = REACH_FREQUENCY_REACH_EPSILON
+                      delta = DIFFERENTIAL_PRIVACY_DELTA
+                    }
+                  frequencyPrivacyParams =
+                    InternalMetricSpecKt.differentialPrivacyParams {
+                      epsilon = REACH_FREQUENCY_FREQUENCY_EPSILON
+                      delta = DIFFERENTIAL_PRIVACY_DELTA
+                    }
+                  vidSamplingInterval =
+                    InternalMetricSpecKt.vidSamplingInterval {
+                      start = REACH_FREQUENCY_VID_SAMPLING_START
+                      width = REACH_FREQUENCY_VID_SAMPLING_WIDTH
+                    }
+                }
+              singleDataProviderParams =
+                InternalMetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
+                  reachPrivacyParams =
+                    InternalMetricSpecKt.differentialPrivacyParams {
+                      epsilon = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_REACH_EPSILON
+                      delta = DIFFERENTIAL_PRIVACY_DELTA
+                    }
+                  frequencyPrivacyParams =
+                    InternalMetricSpecKt.differentialPrivacyParams {
+                      epsilon = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_FREQUENCY_EPSILON
+                      delta = DIFFERENTIAL_PRIVACY_DELTA
+                    }
+                  vidSamplingInterval =
+                    InternalMetricSpecKt.vidSamplingInterval {
+                      start = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_VID_SAMPLING_START
+                      width = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_VID_SAMPLING_WIDTH
+                    }
+                }
+              maximumFrequency = REACH_FREQUENCY_MAXIMUM_FREQUENCY
+            }
+        }
+        weightedMeasurements += weightedMeasurement {
+          weight = 1
+          binaryRepresentation = 1
+          measurement = INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT
+        }
+        details = InternalMetricKt.details { filters += METRIC_FILTER }
+        createTime = INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.createTime
+        state = InternalMetric.State.SUCCEEDED
+      }
+
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics += internalSucceededReachAndFrequencyMetricWithSingleDataProviderParams
+          }
+        )
+
+      val metricName =
+        MetricKey(
+            internalSucceededReachAndFrequencyMetricWithSingleDataProviderParams
+              .cmmsMeasurementConsumerId,
+            internalSucceededReachAndFrequencyMetricWithSingleDataProviderParams.externalMetricId,
+          )
+          .toName()
+
+      val request = getMetricRequest { name = metricName }
+
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+
+      // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
+      val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMetricsMock, times(1)) {
+        batchGetMetrics(batchGetInternalMetricsCaptor.capture())
+      }
+      val capturedInternalGetMetricRequests = batchGetInternalMetricsCaptor.allValues
+      assertThat(capturedInternalGetMetricRequests)
+        .containsExactly(
+          internalBatchGetMetricsRequest {
+            cmmsMeasurementConsumerId =
+              internalSucceededReachAndFrequencyMetricWithSingleDataProviderParams
+                .cmmsMeasurementConsumerId
+            externalMetricIds +=
+              internalSucceededReachAndFrequencyMetricWithSingleDataProviderParams.externalMetricId
+          }
+        )
+
+      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMeasurementsMock, never()) {
+        batchSetMeasurementResults(batchSetMeasurementResultsCaptor.capture())
+      }
+
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementFailures
+      val batchSetMeasurementFailuresCaptor: KArgumentCaptor<BatchSetMeasurementFailuresRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMeasurementsMock, never()) {
+        batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
+      }
+
+      val succeededReachMetricWithSingleDataProviderParams = metric {
+        name = metricName
+        reportingSet = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.resourceName
+        timeInterval = TIME_INTERVAL
+        metricSpec = metricSpec {
+          reachAndFrequency = reachAndFrequencyParams {
+            multipleDataProviderParams =
+              MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
+                reachPrivacyParams =
+                  MetricSpecKt.differentialPrivacyParams {
+                    epsilon = REACH_FREQUENCY_REACH_EPSILON
+                    delta = DIFFERENTIAL_PRIVACY_DELTA
+                  }
+                frequencyPrivacyParams =
+                  MetricSpecKt.differentialPrivacyParams {
+                    epsilon = REACH_FREQUENCY_FREQUENCY_EPSILON
+                    delta = DIFFERENTIAL_PRIVACY_DELTA
+                  }
+                vidSamplingInterval =
+                  MetricSpecKt.vidSamplingInterval {
+                    start = REACH_FREQUENCY_VID_SAMPLING_START
+                    width = REACH_FREQUENCY_VID_SAMPLING_WIDTH
+                  }
+              }
+            singleDataProviderParams =
+              MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
+                reachPrivacyParams =
+                  MetricSpecKt.differentialPrivacyParams {
+                    epsilon = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_REACH_EPSILON
+                    delta = DIFFERENTIAL_PRIVACY_DELTA
+                  }
+                frequencyPrivacyParams =
+                  MetricSpecKt.differentialPrivacyParams {
+                    epsilon = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_FREQUENCY_EPSILON
+                    delta = DIFFERENTIAL_PRIVACY_DELTA
+                  }
+                vidSamplingInterval =
+                  MetricSpecKt.vidSamplingInterval {
+                    start = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_VID_SAMPLING_START
+                    width = SINGLE_DATA_PROVIDER_REACH_FREQUENCY_VID_SAMPLING_WIDTH
+                  }
+              }
+            maximumFrequency = REACH_FREQUENCY_MAXIMUM_FREQUENCY
+          }
+        }
+        filters += METRIC_FILTER
+        state = Metric.State.SUCCEEDED
+        createTime = INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.createTime
+        this.result = metricResult {
+          cmmsMeasurements += PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.name
+          reachAndFrequency =
+            MetricResultKt.reachAndFrequencyResult {
+              reach =
+                MetricResultKt.reachResult {
+                  value = REACH_FREQUENCY_REACH_VALUE
+                  univariateStatistics = univariateStatistics {
+                    standardDeviation = sqrt(SINGLE_DATA_PROVIDER_VARIANCE_VALUE)
+                  }
+                }
+              frequencyHistogram =
+                MetricResultKt.histogramResult {
+                  bins +=
+                    (1..REACH_FREQUENCY_MAXIMUM_FREQUENCY).map { frequency ->
+                      MetricResultKt.HistogramResultKt.bin {
+                        label = frequency.toString()
+                        binResult =
+                          MetricResultKt.HistogramResultKt.binResult {
+                            value =
+                              REACH_FREQUENCY_REACH_VALUE *
+                                REACH_FREQUENCY_FREQUENCY_VALUE.getOrDefault(
+                                  frequency.toLong(),
+                                  0.0,
+                                )
+                          }
+                        resultUnivariateStatistics = univariateStatistics {
+                          standardDeviation =
+                            sqrt(
+                              SINGLE_DATA_PROVIDER_FREQUENCY_VARIANCES.countVariances.getValue(
+                                frequency
+                              )
+                            )
+                        }
+                        relativeUnivariateStatistics = univariateStatistics {
+                          standardDeviation =
+                            sqrt(
+                              SINGLE_DATA_PROVIDER_FREQUENCY_VARIANCES.relativeVariances.getValue(
+                                frequency
+                              )
+                            )
+                        }
+                        kPlusUnivariateStatistics = univariateStatistics {
+                          standardDeviation =
+                            sqrt(
+                              SINGLE_DATA_PROVIDER_FREQUENCY_VARIANCES.kPlusCountVariances.getValue(
+                                frequency
+                              )
+                            )
+                        }
+                        relativeKPlusUnivariateStatistics = univariateStatistics {
+                          standardDeviation =
+                            sqrt(
+                              SINGLE_DATA_PROVIDER_FREQUENCY_VARIANCES.kPlusRelativeVariances
+                                .getValue(frequency)
+                            )
+                        }
+                      }
+                    }
+                }
+            }
+        }
+      }
+
+      assertThat(result).isEqualTo(succeededReachMetricWithSingleDataProviderParams)
     }
 
   @Test
