@@ -34,7 +34,7 @@ module "security_group" {
 
 module "db" {
   source  = "terraform-aws-modules/rds/aws//modules/db_instance"
-  version = "~> 6.1.1"
+  version = "~> 6.6.0"
 
   identifier = var.name
 
@@ -46,10 +46,11 @@ module "db" {
 
   allocated_storage = 20
 
-  db_name                     = var.username
-  username                    = var.username
-  manage_master_user_password = true
-  port                        = 5432
+  db_name                              = var.username
+  username                             = var.username
+  manage_master_user_password          = true
+  manage_master_user_password_rotation = false
+  port                                 = 5432
 
   db_subnet_group_name   = var.subnet_group_name
   vpc_security_group_ids = [module.security_group.security_group_id]
