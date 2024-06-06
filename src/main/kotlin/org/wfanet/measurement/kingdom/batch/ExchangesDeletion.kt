@@ -40,12 +40,13 @@ class ExchangesDeletion(
   private val exchangesService: ExchangesGrpcKt.ExchangesCoroutineStub,
   private val daysToLive: Long,
   private val dryRun: Boolean = false,
-  private val openTelemetry: OpenTelemetry = GlobalOpenTelemetry.get(),
+  openTelemetry: OpenTelemetry = GlobalOpenTelemetry.get(),
 ) {
-  private val meter: Meter = openTelemetry.getMeter(ExchangesDeletion::class.java.name)
+  private val meter: Meter = openTelemetry.getMeter(this::class.qualifiedName!!)
   private val exchangeDeletionCounter: LongCounter =
     meter
-      .counterBuilder("exchanges_deletion_total")
+      .counterBuilder("halo_cmm.retention.deleted_exchanges")
+      .setUnit("{exchange}")
       .setDescription("Total number of exchanges deleted under retention policy")
       .build()
 
