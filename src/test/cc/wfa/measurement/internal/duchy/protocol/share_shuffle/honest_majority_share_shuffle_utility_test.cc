@@ -132,21 +132,21 @@ class ShufflePhaseTestData {
   }
 
   void SetReachOnlyDifferentialPrivacyParams(double eps, double delta) {
-    request_.mutable_dp_params()->mutable_reach_dp_params()->set_epsilon(eps);
-    request_.mutable_dp_params()->mutable_reach_dp_params()->set_delta(delta);
+    request_.mutable_reach_dp_params()->set_epsilon(eps);
+    request_.mutable_reach_dp_params()->set_delta(delta);
   }
 
   void SetDifferentialPrivacyParams(double eps, double delta) {
-    request_.mutable_dp_params()->mutable_reach_dp_params()->set_epsilon(eps /
-                                                                         10.0);
-    request_.mutable_dp_params()->mutable_reach_dp_params()->set_delta(delta);
-    request_.mutable_dp_params()->mutable_frequency_dp_params()->set_epsilon(
-        eps);
-    request_.mutable_dp_params()->mutable_frequency_dp_params()->set_delta(
-        delta);
+    request_.mutable_reach_dp_params()->set_epsilon(eps / 10.0);
+    request_.mutable_reach_dp_params()->set_delta(delta);
+    request_.mutable_frequency_dp_params()->set_epsilon(eps);
+    request_.mutable_frequency_dp_params()->set_delta(delta);
   }
 
-  void ClearDifferentialPrivacyParams() { request_.clear_dp_params(); }
+  void ClearDifferentialPrivacyParams() {
+    request_.clear_reach_dp_params();
+    request_.clear_frequency_dp_params();
+  }
 
   void AddSeedToSketchShares(const std::string& seed) {
     *request_.add_sketch_shares()->mutable_seed() = seed;
@@ -1090,21 +1090,21 @@ class AggregationPhaseTestData {
     request_.mutable_sketch_params()->set_ring_modulus(ring_modulus);
   }
 
-  void ClearDifferentialPrivacyParams() { request_.clear_dp_params(); }
+  void ClearDifferentialPrivacyParams() {
+    request_.clear_reach_dp_params();
+    request_.clear_frequency_dp_params();
+  }
 
   void SetReachOnlyDifferentialPrivacyParams(double eps, double delta) {
-    request_.mutable_dp_params()->mutable_reach_dp_params()->set_epsilon(eps);
-    request_.mutable_dp_params()->mutable_reach_dp_params()->set_delta(delta);
+    request_.mutable_reach_dp_params()->set_epsilon(eps);
+    request_.mutable_reach_dp_params()->set_delta(delta);
   }
 
   void SetDifferentialPrivacyParams(double eps, double delta) {
-    request_.mutable_dp_params()->mutable_reach_dp_params()->set_epsilon(eps /
-                                                                         10.0);
-    request_.mutable_dp_params()->mutable_reach_dp_params()->set_delta(delta);
-    request_.mutable_dp_params()->mutable_frequency_dp_params()->set_epsilon(
-        eps);
-    request_.mutable_dp_params()->mutable_frequency_dp_params()->set_delta(
-        delta);
+    request_.mutable_reach_dp_params()->set_epsilon(eps / 10.0);
+    request_.mutable_reach_dp_params()->set_delta(delta);
+    request_.mutable_frequency_dp_params()->set_epsilon(eps);
+    request_.mutable_frequency_dp_params()->set_delta(delta);
   }
 
   void AddShareToSketchShares(absl::Span<const uint32_t> data) {

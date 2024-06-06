@@ -45,6 +45,7 @@ namespace {
 using ::wfa::crypto::SecureShuffleWithSeed;
 using ::wfa::frequency_count::PrngSeed;
 using ::wfa::math::CreatePrngFromSeed;
+using ::wfa::math::DistributedNoiser;
 using ::wfa::math::kBytesPerAes256Iv;
 using ::wfa::math::kBytesPerAes256Key;
 using ::wfa::math::UniformPseudorandomGenerator;
@@ -130,16 +131,15 @@ CompleteReachAndFrequencyShufflePhase(
                    CreatePrngFromSeed(seed));
 
   // Adds noise registers to the combined input share.
-  if (request.has_dp_params()) {
+  if (request.has_reach_dp_params() && request.has_frequency_dp_params()) {
     // Initializes the reach noiser, which will generate reach noise.
-    auto reach_noiser =
-        GetBlindHistogramNoiser(request.dp_params().reach_dp_params(),
-                                kWorkerCount, request.noise_mechanism());
+    std::unique_ptr<DistributedNoiser> reach_noiser = GetBlindHistogramNoiser(
+        request.reach_dp_params(), kWorkerCount, request.noise_mechanism());
     // Initializes the frequency noiser, which will generate noise to hide the
     // actual frequency histogram counts for frequency 1+.
-    auto frequency_noiser =
-        GetBlindHistogramNoiser(request.dp_params().frequency_dp_params(),
-                                kWorkerCount, request.noise_mechanism());
+    std::unique_ptr<DistributedNoiser> frequency_noiser =
+        GetBlindHistogramNoiser(request.frequency_dp_params(), kWorkerCount,
+                                request.noise_mechanism());
     // Generates local noise registers.
     ASSIGN_OR_RETURN(
         std::vector<uint32_t> noise_registers,
@@ -263,11 +263,10 @@ absl::StatusOr<CompleteShufflePhaseResponse> CompleteReachOnlyShufflePhase(
   }
 
   // Adds noise registers to the combined input share.
-  if (request.has_dp_params()) {
+  if (request.has_reach_dp_params()) {
     // Initializes the reach noiser, which will generate reach noise.
-    auto reach_noiser =
-        GetBlindHistogramNoiser(request.dp_params().reach_dp_params(),
-                                kWorkerCount, request.noise_mechanism());
+    std::unique_ptr<DistributedNoiser> reach_noiser = GetBlindHistogramNoiser(
+        request.reach_dp_params(), kWorkerCount, request.noise_mechanism());
 
     // Generates local noise registers.
     ASSIGN_OR_RETURN(std::vector<uint32_t> noise_registers,
@@ -391,13 +390,12 @@ CompleteReachAndFrequencyAggregationPhase(
 
   // Adjusts the frequency histogram and non empty register count according the
   // noise baseline for the frequencies from 0 to {maximum_frequency - 1}.
-  if (request.has_dp_params()) {
-    auto reach_noiser =
-        GetBlindHistogramNoiser(request.dp_params().reach_dp_params(),
-                                kWorkerCount, request.noise_mechanism());
-    auto frequency_noiser =
-        GetBlindHistogramNoiser(request.dp_params().frequency_dp_params(),
-                                kWorkerCount, request.noise_mechanism());
+  if (request.has_reach_dp_params() && request.has_frequency_dp_params()) {
+    std::unique_ptr<DistributedNoiser> reach_noiser = GetBlindHistogramNoiser(
+        request.reach_dp_params(), kWorkerCount, request.noise_mechanism());
+    std::unique_ptr<DistributedNoiser> frequency_noiser =
+        GetBlindHistogramNoiser(request.frequency_dp_params(), kWorkerCount,
+                                request.noise_mechanism());
     int64_t reach_noise_baseline =
         reach_noiser->options().shift_offset * kWorkerCount;
     int64_t noise_baseline_per_frequency =
@@ -508,10 +506,9 @@ CompleteReachOnlyAggregationPhase(
   }
 
   // Adjusts the non empty register count according the noise baseline.
-  if (request.has_dp_params()) {
-    auto reach_noiser =
-        GetBlindHistogramNoiser(request.dp_params().reach_dp_params(),
-                                kWorkerCount, request.noise_mechanism());
+  if (request.has_reach_dp_params()) {
+    std::unique_ptr<DistributedNoiser> reach_noiser = GetBlindHistogramNoiser(
+        request.reach_dp_params(), kWorkerCount, request.noise_mechanism());
     int64_t reach_noise_baseline =
         reach_noiser->options().shift_offset * kWorkerCount;
 

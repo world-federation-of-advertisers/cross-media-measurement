@@ -78,7 +78,6 @@ import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.completeAggregationPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.completeShufflePhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.copy
-import org.wfanet.measurement.internal.duchy.protocol.hmssDifferentialPrivacyParams
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
@@ -395,10 +394,8 @@ class HonestMajorityShareShuffleMill(
         } else {
           CompleteShufflePhaseRequest.NonAggregatorOrder.SECOND
         }
-      dpParams = hmssDifferentialPrivacyParams {
-        reachDpParams = hmss.parameters.reachDpParams
-        frequencyDpParams = hmss.parameters.frequencyDpParams
-      }
+      reachDpParams = hmss.parameters.reachDpParams
+      frequencyDpParams = hmss.parameters.frequencyDpParams
       noiseMechanism = hmss.parameters.noiseMechanism
 
       val registerCounts = mutableListOf<Long>()
@@ -467,10 +464,8 @@ class HonestMajorityShareShuffleMill(
           vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width
         }
       }
-      dpParams = hmssDifferentialPrivacyParams {
-        reachDpParams = hmss.parameters.reachDpParams
-        frequencyDpParams = hmss.parameters.frequencyDpParams
-      }
+      reachDpParams = hmss.parameters.reachDpParams
+      frequencyDpParams = hmss.parameters.frequencyDpParams
       noiseMechanism = hmss.parameters.noiseMechanism
 
       for (input in aggregationPhaseInputs) {

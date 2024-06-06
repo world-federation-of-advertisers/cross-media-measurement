@@ -122,7 +122,6 @@ import org.wfanet.measurement.internal.duchy.protocol.completeAggregationPhaseRe
 import org.wfanet.measurement.internal.duchy.protocol.completeShufflePhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.completeShufflePhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.copy
-import org.wfanet.measurement.internal.duchy.protocol.hmssDifferentialPrivacyParams
 import org.wfanet.measurement.internal.duchy.protocol.shareShuffleSketch
 import org.wfanet.measurement.internal.duchy.protocol.shareShuffleSketchParams
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -712,10 +711,8 @@ class HonestMajorityShareShuffleMillTest {
         completeShufflePhaseRequest {
           val hmss = computationDetails.honestMajorityShareShuffle
           sketchParams = hmss.parameters.sketchParams.copy { registerCount = 100 }
-          dpParams = hmssDifferentialPrivacyParams {
-            reachDpParams = hmss.parameters.reachDpParams
-            frequencyDpParams = hmss.parameters.frequencyDpParams
-          }
+          reachDpParams = hmss.parameters.reachDpParams
+          frequencyDpParams = hmss.parameters.frequencyDpParams
           noiseMechanism = hmss.parameters.noiseMechanism
           order = CompleteShufflePhaseRequest.NonAggregatorOrder.FIRST
 
@@ -889,10 +886,8 @@ class HonestMajorityShareShuffleMillTest {
           sketchParams = hmss.parameters.sketchParams
           maximumFrequency = hmss.parameters.maximumFrequency
           vidSamplingIntervalWidth = MEASUREMENT_SPEC.vidSamplingInterval.width
-          dpParams = hmssDifferentialPrivacyParams {
-            reachDpParams = hmss.parameters.reachDpParams
-            frequencyDpParams = hmss.parameters.frequencyDpParams
-          }
+          reachDpParams = hmss.parameters.reachDpParams
+          frequencyDpParams = hmss.parameters.frequencyDpParams
           noiseMechanism = hmss.parameters.noiseMechanism
 
           sketchShares +=
