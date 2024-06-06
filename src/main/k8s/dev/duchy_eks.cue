@@ -39,24 +39,35 @@ _duchyCertName: "duchies/\(_duchyName)/certificates/\(_certificateId)"
 #HeraldResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "25m"
-		memory: "1024Mi"
+		memory: "512M"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#HeraldMaxHeapSize:        "800M"
-#MillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+#HeraldMaxHeapSize:            "400M"
+#Llv2MillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "3"
-		memory: "4Gi"
+		memory: "2.5Gi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#MillMaxHeapSize:                 "3500M"
-#MillReplicas:                    1
+#Llv2MillMaxHeapSize:          "1G"
+#Llv2MillReplicas:             1
+#HmssMillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "2"
+		memory: "6Gi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+#HmssMillMaxHeapSize:             "5G"
+#Llv2MillReplicas:                1
 #FulfillmentResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "200m"
@@ -120,11 +131,11 @@ duchy: #PostgresDuchy & {
 		"liquid-legions-v2-mill-daemon-deployment": {
 			_workLockDuration: "10m"
 			_container: {
-				_javaOptions: maxHeapSize: #MillMaxHeapSize
-				resources: #MillResourceRequirements
+				_javaOptions: maxHeapSize: #Llv2MillMaxHeapSize
+				resources: #Llv2MillResourceRequirements
 			}
 			spec: {
-				replicas: #MillReplicas
+				replicas: #Llv2MillReplicas
 				template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {
 					serviceAccountName: #StorageServiceAccount
 				}
@@ -133,11 +144,11 @@ duchy: #PostgresDuchy & {
 		"honest-majority-share-shuffle-mill-daemon-deployment": {
 			_workLockDuration: "5m"
 			_container: {
-				_javaOptions: maxHeapSize: #MillMaxHeapSize
-				resources: #MillResourceRequirements
+				_javaOptions: maxHeapSize: #HmssMillMaxHeapSize
+				resources: #HmssMillResourceRequirements
 			}
 			spec: {
-				replicas: #MillReplicas
+				replicas: #HmssMillReplicas
 				template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {
 					serviceAccountName: #StorageServiceAccount
 				}

@@ -46,18 +46,29 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#HeraldMaxHeapSize:        "400M"
-#MillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+#HeraldMaxHeapSize:            "400M"
+#Llv2MillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "3"
+		memory: "2.5Gi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+#Llv2MillMaxHeapSize:          "1G"
+#Llv2MillReplicas:             1
+#HmssMillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "2"
 		memory: "6Gi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#MillMaxHeapSize:                 "5G"
-#MillReplicas:                    1
+#HmssMillMaxHeapSize:             "5G"
+#HmssMillReplicas:                1
 #FulfillmentResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "200m"
@@ -137,11 +148,11 @@ duchy: #SpannerDuchy & {
 		"liquid-legions-v2-mill-daemon-deployment": {
 			_workLockDuration: "10m"
 			_container: {
-				_javaOptions: maxHeapSize: #MillMaxHeapSize
-				resources: #MillResourceRequirements
+				_javaOptions: maxHeapSize: #Llv2MillMaxHeapSize
+				resources: #Llv2MillResourceRequirements
 			}
 			spec: {
-				replicas: #MillReplicas
+				replicas: #Llv2MillReplicas
 				template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {
 					serviceAccountName: #StorageServiceAccount
 				}
@@ -150,11 +161,11 @@ duchy: #SpannerDuchy & {
 		"honest-majority-share-shuffle-mill-daemon-deployment": {
 			_workLockDuration: "5m"
 			_container: {
-				_javaOptions: maxHeapSize: #MillMaxHeapSize
-				resources: #MillResourceRequirements
+				_javaOptions: maxHeapSize: #HmssMillMaxHeapSize
+				resources: #HmssMillResourceRequirements
 			}
 			spec: {
-				replicas: #MillReplicas
+				replicas: #HmssMillReplicas
 				template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {
 					serviceAccountName: #StorageServiceAccount
 				}
