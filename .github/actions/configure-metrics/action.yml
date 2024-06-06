@@ -23,27 +23,16 @@ description: |
 runs:
   using: composite
   steps:
-  - name: Install cert-manager
-    shell: bash
-    run: |
-      kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.3/cert-manager.yaml
-      kubectl rollout status deployment cert-manager-webhook --namespace=cert-manager --timeout=5m
-
-  - name: Install OpenTelemetry operator
-    shell: bash
-    run: |
-      kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/download/v0.88.0/opentelemetry-operator.yaml
-      kubectl rollout status deployment opentelemetry-operator-controller-manager --namespace=opentelemetry-operator-system --timeout=5m
+  - uses: ./.github/actions/install-otel-operator
 
   - name: Generate configurations
     shell: bash
-    run: >
-      bazelisk build
-      //src/main/k8s/dev:open_telemetry_gke
-      //src/main/k8s/dev:prometheus_gke
+    run: bazelisk build //src/main/k8s/dev:open_telemetry_gke
 
   - name: Apply configurations
     shell: bash
     run: |
       kubectl apply -f "$BAZEL_BIN/src/main/k8s/dev/open_telemetry_gke.yaml"
-      kubectl apply -f "$BAZEL_BIN/src/main/k8s/dev/prometheus_gke.yaml"
+      
+      # Delete old Prometheus managed collection.
+      kubectl delete ClusterPodMonitoring --all

@@ -120,16 +120,8 @@ object PrivacyQueryMapper {
   ): AcdpQuery {
     val acdpCharge =
       when (measurementSpec.measurementTypeCase) {
+        // TODO(@ple13): Add support for reach-only.
         MeasurementTypeCase.REACH_AND_FREQUENCY -> {
-          // TODO(@ple13): Support different privacy parameters for reach and frequency.
-          require(
-            (measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon ==
-              measurementSpec.reachAndFrequency.frequencyPrivacyParams.epsilon) &&
-              (measurementSpec.reachAndFrequency.reachPrivacyParams.delta ==
-                measurementSpec.reachAndFrequency.frequencyPrivacyParams.delta)
-          ) {
-            "Different privacy parameters for reach and for frequency have not been support yet."
-          }
           // Uses the function getLlv2AcdpCharge to compute the ACDP charge for this query as HMSS
           // and LLV2 use the same approach when adding differential private noise.
           val acdpChargeForReach =

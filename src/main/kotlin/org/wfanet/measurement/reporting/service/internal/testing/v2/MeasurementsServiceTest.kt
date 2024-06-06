@@ -482,7 +482,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
             measurement.copy {
               cmmsMeasurementId = "1234"
               details =
-                MeasurementKt.details {
+                details.copy {
                   results +=
                     MeasurementKt.result {
                       reach =
@@ -578,7 +578,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
             measurement.copy {
               cmmsMeasurementId = "1234"
               details =
-                MeasurementKt.details {
+                details.copy {
                   results +=
                     MeasurementKt.result {
                       reach =
@@ -598,7 +598,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
             measurement.copy {
               cmmsMeasurementId = "1235"
               details =
-                MeasurementKt.details {
+                details.copy {
                   results +=
                     MeasurementKt.result {
                       reach =
@@ -694,7 +694,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
               measurement.copy {
                 cmmsMeasurementId = "1234"
                 details =
-                  MeasurementKt.details {
+                  details.copy {
                     results +=
                       MeasurementKt.result {
                         reach =
@@ -714,7 +714,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
               measurement.copy {
                 cmmsMeasurementId = "1235"
                 details =
-                  MeasurementKt.details {
+                  details.copy {
                     results +=
                       MeasurementKt.result {
                         reach =
@@ -792,7 +792,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
               measurement.copy {
                 cmmsMeasurementId = "1234"
                 details =
-                  MeasurementKt.details {
+                  details.copy {
                     results +=
                       MeasurementKt.result {
                         reach =
@@ -990,8 +990,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
           measurement =
             measurement.copy {
               cmmsMeasurementId = "1234"
-              details =
-                MeasurementKt.details { failure = MeasurementKt.failure { message = "failure1" } }
+              details = details.copy { failure = MeasurementKt.failure { message = "failure1" } }
               state = Measurement.State.FAILED
             }
         }
@@ -1057,8 +1056,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
           measurement =
             measurement.copy {
               cmmsMeasurementId = "1234"
-              details =
-                MeasurementKt.details { failure = MeasurementKt.failure { message = "failure1" } }
+              details = details.copy { failure = MeasurementKt.failure { message = "failure1" } }
               state = Measurement.State.FAILED
             }
         },
@@ -1066,8 +1064,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
           measurement =
             measurement.copy {
               cmmsMeasurementId = "1235"
-              details =
-                MeasurementKt.details { failure = MeasurementKt.failure { message = "failure2" } }
+              details = details.copy { failure = MeasurementKt.failure { message = "failure2" } }
               state = Measurement.State.FAILED
             }
         },
@@ -1135,8 +1132,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
             measurement =
               measurement.copy {
                 cmmsMeasurementId = "1234"
-                details =
-                  MeasurementKt.details { failure = MeasurementKt.failure { message = "failure1" } }
+                details = details.copy { failure = MeasurementKt.failure { message = "failure1" } }
                 state = Measurement.State.FAILED
               }
           },
@@ -1144,8 +1140,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
             measurement =
               measurement.copy {
                 cmmsMeasurementId = "1235"
-                details =
-                  MeasurementKt.details { failure = MeasurementKt.failure { message = "failure2" } }
+                details = details.copy { failure = MeasurementKt.failure { message = "failure2" } }
                 state = Measurement.State.FAILED
               }
           },
@@ -1202,8 +1197,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
             measurement =
               measurement.copy {
                 cmmsMeasurementId = "1234"
-                details =
-                  MeasurementKt.details { failure = MeasurementKt.failure { message = "failure1" } }
+                details = details.copy { failure = MeasurementKt.failure { message = "failure1" } }
                 state = Measurement.State.FAILED
               }
           }
@@ -1365,16 +1359,19 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
         metricSpec = metricSpec {
           reach =
             MetricSpecKt.reachParams {
-              privacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
+              multipleDataProviderParams =
+                MetricSpecKt.samplingAndPrivacyParams {
+                  privacyParams =
+                    MetricSpecKt.differentialPrivacyParams {
+                      epsilon = 1.0
+                      delta = 2.0
+                    }
+                  vidSamplingInterval =
+                    MetricSpecKt.vidSamplingInterval {
+                      start = 0.1f
+                      width = 0.5f
+                    }
                 }
-            }
-          vidSamplingInterval =
-            MetricSpecKt.vidSamplingInterval {
-              start = 0.1f
-              width = 0.5f
             }
         }
         for (i in 0 until numDefaultMeasurements) {
@@ -1396,6 +1393,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
                       filters += "filter2"
                     }
                   }
+                details = MeasurementKt.details { dataProviderCount = 3 }
               }
             }
         }

@@ -341,7 +341,7 @@ class PrivacyQueryMapperTest {
     private val REACH_AND_FREQ_MEASUREMENT_SPEC = measurementSpec {
       reachAndFrequency = reachAndFrequency {
         reachPrivacyParams = differentialPrivacyParams {
-          epsilon = 0.3
+          epsilon = 0.03
           delta = 0.01
         }
 

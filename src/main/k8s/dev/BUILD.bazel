@@ -566,12 +566,3 @@ cue_dump(
         "//src/main/k8s:open_telemetry",
     ],
 )
-
-cue_dump(
-    name = "prometheus_gke",
-    srcs = ["prometheus_gke.cue"],
-    tags = ["manual"],
-    deps = [
-        ":base_gke",
-    ],
-)

@@ -15,6 +15,7 @@
 package org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha
 
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.eventdataprovider.shareshuffle.VidIndexMapEntry
 
 class VidNotFoundException(vid: Long) : Exception("Failed to find VID $vid.")
 
@@ -28,4 +29,11 @@ interface VidIndexMap {
 
   /** The PopulationSpec used to create this map */
   val populationSpec: PopulationSpec
+
+  /**
+   * Get an iterator for the VidIndexMapEntries of this VidIndexMap.
+   *
+   * The order of iteration is undefined.
+   */
+  operator fun iterator(): Iterator<VidIndexMapEntry>
 }
