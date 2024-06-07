@@ -88,12 +88,18 @@ class ReportReader(private val readContext: ReadContext) {
 
   private val baseSqlJoins: String =
     """
-    LEFT JOIN ReportsReportSchedules USING(MeasurementConsumerId, ReportId)
-    LEFT JOIN ReportSchedules USING(MeasurementConsumerId, ReportScheduleId)
-    JOIN MetricCalculationSpecReportingMetrics USING(MeasurementConsumerId, ReportId)
-    JOIN ReportingSets USING(MeasurementConsumerId, ReportingSetId)
-    JOIN MetricCalculationSpecs USING(MeasurementConsumerId, MetricCalculationSpecId)
-    LEFT JOIN Metrics USING(MeasurementConsumerId, MetricId)
+    LEFT JOIN ReportsReportSchedules ON Reports.MeasurementConsumerId = ReportsReportSchedules.MeasurementConsumerId
+      AND Reports.ReportId = ReportsReportSchedules.ReportId
+    LEFT JOIN ReportSchedules ON Reports.MeasurementConsumerId = ReportSchedules.MeasurementConsumerId
+      AND ReportsReportSchedules.ReportScheduleId = ReportSchedules.ReportScheduleId
+    JOIN MetricCalculationSpecs ON Reports.MeasurementConsumerId = MetricCalculationSpecs.MeasurementConsumerId
+    JOIN MetricCalculationSpecReportingMetrics ON Reports.MeasurementConsumerId = MetricCalculationSpecReportingMetrics.MeasurementConsumerId
+      AND Reports.ReportId = MetricCalculationSpecReportingMetrics.ReportId
+      AND MetricCalculationSpecs.MetricCalculationSpecId = MetricCalculationSpecReportingMetrics.MetricCalculationSpecId
+    JOIN ReportingSets ON Reports.MeasurementConsumerId = ReportingSets.MeasurementConsumerId
+      AND MetricCalculationSpecReportingMetrics.ReportingSetId = ReportingSets.ReportingSetId
+    LEFT JOIN Metrics ON Reports.MeasurementConsumerId = Metrics.MeasurementConsumerId
+      AND MetricCalculationSpecReportingMetrics.MetricId = Metrics.MetricId
     """
       .trimIndent()
 
@@ -101,14 +107,21 @@ class ReportReader(private val readContext: ReadContext) {
     measurementConsumerId: InternalId,
     createReportRequestId: String,
   ): Result? {
+    // There is an index using CreateReportRequestId, but only for Reports. The other tables only
+    // have an index using ReportId.
     val sql =
       """
         $baseSqlSelect
         FROM MeasurementConsumers
-            JOIN Reports USING(MeasurementConsumerId)
-        $baseSqlJoins
-        WHERE Reports.MeasurementConsumerId = $1
-            AND CreateReportRequestId = $2
+            JOIN Reports ON MeasurementConsumers.MeasurementConsumerId = $1
+            AND MeasurementConsumers.MeasurementConsumerId = Reports.MeasurementConsumerId
+            AND ReportId IN (
+              SELECT ReportId
+              FROM Reports
+              WHERE MeasurementConsumerId = $1
+                AND CreateReportRequestId = $2
+            )
+            $baseSqlJoins
       """
         .trimIndent()
 
@@ -125,14 +138,25 @@ class ReportReader(private val readContext: ReadContext) {
     cmmsMeasurementConsumerId: String,
     externalReportId: String,
   ): Result? {
+    // There is an index using ExternalReportId, but only for Reports. The other tables only
+    // have an index using ReportId.
     val sql =
       """
+        WITH MeasurementConsumerForReport AS (
+          SELECT *
+          FROM MeasurementConsumers
+          WHERE CmmsMeasurementConsumerId = $1
+        )
         $baseSqlSelect
-        FROM MeasurementConsumers
-            JOIN Reports USING(MeasurementConsumerId)
-        $baseSqlJoins
-        WHERE CmmsMeasurementConsumerId = $1
-            AND ExternalReportId = $2
+        FROM MeasurementConsumerForReport
+          JOIN Reports ON MeasurementConsumerForReport.MeasurementConsumerId = Reports.MeasurementConsumerId
+            AND ReportId IN (
+              SELECT ReportId
+              FROM Reports
+              WHERE MeasurementConsumerId IN (SELECT MeasurementConsumerId FROM MeasurementConsumerForReport)
+                AND ExternalReportId = $2
+            )
+          $baseSqlJoins
       """
         .trimIndent()
 
@@ -151,21 +175,21 @@ class ReportReader(private val readContext: ReadContext) {
           """
         FROM (
           SELECT *
-          FROM MeasurementConsumers
+          FROM MeasurementConsumerForReports
             JOIN Reports USING (MeasurementConsumerId)
         """
         )
         .append(
           if (request.filter.hasAfter()) {
             """
-                WHERE CmmsMeasurementConsumerId = $1
+                WHERE MeasurementConsumerId IN (SELECT MeasurementConsumerId FROM MeasurementConsumerForReports)
                   AND ((CreateTime < $3) OR
                   (CreateTime = $3
                   AND ExternalReportId > $4))
             """
           } else {
             """
-                WHERE CmmsMeasurementConsumerId = $1
+                WHERE MeasurementConsumerId IN (SELECT MeasurementConsumerId FROM MeasurementConsumerForReports)
             """
           }
         )
@@ -179,6 +203,16 @@ class ReportReader(private val readContext: ReadContext) {
 
     val sql =
       StringBuilder("")
+        .appendLine(
+          """
+          WITH MeasurementConsumerForReports AS (
+            SELECT *
+            FROM MeasurementConsumers
+            WHERE CmmsMeasurementConsumerId = $1
+          )
+        """
+            .trimIndent()
+        )
         .appendLine(baseSqlSelect)
         .appendLine(fromClause)
         .appendLine(baseSqlJoins)
