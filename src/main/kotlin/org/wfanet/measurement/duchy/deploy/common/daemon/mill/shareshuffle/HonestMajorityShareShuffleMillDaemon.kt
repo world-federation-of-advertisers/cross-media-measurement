@@ -23,19 +23,7 @@ import com.google.protobuf.ByteString
 import io.grpc.Channel
 import io.opentelemetry.api.GlobalOpenTelemetry
 import io.opentelemetry.api.OpenTelemetry
-import io.opentelemetry.api.common.Attributes
-import io.opentelemetry.exporter.otlp.metrics.OtlpGrpcMetricExporter
-import io.opentelemetry.sdk.OpenTelemetrySdk
-import io.opentelemetry.sdk.metrics.Aggregation
-import io.opentelemetry.sdk.metrics.InstrumentSelector
-import io.opentelemetry.sdk.metrics.InstrumentType
-import io.opentelemetry.sdk.metrics.SdkMeterProvider
-import io.opentelemetry.sdk.metrics.View
-import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
-import io.opentelemetry.sdk.resources.Resource
-import io.opentelemetry.semconv.ResourceAttributes
 import java.time.Clock
-import java.time.Duration
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -165,53 +153,9 @@ abstract class HonestMajorityShareShuffleMillDaemon : Runnable {
           .makeKmsPrivateKeyStore(TinkKeyStore(storageClient), keyUri)
       }
 
-    val openTelemetry: OpenTelemetry =
-      if (flags.openTelemetryOptions == null) {
-        GlobalOpenTelemetry.get()
-      } else {
-        val endpoint = flags.openTelemetryOptions!!.otelExporterOtlpEndpoint
-        val serviceName = flags.openTelemetryOptions!!.otelServiceName
-        val resource: Resource =
-          Resource.getDefault()
-            .merge(Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME, serviceName)))
-        val meterProvider =
-          SdkMeterProvider.builder()
-            .setResource(resource)
-            .registerMetricReader(
-              PeriodicMetricReader.builder(
-                  OtlpGrpcMetricExporter.builder()
-                    .setTimeout(Duration.ofSeconds(30L))
-                    .setEndpoint(endpoint)
-                    .build()
-                )
-                .setInterval(Duration.ofSeconds(60L))
-                .build()
-            )
-            .registerView(
-              InstrumentSelector.builder().setType(InstrumentType.HISTOGRAM).build(),
-              View.builder()
-                .setAggregation(
-                  Aggregation.explicitBucketHistogram(
-                    listOf(
-                      1000.0,
-                      2000.0,
-                      4000.0,
-                      8000.0,
-                      16000.0,
-                      32000.0,
-                      64000.0,
-                      128000.0,
-                      256000.0,
-                      512000.0,
-                      1024000.0,
-                    )
-                  )
-                )
-                .build(),
-            )
-            .build()
-        OpenTelemetrySdk.builder().setMeterProvider(meterProvider).build()
-      }
+    // OpenTelemetry is usually enabled using the Java agent, in which case this will grab the
+    // shared instance.
+    val openTelemetry: OpenTelemetry = GlobalOpenTelemetry.get()
 
     val mill =
       HonestMajorityShareShuffleMill(

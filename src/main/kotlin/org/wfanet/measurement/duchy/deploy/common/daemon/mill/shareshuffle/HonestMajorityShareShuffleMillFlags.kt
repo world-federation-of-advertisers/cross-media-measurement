@@ -127,24 +127,4 @@ class HonestMajorityShareShuffleMillFlags {
     description = ["The key encryption key file (binary format) used for private key store."],
   )
   var keyEncryptionKeyTinkFile: File? = null
-
-  @CommandLine.ArgGroup(exclusive = false) var openTelemetryOptions: OpenTelemetryOptions? = null
-  // All options here must be present or none of them must be present.
-  class OpenTelemetryOptions {
-    @CommandLine.Option(
-      names = ["--otel-exporter-otlp-endpoint"],
-      description = ["Endpoint for OpenTelemetry Collector."],
-      required = true,
-    )
-    lateinit var otelExporterOtlpEndpoint: String
-      private set
-
-    @CommandLine.Option(
-      names = ["--otel-service-name"],
-      description = ["Service name to label duchy metrics with."],
-      required = true,
-    )
-    lateinit var otelServiceName: String
-      private set
-  }
 }

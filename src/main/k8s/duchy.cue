@@ -159,7 +159,7 @@ import ("strings")
 				"\(_name)-internal-api-server", "\(_name)-computation-control-server",
 			]
 		}
-		"honest-majority-share-shuffle-mill-daemon-deployment": Deployment={
+		"honest-majority-share-shuffle-mill-daemon-deployment": {
 			_workLockDuration?: string
 			_container: args: [
 						_duchyInternalApiTargetFlag,
@@ -180,8 +180,6 @@ import ("strings")
 						if (_duchyKeyEncryptionKeyFile != _|_) {_duchyKeyEncryptionKeyFileFlag},
 						if (_millPollingInterval != _|_) {"--polling-interval=\(_millPollingInterval)"},
 						if (_workLockDuration != _|_) {"--work-lock-duration=\(_workLockDuration)"},
-						_otlpEndpoint,
-						"--otel-service-name=\(Deployment.metadata.name)",
 			] + _blob_storage_flags + _computation_control_target_flags
 			spec: template: spec: _dependencies: [
 				"\(_name)-internal-api-server", "\(_name)-computation-control-server",

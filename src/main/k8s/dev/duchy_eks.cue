@@ -67,7 +67,7 @@ _duchyCertName: "duchies/\(_duchyName)/certificates/\(_certificateId)"
 	}
 }
 #HmssMillMaxHeapSize:             "5G"
-#Llv2MillReplicas:                1
+#HmssMillReplicas:                1
 #FulfillmentResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "200m"
