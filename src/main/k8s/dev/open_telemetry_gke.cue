@@ -14,10 +14,6 @@
 
 package k8s
 
-import "encoding/yaml"
-
-#GCloudProject: string @tag("google_cloud_project")
-
 // Name of K8s service account for OpenTelemetry collector.
 #CollectorServiceAccount: "open-telemetry"
 
@@ -39,16 +35,27 @@ serviceAccounts: {
 }
 
 #OpenTelemetryCollector: {
-	spec: resources: requests: memory: "48Mi"
+	spec: {
+		resources: requests: memory: "48Mi"
+		podAnnotations: {}
+	}
 }
 
-openTelemetry: #OpenTelemetry
+openTelemetry: #OpenTelemetry & {
+	instrumentations: "java-instrumentation": {
+		spec: {
+			_envVars: {
+				OTEL_EXPORTER_OTLP_METRICS_DEFAULT_HISTOGRAM_AGGREGATION: "base2_exponential_bucket_histogram"
+			}
+		}
+	}
+}
 
 collectors: openTelemetry.collectors & {
 	"default": {
 		spec: {
 			serviceAccount: #CollectorServiceAccount
-			_config: {
+			config: {
 				processors: {
 					filter: {
 						spans: {
@@ -61,27 +68,58 @@ collectors: openTelemetry.collectors & {
 							}
 						}
 					}
+					resourcedetection: {
+						detectors: ["gcp"]
+						timeout: "10s"
+					}
+					transform: {
+						// "location", "cluster", "namespace", "job", "instance", and
+						// "project_id" are reserved, and metrics containing these labels
+						// will be rejected.  Prefix them with exported_ to prevent this.
+						metric_statements: [{
+							context: "datapoint"
+							statements: [
+								"set(attributes[\"exported_location\"], attributes[\"location\"])",
+								"delete_key(attributes, \"location\")",
+								"set(attributes[\"exported_cluster\"], attributes[\"cluster\"])",
+								"delete_key(attributes, \"cluster\")",
+								"set(attributes[\"exported_namespace\"], attributes[\"namespace\"])",
+								"delete_key(attributes, \"namespace\")",
+								"set(attributes[\"exported_job\"], attributes[\"job\"])",
+								"delete_key(attributes, \"job\")",
+								"set(attributes[\"exported_instance\"], attributes[\"instance\"])",
+								"delete_key(attributes, \"instance\")",
+								"set(attributes[\"exported_project_id\"], attributes[\"project_id\"])",
+								"delete_key(attributes, \"project_id\")",
+							]
+						}]
+					}
 				}
 
-				exporters: {...} | *{
-					googlecloud: {
-						project: "\(#GCloudProject)"
-						trace: {}
-					}
+				exporters: {
+					googlecloud: {}
 				}
 
 				service: {
 					pipelines: {
+						metrics: {
+							receivers: ["otlp"]
+							processors: [
+								"batch",
+								"memory_limiter",
+								"resourcedetection",
+								"transform",
+							]
+							exporters: ["googlecloud"]
+						}
 						traces: {
 							receivers: ["otlp"]
-							processors: ["batch", "filter"]
-							exporters: [...] | *["googlecloud"]
+							processors: ["batch", "memory_limiter", "filter"]
+							exporters: ["googlecloud"]
 						}
 					}
 				}
 			}
-
-			config: yaml.Marshal(_config)
 		}
 	}
 }

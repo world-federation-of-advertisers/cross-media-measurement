@@ -3,8 +3,6 @@ module(
     repo_name = "wfa_measurement_system",
 )
 
-OPENTELEMETRY_JAVA_VERSION = "1.32.0"
-
 PROJECTNESSIE_CEL_VERSION = "0.3.11"
 
 BORINGSSL_VERSION = "0.0.0-20230215-5c22014"
@@ -126,7 +124,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.82.2",
+    version = "0.83.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -146,12 +144,12 @@ bazel_dep(
 )
 bazel_dep(
     name = "any-sketch",
-    version = "0.8.1",
+    version = "0.9.0",
     repo_name = "any_sketch",
 )
 bazel_dep(
     name = "any-sketch-java",
-    version = "0.6.0",
+    version = "0.7.0",
     repo_name = "any_sketch_java",
 )
 bazel_dep(
@@ -209,10 +207,6 @@ maven.install(
         "com.google.crypto.tink:tink-gcpkms:1.9.0",
         "com.squareup.okhttp3:okhttp:4.12.0",
         "io.opentelemetry.semconv:opentelemetry-semconv:1.22.0-alpha",
-        "io.opentelemetry:opentelemetry-sdk:" + OPENTELEMETRY_JAVA_VERSION,
-        "io.opentelemetry:opentelemetry-sdk-common:" + OPENTELEMETRY_JAVA_VERSION,
-        "io.opentelemetry:opentelemetry-sdk-metrics:" + OPENTELEMETRY_JAVA_VERSION,
-        "io.opentelemetry:opentelemetry-exporter-otlp:" + OPENTELEMETRY_JAVA_VERSION,
         "io.kubernetes:client-java:" + K8S_CLIENT_VERSION,
         "io.kubernetes:client-java-extended:" + K8S_CLIENT_VERSION,
         "joda-time:joda-time:2.10.10",

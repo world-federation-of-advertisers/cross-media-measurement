@@ -93,7 +93,6 @@ import ("strings")
 	_debug_verbose_grpc_client_logging_flag: "--debug-verbose-grpc-client-logging=\(_verbose_grpc_logging)"
 	_debug_verbose_grpc_server_logging_flag: "--debug-verbose-grpc-server-logging=\(_verbose_grpc_logging)"
 	_computation_control_target_flags: [ for duchyId, target in _computation_control_targets {"--duchy-computation-control-target=\(duchyId)=\(target)"}]
-	_otlpEndpoint: "--otel-exporter-otlp-endpoint=\(#OpenTelemetryCollectorEndpoint)"
 
 	services: [Name=_]: #GrpcService & {
 		metadata: {
@@ -137,7 +136,7 @@ import ("strings")
 				"\(_name)-internal-api-server",
 			]
 		}
-		"liquid-legions-v2-mill-daemon-deployment": Deployment={
+		"liquid-legions-v2-mill-daemon-deployment": {
 			_workLockDuration?: string
 			_container: args: [
 						_duchyInternalApiTargetFlag,
@@ -155,8 +154,6 @@ import ("strings")
 						_kingdom_system_api_cert_host_flag,
 						if (_millPollingInterval != _|_) {"--polling-interval=\(_millPollingInterval)"},
 						if (_workLockDuration != _|_) {"--work-lock-duration=\(_workLockDuration)"},
-						_otlpEndpoint,
-						"--otel-service-name=\(Deployment.metadata.name)",
 			] + _blob_storage_flags + _computation_control_target_flags
 			spec: template: spec: _dependencies: [
 				"\(_name)-internal-api-server", "\(_name)-computation-control-server",
