@@ -836,7 +836,11 @@ class HeraldTest {
                 maximumCombinedFrequency = 20
                 ringModulus = 65535
               }
-              dpParams = differentialPrivacyParams {
+              reachDpParams = differentialPrivacyParams {
+                epsilon = 1.1
+                delta = 1.2
+              }
+              frequencyDpParams = differentialPrivacyParams {
                 epsilon = 2.1
                 delta = 2.2
               }
@@ -939,7 +943,11 @@ class HeraldTest {
                 maximumCombinedFrequency = 20
                 ringModulus = 65535
               }
-              dpParams = differentialPrivacyParams {
+              reachDpParams = differentialPrivacyParams {
+                epsilon = 1.1
+                delta = 1.2
+              }
+              frequencyDpParams = differentialPrivacyParams {
                 epsilon = 2.1
                 delta = 2.2
               }
