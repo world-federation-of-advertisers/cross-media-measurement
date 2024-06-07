@@ -59,39 +59,6 @@ class PrivacyQueryMapperTest {
     assertThat(exception).hasMessageThat().contains("not supported")
   }
 
-  fun `getHmssAcdpQuery throws IllegalArgumentException when using different privacy parameters for reach and frequency`() {
-    val referenceId = "RequisitionId1"
-
-    val measurementSpec = measurementSpec {
-      reachAndFrequency = reachAndFrequency {
-        reachPrivacyParams = differentialPrivacyParams {
-          epsilon = 0.3
-          delta = 0.01
-        }
-
-        frequencyPrivacyParams = differentialPrivacyParams {
-          epsilon = 0.4
-          delta = 0.01
-        }
-      }
-      vidSamplingInterval = vidSamplingInterval {
-        start = 0.01f
-        width = 0.02f
-      }
-    }
-
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        getHmssAcdpQuery(
-          Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
-          measurementSpec,
-          REQUISITION_SPEC.events.eventGroupsList.map { it.value },
-          HMSS_CONTRIBUTOR_COUNT,
-        )
-      }
-    assertThat(exception).hasMessageThat().contains("same")
-  }
-
   @Test
   fun `converts hmss reach and frequency measurement to AcdpQuery`() {
     val referenceId = "RequisitionId1"
@@ -334,7 +301,7 @@ class PrivacyQueryMapperTest {
     private val REACH_AND_FREQ_MEASUREMENT_SPEC = measurementSpec {
       reachAndFrequency = reachAndFrequency {
         reachPrivacyParams = differentialPrivacyParams {
-          epsilon = 0.3
+          epsilon = 0.03
           delta = 0.01
         }
 
