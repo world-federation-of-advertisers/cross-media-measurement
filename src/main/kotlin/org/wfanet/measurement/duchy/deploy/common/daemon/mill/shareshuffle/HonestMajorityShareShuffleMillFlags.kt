@@ -26,6 +26,7 @@ import org.wfanet.measurement.duchy.deploy.common.SystemApiFlags
 import picocli.CommandLine
 
 class HonestMajorityShareShuffleMillFlags {
+  // TODO(@renjie): Extract common mill flags.
   @CommandLine.Mixin
   lateinit var duchy: CommonDuchyFlags
     private set

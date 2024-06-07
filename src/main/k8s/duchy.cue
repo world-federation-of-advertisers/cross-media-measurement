@@ -39,9 +39,7 @@ import ("strings")
 	_protocols_setup_config:     _duchy.protocols_setup_config
 	_cs_cert_resource_name:      _duchy.cs_cert_resource_name
 	_duchyKeyEncryptionKeyFile?: string
-	if (_duchy.duchyKeyEncryptionKeyFile != _|_) {
-		_duchyKeyEncryptionKeyFile: _duchy.duchyKeyEncryptionKeyFile
-	}
+	_duchyKeyEncryptionKeyFile:  _duchy.duchyKeyEncryptionKeyFile
 
 	_object_prefix: "\(_name)-"
 
@@ -80,17 +78,15 @@ import ("strings")
 	_duchy_tls_key_file_flag:                           "--tls-key-file=/var/run/secrets/files/\(_name)_tls.key"
 	_duchy_cert_collection_file_flag:                   "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
 	_duchyKeyEncryptionKeyFileFlag?:                    string
-	if (_duchyKeyEncryptionKeyFile != _|_) {
-		_duchyKeyEncryptionKeyFileFlag: "--key-encryption-key-file=/var/run/secrets/files/\(_duchyKeyEncryptionKeyFile)"
-	}
-	_duchyInternalApiTargetFlag:      "--computations-service-target=" + (#Target & {name: "\(_name)-internal-api-server"}).target
-	_duchyInternalApiCertHostFlag:    "--computations-service-cert-host=localhost"
-	_duchyComputationsTimeToLiveFlag: "--computations-time-to-live=\(_computationsTimeToLive)"
-	_duchyDryRunRetentionPolicyFlag:  "--dry-run"
-	_duchyMillParallelismFlag:        "--parallelism=\(_duchyMillParallelism)"
-	_duchy_cs_cert_file_flag:         "--consent-signaling-certificate-der-file=/var/run/secrets/files/\(_name)_cs_cert.der"
-	_duchy_cs_key_file_flag:          "--consent-signaling-private-key-der-file=/var/run/secrets/files/\(_name)_cs_private.der"
-	_duchy_cs_cert_rename_name_flag:  "--consent-signaling-certificate-resource-name=\(_cs_cert_resource_name)"
+	_duchyKeyEncryptionKeyFileFlag:                     "--key-encryption-key-file=/var/run/secrets/files/\(_duchyKeyEncryptionKeyFile)"
+	_duchyInternalApiTargetFlag:                        "--computations-service-target=" + (#Target & {name: "\(_name)-internal-api-server"}).target
+	_duchyInternalApiCertHostFlag:                      "--computations-service-cert-host=localhost"
+	_duchyComputationsTimeToLiveFlag:                   "--computations-time-to-live=\(_computationsTimeToLive)"
+	_duchyDryRunRetentionPolicyFlag:                    "--dry-run"
+	_duchyMillParallelismFlag:                          "--parallelism=\(_duchyMillParallelism)"
+	_duchy_cs_cert_file_flag:                           "--consent-signaling-certificate-der-file=/var/run/secrets/files/\(_name)_cs_cert.der"
+	_duchy_cs_key_file_flag:                            "--consent-signaling-private-key-der-file=/var/run/secrets/files/\(_name)_cs_private.der"
+	_duchy_cs_cert_rename_name_flag:                    "--consent-signaling-certificate-resource-name=\(_cs_cert_resource_name)"
 	_duchyDeletableStatesFlag: [ for state in _deletableComputationStates {"--deletable-computation-state=\(state)"}]
 	_kingdom_system_api_target_flag:         "--kingdom-system-api-target=\(_kingdom_system_api_target)"
 	_kingdom_system_api_cert_host_flag:      "--kingdom-system-api-cert-host=localhost"

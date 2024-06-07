@@ -40,7 +40,7 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 #HeraldResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "25m"
-		memory: "512M"
+		memory: "512Mi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
