@@ -20,10 +20,10 @@ import ("strings")
 
 #Duchy: {
 	_duchy: {
-		name:                       string
-		protocols_setup_config:     string
-		cs_cert_resource_name:      string
-		duchyKeyEncryptionKeyFile?: string
+		name:                      string
+		protocols_setup_config:    string
+		cs_cert_resource_name:     string
+		duchyKeyEncryptionKeyFile: string
 	}
 	_duchy_secret_name: string
 	_computation_control_targets: [Name=_]: string
@@ -35,10 +35,10 @@ import ("strings")
 	_blob_storage_flags: [...string]
 	_verbose_grpc_logging: "true" | "false"
 
-	_name:                       _duchy.name
-	_protocols_setup_config:     _duchy.protocols_setup_config
-	_cs_cert_resource_name:      _duchy.cs_cert_resource_name
-	_duchyKeyEncryptionKeyFile?: _duchy.duchyKeyEncryptionKeyFile
+	_name:                      _duchy.name
+	_protocols_setup_config:    _duchy.protocols_setup_config
+	_cs_cert_resource_name:     _duchy.cs_cert_resource_name
+	_duchyKeyEncryptionKeyFile: _duchy.duchyKeyEncryptionKeyFile
 
 	_object_prefix: "\(_name)-"
 
@@ -64,7 +64,7 @@ import ("strings")
 		}
 	}
 
-	_millPollingInterval?: string
+	_millPollingInterval: string
 	_duchyInternalServerContainerArgs: [...string]
 
 	_akid_to_principal_map_file_flag:                   "--authority-key-identifier-to-principal-map-file=/etc/\(#AppName)/config-files/authority_key_identifier_to_principal_map.textproto"
@@ -76,7 +76,7 @@ import ("strings")
 	_duchy_tls_cert_file_flag:                          "--tls-cert-file=/var/run/secrets/files/\(_name)_tls.pem"
 	_duchy_tls_key_file_flag:                           "--tls-key-file=/var/run/secrets/files/\(_name)_tls.key"
 	_duchy_cert_collection_file_flag:                   "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
-	_duchyKeyEncryptionKeyFileFlag?:                    "--key-encryption-key-file=/var/run/secrets/files/\(_duchyKeyEncryptionKeyFile)"
+	_duchyKeyEncryptionKeyFileFlag:                     "--key-encryption-key-file=/var/run/secrets/files/\(_duchyKeyEncryptionKeyFile)"
 	_duchyInternalApiTargetFlag:                        "--computations-service-target=" + (#Target & {name: "\(_name)-internal-api-server"}).target
 	_duchyInternalApiCertHostFlag:                      "--computations-service-cert-host=localhost"
 	_duchyComputationsTimeToLiveFlag:                   "--computations-time-to-live=\(_computationsTimeToLive)"
