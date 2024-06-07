@@ -45,6 +45,7 @@ namespace {
 using ::wfa::crypto::SecureShuffleWithSeed;
 using ::wfa::frequency_count::PrngSeed;
 using ::wfa::math::CreatePrngFromSeed;
+using ::wfa::math::DistributedNoiser;
 using ::wfa::math::kBytesPerAes256Iv;
 using ::wfa::math::kBytesPerAes256Key;
 using ::wfa::math::UniformPseudorandomGenerator;
@@ -130,17 +131,20 @@ CompleteReachAndFrequencyShufflePhase(
                    CreatePrngFromSeed(seed));
 
   // Adds noise registers to the combined input share.
-  if (request.has_dp_params()) {
-    // Initializes the noiser, which will generate blind histogram noise to hide
-    // the actual frequency histogram counts.
-    auto noiser = GetBlindHistogramNoiser(request.dp_params(),
-                                          /*contributors_count=*/2,
-                                          request.noise_mechanism());
-
+  if (request.has_reach_dp_params() && request.has_frequency_dp_params()) {
+    // Initializes the reach noiser, which will generate reach noise.
+    std::unique_ptr<DistributedNoiser> reach_noiser = GetBlindHistogramNoiser(
+        request.reach_dp_params(), kWorkerCount, request.noise_mechanism());
+    // Initializes the frequency noiser, which will generate noise to hide the
+    // actual frequency histogram counts for frequency 1+.
+    std::unique_ptr<DistributedNoiser> frequency_noiser =
+        GetBlindHistogramNoiser(request.frequency_dp_params(), kWorkerCount,
+                                request.noise_mechanism());
     // Generates local noise registers.
-    ASSIGN_OR_RETURN(std::vector<uint32_t> noise_registers,
-                     GenerateReachAndFrequencyNoiseRegisters(
-                         request.sketch_params(), *noiser));
+    ASSIGN_OR_RETURN(
+        std::vector<uint32_t> noise_registers,
+        GenerateReachAndFrequencyNoiseRegisters(
+            request.sketch_params(), *reach_noiser, *frequency_noiser));
 
     // Both workers generate common random vectors from the common random seed.
     // rand_vec_1 || rand_vec_2 <-- PRNG(seed).
@@ -239,7 +243,6 @@ absl::StatusOr<CompleteShufflePhaseResponse> CompleteReachOnlyShufflePhase(
                      VectorAddMod(combined_sketch, share_vector,
                                   request.sketch_params().ring_modulus()));
   }
-
   ASSIGN_OR_RETURN(PrngSeed seed,
                    GetPrngSeedFromString(request.common_random_seed()));
   // Initializes the pseudo-random generator with the common random seed.
@@ -260,17 +263,15 @@ absl::StatusOr<CompleteShufflePhaseResponse> CompleteReachOnlyShufflePhase(
   }
 
   // Adds noise registers to the combined input share.
-  if (request.has_dp_params()) {
-    // Initializes the noiser, which will generate blind histogram noise to hide
-    // the actual frequency histogram counts.
-    auto noiser = GetBlindHistogramNoiser(request.dp_params(),
-                                          /*contributors_count=*/2,
-                                          request.noise_mechanism());
+  if (request.has_reach_dp_params()) {
+    // Initializes the reach noiser, which will generate reach noise.
+    std::unique_ptr<DistributedNoiser> reach_noiser = GetBlindHistogramNoiser(
+        request.reach_dp_params(), kWorkerCount, request.noise_mechanism());
 
     // Generates local noise registers.
-    ASSIGN_OR_RETURN(
-        std::vector<uint32_t> noise_registers,
-        GenerateReachOnlyNoiseRegisters(request.sketch_params(), *noiser));
+    ASSIGN_OR_RETURN(std::vector<uint32_t> noise_registers,
+                     GenerateReachOnlyNoiseRegisters(request.sketch_params(),
+                                                     *reach_noiser));
 
     // Both workers generate common random vectors from the common random seed.
     // rand_vec_1 || rand_vec_2 <-- PRNG(seed).
@@ -339,7 +340,9 @@ CompleteReachAndFrequencyAggregationPhase(
     const CompleteAggregationPhaseRequest& request) {
   StartedThreadCpuTimer timer;
   CompleteAggregationPhaseResponse response;
+
   RETURN_IF_ERROR(VerifySketchParameters(request.sketch_params()));
+
   if (request.sketch_shares().size() != kWorkerCount) {
     return absl::InvalidArgumentError(
         "The number of share vectors must be equal to the number of "
@@ -380,22 +383,34 @@ CompleteReachAndFrequencyAggregationPhase(
   // the input sketch size. Another way to compute it is to add up all
   // frequencies from 1 to the maximum combined frequency. However, the latter
   // approach will have a lot more noise.
-  int64_t non_empty_register_count = register_count - frequency_histogram[0];
+  int64_t non_empty_register_count =
+      (frequency_histogram.find(0) == frequency_histogram.end())
+          ? register_count
+          : register_count - frequency_histogram[0];
 
   // Adjusts the frequency histogram and non empty register count according the
   // noise baseline for the frequencies from 0 to {maximum_frequency - 1}.
-  if (request.has_dp_params()) {
-    auto noiser = GetBlindHistogramNoiser(request.dp_params(), kWorkerCount,
-                                          request.noise_mechanism());
-    int64_t noise_baseline_per_bucket =
-        noiser->options().shift_offset * kWorkerCount;
+  if (request.has_reach_dp_params() && request.has_frequency_dp_params()) {
+    std::unique_ptr<DistributedNoiser> reach_noiser = GetBlindHistogramNoiser(
+        request.reach_dp_params(), kWorkerCount, request.noise_mechanism());
+    std::unique_ptr<DistributedNoiser> frequency_noiser =
+        GetBlindHistogramNoiser(request.frequency_dp_params(), kWorkerCount,
+                                request.noise_mechanism());
+    int64_t reach_noise_baseline =
+        reach_noiser->options().shift_offset * kWorkerCount;
+    int64_t noise_baseline_per_frequency =
+        frequency_noiser->options().shift_offset * kWorkerCount;
     // Removes the noise baseline from the frequency histogram.
     for (auto it = frequency_histogram.begin(); it != frequency_histogram.end();
          it++) {
-      it->second = std::max(0L, it->second - noise_baseline_per_bucket);
+      if (it->first == 0) {
+        it->second = std::max(0L, it->second - reach_noise_baseline);
+      } else {
+        it->second = std::max(0L, it->second - noise_baseline_per_frequency);
+      }
     }
     // Adjusts the non empty register count.
-    non_empty_register_count += noise_baseline_per_bucket;
+    non_empty_register_count += reach_noise_baseline;
 
     // Ensures that non_empty_register_count is at least 0.
     non_empty_register_count = std::max(0L, non_empty_register_count);
@@ -491,13 +506,14 @@ CompleteReachOnlyAggregationPhase(
   }
 
   // Adjusts the non empty register count according the noise baseline.
-  if (request.has_dp_params()) {
-    auto noiser = GetBlindHistogramNoiser(request.dp_params(), kWorkerCount,
-                                          request.noise_mechanism());
-    int64_t noise_baseline = noiser->options().shift_offset * kWorkerCount;
+  if (request.has_reach_dp_params()) {
+    std::unique_ptr<DistributedNoiser> reach_noiser = GetBlindHistogramNoiser(
+        request.reach_dp_params(), kWorkerCount, request.noise_mechanism());
+    int64_t reach_noise_baseline =
+        reach_noiser->options().shift_offset * kWorkerCount;
 
     // Removes the noise baseline from the non empty register count.
-    non_empty_register_count -= noise_baseline;
+    non_empty_register_count -= reach_noise_baseline;
 
     // Ensures that non_empty_register_count is at least 0.
     non_empty_register_count = std::max(0L, non_empty_register_count);

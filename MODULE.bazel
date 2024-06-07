@@ -149,7 +149,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "any-sketch-java",
-    version = "0.6.0",
+    version = "0.7.0",
     repo_name = "any_sketch_java",
 )
 bazel_dep(
