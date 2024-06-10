@@ -376,7 +376,7 @@ object VariancesImpl : Variances {
       NoiseMechanism.GAUSSIAN -> {
         // By passing 1 to contributorCount, the function called below outputs the total distributed
         // sigma of the noiser as sigmaDistributed = sigma / sqrt(contributorCount).
-        AcdpParamsConverter.computeLlv2SigmaDistributedDiscreteGaussian(
+        AcdpParamsConverter.computeMpcSigmaDistributedDiscreteGaussian(
             dpParams,
             contributorCount = 1,
           )
@@ -394,7 +394,10 @@ object VariancesImpl : Variances {
       ) -> Double,
     frequencyCountVarianceFun:
       (
-        totalReach: Long, totalReachVariance: Double, reachRatio: Double, reachRatioVariance: Double,
+        totalReach: Long,
+        totalReachVariance: Double,
+        reachRatio: Double,
+        reachRatioVariance: Double,
       ) -> Double,
   ): FrequencyVariances {
     require(params.totalReach >= 0.0) { "The total reach value cannot be negative." }
@@ -475,7 +478,10 @@ object VariancesImpl : Variances {
     kPlusRelativeVariances: Map<Int, Double>,
     frequencyCountVarianceFun:
       (
-        totalReach: Long, totalReachVariance: Double, reachRatio: Double, reachRatioVariance: Double,
+        totalReach: Long,
+        totalReachVariance: Double,
+        reachRatio: Double,
+        reachRatioVariance: Double,
       ) -> Double,
   ): FrequencyVariances {
     require(params.totalReach >= 0.0) { "The total reach value cannot be negative." }

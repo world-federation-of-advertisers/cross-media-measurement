@@ -152,8 +152,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getDirectAcdpQuery
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getHmssAcdpQuery
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getLiquidLegionsV2AcdpQuery
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getMpcAcdpQuery
 import org.wfanet.measurement.loadtest.common.sampleVids
 import org.wfanet.measurement.loadtest.config.TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
 import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults.computeImpression
@@ -952,16 +951,14 @@ class EdpSimulator(
     }
   }
 
-  private suspend fun chargeLiquidLegionsV2PrivacyBudget(
+  private suspend fun chargeMpcPrivacyBudget(
     requisitionName: String,
     measurementSpec: MeasurementSpec,
     eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>,
     noiseMechanism: NoiseMechanism,
     contributorCount: Int,
   ) {
-    logger.info(
-      "chargeLiquidLegionsV2PrivacyBudget for requisition with $noiseMechanism noise mechanism..."
-    )
+    logger.info("chargeMpcPrivacyBudget for requisition with $noiseMechanism noise mechanism...")
 
     try {
       if (noiseMechanism != NoiseMechanism.DISCRETE_GAUSSIAN) {
@@ -971,7 +968,7 @@ class EdpSimulator(
       }
 
       privacyBudgetManager.chargePrivacyBudgetInAcdp(
-        getLiquidLegionsV2AcdpQuery(
+        getMpcAcdpQuery(
           Reference(measurementConsumerName, requisitionName, false),
           measurementSpec,
           eventSpecs,
@@ -981,64 +978,9 @@ class EdpSimulator(
     } catch (e: PrivacyBudgetManagerException) {
       logger.log(
         Level.WARNING,
-        "chargeLiquidLegionsV2PrivacyBudget failed due to ${e.errorType}",
+        "chargeMpcPrivacyBudget failed due to ${e.errorType}",
         e,
       )
-      when (e.errorType) {
-        PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED -> {
-          throw RequisitionRefusalException(
-            Requisition.Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET,
-            "Privacy budget exceeded",
-          )
-        }
-        PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER -> {
-          throw RequisitionRefusalException(
-            Requisition.Refusal.Justification.SPEC_INVALID,
-            "Invalid event filter",
-          )
-        }
-        PrivacyBudgetManagerExceptionType.INCORRECT_NOISE_MECHANISM -> {
-          throw RequisitionRefusalException(
-            Requisition.Refusal.Justification.SPEC_INVALID,
-            "Incorrect noise mechanism. Should be DISCRETE_GAUSSIAN for ACDP composition but is $noiseMechanism",
-          )
-        }
-        PrivacyBudgetManagerExceptionType.DATABASE_UPDATE_ERROR,
-        PrivacyBudgetManagerExceptionType.UPDATE_AFTER_COMMIT,
-        PrivacyBudgetManagerExceptionType.NESTED_TRANSACTION,
-        PrivacyBudgetManagerExceptionType.BACKING_STORE_CLOSED -> {
-          throw Exception("Unexpected PBM error", e)
-        }
-      }
-    }
-  }
-
-  private suspend fun chargeHmssPrivacyBudget(
-    requisitionName: String,
-    measurementSpec: MeasurementSpec,
-    eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>,
-    noiseMechanism: NoiseMechanism,
-    contributorCount: Int,
-  ) {
-    logger.info("chargeHmssPrivacyBudget for requisition with $noiseMechanism noise mechanism...")
-
-    try {
-      if (noiseMechanism != NoiseMechanism.DISCRETE_GAUSSIAN) {
-        throw PrivacyBudgetManagerException(
-          PrivacyBudgetManagerExceptionType.INCORRECT_NOISE_MECHANISM
-        )
-      }
-
-      privacyBudgetManager.chargePrivacyBudgetInAcdp(
-        getHmssAcdpQuery(
-          Reference(measurementConsumerName, requisitionName, false),
-          measurementSpec,
-          eventSpecs,
-          contributorCount,
-        )
-      )
-    } catch (e: PrivacyBudgetManagerException) {
-      logger.log(Level.WARNING, "chargeHmssPrivacyBudget failed due to ${e.errorType}", e)
       when (e.errorType) {
         PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED -> {
           throw RequisitionRefusalException(
@@ -1224,7 +1166,7 @@ class EdpSimulator(
     val liquidLegionsV2: ProtocolConfig.LiquidLegionsV2 = llv2Protocol.liquidLegionsV2
     val combinedPublicKey = requisition.getCombinedPublicKey(liquidLegionsV2.ellipticCurveId)
 
-    chargeLiquidLegionsV2PrivacyBudget(
+    chargeMpcPrivacyBudget(
       requisition.name,
       measurementSpec,
       eventGroupSpecs.map { it.spec },
@@ -1284,7 +1226,7 @@ class EdpSimulator(
     val combinedPublicKey: AnySketchElGamalPublicKey =
       requisition.getCombinedPublicKey(protocolConfig.ellipticCurveId)
 
-    chargeLiquidLegionsV2PrivacyBudget(
+    chargeMpcPrivacyBudget(
       requisition.name,
       measurementSpec,
       eventGroupSpecs.map { it.spec },
@@ -1428,7 +1370,7 @@ class EdpSimulator(
         }
         .honestMajorityShareShuffle
 
-    chargeHmssPrivacyBudget(
+    chargeMpcPrivacyBudget(
       requisition.name,
       measurementSpec,
       eventGroupSpecs.map { it.spec },
