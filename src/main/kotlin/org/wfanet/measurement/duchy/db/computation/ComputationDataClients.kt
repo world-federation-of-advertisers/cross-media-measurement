@@ -127,7 +127,15 @@ private constructor(
     }
 
     val blob =
-      computationStore.write(ComputationBlobContext.fromToken(computationToken, metadata), content)
+      try {
+        computationStore.write(
+          ComputationBlobContext.fromToken(computationToken, metadata),
+          content,
+        )
+      } catch (e: Exception) {
+        throw TransientErrorException("Error writing blob.", e)
+      }
+
     val response: RecordOutputBlobPathResponse =
       try {
         computationsClient.recordOutputBlobPath(
