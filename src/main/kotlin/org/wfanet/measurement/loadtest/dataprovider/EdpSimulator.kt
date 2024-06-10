@@ -976,11 +976,7 @@ class EdpSimulator(
         )
       )
     } catch (e: PrivacyBudgetManagerException) {
-      logger.log(
-        Level.WARNING,
-        "chargeMpcPrivacyBudget failed due to ${e.errorType}",
-        e,
-      )
+      logger.log(Level.WARNING, "chargeMpcPrivacyBudget failed due to ${e.errorType}", e)
       when (e.errorType) {
         PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED -> {
           throw RequisitionRefusalException(
