@@ -50,14 +50,14 @@ class PrivacyQueryMapperTest {
         REACH_MEASUREMENT_SPEC.reach.privacyParams.epsilon,
         REACH_MEASUREMENT_SPEC.reach.privacyParams.delta,
       )
-    val expectedAcdpCharge = AcdpParamsConverter.getLlv2AcdpCharge(dpParams, CONTRIBUTOR_COUNT)
+    val expectedAcdpCharge = AcdpParamsConverter.getLlv2AcdpCharge(dpParams, HMSS_CONTRIBUTOR_COUNT)
 
     assertThat(
         getHmssAcdpQuery(
           Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
           REACH_MEASUREMENT_SPEC,
           REQUISITION_SPEC.events.eventGroupsList.map { it.value },
-          CONTRIBUTOR_COUNT,
+          HMSS_CONTRIBUTOR_COUNT,
         )
       )
       .isEqualTo(
@@ -79,14 +79,14 @@ class PrivacyQueryMapperTest {
         REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.reachPrivacyParams.delta +
           REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.frequencyPrivacyParams.delta,
       )
-    val expectedAcdpCharge = AcdpParamsConverter.getLlv2AcdpCharge(dpParams, CONTRIBUTOR_COUNT)
+    val expectedAcdpCharge = AcdpParamsConverter.getLlv2AcdpCharge(dpParams, HMSS_CONTRIBUTOR_COUNT)
 
     assertThat(
         getHmssAcdpQuery(
           Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
           REACH_AND_FREQ_MEASUREMENT_SPEC,
           REQUISITION_SPEC.events.eventGroupsList.map { it.value },
-          CONTRIBUTOR_COUNT,
+          HMSS_CONTRIBUTOR_COUNT,
         )
       )
       .isEqualTo(
