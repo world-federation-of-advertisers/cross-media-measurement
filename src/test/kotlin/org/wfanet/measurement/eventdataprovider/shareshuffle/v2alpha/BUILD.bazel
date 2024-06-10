@@ -15,7 +15,6 @@ kt_jvm_test(
     ],
 )
 
-
 kt_jvm_library(
     name = "fulfill_requisition_request_builder_test",
     testonly = True,
