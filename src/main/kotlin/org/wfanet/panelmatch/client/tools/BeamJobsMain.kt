@@ -37,6 +37,7 @@ import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.panelmatch.client.common.ExchangeContext
+import org.wfanet.panelmatch.client.common.ExchangeStepAttemptKey
 import org.wfanet.panelmatch.client.common.TaskParameters
 import org.wfanet.panelmatch.client.deploy.ProductionExchangeTaskMapper
 import org.wfanet.panelmatch.client.eventpreprocessing.PreprocessingParameters
@@ -204,8 +205,16 @@ class BeamJobsMain : Runnable {
       "The only step type currently supported is DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP"
     }
 
-    val attemptKey =
+    val resourceKey =
       requireNotNull(CanonicalExchangeStepAttemptKey.fromName(exchangeStepAttemptResourceId))
+    val attemptKey =
+      ExchangeStepAttemptKey(
+        recurringExchangeId = resourceKey.recurringExchangeId,
+        exchangeId = resourceKey.exchangeId,
+        stepId = resourceKey.exchangeStepId,
+        attemptId = resourceKey.exchangeStepAttemptId,
+        simpleName = resourceKey.toName(),
+      )
 
     val exchangeContext =
       ExchangeContext(attemptKey, LocalDate.parse(exchangeDate), exchangeWorkflow, step)
