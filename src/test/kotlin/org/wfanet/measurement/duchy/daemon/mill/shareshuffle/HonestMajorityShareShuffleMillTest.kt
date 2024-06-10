@@ -192,18 +192,41 @@ private val AEAD_KEY_TEMPLATE = KeyTemplates.get("AES128_GCM")
 private val KEY_ENCRYPTION_KEY = KeysetHandle.generateNew(AEAD_KEY_TEMPLATE)
 private val AEAD = KEY_ENCRYPTION_KEY.getPrimitive(Aead::class.java)
 
-private val TEST_REQUISITION_1 = TestRequisition("111") { SERIALIZED_MEASUREMENT_SPEC }
-private val TEST_REQUISITION_2 = TestRequisition("222") { SERIALIZED_MEASUREMENT_SPEC }
-private val TEST_REQUISITION_3 = TestRequisition("333") { SERIALIZED_MEASUREMENT_SPEC }
+private val TEST_REQUISITION_1 =
+  TestRequisition("111") { SERIALIZED_REACH_AND_FREQUENCY_MEASUREMENT_SPEC }
+private val TEST_REQUISITION_2 =
+  TestRequisition("222") { SERIALIZED_REACH_AND_FREQUENCY_MEASUREMENT_SPEC }
+private val TEST_REQUISITION_3 =
+  TestRequisition("333") { SERIALIZED_REACH_AND_FREQUENCY_MEASUREMENT_SPEC }
 
-private val MEASUREMENT_SPEC = measurementSpec {
+private val TEST_REACH_ONLY_REQUISITION_1 =
+  TestRequisition("111") { SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC }
+private val TEST_REACH_ONLY_REQUISITION_2 =
+  TestRequisition("222") { SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC }
+private val TEST_REACH_ONLY_REQUISITION_3 =
+  TestRequisition("333") { SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC }
+
+private val REACH_AND_FREQUENCY_MEASUREMENT_SPEC = measurementSpec {
   nonceHashes += TEST_REQUISITION_1.nonceHash
   nonceHashes += TEST_REQUISITION_2.nonceHash
   nonceHashes += TEST_REQUISITION_3.nonceHash
   reachAndFrequency = MeasurementSpec.ReachAndFrequency.getDefaultInstance()
   vidSamplingInterval = MeasurementSpecKt.vidSamplingInterval { width = 0.5f }
 }
-private val SERIALIZED_MEASUREMENT_SPEC: ByteString = MEASUREMENT_SPEC.toByteString()
+
+private val REACH_ONLY_MEASUREMENT_SPEC = measurementSpec {
+  nonceHashes += TEST_REACH_ONLY_REQUISITION_1.nonceHash
+  nonceHashes += TEST_REACH_ONLY_REQUISITION_2.nonceHash
+  nonceHashes += TEST_REACH_ONLY_REQUISITION_3.nonceHash
+  reach = MeasurementSpec.Reach.getDefaultInstance()
+  vidSamplingInterval = MeasurementSpecKt.vidSamplingInterval { width = 0.5f }
+}
+
+private val SERIALIZED_REACH_AND_FREQUENCY_MEASUREMENT_SPEC: ByteString =
+  REACH_AND_FREQUENCY_MEASUREMENT_SPEC.toByteString()
+
+private val SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC: ByteString =
+  REACH_ONLY_MEASUREMENT_SPEC.toByteString()
 
 private val REQUISITION_1 =
   TEST_REQUISITION_1.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_ONE_ID).copy {
@@ -237,7 +260,46 @@ private val REQUISITION_3 =
       }
     path = RequisitionBlobContext(GLOBAL_ID, externalKey.externalRequisitionId).blobKey
   }
+
 private val REQUISITIONS = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3)
+
+private val REACH_ONLY_REQUISITION_1 =
+  TEST_REACH_ONLY_REQUISITION_1.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_ONE_ID)
+    .copy {
+      details =
+        details.copy {
+          protocol =
+            RequisitionDetailsKt.requisitionProtocol {
+              honestMajorityShareShuffle = honestMajorityShareShuffle {
+                secretSeedCiphertext = "secret_seed_1".toByteStringUtf8()
+                registerCount = 100
+                dataProviderCertificate = "DataProviders/1/Certificates/1"
+              }
+            }
+        }
+      path = RequisitionBlobContext(GLOBAL_ID, externalKey.externalRequisitionId).blobKey
+    }
+private val REACH_ONLY_REQUISITION_2 =
+  TEST_REACH_ONLY_REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED, DUCHY_TWO_ID)
+private val REACH_ONLY_REQUISITION_3 =
+  TEST_REACH_ONLY_REQUISITION_3.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_ONE_ID)
+    .copy {
+      details =
+        details.copy {
+          protocol =
+            RequisitionDetailsKt.requisitionProtocol {
+              honestMajorityShareShuffle = honestMajorityShareShuffle {
+                registerCount = 100
+                dataProviderCertificate = "DataProviders/3/Certificates/2"
+                secretSeedCiphertext = "secret_seed_3".toByteStringUtf8()
+              }
+            }
+        }
+      path = RequisitionBlobContext(GLOBAL_ID, externalKey.externalRequisitionId).blobKey
+    }
+
+private val REACH_ONLY_REQUISITIONS =
+  listOf(REACH_ONLY_REQUISITION_1, REACH_ONLY_REQUISITION_2, REACH_ONLY_REQUISITION_3)
 
 private val HMSS_PARAMETERS =
   HonestMajorityShareShuffleKt.ComputationDetailsKt.parameters {
@@ -252,6 +314,20 @@ private val HMSS_PARAMETERS =
     }
     frequencyDpParams = differentialPrivacyParams {
       epsilon = 2.1
+      delta = 0.1
+    }
+    noiseMechanism = NoiseMechanism.DISCRETE_GAUSSIAN
+  }
+
+private val REACH_ONLY_HMSS_PARAMETERS =
+  HonestMajorityShareShuffleKt.ComputationDetailsKt.parameters {
+    sketchParams = shareShuffleSketchParams {
+      bytesPerRegister = 4
+      maximumCombinedFrequency = 11
+      ringModulus = 13
+    }
+    reachDpParams = differentialPrivacyParams {
+      epsilon = 1.1
       delta = 0.1
     }
     noiseMechanism = NoiseMechanism.DISCRETE_GAUSSIAN
@@ -386,13 +462,15 @@ class HonestMajorityShareShuffleMillTest {
     )
   }
 
-  private suspend fun getHmssComputationDetails(role: RoleInComputation): ComputationDetails {
+  private suspend fun getReachAndFrequencyComputationDetails(
+    role: RoleInComputation
+  ): ComputationDetails {
     return computationDetails {
       kingdomComputation =
         ComputationDetailsKt.kingdomComputationDetails {
           publicApiVersion = PUBLIC_API_VERSION
           measurementPublicKey = MEASUREMENT_ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
-          measurementSpec = SERIALIZED_MEASUREMENT_SPEC
+          measurementSpec = SERIALIZED_REACH_AND_FREQUENCY_MEASUREMENT_SPEC
           participantCount = 3
         }
       honestMajorityShareShuffle =
@@ -421,9 +499,47 @@ class HonestMajorityShareShuffleMillTest {
     }
   }
 
+  private suspend fun getReachOnlyHmssComputationDetails(
+    role: RoleInComputation
+  ): ComputationDetails {
+    return computationDetails {
+      kingdomComputation =
+        ComputationDetailsKt.kingdomComputationDetails {
+          publicApiVersion = PUBLIC_API_VERSION
+          measurementPublicKey = MEASUREMENT_ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
+          measurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC
+          participantCount = 3
+        }
+      honestMajorityShareShuffle =
+        HonestMajorityShareShuffleKt.computationDetails {
+          this.role = role
+          parameters = REACH_ONLY_HMSS_PARAMETERS
+          nonAggregators += listOf(DUCHY_ONE_ID, DUCHY_TWO_ID)
+
+          if (
+            role == RoleInComputation.FIRST_NON_AGGREGATOR ||
+              role == RoleInComputation.SECOND_NON_AGGREGATOR
+          ) {
+            randomSeed = RANDOM.generateSeed(RANDOM_SEED_LENGTH_IN_BYTES).toByteString()
+
+            val privateKeyHandle = TinkPrivateKeyHandle.generateHpke()
+            val privateKeyId = privateKeyStore.write(privateKeyHandle)
+            encryptionKeyPair = encryptionKeyPair {
+              this.privateKeyId = privateKeyId
+              publicKey = encryptionPublicKey {
+                format = EncryptionPublicKey.Format.TINK_KEYSET
+                data = privateKeyHandle.publicKey.toByteString()
+              }
+            }
+          }
+        }
+    }
+  }
+
   @Test
   fun `initializationPhase sends params to Kingdom and advance stage`() = runBlocking {
-    val computationDetails = getHmssComputationDetails(RoleInComputation.FIRST_NON_AGGREGATOR)
+    val computationDetails =
+      getReachAndFrequencyComputationDetails(RoleInComputation.FIRST_NON_AGGREGATOR)
     fakeComputationDb.addComputation(
       LOCAL_ID,
       Stage.INITIALIZED.toProtocolStage(),
@@ -478,7 +594,8 @@ class HonestMajorityShareShuffleMillTest {
   @Test
   fun `The first non-aggregator setupPhase successfully sends seeds to the peer worker`() =
     runBlocking {
-      val computationDetails = getHmssComputationDetails(RoleInComputation.FIRST_NON_AGGREGATOR)
+      val computationDetails =
+        getReachAndFrequencyComputationDetails(RoleInComputation.FIRST_NON_AGGREGATOR)
       fakeComputationDb.addComputation(
         LOCAL_ID,
         Stage.SETUP_PHASE.toProtocolStage(),
@@ -567,7 +684,8 @@ class HonestMajorityShareShuffleMillTest {
 
       val requisitions =
         listOf(unfulfilledRequisition1, fulfilledRequisition2, unfulfilledRequisition3)
-      val computationDetails = getHmssComputationDetails(RoleInComputation.SECOND_NON_AGGREGATOR)
+      val computationDetails =
+        getReachAndFrequencyComputationDetails(RoleInComputation.SECOND_NON_AGGREGATOR)
       fakeComputationDb.addComputation(
         LOCAL_ID,
         Stage.SETUP_PHASE.toProtocolStage(),
@@ -622,8 +740,9 @@ class HonestMajorityShareShuffleMillTest {
     }
 
   @Test
-  fun `shufflePhase successfully returns results`() = runBlocking {
-    val computationDetails = getHmssComputationDetails(RoleInComputation.FIRST_NON_AGGREGATOR)
+  fun `reachAndFrequencyShufflePhase successfully returns results`() = runBlocking {
+    val computationDetails =
+      getReachAndFrequencyComputationDetails(RoleInComputation.FIRST_NON_AGGREGATOR)
 
     val inputBlobPath = ComputationBlobContext(GLOBAL_ID, Stage.SHUFFLE_PHASE.toProtocolStage(), 0L)
     val peerRandomSeed = RANDOM.generateSeed(RANDOM_SEED_LENGTH_IN_BYTES).toByteString()
@@ -731,7 +850,8 @@ class HonestMajorityShareShuffleMillTest {
 
   @Test
   fun `shufflePhase throw exception when fail to get data provider certificate`() = runBlocking {
-    val computationDetails = getHmssComputationDetails(RoleInComputation.FIRST_NON_AGGREGATOR)
+    val computationDetails =
+      getReachAndFrequencyComputationDetails(RoleInComputation.FIRST_NON_AGGREGATOR)
 
     val inputBlobPath = ComputationBlobContext(GLOBAL_ID, Stage.SHUFFLE_PHASE.toProtocolStage(), 0L)
     val peerRandomSeed = RANDOM.generateSeed(RANDOM_SEED_LENGTH_IN_BYTES).toByteString()
@@ -804,8 +924,8 @@ class HonestMajorityShareShuffleMillTest {
   }
 
   @Test
-  fun `aggregationPhase successfully returns results`() = runBlocking {
-    val computationDetails = getHmssComputationDetails(RoleInComputation.AGGREGATOR)
+  fun `reachAndFrequencyAggregationPhase successfully returns results`() = runBlocking {
+    val computationDetails = getReachAndFrequencyComputationDetails(RoleInComputation.AGGREGATOR)
     val inputBlobPath1 =
       ComputationBlobContext(GLOBAL_ID, Stage.AGGREGATION_PHASE.toProtocolStage(), 0L)
     val inputBlobData1 = aggregationPhaseInput { combinedSketch += listOf(1, 2, 3) }.toByteString()
@@ -885,9 +1005,213 @@ class HonestMajorityShareShuffleMillTest {
           val hmss = computationDetails.honestMajorityShareShuffle
           sketchParams = hmss.parameters.sketchParams
           maximumFrequency = hmss.parameters.maximumFrequency
-          vidSamplingIntervalWidth = MEASUREMENT_SPEC.vidSamplingInterval.width
+          vidSamplingIntervalWidth = REACH_AND_FREQUENCY_MEASUREMENT_SPEC.vidSamplingInterval.width
           reachDpParams = hmss.parameters.reachDpParams
           frequencyDpParams = hmss.parameters.frequencyDpParams
+          noiseMechanism = hmss.parameters.noiseMechanism
+
+          sketchShares +=
+            CompleteAggregationPhaseRequestKt.shareData { shareVector += listOf(1, 2, 3) }
+          sketchShares +=
+            CompleteAggregationPhaseRequestKt.shareData { shareVector += listOf(4, 5, 6) }
+        }
+      )
+  }
+
+  @Test
+  fun `reachOnlyShufflePhase successfully returns results`() = runBlocking {
+    val computationDetails =
+      getReachOnlyHmssComputationDetails(RoleInComputation.FIRST_NON_AGGREGATOR)
+
+    val inputBlobPath = ComputationBlobContext(GLOBAL_ID, Stage.SHUFFLE_PHASE.toProtocolStage(), 0L)
+    val peerRandomSeed = RANDOM.generateSeed(RANDOM_SEED_LENGTH_IN_BYTES).toByteString()
+    val requisitionSeed = randomSeed {
+      RANDOM.generateSeed(RANDOM_SEED_LENGTH_IN_BYTES).toByteString()
+    }
+    val requisitionSignedSeed = signRandomSeed(requisitionSeed, DATA_PROVIDER_SIGNING_KEY)
+    val duchyPublicKey =
+      computationDetails.honestMajorityShareShuffle.encryptionKeyPair.publicKey
+        .toV2AlphaEncryptionPublicKey()
+    val requisitionEncryptedSeed = encryptRandomSeed(requisitionSignedSeed, duchyPublicKey)
+
+    val inputBlobData =
+      shufflePhaseInput {
+          this.peerRandomSeed = peerRandomSeed
+          secretSeeds += secretSeed {
+            requisitionId = REACH_ONLY_REQUISITION_2.externalKey.externalRequisitionId
+            secretSeedCiphertext = requisitionEncryptedSeed.ciphertext
+            registerCount = 100
+            dataProviderCertificate = "DataProviders/2/Certificates/2"
+          }
+        }
+        .toByteString()
+    val inputBlobs =
+      listOf(
+        computationStageBlobMetadata {
+          dependencyType = ComputationBlobDependency.INPUT
+          blobId = 0L
+          path = inputBlobPath.blobKey
+        }
+      )
+    computationStore.write(inputBlobPath, inputBlobData)
+
+    val requisitionBlobContext1 =
+      RequisitionBlobContext(GLOBAL_ID, REACH_ONLY_REQUISITION_1.externalKey.externalRequisitionId)
+    val requisitionBlobContext3 =
+      RequisitionBlobContext(GLOBAL_ID, REACH_ONLY_REQUISITION_3.externalKey.externalRequisitionId)
+    // TODO(@renjiez): Use ShareShuffleSketch from any-sketch-java when it is available..
+    val requisitionData1 = shareShuffleSketch { data += listOf(1, 2, 3) }.toByteString()
+    val requisitionData3 = shareShuffleSketch { data += listOf(4, 5, 6) }.toByteString()
+    requisitionStore.write(requisitionBlobContext1, requisitionData1)
+    requisitionStore.write(requisitionBlobContext3, requisitionData3)
+
+    fakeComputationDb.addComputation(
+      LOCAL_ID,
+      Stage.SHUFFLE_PHASE.toProtocolStage(),
+      blobs = inputBlobs,
+      computationDetails = computationDetails,
+      requisitions = REACH_ONLY_REQUISITIONS,
+    )
+
+    var cryptoRequest = CompleteShufflePhaseRequest.getDefaultInstance()
+    whenever(mockCryptoWorker.completeReachOnlyShufflePhase(any())).thenAnswer {
+      cryptoRequest = it.getArgument(0)
+      completeShufflePhaseResponse { combinedSketch += listOf(1, 2, 3) }
+    }
+    whenever(mockCertificates.getCertificate(any())).thenAnswer {
+      certificate {
+        name =
+          REACH_ONLY_REQUISITION_2.details.protocol.honestMajorityShareShuffle
+            .dataProviderCertificate
+        x509Der = DATA_PROVIDER_CERT_DER
+        this.subjectKeyIdentifier = DATA_PROVIDER_SIGNING_CERT.subjectKeyIdentifier!!
+      }
+    }
+
+    val mill = createHmssMill(DUCHY_ONE_ID)
+    mill.pollAndProcessNextComputation()
+
+    assertThat(fakeComputationDb[LOCAL_ID])
+      .isEqualTo(
+        computationToken {
+          globalComputationId = GLOBAL_ID
+          localComputationId = LOCAL_ID
+          computationStage = Stage.COMPLETE.toProtocolStage()
+          attempt = 1
+          version = 2
+          this.computationDetails =
+            computationDetails.copy { endingState = ComputationDetails.CompletedReason.SUCCEEDED }
+          requisitions += REACH_ONLY_REQUISITIONS
+        }
+      )
+
+    assertThat(cryptoRequest)
+      .ignoringFields(CompleteShufflePhaseRequest.COMMON_RANDOM_SEED_FIELD_NUMBER)
+      .isEqualTo(
+        completeShufflePhaseRequest {
+          val hmss = computationDetails.honestMajorityShareShuffle
+          sketchParams = hmss.parameters.sketchParams.copy { registerCount = 100 }
+          reachDpParams = hmss.parameters.reachDpParams
+          noiseMechanism = hmss.parameters.noiseMechanism
+          order = CompleteShufflePhaseRequest.NonAggregatorOrder.FIRST
+
+          sketchShares += sketchShare {
+            data =
+              CompleteShufflePhaseRequestKt.SketchShareKt.shareData { values += listOf(1, 2, 3) }
+          }
+          sketchShares += sketchShare { seed = requisitionSeed.data }
+          sketchShares += sketchShare {
+            data =
+              CompleteShufflePhaseRequestKt.SketchShareKt.shareData { values += listOf(4, 5, 6) }
+          }
+        }
+      )
+  }
+
+  @Test
+  fun `reachOnlyAggregationPhase successfully returns results`() = runBlocking {
+    val computationDetails = getReachOnlyHmssComputationDetails(RoleInComputation.AGGREGATOR)
+    val inputBlobPath1 =
+      ComputationBlobContext(GLOBAL_ID, Stage.AGGREGATION_PHASE.toProtocolStage(), 0L)
+    val inputBlobData1 = aggregationPhaseInput { combinedSketch += listOf(1, 2, 3) }.toByteString()
+    val inputBlobPath2 =
+      ComputationBlobContext(GLOBAL_ID, Stage.AGGREGATION_PHASE.toProtocolStage(), 1L)
+    val inputBlobData2 = aggregationPhaseInput { combinedSketch += listOf(4, 5, 6) }.toByteString()
+    val inputBlobs =
+      listOf(
+        computationStageBlobMetadata {
+          dependencyType = ComputationBlobDependency.INPUT
+          blobId = 0L
+          path = inputBlobPath1.blobKey
+        },
+        computationStageBlobMetadata {
+          dependencyType = ComputationBlobDependency.INPUT
+          blobId = 1L
+          path = inputBlobPath2.blobKey
+        },
+      )
+    computationStore.write(inputBlobPath1, inputBlobData1)
+    computationStore.write(inputBlobPath2, inputBlobData2)
+    fakeComputationDb.addComputation(
+      LOCAL_ID,
+      Stage.AGGREGATION_PHASE.toProtocolStage(),
+      blobs = inputBlobs,
+      computationDetails = computationDetails,
+      requisitions = REACH_ONLY_REQUISITIONS,
+    )
+
+    val expectedReach = 100L
+    val expectedFrequency = mapOf(0L to 0.1, 1L to 0.5, 2L to 0.4)
+    var cryptoRequest = CompleteAggregationPhaseRequest.getDefaultInstance()
+    whenever(mockCryptoWorker.completeReachOnlyAggregationPhase(any())).thenAnswer {
+      cryptoRequest = it.getArgument(0)
+      completeAggregationPhaseResponse {
+        reach = expectedReach
+        for (entry in expectedFrequency) {
+          frequencyDistribution[entry.key] = entry.value
+        }
+        elapsedCpuDuration = Duration.ofSeconds(1).toProtoDuration()
+      }
+    }
+
+    val mill = createHmssMill(DUCHY_THREE_ID)
+    mill.pollAndProcessNextComputation()
+
+    assertThat(fakeComputationDb[LOCAL_ID])
+      .isEqualTo(
+        computationToken {
+          globalComputationId = GLOBAL_ID
+          localComputationId = LOCAL_ID
+          computationStage = Stage.COMPLETE.toProtocolStage()
+          attempt = 1
+          version = 2
+          this.computationDetails =
+            computationDetails.copy { endingState = ComputationDetails.CompletedReason.SUCCEEDED }
+          requisitions += REACH_ONLY_REQUISITIONS
+        }
+      )
+
+    verifyProtoArgument(
+        mockSystemComputations,
+        SystemComputationsCoroutineImplBase::setComputationResult,
+      )
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        setComputationResultRequest {
+          name = "computations/$GLOBAL_ID"
+          aggregatorCertificate = DUCHY_CERT_NAME
+          resultPublicKey = MEASUREMENT_ENCRYPTION_PUBLIC_KEY.toByteString()
+        }
+      )
+
+    assertThat(cryptoRequest)
+      .isEqualTo(
+        completeAggregationPhaseRequest {
+          val hmss = computationDetails.honestMajorityShareShuffle
+          sketchParams = hmss.parameters.sketchParams
+          maximumFrequency = hmss.parameters.maximumFrequency
+          vidSamplingIntervalWidth = REACH_ONLY_MEASUREMENT_SPEC.vidSamplingInterval.width
+          reachDpParams = hmss.parameters.reachDpParams
           noiseMechanism = hmss.parameters.noiseMechanism
 
           sketchShares +=

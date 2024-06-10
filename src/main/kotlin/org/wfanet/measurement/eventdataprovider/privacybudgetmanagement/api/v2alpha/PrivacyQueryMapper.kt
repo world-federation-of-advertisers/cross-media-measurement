@@ -110,7 +110,15 @@ object PrivacyQueryMapper {
   ): AcdpQuery {
     val acdpCharge =
       when (measurementSpec.measurementTypeCase) {
-        // TODO(@ple13): Add support for reach-only.
+        MeasurementTypeCase.REACH -> {
+          AcdpParamsConverter.getLlv2AcdpCharge(
+            DpParams(
+              measurementSpec.reach.privacyParams.epsilon,
+              measurementSpec.reach.privacyParams.delta,
+            ),
+            contributorCount,
+          )
+        }
         MeasurementTypeCase.REACH_AND_FREQUENCY -> {
           // TODO(@ple13): Optimize the pbm charge by computing the Acdp charge separately for
           // reach and for frequency, then add them up.

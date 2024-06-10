@@ -857,8 +857,7 @@ class EdpSimulator(
             eventGroupSpecs,
           )
         } else if (protocols.any { it.hasHonestMajorityShareShuffle() }) {
-          // TODO(@ple13): Extend support for reach only hmss.
-          if (!measurementSpec.hasReachAndFrequency()) {
+          if (!measurementSpec.hasReach() && !measurementSpec.hasReachAndFrequency()) {
             logger.log(
               Level.WARNING,
               "Skipping ${requisition.name}: Measurement type not supported for protocol hmss.",

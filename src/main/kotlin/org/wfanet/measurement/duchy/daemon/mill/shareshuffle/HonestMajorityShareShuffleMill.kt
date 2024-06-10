@@ -391,8 +391,12 @@ class HonestMajorityShareShuffleMill(
         } else {
           CompleteShufflePhaseRequest.NonAggregatorOrder.SECOND
         }
-      reachDpParams = hmss.parameters.reachDpParams
-      frequencyDpParams = hmss.parameters.frequencyDpParams
+      if (hmss.parameters.hasReachDpParams()) {
+        reachDpParams = hmss.parameters.reachDpParams
+      }
+      if (hmss.parameters.hasFrequencyDpParams()) {
+        frequencyDpParams = hmss.parameters.frequencyDpParams
+      }
       noiseMechanism = hmss.parameters.noiseMechanism
 
       val registerCounts = mutableListOf<Long>()
@@ -428,8 +432,16 @@ class HonestMajorityShareShuffleMill(
       }
       sketchParams = hmss.parameters.sketchParams.copy { registerCount = registerCounts.first() }
     }
-
-    val result = cryptoWorker.completeReachAndFrequencyShufflePhase(request)
+    val measurementSpec =
+      MeasurementSpec.parseFrom(token.computationDetails.kingdomComputation.measurementSpec)
+    val result =
+      when (val measurementType = measurementSpec.measurementTypeCase) {
+        MeasurementSpec.MeasurementTypeCase.REACH ->
+          cryptoWorker.completeReachOnlyShufflePhase(request)
+        MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
+          cryptoWorker.completeReachAndFrequencyShufflePhase(request)
+        else -> error("Unsupported measurement type $measurementType")
+      }
 
     val aggregationPhaseInput = aggregationPhaseInput {
       combinedSketch += result.combinedSketchList
@@ -446,6 +458,9 @@ class HonestMajorityShareShuffleMill(
   }
 
   private suspend fun aggregationPhase(token: ComputationToken): ComputationToken {
+    val measurementSpec =
+      MeasurementSpec.parseFrom(token.computationDetails.kingdomComputation.measurementSpec)
+
     val aggregationPhaseInputs = getAggregationPhaseInputs(token)
 
     val request = completeAggregationPhaseRequest {
@@ -456,13 +471,15 @@ class HonestMajorityShareShuffleMill(
         Version.fromString(token.computationDetails.kingdomComputation.publicApiVersion)
       when (publicApiVersion) {
         Version.V2_ALPHA -> {
-          val measurementSpec =
-            MeasurementSpec.parseFrom(token.computationDetails.kingdomComputation.measurementSpec)
           vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width
         }
       }
-      reachDpParams = hmss.parameters.reachDpParams
-      frequencyDpParams = hmss.parameters.frequencyDpParams
+      if (hmss.parameters.hasReachDpParams()) {
+        reachDpParams = hmss.parameters.reachDpParams
+      }
+      if (hmss.parameters.hasFrequencyDpParams()) {
+        frequencyDpParams = hmss.parameters.frequencyDpParams
+      }
       noiseMechanism = hmss.parameters.noiseMechanism
 
       for (input in aggregationPhaseInputs) {
@@ -471,7 +488,14 @@ class HonestMajorityShareShuffleMill(
       }
     }
 
-    val result = cryptoWorker.completeReachAndFrequencyAggregationPhase(request)
+    val result =
+      when (val measurementType = measurementSpec.measurementTypeCase) {
+        MeasurementSpec.MeasurementTypeCase.REACH ->
+          cryptoWorker.completeReachOnlyAggregationPhase(request)
+        MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
+          cryptoWorker.completeReachAndFrequencyAggregationPhase(request)
+        else -> error("Unsupported measurement type $measurementType")
+      }
 
     sendResultToKingdom(
       token,
