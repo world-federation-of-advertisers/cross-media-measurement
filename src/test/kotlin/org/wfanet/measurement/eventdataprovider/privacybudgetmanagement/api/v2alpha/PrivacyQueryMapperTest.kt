@@ -16,7 +16,6 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2a
 import com.google.common.truth.Truth.assertThat
 import com.google.type.interval
 import java.time.LocalDate
-import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
@@ -44,19 +43,30 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2al
 class PrivacyQueryMapperTest {
 
   @Test
-  fun `getHmssAcdpQuery throws IllegalArgumentException when converting hmss reach only measurement to AcdpQuery`() {
+  fun `converts hmss reach only measurement to AcdpQuery`() {
     val referenceId = "RequisitionId1"
+    val dpParams =
+      DpParams(
+        REACH_MEASUREMENT_SPEC.reach.privacyParams.epsilon,
+        REACH_MEASUREMENT_SPEC.reach.privacyParams.delta,
+      )
+    val expectedAcdpCharge = AcdpParamsConverter.getLlv2AcdpCharge(dpParams, CONTRIBUTOR_COUNT)
 
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
+    assertThat(
         getHmssAcdpQuery(
           Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
           REACH_MEASUREMENT_SPEC,
           REQUISITION_SPEC.events.eventGroupsList.map { it.value },
-          HMSS_CONTRIBUTOR_COUNT,
+          CONTRIBUTOR_COUNT,
         )
-      }
-    assertThat(exception).hasMessageThat().contains("not supported")
+      )
+      .isEqualTo(
+        AcdpQuery(
+          Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
+          LandscapeMask(listOf(EventGroupSpec(FILTER_EXPRESSION, TIME_RANGE)), 0.01f, 0.02f),
+          expectedAcdpCharge,
+        )
+      )
   }
 
   @Test
