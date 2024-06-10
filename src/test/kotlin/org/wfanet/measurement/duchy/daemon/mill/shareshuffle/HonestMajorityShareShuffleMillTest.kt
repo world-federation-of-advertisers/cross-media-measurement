@@ -122,7 +122,6 @@ import org.wfanet.measurement.internal.duchy.protocol.completeAggregationPhaseRe
 import org.wfanet.measurement.internal.duchy.protocol.completeShufflePhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.completeShufflePhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.copy
-import org.wfanet.measurement.internal.duchy.protocol.shareShuffleSketch
 import org.wfanet.measurement.internal.duchy.protocol.shareShuffleSketchParams
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
@@ -822,9 +821,9 @@ class HonestMajorityShareShuffleMillTest {
         GLOBAL_ID,
         REACH_AND_FREQUENCY_REQUISITION_3.externalKey.externalRequisitionId,
       )
-    // TODO(@renjiez): Use ShareShuffleSketch from any-sketch-java when it is available..
-    val requisitionData1 = shareShuffleSketch { data += listOf(1, 2, 3) }.toByteString()
-    val requisitionData3 = shareShuffleSketch { data += listOf(4, 5, 6) }.toByteString()
+
+    val requisitionData1 = frequencyVector { data += listOf(1, 2, 3) }.toByteString()
+    val requisitionData3 = frequencyVector { data += listOf(4, 5, 6) }.toByteString()
     requisitionStore.write(requisitionBlobContext1, requisitionData1)
     requisitionStore.write(requisitionBlobContext3, requisitionData3)
 
@@ -1110,9 +1109,8 @@ class HonestMajorityShareShuffleMillTest {
       RequisitionBlobContext(GLOBAL_ID, REACH_ONLY_REQUISITION_1.externalKey.externalRequisitionId)
     val requisitionBlobContext3 =
       RequisitionBlobContext(GLOBAL_ID, REACH_ONLY_REQUISITION_3.externalKey.externalRequisitionId)
-    // TODO(@renjiez): Use ShareShuffleSketch from any-sketch-java when it is available..
-    val requisitionData1 = shareShuffleSketch { data += listOf(1, 2, 3) }.toByteString()
-    val requisitionData3 = shareShuffleSketch { data += listOf(4, 5, 6) }.toByteString()
+    val requisitionData1 = frequencyVector { data += listOf(1, 2, 3) }.toByteString()
+    val requisitionData3 = frequencyVector { data += listOf(4, 5, 6) }.toByteString()
     requisitionStore.write(requisitionBlobContext1, requisitionData1)
     requisitionStore.write(requisitionBlobContext3, requisitionData3)
 
