@@ -231,7 +231,7 @@ private val SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC: ByteString =
 private val REACH_AND_FREQUENCY_REQUISITION_1 =
   TEST_REACH_AND_FREQUENCY_REQUISITION_1.toRequisitionMetadata(
       Requisition.State.FULFILLED,
-      DUCHY_ONE_ID
+      DUCHY_ONE_ID,
     )
     .copy {
       details =
@@ -251,13 +251,13 @@ private val REACH_AND_FREQUENCY_REQUISITION_1 =
 private val REACH_AND_FREQUENCY_REQUISITION_2 =
   TEST_REACH_AND_FREQUENCY_REQUISITION_2.toRequisitionMetadata(
     Requisition.State.UNFULFILLED,
-    DUCHY_TWO_ID
+    DUCHY_TWO_ID,
   )
 
 private val REACH_AND_FREQUENCY_REQUISITION_3 =
   TEST_REACH_AND_FREQUENCY_REQUISITION_3.toRequisitionMetadata(
       Requisition.State.FULFILLED,
-      DUCHY_ONE_ID
+      DUCHY_ONE_ID,
     )
     .copy {
       details =
@@ -278,7 +278,7 @@ private val REACH_AND_FREQUENCY_REQUISITIONS =
   listOf(
     REACH_AND_FREQUENCY_REQUISITION_1,
     REACH_AND_FREQUENCY_REQUISITION_2,
-    REACH_AND_FREQUENCY_REQUISITION_3
+    REACH_AND_FREQUENCY_REQUISITION_3,
   )
 
 private val REACH_ONLY_REQUISITION_1 =
@@ -691,12 +691,12 @@ class HonestMajorityShareShuffleMillTest {
       val unfulfilledRequisition1 =
         TEST_REACH_AND_FREQUENCY_REQUISITION_1.toRequisitionMetadata(
           Requisition.State.UNFULFILLED,
-          DUCHY_ONE_ID
+          DUCHY_ONE_ID,
         )
       val fulfilledRequisition2 =
         TEST_REACH_AND_FREQUENCY_REQUISITION_1.toRequisitionMetadata(
             Requisition.State.FULFILLED,
-            DUCHY_TWO_ID
+            DUCHY_TWO_ID,
           )
           .copy {
             details =
@@ -715,7 +715,7 @@ class HonestMajorityShareShuffleMillTest {
       val unfulfilledRequisition3 =
         TEST_REACH_AND_FREQUENCY_REQUISITION_3.toRequisitionMetadata(
           Requisition.State.UNFULFILLED,
-          DUCHY_ONE_ID
+          DUCHY_ONE_ID,
         )
 
       val requisitions =
@@ -815,12 +815,12 @@ class HonestMajorityShareShuffleMillTest {
     val requisitionBlobContext1 =
       RequisitionBlobContext(
         GLOBAL_ID,
-        REACH_AND_FREQUENCY_REQUISITION_1.externalKey.externalRequisitionId
+        REACH_AND_FREQUENCY_REQUISITION_1.externalKey.externalRequisitionId,
       )
     val requisitionBlobContext3 =
       RequisitionBlobContext(
         GLOBAL_ID,
-        REACH_AND_FREQUENCY_REQUISITION_3.externalKey.externalRequisitionId
+        REACH_AND_FREQUENCY_REQUISITION_3.externalKey.externalRequisitionId,
       )
     // TODO(@renjiez): Use ShareShuffleSketch from any-sketch-java when it is available..
     val requisitionData1 = shareShuffleSketch { data += listOf(1, 2, 3) }.toByteString()
@@ -932,12 +932,12 @@ class HonestMajorityShareShuffleMillTest {
     val requisitionBlobContext1 =
       RequisitionBlobContext(
         GLOBAL_ID,
-        REACH_AND_FREQUENCY_REQUISITION_1.externalKey.externalRequisitionId
+        REACH_AND_FREQUENCY_REQUISITION_1.externalKey.externalRequisitionId,
       )
     val requisitionBlobContext3 =
       RequisitionBlobContext(
         GLOBAL_ID,
-        REACH_AND_FREQUENCY_REQUISITION_3.externalKey.externalRequisitionId
+        REACH_AND_FREQUENCY_REQUISITION_3.externalKey.externalRequisitionId,
       )
     val requisitionData1 = frequencyVector { data += listOf(1, 2, 3) }.toByteString()
     val requisitionData3 = frequencyVector { data += listOf(4, 5, 6) }.toByteString()
