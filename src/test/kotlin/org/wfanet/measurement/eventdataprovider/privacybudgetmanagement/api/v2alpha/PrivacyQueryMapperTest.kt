@@ -32,6 +32,7 @@ import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AcdpCharge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AcdpParamsConverter
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AcdpQuery
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.EventGroupSpec
@@ -62,14 +63,27 @@ class PrivacyQueryMapperTest {
   @Test
   fun `converts hmss reach and frequency measurement to AcdpQuery`() {
     val referenceId = "RequisitionId1"
-    val dpParams =
-      DpParams(
-        REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.reachPrivacyParams.epsilon +
-          REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.frequencyPrivacyParams.epsilon,
-        REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.reachPrivacyParams.delta +
-          REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.frequencyPrivacyParams.delta,
+    val acdpChargeForReach =
+      AcdpParamsConverter.getLlv2AcdpCharge(
+        DpParams(
+          REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.reachPrivacyParams.epsilon,
+          REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.reachPrivacyParams.delta,
+        ),
+        CONTRIBUTOR_COUNT,
       )
-    val expectedAcdpCharge = AcdpParamsConverter.getLlv2AcdpCharge(dpParams, CONTRIBUTOR_COUNT)
+    val acdpChargeForFrequency =
+      AcdpParamsConverter.getLlv2AcdpCharge(
+        DpParams(
+          REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.frequencyPrivacyParams.epsilon,
+          REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.frequencyPrivacyParams.delta,
+        ),
+        CONTRIBUTOR_COUNT,
+      )
+    val expectedAcdpCharge =
+      AcdpCharge(
+        acdpChargeForReach.rho + acdpChargeForFrequency.rho,
+        acdpChargeForReach.theta + acdpChargeForFrequency.theta,
+      )
 
     assertThat(
         getHmssAcdpQuery(
@@ -91,14 +105,27 @@ class PrivacyQueryMapperTest {
   @Test
   fun `converts llv2 reach and frequency measurement to AcdpQuery`() {
     val referenceId = "RequisitionId1"
-    val dpParams =
-      DpParams(
-        REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.reachPrivacyParams.epsilon +
-          REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.frequencyPrivacyParams.epsilon,
-        REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.reachPrivacyParams.delta +
-          REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.frequencyPrivacyParams.delta,
+    val acdpChargeForReach =
+      AcdpParamsConverter.getLlv2AcdpCharge(
+        DpParams(
+          REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.reachPrivacyParams.epsilon,
+          REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.reachPrivacyParams.delta,
+        ),
+        CONTRIBUTOR_COUNT,
       )
-    val expectedAcdpCharge = AcdpParamsConverter.getLlv2AcdpCharge(dpParams, CONTRIBUTOR_COUNT)
+    val acdpChargeForFrequency =
+      AcdpParamsConverter.getLlv2AcdpCharge(
+        DpParams(
+          REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.frequencyPrivacyParams.epsilon,
+          REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.frequencyPrivacyParams.delta,
+        ),
+        CONTRIBUTOR_COUNT,
+      )
+    val expectedAcdpCharge =
+      AcdpCharge(
+        acdpChargeForReach.rho + acdpChargeForFrequency.rho,
+        acdpChargeForReach.theta + acdpChargeForFrequency.theta,
+      )
 
     assertThat(
         getLiquidLegionsV2AcdpQuery(
@@ -120,14 +147,27 @@ class PrivacyQueryMapperTest {
   @Test
   fun `converts direct reach and frequency measurement to AcdpQuery`() {
     val referenceId = "RequisitionId1"
-    val dpParams =
-      DpParams(
-        REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.reachPrivacyParams.epsilon +
-          REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.frequencyPrivacyParams.epsilon,
-        REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.reachPrivacyParams.delta +
-          REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.frequencyPrivacyParams.delta,
+    val acdpChargeForReach =
+      AcdpParamsConverter.getDirectAcdpCharge(
+        DpParams(
+          REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.reachPrivacyParams.epsilon,
+          REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.reachPrivacyParams.delta,
+        ),
+        SENSITIVITY,
       )
-    val expectedAcdpCharge = AcdpParamsConverter.getDirectAcdpCharge(dpParams, SENSITIVITY)
+    val acdpChargeForFrequency =
+      AcdpParamsConverter.getDirectAcdpCharge(
+        DpParams(
+          REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.frequencyPrivacyParams.epsilon,
+          REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.frequencyPrivacyParams.delta,
+        ),
+        SENSITIVITY,
+      )
+    val expectedAcdpCharge =
+      AcdpCharge(
+        acdpChargeForReach.rho + acdpChargeForFrequency.rho,
+        acdpChargeForReach.theta + acdpChargeForFrequency.theta,
+      )
 
     assertThat(
         getDirectAcdpQuery(
