@@ -82,7 +82,7 @@ class CompositionTest {
   }
 
   @Test
-  fun `acdp composition for llv2 measurement works as expected from sample dpParams and targetEpsilon`() {
+  fun `acdp composition for Mpc measurement works as expected from sample dpParams and targetEpsilon`() {
     val acdpCharges = listOf(AcdpParamsConverter.getMpcAcdpCharge(DpParams(1.0, 1e-5), 3))
     val targetEpsilon = 10.0
     val delta = Composition.totalPrivacyBudgetUsageUnderAcdpComposition(acdpCharges, targetEpsilon)
@@ -92,7 +92,7 @@ class CompositionTest {
   }
 
   @Test
-  fun `computed delta for llv2 measurement from totalPrivacyBudgetUsageUnderAcdpComposition is large when delta is large in dpParams`() {
+  fun `computed delta for Mpc measurement from totalPrivacyBudgetUsageUnderAcdpComposition is large when delta is large in dpParams`() {
     val acdpCharges = listOf(AcdpParamsConverter.getMpcAcdpCharge(DpParams(1.0, 0.1), 3))
     val targetEpsilon = 10.0
     val delta = Composition.totalPrivacyBudgetUsageUnderAcdpComposition(acdpCharges, targetEpsilon)
