@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.service.system.v1alpha
 
 import io.grpc.Status
+import io.grpc.StatusException
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
@@ -28,8 +29,11 @@ import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.liquidLe
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as InternalComputationParticipantsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ConfirmComputationParticipantRequest as InternalConfirmComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.FailComputationParticipantRequest as InternalFailComputationParticipantRequest
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry as InternalMeasurementLogEntry
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt as InternalMeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRequest as InternalSetParticipantRequisitionParamsRequest
+import org.wfanet.measurement.internal.kingdom.confirmComputationParticipantRequest as internalConfirmComputationParticipantRequest
+import org.wfanet.measurement.internal.kingdom.failComputationParticipantRequest as internalFailComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest as internalSetParticipantRequisitionParamsRequest
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant.RequisitionParams.ProtocolCase
@@ -43,28 +47,66 @@ class ComputationParticipantsService(
   private val internalComputationParticipantsClient: InternalComputationParticipantsCoroutineStub,
   private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext,
 ) : ComputationParticipantsCoroutineImplBase() {
+
   override suspend fun setParticipantRequisitionParams(
     request: SetParticipantRequisitionParamsRequest
   ): ComputationParticipant {
-    return internalComputationParticipantsClient
-      .setParticipantRequisitionParams(request.toInternalRequest())
-      .toSystemComputationParticipant()
+    val internalResponse =
+      try {
+        internalComputationParticipantsClient.setParticipantRequisitionParams(
+          request.toInternalRequest()
+        )
+      } catch (e: StatusException) {
+        throw mapStatusException(e).asRuntimeException()
+      }
+
+    return internalResponse.toSystemComputationParticipant()
   }
 
   override suspend fun confirmComputationParticipant(
     request: ConfirmComputationParticipantRequest
   ): ComputationParticipant {
-    return internalComputationParticipantsClient
-      .confirmComputationParticipant(request.toInternalRequest())
-      .toSystemComputationParticipant()
+    val internalResponse =
+      try {
+        internalComputationParticipantsClient.confirmComputationParticipant(
+          request.toInternalRequest()
+        )
+      } catch (e: StatusException) {
+        throw mapStatusException(e).asRuntimeException()
+      }
+
+    return internalResponse.toSystemComputationParticipant()
   }
 
   override suspend fun failComputationParticipant(
     request: FailComputationParticipantRequest
   ): ComputationParticipant {
-    return internalComputationParticipantsClient
-      .failComputationParticipant(request.toInternalRequest())
-      .toSystemComputationParticipant()
+    val internalResponse =
+      try {
+        internalComputationParticipantsClient.failComputationParticipant(
+          request.toInternalRequest()
+        )
+      } catch (e: StatusException) {
+        throw mapStatusException(e).asRuntimeException()
+      }
+
+    return internalResponse.toSystemComputationParticipant()
+  }
+
+  /**
+   * Naively maps [e] to a [Status].
+   *
+   * Ideally this should be done on a case-by-base basis.
+   */
+  private fun mapStatusException(e: StatusException): Status {
+    return when (e.status.code) {
+      Status.Code.NOT_FOUND -> Status.NOT_FOUND
+      Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
+      Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+      Status.Code.ABORTED -> Status.ABORTED
+      Status.Code.INTERNAL -> Status.INTERNAL
+      else -> Status.UNKNOWN
+    }.withCause(e)
   }
 
   private fun SetParticipantRequisitionParamsRequest.toInternalRequest():
@@ -77,10 +119,13 @@ class ComputationParticipantsService(
     grpcRequire(computationParticipantKey.duchyId == duchyCertificateKey.duchyId) {
       "The owners of the computation_participant and certificate don't match."
     }
+
+    val source = this
     return internalSetParticipantRequisitionParamsRequest {
       externalComputationId = apiIdToExternalId(computationParticipantKey.computationId)
       externalDuchyId = computationParticipantKey.duchyId
       externalDuchyCertificateId = apiIdToExternalId(duchyCertificateKey.certificateId)
+      etag = source.etag
 
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (requisitionParams.protocolCase) {
@@ -121,32 +166,35 @@ class ComputationParticipantsService(
   private fun ConfirmComputationParticipantRequest.toInternalRequest():
     InternalConfirmComputationParticipantRequest {
     val computationParticipantKey = getAndVerifyComputationParticipantKey(name)
-    return InternalConfirmComputationParticipantRequest.newBuilder()
-      .apply {
-        externalComputationId = apiIdToExternalId(computationParticipantKey.computationId)
-        externalDuchyId = computationParticipantKey.duchyId
-      }
-      .build()
+
+    val source = this
+    return internalConfirmComputationParticipantRequest {
+      externalComputationId = apiIdToExternalId(computationParticipantKey.computationId)
+      externalDuchyId = computationParticipantKey.duchyId
+      etag = source.etag
+    }
   }
 
   private fun FailComputationParticipantRequest.toInternalRequest():
     InternalFailComputationParticipantRequest {
     val computationParticipantKey = getAndVerifyComputationParticipantKey(name)
-    return InternalFailComputationParticipantRequest.newBuilder()
-      .apply {
-        externalComputationId = apiIdToExternalId(computationParticipantKey.computationId)
-        externalDuchyId = computationParticipantKey.duchyId
-        errorMessage = failure.errorMessage
-        duchyChildReferenceId = failure.participantChildReferenceId
-        if (failure.hasStageAttempt()) {
-          stageAttempt = failure.stageAttempt.toInternalStageAttempt()
-          errorDetailsBuilder.apply {
-            type = MeasurementLogEntry.ErrorDetails.Type.PERMANENT
+
+    val source = this
+    return internalFailComputationParticipantRequest {
+      externalComputationId = apiIdToExternalId(computationParticipantKey.computationId)
+      externalDuchyId = computationParticipantKey.duchyId
+      errorMessage = failure.errorMessage
+      duchyChildReferenceId = failure.participantChildReferenceId
+      if (failure.hasStageAttempt()) {
+        stageAttempt = failure.stageAttempt.toInternalStageAttempt()
+        errorDetails =
+          InternalMeasurementLogEntryKt.errorDetails {
+            type = InternalMeasurementLogEntry.ErrorDetails.Type.PERMANENT
             errorTime = failure.errorTime
           }
-        }
       }
-      .build()
+      etag = source.etag
+    }
   }
 
   private fun getAndVerifyComputationParticipantKey(name: String): ComputationParticipantKey {

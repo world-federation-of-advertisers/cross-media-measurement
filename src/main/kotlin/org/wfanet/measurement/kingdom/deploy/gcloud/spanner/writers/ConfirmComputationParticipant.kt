@@ -30,9 +30,11 @@ import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantETagMismatchException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundByComputationException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ETags
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ComputationParticipantReader
@@ -43,12 +45,12 @@ private val NEXT_COMPUTATION_PARTICIPANT_STATE = ComputationParticipant.State.RE
 /**
  * Sets participant details for a computationParticipant in the database.
  *
- * Throws a subclass of [KingdomInternalException] on [execute].
- *
- * @throws [ComputationParticipantNotFoundByComputationException] ComputationParticipant not found
- * @throws [ComputationParticipantStateIllegalException] ComputationParticipant state is not
+ * Throws the following subclass of [KingdomInternalException] on [execute]:
+ * * [ComputationParticipantETagMismatchException] ComputationParticipant etag mismatch
+ * * [ComputationParticipantNotFoundByComputationException] ComputationParticipant not found
+ * * [ComputationParticipantStateIllegalException] ComputationParticipant state is not
  *   REQUISITION_PARAMS_SET
- * @throws [DuchyNotFoundException] Duchy not found
+ * * [DuchyNotFoundException] Duchy not found
  */
 class ConfirmComputationParticipant(private val request: ConfirmComputationParticipantRequest) :
   SpannerWriter<ComputationParticipant, ComputationParticipant>() {
@@ -75,6 +77,9 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
         }
 
     val computationParticipant = computationParticipantResult.computationParticipant
+    if (request.etag.isNotEmpty() && request.etag != computationParticipant.etag) {
+      throw ComputationParticipantETagMismatchException(request.etag, computationParticipant.etag)
+    }
     val measurementId = computationParticipantResult.measurementId
     val measurementConsumerId = computationParticipantResult.measurementConsumerId
     val measurementState = computationParticipantResult.measurementState
@@ -169,6 +174,9 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
   }
 
   override fun ResultScope<ComputationParticipant>.buildResult(): ComputationParticipant {
-    return checkNotNull(transactionResult).copy { updateTime = commitTimestamp.toProto() }
+    return checkNotNull(transactionResult).copy {
+      updateTime = commitTimestamp.toProto()
+      etag = ETags.computeETag(commitTimestamp)
+    }
   }
 }

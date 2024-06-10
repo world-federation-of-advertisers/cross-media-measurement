@@ -24,6 +24,7 @@ import org.wfanet.measurement.internal.kingdom.FailComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountActivationStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantETagMismatchException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyCertificateNotFoundException
@@ -44,6 +45,8 @@ class SpannerComputationParticipantsService(
   ): ComputationParticipant {
     try {
       return SetParticipantRequisitionParams(request).execute(client, idGenerator)
+    } catch (e: ComputationParticipantETagMismatchException) {
+      throw e.asStatusRuntimeException(Status.Code.ABORTED)
     } catch (e: ComputationParticipantStateIllegalException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
@@ -87,6 +90,8 @@ class SpannerComputationParticipantsService(
       return FailComputationParticipant(request).execute(client, idGenerator)
     } catch (e: ComputationParticipantNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ComputationParticipant not found.")
+    } catch (e: ComputationParticipantETagMismatchException) {
+      throw e.asStatusRuntimeException(Status.Code.ABORTED)
     } catch (e: DuchyNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Duchy not found.")
     } catch (e: MeasurementStateIllegalException) {
@@ -106,6 +111,8 @@ class SpannerComputationParticipantsService(
       return ConfirmComputationParticipant(request).execute(client, idGenerator)
     } catch (e: ComputationParticipantNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ComputationParticipant not found.")
+    } catch (e: ComputationParticipantETagMismatchException) {
+      throw e.asStatusRuntimeException(Status.Code.ABORTED)
     } catch (e: ComputationParticipantStateIllegalException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
