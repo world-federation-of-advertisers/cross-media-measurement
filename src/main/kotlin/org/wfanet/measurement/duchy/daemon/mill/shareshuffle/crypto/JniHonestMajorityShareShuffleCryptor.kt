@@ -56,9 +56,7 @@ class JniHonestMajorityShareShuffleCryptor : HonestMajorityShareShuffleCryptor {
     request: CompleteAggregationPhaseRequest
   ): CompleteAggregationPhaseResponse {
     return CompleteAggregationPhaseResponse.parseFrom(
-      HonestMajorityShareShuffleUtility.completeReachOnlyAggregationPhase(
-        request.toByteArray()
-      )
+      HonestMajorityShareShuffleUtility.completeReachOnlyAggregationPhase(request.toByteArray())
     )
   }
 
