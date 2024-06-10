@@ -14,11 +14,14 @@
 
 package org.wfanet.measurement.duchy.db.computation
 
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import java.time.Clock
 import java.time.Instant
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -30,6 +33,7 @@ import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatabase
 import org.wfanet.measurement.duchy.service.internal.computations.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computations.newEmptyOutputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computations.newOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computations.toGetTokenRequest
 import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.storage.RequisitionStore
@@ -46,6 +50,7 @@ import org.wfanet.measurement.internal.duchy.CreateComputationRequest
 import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
+import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
@@ -199,6 +204,22 @@ class ComputationDataClientsTest {
     computation.claimWorkFor("mill-5")
     computation.writeOutputs(Stage.EXECUTION_PHASE_THREE)
     computation.end(reason = CompletedReason.SUCCEEDED)
+  }
+
+  @Test
+  fun `failure during writing blob raises transient error`() = runBlocking {
+    val computationDataClient =
+      ComputationDataClients(
+        ComputationsCoroutineStub(channel = grpcTestServerRule.channel),
+        storageClient = dummyStorageClient,
+      )
+    val token = computationToken { blobs += newOutputBlobMetadata(1, "") }
+    val content = "Output".toByteStringUtf8()
+    val error =
+      assertFailsWith<ComputationDataClients.TransientErrorException> {
+        computationDataClient.writeSingleOutputBlob(token, content)
+      }
+    assertThat(error.message).contains("blob")
   }
 }
 
