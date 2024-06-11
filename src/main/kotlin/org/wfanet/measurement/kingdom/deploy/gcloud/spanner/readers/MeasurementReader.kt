@@ -46,7 +46,7 @@ import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader.Companion.getEtag
 
-class MeasurementReader(private val view: Measurement.View) :
+class MeasurementReader(private val view: Measurement.View, measurementsIndex: Index = Index.NONE) :
   SpannerReader<MeasurementReader.Result>() {
 
   data class Result(
@@ -56,8 +56,24 @@ class MeasurementReader(private val view: Measurement.View) :
     val measurement: Measurement,
   )
 
+  enum class Index(internal val sql: String) {
+    NONE(""),
+    CREATE_REQUEST_ID("@{FORCE_INDEX=MeasurementsByCreateRequestId}"),
+  }
+
   override val baseSql: String
     get() = BASE_SQL
+
+  private val BASE_SQL =
+    """
+      @{spanner_emulator.disable_query_null_filtered_index_check=true}
+      WITH FilteredMeasurements AS (
+        SELECT *
+        FROM
+          Measurements${measurementsIndex.sql}
+          JOIN MeasurementConsumers USING (MeasurementConsumerId)
+      """
+      .trimIndent()
 
   private var filled = false
 
@@ -257,16 +273,6 @@ class MeasurementReader(private val view: Measurement.View) :
         )
       return "W/\"${hash}\""
     }
-
-    private val BASE_SQL =
-      """
-      WITH FilteredMeasurements AS (
-        SELECT *
-        FROM
-          Measurements
-          JOIN MeasurementConsumers USING (MeasurementConsumerId)
-      """
-        .trimIndent()
 
     private val DEFAULT_VIEW_SQL =
       """
