@@ -136,6 +136,7 @@ abstract class HonestMajorityShareShuffleMillDaemon : Runnable {
 
     // This will be the name of the pod when deployed to Kubernetes. Note that the millId is
     // included in mill logs to help debugging.
+    // TODO(@renjiez): add the parameter to override the millId.
     val millId = System.getenv("HOSTNAME")
 
     val privateKeyStore =
