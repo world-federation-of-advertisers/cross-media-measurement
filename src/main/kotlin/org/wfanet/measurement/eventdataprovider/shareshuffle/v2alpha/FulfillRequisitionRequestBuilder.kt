@@ -14,10 +14,6 @@
 
 package org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha
 
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.map
 import org.wfanet.frequencycount.FrequencyVector
 import org.wfanet.frequencycount.SecretShare
 import org.wfanet.frequencycount.SecretShareGeneratorAdapter
@@ -34,7 +30,6 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig.HonestMajorityShareShuf
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.randomSeed
-import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
 import org.wfanet.measurement.consent.client.dataprovider.encryptRandomSeed
@@ -123,31 +118,40 @@ class FulfillRequisitionRequestBuilder(
     encryptedSignedShareSeed = encryptRandomSeed(signedShareSeed, shareSeedEncryptionKey)
   }
 
-  /**
-   * Builds the Sequence of requests.
-   */
+  /** Builds the Sequence of requests. */
   fun build(): Sequence<FulfillRequisitionRequest> =
     buildList() {
-      add(fulfillRequisitionRequest {
-        header = header {
-          name = requisition.name
-          requisitionFingerprint = computeRequisitionFingerprint(requisition)
-          nonce = requisition.nonce
-          this.honestMajorityShareShuffle = honestMajorityShareShuffle {
-            secretSeed = encryptedSignedShareSeed
-            registerCount = shareVector.dataList.size.toLong()
-            dataProviderCertificate = dataProviderCertificateKey.toName()
-          }
-        }
-      })
-
-      val shareVectorBytes = shareVector.toByteString()
-      for (begin in 0 until shareVectorBytes.size() step RPC_CHUNK_SIZE_BYTES) {
         add(
-          fulfillRequisitionRequest { bodyChunk = bodyChunk { data =
-            shareVectorBytes.substring(begin, minOf(shareVectorBytes.size(), begin + RPC_CHUNK_SIZE_BYTES))}})
+          fulfillRequisitionRequest {
+            header = header {
+              name = requisition.name
+              requisitionFingerprint = computeRequisitionFingerprint(requisition)
+              nonce = requisition.nonce
+              this.honestMajorityShareShuffle = honestMajorityShareShuffle {
+                secretSeed = encryptedSignedShareSeed
+                registerCount = shareVector.dataList.size.toLong()
+                dataProviderCertificate = dataProviderCertificateKey.toName()
+              }
+            }
+          }
+        )
+
+        val shareVectorBytes = shareVector.toByteString()
+        for (begin in 0 until shareVectorBytes.size() step RPC_CHUNK_SIZE_BYTES) {
+          add(
+            fulfillRequisitionRequest {
+              bodyChunk = bodyChunk {
+                data =
+                  shareVectorBytes.substring(
+                    begin,
+                    minOf(shareVectorBytes.size(), begin + RPC_CHUNK_SIZE_BYTES),
+                  )
+              }
+            }
+          )
+        }
       }
-    }.asSequence()
+      .asSequence()
 
   companion object {
     private const val RPC_CHUNK_SIZE_BYTES = 32 * 1024 // 32 KiB
@@ -157,7 +161,7 @@ class FulfillRequisitionRequestBuilder(
       System.loadLibrary("secret_share_generator_adapter")
     }
 
-    /** A convenience function for building the Flow of Requests. */
+    /** A convenience function for building the Sequence of Requests. */
     fun build(
       requisition: Requisition,
       frequencyVector: FrequencyVector,

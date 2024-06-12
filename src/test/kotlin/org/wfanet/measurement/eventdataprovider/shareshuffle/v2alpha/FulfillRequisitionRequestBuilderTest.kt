@@ -119,36 +119,37 @@ class FulfillRequisitionRequestBuilderTest {
 
   @Test
   fun `build fulfillment requests`() {
-      val nonce = 123L
-      val inputFrequencyVector = frequencyVector { data += listOf(0, 1, 2, 3, 4) }
-      val requisition = HMSS_REQUISITION.copy { this.nonce = nonce }
+    val nonce = 123L
+    val inputFrequencyVector = frequencyVector { data += listOf(0, 1, 2, 3, 4) }
+    val requisition = HMSS_REQUISITION.copy { this.nonce = nonce }
 
-      val requests =
-        FulfillRequisitionRequestBuilder.build(
-            requisition,
-            inputFrequencyVector,
-            Requisitions.DATA_PROVIDER_CERTIFICATE_KEY,
-            Requisitions.EDP_SIGNING_KEY,
-          ).toList()
+    val requests =
+      FulfillRequisitionRequestBuilder.build(
+          requisition,
+          inputFrequencyVector,
+          Requisitions.DATA_PROVIDER_CERTIFICATE_KEY,
+          Requisitions.EDP_SIGNING_KEY,
+        )
+        .toList()
 
-      assertThat(requests.size).isEqualTo(2)
-      val firstRequest = requests[0]
-      val secondRequest = requests[1]
+    assertThat(requests.size).isEqualTo(2)
+    val firstRequest = requests[0]
+    val secondRequest = requests[1]
 
-      assertThat(firstRequest.header.name).isEqualTo(HMSS_REQUISITION.name)
-      assertThat(firstRequest.header.requisitionFingerprint)
-        .isEqualTo(computeRequisitionFingerprint(HMSS_REQUISITION))
-      assertThat(firstRequest.header.nonce).isEqualTo(nonce)
-      assertThat(firstRequest.header.honestMajorityShareShuffle.secretSeed.ciphertext.size())
-        .isGreaterThan(0)
-      assertThat(firstRequest.header.honestMajorityShareShuffle.secretSeed.typeUrl).isNotEmpty()
+    assertThat(firstRequest.header.name).isEqualTo(HMSS_REQUISITION.name)
+    assertThat(firstRequest.header.requisitionFingerprint)
+      .isEqualTo(computeRequisitionFingerprint(HMSS_REQUISITION))
+    assertThat(firstRequest.header.nonce).isEqualTo(nonce)
+    assertThat(firstRequest.header.honestMajorityShareShuffle.secretSeed.ciphertext.size())
+      .isGreaterThan(0)
+    assertThat(firstRequest.header.honestMajorityShareShuffle.secretSeed.typeUrl).isNotEmpty()
 
-      assertThat(firstRequest.header.honestMajorityShareShuffle.registerCount).isEqualTo(5)
-      assertThat(firstRequest.header.honestMajorityShareShuffle.dataProviderCertificate)
-        .isEqualTo(Requisitions.DATA_PROVIDER_CERTIFICATE_KEY.toName())
+    assertThat(firstRequest.header.honestMajorityShareShuffle.registerCount).isEqualTo(5)
+    assertThat(firstRequest.header.honestMajorityShareShuffle.dataProviderCertificate)
+      .isEqualTo(Requisitions.DATA_PROVIDER_CERTIFICATE_KEY.toName())
 
-      assertThat(secondRequest.bodyChunk.data.size())
-        .isEqualTo(inputFrequencyVector.toByteString().size())
-      // TODO(@kungfucraig): Reconstitute the frequency vector and ensure it's correct
-    }
+    assertThat(secondRequest.bodyChunk.data.size())
+      .isEqualTo(inputFrequencyVector.toByteString().size())
+    // TODO(@kungfucraig): Reconstitute the frequency vector and ensure it's correct
+  }
 }
