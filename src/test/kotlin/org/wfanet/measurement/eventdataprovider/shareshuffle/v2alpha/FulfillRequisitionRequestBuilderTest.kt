@@ -15,9 +15,7 @@
 package org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha
 
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.kotlin.toByteString
 import kotlin.test.assertFailsWith
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -121,8 +119,7 @@ class FulfillRequisitionRequestBuilderTest {
   }
 
   @Test
-  fun `build fulfillment requests`() =
-    runBlocking<Unit> {
+  fun `build fulfillment requests`() {
       val nonce = 123L
       val inputFrequencyVector = frequencyVector { data += listOf(0, 1, 2, 3, 4) }
       val requisition = HMSS_REQUISITION.copy { this.nonce = nonce }
@@ -133,8 +130,7 @@ class FulfillRequisitionRequestBuilderTest {
             inputFrequencyVector,
             Requisitions.DATA_PROVIDER_CERTIFICATE_KEY,
             Requisitions.EDP_SIGNING_KEY,
-          )
-          .toList()
+          ).toList()
 
       assertThat(requests.size).isEqualTo(2)
       val firstRequest = requests[0]
@@ -156,6 +152,4 @@ class FulfillRequisitionRequestBuilderTest {
         .isEqualTo(inputFrequencyVector.toByteString().size())
       // TODO(@kungfucraig): Reconstitute the frequency vector and ensure it's correct
     }
-
-  companion object {}
 }

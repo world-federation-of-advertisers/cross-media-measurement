@@ -41,7 +41,7 @@ import org.wfanet.measurement.consent.client.dataprovider.encryptRandomSeed
 import org.wfanet.measurement.consent.client.dataprovider.signRandomSeed
 
 /**
- * Builds a Flow of FulfillRequisitionRequests
+ * Builds a Sequence of FulfillRequisitionRequests
  *
  * This class assumes that the client has verified the identities of all Duchies.
  *
@@ -123,29 +123,31 @@ class FulfillRequisitionRequestBuilder(
     encryptedSignedShareSeed = encryptRandomSeed(signedShareSeed, shareSeedEncryptionKey)
   }
 
-  fun build(): Flow<FulfillRequisitionRequest> {
-    return flow {
-      emit(
-        fulfillRequisitionRequest {
-          header = header {
-            name = requisition.name
-            requisitionFingerprint = computeRequisitionFingerprint(requisition)
-            nonce = requisition.nonce
-            this.honestMajorityShareShuffle = honestMajorityShareShuffle {
-              secretSeed = encryptedSignedShareSeed
-              registerCount = shareVector.dataList.size.toLong()
-              dataProviderCertificate = dataProviderCertificateKey.toName()
-            }
+  /**
+   * Builds the Sequence of requests.
+   */
+  fun build(): Sequence<FulfillRequisitionRequest> =
+    buildList() {
+      add(fulfillRequisitionRequest {
+        header = header {
+          name = requisition.name
+          requisitionFingerprint = computeRequisitionFingerprint(requisition)
+          nonce = requisition.nonce
+          this.honestMajorityShareShuffle = honestMajorityShareShuffle {
+            secretSeed = encryptedSignedShareSeed
+            registerCount = shareVector.dataList.size.toLong()
+            dataProviderCertificate = dataProviderCertificateKey.toName()
           }
         }
-      )
-      emitAll(
-        shareVector.toByteString().asBufferedFlow(RPC_CHUNK_SIZE_BYTES).map {
-          fulfillRequisitionRequest { bodyChunk = bodyChunk { data = it } }
-        }
-      )
-    }
-  }
+      })
+
+      val shareVectorBytes = shareVector.toByteString()
+      for (begin in 0 until shareVectorBytes.size() step RPC_CHUNK_SIZE_BYTES) {
+        add(
+          fulfillRequisitionRequest { bodyChunk = bodyChunk { data =
+            shareVectorBytes.substring(begin, minOf(shareVectorBytes.size(), begin + RPC_CHUNK_SIZE_BYTES))}})
+      }
+    }.asSequence()
 
   companion object {
     private const val RPC_CHUNK_SIZE_BYTES = 32 * 1024 // 32 KiB
@@ -161,7 +163,7 @@ class FulfillRequisitionRequestBuilder(
       frequencyVector: FrequencyVector,
       dataProviderCertificateKey: DataProviderCertificateKey,
       signingKeyHandle: SigningKeyHandle,
-    ): Flow<FulfillRequisitionRequest> =
+    ): Sequence<FulfillRequisitionRequest> =
       FulfillRequisitionRequestBuilder(
           requisition,
           frequencyVector,
