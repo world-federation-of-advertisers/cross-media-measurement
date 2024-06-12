@@ -119,9 +119,9 @@ abstract class MillBase(
 ) {
   abstract val endingStage: ComputationStage
 
-  protected val meter: Meter = openTelemetry.getMeter(this::class.qualifiedName!!)
+  private val meter: Meter = openTelemetry.getMeter(this::class.qualifiedName!!)
 
-  private val cryptoWallClockDurationHistogram: DoubleHistogram =
+  protected val cryptoWallClockDurationHistogram: DoubleHistogram =
     meter
       .histogramBuilder("halo_cmm.computation.stage.crypto.time")
       .setDescription("Wall time spent in crypto operations for a computation stage")
@@ -139,6 +139,13 @@ abstract class MillBase(
     meter
       .histogramBuilder("halo_cmm.computation.stage.time")
       .setDescription("Wall time for a computation stage")
+      .setUnit("s")
+      .build()
+
+  protected val stageDataTransmissionDurationHistogram: DoubleHistogram =
+    meter
+      .histogramBuilder("halo_cmm.computation.stage.transmission.time")
+      .setDescription("Wall time for data transmission")
       .setUnit("s")
       .build()
 
@@ -537,20 +544,6 @@ abstract class MillBase(
     )
   }
 
-  /** Executes the block and records the wall clock duration. */
-  protected suspend fun <T> logWallClockDuration(
-    token: ComputationToken,
-    metricName: String,
-    histogram: LongHistogram,
-    block: suspend () -> T,
-  ): T {
-    val durationLogger = wallDurationLogger()
-
-    val result = block()
-    durationLogger.logStageDurationMetric(token, metricName, histogram)
-    return result
-  }
-
   /** Reads all input blobs and combines all the bytes together. */
   protected suspend fun readAndCombineAllInputBlobs(
     token: ComputationToken,
@@ -669,6 +662,20 @@ abstract class MillBase(
   }
 
   private fun wallDurationLogger(): WallDurationLogger = WallDurationLogger()
+
+  /** Executes the block and records the wall clock duration. */
+  protected suspend fun <T> logWallClockDuration(
+    token: ComputationToken,
+    metricName: String,
+    histogram: DoubleHistogram,
+    block: suspend () -> T,
+  ): T {
+    val durationLogger = wallDurationLogger()
+
+    val result = block()
+    durationLogger.logStageDurationMetric(token, metricName, histogram)
+    return result
+  }
 
   companion object {
     private val COMPUTATION_TYPE_ATTRIBUTE_KEY = AttributeKey.stringKey("halo_cmm.computation.type")

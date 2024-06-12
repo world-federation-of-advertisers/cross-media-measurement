@@ -45,10 +45,10 @@ import org.wfanet.measurement.common.xor
 import org.wfanet.measurement.consent.client.duchy.decryptRandomSeed
 import org.wfanet.measurement.consent.client.duchy.signEncryptionPublicKey
 import org.wfanet.measurement.consent.client.duchy.verifyRandomSeed
-import org.wfanet.measurement.duchy.daemon.mill.CRYPTO_LIB_CPU_DURATION
+import org.wfanet.measurement.duchy.daemon.mill.CRYPTO_CPU_DURATION
+import org.wfanet.measurement.duchy.daemon.mill.CRYPTO_WALL_CLOCK_DURATION
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
 import org.wfanet.measurement.duchy.daemon.mill.DATA_TRANSMISSION_WALL_CLOCK_DURATION
-import org.wfanet.measurement.duchy.daemon.mill.JNI_WALL_CLOCK_DURATION
 import org.wfanet.measurement.duchy.daemon.mill.MillBase
 import org.wfanet.measurement.duchy.daemon.mill.shareshuffle.crypto.HonestMajorityShareShuffleCryptor
 import org.wfanet.measurement.duchy.daemon.utils.ReachAndFrequencyResult
@@ -133,23 +133,6 @@ class HonestMajorityShareShuffleMill(
       requireNotNull(privateKeyStore) { "private key store is not set up." }
     }
   }
-
-  private val meter: Meter = openTelemetry.getMeter(HonestMajorityShareShuffleMill::class.java.name)
-
-  private val shufflePhaseCryptoCpuTimeDurationHistogram: LongHistogram =
-    meter.histogramBuilder("shuffle_phase_crypto_cpu_time_duration_millis").ofLongs().build()
-
-  private val shufflePhaseWallClockDurationHistogram: LongHistogram =
-    meter.histogramBuilder("shuffle_phase_crypto_wall_clock_duration_millis").ofLongs().build()
-
-  private val shufflePhaseTransmissionDurationHistogram: LongHistogram =
-    meter.histogramBuilder("shuffle_phase_transmission_duration_millis").ofLongs().build()
-
-  private val aggregationPhaseCryptoCpuTimeDurationHistogram: LongHistogram =
-    meter.histogramBuilder("aggregation_phase_crypto_cpu_time_duration_millis").ofLongs().build()
-
-  private val aggregationPhaseWallClockDurationHistogram: LongHistogram =
-    meter.histogramBuilder("aggregation_phase_crypto_wall_clock_duration_millis").ofLongs().build()
 
   override val endingStage = Stage.COMPLETE.toProtocolStage()
 
@@ -448,15 +431,15 @@ class HonestMajorityShareShuffleMill(
     }
 
     val result =
-      logWallClockDuration(token, JNI_WALL_CLOCK_DURATION, shufflePhaseWallClockDurationHistogram) {
+      logWallClockDuration(token, CRYPTO_WALL_CLOCK_DURATION, cryptoWallClockDurationHistogram) {
         cryptoWorker.completeReachAndFrequencyShufflePhase(request)
       }
 
     logStageDurationMetric(
       token,
-      CRYPTO_LIB_CPU_DURATION,
-      result.elapsedCpuDuration.seconds * 1000,
-      shufflePhaseCryptoCpuTimeDurationHistogram,
+      CRYPTO_CPU_DURATION,
+      Duration.ofSeconds(result.elapsedCpuDuration.seconds),
+      cryptoCpuDurationHistogram,
     )
 
     val aggregationPhaseInput = aggregationPhaseInput {
@@ -466,7 +449,7 @@ class HonestMajorityShareShuffleMill(
     logWallClockDuration(
       token,
       DATA_TRANSMISSION_WALL_CLOCK_DURATION,
-      shufflePhaseTransmissionDurationHistogram,
+      stageDataTransmissionDurationHistogram,
     ) {
       sendAdvanceComputationRequest(
         header =
@@ -506,19 +489,15 @@ class HonestMajorityShareShuffleMill(
     }
 
     val result =
-      logWallClockDuration(
-        token,
-        JNI_WALL_CLOCK_DURATION,
-        aggregationPhaseWallClockDurationHistogram,
-      ) {
+      logWallClockDuration(token, CRYPTO_WALL_CLOCK_DURATION, cryptoWallClockDurationHistogram) {
         cryptoWorker.completeReachAndFrequencyAggregationPhase(request)
       }
 
     logStageDurationMetric(
       token,
-      CRYPTO_LIB_CPU_DURATION,
-      result.elapsedCpuDuration.seconds * 1000,
-      aggregationPhaseCryptoCpuTimeDurationHistogram,
+      CRYPTO_CPU_DURATION,
+      Duration.ofSeconds(result.elapsedCpuDuration.seconds),
+      cryptoCpuDurationHistogram,
     )
 
     sendResultToKingdom(
