@@ -21,7 +21,9 @@ _worker1_cert_name:    string @tag("worker1_cert_name")
 _worker2_cert_name:    string @tag("worker2_cert_name")
 
 #KingdomSystemApiTarget: (#Target & {name: "system-api-server"}).target
+#KingdomPublicApiTarget: (#Target & {name: "v2alpha-public-api-server"}).target
 #SpannerEmulatorHost:    (#Target & {name: "spanner-emulator"}).target
+
 #DuchyConfig: {
 	let duchyName = name
 	name:                            string
@@ -40,14 +42,16 @@ _duchyConfigs: {
 		databaseType:            "spanner"
 	}
 	"worker1": {
-		protocolsSetupConfig:    "non_aggregator_protocols_setup_config.textproto"
-		certificateResourceName: _worker1_cert_name
-		databaseType:            "spanner"
+		protocolsSetupConfig:      "worker1_protocols_setup_config.textproto"
+		certificateResourceName:   _worker1_cert_name
+		databaseType:              "spanner"
+		duchyKeyEncryptionKeyFile: "worker1_kek.tink"
 	}
 	"worker2": {
-		protocolsSetupConfig:    "non_aggregator_protocols_setup_config.textproto"
-		certificateResourceName: _worker2_cert_name
-		databaseType:            "postgres"
+		protocolsSetupConfig:      "worker2_protocols_setup_config.textproto"
+		certificateResourceName:   _worker2_cert_name
+		databaseType:              "postgres"
+		duchyKeyEncryptionKeyFile: "worker2_kek.tink"
 	}
 }
 
@@ -78,13 +82,16 @@ _computationControlTargets: {
 
 _baseDuchyConfig: {
 	_imageSuffixes: {
-		"computation-control-server":     "duchy/local-computation-control"
-		"liquid-legions-v2-mill-daemon":  "duchy/local-liquid-legions-v2-mill"
-		"requisition-fulfillment-server": "duchy/local-requisition-fulfillment"
+		"computation-control-server":                "duchy/local-computation-control"
+		"herald-daemon":                             "duchy/local-herald"
+		"liquid-legions-v2-mill-daemon":             "duchy/local-liquid-legions-v2-mill"
+		"honest-majority-share-shuffle-mill-daemon": "duchy/local-honest-majority-share-shuffle-mill"
+		"requisition-fulfillment-server":            "duchy/local-requisition-fulfillment"
 	}
 	_duchy_secret_name:           _secret_name
 	_computation_control_targets: _computationControlTargets
 	_kingdom_system_api_target:   #KingdomSystemApiTarget
+	_kingdom_public_api_target:   #KingdomPublicApiTarget
 	_blob_storage_flags: [
 		"--forwarded-storage-service-target=" + (#Target & {name: "fake-storage-server"}).target,
 		"--forwarded-storage-cert-host=localhost",
@@ -100,9 +107,10 @@ duchies: [
 					"internal-api-server": "duchy/local-spanner-computations"
 				}
 				_duchy: {
-					name:                   duchyConfig.name
-					protocols_setup_config: duchyConfig.protocolsSetupConfig
-					cs_cert_resource_name:  duchyConfig.certificateResourceName
+					name:                      duchyConfig.name
+					protocols_setup_config:    duchyConfig.protocolsSetupConfig
+					cs_cert_resource_name:     duchyConfig.certificateResourceName
+					duchyKeyEncryptionKeyFile: duchyConfig.duchyKeyEncryptionKeyFile
 				}
 			}
 		}
@@ -112,9 +120,10 @@ duchies: [
 					"internal-api-server": "duchy/local-postgres-internal-server"
 				}
 				_duchy: {
-					name:                   duchyConfig.name
-					protocols_setup_config: duchyConfig.protocolsSetupConfig
-					cs_cert_resource_name:  duchyConfig.certificateResourceName
+					name:                      duchyConfig.name
+					protocols_setup_config:    duchyConfig.protocolsSetupConfig
+					cs_cert_resource_name:     duchyConfig.certificateResourceName
+					duchyKeyEncryptionKeyFile: duchyConfig.duchyKeyEncryptionKeyFile
 				}
 				_postgresConfig: {
 					serviceName: "postgres"

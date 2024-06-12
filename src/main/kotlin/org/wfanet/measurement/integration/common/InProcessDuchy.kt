@@ -132,7 +132,7 @@ class InProcessDuchy(
 
   // TODO(@renjiez): Use real PrivateKeyStore when enabling HMSS.
   private val privateKeyStore by lazy {
-    val keyUri = "fake-kms://kek"
+    val keyUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
     val privateKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
     val aead = privateKeyHandle.getPrimitive(Aead::class.java)
     val fakeKmsClient = FakeKmsClient().also { it.setAead(keyUri, aead) }
