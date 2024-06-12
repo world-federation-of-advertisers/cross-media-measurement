@@ -246,9 +246,13 @@ private val HMSS_PARAMETERS =
       maximumCombinedFrequency = 11
       ringModulus = 13
     }
-    dpParams = differentialPrivacyParams {
-      epsilon = 1.0
-      delta = 1.0
+    reachDpParams = differentialPrivacyParams {
+      epsilon = 1.1
+      delta = 0.1
+    }
+    frequencyDpParams = differentialPrivacyParams {
+      epsilon = 2.1
+      delta = 0.1
     }
     noiseMechanism = NoiseMechanism.DISCRETE_GAUSSIAN
   }
@@ -672,7 +676,7 @@ class HonestMajorityShareShuffleMillTest {
     )
 
     var cryptoRequest = CompleteShufflePhaseRequest.getDefaultInstance()
-    whenever(mockCryptoWorker.completeShufflePhase(any())).thenAnswer {
+    whenever(mockCryptoWorker.completeReachAndFrequencyShufflePhase(any())).thenAnswer {
       cryptoRequest = it.getArgument(0)
       completeShufflePhaseResponse { combinedSketch += listOf(1, 2, 3) }
     }
@@ -707,7 +711,8 @@ class HonestMajorityShareShuffleMillTest {
         completeShufflePhaseRequest {
           val hmss = computationDetails.honestMajorityShareShuffle
           sketchParams = hmss.parameters.sketchParams.copy { registerCount = 100 }
-          dpParams = hmss.parameters.dpParams
+          reachDpParams = hmss.parameters.reachDpParams
+          frequencyDpParams = hmss.parameters.frequencyDpParams
           noiseMechanism = hmss.parameters.noiseMechanism
           order = CompleteShufflePhaseRequest.NonAggregatorOrder.FIRST
 
@@ -833,7 +838,7 @@ class HonestMajorityShareShuffleMillTest {
     val expectedReach = 100L
     val expectedFrequency = mapOf(0L to 0.1, 1L to 0.5, 2L to 0.4)
     var cryptoRequest = CompleteAggregationPhaseRequest.getDefaultInstance()
-    whenever(mockCryptoWorker.completeAggregationPhase(any())).thenAnswer {
+    whenever(mockCryptoWorker.completeReachAndFrequencyAggregationPhase(any())).thenAnswer {
       cryptoRequest = it.getArgument(0)
       completeAggregationPhaseResponse {
         reach = expectedReach
@@ -881,7 +886,8 @@ class HonestMajorityShareShuffleMillTest {
           sketchParams = hmss.parameters.sketchParams
           maximumFrequency = hmss.parameters.maximumFrequency
           vidSamplingIntervalWidth = MEASUREMENT_SPEC.vidSamplingInterval.width
-          dpParams = hmss.parameters.dpParams
+          reachDpParams = hmss.parameters.reachDpParams
+          frequencyDpParams = hmss.parameters.frequencyDpParams
           noiseMechanism = hmss.parameters.noiseMechanism
 
           sketchShares +=

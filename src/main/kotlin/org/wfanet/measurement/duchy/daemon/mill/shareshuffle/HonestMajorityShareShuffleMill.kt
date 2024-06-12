@@ -18,8 +18,6 @@ import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.OpenTelemetry
-import io.opentelemetry.api.metrics.LongHistogram
-import io.opentelemetry.api.metrics.Meter
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
@@ -69,7 +67,6 @@ import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation.AGGREGATOR
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation.FIRST_NON_AGGREGATOR
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation.SECOND_NON_AGGREGATOR
-import org.wfanet.measurement.internal.duchy.differentialPrivacyParams
 import org.wfanet.measurement.internal.duchy.protocol.CompleteAggregationPhaseRequestKt
 import org.wfanet.measurement.internal.duchy.protocol.CompleteShufflePhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteShufflePhaseRequestKt
@@ -132,7 +129,7 @@ class HonestMajorityShareShuffleMill(
     openTelemetry = openTelemetry,
   ) {
   init {
-    if (protocolSetupConfig.role == AGGREGATOR) {
+    if (protocolSetupConfig.role != AGGREGATOR) {
       requireNotNull(privateKeyStore) { "private key store is not set up." }
     }
   }
@@ -412,10 +409,8 @@ class HonestMajorityShareShuffleMill(
         } else {
           CompleteShufflePhaseRequest.NonAggregatorOrder.SECOND
         }
-      dpParams = differentialPrivacyParams {
-        delta = hmss.parameters.dpParams.delta
-        epsilon = hmss.parameters.dpParams.epsilon
-      }
+      reachDpParams = hmss.parameters.reachDpParams
+      frequencyDpParams = hmss.parameters.frequencyDpParams
       noiseMechanism = hmss.parameters.noiseMechanism
 
       val registerCounts = mutableListOf<Long>()
@@ -454,7 +449,7 @@ class HonestMajorityShareShuffleMill(
 
     val result =
       logWallClockDuration(token, JNI_WALL_CLOCK_DURATION, shufflePhaseWallClockDurationHistogram) {
-        cryptoWorker.completeShufflePhase(request)
+        cryptoWorker.completeReachAndFrequencyShufflePhase(request)
       }
 
     logStageDurationMetric(
@@ -500,10 +495,8 @@ class HonestMajorityShareShuffleMill(
           vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width
         }
       }
-      dpParams = differentialPrivacyParams {
-        delta = hmss.parameters.dpParams.delta
-        epsilon = hmss.parameters.dpParams.epsilon
-      }
+      reachDpParams = hmss.parameters.reachDpParams
+      frequencyDpParams = hmss.parameters.frequencyDpParams
       noiseMechanism = hmss.parameters.noiseMechanism
 
       for (input in aggregationPhaseInputs) {
@@ -518,7 +511,7 @@ class HonestMajorityShareShuffleMill(
         JNI_WALL_CLOCK_DURATION,
         aggregationPhaseWallClockDurationHistogram,
       ) {
-        cryptoWorker.completeAggregationPhase(request)
+        cryptoWorker.completeReachAndFrequencyAggregationPhase(request)
       }
 
     logStageDurationMetric(

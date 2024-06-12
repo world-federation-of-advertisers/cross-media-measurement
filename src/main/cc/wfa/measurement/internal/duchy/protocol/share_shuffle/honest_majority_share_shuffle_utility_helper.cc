@@ -44,7 +44,47 @@ using ::wfa::math::kBytesPerAes256Iv;
 using ::wfa::math::kBytesPerAes256Key;
 using ::wfa::math::UniformPseudorandomGenerator;
 
-absl::StatusOr<std::vector<uint32_t>> GenerateNoiseRegisters(
+absl::StatusOr<std::vector<uint32_t>> GenerateReachAndFrequencyNoiseRegisters(
+    const ShareShuffleSketchParams& sketch_param,
+    const math::DistributedNoiser& distributed_reach_noiser,
+    const math::DistributedNoiser& distributed_frequency_noiser) {
+  if (sketch_param.ring_modulus() <=
+      sketch_param.maximum_combined_frequency() + 1) {
+    return absl::InvalidArgumentError(
+        "Ring modulus must be greater than maximum combined frequency plus 1.");
+  }
+
+  int64_t total_noise_registers_count =
+      distributed_reach_noiser.options().shift_offset * 2 +
+      distributed_frequency_noiser.options().shift_offset * 2 *
+          sketch_param.maximum_combined_frequency();
+  // Sets all noise registers to the sentinel value (q-1).
+  std::vector<uint32_t> noise_registers(total_noise_registers_count,
+                                        sketch_param.ring_modulus() - 1);
+
+  int current_index = 0;
+  // Sample noise registers for reach.
+  ASSIGN_OR_RETURN(int64_t noise_register_count_for_reach,
+                   distributed_reach_noiser.GenerateNoiseComponent());
+  for (int i = 0; i < noise_register_count_for_reach; i++) {
+    noise_registers[current_index] = 0;
+    current_index++;
+  }
+
+  // Sample noise registers for 1+ frequency.
+  for (int k = 1; k <= sketch_param.maximum_combined_frequency(); k++) {
+    ASSIGN_OR_RETURN(int64_t noise_register_count_for_bucket_k,
+                     distributed_frequency_noiser.GenerateNoiseComponent());
+    for (int i = 0; i < noise_register_count_for_bucket_k; i++) {
+      noise_registers[current_index] = k;
+      current_index++;
+    }
+  }
+
+  return noise_registers;
+}
+
+absl::StatusOr<std::vector<uint32_t>> GenerateReachOnlyNoiseRegisters(
     const ShareShuffleSketchParams& sketch_param,
     const math::DistributedNoiser& distributed_noiser) {
   if (sketch_param.ring_modulus() <=
@@ -54,21 +94,25 @@ absl::StatusOr<std::vector<uint32_t>> GenerateNoiseRegisters(
   }
 
   int64_t total_noise_registers_count =
-      distributed_noiser.options().shift_offset * 2 *
-      (1 + sketch_param.maximum_combined_frequency());
-  // Sets all noise registers to the sentinel value (q-1).
-  std::vector<uint32_t> noise_registers(total_noise_registers_count,
-                                        sketch_param.ring_modulus() - 1);
+      distributed_noiser.options().shift_offset * 2;
 
-  int current_index = 0;
-  for (int k = 0; k <= sketch_param.maximum_combined_frequency(); k++) {
-    ASSIGN_OR_RETURN(int64_t noise_register_count_for_bucket_k,
-                     distributed_noiser.GenerateNoiseComponent());
-    for (int i = 0; i < noise_register_count_for_bucket_k; i++) {
-      noise_registers[current_index] = k;
-      current_index++;
-    }
-  }
+  ASSIGN_OR_RETURN(int64_t non_zero_register_noise_count,
+                   distributed_noiser.GenerateNoiseComponent());
+
+  std::vector<unsigned char> key(kBytesPerAes256Key);
+  std::vector<unsigned char> iv(kBytesPerAes256Iv);
+  RAND_bytes(key.data(), key.size());
+  RAND_bytes(iv.data(), iv.size());
+
+  ASSIGN_OR_RETURN(std::unique_ptr<math::UniformPseudorandomGenerator> prng,
+                   math::OpenSslUniformPseudorandomGenerator::Create(key, iv));
+
+  ASSIGN_OR_RETURN(
+      std::vector<uint32_t> noise_registers,
+      prng->GenerateNonZeroUniformRandomRange(non_zero_register_noise_count,
+                                              sketch_param.ring_modulus()));
+
+  noise_registers.resize(total_noise_registers_count, 0);
 
   return noise_registers;
 }

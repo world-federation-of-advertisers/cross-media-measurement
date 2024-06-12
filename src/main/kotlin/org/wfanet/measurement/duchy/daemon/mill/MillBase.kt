@@ -18,10 +18,10 @@ import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.OpenTelemetry
-import io.opentelemetry.api.metrics.LongHistogram
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.metrics.DoubleHistogram
 import io.opentelemetry.api.metrics.Meter
-import java.lang.management.ManagementFactory
-import java.lang.management.ThreadMXBean
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
@@ -31,6 +31,7 @@ import kotlin.math.pow
 import kotlin.random.Random
 import kotlin.time.ExperimentalTime
 import kotlin.time.TimeSource
+import kotlin.time.toJavaDuration
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -118,22 +119,28 @@ abstract class MillBase(
 ) {
   abstract val endingStage: ComputationStage
 
-  private val meter: Meter = openTelemetry.getMeter(MillBase::class.java.name)
+  protected val meter: Meter = openTelemetry.getMeter(this::class.qualifiedName!!)
 
-  init {
-    meter.gaugeBuilder("active_non_daemon_thread_count").ofLongs().buildWithCallback {
-      it.record((threadBean.threadCount - threadBean.daemonThreadCount).toLong())
-    }
-  }
+  private val cryptoWallClockDurationHistogram: DoubleHistogram =
+    meter
+      .histogramBuilder("halo_cmm.computation.stage.crypto.time")
+      .setDescription("Wall time spent in crypto operations for a computation stage")
+      .setUnit("s")
+      .build()
 
-  private val jniWallClockDurationHistogram: LongHistogram =
-    meter.histogramBuilder("jni_wall_clock_duration_millis").ofLongs().build()
+  protected val cryptoCpuDurationHistogram: DoubleHistogram =
+    meter
+      .histogramBuilder("halo_cmm.computation.stage.crypto.cpu.time")
+      .setDescription("CPU time spent in crypto operations for a computation stage")
+      .setUnit("s")
+      .build()
 
-  private val stageWallClockDurationHistogram: LongHistogram =
-    meter.histogramBuilder("stage_wall_clock_duration_millis").ofLongs().build()
-
-  private val stageCpuTimeDurationHistogram: LongHistogram =
-    meter.histogramBuilder("stage_cpu_time_duration_millis").ofLongs().build()
+  private val stageWallClockDurationHistogram: DoubleHistogram =
+    meter
+      .histogramBuilder("halo_cmm.computation.stage.time")
+      .setDescription("Wall time for a computation stage")
+      .setUnit("s")
+      .build()
 
   private var computationsServerReady = false
   /** Poll and work on the next available computations. */
@@ -168,18 +175,12 @@ abstract class MillBase(
       }
 
       val wallDurationLogger = wallDurationLogger()
-      val cpuDurationLogger = cpuDurationLogger()
 
       processComputation(token)
       wallDurationLogger.logStageDurationMetric(
         token,
         STAGE_WALL_CLOCK_DURATION,
         stageWallClockDurationHistogram,
-      )
-      cpuDurationLogger.logStageDurationMetric(
-        token,
-        STAGE_CPU_DURATION,
-        stageCpuTimeDurationHistogram,
       )
     } else {
       logger.fine("@Mill $millId: No computation available, waiting for the next poll...")
@@ -379,15 +380,23 @@ abstract class MillBase(
   protected suspend fun logStageDurationMetric(
     token: ComputationToken,
     metricName: String,
-    metricValue: Long,
-    histogram: LongHistogram,
+    metricValue: Duration,
+    histogram: DoubleHistogram,
   ) {
-    histogram.record(metricValue)
+    histogram.record(
+      metricValue.toMillis() / 1000.0,
+      Attributes.of(
+        COMPUTATION_TYPE_ATTRIBUTE_KEY,
+        computationType.name,
+        COMPUTATION_STAGE_ATTRIBUTE_KEY,
+        token.computationStage.name,
+      ),
+    )
     logger.info(
       "@Mill $millId, ${token.globalComputationId}/${token.computationStage.name}/$metricName:" +
         " ${metricValue.toHumanFriendlyDuration()}"
     )
-    sendComputationStats(token, metricName, metricValue)
+    sendComputationStats(token, metricName, metricValue.toMillis())
   }
 
   /** Sends state metric to the ComputationStatsService. */
@@ -473,6 +482,8 @@ abstract class MillBase(
 
   /**
    * Fetches the cached result if available, otherwise compute the new result by executing [block].
+   *
+   * @param block function which computes a new result using cryptographic operations
    */
   protected suspend fun existingOutputOr(
     token: ComputationToken,
@@ -489,8 +500,8 @@ abstract class MillBase(
     val result = block()
     wallDurationLogger.logStageDurationMetric(
       token,
-      JNI_WALL_CLOCK_DURATION,
-      jniWallClockDurationHistogram,
+      CRYPTO_WALL_CLOCK_DURATION,
+      cryptoWallClockDurationHistogram,
     )
     return EncryptedComputationResult(
       flowOf(result),
@@ -510,8 +521,8 @@ abstract class MillBase(
     val result = block()
     wallDurationLogger.logStageDurationMetric(
       token,
-      JNI_WALL_CLOCK_DURATION,
-      jniWallClockDurationHistogram,
+      CRYPTO_WALL_CLOCK_DURATION,
+      cryptoWallClockDurationHistogram,
     )
     // Reuse cached result if it exists even though the block has been rerun.
     if (token.singleOutputBlobMetadata().path.isNotEmpty()) {
@@ -625,11 +636,6 @@ abstract class MillBase(
     }
   }
 
-  private fun getCpuTimeMillis(): Long {
-    val cpuTime = Duration.ofNanos(threadBean.allThreadIds.sumOf(threadBean::getThreadCpuTime))
-    return cpuTime.toMillis()
-  }
-
   protected suspend fun updateComputationDetails(
     request: UpdateComputationDetailsRequest
   ): ComputationToken {
@@ -648,21 +654,6 @@ abstract class MillBase(
     return response.token
   }
 
-  private inner class CpuDurationLogger(private val getTimeMillis: () -> Long) {
-    private val start = getTimeMillis()
-
-    suspend fun logStageDurationMetric(
-      token: ComputationToken,
-      metricName: String,
-      histogram: LongHistogram,
-    ) {
-      val time = getTimeMillis() - start
-      logStageDurationMetric(token, metricName, time, histogram)
-    }
-  }
-
-  private fun cpuDurationLogger(): CpuDurationLogger = CpuDurationLogger(this::getCpuTimeMillis)
-
   @OptIn(ExperimentalTime::class)
   private inner class WallDurationLogger {
     private val timeMark = TimeSource.Monotonic.markNow()
@@ -670,9 +661,9 @@ abstract class MillBase(
     suspend fun logStageDurationMetric(
       token: ComputationToken,
       metricName: String,
-      histogram: LongHistogram,
+      histogram: DoubleHistogram,
     ) {
-      val time = timeMark.elapsedNow().inWholeMilliseconds
+      val time: Duration = timeMark.elapsedNow().toJavaDuration()
       logStageDurationMetric(token, metricName, time, histogram)
     }
   }
@@ -680,14 +671,16 @@ abstract class MillBase(
   private fun wallDurationLogger(): WallDurationLogger = WallDurationLogger()
 
   companion object {
+    private val COMPUTATION_TYPE_ATTRIBUTE_KEY = AttributeKey.stringKey("halo_cmm.computation.type")
+    private val COMPUTATION_STAGE_ATTRIBUTE_KEY =
+      AttributeKey.stringKey("halo_cmm.computation.stage")
+
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-    private val threadBean: ThreadMXBean = ManagementFactory.getThreadMXBean()
   }
 }
 
-const val CRYPTO_LIB_CPU_DURATION = "crypto_lib_cpu_duration_ms"
-const val JNI_WALL_CLOCK_DURATION = "jni_wall_clock_duration_ms"
-const val STAGE_CPU_DURATION = "stage_cpu_duration_ms"
+const val CRYPTO_CPU_DURATION = "crypto_cpu_duration_ms"
+const val CRYPTO_WALL_CLOCK_DURATION = "crypto_wall_clock_duration_ms"
 const val STAGE_WALL_CLOCK_DURATION = "stage_wall_clock_duration_ms"
 const val DATA_TRANSMISSION_WALL_CLOCK_DURATION = "data_transmission_wall_clock_duration_ms"
 const val BYTES_OF_DATA_IN_RPC = "bytes_of_data_in_rpc"
@@ -705,14 +698,14 @@ data class Certificate(
 )
 
 /** Converts a milliseconds to a human friendly string. */
-fun Long.toHumanFriendlyDuration(): String {
-  val seconds = this / 1000
-  val ms = this % 1000
-  val hh = seconds / 3600
-  val mm = (seconds % 3600) / 60
-  val ss = seconds % 60
-  val hoursString = if (hh == 0L) "" else "$hh hours "
-  val minutesString = if (mm == 0L) "" else "$mm minutes "
-  val secondsString = if (ss == 0L) "" else "$ss seconds "
-  return "$hoursString$minutesString$secondsString$ms milliseconds"
+fun Duration.toHumanFriendlyDuration(): String {
+  val hours = toHours()
+  val minutes = toMinutesPart()
+  val seconds = toSecondsPart()
+  val millis = toMillisPart()
+  val hoursString = if (hours == 0L) "" else "$hours hours "
+  val minutesString = if (minutes == 0) "" else "$minutes minutes "
+  val secondsString = if (seconds == 0) "" else "$seconds seconds "
+  val millisString = if (millis == 0) "" else "$millis milliseconds"
+  return "$hoursString$minutesString$secondsString$millisString"
 }

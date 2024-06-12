@@ -22,21 +22,11 @@ module "clusters" {
   secret_key      = module.common.cluster_secret_key
 }
 
-data "google_container_cluster" "clusters" {
-  for_each = local.duchy_names
-
-  name     = "${each.key}-duchy"
-  location = local.cluster_location
-
-  # Defer reading of cluster resource until it exists.
-  depends_on = [module.clusters]
-}
-
 module "default_node_pools" {
   source   = "../modules/node-pool"
-  for_each = data.google_container_cluster.clusters
+  for_each = module.clusters
 
-  cluster         = each.value
+  cluster         = each.value.cluster
   name            = "default"
   service_account = module.common.cluster_service_account
   machine_type    = "e2-standard-2"
@@ -45,13 +35,13 @@ module "default_node_pools" {
 
 module "highmem_node_pools" {
   source   = "../modules/node-pool"
-  for_each = data.google_container_cluster.clusters
+  for_each = module.clusters
 
-  cluster         = each.value
+  cluster         = each.value.cluster
   name            = "highmem"
   service_account = module.common.cluster_service_account
   machine_type    = "c2-standard-4"
-  max_node_count  = 2
+  max_node_count  = 3
   spot            = true
 }
 
