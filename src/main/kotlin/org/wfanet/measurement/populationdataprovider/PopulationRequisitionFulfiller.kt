@@ -16,9 +16,9 @@ package org.wfanet.measurement.populationdataprovider
 
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
+import com.google.protobuf.DescriptorProtos.FileDescriptorSet
 import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.DynamicMessage
-import com.google.protobuf.Message
 import com.google.protobuf.TypeRegistry
 import io.grpc.Status
 import io.grpc.StatusException
@@ -45,19 +45,16 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.getModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsRequest
 import org.wfanet.measurement.api.v2alpha.size
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.measurement.dataprovider.RequisitionFulfiller
 import org.wfanet.measurement.dataprovider.DataProviderData
 
-
-
 data class PopulationInfo (
   val populationSpec: PopulationSpec,
   val eventDescriptor: Descriptor,
-  val typeRegistry: TypeRegistry,
-  val attributeClassMap: Map<String, Class<Message>>,
   val operativeFields: Set<String>,
 )
 /** A requisition fulfiller for PDP businesses. */
@@ -71,6 +68,7 @@ class PopulationRequisitionFulfiller(
   private val modelRolloutsStub: ModelRolloutsCoroutineStub,
   private val modelReleasesStub: ModelReleasesCoroutineStub,
   private val populationInfoMap: Map<PopulationKey, PopulationInfo>,
+  private val fileDescriptorSet:  List<FileDescriptorSet>,
 ) :
   RequisitionFulfiller(
     pdpData,
@@ -100,12 +98,15 @@ class PopulationRequisitionFulfiller(
       return
     }
 
+    val fileDescriptors = ProtoReflection.buildFileDescriptors(fileDescriptorSet)
+    val typeRegistry = TypeRegistry.newBuilder().add(fileDescriptors.flatMap { it.messageTypes }).build()
+
     for (requisition in requisitions) {
       try {
         logger.info("Processing requisition ${requisition.name}...")
 
         // TODO(@SanjayVas): Verify that DataProvider public key in Requisition matches private key
-        // in pdpData. A real PDP would look up the matching private key.
+        //  in pdpData. A real PDP would look up the matching private key.
 
         val measurementConsumerCertificate: Certificate =
           getCertificate(requisition.measurementConsumerCertificate)
@@ -143,7 +144,8 @@ class PopulationRequisitionFulfiller(
           requisitionSpec,
           measurementSpec,
           requisitionFilterExpression,
-          populationInfo
+          populationInfo,
+          typeRegistry,
         )
       } catch (refusalException: RequisitionRefusalException) {
         refuseRequisition(
@@ -161,6 +163,8 @@ class PopulationRequisitionFulfiller(
    */
   private suspend fun getModelRelease(measurementSpec: MeasurementSpec): ModelRelease {
     val measurementSpecModelLineName = measurementSpec.modelLine
+    // TODO(@jojijac0b): Handle case where measurement spans across one or more model outages.
+    //  Should use HoldbackModelLine in this case to reflect what is done with measurement reports.
 
     // Returns list of ModelRollouts.
     val listModelRolloutsResponse =
@@ -207,7 +211,8 @@ class PopulationRequisitionFulfiller(
     requisitionSpec: RequisitionSpec,
     measurementSpec: MeasurementSpec,
     filterExpression: String,
-    populationInfo: PopulationInfo
+    populationInfo: PopulationInfo,
+    typeRegistry: TypeRegistry,
   ) {
 
     // CEL program that will check the event against the filter expression
@@ -217,7 +222,7 @@ class PopulationRequisitionFulfiller(
     val populationSum = populationInfo.populationSpec.subpopulationsList.sumOf {
       val attributesList = it.attributesList
       val vidRanges = it.vidRangesList
-      val shouldSumPopulation = isValidAttributesList(attributesList, populationInfo, program)
+      val shouldSumPopulation = isValidAttributesList(attributesList, populationInfo, program, typeRegistry)
       if (shouldSumPopulation) {
         vidRanges.sumOf { jt -> jt.size() }
       } else {
@@ -242,10 +247,8 @@ class PopulationRequisitionFulfiller(
    * Returns a [Boolean] representing whether the attributes in the list are 1) the correct type and
    * 2) pass a check against the filter expression after being run through a CEL program.
    */
-  private fun isValidAttributesList(attributeList: List<Any>, populationInfo: PopulationInfo, program: Program): Boolean {
+  private fun isValidAttributesList(attributeList: List<Any>, populationInfo: PopulationInfo, program: Program, typeRegistry: TypeRegistry): Boolean {
     val eventDescriptor = populationInfo.eventDescriptor
-    val typeRegistry = populationInfo.typeRegistry
-    val classMap = populationInfo.attributeClassMap
 
     // Event message that will be passed to CEL program
     val eventMessage = DynamicMessage.newBuilder(eventDescriptor)
@@ -255,8 +258,10 @@ class PopulationRequisitionFulfiller(
       val requiredAttributes = attributeDescriptor.fields.filter {
         it.options.getExtension(EventAnnotationsProto.templateField).populationAttribute
       }
-      // Unpack the attribute message using the class specified by the attribute descriptor.
-      val attributeMessage = attribute.unpack(classMap[attributeDescriptor.name])
+
+      // Create the attribute message of the type specified in attribute descriptor using the type registry.
+      val descriptor = typeRegistry.getDescriptorForTypeUrl(attribute.typeUrl)
+      val attributeMessage = DynamicMessage.parseFrom(descriptor, attribute.value)
 
       // If the attribute type is not a field in the event message, it is not valid.
       val isAttributeFieldInEvent = eventDescriptor.fields.any {

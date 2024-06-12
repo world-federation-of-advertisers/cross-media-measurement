@@ -16,10 +16,14 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.DescriptorProtos
+import com.google.protobuf.DescriptorProtos.FileDescriptorSet
+import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.Message
 import com.google.protobuf.Timestamp
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.kotlin.toByteString
+import java.io.FileDescriptor
 import java.lang.UnsupportedOperationException
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -39,6 +43,7 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCorouti
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
@@ -79,6 +84,7 @@ import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.size
 import org.wfanet.measurement.api.v2alpha.unpack
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
@@ -103,6 +109,7 @@ import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisit
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.dataprovider.DataProviderData
+import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
 import org.wfanet.measurement.populationdataprovider.PopulationRequisitionFulfiller
 import org.wfanet.measurement.populationdataprovider.PopulationInfo
 
@@ -198,8 +205,6 @@ val INVALID_ATTRIBUTE_1 = Dummy.getDefaultInstance().pack()
 
 val INVALID_ATTRIBUTE_2 = INVALID_PERSON.pack()
 
-
-
 val VID_RANGE_1 = vidRange {
   startVid = 1
   endVidInclusive = 100
@@ -262,41 +267,34 @@ val INVALID_POPULATION_SPEC_2 = populationSpec {
 val POPULATION_ID_1 = requireNotNull(PopulationKey.fromName(POPULATION_NAME_1))
 val POPULATION_ID_2 = requireNotNull(PopulationKey.fromName(POPULATION_NAME_2))
 
-val TYPE_REGISTRY = TypeRegistry.newBuilder().add(Person.getDescriptor()).add(Dummy.getDescriptor()).build()
+val PERSON_FILE_DESCRIPTOR_SET = ProtoReflection.buildFileDescriptorSet(Person.getDescriptor())
+val DUMMY_FILE_DESCRIPTOR_SET = ProtoReflection.buildFileDescriptorSet(Dummy.getDescriptor())
 
-val CLASS_MAP: Map<String, Class<Message>> = mapOf(Person.getDescriptor().name to Person.getDefaultInstance().javaClass, Dummy.getDescriptor().name to Dummy.getDefaultInstance().javaClass)
+val FILE_DESCRIPTOR_SET_LIST = listOf(PERSON_FILE_DESCRIPTOR_SET, DUMMY_FILE_DESCRIPTOR_SET)
 
 val OPERATIVE_FIELDS = setOf("person.ageGroup.value", "person.socialGradeGroup.value", "person.genderGroup.value")
 
 val POPULATION_INFO_1 = PopulationInfo(
   POPULATION_SPEC_1,
   TestEvent.getDescriptor(),
-  TYPE_REGISTRY,
-  CLASS_MAP,
   OPERATIVE_FIELDS,
 )
 
 val POPULATION_INFO_2 = PopulationInfo(
   POPULATION_SPEC_2,
   TestEvent.getDescriptor(),
-  TYPE_REGISTRY,
-  CLASS_MAP,
   OPERATIVE_FIELDS,
 )
 
 val INVALID_POPULATION_INFO_1 = PopulationInfo(
   INVALID_POPULATION_SPEC_1,
   TestEvent.getDescriptor(),
-  TYPE_REGISTRY,
-  CLASS_MAP,
   OPERATIVE_FIELDS,
 )
 
 val INVALID_POPULATION_INFO_2 = PopulationInfo(
   INVALID_POPULATION_SPEC_2,
   TestEvent.getDescriptor(),
-  TYPE_REGISTRY,
-  CLASS_MAP,
   OPERATIVE_FIELDS,
 )
 
@@ -391,7 +389,8 @@ class PopulationRequisitionFulfillerTest {
         MC_NAME,
         modelRolloutsStub,
         modelReleasesStub,
-        POPULATION_INFO_MAP
+        POPULATION_INFO_MAP,
+        FILE_DESCRIPTOR_SET_LIST
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -440,7 +439,8 @@ class PopulationRequisitionFulfillerTest {
         MC_NAME,
         modelRolloutsStub,
         modelReleasesStub,
-        POPULATION_INFO_MAP
+        POPULATION_INFO_MAP,
+        FILE_DESCRIPTOR_SET_LIST
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -493,7 +493,8 @@ class PopulationRequisitionFulfillerTest {
         MC_NAME,
         modelRolloutsStub,
         modelReleasesStub,
-        POPULATION_INFO_MAP
+        POPULATION_INFO_MAP,
+        FILE_DESCRIPTOR_SET_LIST
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -547,7 +548,8 @@ class PopulationRequisitionFulfillerTest {
         MC_NAME,
         modelRolloutsStub,
         modelReleasesStub,
-        INVALID_POPULATION_INFO_MAP
+        INVALID_POPULATION_INFO_MAP,
+        FILE_DESCRIPTOR_SET_LIST
       )
 
     val exception =
@@ -600,7 +602,8 @@ class PopulationRequisitionFulfillerTest {
         MC_NAME,
         modelRolloutsStub,
         modelReleasesStub,
-        INVALID_POPULATION_INFO_MAP
+        INVALID_POPULATION_INFO_MAP,
+        FILE_DESCRIPTOR_SET_LIST
       )
 
     val exception =
@@ -653,7 +656,8 @@ class PopulationRequisitionFulfillerTest {
         MC_NAME,
         modelRolloutsStub,
         modelReleasesStub,
-        INVALID_POPULATION_INFO_MAP
+        INVALID_POPULATION_INFO_MAP,
+        FILE_DESCRIPTOR_SET_LIST
       )
 
     val exception =
@@ -665,6 +669,54 @@ class PopulationRequisitionFulfillerTest {
 
     // Result should throw NoSuchElementException
     assertThat(exception).hasMessageThat().contains("Key $POPULATION_ID_1 is missing in the map.")
+  }
+
+  @Test
+  fun `throws error when filter expression is not in operative field in population info`() {
+    val requisitionSpec =
+      REQUISITION_SPEC.copy {
+        population =
+          RequisitionSpecKt.population {
+            filter = eventFilter { expression = "person.gender == ${Person.Gender.FEMALE_VALUE} && other_field.value == other_value" }
+          }
+      }
+
+    val encryptedRequisitionSpec =
+      encryptRequisitionSpec(
+        signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
+        DATA_PROVIDER_PUBLIC_KEY,
+      )
+
+    val requisition = REQUISITION.copy { this.encryptedRequisitionSpec = encryptedRequisitionSpec }
+
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
+
+    val simulator =
+      PopulationRequisitionFulfiller(
+        PDP_DATA,
+        certificatesStub,
+        requisitionsStub,
+        dummyThrottler,
+        TRUSTED_CERTIFICATES,
+        MC_NAME,
+        modelRolloutsStub,
+        modelReleasesStub,
+        POPULATION_INFO_MAP,
+        FILE_DESCRIPTOR_SET_LIST
+      )
+
+    val exception =
+      assertFailsWith<EventFilterValidationException> {
+        runBlocking {
+          simulator.executeRequisitionFulfillingWorkflow()
+        }
+      }
+
+    // Result should throw EventFilterValidationException
+    assertThat(exception).hasMessageThat().contains("undeclared reference to 'other_field' (in container 'wfa.measurement.api.v2alpha.event_templates.testing.TestEvent')")
   }
 
   companion object {
