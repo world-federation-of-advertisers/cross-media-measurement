@@ -48,7 +48,7 @@ import org.wfanet.measurement.consent.client.duchy.verifyRandomSeed
 import org.wfanet.measurement.duchy.daemon.mill.CRYPTO_CPU_DURATION
 import org.wfanet.measurement.duchy.daemon.mill.CRYPTO_WALL_CLOCK_DURATION
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
-import org.wfanet.measurement.duchy.daemon.mill.DATA_TRANSMISSION_WALL_CLOCK_DURATION
+import org.wfanet.measurement.duchy.daemon.mill.DATA_TRANSMISSION_RPC_WALL_CLOCK_DURATION
 import org.wfanet.measurement.duchy.daemon.mill.MillBase
 import org.wfanet.measurement.duchy.daemon.mill.shareshuffle.crypto.HonestMajorityShareShuffleCryptor
 import org.wfanet.measurement.duchy.daemon.utils.ReachAndFrequencyResult
@@ -448,7 +448,7 @@ class HonestMajorityShareShuffleMill(
 
     logWallClockDuration(
       token,
-      DATA_TRANSMISSION_WALL_CLOCK_DURATION,
+      DATA_TRANSMISSION_RPC_WALL_CLOCK_DURATION,
       stageDataTransmissionDurationHistogram,
     ) {
       sendAdvanceComputationRequest(
