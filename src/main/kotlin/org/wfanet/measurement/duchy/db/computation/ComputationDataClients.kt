@@ -17,7 +17,6 @@ package org.wfanet.measurement.duchy.db.computation
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
-import io.grpc.StatusRuntimeException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
@@ -34,6 +33,7 @@ import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoro
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathResponse
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.storage.StorageException
 import org.wfanet.measurement.storage.Store.Blob
 
 /** Storage clients providing access to the ComputationsService and ComputationStore. */
@@ -133,12 +133,8 @@ private constructor(
           ComputationBlobContext.fromToken(computationToken, metadata),
           content,
         )
-      } catch (e: StatusRuntimeException) {
-        val message = "Error writing blob to storage."
-        throw when (e.status.code) {
-          Status.Code.UNAVAILABLE -> TransientErrorException(message, e)
-          else -> PermanentErrorException(message, e)
-        }
+      } catch (e: StorageException) {
+        throw PermanentErrorException("Error writing blob to storage.", e)
       }
 
     val response: RecordOutputBlobPathResponse =
