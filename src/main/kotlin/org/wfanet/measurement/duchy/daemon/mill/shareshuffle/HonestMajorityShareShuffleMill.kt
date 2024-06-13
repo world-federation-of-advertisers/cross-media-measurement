@@ -45,7 +45,10 @@ import org.wfanet.measurement.common.xor
 import org.wfanet.measurement.consent.client.duchy.decryptRandomSeed
 import org.wfanet.measurement.consent.client.duchy.signEncryptionPublicKey
 import org.wfanet.measurement.consent.client.duchy.verifyRandomSeed
+import org.wfanet.measurement.duchy.daemon.mill.CRYPTO_CPU_DURATION
+import org.wfanet.measurement.duchy.daemon.mill.CRYPTO_WALL_CLOCK_DURATION
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
+import org.wfanet.measurement.duchy.daemon.mill.DATA_TRANSMISSION_RPC_WALL_CLOCK_DURATION
 import org.wfanet.measurement.duchy.daemon.mill.MillBase
 import org.wfanet.measurement.duchy.daemon.mill.shareshuffle.crypto.HonestMajorityShareShuffleCryptor
 import org.wfanet.measurement.duchy.daemon.utils.ReachAndFrequencyResult
@@ -130,8 +133,6 @@ class HonestMajorityShareShuffleMill(
       requireNotNull(privateKeyStore) { "private key store is not set up." }
     }
   }
-
-  // TODO(@renjiez): add metrics.
 
   override val endingStage = Stage.COMPLETE.toProtocolStage()
 
@@ -429,18 +430,34 @@ class HonestMajorityShareShuffleMill(
       sketchParams = hmss.parameters.sketchParams.copy { registerCount = registerCounts.first() }
     }
 
-    val result = cryptoWorker.completeReachAndFrequencyShufflePhase(request)
+    val result =
+      logWallClockDuration(token, CRYPTO_WALL_CLOCK_DURATION, cryptoWallClockDurationHistogram) {
+        cryptoWorker.completeReachAndFrequencyShufflePhase(request)
+      }
+
+    logStageDurationMetric(
+      token,
+      CRYPTO_CPU_DURATION,
+      Duration.ofSeconds(result.elapsedCpuDuration.seconds),
+      cryptoCpuDurationHistogram,
+    )
 
     val aggregationPhaseInput = aggregationPhaseInput {
       combinedSketch += result.combinedSketchList
     }
 
-    sendAdvanceComputationRequest(
-      header =
-        advanceComputationHeader(Description.AGGREGATION_PHASE_INPUT, token.globalComputationId),
-      content = addLoggingHook(token, flowOf(aggregationPhaseInput.toByteString())),
-      stub = aggregatorStub(),
-    )
+    logWallClockDuration(
+      token,
+      DATA_TRANSMISSION_RPC_WALL_CLOCK_DURATION,
+      stageDataTransmissionDurationHistogram,
+    ) {
+      sendAdvanceComputationRequest(
+        header =
+          advanceComputationHeader(Description.AGGREGATION_PHASE_INPUT, token.globalComputationId),
+        content = addLoggingHook(token, flowOf(aggregationPhaseInput.toByteString())),
+        stub = aggregatorStub(),
+      )
+    }
 
     return completeComputation(token, ComputationDetails.CompletedReason.SUCCEEDED)
   }
@@ -471,7 +488,17 @@ class HonestMajorityShareShuffleMill(
       }
     }
 
-    val result = cryptoWorker.completeReachAndFrequencyAggregationPhase(request)
+    val result =
+      logWallClockDuration(token, CRYPTO_WALL_CLOCK_DURATION, cryptoWallClockDurationHistogram) {
+        cryptoWorker.completeReachAndFrequencyAggregationPhase(request)
+      }
+
+    logStageDurationMetric(
+      token,
+      CRYPTO_CPU_DURATION,
+      Duration.ofSeconds(result.elapsedCpuDuration.seconds),
+      cryptoCpuDurationHistogram,
+    )
 
     sendResultToKingdom(
       token,
