@@ -7,8 +7,8 @@ load("//src/main/docker:macros.bzl", "java_image")
 package(
     default_visibility = [
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:__subpackages__",
-        "//src/main/kotlin/org/wfanet/measurement/populationdataprovider:__subpackages__"
-    ]
+        "//src/main/kotlin/org/wfanet/measurement/populationdataprovider:__subpackages__",
+    ],
 )
 
 kt_jvm_library(

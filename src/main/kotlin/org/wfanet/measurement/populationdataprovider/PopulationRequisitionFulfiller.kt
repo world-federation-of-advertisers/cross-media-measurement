@@ -16,8 +16,8 @@ package org.wfanet.measurement.populationdataprovider
 
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
-import com.google.protobuf.Descriptors.FieldDescriptor
 import com.google.protobuf.Descriptors.Descriptor
+import com.google.protobuf.Descriptors.FieldDescriptor
 import com.google.protobuf.DynamicMessage
 import com.google.protobuf.TypeRegistry
 import io.grpc.Status
@@ -48,11 +48,11 @@ import org.wfanet.measurement.api.v2alpha.listModelRolloutsRequest
 import org.wfanet.measurement.api.v2alpha.size
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toLocalDate
-import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
-import org.wfanet.measurement.dataprovider.RequisitionFulfiller
 import org.wfanet.measurement.dataprovider.DataProviderData
+import org.wfanet.measurement.dataprovider.RequisitionFulfiller
+import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
-data class PopulationInfo (
+data class PopulationInfo(
   val populationSpec: PopulationSpec,
   val eventDescriptor: Descriptor,
   val operativeFields: Set<String>,
@@ -126,9 +126,12 @@ class PopulationRequisitionFulfiller(
 
         val modelRelease: ModelRelease = getModelRelease(measurementSpec)
 
-        val populationId: PopulationKey = requireNotNull(PopulationKey.fromName(modelRelease.population)) {
-          throw InvalidSpecException("Measurement spec model line does not contain a valid Population for the model release of its latest model rollout.")
-        }
+        val populationId: PopulationKey =
+          requireNotNull(PopulationKey.fromName(modelRelease.population)) {
+            throw InvalidSpecException(
+              "Measurement spec model line does not contain a valid Population for the model release of its latest model rollout."
+            )
+          }
 
         val populationInfo: PopulationInfo = populationInfoMap.getValue(populationId)
 
@@ -159,9 +162,10 @@ class PopulationRequisitionFulfiller(
    * `ModelLine` provided in the MeasurementSpec`
    */
   private suspend fun getModelRelease(measurementSpec: MeasurementSpec): ModelRelease {
-    val measurementSpecModelLineName = measurementSpec.modelLine
     // TODO(@jojijac0b): Handle case where measurement spans across one or more model outages.
     //  Should use HoldbackModelLine in this case to reflect what is done with measurement reports.
+
+    val measurementSpecModelLineName = measurementSpec.modelLine
 
     // Returns list of ModelRollouts.
     val listModelRolloutsResponse =
@@ -202,7 +206,6 @@ class PopulationRequisitionFulfiller(
     }
   }
 
-
   private suspend fun fulfillPopulationMeasurement(
     requisition: Requisition,
     requisitionSpec: RequisitionSpec,
@@ -213,27 +216,35 @@ class PopulationRequisitionFulfiller(
   ) {
 
     // CEL program that will check the event against the filter expression
-    val program: Program = EventFilters.compileProgram(populationInfo.eventDescriptor, filterExpression, populationInfo.operativeFields)
+    val program: Program =
+      EventFilters.compileProgram(
+        populationInfo.eventDescriptor,
+        filterExpression,
+        populationInfo.operativeFields
+      )
 
     // Filters populationBucketsList through a CEL program and sums the result.
-    val populationSum = populationInfo.populationSpec.subpopulationsList.sumOf {
-      val attributesList = it.attributesList
-      val vidRanges = it.vidRangesList
-      val shouldSumPopulation = isValidAttributesList(attributesList, populationInfo, program, typeRegistry)
-      if (shouldSumPopulation) {
-        vidRanges.sumOf { jt -> jt.size() }
-      } else {
-        0L
+    val populationSum =
+      populationInfo.populationSpec.subpopulationsList.sumOf {
+        val attributesList = it.attributesList
+        val vidRanges = it.vidRangesList
+        val shouldSumPopulation =
+          isValidAttributesList(attributesList, populationInfo, program, typeRegistry)
+        if (shouldSumPopulation) {
+          vidRanges.sumOf { jt -> jt.size() }
+        } else {
+          0L
+        }
       }
-    }
 
     // Create measurement result with sum of valid populations.
     val measurementResult: Measurement.Result =
       MeasurementKt.result {
-        population = MeasurementKt.ResultKt.population {
-          value = populationSum
-          deterministicCount = DeterministicCount.getDefaultInstance()
-        }
+        population =
+          MeasurementKt.ResultKt.population {
+            value = populationSum
+            deterministicCount = DeterministicCount.getDefaultInstance()
+          }
       }
 
     // Fulfill the measurement.
@@ -244,42 +255,53 @@ class PopulationRequisitionFulfiller(
    * Returns a [Boolean] representing whether the attributes in the list are 1) the correct type and
    * 2) pass a check against the filter expression after being run through a CEL program.
    */
-  private fun isValidAttributesList(attributeList: List<Any>, populationInfo: PopulationInfo, program: Program, typeRegistry: TypeRegistry): Boolean {
+  private fun isValidAttributesList(
+    attributeList: List<Any>,
+    populationInfo: PopulationInfo,
+    program: Program,
+    typeRegistry: TypeRegistry
+  ): Boolean {
     val eventDescriptor: Descriptor = populationInfo.eventDescriptor
 
     // Event message that will be passed to CEL program
     val eventMessage: DynamicMessage.Builder = DynamicMessage.newBuilder(eventDescriptor)
 
     // Populate event message that will be used in the program if attribute is valid
-    attributeList.forEach {attribute ->
+    attributeList.forEach { attribute ->
       val attributeDescriptor: Descriptor = typeRegistry.getDescriptorForTypeUrl(attribute.typeUrl)
-      val requiredAttributes: List<FieldDescriptor> = attributeDescriptor.fields.filter {
-        it.options.getExtension(EventAnnotationsProto.templateField).populationAttribute
-      }
+      val requiredAttributes: List<FieldDescriptor> =
+        attributeDescriptor.fields.filter {
+          it.options.getExtension(EventAnnotationsProto.templateField).populationAttribute
+        }
 
-      // Create the attribute message of the type specified in attribute descriptor using the type registry.
+      // Create the attribute message of the type specified in attribute descriptor using the type
+      // registry.
       val descriptor: Descriptor = typeRegistry.getDescriptorForTypeUrl(attribute.typeUrl)
       val attributeMessage: DynamicMessage = DynamicMessage.parseFrom(descriptor, attribute.value)
 
       // If the attribute type is not a field in the event message, it is not valid.
-      val isAttributeFieldInEvent = eventDescriptor.fields.any {
-        it.messageType.name === attributeMessage.descriptorForType.name
-      }
+      val isAttributeFieldInEvent =
+        eventDescriptor.fields.any {
+          it.messageType.name === attributeMessage.descriptorForType.name
+        }
       require(isAttributeFieldInEvent) {
-        throw InvalidSpecException("Subpopulation attribute is not a field in the event descriptor.")
+        throw InvalidSpecException(
+          "Subpopulation attribute is not a field in the event descriptor."
+        )
       }
 
-
-      // If the population_attribute option in the attribute message is set to true, we do not allow the value to be unspecified.
+      // If the population_attribute option in the attribute message is set to true, we do not allow
+      // the value to be unspecified.
       val isValidAttribute = attributeMessage.allFields.keys.containsAll(requiredAttributes)
-      require(isValidAttribute){
+      require(isValidAttribute) {
         throw InvalidSpecException("Subpopulation population attribute cannot be unspecified.")
       }
 
       // Find corresponding field descriptor for this attribute.
-      val fieldDescriptor: FieldDescriptor = eventDescriptor.fields.first {eventField ->
-        eventField.messageType.name === attributeDescriptor.name
-      }
+      val fieldDescriptor: FieldDescriptor =
+        eventDescriptor.fields.first { eventField ->
+          eventField.messageType.name === attributeDescriptor.name
+        }
 
       // Set field in event message with typed attribute message.
       eventMessage.setField(fieldDescriptor, attributeMessage)

@@ -19,11 +19,14 @@ import com.google.protobuf.Descriptors
 import com.google.protobuf.Message
 import com.google.protobuf.duration
 import com.google.protobuf.kotlin.unpack
+import com.google.protobuf.timestamp
+import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
+import java.time.Instant
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.math.log2
@@ -40,9 +43,6 @@ import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
 import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
 import org.wfanet.anysketch.crypto.elGamalPublicKey as anySketchElGamalPublicKey
-import com.google.protobuf.timestamp
-import com.google.type.interval
-import java.time.Instant
 import org.wfanet.frequencycount.FrequencyVector
 import org.wfanet.frequencycount.SecretShare
 import org.wfanet.frequencycount.SecretShareGeneratorAdapter
@@ -123,6 +123,8 @@ import org.wfanet.measurement.consent.client.dataprovider.encryptRandomSeed
 import org.wfanet.measurement.consent.client.dataprovider.signRandomSeed
 import org.wfanet.measurement.consent.client.dataprovider.verifyElGamalPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptionPublicKey
+import org.wfanet.measurement.dataprovider.DataProviderData
+import org.wfanet.measurement.dataprovider.RequisitionFulfiller
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
 import org.wfanet.measurement.eventdataprovider.noiser.AbstractNoiser
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
@@ -139,8 +141,6 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2al
 import org.wfanet.measurement.loadtest.common.sampleVids
 import org.wfanet.measurement.loadtest.config.TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
 import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults.computeImpression
-import org.wfanet.measurement.dataprovider.DataProviderData
-import org.wfanet.measurement.dataprovider.RequisitionFulfiller
 
 /** A simulator handling EDP businesses. */
 class EdpSimulator(
