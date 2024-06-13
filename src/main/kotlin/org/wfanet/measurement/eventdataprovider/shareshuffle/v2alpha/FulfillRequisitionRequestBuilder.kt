@@ -119,39 +119,37 @@ class FulfillRequisitionRequestBuilder(
   }
 
   /** Builds the Sequence of requests. */
-  fun build(): Sequence<FulfillRequisitionRequest> =
-    buildList() {
-        add(
-          fulfillRequisitionRequest {
-            header = header {
-              name = requisition.name
-              requisitionFingerprint = computeRequisitionFingerprint(requisition)
-              nonce = requisition.nonce
-              this.honestMajorityShareShuffle = honestMajorityShareShuffle {
-                secretSeed = encryptedSignedShareSeed
-                registerCount = shareVector.dataList.size.toLong()
-                dataProviderCertificate = dataProviderCertificateKey.toName()
-              }
-            }
+  fun build(): Sequence<FulfillRequisitionRequest> = sequence {
+    yield(
+      fulfillRequisitionRequest {
+        header = header {
+          name = requisition.name
+          requisitionFingerprint = computeRequisitionFingerprint(requisition)
+          nonce = requisition.nonce
+          this.honestMajorityShareShuffle = honestMajorityShareShuffle {
+            secretSeed = encryptedSignedShareSeed
+            registerCount = shareVector.dataList.size.toLong()
+            dataProviderCertificate = dataProviderCertificateKey.toName()
           }
-        )
-
-        val shareVectorBytes = shareVector.toByteString()
-        for (begin in 0 until shareVectorBytes.size() step RPC_CHUNK_SIZE_BYTES) {
-          add(
-            fulfillRequisitionRequest {
-              bodyChunk = bodyChunk {
-                data =
-                  shareVectorBytes.substring(
-                    begin,
-                    minOf(shareVectorBytes.size(), begin + RPC_CHUNK_SIZE_BYTES),
-                  )
-              }
-            }
-          )
         }
       }
-      .asSequence()
+    )
+
+    val shareVectorBytes = shareVector.toByteString()
+    for (begin in 0 until shareVectorBytes.size() step RPC_CHUNK_SIZE_BYTES) {
+      yield(
+        fulfillRequisitionRequest {
+          bodyChunk = bodyChunk {
+            data =
+              shareVectorBytes.substring(
+                begin,
+                minOf(shareVectorBytes.size(), begin + RPC_CHUNK_SIZE_BYTES),
+              )
+          }
+        }
+      )
+    }
+  }
 
   companion object {
     private const val RPC_CHUNK_SIZE_BYTES = 32 * 1024 // 32 KiB
