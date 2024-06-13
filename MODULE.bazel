@@ -131,9 +131,9 @@ bazel_dep(
 # DO_NOT_SUBMIT: Use release version.
 archive_override(
     module_name = "common-jvm",
-    strip_prefix = "common-jvm-2f0ef3bfa7f045549fd426d775867597b6af74ee",
+    strip_prefix = "common-jvm-d304bd60451a9530bf94efa80255c246230693ba",
     urls = [
-        "https://github.com/world-federation-of-advertisers/common-jvm/archive/2f0ef3bfa7f045549fd426d775867597b6af74ee.tar.gz",
+        "https://github.com/world-federation-of-advertisers/common-jvm/archive/d304bd60451a9530bf94efa80255c246230693ba.tar.gz",
     ],
 )
 
