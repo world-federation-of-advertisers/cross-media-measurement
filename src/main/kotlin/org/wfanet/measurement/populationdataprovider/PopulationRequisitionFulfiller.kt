@@ -16,7 +16,7 @@ package org.wfanet.measurement.populationdataprovider
 
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
-import com.google.protobuf.DescriptorProtos.FileDescriptorSet
+import com.google.protobuf.Descriptors.FieldDescriptor
 import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.DynamicMessage
 import com.google.protobuf.TypeRegistry
@@ -29,6 +29,7 @@ import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DeterministicCount
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
@@ -45,7 +46,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.getModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsRequest
 import org.wfanet.measurement.api.v2alpha.size
-import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
@@ -68,7 +68,7 @@ class PopulationRequisitionFulfiller(
   private val modelRolloutsStub: ModelRolloutsCoroutineStub,
   private val modelReleasesStub: ModelReleasesCoroutineStub,
   private val populationInfoMap: Map<PopulationKey, PopulationInfo>,
-  private val fileDescriptorSet:  List<FileDescriptorSet>,
+  private val typeRegistry: TypeRegistry,
 ) :
   RequisitionFulfiller(
     pdpData,
@@ -98,9 +98,6 @@ class PopulationRequisitionFulfiller(
       return
     }
 
-    val fileDescriptors = ProtoReflection.buildFileDescriptors(fileDescriptorSet)
-    val typeRegistry = TypeRegistry.newBuilder().add(fileDescriptors.flatMap { it.messageTypes }).build()
-
     for (requisition in requisitions) {
       try {
         logger.info("Processing requisition ${requisition.name}...")
@@ -127,13 +124,13 @@ class PopulationRequisitionFulfiller(
         logger.log(Level.INFO, "MeasurementSpec:\n$measurementSpec")
         logger.log(Level.INFO, "RequisitionSpec:\n$requisitionSpec")
 
-        val modelRelease = getModelRelease(measurementSpec)
+        val modelRelease: ModelRelease = getModelRelease(measurementSpec)
 
-        val populationId = requireNotNull(PopulationKey.fromName(modelRelease.population)) {
+        val populationId: PopulationKey = requireNotNull(PopulationKey.fromName(modelRelease.population)) {
           throw InvalidSpecException("Measurement spec model line does not contain a valid Population for the model release of its latest model rollout.")
         }
 
-        val populationInfo = populationInfoMap.getValue(populationId)
+        val populationInfo: PopulationInfo = populationInfoMap.getValue(populationId)
 
         PopulationSpecValidator.validateVidRangesList(populationInfo.populationSpec).getOrThrow()
 
@@ -216,7 +213,7 @@ class PopulationRequisitionFulfiller(
   ) {
 
     // CEL program that will check the event against the filter expression
-    val program = EventFilters.compileProgram(populationInfo.eventDescriptor, filterExpression, populationInfo.operativeFields)
+    val program: Program = EventFilters.compileProgram(populationInfo.eventDescriptor, filterExpression, populationInfo.operativeFields)
 
     // Filters populationBucketsList through a CEL program and sums the result.
     val populationSum = populationInfo.populationSpec.subpopulationsList.sumOf {
@@ -231,7 +228,7 @@ class PopulationRequisitionFulfiller(
     }
 
     // Create measurement result with sum of valid populations.
-    val measurementResult =
+    val measurementResult: Measurement.Result =
       MeasurementKt.result {
         population = MeasurementKt.ResultKt.population {
           value = populationSum
@@ -248,20 +245,21 @@ class PopulationRequisitionFulfiller(
    * 2) pass a check against the filter expression after being run through a CEL program.
    */
   private fun isValidAttributesList(attributeList: List<Any>, populationInfo: PopulationInfo, program: Program, typeRegistry: TypeRegistry): Boolean {
-    val eventDescriptor = populationInfo.eventDescriptor
+    val eventDescriptor: Descriptor = populationInfo.eventDescriptor
 
     // Event message that will be passed to CEL program
-    val eventMessage = DynamicMessage.newBuilder(eventDescriptor)
+    val eventMessage: DynamicMessage.Builder = DynamicMessage.newBuilder(eventDescriptor)
+
     // Populate event message that will be used in the program if attribute is valid
     attributeList.forEach {attribute ->
-      val attributeDescriptor = typeRegistry.getDescriptorForTypeUrl(attribute.typeUrl)
-      val requiredAttributes = attributeDescriptor.fields.filter {
+      val attributeDescriptor: Descriptor = typeRegistry.getDescriptorForTypeUrl(attribute.typeUrl)
+      val requiredAttributes: List<FieldDescriptor> = attributeDescriptor.fields.filter {
         it.options.getExtension(EventAnnotationsProto.templateField).populationAttribute
       }
 
       // Create the attribute message of the type specified in attribute descriptor using the type registry.
-      val descriptor = typeRegistry.getDescriptorForTypeUrl(attribute.typeUrl)
-      val attributeMessage = DynamicMessage.parseFrom(descriptor, attribute.value)
+      val descriptor: Descriptor = typeRegistry.getDescriptorForTypeUrl(attribute.typeUrl)
+      val attributeMessage: DynamicMessage = DynamicMessage.parseFrom(descriptor, attribute.value)
 
       // If the attribute type is not a field in the event message, it is not valid.
       val isAttributeFieldInEvent = eventDescriptor.fields.any {
@@ -279,7 +277,7 @@ class PopulationRequisitionFulfiller(
       }
 
       // Find corresponding field descriptor for this attribute.
-      val fieldDescriptor = eventDescriptor.fields.first {eventField ->
+      val fieldDescriptor: FieldDescriptor = eventDescriptor.fields.first {eventField ->
         eventField.messageType.name === attributeDescriptor.name
       }
 
