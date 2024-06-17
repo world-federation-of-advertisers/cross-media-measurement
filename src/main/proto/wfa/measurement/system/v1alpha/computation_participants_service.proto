@@ -64,6 +64,12 @@ message SetParticipantRequisitionParamsRequest {
   // The requisition params to set.
   ComputationParticipant.RequisitionParams requisition_params = 2
       [(google.api.field_behavior) = REQUIRED];
+
+  // `etag` of the `ComputationParticipant`.
+  //
+  // If specified and the value does not match the current `etag`, this method
+  // will result in an ABORTED status.
+  string etag = 3;
 }
 
 // Request message for the `FailComputationParticipant` method.
@@ -78,6 +84,12 @@ message FailComputationParticipantRequest {
   // Failure information.
   ComputationParticipant.Failure failure = 2
       [(google.api.field_behavior) = REQUIRED];
+
+  // `etag` of the `ComputationParticipant`.
+  //
+  // If specified and the value does not match the current `etag`, this method
+  // will result in an ABORTED status.
+  string etag = 3;
 }
 
 // Request message for the `ConfirmComputationParticipant` method.
@@ -88,4 +100,10 @@ message ConfirmComputationParticipantRequest {
         "halo-system.wfanet.org/ComputationParticipant",
     (google.api.field_behavior) = REQUIRED
   ];
+
+  // `etag` of the `ComputationParticipant`.
+  //
+  // If specified and the value does not match the current `etag`, this method
+  // will result in an ABORTED status.
+  string etag = 3;
 }

@@ -14,18 +14,12 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
-import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
-import com.google.protobuf.kotlin.toByteString
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
-import java.security.MessageDigest
 import kotlinx.coroutines.flow.singleOrNull
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.Version
-import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.singleOrNullIfEmpty
@@ -43,10 +37,10 @@ import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ETags
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader.Companion.getEtag
 
-class MeasurementReader(private val view: Measurement.View) :
+class MeasurementReader(private val view: Measurement.View, measurementsIndex: Index = Index.NONE) :
   SpannerReader<MeasurementReader.Result>() {
 
   data class Result(
@@ -56,8 +50,24 @@ class MeasurementReader(private val view: Measurement.View) :
     val measurement: Measurement,
   )
 
+  enum class Index(internal val sql: String) {
+    NONE(""),
+    CREATE_REQUEST_ID("@{FORCE_INDEX=MeasurementsByCreateRequestId}"),
+  }
+
   override val baseSql: String
     get() = BASE_SQL
+
+  private val BASE_SQL =
+    """
+      @{spanner_emulator.disable_query_null_filtered_index_check=true}
+      WITH FilteredMeasurements AS (
+        SELECT *
+        FROM
+          Measurements${measurementsIndex.sql}
+          JOIN MeasurementConsumers USING (MeasurementConsumerId)
+      """
+      .trimIndent()
 
   private var filled = false
 
@@ -240,33 +250,8 @@ class MeasurementReader(private val view: Measurement.View) :
       val updateTime =
         readContext.readRow("Measurements", measurementKey, listOf(column))?.getTimestamp(column)
           ?: throw MeasurementNotFoundException { "Measurement not found for $measurementKey" }
-      return getEtag(updateTime)
+      return ETags.computeETag(updateTime)
     }
-
-    fun getEtag(updateTime: Timestamp): String {
-      val buffer =
-        ByteBuffer.allocate(8 + 4)
-          .order(ByteOrder.BIG_ENDIAN)
-          .putLong(updateTime.seconds)
-          .putInt(updateTime.nanos)
-          .asReadOnlyBuffer()
-          .flip()
-      val hash =
-        HexString(
-          MessageDigest.getInstance("SHA-256").apply { update(buffer) }.digest().toByteString()
-        )
-      return "W/\"${hash}\""
-    }
-
-    private val BASE_SQL =
-      """
-      WITH FilteredMeasurements AS (
-        SELECT *
-        FROM
-          Measurements
-          JOIN MeasurementConsumers USING (MeasurementConsumerId)
-      """
-        .trimIndent()
 
     private val DEFAULT_VIEW_SQL =
       """
@@ -444,7 +429,7 @@ private fun MeasurementKt.Dsl.fillMeasurementCommon(struct: Struct) {
       }
     }
   }
-  etag = getEtag(struct.getTimestamp("UpdateTime"))
+  etag = ETags.computeETag(struct.getTimestamp("UpdateTime"))
 }
 
 private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {

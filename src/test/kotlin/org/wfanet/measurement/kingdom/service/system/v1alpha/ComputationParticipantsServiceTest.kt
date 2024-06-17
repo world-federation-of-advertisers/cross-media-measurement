@@ -20,8 +20,8 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
-import org.junit.Assert
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -54,10 +54,9 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt.RequisitionParamsKt.honestMajorityShareShuffle
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt.RequisitionParamsKt.liquidLegionsV2
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt.requisitionParams
-import org.wfanet.measurement.system.v1alpha.ConfirmComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.FailComputationParticipantRequest
-import org.wfanet.measurement.system.v1alpha.SetParticipantRequisitionParamsRequest
 import org.wfanet.measurement.system.v1alpha.computationParticipant
+import org.wfanet.measurement.system.v1alpha.confirmComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.setParticipantRequisitionParamsRequest
 
 private const val DUCHY_ID: String = "some-duchy-id"
@@ -103,6 +102,7 @@ private val INTERNAL_COMPUTATION_PARTICIPANT =
               elGamalPublicKeySignature = DUCHY_ELGAMAL_KEY_SIGNATURE
             }
         }
+      etag = "entity tag"
     }
     .build()
 
@@ -182,79 +182,16 @@ class ComputationParticipantsServiceTest {
     )
 
   @Test
-  fun `SetParticipantRequisitionParams for llv2 successfully`() = runBlocking {
+  fun `setParticipantRequisitionParams calls internal service with LLv2 details`() = runBlocking {
+    val internalComputationParticipant = INTERNAL_COMPUTATION_PARTICIPANT_WITH_PARAMS
     whenever(internalComputationParticipantsServiceMock.setParticipantRequisitionParams(any()))
-      .thenReturn(INTERNAL_COMPUTATION_PARTICIPANT_WITH_PARAMS)
-
-    val request =
-      SetParticipantRequisitionParamsRequest.newBuilder()
-        .apply {
-          name = SYSTEM_COMPUTATION_PARTICIPANT_NAME
-          requisitionParamsBuilder.apply {
-            duchyCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
-            liquidLegionsV2Builder.apply {
-              elGamalPublicKey = DUCHY_ELGAMAL_KEY
-              elGamalPublicKeySignature = DUCHY_ELGAMAL_KEY_SIGNATURE
-            }
-          }
-        }
-        .build()
-    val response: ComputationParticipant = service.setParticipantRequisitionParams(request)
-
-    assertThat(response)
-      .isEqualTo(
-        computationParticipant {
-          name = SYSTEM_COMPUTATION_PARTICIPANT_NAME
-          state = ComputationParticipant.State.REQUISITION_PARAMS_SET
-          updateTime = INTERNAL_COMPUTATION_PARTICIPANT.updateTime
-          requisitionParams = requisitionParams {
-            duchyCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
-            duchyCertificateDer = DUCHY_CERTIFICATE_DER
-            liquidLegionsV2 = liquidLegionsV2 {
-              elGamalPublicKey = DUCHY_ELGAMAL_KEY
-              elGamalPublicKeySignature = DUCHY_ELGAMAL_KEY_SIGNATURE
-            }
-          }
-        }
-      )
-    verifyProtoArgument(
-        internalComputationParticipantsServiceMock,
-        InternalComputationParticipantsCoroutineService::setParticipantRequisitionParams,
-      )
-      .isEqualTo(
-        InternalSetParticipantRequisitionParamsRequest.newBuilder()
-          .apply {
-            externalComputationId = EXTERNAL_COMPUTATION_ID
-            externalDuchyId = DUCHY_ID
-            externalDuchyCertificateId = EXTERNAL_DUCHY_CERTIFICATE_ID
-            liquidLegionsV2 = INTERNAL_COMPUTATION_PARTICIPANT_WITH_PARAMS.details.liquidLegionsV2
-          }
-          .build()
-      )
-  }
-
-  @Test
-  fun `SetParticipantRequisitionParams for rollv2 successfully`() = runBlocking {
-    val internalComputationParticipantWithRoLlv2Params =
-      INTERNAL_COMPUTATION_PARTICIPANT_WITH_PARAMS.copy {
-        details =
-          InternalComputationParticipantKt.details {
-            reachOnlyLiquidLegionsV2 =
-              InternalComputationParticipantKt.liquidLegionsV2Details {
-                elGamalPublicKey = DUCHY_ELGAMAL_KEY
-                elGamalPublicKeySignature = DUCHY_ELGAMAL_KEY_SIGNATURE
-              }
-          }
-      }
-
-    whenever(internalComputationParticipantsServiceMock.setParticipantRequisitionParams(any()))
-      .thenReturn(internalComputationParticipantWithRoLlv2Params)
+      .thenReturn(internalComputationParticipant)
 
     val request = setParticipantRequisitionParamsRequest {
       name = SYSTEM_COMPUTATION_PARTICIPANT_NAME
       requisitionParams = requisitionParams {
         duchyCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
-        reachOnlyLiquidLegionsV2 = liquidLegionsV2 {
+        liquidLegionsV2 = liquidLegionsV2 {
           elGamalPublicKey = DUCHY_ELGAMAL_KEY
           elGamalPublicKeySignature = DUCHY_ELGAMAL_KEY_SIGNATURE
         }
@@ -271,11 +208,12 @@ class ComputationParticipantsServiceTest {
           requisitionParams = requisitionParams {
             duchyCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
             duchyCertificateDer = DUCHY_CERTIFICATE_DER
-            reachOnlyLiquidLegionsV2 = liquidLegionsV2 {
+            liquidLegionsV2 = liquidLegionsV2 {
               elGamalPublicKey = DUCHY_ELGAMAL_KEY
               elGamalPublicKeySignature = DUCHY_ELGAMAL_KEY_SIGNATURE
             }
           }
+          etag = internalComputationParticipant.etag
         }
       )
     verifyProtoArgument(
@@ -283,81 +221,105 @@ class ComputationParticipantsServiceTest {
         InternalComputationParticipantsCoroutineService::setParticipantRequisitionParams,
       )
       .isEqualTo(
-        internalSetParticipantRequisitionParamsRequest {
-          externalComputationId = EXTERNAL_COMPUTATION_ID
-          externalDuchyId = DUCHY_ID
-          externalDuchyCertificateId = EXTERNAL_DUCHY_CERTIFICATE_ID
-          reachOnlyLiquidLegionsV2 =
-            internalComputationParticipantWithRoLlv2Params.details.reachOnlyLiquidLegionsV2
-        }
+        InternalSetParticipantRequisitionParamsRequest.newBuilder()
+          .apply {
+            externalComputationId = EXTERNAL_COMPUTATION_ID
+            externalDuchyId = DUCHY_ID
+            externalDuchyCertificateId = EXTERNAL_DUCHY_CERTIFICATE_ID
+            liquidLegionsV2 = INTERNAL_COMPUTATION_PARTICIPANT_WITH_PARAMS.details.liquidLegionsV2
+            etag = request.etag
+          }
+          .build()
       )
   }
 
   @Test
-  fun `SetParticipantRequisitionParams for hmss successfully`() = runBlocking {
-    val internalComputationParticipantWithHmssParams =
-      INTERNAL_COMPUTATION_PARTICIPANT_WITH_PARAMS.copy {
-        details =
-          InternalComputationParticipantKt.details {
-            honestMajorityShareShuffle =
-              InternalComputationParticipantKt.honestMajorityShareShuffleDetails {
-                tinkPublicKey = DUCHY_TINK_KEY
-                tinkPublicKeySignature = DUCHY_TINK_KEY_SIGNATURE
-                tinkPublicKeySignatureAlgorithmOid = DUCHY_TINK_KEY_SIGNATURE_ALGORITHEM_OID
-              }
-          }
-      }
-
-    whenever(internalComputationParticipantsServiceMock.setParticipantRequisitionParams(any()))
-      .thenReturn(internalComputationParticipantWithHmssParams)
-
-    val request = setParticipantRequisitionParamsRequest {
-      name = SYSTEM_COMPUTATION_PARTICIPANT_NAME
-      requisitionParams = requisitionParams {
-        duchyCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
-        honestMajorityShareShuffle = honestMajorityShareShuffle {
-          tinkPublicKey = DUCHY_TINK_KEY
-          tinkPublicKeySignature = DUCHY_TINK_KEY_SIGNATURE
-          tinkPublicKeySignatureAlgorithmOid = DUCHY_TINK_KEY_SIGNATURE_ALGORITHEM_OID
-        }
-      }
-    }
-    val response: ComputationParticipant = service.setParticipantRequisitionParams(request)
-
-    assertThat(response)
-      .isEqualTo(
-        computationParticipant {
-          name = SYSTEM_COMPUTATION_PARTICIPANT_NAME
-          state = ComputationParticipant.State.REQUISITION_PARAMS_SET
-          updateTime = INTERNAL_COMPUTATION_PARTICIPANT.updateTime
-          requisitionParams = requisitionParams {
-            duchyCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
-            duchyCertificateDer = DUCHY_CERTIFICATE_DER
-            honestMajorityShareShuffle = honestMajorityShareShuffle {
-              tinkPublicKey = DUCHY_TINK_KEY
-              tinkPublicKeySignature = DUCHY_TINK_KEY_SIGNATURE
-              tinkPublicKeySignatureAlgorithmOid = DUCHY_TINK_KEY_SIGNATURE_ALGORITHEM_OID
+  fun `setParticipantRequisitionParams calls internal service with RO LLv2 details`() =
+    runBlocking {
+      val internalComputationParticipant =
+        INTERNAL_COMPUTATION_PARTICIPANT_WITH_PARAMS.copy {
+          details =
+            InternalComputationParticipantKt.details {
+              reachOnlyLiquidLegionsV2 =
+                InternalComputationParticipantKt.liquidLegionsV2Details {
+                  elGamalPublicKey = DUCHY_ELGAMAL_KEY
+                  elGamalPublicKeySignature = DUCHY_ELGAMAL_KEY_SIGNATURE
+                }
             }
+        }
+      whenever(internalComputationParticipantsServiceMock.setParticipantRequisitionParams(any()))
+        .thenReturn(internalComputationParticipant)
+
+      val request = setParticipantRequisitionParamsRequest {
+        name = SYSTEM_COMPUTATION_PARTICIPANT_NAME
+        requisitionParams = requisitionParams {
+          duchyCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
+          reachOnlyLiquidLegionsV2 = liquidLegionsV2 {
+            elGamalPublicKey = DUCHY_ELGAMAL_KEY
+            elGamalPublicKeySignature = DUCHY_ELGAMAL_KEY_SIGNATURE
           }
         }
-      )
-    verifyProtoArgument(
-        internalComputationParticipantsServiceMock,
-        InternalComputationParticipantsCoroutineService::setParticipantRequisitionParams,
-      )
-      .isEqualTo(
-        internalSetParticipantRequisitionParamsRequest {
-          externalComputationId = EXTERNAL_COMPUTATION_ID
-          externalDuchyId = DUCHY_ID
-          externalDuchyCertificateId = EXTERNAL_DUCHY_CERTIFICATE_ID
-          honestMajorityShareShuffle =
-            internalComputationParticipantWithHmssParams.details.honestMajorityShareShuffle
-        }
-      )
-  }
+      }
+      val response: ComputationParticipant = service.setParticipantRequisitionParams(request)
+
+      assertThat(response)
+        .isEqualTo(
+          computationParticipant {
+            name = SYSTEM_COMPUTATION_PARTICIPANT_NAME
+            state = ComputationParticipant.State.REQUISITION_PARAMS_SET
+            updateTime = INTERNAL_COMPUTATION_PARTICIPANT.updateTime
+            requisitionParams = requisitionParams {
+              duchyCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
+              duchyCertificateDer = DUCHY_CERTIFICATE_DER
+              reachOnlyLiquidLegionsV2 = liquidLegionsV2 {
+                elGamalPublicKey = DUCHY_ELGAMAL_KEY
+                elGamalPublicKeySignature = DUCHY_ELGAMAL_KEY_SIGNATURE
+              }
+            }
+            etag = internalComputationParticipant.etag
+          }
+        )
+      verifyProtoArgument(
+          internalComputationParticipantsServiceMock,
+          InternalComputationParticipantsCoroutineService::setParticipantRequisitionParams,
+        )
+        .isEqualTo(
+          internalSetParticipantRequisitionParamsRequest {
+            externalComputationId = EXTERNAL_COMPUTATION_ID
+            externalDuchyId = DUCHY_ID
+            externalDuchyCertificateId = EXTERNAL_DUCHY_CERTIFICATE_ID
+            reachOnlyLiquidLegionsV2 =
+              internalComputationParticipant.details.reachOnlyLiquidLegionsV2
+          }
+        )
+    }
 
   @Test
-  fun `FailComputationParticipant successfully`() = runBlocking {
+  fun `setParticipantRequisitionParams throws ABORTED when internal service throws ABORTED`() =
+    runBlocking {
+      whenever(internalComputationParticipantsServiceMock.setParticipantRequisitionParams(any()))
+        .thenThrow(Status.ABORTED.asRuntimeException())
+
+      val request = setParticipantRequisitionParamsRequest {
+        name = SYSTEM_COMPUTATION_PARTICIPANT_NAME
+        requisitionParams = requisitionParams {
+          duchyCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
+          honestMajorityShareShuffle = honestMajorityShareShuffle {
+            tinkPublicKey = DUCHY_TINK_KEY
+            tinkPublicKeySignature = DUCHY_TINK_KEY_SIGNATURE
+            tinkPublicKeySignatureAlgorithmOid = DUCHY_TINK_KEY_SIGNATURE_ALGORITHEM_OID
+          }
+        }
+        etag = "initial ETag"
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> { service.setParticipantRequisitionParams(request) }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
+    }
+
+  @Test
+  fun `failComputationParticipant calls internal service`() = runBlocking {
     whenever(internalComputationParticipantsServiceMock.failComputationParticipant(any()))
       .thenReturn(INTERNAL_COMPUTATION_PARTICIPANT_WITH_FAILURE)
     val failureLogEntry = INTERNAL_COMPUTATION_PARTICIPANT_WITH_FAILURE.failureLogEntry
@@ -383,6 +345,7 @@ class ComputationParticipantsServiceTest {
               }
             }
           }
+          etag = "initial ETag"
         }
         .build()
     val response: ComputationParticipant = service.failComputationParticipant(request)
@@ -402,13 +365,14 @@ class ComputationParticipantsServiceTest {
             duchyChildReferenceId = MILL_ID
             errorDetails = failureLogEntry.logEntry.details.error
             stageAttempt = failureLogEntry.details.stageAttempt
+            etag = request.etag
           }
           .build()
       )
   }
 
   @Test
-  fun `ConfirmComputationParticipant successfully`() = runBlocking {
+  fun `confirmComputationParticipant calls internal service`() = runBlocking {
     whenever(internalComputationParticipantsServiceMock.confirmComputationParticipant(any()))
       .thenReturn(
         INTERNAL_COMPUTATION_PARTICIPANT_WITH_PARAMS.copy {
@@ -416,10 +380,10 @@ class ComputationParticipantsServiceTest {
         }
       )
 
-    val request =
-      ConfirmComputationParticipantRequest.newBuilder()
-        .apply { name = SYSTEM_COMPUTATION_PARTICIPANT_NAME }
-        .build()
+    val request = confirmComputationParticipantRequest {
+      name = SYSTEM_COMPUTATION_PARTICIPANT_NAME
+      etag = "initial ETag"
+    }
     val response: ComputationParticipant = service.confirmComputationParticipant(request)
 
     assertThat(response.state).isEqualTo(ComputationParticipant.State.READY)
@@ -432,41 +396,42 @@ class ComputationParticipantsServiceTest {
           .apply {
             externalComputationId = EXTERNAL_COMPUTATION_ID
             externalDuchyId = DUCHY_ID
+            etag = request.etag
           }
           .build()
       )
   }
 
   @Test
-  fun `missing resource name should throw`() {
-    val e =
-      Assert.assertThrows(StatusRuntimeException::class.java) {
+  fun `failComputationParticipant throws INVALID_ARGUMENT when resource name is missing`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
         runBlocking {
           service.failComputationParticipant(FailComputationParticipantRequest.getDefaultInstance())
         }
       }
-    assertThat(e.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(e.localizedMessage).contains("Resource name unspecified or invalid.")
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("name")
   }
 
   @Test
-  fun `missing protocol should throw`() {
-    val e =
-      Assert.assertThrows(StatusRuntimeException::class.java) {
+  fun `setParticipantRequisitionParams throws INVALID_ARGUMENT when protocol is missing`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
         runBlocking {
           service.setParticipantRequisitionParams(
-            SetParticipantRequisitionParamsRequest.newBuilder()
-              .apply {
-                name = SYSTEM_COMPUTATION_PARTICIPANT_NAME
-                requisitionParamsBuilder.apply {
-                  duchyCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
-                }
+            setParticipantRequisitionParamsRequest {
+              name = SYSTEM_COMPUTATION_PARTICIPANT_NAME
+              requisitionParams = requisitionParams {
+                duchyCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
               }
-              .build()
+            }
           )
         }
       }
-    assertThat(e.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(e.localizedMessage).contains("protocol not set in the requisition_params")
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("protocol")
   }
 }

@@ -119,9 +119,9 @@ abstract class MillBase(
 ) {
   abstract val endingStage: ComputationStage
 
-  protected val meter: Meter = openTelemetry.getMeter(this::class.qualifiedName!!)
+  private val meter: Meter = openTelemetry.getMeter(this::class.qualifiedName!!)
 
-  private val cryptoWallClockDurationHistogram: DoubleHistogram =
+  protected val cryptoWallClockDurationHistogram: DoubleHistogram =
     meter
       .histogramBuilder("halo_cmm.computation.stage.crypto.time")
       .setDescription("Wall time spent in crypto operations for a computation stage")
@@ -139,6 +139,13 @@ abstract class MillBase(
     meter
       .histogramBuilder("halo_cmm.computation.stage.time")
       .setDescription("Wall time for a computation stage")
+      .setUnit("s")
+      .build()
+
+  protected val stageDataTransmissionDurationHistogram: DoubleHistogram =
+    meter
+      .histogramBuilder("halo_cmm.computation.stage.transmission.time")
+      .setDescription("Wall time for data transmission")
       .setUnit("s")
       .build()
 
@@ -656,6 +663,20 @@ abstract class MillBase(
 
   private fun wallDurationLogger(): WallDurationLogger = WallDurationLogger()
 
+  /** Executes the block and records the wall clock duration. */
+  protected suspend fun <T> logWallClockDuration(
+    token: ComputationToken,
+    metricName: String,
+    histogram: DoubleHistogram,
+    block: suspend () -> T,
+  ): T {
+    val durationLogger = wallDurationLogger()
+
+    val result = block()
+    durationLogger.logStageDurationMetric(token, metricName, histogram)
+    return result
+  }
+
   companion object {
     private val COMPUTATION_TYPE_ATTRIBUTE_KEY = AttributeKey.stringKey("halo_cmm.computation.type")
     private val COMPUTATION_STAGE_ATTRIBUTE_KEY =
@@ -668,6 +689,7 @@ abstract class MillBase(
 const val CRYPTO_CPU_DURATION = "crypto_cpu_duration_ms"
 const val CRYPTO_WALL_CLOCK_DURATION = "crypto_wall_clock_duration_ms"
 const val STAGE_WALL_CLOCK_DURATION = "stage_wall_clock_duration_ms"
+const val DATA_TRANSMISSION_RPC_WALL_CLOCK_DURATION = "data_transmission_rpc_wall_clock_duration_ms"
 const val BYTES_OF_DATA_IN_RPC = "bytes_of_data_in_rpc"
 const val CURRENT_RUNTIME_MEMORY_MAXIMUM = "current_runtime_memory_maximum"
 const val CURRENT_RUNTIME_MEMORY_TOTAL = "current_runtime_memory_total"
