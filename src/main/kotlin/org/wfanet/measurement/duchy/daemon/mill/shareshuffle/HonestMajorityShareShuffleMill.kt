@@ -68,9 +68,11 @@ import org.wfanet.measurement.internal.duchy.config.RoleInComputation.AGGREGATOR
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation.FIRST_NON_AGGREGATOR
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation.SECOND_NON_AGGREGATOR
 import org.wfanet.measurement.internal.duchy.protocol.CompleteAggregationPhaseRequestKt
+import org.wfanet.measurement.internal.duchy.protocol.CompleteAggregationPhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteShufflePhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteShufflePhaseRequestKt
 import org.wfanet.measurement.internal.duchy.protocol.CompleteShufflePhaseRequestKt.sketchShare
+import org.wfanet.measurement.internal.duchy.protocol.CompleteShufflePhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.AggregationPhaseInput
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.ShufflePhaseInput
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage
@@ -376,6 +378,14 @@ class HonestMajorityShareShuffleMill(
   }
 
   private suspend fun shufflePhase(token: ComputationToken): ComputationToken {
+    val publicApiVersion =
+      Version.fromString(token.computationDetails.kingdomComputation.publicApiVersion)
+    val measurementSpec =
+      when (publicApiVersion) {
+        Version.V2_ALPHA ->
+          MeasurementSpec.parseFrom(token.computationDetails.kingdomComputation.measurementSpec)
+      }
+
     val requisitions = token.requisitionsList.sortedBy { it.externalKey.externalRequisitionId }
 
     val requisitionBlobs = dataClients.readRequisitionBlobs(token)
@@ -392,8 +402,12 @@ class HonestMajorityShareShuffleMill(
         } else {
           CompleteShufflePhaseRequest.NonAggregatorOrder.SECOND
         }
-      reachDpParams = hmss.parameters.reachDpParams
-      frequencyDpParams = hmss.parameters.frequencyDpParams
+      if (hmss.parameters.hasReachDpParams()) {
+        reachDpParams = hmss.parameters.reachDpParams
+      }
+      if (hmss.parameters.hasFrequencyDpParams()) {
+        frequencyDpParams = hmss.parameters.frequencyDpParams
+      }
       noiseMechanism = hmss.parameters.noiseMechanism
 
       val registerCounts = mutableListOf<Long>()
@@ -416,8 +430,6 @@ class HonestMajorityShareShuffleMill(
             secretSeeds.find { it.requisitionId == requisitionId }
               ?: error("Neither blob and seed received for requisition $requisitionId")
 
-          val publicApiVersion =
-            Version.fromString(token.computationDetails.kingdomComputation.publicApiVersion)
           val seed =
             verifySecretSeed(secretSeed, hmss.encryptionKeyPair.privateKeyId, publicApiVersion)
 
@@ -430,9 +442,15 @@ class HonestMajorityShareShuffleMill(
       sketchParams = hmss.parameters.sketchParams.copy { registerCount = registerCounts.first() }
     }
 
-    val result =
+    val result: CompleteShufflePhaseResponse =
       logWallClockDuration(token, CRYPTO_WALL_CLOCK_DURATION, cryptoWallClockDurationHistogram) {
-        cryptoWorker.completeReachAndFrequencyShufflePhase(request)
+        when (val measurementType = measurementSpec.measurementTypeCase) {
+          MeasurementSpec.MeasurementTypeCase.REACH ->
+            cryptoWorker.completeReachOnlyShufflePhase(request)
+          MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
+            cryptoWorker.completeReachAndFrequencyShufflePhase(request)
+          else -> error("Unsupported measurement type $measurementType")
+        }
       }
 
     logStageDurationMetric(
@@ -463,23 +481,32 @@ class HonestMajorityShareShuffleMill(
   }
 
   private suspend fun aggregationPhase(token: ComputationToken): ComputationToken {
+    val publicApiVersion =
+      Version.fromString(token.computationDetails.kingdomComputation.publicApiVersion)
+    val measurementSpec =
+      when (publicApiVersion) {
+        Version.V2_ALPHA ->
+          MeasurementSpec.parseFrom(token.computationDetails.kingdomComputation.measurementSpec)
+      }
+
     val aggregationPhaseInputs = getAggregationPhaseInputs(token)
 
     val request = completeAggregationPhaseRequest {
       val hmss = token.computationDetails.honestMajorityShareShuffle
       sketchParams = hmss.parameters.sketchParams
       maximumFrequency = hmss.parameters.maximumFrequency
-      val publicApiVersion =
-        Version.fromString(token.computationDetails.kingdomComputation.publicApiVersion)
+
       when (publicApiVersion) {
         Version.V2_ALPHA -> {
-          val measurementSpec =
-            MeasurementSpec.parseFrom(token.computationDetails.kingdomComputation.measurementSpec)
           vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width
         }
       }
-      reachDpParams = hmss.parameters.reachDpParams
-      frequencyDpParams = hmss.parameters.frequencyDpParams
+      if (hmss.parameters.hasReachDpParams()) {
+        reachDpParams = hmss.parameters.reachDpParams
+      }
+      if (hmss.parameters.hasFrequencyDpParams()) {
+        frequencyDpParams = hmss.parameters.frequencyDpParams
+      }
       noiseMechanism = hmss.parameters.noiseMechanism
 
       for (input in aggregationPhaseInputs) {
@@ -488,9 +515,15 @@ class HonestMajorityShareShuffleMill(
       }
     }
 
-    val result =
+    val result: CompleteAggregationPhaseResponse =
       logWallClockDuration(token, CRYPTO_WALL_CLOCK_DURATION, cryptoWallClockDurationHistogram) {
-        cryptoWorker.completeReachAndFrequencyAggregationPhase(request)
+        when (val measurementType = measurementSpec.measurementTypeCase) {
+          MeasurementSpec.MeasurementTypeCase.REACH ->
+            cryptoWorker.completeReachOnlyAggregationPhase(request)
+          MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
+            cryptoWorker.completeReachAndFrequencyAggregationPhase(request)
+          else -> error("Unsupported measurement type $measurementType")
+        }
       }
 
     logStageDurationMetric(

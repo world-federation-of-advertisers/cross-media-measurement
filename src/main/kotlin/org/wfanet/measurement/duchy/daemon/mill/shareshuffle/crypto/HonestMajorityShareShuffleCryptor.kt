@@ -32,4 +32,12 @@ interface HonestMajorityShareShuffleCryptor {
   fun completeReachAndFrequencyAggregationPhase(
     request: CompleteAggregationPhaseRequest
   ): CompleteAggregationPhaseResponse
+
+  fun completeReachOnlyShufflePhase(
+    request: CompleteShufflePhaseRequest
+  ): CompleteShufflePhaseResponse
+
+  fun completeReachOnlyAggregationPhase(
+    request: CompleteAggregationPhaseRequest
+  ): CompleteAggregationPhaseResponse
 }

@@ -29,7 +29,7 @@ object PrivacyQueryMapper {
   private const val SENSITIVITY = 1.0
 
   /**
-   * Constructs a pbm specific [AcdpQuery] from given proto messages for LiquidLegionsV2 protocol.
+   * Constructs a pbm specific [AcdpQuery] from given proto messages for Mpc protocols.
    *
    * @param reference representing the reference key and if the charge is a refund.
    * @param measurementSpec The measurementSpec protobuf that is associated with the query. The VID
@@ -42,7 +42,7 @@ object PrivacyQueryMapper {
    *   if an error occurs in handling this request. Possible exceptions could include running out of
    *   privacy budget or a failure to commit the transaction to the database.
    */
-  fun getLiquidLegionsV2AcdpQuery(
+  fun getMpcAcdpQuery(
     reference: Reference,
     measurementSpec: MeasurementSpec,
     eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>,
@@ -51,7 +51,7 @@ object PrivacyQueryMapper {
     val acdpCharge =
       when (measurementSpec.measurementTypeCase) {
         MeasurementTypeCase.REACH -> {
-          AcdpParamsConverter.getLlv2AcdpCharge(
+          AcdpParamsConverter.getMpcAcdpCharge(
             DpParams(
               measurementSpec.reach.privacyParams.epsilon,
               measurementSpec.reach.privacyParams.delta,
@@ -61,7 +61,7 @@ object PrivacyQueryMapper {
         }
         MeasurementTypeCase.REACH_AND_FREQUENCY -> {
           val acdpChargeForReach =
-            AcdpParamsConverter.getLlv2AcdpCharge(
+            AcdpParamsConverter.getMpcAcdpCharge(
               DpParams(
                 measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon,
                 measurementSpec.reachAndFrequency.reachPrivacyParams.delta,
@@ -69,7 +69,7 @@ object PrivacyQueryMapper {
               contributorCount,
             )
           val acdpChargeForFrequency =
-            AcdpParamsConverter.getLlv2AcdpCharge(
+            AcdpParamsConverter.getMpcAcdpCharge(
               DpParams(
                 measurementSpec.reachAndFrequency.frequencyPrivacyParams.epsilon,
                 measurementSpec.reachAndFrequency.frequencyPrivacyParams.delta,
@@ -84,70 +84,6 @@ object PrivacyQueryMapper {
         else ->
           throw IllegalArgumentException(
             "Measurement type ${measurementSpec.measurementTypeCase} is not supported in getMpcAcdpQuery()"
-          )
-      }
-
-    return AcdpQuery(
-      reference,
-      LandscapeMask(
-        eventSpecs.map { EventGroupSpec(it.filter.expression, it.collectionInterval.toRange()) },
-        measurementSpec.vidSamplingInterval.start,
-        measurementSpec.vidSamplingInterval.width,
-      ),
-      acdpCharge,
-    )
-  }
-
-  /**
-   * Constructs a pbm specific [AcdpQuery] from given proto messages for Hmss protocol.
-   *
-   * @param reference representing the reference key and if the charge is a refund.
-   * @param measurementSpec The measurementSpec protobuf that is associated with the query. The VID
-   *   sampling interval is obtained from this.
-   * @param eventSpecs event specs from the Requisition. The date range and demo groups are obtained
-   *   from this.
-   * @param contributorCount number of Duchies
-   * @throws
-   *   org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
-   *   if an error occurs in handling this request. Possible exceptions could include running out of
-   *   privacy budget or a failure to commit the transaction to the database.
-   */
-  fun getHmssAcdpQuery(
-    reference: Reference,
-    measurementSpec: MeasurementSpec,
-    eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>,
-    contributorCount: Int,
-  ): AcdpQuery {
-    val acdpCharge =
-      when (measurementSpec.measurementTypeCase) {
-        // TODO(@ple13): Add support for reach-only.
-        MeasurementTypeCase.REACH_AND_FREQUENCY -> {
-          // Uses the function getLlv2AcdpCharge to compute the ACDP charge for this query as HMSS
-          // and LLV2 use the same approach when adding differential private noise.
-          val acdpChargeForReach =
-            AcdpParamsConverter.getLlv2AcdpCharge(
-              DpParams(
-                measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon,
-                measurementSpec.reachAndFrequency.reachPrivacyParams.delta,
-              ),
-              contributorCount,
-            )
-          val acdpChargeForFrequency =
-            AcdpParamsConverter.getLlv2AcdpCharge(
-              DpParams(
-                measurementSpec.reachAndFrequency.frequencyPrivacyParams.epsilon,
-                measurementSpec.reachAndFrequency.frequencyPrivacyParams.delta,
-              ),
-              contributorCount,
-            )
-          AcdpCharge(
-            acdpChargeForReach.rho + acdpChargeForFrequency.rho,
-            acdpChargeForReach.theta + acdpChargeForFrequency.theta,
-          )
-        }
-        else ->
-          throw IllegalArgumentException(
-            "Measurement type ${measurementSpec.measurementTypeCase} is not supported in getHmssAcdpQuery()"
           )
       }
 
