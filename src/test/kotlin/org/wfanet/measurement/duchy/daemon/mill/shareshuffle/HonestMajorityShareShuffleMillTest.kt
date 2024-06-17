@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.duchy.daemon.mill.shareshuffle
 
+import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.FieldScopes
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
@@ -30,6 +32,7 @@ import java.time.Duration
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -38,6 +41,9 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.stub
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.wfanet.frequencycount.frequencyVector
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
@@ -131,6 +137,7 @@ import org.wfanet.measurement.system.v1alpha.AdvanceComputationResponse
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
+import org.wfanet.measurement.system.v1alpha.ComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase
@@ -139,6 +146,8 @@ import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineImplBase as SystemComputationsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.HonestMajorityShareShuffle as SystemHonestMajorityShareShuffle
 import org.wfanet.measurement.system.v1alpha.Requisition
+import org.wfanet.measurement.system.v1alpha.computationParticipant
+import org.wfanet.measurement.system.v1alpha.copy
 import org.wfanet.measurement.system.v1alpha.honestMajorityShareShuffle as systemHonestMajorityShareShuffle
 import org.wfanet.measurement.system.v1alpha.setComputationResultRequest
 import org.wfanet.measurement.system.v1alpha.setParticipantRequisitionParamsRequest
@@ -423,6 +432,13 @@ class HonestMajorityShareShuffleMillTest {
 
   @Test
   fun `initializationPhase sends params to Kingdom and advance stage`() = runBlocking {
+    val computationParticipant = computationParticipant {
+      name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_ID).toName()
+      etag = "entity tag"
+      state = ComputationParticipant.State.CREATED
+    }
+    whenever(mockComputationParticipants.getComputationParticipant(any()))
+      .thenReturn(computationParticipant)
     val computationDetails = getHmssComputationDetails(RoleInComputation.FIRST_NON_AGGREGATOR)
     fakeComputationDb.addComputation(
       LOCAL_ID,
@@ -453,14 +469,23 @@ class HonestMajorityShareShuffleMillTest {
         ComputationParticipantsCoroutineImplBase::setParticipantRequisitionParams,
       )
     assertThat(request)
-      .comparingExpectedFieldsOnly()
+      .ignoringFieldScope(
+        FieldScopes.allowingFieldDescriptors(
+          ComputationParticipant.RequisitionParams.getDescriptor()
+            .findFieldByNumber(
+              ComputationParticipant.RequisitionParams.HONEST_MAJORITY_SHARE_SHUFFLE_FIELD_NUMBER
+            )
+        )
+      )
       .isEqualTo(
         setParticipantRequisitionParamsRequest {
-          name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_ID).toName()
+          name = computationParticipant.name
+          etag = computationParticipant.etag
           this.requisitionParams =
             ComputationParticipantKt.requisitionParams { duchyCertificate = DUCHY_CERT_NAME }
         }
       )
+    assertThat(request.requisitionParams.hasHonestMajorityShareShuffle()).isTrue()
     val signedEncryptionPublicKey = signedMessage {
       setMessage(
         com.google.protobuf.any {
@@ -473,6 +498,67 @@ class HonestMajorityShareShuffleMillTest {
         request.requisitionParams.honestMajorityShareShuffle.tinkPublicKeySignatureAlgorithmOid
     }
     verifyEncryptionPublicKey(signedEncryptionPublicKey, DUCHY_SIGNING_CERT, ROOT_CERT)
+  }
+
+  @Test
+  fun `initializationPhase skips sending params to Kingdom when already set`(): Unit = runBlocking {
+    val computationParticipant = computationParticipant {
+      name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_ID).toName()
+      etag = "entity tag"
+      state = ComputationParticipant.State.REQUISITION_PARAMS_SET
+      requisitionParams = ComputationParticipant.RequisitionParams.getDefaultInstance()
+    }
+    whenever(mockComputationParticipants.getComputationParticipant(any()))
+      .thenReturn(computationParticipant)
+    val computationDetails = getHmssComputationDetails(RoleInComputation.FIRST_NON_AGGREGATOR)
+    fakeComputationDb.addComputation(
+      LOCAL_ID,
+      Stage.INITIALIZED.toProtocolStage(),
+      computationDetails = computationDetails,
+      requisitions = REQUISITIONS,
+    )
+
+    val mill = createHmssMill(DUCHY_ONE_ID)
+    mill.pollAndProcessNextComputation()
+
+    verify(mockComputationParticipants, never()).setParticipantRequisitionParams(any())
+  }
+
+  @Test
+  fun `initializationPhase retries sending requisition params when aborted`(): Unit = runTest {
+    val computationParticipant = computationParticipant {
+      name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_ID).toName()
+      etag = "entity tag"
+      state = ComputationParticipant.State.CREATED
+    }
+    mockComputationParticipants.stub {
+      onBlocking { getComputationParticipant(any()) }
+        .thenReturn(computationParticipant)
+        .thenReturn(
+          computationParticipant.copy {
+            etag = "entity tag 2"
+            state = ComputationParticipant.State.REQUISITION_PARAMS_SET
+            requisitionParams = ComputationParticipant.RequisitionParams.getDefaultInstance()
+          }
+        )
+      onBlocking { setParticipantRequisitionParams(any()) }
+        .thenThrow(Status.ABORTED.asRuntimeException())
+    }
+    val computationDetails = getHmssComputationDetails(RoleInComputation.FIRST_NON_AGGREGATOR)
+    fakeComputationDb.addComputation(
+      LOCAL_ID,
+      Stage.INITIALIZED.toProtocolStage(),
+      computationDetails = computationDetails,
+      requisitions = REQUISITIONS,
+    )
+
+    val mill = createHmssMill(DUCHY_ONE_ID)
+    mill.pollAndProcessNextComputation()
+    testScheduler.advanceUntilIdle()
+
+    // Verify stage was advanced successfully.
+    assertThat(fakeComputationDb[LOCAL_ID]?.computationStage)
+      .isEqualTo(Stage.WAIT_TO_START.toProtocolStage())
   }
 
   @Test

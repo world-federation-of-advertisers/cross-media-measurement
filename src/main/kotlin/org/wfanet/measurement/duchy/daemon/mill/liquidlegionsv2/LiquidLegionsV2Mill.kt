@@ -38,11 +38,13 @@ import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationS
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
-import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant as InternalComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt
+import org.wfanet.measurement.system.v1alpha.confirmComputationParticipantRequest
 
 /**
  * Parent mill of ReachOnlyLiquidLegionsV2 and ReachFrequencyLiquidLegionsV2.
@@ -140,7 +142,7 @@ abstract class LiquidLegionsV2Mill(
    * @return the error message if verification fails, or else `null`
    */
   protected fun verifyDuchySignature(
-    duchy: ComputationParticipant,
+    duchy: InternalComputationParticipant,
     publicApiVersion: Version,
   ): String? {
     val duchyInfo: DuchyInfo.Entry =
@@ -174,6 +176,25 @@ abstract class LiquidLegionsV2Mill(
     return null
   }
 
+  protected suspend fun confirmComputationParticipant(token: ComputationToken) {
+    updateComputationParticipant(token) { participant: ComputationParticipant ->
+      if (participant.state == ComputationParticipant.State.READY) {
+        logger.warning {
+          val globalComputationId = token.globalComputationId
+          "Skipping ConfirmComputationParticipant for $globalComputationId: already ready"
+        }
+        return@updateComputationParticipant
+      }
+
+      systemComputationParticipantsClient.confirmComputationParticipant(
+        confirmComputationParticipantRequest {
+          name = participant.name
+          etag = participant.etag
+        }
+      )
+    }
+  }
+
   /** Fails a computation both locally and at the kingdom when the confirmation fails. */
   protected fun failComputationAtConfirmationPhase(
     token: ComputationToken,
@@ -186,7 +207,7 @@ abstract class LiquidLegionsV2Mill(
   }
 
   protected fun nextDuchyStub(
-    duchyList: List<ComputationParticipant>
+    duchyList: List<InternalComputationParticipant>
   ): ComputationControlCoroutineStub {
     val index = duchyList.indexOfFirst { it.duchyId == duchyId }
     val nextDuchy = duchyList[(index + 1) % duchyList.size].duchyId
