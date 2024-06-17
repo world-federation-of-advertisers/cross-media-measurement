@@ -37,6 +37,7 @@ import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.measurementLogEntry
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundByMeasurementException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ETags
 
 private val BASE_SQL =
@@ -124,6 +125,16 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
       appendClause("LIMIT 1")
     }
     return execute(readContext).singleOrNull()
+  }
+
+  suspend fun readByExternalComputationId(
+    readContext: AsyncDatabaseClient.ReadContext,
+    externalComputationId: ExternalId,
+    externalDuchyId: String,
+  ): Result? {
+    val duchyId =
+      DuchyIds.getInternalId(externalDuchyId) ?: throw DuchyNotFoundException(externalDuchyId)
+    return readByExternalComputationId(readContext, externalComputationId, InternalId(duchyId))
   }
 
   override suspend fun translate(struct: Struct) =

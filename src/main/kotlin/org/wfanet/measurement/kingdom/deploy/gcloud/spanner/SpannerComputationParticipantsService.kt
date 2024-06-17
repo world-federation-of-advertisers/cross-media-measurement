@@ -15,16 +15,19 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ConfirmComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.FailComputationParticipantRequest
+import org.wfanet.measurement.internal.kingdom.GetComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountActivationStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantETagMismatchException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundByComputationException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyCertificateNotFoundException
@@ -32,6 +35,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFound
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuplicateAccountIdentityException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ComputationParticipantReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ConfirmComputationParticipant
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.FailComputationParticipant
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetParticipantRequisitionParams
@@ -40,6 +44,40 @@ class SpannerComputationParticipantsService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient,
 ) : ComputationParticipantsCoroutineImplBase() {
+  override suspend fun getComputationParticipant(
+    request: GetComputationParticipantRequest
+  ): ComputationParticipant {
+    if (request.externalComputationId == 0L) {
+      throw Status.INVALID_ARGUMENT.withDescription("external_computation_id not specified")
+        .asRuntimeException()
+    }
+    if (request.externalDuchyId.isEmpty()) {
+      throw Status.INVALID_ARGUMENT.withDescription("external_duchy_id not specified")
+        .asRuntimeException()
+    }
+
+    val externalComputationId = ExternalId(request.externalComputationId)
+    val externalDuchyId = request.externalDuchyId
+    val result: ComputationParticipantReader.Result? =
+      try {
+        ComputationParticipantReader()
+          .readByExternalComputationId(client.singleUse(), externalComputationId, externalDuchyId)
+      } catch (e: DuchyNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+      } catch (e: KingdomInternalException) {
+        throw e.asStatusRuntimeException(Status.Code.INTERNAL)
+      }
+    if (result == null) {
+      throw ComputationParticipantNotFoundByComputationException(
+          externalComputationId,
+          externalDuchyId,
+        )
+        .asStatusRuntimeException(Status.Code.NOT_FOUND)
+    }
+
+    return result.computationParticipant
+  }
+
   override suspend fun setParticipantRequisitionParams(
     request: SetParticipantRequisitionParamsRequest
   ): ComputationParticipant {
