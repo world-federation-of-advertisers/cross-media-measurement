@@ -23,6 +23,7 @@ import java.time.Clock
 import java.time.temporal.ChronoUnit
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -32,6 +33,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.toInstant
@@ -45,6 +47,7 @@ import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.Com
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.computedRequisitionParams
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
@@ -55,10 +58,12 @@ import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
+import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.confirmComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.failComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest
+import org.wfanet.measurement.internal.kingdom.getComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
 import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
@@ -145,6 +150,84 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         runBlocking { population.createDuchyCertificate(certificatesService, externalDuchyId) }
       }
   }
+
+  @Test
+  fun `getComputationParticipant returns ComputationParticipant`() = runBlocking {
+    createDuchyCertificates()
+    val measurementConsumer: MeasurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
+    val measurement: Measurement =
+      population.createLlv2Measurement(
+        measurementsService,
+        measurementConsumer,
+        PROVIDED_MEASUREMENT_ID,
+        dataProvider,
+      )
+
+    val request = getComputationParticipantRequest {
+      externalComputationId = measurement.externalComputationId
+      externalDuchyId = DUCHIES.first().externalDuchyId
+    }
+    val response = computationParticipantsService.getComputationParticipant(request)
+
+    assertThat(response)
+      .ignoringFields(ComputationParticipant.ETAG_FIELD_NUMBER)
+      .isEqualTo(
+        computationParticipant {
+          externalComputationId = request.externalComputationId
+          externalDuchyId = request.externalDuchyId
+          externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+          externalMeasurementId = measurement.externalMeasurementId
+          state = ComputationParticipant.State.CREATED
+          updateTime = measurement.updateTime
+          apiVersion = Version.V2_ALPHA.string
+          details = ComputationParticipant.Details.getDefaultInstance()
+        }
+      )
+    assertThat(response.etag).isNotEmpty()
+  }
+
+  @Test
+  fun `getComputationParticipant throws NOT_FOUND when Duchy not found`(): Unit = runBlocking {
+    val request = getComputationParticipantRequest {
+      externalComputationId = 1234L
+      externalDuchyId = "invalid Duchy ID"
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        computationParticipantsService.getComputationParticipant(request)
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    val errorInfo = assertNotNull(exception.errorInfo)
+    assertThat(errorInfo.reason).isEqualTo(ErrorCode.DUCHY_NOT_FOUND.name)
+    assertThat(errorInfo.metadataMap).containsAtLeast("external_duchy_id", request.externalDuchyId)
+  }
+
+  @Test
+  fun `getComputationParticipant throws NOT_FOUND when ComputationParticipant not found`(): Unit =
+    runBlocking {
+      val request = getComputationParticipantRequest {
+        externalComputationId = 404L
+        externalDuchyId = DUCHIES.first().externalDuchyId
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          computationParticipantsService.getComputationParticipant(request)
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+      val errorInfo = assertNotNull(exception.errorInfo)
+      assertThat(errorInfo.reason).isEqualTo(ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND.name)
+      assertThat(errorInfo.metadataMap)
+        .containsAtLeast(
+          "external_computation_id",
+          request.externalComputationId.toString(),
+          "external_duchy_id",
+          request.externalDuchyId,
+        )
+    }
 
   @Test
   fun `setParticipantRequisitionParams fails for wrong externalDuchyId`() = runBlocking {
