@@ -27,6 +27,10 @@ option java_outer_classname = "ComputationParticipantsServiceProto";
 // Kingdom system API service for interacting with `ComputationParticipant`
 // resources.
 service ComputationParticipants {
+  // Retrieves a `ComputationParticipant` by resource name.
+  rpc GetComputationParticipant(GetComputationParticipantRequest)
+      returns (ComputationParticipant);
+
   // Sets the requisition params of a `ComputationParticipant`.
   //
   // This is a [state transition method](https://google.aip.dev/216) that
@@ -50,6 +54,16 @@ service ComputationParticipants {
   // This is a [state transition method](https://google.aip.dev/216).
   rpc ConfirmComputationParticipant(ConfirmComputationParticipantRequest)
       returns (ComputationParticipant);
+}
+
+// Request message for the `GetComputationParticipant` method.
+message GetComputationParticipantRequest {
+  // Resource name.
+  string name = 1 [
+    (google.api.resource_reference).type =
+        "halo-system.wfanet.org/ComputationParticipant",
+    (google.api.field_behavior) = REQUIRED
+  ];
 }
 
 // Request message for the `SetParticipantRequisitionParams` method.

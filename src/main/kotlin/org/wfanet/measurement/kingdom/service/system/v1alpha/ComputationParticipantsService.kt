@@ -20,6 +20,7 @@ import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.duchyIdentityFromContext
@@ -34,6 +35,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt as Internal
 import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRequest as InternalSetParticipantRequisitionParamsRequest
 import org.wfanet.measurement.internal.kingdom.confirmComputationParticipantRequest as internalConfirmComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.failComputationParticipantRequest as internalFailComputationParticipantRequest
+import org.wfanet.measurement.internal.kingdom.getComputationParticipantRequest as internalGetComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest as internalSetParticipantRequisitionParamsRequest
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant.RequisitionParams.ProtocolCase
@@ -41,12 +43,31 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ConfirmComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.FailComputationParticipantRequest
+import org.wfanet.measurement.system.v1alpha.GetComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.SetParticipantRequisitionParamsRequest
 
 class ComputationParticipantsService(
   private val internalComputationParticipantsClient: InternalComputationParticipantsCoroutineStub,
   private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext,
 ) : ComputationParticipantsCoroutineImplBase() {
+  override suspend fun getComputationParticipant(
+    request: GetComputationParticipantRequest
+  ): ComputationParticipant {
+    val participantKey: ComputationParticipantKey =
+      getAndVerifyComputationParticipantKey(request.name)
+    val internalRequest = internalGetComputationParticipantRequest {
+      externalComputationId = ApiId(participantKey.computationId).externalId.value
+      externalDuchyId = participantKey.duchyId
+    }
+    val response: InternalComputationParticipant =
+      try {
+        internalComputationParticipantsClient.getComputationParticipant(internalRequest)
+      } catch (e: StatusException) {
+        throw mapStatusException(e).asRuntimeException()
+      }
+
+    return response.toSystemComputationParticipant()
+  }
 
   override suspend fun setParticipantRequisitionParams(
     request: SetParticipantRequisitionParamsRequest
