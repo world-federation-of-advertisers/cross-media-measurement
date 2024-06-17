@@ -47,3 +47,12 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/config:authority_key_to_principal_map_kt_jvm_proto",
     ],
 )
+
+kt_jvm_library(
+    name = "etags",
+    srcs = ["ETags.kt"],
+    deps = [
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:hashing",
+    ],
+)

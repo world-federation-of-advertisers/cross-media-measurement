@@ -1005,6 +1005,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         apiVersion = createdMeasurement.details.apiVersion
       }
       assertThat(measurement.computationParticipantsList)
+        .ignoringFields(ComputationParticipant.ETAG_FIELD_NUMBER)
         .containsExactly(
           templateParticipant.copy {
             externalDuchyId = Population.AGGREGATOR_DUCHY.externalDuchyId

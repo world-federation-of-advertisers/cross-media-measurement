@@ -39,10 +39,12 @@ import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRe
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantETagMismatchException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundByComputationException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ETags
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
@@ -52,14 +54,14 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.computationP
 /**
  * Sets participant details for a computationParticipant in the database.
  *
- * Throws a subclass of [KingdomInternalException] on [execute].
- *
- * @throws [ComputationParticipantNotFoundByComputationException] ComputationParticipant not found
- * @throws [ComputationParticipantStateIllegalException] ComputationParticipant state is not CREATED
- * @throws [DuchyCertificateNotFoundException] Duchy's Certificate not found
- * @throws [CertificateIsInvalidException] Certificate is invalid
- * @throws [DuchyNotFoundException] Duchy not found
- * @throws [MeasurementStateIllegalException] Measurement state is not PENDING_REQUISITION_PARAMS
+ * Throws the following subclass of [KingdomInternalException] on [execute]:
+ * * [ComputationParticipantNotFoundByComputationException] ComputationParticipant not found
+ * * [ComputationParticipantETagMismatchException] ComputationParticipant etag mismatch
+ * * [ComputationParticipantStateIllegalException] ComputationParticipant state is not CREATED
+ * * [DuchyCertificateNotFoundException] Duchy's Certificate not found
+ * * [CertificateIsInvalidException] Certificate is invalid
+ * * [DuchyNotFoundException] Duchy not found
+ * * [MeasurementStateIllegalException] Measurement state is not PENDING_REQUISITION_PARAMS
  */
 class SetParticipantRequisitionParams(private val request: SetParticipantRequisitionParamsRequest) :
   SpannerWriter<ComputationParticipant, ComputationParticipant>() {
@@ -98,6 +100,9 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
         }
 
     val computationParticipant = computationParticipantResult.computationParticipant
+    if (request.etag.isNotEmpty() && request.etag != computationParticipant.etag) {
+      throw ComputationParticipantETagMismatchException(request.etag, computationParticipant.etag)
+    }
     if (
       computationParticipantResult.measurementState != Measurement.State.PENDING_REQUISITION_PARAMS
     ) {
@@ -231,7 +236,10 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
   }
 
   override fun ResultScope<ComputationParticipant>.buildResult(): ComputationParticipant {
-    return checkNotNull(transactionResult).copy { updateTime = commitTimestamp.toProto() }
+    return checkNotNull(transactionResult).copy {
+      updateTime = commitTimestamp.toProto()
+      etag = ETags.computeETag(commitTimestamp)
+    }
   }
 
   private suspend fun TransactionScope.readDuchyCertificateId(

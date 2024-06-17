@@ -28,8 +28,10 @@ import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantETagMismatchException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundByComputationException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ETags
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ComputationParticipantReader
@@ -39,11 +41,11 @@ private val NEXT_COMPUTATION_PARTICIPANT_STATE = ComputationParticipant.State.FA
 /**
  * Sets participant details for a ComputationParticipant in the database.
  *
- * Throws a subclass of [KingdomInternalException] on [execute].
- *
- * @throws [ComputationParticipantNotFoundByComputationException] ComputationParticipant not found
- * @throws [DuchyNotFoundException] Duchy not found
- * @throws [MeasurementStateIllegalException] Measurement is not in state of pending
+ * Throws the following subclass of [KingdomInternalException] on [execute]:
+ * * [ComputationParticipantNotFoundByComputationException] ComputationParticipant not found
+ * * [ComputationParticipantETagMismatchException] ComputationParticipant etag mismatch
+ * * [DuchyNotFoundException] Duchy not found
+ * * [MeasurementStateIllegalException] Measurement is not in state of pending
  */
 class FailComputationParticipant(private val request: FailComputationParticipantRequest) :
   SpannerWriter<ComputationParticipant, ComputationParticipant>() {
@@ -76,6 +78,10 @@ class FailComputationParticipant(private val request: FailComputationParticipant
       measurementState,
       measurementDetails) =
       computationParticipantResult
+
+    if (request.etag.isNotEmpty() && request.etag != computationParticipant.etag) {
+      throw ComputationParticipantETagMismatchException(request.etag, computationParticipant.etag)
+    }
 
     when (measurementState) {
       Measurement.State.PENDING_REQUISITION_PARAMS,
@@ -155,6 +161,9 @@ class FailComputationParticipant(private val request: FailComputationParticipant
   }
 
   override fun ResultScope<ComputationParticipant>.buildResult(): ComputationParticipant {
-    return checkNotNull(transactionResult).copy { updateTime = commitTimestamp.toProto() }
+    return checkNotNull(transactionResult).copy {
+      updateTime = commitTimestamp.toProto()
+      etag = ETags.computeETag(commitTimestamp)
+    }
   }
 }
