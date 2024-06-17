@@ -156,6 +156,7 @@ fun InternalComputationParticipant.toSystemComputationParticipant(): Computation
           stageAttempt = source.failureLogEntry.details.stageAttempt.toSystemStageAttempt()
         }
     }
+    etag = source.etag
   }
 }
 
