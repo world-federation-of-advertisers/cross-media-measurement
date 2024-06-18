@@ -50,11 +50,13 @@ import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.internal.duchy.advanceComputationRequest
 import org.wfanet.measurement.internal.duchy.advanceComputationStageRequest
 import org.wfanet.measurement.internal.duchy.computationDetails
+import org.wfanet.measurement.internal.duchy.computationStage
 import org.wfanet.measurement.internal.duchy.computationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.computationStageDetails
 import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 import org.wfanet.measurement.internal.duchy.copy
+import org.wfanet.measurement.internal.duchy.getComputationStageRequest
 import org.wfanet.measurement.internal.duchy.getOutputBlobMetadataRequest
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage as HmssStage
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt
@@ -739,6 +741,40 @@ class AsyncComputationControlServiceTest {
 
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception).hasMessageThat().contains(HmssStage.SHUFFLE_PHASE.name)
+  }
+
+  @Test
+  fun `getComputationStage returns ComputationStage`() {
+    val computationStage = Llv2Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
+    val token = computationToken {
+      this.computationStage = computationStage
+      computationDetails = detailsFor(RoleInComputation.AGGREGATOR)
+    }
+    mockComputationsService.stub {
+      onBlocking { getComputationToken(any()) }.thenReturn(token.toGetComputationTokenResponse())
+    }
+
+    val request = getComputationStageRequest { globalComputationId = COMPUTATION_ID }
+
+    val stage = runBlocking { service.getComputationStage(request) }
+
+    assertThat(stage).isEqualTo(computationStage)
+  }
+
+  @Test
+  fun `getComputationStage throws when computation not found`() {
+    mockComputationsService.stub {
+      onBlocking { getComputationToken(any()) }.thenThrow(Status.NOT_FOUND.asRuntimeException())
+    }
+
+    val request = getComputationStageRequest { globalComputationId = COMPUTATION_ID }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking { service.getComputationStage(request) }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.NOT_FOUND.code)
   }
 
   companion object {

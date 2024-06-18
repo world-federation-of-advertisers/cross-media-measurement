@@ -30,12 +30,15 @@ import org.wfanet.measurement.duchy.storage.ComputationBlobContext
 import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineStub
 import org.wfanet.measurement.internal.duchy.advanceComputationRequest
+import org.wfanet.measurement.internal.duchy.getComputationStageRequest
 import org.wfanet.measurement.internal.duchy.getOutputBlobMetadataRequest
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationResponse
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationKey
+import org.wfanet.measurement.system.v1alpha.ComputationStage
+import org.wfanet.measurement.system.v1alpha.GetComputationStageRequest
 
 class ComputationControlService(
   private val asyncComputationControlClient: AsyncComputationControlCoroutineStub,
@@ -107,5 +110,19 @@ class ComputationControlService(
         .withCause(e)
         .asRuntimeException()
     }
+  }
+
+  override suspend fun getComputationStage(request: GetComputationStageRequest): ComputationStage {
+    val globalId =
+      grpcRequireNotNull(ComputationKey.fromName(request.computation)?.computationId) {
+        "Computation name unspecified or invalid."
+      }
+
+    val computationStage =
+      asyncComputationControlClient.getComputationStage(
+        getComputationStageRequest { globalComputationId = globalId }
+      )
+
+    return computationStage.toSystemComputationStage()
   }
 }

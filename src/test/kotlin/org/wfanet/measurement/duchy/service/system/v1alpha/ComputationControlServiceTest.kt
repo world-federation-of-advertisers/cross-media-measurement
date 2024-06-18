@@ -14,9 +14,11 @@
 
 package org.wfanet.measurement.duchy.service.system.v1alpha
 
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
+import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
@@ -48,6 +50,7 @@ import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.Async
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.advanceComputationRequest as asyncAdvanceComputationRequest
+import org.wfanet.measurement.internal.duchy.computationStage as internalComputationStage
 import org.wfanet.measurement.internal.duchy.computationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.getOutputBlobMetadataRequest
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle as HonestMajorityShareShuffleProtocol
@@ -56,9 +59,13 @@ import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSket
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.testing.BlobSubject.Companion.assertThat
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
+import org.wfanet.measurement.system.v1alpha.ComputationKey
+import org.wfanet.measurement.system.v1alpha.ComputationStage
 import org.wfanet.measurement.system.v1alpha.HonestMajorityShareShuffle
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
 import org.wfanet.measurement.system.v1alpha.ReachOnlyLiquidLegionsV2
+import org.wfanet.measurement.system.v1alpha.computationStage
+import org.wfanet.measurement.system.v1alpha.getComputationStageRequest
 
 private const val RUNNING_DUCHY_NAME = "Alsace"
 private const val BAVARIA = "Bavaria"
@@ -67,6 +74,13 @@ private val OTHER_DUCHY_NAMES = listOf(BAVARIA, CARINTHIA)
 private const val BLOB_ID = 1234L
 private val BLOB_CONTENT = "content".toByteStringUtf8()
 private val SEED = "seed".toByteStringUtf8()
+private val INTERNAL_COMPUTATION_STAGE = internalComputationStage {
+  liquidLegionsSketchAggregationV2 =
+    LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS
+}
+private val COMPUTATION_STAGE = computationStage {
+  liquidLegionsV2Stage = ComputationStage.LiquidLegionsV2Stage.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS
+}
 
 @RunWith(JUnit4::class)
 class ComputationControlServiceTest {
@@ -89,6 +103,8 @@ class ComputationControlServiceTest {
             blobId = BLOB_ID
           }
         )
+
+      onBlocking { getComputationStage(any()) }.thenReturn(INTERNAL_COMPUTATION_STAGE)
     }
   }
 
@@ -456,6 +472,26 @@ class ComputationControlServiceTest {
       )
     val data = assertNotNull(computationStore.get(blobKey))
     assertThat(data).contentEqualTo(BLOB_CONTENT)
+  }
+
+  @Test
+  fun `getComputationStage returns computation stage`() = runBlocking {
+    val computationId = "44444"
+    val request = getComputationStageRequest {
+      computation = ComputationKey(computationId).toName()
+    }
+
+    val stage = service.getComputationStage(request)
+
+    assertThat(stage).isEqualTo(COMPUTATION_STAGE)
+  }
+
+  @Test
+  fun `getComputationStage throws when computation id invalid`() = runBlocking {
+    val request = getComputationStageRequest { computation = "invalid name" }
+
+    val exception = assertFailsWith<StatusRuntimeException> { service.getComputationStage(request) }
+    assertThat(exception.status.code).isEqualTo(Status.INVALID_ARGUMENT.code)
   }
 }
 

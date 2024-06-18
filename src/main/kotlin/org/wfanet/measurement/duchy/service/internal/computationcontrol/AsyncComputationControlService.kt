@@ -29,9 +29,11 @@ import org.wfanet.measurement.internal.duchy.AdvanceComputationRequest
 import org.wfanet.measurement.internal.duchy.AdvanceComputationResponse
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineImplBase as AsyncComputationControlCoroutineService
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
+import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
+import org.wfanet.measurement.internal.duchy.GetComputationStageRequest
 import org.wfanet.measurement.internal.duchy.GetOutputBlobMetadataRequest
 import org.wfanet.measurement.internal.duchy.getComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.recordOutputBlobPathRequest
@@ -201,6 +203,17 @@ class AsyncComputationControlService(
   private class RetryableException(message: String? = null, cause: Throwable? = null) :
     Exception(message, cause) {
     constructor(cause: Throwable) : this(null, cause)
+  }
+
+  override suspend fun getComputationStage(request: GetComputationStageRequest): ComputationStage {
+    val globalComputationId = request.globalComputationId
+    val token =
+      getComputationToken(globalComputationId)
+        ?: throw Status.NOT_FOUND.withDescription(
+            "Computation with global ID $globalComputationId not found"
+          )
+          .asRuntimeException()
+    return token.computationStage
   }
 
   companion object {
