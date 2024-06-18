@@ -55,3 +55,19 @@ steps {
   input_labels { key: "hkdf-pepper" value: "hkdf-pepper" }
   output_labels { key: "hkdf-pepper" value: "mp-hkdf-pepper" }
 }
+
+# Data provider and model provider resource names are populated once the
+# resources are created.
+exchange_identifiers {
+  shared_storage_owner: DATA_PROVIDER
+}
+
+first_exchange_date {
+  year: 2024
+  month: 1
+  day: 1
+}
+
+repetition_schedule {
+  cron_expression: "@daily"
+}

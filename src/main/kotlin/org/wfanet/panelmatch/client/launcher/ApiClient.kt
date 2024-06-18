@@ -14,30 +14,37 @@
 
 package org.wfanet.panelmatch.client.launcher
 
-import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
-import org.wfanet.measurement.api.v2alpha.ExchangeStep
-import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
+import com.google.protobuf.ByteString
+import java.time.LocalDate
+import org.wfanet.panelmatch.client.common.ExchangeStepAttemptKey
+import org.wfanet.panelmatch.client.internal.ExchangeStepAttempt
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow
 
 /** Abstracts interactions with the centralized Panel Match APIs. */
 interface ApiClient {
   data class ClaimedExchangeStep(
-    val exchangeStep: ExchangeStep,
-    val exchangeStepAttempt: CanonicalExchangeStepAttemptKey,
+    val attemptKey: ExchangeStepAttemptKey,
+    val exchangeDate: LocalDate,
+    val stepIndex: Int,
+    val workflow: ExchangeWorkflow,
+    val workflowFingerprint: ByteString,
   )
 
   /**
-   * Attempts to fetch an [ExchangeStep] to work on.
+   * Attempts to fetch a [ClaimedExchangeStep] to work on.
    *
-   * @return an unvalidated [ExchangeStep] ready to work on -- or null if none exist.
+   * @return an unvalidated [ClaimedExchangeStep] ready to work on -- or null if none exist.
    */
   suspend fun claimExchangeStep(): ClaimedExchangeStep?
 
-  /** Attaches debug log entries to an [ExchangeStepAttempt]. */
-  suspend fun appendLogEntry(key: CanonicalExchangeStepAttemptKey, messages: Iterable<String>)
+  /** Attaches debug log entries to an [ExchangeStepAttempt] given its [key]. */
+  suspend fun appendLogEntry(key: ExchangeStepAttemptKey, messages: Iterable<String>)
 
-  /** Marks an ExchangeStepAttempt as complete (successfully or otherwise). */
+  /**
+   * Marks the [ExchangeStepAttempt] identified by [key] as complete (successfully or otherwise).
+   */
   suspend fun finishExchangeStepAttempt(
-    key: CanonicalExchangeStepAttemptKey,
+    key: ExchangeStepAttemptKey,
     finalState: ExchangeStepAttempt.State,
     logEntryMessages: Iterable<String> = emptyList(),
   )

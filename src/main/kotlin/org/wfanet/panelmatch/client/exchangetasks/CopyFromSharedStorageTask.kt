@@ -17,11 +17,11 @@ package org.wfanet.panelmatch.client.exchangetasks
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.collect
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions.LabelType.BLOB
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions.LabelType.MANIFEST
 import org.wfanet.measurement.common.mapConcurrently
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Step.CopyOptions
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Step.CopyOptions.LabelType.BLOB
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Step.CopyOptions.LabelType.MANIFEST
 import org.wfanet.panelmatch.client.storage.VerifyingStorageClient
 import org.wfanet.panelmatch.client.storage.VerifyingStorageClient.VerifiedBlob
 import org.wfanet.panelmatch.client.storage.signatureBlobKeyFor

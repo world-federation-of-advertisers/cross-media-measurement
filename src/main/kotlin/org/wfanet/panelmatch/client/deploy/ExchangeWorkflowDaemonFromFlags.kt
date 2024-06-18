@@ -18,8 +18,10 @@ import io.grpc.Channel
 import java.time.Clock
 import org.apache.beam.sdk.options.PipelineOptions
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
@@ -30,6 +32,7 @@ import org.wfanet.panelmatch.client.common.Identity
 import org.wfanet.panelmatch.client.common.TaskParameters
 import org.wfanet.panelmatch.client.eventpreprocessing.PreprocessingParameters
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Party
 import org.wfanet.panelmatch.client.launcher.ApiClient
 import org.wfanet.panelmatch.client.launcher.GrpcApiClient
 import org.wfanet.panelmatch.common.Timeout
@@ -83,6 +86,12 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
 
   override val certificateManager: CertificateManager by lazy {
     val certificateService = CertificatesCoroutineStub(channel)
+    val resourceName =
+      when (identity.party) {
+        Party.DATA_PROVIDER -> DataProviderKey(identity.id).toName()
+        Party.MODEL_PROVIDER -> ModelProviderKey(identity.id).toName()
+        else -> error("Invalid Identity: $identity")
+      }
 
     V2AlphaCertificateManager(
       certificateService = certificateService,
@@ -90,7 +99,7 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
       privateKeys = privateKeys,
       algorithm = flags.certAlgorithm,
       certificateAuthority = certificateAuthority,
-      localName = identity.toName(),
+      localName = resourceName,
       fallbackPrivateKeyBlobKey = flags.fallbackPrivateKeyBlobKey,
     )
   }

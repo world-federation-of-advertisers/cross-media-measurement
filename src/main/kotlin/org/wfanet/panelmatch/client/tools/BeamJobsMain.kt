@@ -28,7 +28,7 @@ import org.apache.beam.sdk.options.PipelineOptions
 import org.apache.beam.sdk.options.PipelineOptionsFactory
 import org.apache.beam.sdk.options.SdkHarnessOptions
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow as V2AlphaExchangeWorkflow
 import org.wfanet.measurement.aws.s3.S3Flags
 import org.wfanet.measurement.aws.s3.S3StorageClient
 import org.wfanet.measurement.common.commandLineMain
@@ -38,11 +38,14 @@ import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.panelmatch.client.common.ExchangeContext
+import org.wfanet.panelmatch.client.common.ExchangeStepAttemptKey
 import org.wfanet.panelmatch.client.common.TaskParameters
+import org.wfanet.panelmatch.client.common.toInternal
 import org.wfanet.panelmatch.client.deploy.ProductionExchangeTaskMapper
 import org.wfanet.panelmatch.client.eventpreprocessing.PreprocessingParameters
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow
 import org.wfanet.panelmatch.client.storage.FileSystemStorageFactory
 import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
 import org.wfanet.panelmatch.client.storage.SharedStorageSelector
@@ -63,8 +66,6 @@ import picocli.CommandLine.Model.CommandSpec
 import picocli.CommandLine.Option
 import picocli.CommandLine.ParameterException
 import picocli.CommandLine.Spec
-
-private const val BUFFER_SIZE_BYTES = 32 * 1024 * 1024 // 32MiB
 
 @Command(
   name = "beam-jobs-main",
@@ -104,12 +105,27 @@ class BeamJobsMain : Runnable {
   )
   private lateinit var exchangeWorkflowBlobKey: String
 
+  @set:Option(
+    names = ["--kingdomless"],
+    description = ["Whether this exchange uses the Kingdom-less protocol or not."],
+    defaultValue = "false",
+  )
+  var kingdomless by Delegates.notNull<Boolean>()
+    private set
+
   @set:Option(names = ["--step-index"], description = ["Index of step."], required = true)
   var stepIndex by Delegates.notNull<Int>()
     private set
 
-  private val serializedExchangeWorkflow by lazy {
-    runBlocking { rootStorageClient.getBlob(exchangeWorkflowBlobKey)!!.toByteString() }
+  private val exchangeWorkflow: ExchangeWorkflow by lazy {
+    val serializedWorkflow = runBlocking {
+      rootStorageClient.getBlob(exchangeWorkflowBlobKey)!!.toByteString()
+    }
+    if (kingdomless) {
+      ExchangeWorkflow.parseFrom(serializedWorkflow)
+    } else {
+      V2AlphaExchangeWorkflow.parseFrom(serializedWorkflow).toInternal()
+    }
   }
 
   @Option(
@@ -188,7 +204,6 @@ class BeamJobsMain : Runnable {
   }
 
   override fun run() = runBlocking {
-    val exchangeWorkflow = ExchangeWorkflow.parseFrom(serializedExchangeWorkflow)
     val step = exchangeWorkflow.getSteps(stepIndex)!!
 
     require(
@@ -197,8 +212,15 @@ class BeamJobsMain : Runnable {
       "The only step type currently supported is DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP"
     }
 
-    val attemptKey =
+    val v2AlphaAttemptKey =
       requireNotNull(CanonicalExchangeStepAttemptKey.fromName(exchangeStepAttemptResourceId))
+    val attemptKey =
+      ExchangeStepAttemptKey(
+        recurringExchangeId = v2AlphaAttemptKey.recurringExchangeId,
+        exchangeId = v2AlphaAttemptKey.exchangeId,
+        stepId = v2AlphaAttemptKey.exchangeStepId,
+        attemptId = v2AlphaAttemptKey.exchangeStepAttemptId,
+      )
 
     val exchangeContext =
       ExchangeContext(attemptKey, LocalDate.parse(exchangeDate), exchangeWorkflow, step)

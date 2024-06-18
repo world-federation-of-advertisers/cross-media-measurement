@@ -1,4 +1,4 @@
-// Copyright 2022 The Cross-Media Measurement Authors
+// Copyright 2024 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,26 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.exchangetasks
+package org.wfanet.panelmatch.common
 
+import com.google.common.hash.Hashing
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.kotlin.toByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.panelmatch.client.internal.ExchangeStepAttempt.State
 
 @RunWith(JUnit4::class)
-class ExchangeTaskFailedExceptionTest {
+class FingerprintersTest {
 
   @Test
-  fun ofTransientHasAttemptStateFailed() {
-    assertThat(ExchangeTaskFailedException.ofTransient(IllegalStateException()).attemptState)
-      .isEqualTo(State.FAILED)
-  }
+  fun sha256ReturnsCorrectHash() {
+    val payload = "the quick brown fox".toByteStringUtf8()
 
-  @Test
-  fun ofPermanentHasAttemptStateFailedStep() {
-    assertThat(ExchangeTaskFailedException.ofPermanent(IllegalStateException()).attemptState)
-      .isEqualTo(State.FAILED_STEP)
+    val fingerprint = Fingerprinters.sha256(payload)
+
+    assertThat(fingerprint)
+      .isEqualTo(Hashing.sha256().hashBytes(payload.toByteArray()).asBytes().toByteString())
   }
 }
