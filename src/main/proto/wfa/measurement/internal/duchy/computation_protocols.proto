@@ -42,6 +42,8 @@ message ComputationStage {
     // Stage of Honest Majority Share Shuffle computation.
     protocol.HonestMajorityShareShuffle.Stage honest_majority_share_shuffle = 3;
   }
+  // RFC 7232 entity tag. Output-only.
+  string etag = 5;
 }
 
 message ComputationStageInput {

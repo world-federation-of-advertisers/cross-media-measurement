@@ -25,9 +25,15 @@ option java_outer_classname = "ComputationStageProto";
 
 // Stage of a MPC protocol for a Computation.
 message ComputationStage {
-  // Computation name.
-  string computation = 1 [(google.api.resource_reference).type =
-                              "halo-system.wfanet.org/Computation"];
+  option (google.api.resource) = {
+    type: "halo-system.wfanet.org/ComputationStage"
+    pattern: "computations/{computation}/stage"
+    singular: "computationStage"
+    plural: "computationStages"
+  };
+
+  // Resource name.
+  string name = 1;
 
   // Stage of Liquid Legions V2 protocol.
   message LiquidLegionsV2Stage {
@@ -91,4 +97,7 @@ message ComputationStage {
     HonestMajorityShareShuffleStage.Stage honest_majority_share_shuffle_stage =
         4 [(google.api.field_behavior) = OUTPUT_ONLY];
   }
+
+  // RFC 7232 entity tag.
+  string etag = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
