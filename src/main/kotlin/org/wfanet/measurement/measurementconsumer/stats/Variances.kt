@@ -376,7 +376,7 @@ object VariancesImpl : Variances {
       NoiseMechanism.GAUSSIAN -> {
         // By passing 1 to contributorCount, the function called below outputs the total distributed
         // sigma of the noiser as sigmaDistributed = sigma / sqrt(contributorCount).
-        AcdpParamsConverter.computeLlv2SigmaDistributedDiscreteGaussian(
+        AcdpParamsConverter.computeMpcSigmaDistributedDiscreteGaussian(
             dpParams,
             contributorCount = 1,
           )

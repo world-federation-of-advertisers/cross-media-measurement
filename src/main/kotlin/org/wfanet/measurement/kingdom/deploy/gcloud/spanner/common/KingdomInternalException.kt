@@ -390,6 +390,16 @@ open class ComputationParticipantNotFoundException(
     get() = emptyMap<String, String>()
 }
 
+class ComputationParticipantETagMismatchException(
+  val requestETag: String,
+  val actualETag: String,
+  message: String =
+    "ComputationParticipant etag mismatch. Expected ${requestETag}, actual ${actualETag}",
+) : KingdomInternalException(ErrorCode.COMPUTATION_PARTICIPANT_ETAG_MISMATCH, message) {
+  override val context
+    get() = mapOf("actual_etag" to actualETag, "request_etag" to requestETag)
+}
+
 class ComputationParticipantNotFoundByComputationException(
   val externalComputationId: ExternalId,
   val externalDuchyId: String,

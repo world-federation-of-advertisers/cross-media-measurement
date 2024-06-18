@@ -27,6 +27,10 @@ option java_outer_classname = "ComputationParticipantsServiceProto";
 // Kingdom system API service for interacting with `ComputationParticipant`
 // resources.
 service ComputationParticipants {
+  // Retrieves a `ComputationParticipant` by resource name.
+  rpc GetComputationParticipant(GetComputationParticipantRequest)
+      returns (ComputationParticipant);
+
   // Sets the requisition params of a `ComputationParticipant`.
   //
   // This is a [state transition method](https://google.aip.dev/216) that
@@ -52,6 +56,16 @@ service ComputationParticipants {
       returns (ComputationParticipant);
 }
 
+// Request message for the `GetComputationParticipant` method.
+message GetComputationParticipantRequest {
+  // Resource name.
+  string name = 1 [
+    (google.api.resource_reference).type =
+        "halo-system.wfanet.org/ComputationParticipant",
+    (google.api.field_behavior) = REQUIRED
+  ];
+}
+
 // Request message for the `SetParticipantRequisitionParams` method.
 message SetParticipantRequisitionParamsRequest {
   // Resource name of the `ComputationParticipant`.
@@ -64,6 +78,12 @@ message SetParticipantRequisitionParamsRequest {
   // The requisition params to set.
   ComputationParticipant.RequisitionParams requisition_params = 2
       [(google.api.field_behavior) = REQUIRED];
+
+  // `etag` of the `ComputationParticipant`.
+  //
+  // If specified and the value does not match the current `etag`, this method
+  // will result in an ABORTED status.
+  string etag = 3;
 }
 
 // Request message for the `FailComputationParticipant` method.
@@ -78,6 +98,12 @@ message FailComputationParticipantRequest {
   // Failure information.
   ComputationParticipant.Failure failure = 2
       [(google.api.field_behavior) = REQUIRED];
+
+  // `etag` of the `ComputationParticipant`.
+  //
+  // If specified and the value does not match the current `etag`, this method
+  // will result in an ABORTED status.
+  string etag = 3;
 }
 
 // Request message for the `ConfirmComputationParticipant` method.
@@ -88,4 +114,10 @@ message ConfirmComputationParticipantRequest {
         "halo-system.wfanet.org/ComputationParticipant",
     (google.api.field_behavior) = REQUIRED
   ];
+
+  // `etag` of the `ComputationParticipant`.
+  //
+  // If specified and the value does not match the current `etag`, this method
+  // will result in an ABORTED status.
+  string etag = 3;
 }
