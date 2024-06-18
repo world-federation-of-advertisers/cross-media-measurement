@@ -54,8 +54,7 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 data class PopulationInfo(
   val populationSpec: PopulationSpec,
-  val eventDescriptor: Descriptor,
-  val operativeFields: Set<String>,
+  val eventMessageDescriptor: Descriptor,
 )
 /** A requisition fulfiller for PDP businesses. */
 class PopulationRequisitionFulfiller(
@@ -134,7 +133,7 @@ class PopulationRequisitionFulfiller(
           }
 
         val populationInfo: PopulationInfo = populationInfoMap.getValue(populationId)
-
+        populationInfo.eventMessageDescriptor.fields
         PopulationSpecValidator.validateVidRangesList(populationInfo.populationSpec).getOrThrow()
 
         val requisitionFilterExpression = requisitionSpec.population.filter.expression
@@ -215,12 +214,14 @@ class PopulationRequisitionFulfiller(
     typeRegistry: TypeRegistry,
   ) {
 
+    val operativeFields = getPopulationOperativeFields(populationInfo.eventMessageDescriptor)
+
     // CEL program that will check the event against the filter expression
     val program: Program =
       EventFilters.compileProgram(
-        populationInfo.eventDescriptor,
+        populationInfo.eventMessageDescriptor,
         filterExpression,
-        populationInfo.operativeFields
+        operativeFields
       )
 
     // Filters populationBucketsList through a CEL program and sums the result.
@@ -252,6 +253,20 @@ class PopulationRequisitionFulfiller(
   }
 
   /**
+   * Returns a [Set] of operative fields derived from a [Descriptor]. Only fields that have the population
+   * attribute set to true will be returned.
+   */
+  private fun getPopulationOperativeFields(eventMessageDescriptor: Descriptor): Set<String> {
+    return eventMessageDescriptor.fields.flatMap {
+      it.messageType.fields.map { jt ->
+        if(jt.options.getExtension(EventAnnotationsProto.templateField).populationAttribute){
+          "${jt.containingType.name}.${jt.name}"
+        } else null
+      }
+    }.filterNotNull().toSet()
+  }
+
+  /**
    * Returns a [Boolean] representing whether the attributes in the list are 1) the correct type and
    * 2) pass a check against the filter expression after being run through a CEL program.
    */
@@ -261,10 +276,12 @@ class PopulationRequisitionFulfiller(
     program: Program,
     typeRegistry: TypeRegistry
   ): Boolean {
-    val eventDescriptor: Descriptor = populationInfo.eventDescriptor
+    val eventMessageDescriptor: Descriptor = populationInfo.eventMessageDescriptor
 
     // Event message that will be passed to CEL program
-    val eventMessage: DynamicMessage.Builder = DynamicMessage.newBuilder(eventDescriptor)
+    val eventMessage: DynamicMessage.Builder = DynamicMessage.newBuilder(eventMessageDescriptor)
+
+
 
     // Populate event message that will be used in the program if attribute is valid
     attributeList.forEach { attribute ->
@@ -281,7 +298,7 @@ class PopulationRequisitionFulfiller(
 
       // If the attribute type is not a field in the event message, it is not valid.
       val isAttributeFieldInEvent =
-        eventDescriptor.fields.any {
+        eventMessageDescriptor.fields.any {
           it.messageType.name === attributeMessage.descriptorForType.name
         }
       require(isAttributeFieldInEvent) {
@@ -299,7 +316,7 @@ class PopulationRequisitionFulfiller(
 
       // Find corresponding field descriptor for this attribute.
       val fieldDescriptor: FieldDescriptor =
-        eventDescriptor.fields.first { eventField ->
+        eventMessageDescriptor.fields.first { eventField ->
           eventField.messageType.name === attributeDescriptor.name
         }
 

@@ -737,35 +737,28 @@ class PopulationRequisitionFulfillerTest {
     private val POPULATION_ID_2: PopulationKey =
       requireNotNull(PopulationKey.fromName(POPULATION_NAME_2))
 
-    private val OPERATIVE_FIELDS =
-      setOf("person.ageGroup.value", "person.socialGradeGroup.value", "person.genderGroup.value")
-
     private val POPULATION_INFO_1 =
       PopulationInfo(
         POPULATION_SPEC_1,
         TestEvent.getDescriptor(),
-        OPERATIVE_FIELDS,
       )
 
     private val POPULATION_INFO_2 =
       PopulationInfo(
         POPULATION_SPEC_2,
         TestEvent.getDescriptor(),
-        OPERATIVE_FIELDS,
       )
 
     private val INVALID_POPULATION_INFO_1 =
       PopulationInfo(
         INVALID_POPULATION_SPEC_1,
         TestEvent.getDescriptor(),
-        OPERATIVE_FIELDS,
       )
 
     private val INVALID_POPULATION_INFO_2 =
       PopulationInfo(
         INVALID_POPULATION_SPEC_2,
         TestEvent.getDescriptor(),
-        OPERATIVE_FIELDS,
       )
 
     private val POPULATION_INFO_MAP =
