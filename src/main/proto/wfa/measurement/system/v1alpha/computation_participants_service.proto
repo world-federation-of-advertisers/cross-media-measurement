@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.system.v1alpha;
 
+import "google/api/client.proto";
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "wfa/measurement/system/v1alpha/computation_participant.proto";
@@ -29,7 +30,9 @@ option java_outer_classname = "ComputationParticipantsServiceProto";
 service ComputationParticipants {
   // Retrieves a `ComputationParticipant` by resource name.
   rpc GetComputationParticipant(GetComputationParticipantRequest)
-      returns (ComputationParticipant);
+      returns (ComputationParticipant) {
+    option (google.api.method_signature) = "name";
+  }
 
   // Sets the requisition params of a `ComputationParticipant`.
   //
