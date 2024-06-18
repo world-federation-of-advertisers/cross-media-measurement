@@ -28,8 +28,7 @@ private const val KEY_ALGORITHM = "EC"
 object TestCertificateManager : CertificateManager {
   override suspend fun getCertificate(
     exchange: ExchangeDateKey,
-    certOwnerName: String,
-    certResourceName: String,
+    certName: String,
   ): X509Certificate {
     return CERTIFICATE
   }

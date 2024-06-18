@@ -17,11 +17,15 @@
 package org.wfanet.panelmatch.client.tools
 
 import com.google.privatemembership.batch.Shared.Parameters
+import com.google.protobuf.Message
 import com.google.protobuf.TypeRegistry
 import java.io.File
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow as V2AlphaExchangeWorkflow
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow
+import org.wfanet.panelmatch.client.tools.ExchangeWorkflowFormat.KINGDOMLESS
+import org.wfanet.panelmatch.client.tools.ExchangeWorkflowFormat.V2ALPHA
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
 
@@ -46,6 +50,13 @@ class SerializeExchangeWorkflow : Runnable {
   private lateinit var input: File
 
   @Option(
+    names = ["--in-format"],
+    description = ["Format of the input ExchangeWorkflow"],
+    required = true,
+  )
+  private lateinit var inputFormat: ExchangeWorkflowFormat
+
+  @Option(
     names = ["--out"],
     description = ["Output ExchangeWorkflow file in binary format"],
     required = true,
@@ -54,7 +65,11 @@ class SerializeExchangeWorkflow : Runnable {
 
   override fun run() {
     val typeRegistry = TypeRegistry.newBuilder().apply { add(Parameters.getDescriptor()) }.build()
-    val parsed = parseTextProto(input, ExchangeWorkflow.getDefaultInstance(), typeRegistry)
+    val parsed: Message =
+      when (inputFormat) {
+        V2ALPHA -> parseTextProto(input, V2AlphaExchangeWorkflow.getDefaultInstance(), typeRegistry)
+        KINGDOMLESS -> parseTextProto(input, ExchangeWorkflow.getDefaultInstance(), typeRegistry)
+      }
 
     output.outputStream().use { outputStream -> parsed.writeTo(outputStream) }
   }
