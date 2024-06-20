@@ -159,7 +159,7 @@ class GcpSpannerComputationsDatabaseTransactor<
       }
     return UnclaimedTasksQuery(
         computationMutations.protocolEnumToLong(protocol),
-        computationMutations::longValuesToComputationStageEnum,
+        computationMutations::internalValuesToComputationStage,
         clock.gcloudTimestamp(),
       )
       .execute(databaseClient)
@@ -377,7 +377,7 @@ class GcpSpannerComputationsDatabaseTransactor<
         )
       }
 
-      UnfinishedAttemptQuery(computationMutations::longValuesToComputationStageEnum, token.localId)
+      UnfinishedAttemptQuery(computationMutations::internalValuesToComputationStage, token.localId)
         .execute(txn)
         .collect { unfinished ->
           // Determine the reason the unfinished computation stage attempt is ending.

@@ -23,8 +23,8 @@ interface ComputationProtocolStagesEnumHelper<ProtocolT, StageT> {
   /** Turns an enum of [StageT] into a [ComputationStageLongValues]. */
   fun computationStageEnumToLongValues(value: StageT): ComputationStageLongValues
 
-  /** Turns a [ComputationStageLongValues] into an enum of [StageT]. */
-  fun longValuesToComputationStageEnum(value: ComputationStageLongValues): StageT
+  /** Turns a [ComputationStageLongValues] and [etag] into a [StageT]. */
+  fun internalValuesToComputationStage(value: ComputationStageLongValues, etag: String): StageT
 
   /** Returns the set of valid initial stages for [protocol]. */
   fun getValidInitialStage(protocol: ProtocolT): Set<StageT>

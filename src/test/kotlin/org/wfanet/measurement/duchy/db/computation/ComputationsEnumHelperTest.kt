@@ -33,7 +33,7 @@ class ComputationsEnumHelperTest {
           ComputationStage.newBuilder().setLiquidLegionsSketchAggregationV2(stage).build()
         assertEquals(
           computationStage,
-          ComputationProtocolStages.longValuesToComputationStageEnum(
+          ComputationProtocolStages.internalValuesToComputationStage(
             ComputationProtocolStages.computationStageEnumToLongValues(computationStage)
           ),
           "protocolEnumToLong and longToProtocolEnum were not inverses for $stage",
@@ -51,7 +51,7 @@ class ComputationsEnumHelperTest {
         }
         assertEquals(
           computationStage,
-          ComputationProtocolStages.longValuesToComputationStageEnum(
+          ComputationProtocolStages.internalValuesToComputationStage(
             ComputationProtocolStages.computationStageEnumToLongValues(computationStage)
           ),
           "protocolEnumToLong and longToProtocolEnum were not inverses for $stage",
@@ -67,7 +67,7 @@ class ComputationsEnumHelperTest {
       val computationStage = computationStage { honestMajorityShareShuffle = stage }
       assertEquals(
         computationStage,
-        ComputationProtocolStages.longValuesToComputationStageEnum(
+        ComputationProtocolStages.internalValuesToComputationStage(
           ComputationProtocolStages.computationStageEnumToLongValues(computationStage)
         ),
         "protocolEnumToLong and longToProtocolEnum were not inverses for $stage",
@@ -78,7 +78,7 @@ class ComputationsEnumHelperTest {
   @Test
   fun `longValuesToComputationStageEnum with invalid numbers`() {
     assertFails {
-      ComputationProtocolStages.longValuesToComputationStageEnum(ComputationStageLongValues(-1, -1))
+      ComputationProtocolStages.internalValuesToComputationStage(ComputationStageLongValues(-1, -1))
     }
   }
 }

@@ -67,19 +67,20 @@ object ComputationProtocolStages :
     }
   }
 
-  override fun longValuesToComputationStageEnum(
-    value: ComputationStageLongValues
+  override fun internalValuesToComputationStage(
+    value: ComputationStageLongValues,
+    etag: String,
   ): ComputationStage {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     return when (ComputationTypes.longToProtocolEnum(value.protocol)) {
       LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         LiquidLegionsSketchAggregationV2Protocol.EnumStages.longToEnum(value.stage)
-          .toProtocolStage()
+          .toProtocolStage(etag)
       REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         ReachOnlyLiquidLegionsSketchAggregationV2Protocol.EnumStages.longToEnum(value.stage)
-          .toProtocolStage()
+          .toProtocolStage(etag)
       HONEST_MAJORITY_SHARE_SHUFFLE ->
-        HonestMajorityShareShuffleProtocol.EnumStages.longToEnum(value.stage).toProtocolStage()
+        HonestMajorityShareShuffleProtocol.EnumStages.longToEnum(value.stage).toProtocolStage(etag)
       UNSPECIFIED,
       UNRECOGNIZED -> error("protocol not set")
     }

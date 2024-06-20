@@ -98,6 +98,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
     private const val GLOBAL_COMPUTATION_ID = FAKE_ID
     private const val REQUISITION_ID = FAKE_ID
     private const val REQUISITION_FINGERPRINT = "finger_print"
+    private const val ETAG = "0"
     private const val REQUISITION_NONCE = 1234L
     private val AGGREGATOR_COMPUTATION_DETAILS = computationDetails {
       liquidLegionsV2 =
@@ -207,14 +208,14 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
     service.finishComputation(
       finishComputationRequest {
         token = token1
-        endingComputationStage = Stage.COMPLETE.toProtocolStage()
+        endingComputationStage = Stage.COMPLETE.toProtocolStage(ETAG)
         reason = ComputationDetails.CompletedReason.SUCCEEDED
       }
     )
     service.finishComputation(
       finishComputationRequest {
         token = token2
-        endingComputationStage = Stage.COMPLETE.toProtocolStage()
+        endingComputationStage = Stage.COMPLETE.toProtocolStage(ETAG)
         reason = ComputationDetails.CompletedReason.SUCCEEDED
       }
     )
@@ -224,7 +225,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
       service.purgeComputations(
         purgeComputationsRequest {
           updatedBefore = currentTime.plusSeconds(1000L).toProtoTime()
-          stages += Stage.COMPLETE.toProtocolStage()
+          stages += Stage.COMPLETE.toProtocolStage(ETAG)
           force = false
         }
       )
@@ -243,7 +244,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
         .finishComputation(
           finishComputationRequest {
             token = createdToken
-            endingComputationStage = Stage.COMPLETE.toProtocolStage()
+            endingComputationStage = Stage.COMPLETE.toProtocolStage(ETAG)
             reason = ComputationDetails.CompletedReason.SUCCEEDED
           }
         )
@@ -252,7 +253,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
     service.purgeComputations(
       purgeComputationsRequest {
         updatedBefore = createTime.plusSeconds(1000L).toProtoTime()
-        stages += Stage.COMPLETE.toProtocolStage()
+        stages += Stage.COMPLETE.toProtocolStage(ETAG)
         force = false
       }
     )
@@ -283,14 +284,14 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
     service.finishComputation(
       finishComputationRequest {
         token = token1
-        endingComputationStage = Stage.COMPLETE.toProtocolStage()
+        endingComputationStage = Stage.COMPLETE.toProtocolStage(ETAG)
         reason = ComputationDetails.CompletedReason.SUCCEEDED
       }
     )
     service.finishComputation(
       finishComputationRequest {
         token = token2
-        endingComputationStage = Stage.COMPLETE.toProtocolStage()
+        endingComputationStage = Stage.COMPLETE.toProtocolStage(ETAG)
         reason = ComputationDetails.CompletedReason.SUCCEEDED
       }
     )
@@ -300,7 +301,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
       service.purgeComputations(
         purgeComputationsRequest {
           updatedBefore = currentTime.plusSeconds(1000L).toProtoTime()
-          stages += Stage.COMPLETE.toProtocolStage()
+          stages += Stage.COMPLETE.toProtocolStage(ETAG)
           force = true
         }
       )
@@ -315,8 +316,8 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
       val currentTime = clock.last()
       val purgeComputationsRequest = purgeComputationsRequest {
         updatedBefore = currentTime.plusSeconds(1000L).toProtoTime()
-        stages += Stage.COMPLETE.toProtocolStage()
-        stages += Stage.INITIALIZATION_PHASE.toProtocolStage()
+        stages += Stage.COMPLETE.toProtocolStage(ETAG)
+        stages += Stage.INITIALIZATION_PHASE.toProtocolStage(ETAG)
         force = true
       }
       val exception =
@@ -364,14 +365,14 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
     service.finishComputation(
       finishComputationRequest {
         token = token1
-        endingComputationStage = Stage.COMPLETE.toProtocolStage()
+        endingComputationStage = Stage.COMPLETE.toProtocolStage(ETAG)
         reason = ComputationDetails.CompletedReason.SUCCEEDED
       }
     )
     service.finishComputation(
       finishComputationRequest {
         token = token2
-        endingComputationStage = Stage.COMPLETE.toProtocolStage()
+        endingComputationStage = Stage.COMPLETE.toProtocolStage(ETAG)
         reason = ComputationDetails.CompletedReason.SUCCEEDED
       }
     )
@@ -381,7 +382,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
       service.purgeComputations(
         purgeComputationsRequest {
           updatedBefore = currentTime.plusSeconds(1000L).toProtoTime()
-          stages += Stage.COMPLETE.toProtocolStage()
+          stages += Stage.COMPLETE.toProtocolStage(ETAG)
           force = false
         }
       )
@@ -397,7 +398,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
     service.finishComputation(
       finishComputationRequest {
         token = createdToken
-        endingComputationStage = Stage.COMPLETE.toProtocolStage()
+        endingComputationStage = Stage.COMPLETE.toProtocolStage(ETAG)
         reason = ComputationDetails.CompletedReason.SUCCEEDED
       }
     )
@@ -405,7 +406,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
     val currentTime = clock.last()
     val purgeComputationsRequest = purgeComputationsRequest {
       updatedBefore = currentTime.plusSeconds(1000L).toProtoTime()
-      stages += Stage.COMPLETE.toProtocolStage()
+      stages += Stage.COMPLETE.toProtocolStage(ETAG)
       force = true
     }
     service.purgeComputations(purgeComputationsRequest)
@@ -694,14 +695,14 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
 
     val finishComputationRequest = finishComputationRequest {
       token = createComputationResp.token
-      endingComputationStage = Stage.COMPLETE.toProtocolStage()
+      endingComputationStage = Stage.COMPLETE.toProtocolStage(ETAG)
       reason = ComputationDetails.CompletedReason.SUCCEEDED
     }
     val finishComputationResponse = service.finishComputation(finishComputationRequest)
 
     val expectedComputationToken =
       createComputationResp.token.copy {
-        computationStage = Stage.COMPLETE.toProtocolStage()
+        computationStage = Stage.COMPLETE.toProtocolStage(ETAG)
         computationDetails =
           this.computationDetails.copy {
             endingState = ComputationDetails.CompletedReason.SUCCEEDED
@@ -720,7 +721,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
 
       val finishComputationRequest = finishComputationRequest {
         token = createComputationResp.token
-        endingComputationStage = Stage.COMPLETE.toProtocolStage()
+        endingComputationStage = Stage.COMPLETE.toProtocolStage(ETAG)
         reason = ComputationDetails.CompletedReason.UNSPECIFIED
       }
       val exception =
@@ -738,7 +739,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
 
       val finishComputationRequest = finishComputationRequest {
         token = createComputationResp.token
-        endingComputationStage = Stage.SETUP_PHASE.toProtocolStage()
+        endingComputationStage = Stage.SETUP_PHASE.toProtocolStage(ETAG)
         reason = ComputationDetails.CompletedReason.SUCCEEDED
       }
       val exception =
@@ -845,7 +846,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
     service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
 
     val getComputationIdsRequest = getComputationIdsRequest {
-      stages += Stage.WAIT_REQUISITIONS_AND_KEY_SET.toProtocolStage()
+      stages += Stage.WAIT_REQUISITIONS_AND_KEY_SET.toProtocolStage(ETAG)
     }
     val getComputationIdsResponse = service.getComputationIds(getComputationIdsRequest)
 
@@ -865,8 +866,8 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
     service.claimWork(DEFAULT_CLAIM_WORK_REQUEST)
 
     val getComputationIdsRequest = getComputationIdsRequest {
-      stages += Stage.INITIALIZATION_PHASE.toProtocolStage()
-      stages += Stage.WAIT_REQUISITIONS_AND_KEY_SET.toProtocolStage()
+      stages += Stage.INITIALIZATION_PHASE.toProtocolStage(ETAG)
+      stages += Stage.WAIT_REQUISITIONS_AND_KEY_SET.toProtocolStage(ETAG)
     }
     val getComputationIdsResponse = service.getComputationIds(getComputationIdsRequest)
 

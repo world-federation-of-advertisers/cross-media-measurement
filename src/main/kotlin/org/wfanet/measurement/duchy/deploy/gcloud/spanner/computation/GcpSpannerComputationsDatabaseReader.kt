@@ -38,7 +38,7 @@ class GcpSpannerComputationsDatabaseReader(
 
   override suspend fun readComputationToken(globalId: String): ComputationToken? {
     return ComputationTokenProtoQuery(
-        parseStageEnum = computationProtocolStagesHelper::longValuesToComputationStageEnum,
+        parseStageEnum = computationProtocolStagesHelper::internalValuesToComputationStage,
         globalId = globalId,
       )
       .execute(databaseClient)
@@ -49,7 +49,7 @@ class GcpSpannerComputationsDatabaseReader(
     externalRequisitionKey: ExternalRequisitionKey
   ): ComputationToken? {
     return ComputationTokenProtoQuery(
-        parseStageEnum = computationProtocolStagesHelper::longValuesToComputationStageEnum,
+        parseStageEnum = computationProtocolStagesHelper::internalValuesToComputationStage,
         externalRequisitionKey = externalRequisitionKey,
       )
       .execute(databaseClient)

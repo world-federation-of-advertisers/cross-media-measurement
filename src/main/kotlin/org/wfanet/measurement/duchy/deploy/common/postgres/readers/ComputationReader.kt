@@ -25,6 +25,7 @@ import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.duchy.ETags
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationStageLongValues
 import org.wfanet.measurement.internal.duchy.ComputationDetails
@@ -106,17 +107,19 @@ class ComputationReader(
     computation: Computation,
     blobs: List<ComputationStageBlobMetadata>,
     requisitions: List<RequisitionMetadata>,
+    version: Long,
   ): ComputationToken {
     return computationToken {
       globalComputationId = computation.globalComputationId
       localComputationId = computation.localComputationId
       computationStage =
-        computationProtocolStagesEnumHelper.longValuesToComputationStageEnum(
-          ComputationStageLongValues(computation.protocol, computation.computationStage)
+        computationProtocolStagesEnumHelper.internalValuesToComputationStage(
+          ComputationStageLongValues(computation.protocol, computation.computationStage),
+          ETags.computeETag(version),
         )
       attempt = computation.nextAttempt - 1
       computationDetails = computation.computationDetails
-      version = computation.version
+      this.version = computation.version
       computation.stageSpecificDetails?.let { stageSpecificDetails = it }
       computation.lockOwner?.let { lockOwner = it }
       computation.lockExpirationTime?.let { lockExpirationTime = it }
@@ -215,7 +218,7 @@ class ComputationReader(
     val requisitions =
       requisitionReader.readRequisitionMetadata(readContext, computation.localComputationId)
 
-    return buildComputationToken(computation, blobs, requisitions)
+    return buildComputationToken(computation, blobs, requisitions, computation.version)
   }
 
   /**
@@ -259,7 +262,7 @@ class ComputationReader(
     val requisitions =
       requisitionReader.readRequisitionMetadata(readContext, computation.localComputationId)
 
-    return buildComputationToken(computation, blobs, requisitions)
+    return buildComputationToken(computation, blobs, requisitions, computation.version)
   }
 
   /**

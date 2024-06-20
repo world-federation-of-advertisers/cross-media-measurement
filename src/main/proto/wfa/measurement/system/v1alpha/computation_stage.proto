@@ -27,9 +27,11 @@ option java_outer_classname = "ComputationStageProto";
 message ComputationStage {
   option (google.api.resource) = {
     type: "halo-system.wfanet.org/ComputationStage"
-    pattern: "computations/{computation}/stage"
     singular: "computationStage"
     plural: "computationStages"
+
+    // `duchy` is the Duchy ID from the public API.
+    pattern: "computations/{computation}/participants/{duchy}/stage"
   };
 
   // Resource name.

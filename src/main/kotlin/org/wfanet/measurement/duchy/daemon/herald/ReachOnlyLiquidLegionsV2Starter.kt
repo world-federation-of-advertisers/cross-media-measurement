@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.duchy.daemon.herald
 
+import java.util.logging.Level
 import java.util.logging.Logger
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -167,11 +168,16 @@ object ReachOnlyLiquidLegionsV2Starter {
         return
       }
 
-      // For past stages, we throw.
+      // For the previous stage, advance the stage to catch up the Participant state.
       ReachOnlyLiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE -> {
-        error(
-          "[id=${token.globalComputationId}]: cannot update requisitions and key sets for " +
-            "computation still in state ${stage.name}"
+        logger.log(Level.WARNING) {
+          "[id=${token.globalComputationId}]: advance current ${stage.name} to catch up " +
+            "Measurement state PENDING_PARTICIPANT_CONFIRMATION"
+        }
+        computationStorageClient.advanceComputationStage(
+          computationToken = token,
+          stage =
+            ReachOnlyLiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE.toProtocolStage(),
         )
       }
 

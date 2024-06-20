@@ -44,15 +44,21 @@ val ComputationStage.number: Int
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
 
-fun LiquidLegionsSketchAggregationV2.Stage.toProtocolStage(): ComputationStage = computationStage {
-  liquidLegionsSketchAggregationV2 = this@toProtocolStage
-}
-
-fun ReachOnlyLiquidLegionsSketchAggregationV2.Stage.toProtocolStage(): ComputationStage =
+fun LiquidLegionsSketchAggregationV2.Stage.toProtocolStage(etag: String): ComputationStage =
   computationStage {
-    reachOnlyLiquidLegionsSketchAggregationV2 = this@toProtocolStage
+    liquidLegionsSketchAggregationV2 = this@toProtocolStage
+    this.etag = etag
   }
 
-fun HonestMajorityShareShuffle.Stage.toProtocolStage(): ComputationStage = computationStage {
-  honestMajorityShareShuffle = this@toProtocolStage
+fun ReachOnlyLiquidLegionsSketchAggregationV2.Stage.toProtocolStage(
+  etag: String
+): ComputationStage = computationStage {
+  reachOnlyLiquidLegionsSketchAggregationV2 = this@toProtocolStage
+  this.etag = etag
 }
+
+fun HonestMajorityShareShuffle.Stage.toProtocolStage(etag: String): ComputationStage =
+  computationStage {
+    honestMajorityShareShuffle = this@toProtocolStage
+    this.etag = etag
+  }
