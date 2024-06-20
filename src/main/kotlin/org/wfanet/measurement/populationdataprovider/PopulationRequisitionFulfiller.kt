@@ -52,6 +52,15 @@ import org.wfanet.measurement.dataprovider.DataProviderData
 import org.wfanet.measurement.dataprovider.RequisitionFulfiller
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
+/**
+ * Data class associated with a population.
+ *
+ * @param populationSpec The [PopulationSpec] that contains 1) information on the attributes of a population, and  2) vid ranges
+ *  that are used to calculate the size of the population.
+ * @param eventMessageDescriptor The [Descriptor] of the event message that wraps the event template which is used by the CEL
+ *  program to filter out irrelevant populations and calculate the size. The event template should contain the same types
+ *  provided in the attributes list of the [PopulationSpec].
+ */
 data class PopulationInfo(
   val populationSpec: PopulationSpec,
   val eventMessageDescriptor: Descriptor,
@@ -205,6 +214,9 @@ class PopulationRequisitionFulfiller(
     }
   }
 
+  /**
+   *  Fulfills a population measurement.
+   */
   private suspend fun fulfillPopulationMeasurement(
     requisition: Requisition,
     requisitionSpec: RequisitionSpec,
@@ -257,10 +269,10 @@ class PopulationRequisitionFulfiller(
    * attribute set to true will be returned.
    */
   private fun getPopulationOperativeFields(eventMessageDescriptor: Descriptor): Set<String> {
-    return eventMessageDescriptor.fields.flatMap {
-      it.messageType.fields.map { jt ->
-        if(jt.options.getExtension(EventAnnotationsProto.templateField).populationAttribute){
-          "${jt.containingType.name}.${jt.name}"
+    return eventMessageDescriptor.fields.flatMap { eventTemplate ->
+      eventTemplate.messageType.fields.map { templateFieldDescriptor ->
+        if(templateFieldDescriptor.options.getExtension(EventAnnotationsProto.templateField).populationAttribute){
+          "${eventTemplate.name}.${templateFieldDescriptor.name}.value"
         } else null
       }
     }.filterNotNull().toSet()
@@ -280,8 +292,6 @@ class PopulationRequisitionFulfiller(
 
     // Event message that will be passed to CEL program
     val eventMessage: DynamicMessage.Builder = DynamicMessage.newBuilder(eventMessageDescriptor)
-
-
 
     // Populate event message that will be used in the program if attribute is valid
     attributeList.forEach { attribute ->
