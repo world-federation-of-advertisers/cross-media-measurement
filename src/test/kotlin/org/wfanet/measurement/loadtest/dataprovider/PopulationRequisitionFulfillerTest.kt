@@ -302,7 +302,7 @@ class PopulationRequisitionFulfillerTest {
       )
     val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
 
-    // Result should be the value of SUB_POPULATION_1
+    // Result should be the value of SUB_POPULATION_2
     assertThat(result.population.value).isEqualTo(VID_RANGE_2.size())
   }
 
