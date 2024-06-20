@@ -202,8 +202,8 @@ class PopulationRequisitionFulfillerTest {
       )
     val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
 
-    // Result should be the sum of SUB_POPULATION_1 and SUB_POPULATION_2
-    assertThat(result.population.value).isEqualTo(VID_RANGE_1.size() + VID_RANGE_2.size())
+    // Result should be the value of SUB_POPULATION_1
+    assertThat(result.population.value).isEqualTo(VID_RANGE_1.size())
   }
 
   @Test
@@ -254,6 +254,56 @@ class PopulationRequisitionFulfillerTest {
 
     // Result should be the sum of SUB_POPULATION_1 and SUB_POPULATION_2
     assertThat(result.population.value).isEqualTo(VID_RANGE_1.size() + VID_RANGE_2.size())
+  }
+
+  @Test
+  fun `fulfills requisition for males 35-54`() {
+    val requisitionSpec =
+      REQUISITION_SPEC.copy {
+        population =
+          RequisitionSpecKt.population {
+            filter = eventFilter { expression = "person.gender == ${Person.Gender.MALE_VALUE} && person.age_group == ${Person.AgeGroup.YEARS_35_TO_54_VALUE}" }
+          }
+      }
+
+    val encryptedRequisitionSpec =
+      encryptRequisitionSpec(
+        signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
+        DATA_PROVIDER_PUBLIC_KEY,
+      )
+
+    val requisition = REQUISITION.copy { this.encryptedRequisitionSpec = encryptedRequisitionSpec }
+
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
+
+    val requisitionFulfiller =
+      PopulationRequisitionFulfiller(
+        PDP_DATA,
+        certificatesStub,
+        requisitionsStub,
+        dummyThrottler,
+        TRUSTED_CERTIFICATES,
+        MC_NAME,
+        modelRolloutsStub,
+        modelReleasesStub,
+        POPULATION_INFO_MAP,
+        TYPE_REGISTRY
+      )
+
+    runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
+
+    val request: FulfillDirectRequisitionRequest =
+      verifyAndCapture(
+        requisitionsServiceMock,
+        RequisitionsCoroutineImplBase::fulfillDirectRequisition,
+      )
+    val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
+
+    // Result should be the value of SUB_POPULATION_1
+    assertThat(result.population.value).isEqualTo(VID_RANGE_2.size())
   }
 
   @Test
@@ -364,11 +414,9 @@ class PopulationRequisitionFulfillerTest {
     val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
 
     // Population value calculated with requisition spec that contains banner_ad field in the filter
-    // expression
-    // should be equal to that which does not contain that field. banner_ad field should just be
-    // ignored. The result
-    // of this test should be the same as test `fulfills requisition for females using different
-    // ModelRelease`
+    // expression should be equal to that which does not contain that field. banner_ad field should just be
+    // ignored. The result of this test should be the same as test `fulfills requisition for females
+    // using different ModelRelease`
     assertThat(result.population.value).isEqualTo(VID_RANGE_3.size())
   }
 

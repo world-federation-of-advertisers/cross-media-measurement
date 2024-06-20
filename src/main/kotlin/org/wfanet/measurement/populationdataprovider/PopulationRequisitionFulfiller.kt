@@ -269,10 +269,10 @@ class PopulationRequisitionFulfiller(
    * attribute set to true will be returned.
    */
   private fun getPopulationOperativeFields(eventMessageDescriptor: Descriptor): Set<String> {
-    return eventMessageDescriptor.fields.flatMap { eventTemplate ->
-      eventTemplate.messageType.fields.map { templateFieldDescriptor ->
+    return eventMessageDescriptor.fields.flatMap { templateField ->
+      templateField.messageType.fields.map { templateFieldDescriptor ->
         if(templateFieldDescriptor.options.getExtension(EventAnnotationsProto.templateField).populationAttribute){
-          "${eventTemplate.name}.${templateFieldDescriptor.name}.value"
+          "${templateField.name}.${templateFieldDescriptor.name}"
         } else null
       }
     }.filterNotNull().toSet()
