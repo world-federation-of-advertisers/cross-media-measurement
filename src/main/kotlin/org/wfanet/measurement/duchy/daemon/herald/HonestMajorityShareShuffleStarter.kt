@@ -109,12 +109,22 @@ object HonestMajorityShareShuffleStarter {
     )
   }
 
+  /** Start the Computation for FIRST_NON_AGGREGATOR. */
   suspend fun startComputation(
     token: ComputationToken,
     computationStorageClient: ComputationsGrpcKt.ComputationsCoroutineStub,
   ) {
     require(token.computationDetails.hasHonestMajorityShareShuffle()) {
       "Honest Majority Share Shuffle computation required."
+    }
+
+    if (
+      token.computationDetails.honestMajorityShareShuffle.role !=
+        RoleInComputation.FIRST_NON_AGGREGATOR
+    ) {
+      // Only FIRST_NON_AGGREGATOR is triggered by herald to start the computation.
+      logger.log(Level.INFO, "[id=${token.globalComputationId}] ignore startComputation.")
+      return
     }
 
     val stage = token.computationStage.honestMajorityShareShuffle
@@ -128,12 +138,33 @@ object HonestMajorityShareShuffleStarter {
         )
         logger.log(Level.INFO) { "[id=${token.globalComputationId}] Computation starts." }
       }
-      // Skip for the second non-aggregator and the aggregator.
-      Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_ONE,
-      Stage.WAIT_ON_AGGREGATION_INPUT -> {}
-      // Throw error when Computation is not ready to start.
+      // For INITIALIZED, it could be caused by an interrupted execution. If the encryption
+      // key has been set, skip the stage to catch up to the Measurement state.
       Stage.INITIALIZED -> {
-        error("[id=${token.globalComputationId}]: Computation is not ready to start. stage=$stage.")
+        if (!isInitialized(token)) {
+          error(
+            "[id=${token.globalComputationId}]:cannot start computation while Computation " +
+              "details not initialized"
+          )
+        }
+        logger.log(
+          Level.WARNING,
+          "[id=${token.globalComputationId}] skipping " + "INITIALIZED to catch up.",
+        )
+        computationStorageClient.advanceComputationStage(
+          token,
+          stage = Stage.WAIT_TO_START.toProtocolStage(),
+        )
+        computationStorageClient.advanceComputationStage(
+          computationToken = token,
+          stage = Stage.SETUP_PHASE.toProtocolStage(),
+        )
+        return
+      }
+      // throw exception for unreachable Stages.
+      Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_ONE,
+      Stage.WAIT_ON_AGGREGATION_INPUT -> {
+        error("[id=${token.globalComputationId}]: unreachable stage $stage")
       }
       // Log and skip for future Stages.
       Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_TWO,
@@ -151,6 +182,9 @@ object HonestMajorityShareShuffleStarter {
       }
     }
   }
+
+  private fun isInitialized(token: ComputationToken): Boolean =
+    token.computationDetails.honestMajorityShareShuffle.hasEncryptionKeyPair()
 
   private fun Computation.toHonestMajorityShareShuffleParameters():
     HonestMajorityShareShuffle.ComputationDetails.Parameters {
