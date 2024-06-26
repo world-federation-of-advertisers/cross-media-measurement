@@ -108,3 +108,24 @@ kt_jvm_test(
         "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/common/api:resource_key",
     ],
 )
+
+kt_jvm_test(
+    name = "KingdomlessApiClientTest",
+    srcs = ["KingdomlessApiClientTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.launcher.KingdomlessApiClientTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/launcher",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/storage/testing",
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/certificates",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/certificates/testing",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
+    ],
+)

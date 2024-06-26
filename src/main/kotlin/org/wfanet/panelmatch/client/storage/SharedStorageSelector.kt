@@ -14,6 +14,7 @@
 
 package org.wfanet.panelmatch.client.storage
 
+import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.common.ExchangeContext
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.StorageType
 import org.wfanet.panelmatch.client.storage.StorageDetails.PlatformCase
@@ -52,7 +53,7 @@ class SharedStorageSelector(
     val storageDetails = storageDetailsProvider.get(context.recurringExchangeId)
     validateStorageType(storageType, storageDetails)
 
-    val storageFactory = getStorageFactory(storageDetails, context)
+    val storageFactory = getStorageFactory(storageDetails, context.exchangeDateKey)
     val storageClient = storageFactory.build()
     val namedSignature = storageClient.getBlobSignature(blobKey)
     val x509 =
@@ -71,23 +72,30 @@ class SharedStorageSelector(
     val storageDetails = storageDetailsProvider.get(context.recurringExchangeId)
     validateStorageType(storageType, storageDetails)
 
-    val storageFactory = getStorageFactory(storageDetails, context)
+    val storageFactory = getStorageFactory(storageDetails, context.exchangeDateKey)
     val (x509, privateKey, certName) =
       certificateManager.getExchangeKeyPair(context.exchangeDateKey)
     val signatureTemplate = namedSignature { certificateName = certName }
     return SigningStorageClient(storageFactory, x509, privateKey, signatureTemplate)
   }
 
+  /** Builds and returns a new [StorageClient] for reading and writing blobs in shared storage. */
+  suspend fun getStorageClient(exchangeDateKey: ExchangeDateKey): StorageClient {
+    val storageDetails = storageDetailsProvider.get(exchangeDateKey.recurringExchangeId)
+    val storageFactory = getStorageFactory(storageDetails, exchangeDateKey)
+    return storageFactory.build()
+  }
+
   private fun getStorageFactory(
     storageDetails: StorageDetails,
-    context: ExchangeContext,
+    exchangeDateKey: ExchangeDateKey,
   ): StorageFactory {
     val platform = storageDetails.platformCase
     val buildStorageFactory =
       requireNotNull(sharedStorageFactories[platform]) {
         "Missing private StorageFactory for $platform"
       }
-    return buildStorageFactory(storageDetails, context.exchangeDateKey)
+    return buildStorageFactory(storageDetails, exchangeDateKey)
   }
 
   private fun validateStorageType(storageType: StorageType, storageDetails: StorageDetails) {
